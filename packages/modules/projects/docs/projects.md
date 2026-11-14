@@ -445,7 +445,9 @@ A project role is not one of these: holding one grants no permission (see
 
 A project's **Linked records** tab lists the Orders, Quote requests and
 Opportunities linked to it, a group each: every record with its number — a
-link to it — its status and its amount. A quote request's amount is the one
+link to it — its status, named as its own module names it in your language,
+and its amount. The record picker names each status the same way. A quote
+request's amount is the one
 the Quote Requests module computes, the figure its own list shows. While only
 some of its lines have an agreed price, it is marked **Partially agreed**;
 while none has, **Not yet agreed**. A quote request without any price shows
@@ -673,7 +675,7 @@ the figures are not served.
 | `PUT /api/v1/admin/projects/:id/stages/:stageId/tasks` | `projects:write` | `{ tasks: StageTaskDefinition[] }` (at most 100), replacing the stage's stage tasks → `{ data: ProjectStage }`; `422` for an unknown responsible role. |
 | `POST /api/v1/admin/projects/:id/stages/:stageId/materialize-tasks` | `projects:write` | Creates the stage's tasks again after a recorded failure — the stage's `tasksMaterializeFailed` — → `{ data: { created } }`; `409` `PROJECT_STAGE_TASKS_NOT_RETRYABLE` otherwise, `503` `MODULE_DISABLED` while Tasks is off. |
 | `GET /api/v1/admin/projects/:id/tasks` | `projects:read` | `{ data: { tasksAvailable, stages: [{ stageId, tasks: TaskSummary[] }] } }`, in stage order; `tasksAvailable: false` and no stages while Tasks is off or for a reader without `tasks:read`. |
-| `GET /api/v1/admin/projects/:id/links` | `projects:read` | `{ data: ProjectLink[] }`, oldest first: `{ id, kind, recordId, available, number?, status?, amount?, currency?, href?, linkedBy, linkedAt }`. The record's fields are present only when `available` — the reader holds its owner's read code (`orders:read`, `rfqs:handle`, `crm:read`), its module is on and it still exists. |
+| `GET /api/v1/admin/projects/:id/links` | `projects:read` | `{ data: ProjectLink[] }`, oldest first: `{ id, kind, recordId, available, number?, status?, statusName?, amount?, currency?, href?, linkedBy, linkedAt }`; `status` is the owner's code and `statusName` its name for it in the response language. The record's fields are present only when `available` — the reader holds its owner's read code (`orders:read`, `rfqs:handle`, `crm:read`), its module is on and it still exists. |
 | `POST /api/v1/admin/projects/:id/links` | `projects:write` | `{ kind: 'order' \| 'quote_request' \| 'opportunity', recordId }` → `201` `{ data: ProjectLink }`. `503` `MODULE_DISABLED` while the kind's module is off; `403` without its owner's read code; `404` `PROJECT_RECORD_NOT_FOUND` for a record that does not exist or is out of the caller's reach; `422` `PROJECT_LINK_ORGANIZATION_MISMATCH` for a record of an Organization the project does not have; `409` `PROJECT_RECORD_ALREADY_LINKED`, whose `details.project` (`{ id, number, title }`) names the project holding it only to a caller who may see that project. |
 | `DELETE /api/v1/admin/projects/:id/links/:linkId` | `projects:write` | `204`; `404` for a link of another project or one that does not exist. |
 | `GET /api/v1/admin/projects/records/:kind/:recordId/project` | `projects:read` | `{ data: ProjectSummary }` — the project an `order`, `quote_request`, `opportunity` or `task` (through its context) belongs to; `404` `PROJECT_NOT_FOUND` alike for a record in no project and one in a project the caller may not see. Needs the kind's read code as well (`403`), and its module on (`503`). |

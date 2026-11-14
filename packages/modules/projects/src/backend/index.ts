@@ -82,6 +82,7 @@ import type { DictionaryService } from './services/dictionary-service.js';
 import { ProjectDocumentLookupService } from './services/document-lookup-service.js';
 import { ProjectHistoryService } from './services/history-service.js';
 import { LinkService } from './services/link-service.js';
+import { createLinkedRecordStatusNames } from './services/linked-record-status.js';
 import { createLinkedRecordOwners, type LinkedRecordOwners } from './services/linked-records.js';
 import { ProjectLookupService } from './services/lookup-service.js';
 import { createLossReasonService } from './services/loss-reason-service.js';
@@ -388,6 +389,11 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             access: projectsAccess,
             owners: projectsLinkedRecordOwners,
+            statusNames: createLinkedRecordStatusNames({
+              orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+              quoteRequests: lazyPort<QuoteRequestReadPort>(ctx, 'quoteRequestReadPort'),
+              opportunities: lazyPort<OpportunityReadPort>(ctx, 'opportunityReadPort'),
+            }),
             mayRead: projectsOwnerReadChecks,
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
           }),

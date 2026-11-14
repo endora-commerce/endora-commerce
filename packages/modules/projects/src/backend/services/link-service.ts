@@ -8,12 +8,14 @@ import {
   type ProjectLink,
   type ProjectRecordKind,
   type ProjectRecordLinkEvent,
+  type SupportedLanguage,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { randomUUID } from 'crypto';
 import { ProjectLink as ProjectLinkEntity } from '../entities/project-link.entity.js';
+import type { LinkedRecordStatusNames } from './linked-record-status.js';
 import { RECORD_OWNER, type LinkedRecordOwners, type LinkedRecordView } from './linked-records.js';
 import type { OwnerReadCheck, OwnerReadChecks } from './owner-read-permissions.js';
 import { isUuid, type ProjectAccess } from './project-access.js';
@@ -54,6 +56,8 @@ export interface LinkServiceDeps {
   commandBus: CommandBus;
   access: ProjectAccess;
   owners: LinkedRecordOwners;
+  /** Each shown record's status by its owner's name for it (issue #455). */
+  statusNames: LinkedRecordStatusNames;
   mayRead: Pick<OwnerReadChecks, 'orders' | 'quoteRequests' | 'opportunities'>;
   /** `admin_users`' read port — who linked a record. Lazy, resolved per call. */
   adminUsers: AdminUserReadPort;
@@ -97,18 +101,18 @@ function alreadyLinked(project: { id: string; number: string; title: string } | 
 export class LinkService {
   constructor(private readonly deps: LinkServiceDeps) {}
 
-  /** `GET /projects/:id/links` — oldest first, each as the reader may see its record. */
-  async list(projectId: string): Promise<ProjectLink[]> {
+  /** `GET /projects/:id/links` — oldest first, each as the reader may see its record, its status named in `language`. */
+  async list(projectId: string, language: SupportedLanguage): Promise<ProjectLink[]> {
     const project = await this.deps.access.loadVisible(projectId);
     const rows = (await this.deps.emFactory().execute(
       `select ${LINK_COLUMNS} from "project_links" l where l."project_id" = ? order by l."linked_at", l."id"`,
       [project.id],
     )) as LinkRow[];
-    return this.#render(rows);
+    return this.#render(rows, language);
   }
 
   /** `POST /projects/:id/links`. */
-  async add(projectId: string, body: CreateProjectLinkBody): Promise<ProjectLink> {
+  async add(projectId: string, body: CreateProjectLinkBody, language: SupportedLanguage): Promise<ProjectLink> {
     const project = await this.deps.access.loadVisible(projectId);
     const record = await this.#readable(body.kind, body.recordId);
     if (!(await this.#projectHasOrganization(this.deps.emFactory(), project.id, record.organizationId))) {
@@ -171,6 +175,7 @@ export class LinkService {
       (await this.deps.emFactory().execute(`select ${LINK_COLUMNS} from "project_links" l where l."id" = ?`, [
         linkId,
       ])) as LinkRow[],
+      language,
     );
     if (!rendered) throw linkNotFound();
     return rendered;
@@ -267,13 +272,14 @@ export class LinkService {
    * owner off, code not held, record gone or out of reach — is unavailable,
    * without number, status, amount or address.
    */
-  async #render(rows: readonly LinkRow[]): Promise<ProjectLink[]> {
+  async #render(rows: readonly LinkRow[], language: SupportedLanguage): Promise<ProjectLink[]> {
     const views = new Map<string, LinkedRecordView>();
     for (const kind of ['order', 'quote_request', 'opportunity'] as const) {
       const ids = rows.filter((row) => row.record_kind === kind).map((row) => row.record_id);
       if (ids.length === 0 || !this.deps.owners.isPresent(kind) || !(await this.#mayRead(kind)())) continue;
       for (const [id, view] of await this.deps.owners.findMany(kind, ids)) views.set(`${kind}:${id}`, view);
     }
+    const statusNames = await this.deps.statusNames.namesOf([...views.values()], language);
     const linkerIds = [...new Set(rows.map((row) => row.linked_by_admin_user_id).filter((id): id is string => id !== null))];
     const linkers = new Map(
       (linkerIds.length > 0 ? await this.deps.adminUsers.findByIds(linkerIds) : []).map((admin) => [admin.id, admin]),
@@ -290,6 +296,7 @@ export class LinkService {
           ? {
               number: view.number,
               status: view.status,
+              statusName: statusNames.get(`${view.kind}:${view.status}`) ?? view.status,
               ...(view.amount !== null ? { amount: view.amount } : {}),
               ...(view.currency !== null ? { currency: view.currency } : {}),
               ...(view.agreement !== undefined ? { agreement: view.agreement } : {}),

@@ -287,3 +287,75 @@ describe.each(['en', 'pl'] as const)('Linked records — the agreement marker of
     expect(row(4)).not.toHaveTextContent(notYet);
   });
 });
+
+/**
+ * Issue #455 — a linked record's status, in the tab and in the link picker, is
+ * the name its owner gives it in the reader's language: the server's
+ * `statusName` in the tab, the owner list's own name in the picker, and the
+ * code only when nothing names it.
+ */
+describe('Linked records — status names (issue #455)', () => {
+  it('shows the status by the name the server resolved, not by its code', async () => {
+    links = [
+      link({
+        id: '00000000-0000-4000-8000-0000000001c1',
+        kind: 'order',
+        recordId: ORDER_ID,
+        available: true,
+        number: 'ORD-1001',
+        status: 'new',
+        statusName: 'Nowe',
+        href: `/orders/${ORDER_ID}`,
+      }),
+      link({
+        id: '00000000-0000-4000-8000-0000000001c2',
+        kind: 'opportunity',
+        recordId: OPPORTUNITY_ID,
+        available: true,
+        number: 'OPP-000007',
+        status: 'proposal',
+        statusName: 'Propozycja',
+        href: `/crm/opportunities/${OPPORTUNITY_ID}`,
+      }),
+    ];
+    await renderTab({ language: 'pl' });
+    const section = (kind: 'order' | 'opportunity') =>
+      screen.getByRole('heading', { name: pl(`links.group.${kind}`) }).closest('section') as HTMLElement;
+    expect(within(section('order')).getByText('Nowe')).toBeInTheDocument();
+    expect(within(section('order')).queryByText('new')).toBeNull();
+    expect(within(section('opportunity')).getByText('Propozycja')).toBeInTheDocument();
+    expect(within(section('opportunity')).queryByText('proposal')).toBeNull();
+  });
+
+  it('names an Order’s and a Quote Request’s status in the picker as their owners do', async () => {
+    getSpy.mockImplementation((path: string) => {
+      if (path === LINKS_PATH) return Promise.resolve({ data: [] });
+      if (path.startsWith('/api/v1/admin/orders?')) {
+        return Promise.resolve({
+          data: [{ id: FREE_ORDER_ID, businessId: 'ORD-1002', status: 'new', statusName: { en: 'New', pl: 'Nowe' } }],
+        });
+      }
+      if (path.startsWith('/api/v1/admin/quote-requests?')) {
+        return Promise.resolve({
+          data: [{ id: QUOTE_ID, businessId: 'QR-1', status: 'Pending', statusName: 'Oczekujące' }],
+        });
+      }
+      if (path.startsWith('/api/v1/admin/crm/opportunities?')) return Promise.resolve({ data: [] });
+      return Promise.reject(new Error(`unexpected GET ${path}`));
+    });
+    await renderTab({ language: 'pl' });
+    const section = (kind: 'order' | 'quote_request') =>
+      screen.getByRole('heading', { name: pl(`links.group.${kind}`) }).closest('section') as HTMLElement;
+
+    await userEvent.click(within(section('order')).getByLabelText(pl('links.add.record.order')));
+    const order = await screen.findByRole('option', { name: /ORD-1002/ });
+    expect(order).toHaveTextContent('Nowe');
+    expect(order).not.toHaveTextContent(/\bnew\b/);
+    await userEvent.keyboard('{Escape}');
+
+    await userEvent.click(within(section('quote_request')).getByLabelText(pl('links.add.record.quote_request')));
+    const quote = await screen.findByRole('option', { name: /QR-1/ });
+    expect(quote).toHaveTextContent('Oczekujące');
+    expect(quote).not.toHaveTextContent('Pending');
+  });
+});

@@ -101,6 +101,16 @@ export interface MentionableProduct {
 /** How many entries one page of a history asks for. */
 export const HISTORY_PAGE_SIZE = 50;
 
+/**
+ * A name from an owner's per-language map (`orders`' `statusName`): the
+ * language, else a regional variant of it (`pl` → `pl-PL`), else none.
+ */
+function namedIn(names: Record<string, string> | undefined, language: string): string | undefined {
+  if (!names) return undefined;
+  const regional = Object.keys(names).find((key) => key.startsWith(`${language}-`));
+  return names[language] || (regional ? names[regional] : undefined) || undefined;
+}
+
 const OWNER_LISTS = {
   orders: '/api/v1/admin/orders',
   quoteRequests: '/api/v1/admin/quote-requests',
@@ -253,15 +263,27 @@ export const projectsApi = {
     return data(apiClient.get<{ data: ProjectSummary }>(`${BASE}/records/${kind}/${recordId}/project`));
   },
 
-  /** Records of one kind and Organization a link picker offers, by number (task T094). */
-  linkableRecords(kind: ProjectRecordKind, organizationId: string, query = ''): Promise<LinkableRecord[]> {
+  /**
+   * Records of one kind and Organization a link picker offers, by number (task
+   * T094), each with its status named as its owner's list names it, in
+   * `language` (issue #455).
+   */
+  linkableRecords(kind: ProjectRecordKind, organizationId: string, query: string, language: string): Promise<LinkableRecord[]> {
     const q = query.trim();
     if (kind === 'order') {
       const qs = new URLSearchParams({ organizationId, page: '1', pageSize: String(LINKABLE_LIMIT) });
       if (q) qs.set('q', q);
       return apiClient
-        .get<{ data: Array<{ id: string; businessId: string; status: string }> }>(`${OWNER_LISTS.orders}?${qs.toString()}`)
-        .then((envelope) => envelope.data.map((order) => ({ id: order.id, number: order.businessId, detail: order.status })));
+        .get<{ data: Array<{ id: string; businessId: string; status: string; statusName?: Record<string, string> }> }>(
+          `${OWNER_LISTS.orders}?${qs.toString()}`,
+        )
+        .then((envelope) =>
+          envelope.data.map((order) => ({
+            id: order.id,
+            number: order.businessId,
+            detail: namedIn(order.statusName, language) ?? order.status,
+          })),
+        );
     }
     if (kind === 'opportunity') {
       const qs = new URLSearchParams({ organizationId, limit: String(LINKABLE_LIMIT) });
@@ -275,12 +297,14 @@ export const projectsApi = {
     const qs = new URLSearchParams({ organizationId });
     const needle = q.toLowerCase();
     return apiClient
-      .get<{ data: Array<{ id: string; businessId: string; status: string }> }>(`${OWNER_LISTS.quoteRequests}?${qs.toString()}`)
+      .get<{ data: Array<{ id: string; businessId: string; status: string; statusName?: string }> }>(
+        `${OWNER_LISTS.quoteRequests}?${qs.toString()}`,
+      )
       .then((envelope) =>
         envelope.data
           .filter((request) => needle === '' || request.businessId.toLowerCase().includes(needle))
           .slice(0, LINKABLE_LIMIT)
-          .map((request) => ({ id: request.id, number: request.businessId, detail: request.status })),
+          .map((request) => ({ id: request.id, number: request.businessId, detail: request.statusName ?? request.status })),
       );
   },
 

@@ -53,6 +53,7 @@ function owners(
     findByIds: vi.fn(async (ids: readonly string[]) => quotes.filter((quote) => ids.includes(quote.id))),
     findByBusinessId: vi.fn(async () => null),
     listOpenForOrganizations: vi.fn(async () => []),
+    statusName: vi.fn(async (status: string) => status),
     listItems: vi.fn(async () => {
       throw new Error('the lines are quote_requests’ to value');
     }),
@@ -68,6 +69,7 @@ function owners(
     findByDocument: vi.fn(async () => null),
     listOpenForOrganization: vi.fn(async () => []),
     search: vi.fn(async () => []),
+    statusName: vi.fn(async (code: string) => code),
   } satisfies OpportunityReadPort;
   const subject = createLinkedRecordOwners({
     quoteRequests,
