@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { SupportedLanguage } from './platform-language.js';
 import { isoDateTimeSchema, OriginReferenceSchema, uuidSchema, type OriginReference } from './common.js';
 import {
   lineGroupInputSchema,
@@ -1056,6 +1057,15 @@ export interface QuoteRequestLineRecord {
  */
 export interface QuoteRequestReadPort {
   findById(id: string): Promise<QuoteRequestRecord | null>;
+  /**
+   * A status's name in `language`, in this module's own wording (the one its
+   * global-search results use); a code outside {@link rfqStatusSchema} answers
+   * as it is. Published for issue #455, so that a module showing a linked
+   * Quote Request names its status as `quote_requests` does rather than
+   * showing the stored code or keeping a copy of the wording. Reads no quote,
+   * so it checks no permission.
+   */
+  statusName(status: string, language: SupportedLanguage): Promise<string>;
   /**
    * Open quotes for the given organisations. Empty `organizationIds` answers
    * the empty array rather than every quote — a rep assigned nothing sees

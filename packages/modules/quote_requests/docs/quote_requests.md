@@ -268,6 +268,11 @@ The admin list answers `amount` (`null` when no line has a price) and
 both through `quoteRequestReadPort.amountOf(id)`, which answers `{ amount,
 currency, agreement }`, or `null` for a request the caller cannot see.
 
+Each row of the admin list also answers `statusName`, the status's name in the
+response language beside its `status` code, and other modules name a status
+through `quoteRequestReadPort.statusName(status, language)` — the same wording
+global search uses, so no module keeps a copy of it.
+
 ## History
 
 `GET /api/v1/admin/quote-requests/:id/history` — and the History tab of the

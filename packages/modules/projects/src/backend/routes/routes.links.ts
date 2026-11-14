@@ -28,14 +28,18 @@ export async function registerLinkRoutes(app: FastifyInstance, deps: LinkRoutesD
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/projects/:id/links',
     { preHandler: requireAdmin('projects:read') },
-    async (request) => ({ data: await links.list(request.params.id) }),
+    async (request) => ({ data: await links.list(request.params.id, await request.responseLanguage()) }),
   );
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/projects/:id/links',
     { preHandler: requireAdmin('projects:write'), schema: { body: CreateProjectLinkBodySchema } },
     async (request, reply) => {
-      const link = await links.add(request.params.id, CreateProjectLinkBodySchema.parse(request.body));
+      const link = await links.add(
+        request.params.id,
+        CreateProjectLinkBodySchema.parse(request.body),
+        await request.responseLanguage(),
+      );
       reply.code(201);
       return { data: link };
     },

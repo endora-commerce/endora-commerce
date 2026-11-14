@@ -244,6 +244,11 @@ ceny) i `agreement` (`agreed`, `partial` albo `none`). Inne moduły odczytują o
 `quoteRequestReadPort.amountOf(id)`, które zwraca `{ amount, currency, agreement }` albo `null` dla
 zapytania, którego wywołujący nie widzi.
 
+Każdy wiersz listy w panelu administracyjnym podaje też `statusName`, czyli nazwę statusu w języku
+odpowiedzi obok kodu `status`, a inne moduły nazywają status przez
+`quoteRequestReadPort.statusName(status, language)` — tymi samymi słowami, których używa
+wyszukiwanie globalne, więc żaden moduł nie trzyma ich kopii.
+
 ## Historia
 
 `GET /api/v1/admin/quote-requests/:id/history` — i zakładka Historia na ekranie szczegółów w

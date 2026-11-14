@@ -377,6 +377,7 @@ describe('in-process ports (type level)', () => {
     };
     const port: QuoteRequestReadPort = {
       findById: async () => null,
+      statusName: async (status) => status,
       listOpenForOrganizations: async () => [],
       listItems: async () => [legacy],
       findByBusinessId: async () => null,

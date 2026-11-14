@@ -13,7 +13,7 @@ import {
   Select,
   type ComboboxOption,
 } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../api.js';
 import { errorMessage, NO_VALUE } from '../lib/labels.js';
 import { useRemoteOptions } from './LookupPickers.js';
@@ -191,7 +191,7 @@ function LinkGroup(props: LinkGroupProps): ReactNode {
                     )}
                     {link.status ? (
                       <Badge variant="outline" className="font-normal">
-                        {link.status}
+                        {link.statusName ?? link.status}
                       </Badge>
                     ) : null}
                     {amount ? (
@@ -256,6 +256,7 @@ interface LinkPickerProps {
  */
 function LinkPicker({ kind, project, linkedIds, onLinked }: LinkPickerProps): ReactNode {
   const t = useTranslation('projects');
+  const { language } = useAppLanguage();
   const organizationFieldId = useId();
   const recordFieldId = useId();
   const [organizationId, setOrganizationId] = useState(project.organizations[0]?.id ?? '');
@@ -265,12 +266,12 @@ function LinkPicker({ kind, project, linkedIds, onLinked }: LinkPickerProps): Re
 
   const loadRecords = useCallback(
     async (query: string): Promise<ComboboxOption<string>[]> =>
-      (await projectsApi.linkableRecords(kind, organizationId, query)).map((record) => ({
+      (await projectsApi.linkableRecords(kind, organizationId, query, language)).map((record) => ({
         value: record.id,
         label: record.number,
         description: record.detail,
       })),
-    [kind, organizationId],
+    [kind, organizationId, language],
   );
   const remote = useRemoteOptions(loadRecords);
 

@@ -26,6 +26,7 @@ import type {
 import { RfqService, type RfqEventBus, type RfqServiceDeps } from './services/rfq-service.js';
 import { createQuoteRequestBusinessIdGenerator } from './services/quote-request-business-id-generator.js';
 import { RfqAdminService } from './services/rfq-admin-service.js';
+import { quoteRequestStatusName } from './services/quote-request-status-name.js';
 import { RfqEventService } from './services/rfq-event-service.js';
 import { RfqRevisionService } from './services/rfq-revision-service.js';
 import { RfqNotificationService } from './services/rfq-notification-service.js';
@@ -370,6 +371,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
         requireAdmin: options.requireAdmin,
         resolveAdminContext: options.resolveAdminContext,
         listViewService,
+        statusName: (status, language) => quoteRequestStatusName(options.delivery.translate, status, language),
       });
       // D-166 — this module's one endpoint of the sales-rep pair, in this
       // module's own file. It used to `import()` `organizations`' route file
