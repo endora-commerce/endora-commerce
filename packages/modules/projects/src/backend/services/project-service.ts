@@ -33,7 +33,7 @@ import { ProjectValueChange, type ProjectValueState } from '../entities/project-
 import { ProjectViewer } from '../entities/project-viewer.entity.js';
 import { isDeepStrictEqual } from 'node:util';
 import { newlyMentioned, type ProjectMentionService, type SavedProjectMentions } from './mention-service.js';
-import type { ProjectAccess } from './project-access.js';
+import type { ProjectAccess, VisibleProjectRow } from './project-access.js';
 import { mergeProjectCustomFields } from './project-custom-fields.js';
 import { tellAfterCommit } from './project-notifier.js';
 import { nextProjectNumber } from './project-number.js';
@@ -139,6 +139,53 @@ export async function lockProject(
   const project = await lockProjectRow(em, id);
   await access.assertVisibleUnderLock(em, id, rule);
   return project;
+}
+
+/**
+ * The `configurationVersion` a write of the Project's sets was read at, held
+ * before anything else is asked (issue #449): a stale read is refused before
+ * the checks of what it would change. `undefined` — a client that sends none —
+ * is not checked.
+ */
+export function assertConfigurationReadAt(
+  visible: Pick<VisibleProjectRow, 'configuration_version'>,
+  expected: number | undefined,
+): void {
+  if (expected !== undefined && visible.configuration_version !== expected) throw projectChanged();
+}
+
+/**
+ * Lock a Project for a write of its sets — Stages added, deleted or reordered,
+ * the workflow, the Organizations, the Members (issue #449) — hold it to the
+ * `configurationVersion` the caller read when one is sent, and move that
+ * version. Every such write moves it, sent or not, so a second administrator
+ * editing from the same read is refused rather than overwriting the first.
+ * The Project's `version`, which moves, closes, reopens and edits name, is
+ * left alone: a client that changed the configuration and then moves the
+ * Project with the version it read is served as before.
+ */
+export async function lockProjectForConfiguration(
+  em: EntityManager,
+  access: Pick<ProjectAccess, 'assertVisibleUnderLock'>,
+  id: string,
+  expected: number | undefined,
+): Promise<Project> {
+  const project = await lockProject(em, access, id);
+  if (expected !== undefined && project.configurationVersion !== expected) throw projectChanged();
+  project.configurationVersion += 1;
+  return project;
+}
+
+/**
+ * Hold a Stage, read under its Project's lock, to the `version` the caller read
+ * when one is sent, and move it (issue #449) — for a Stage's own edits: its
+ * attributes and its Stage Task definitions.
+ */
+export function claimStage(stage: ProjectStage, expected: number | undefined): void {
+  if (expected !== undefined && stage.version !== expected) {
+    throw new HttpError(409, ERROR_CODES.PROJECT_CHANGED, 'The stage changed since it was read. Reload the project and try again.');
+  }
+  stage.version += 1;
 }
 
 /**
@@ -630,9 +677,14 @@ export class ProjectService {
   }
 
   /**
-   * `PUT /projects/:id/organizations` — the whole set. One Command per
-   * Organization added or removed, so the trail names each; every refusal is
-   * checked before the first.
+   * `PUT /projects/:id/organizations` — the whole set, against
+   * `configurationVersion` when sent, **in one transaction** (issue #449): one
+   * Command locks the Project, holds and moves that version, and runs a child Command per Organization
+   * added or removed, so the trail still names each (`organization_add`,
+   * `organization_remove`, `data-model.md` §2.4) and a failure part-way leaves
+   * the set as it was. Every refusal is checked before the Command, and the one
+   * a link made meanwhile could change is asked again under the lock. The
+   * Command itself records no entry of its own: its children are the trail.
    *
    * A caller confined to some Organizations who removes them all makes the
    * Project internal, and so out of their own reach: the change stands, and
@@ -642,8 +694,10 @@ export class ProjectService {
     id: string,
     organizationIds: readonly string[],
     language: string,
+    version?: number,
   ): Promise<ProjectDetail | ProjectOutOfReachAfterWrite> {
     const visible = await this.deps.access.loadVisible(id);
+    assertConfigurationReadAt(visible, version);
     const current = (
       (await this.deps.emFactory().execute(
         `select po."organization_id" from "project_organizations" po where po."project_id" = ?`,
@@ -655,36 +709,47 @@ export class ProjectService {
     await this.#assertOrganizations(added);
     if (await hasLinksOf(this.deps.emFactory(), visible.id, removed)) throw organizationInUse();
 
-    for (const organizationId of added) {
+    if (added.length > 0 || removed.length > 0) {
       await this.deps.commandBus.run({
-        action: 'projects.project.organization_add',
+        action: 'projects.project.organizations_set',
         objectType: 'project',
         objectId: visible.id,
-        run: async ({ em }) => {
-          await lockProject(em, this.deps.access, visible.id);
-          const inserted = (await em.execute(
-            `insert into "project_organizations" ("project_id", "organization_id") values (?, ?)
-             on conflict do nothing returning "organization_id"`,
-            [visible.id, organizationId],
-          )) as unknown[];
-          if (inserted.length === 0) return { result: null, skipAudit: true };
-          return { result: null, before: null, after: { organizationId } };
-        },
-      });
-    }
-    for (const organizationId of removed) {
-      await this.deps.commandBus.run({
-        action: 'projects.project.organization_remove',
-        objectType: 'project',
-        objectId: visible.id,
-        run: async ({ em }) => {
-          await lockProject(em, this.deps.access, visible.id);
+        run: async (ctx) => {
+          const em = ctx.em as EntityManager;
+          if (!ctx.run) throw new Error('projects.project.organizations_set runs child Commands; run it on the Command Bus.');
+          await lockProjectForConfiguration(em, this.deps.access, visible.id, version);
           // Again under the lock — a link may have been made since; the
           // foreign key from `project_links` is the schema's own answer.
-          if (await hasLinksOf(em as EntityManager, visible.id, [organizationId])) throw organizationInUse();
-          const deleted = await em.nativeDelete(ProjectOrganization, { projectId: visible.id, organizationId });
-          if (deleted === 0) return { result: null, skipAudit: true };
-          return { result: null, before: { organizationId }, after: null };
+          if (await hasLinksOf(em, visible.id, removed)) throw organizationInUse();
+          for (const organizationId of added) {
+            await ctx.run({
+              action: 'projects.project.organization_add',
+              objectType: 'project',
+              objectId: visible.id,
+              run: async ({ em: tx }) => {
+                const inserted = (await tx.execute(
+                  `insert into "project_organizations" ("project_id", "organization_id") values (?, ?)
+                   on conflict do nothing returning "organization_id"`,
+                  [visible.id, organizationId],
+                )) as unknown[];
+                if (inserted.length === 0) return { result: null, skipAudit: true };
+                return { result: null, before: null, after: { organizationId } };
+              },
+            });
+          }
+          for (const organizationId of removed) {
+            await ctx.run({
+              action: 'projects.project.organization_remove',
+              objectType: 'project',
+              objectId: visible.id,
+              run: async ({ em: tx }) => {
+                const deleted = await tx.nativeDelete(ProjectOrganization, { projectId: visible.id, organizationId });
+                if (deleted === 0) return { result: null, skipAudit: true };
+                return { result: null, before: { organizationId }, after: null };
+              },
+            });
+          }
+          return { result: null, skipAudit: true };
         },
       });
     }
@@ -692,9 +757,18 @@ export class ProjectService {
     return this.deps.read.afterWrite(visible.id, language);
   }
 
-  /** `PUT /projects/:id/members` — the whole set, Members and their Roles, in one Command. */
-  async setMembers(id: string, members: readonly ProjectMemberInput[], language: string): Promise<ProjectDetail> {
+  /**
+   * `PUT /projects/:id/members` — the whole set, Members and their Roles, in
+   * one Command, against `configurationVersion` when sent.
+   */
+  async setMembers(
+    id: string,
+    members: readonly ProjectMemberInput[],
+    language: string,
+    version?: number,
+  ): Promise<ProjectDetail> {
     const visible = await this.deps.access.loadVisible(id);
+    assertConfigurationReadAt(visible, version);
     const em = this.deps.emFactory();
     const held = (await em.execute(
       `select pm."admin_user_id", pmr."role_id" from "project_members" pm
@@ -713,7 +787,7 @@ export class ProjectService {
       objectType: 'project',
       objectId: visible.id,
       run: async ({ em: tx }) => {
-        await lockProject(tx, this.deps.access, visible.id);
+        await lockProjectForConfiguration(tx as EntityManager, this.deps.access, visible.id, version);
         // Issue #453 — the Roles the Members hold, held against a delete and asked again.
         const memberRoleIds = members.flatMap((member) => member.roleIds);
         await lockRolesShared(tx as EntityManager, memberRoleIds);

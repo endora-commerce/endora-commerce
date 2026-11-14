@@ -454,6 +454,8 @@ describe('projects (contract) — §2.1 Projects, §2.2 Stages and moves', () =>
             { fromStageId: handover, toStageId: design },
           ],
           unreachableStageIds: [build],
+          // The configuration version the write left the Project at (issue #449).
+          configurationVersion: project.configurationVersion + 1,
         });
         const foreign = await callProjects(h, 'PUT', `/${project.id}/moves`, {
           payload: { moves: [{ fromStageId: design, toStageId: randomUUID() }] },

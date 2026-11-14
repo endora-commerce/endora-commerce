@@ -171,6 +171,8 @@ export interface VisibleProjectRow {
   loss_comment: string | null;
   custom_field_values: Record<string, unknown>;
   version: number;
+  /** The token of the Project's sets (issue #449). */
+  configuration_version: number;
   closed_at: Date | null;
   created_at: Date;
   /** `created_at` at full precision — a keyset cursor's key. */
@@ -182,7 +184,7 @@ export const VISIBLE_PROJECT_COLUMNS = `p."id", p."number", p."title", p."descri
   p."current_stage_id", p."value_amount"::text as "value_amount", p."value_currency",
   to_char(p."start_on", 'YYYY-MM-DD') as "start_on", p."visibility", p."template_id",
   p."lost_stage_id", p."loss_reason_id", p."loss_comment", p."custom_field_values", p."version",
-  p."closed_at", p."created_at", p."created_at"::text as "cursor_at"`;
+  p."configuration_version", p."closed_at", p."created_at", p."created_at"::text as "cursor_at"`;
 
 export function projectNotFound(): HttpError {
   return new HttpError(404, ERROR_CODES.PROJECT_NOT_FOUND, 'Project not found.');

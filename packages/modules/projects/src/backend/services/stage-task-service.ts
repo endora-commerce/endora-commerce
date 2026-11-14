@@ -21,7 +21,7 @@ import { ProjectStageTask } from '../entities/project-stage-task.entity.js';
 import { TASKS_READ_PERMISSION } from './owner-read-permissions.js';
 import { uuidArray, type ProjectAccess } from './project-access.js';
 import { personName, type ProjectReadService } from './project-read-service.js';
-import { assertRolesExist, lockProject, lockProjectRow } from './project-service.js';
+import { assertRolesExist, claimStage, lockProject, lockProjectRow } from './project-service.js';
 import { lockRolesForWrite } from './role-locks.js';
 import { PROJECT_TASK_CONTEXT_TYPE, type ProjectTasks } from './project-tasks.js';
 import { stageNotFound } from './stage-service.js';
@@ -112,8 +112,13 @@ function notRetryable(): HttpError {
 export class StageTaskService {
   constructor(private readonly deps: StageTaskServiceDeps) {}
 
-  /** `PUT /projects/:id/stages/:stageId/tasks` — the Stage's definitions, replaced whole. */
-  async setDefinitions(projectId: string, stageId: string, tasks: readonly StageTaskDefinition[]): Promise<ProjectStageView> {
+  /** `PUT /projects/:id/stages/:stageId/tasks` — the Stage's definitions, replaced whole, against the Stage's `version` when sent. */
+  async setDefinitions(
+    projectId: string,
+    stageId: string,
+    tasks: readonly StageTaskDefinition[],
+    version?: number,
+  ): Promise<ProjectStageView> {
     const visible = await this.deps.access.loadVisible(projectId);
     const roleIds = tasks.map((task) => task.responsibleRoleId).filter((id): id is string => typeof id === 'string');
     await assertRolesExist(this.deps.emFactory(), roleIds);
@@ -127,6 +132,7 @@ export class StageTaskService {
         await lockRolesForWrite(em as EntityManager, roleIds);
         const stage = await em.findOne(ProjectStage, { id: stageId, projectId: visible.id });
         if (!stage) throw stageNotFound();
+        claimStage(stage, version);
         const previous = await em.find(ProjectStageTask, { stageId }, { orderBy: { position: 'asc', id: 'asc' } });
         const before = { stageId, tasks: previous.map(definitionSnapshot) };
         await em.nativeDelete(ProjectStageTask, { stageId });

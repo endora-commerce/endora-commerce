@@ -23,6 +23,7 @@ export class ProjectStage {
     | 'deadlineManual'
     | 'tasksMaterializedAt'
     | 'tasksSkippedAt'
+    | 'version'
     | 'createdAt'
     | 'updatedAt';
 
@@ -76,6 +77,13 @@ export class ProjectStage {
   /** Stage Tasks were skipped on entry, Tasks being off (R-8) — terminal. */
   @Property({ type: 'datetime', nullable: true })
   tasksSkippedAt?: Date | null;
+
+  /**
+   * The optimistic-concurrency token of the Stage's own edits — its attributes
+   * and its Stage Task definitions (issue #449); each of them moves it.
+   */
+  @Property({ type: 'integer' })
+  version: number = 1;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

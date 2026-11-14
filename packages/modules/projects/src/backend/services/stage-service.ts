@@ -17,7 +17,13 @@ import { ProjectStage } from '../entities/project-stage.entity.js';
 import { ProjectStageMove } from '../entities/project-stage-move.entity.js';
 import type { ProjectAccess } from './project-access.js';
 import type { ProjectReadService } from './project-read-service.js';
-import { assertRolesExist, lockProject } from './project-service.js';
+import {
+  assertConfigurationReadAt,
+  assertRolesExist,
+  claimStage,
+  lockProject,
+  lockProjectForConfiguration,
+} from './project-service.js';
 import { lockRolesForWrite } from './role-locks.js';
 import { PROJECT_TASK_CONTEXT_TYPE, type ProjectTasks } from './project-tasks.js';
 
@@ -29,7 +35,13 @@ import { PROJECT_TASK_CONTEXT_TYPE, type ProjectTasks } from './project-tasks.js
  *
  * Every write starts from `ProjectAccess.loadVisible`; inside the Command the
  * Project row is locked, so a Stage edit and a move of the same Project run
- * one after the other, and the Stages and moves are read by its id.
+ * one after the other, and the Stages and moves are read by its id. Each write
+ * is held, when it names one, to the version the caller read, and moves it
+ * (issue #449): a Stage's edit to that Stage's `version` (`claimStage`), every
+ * other write — adding, deleting and reordering Stages, the workflow — to the
+ * Project's `configurationVersion` (`lockProjectForConfiguration`). Two
+ * administrators editing from the same read cannot overwrite each other unseen,
+ * and neither token is the Project `version` a move names.
  *
  * A Stage added at the end gets the default move from the Stage that was last
  * (FR-011: "each Stage → the next one"); one in the middle is reached by
@@ -76,13 +88,14 @@ export class StageService {
   /** `POST /projects/:id/stages` — appended after the last Stage. */
   async create(projectId: string, body: CreateProjectStageBody): Promise<ProjectStageView> {
     const visible = await this.deps.access.loadVisible(projectId);
+    assertConfigurationReadAt(visible, body.configurationVersion);
     await assertRolesExist(this.deps.emFactory(), body.responsibleRoleIds ?? []);
     const stageId = await this.deps.commandBus.run({
       action: 'projects.project.stage_create',
       objectType: 'project',
       objectId: visible.id,
       run: async ({ em }) => {
-        await lockProject(em, this.deps.access, visible.id);
+        await lockProjectForConfiguration(em, this.deps.access, visible.id, body.configurationVersion);
         // Issue #453 — the Roles it names, held against a delete and asked again.
         await lockRolesForWrite(em as EntityManager, body.responsibleRoleIds ?? []);
         const stages = await stagesOf(em, visible.id);
@@ -131,6 +144,7 @@ export class StageService {
         const stage = await em.findOne(ProjectStage, { id: stageId, projectId: visible.id });
         if (!stage) throw stageNotFound();
         const before = stageSnapshot(stage);
+        claimStage(stage, body.version);
         if (body.name !== undefined) stage.name = body.name;
         if (body.color !== undefined) stage.color = body.color;
         if (body.plannedDurationDays !== undefined) stage.plannedDurationDays = body.plannedDurationDays;
@@ -175,7 +189,8 @@ export class StageService {
       objectType: 'project',
       objectId: visible.id,
       run: async ({ em }) => {
-        const project = await lockProject(em, this.deps.access, visible.id);
+        // A DELETE carries no body, so no version to hold it to; it moves the version all the same.
+        const project = await lockProjectForConfiguration(em, this.deps.access, visible.id, undefined);
         const stages = await stagesOf(em, visible.id);
         const stage = stages.find((s) => s.id === stageId);
         if (!stage) throw stageNotFound();
@@ -206,14 +221,15 @@ export class StageService {
   }
 
   /** `PUT /projects/:id/stages/order` — every Stage of the Project, in the new order. */
-  async reorder(projectId: string, stageIds: readonly string[], language: string): Promise<ProjectDetail> {
+  async reorder(projectId: string, stageIds: readonly string[], language: string, version?: number): Promise<ProjectDetail> {
     const visible = await this.deps.access.loadVisible(projectId);
+    assertConfigurationReadAt(visible, version);
     await this.deps.commandBus.run({
       action: 'projects.project.stage_reorder',
       objectType: 'project',
       objectId: visible.id,
       run: async ({ em }) => {
-        await lockProject(em, this.deps.access, visible.id);
+        await lockProjectForConfiguration(em, this.deps.access, visible.id, version);
         const stages = await stagesOf(em, visible.id);
         const known = new Set(stages.map((s) => s.id));
         if (stageIds.length !== stages.length || stageIds.some((id) => !known.has(id))) {
@@ -231,15 +247,24 @@ export class StageService {
     return this.deps.read.afterWrite(visible.id, language);
   }
 
-  /** `PUT /projects/:id/moves` — the whole workflow; Stages it leaves unreachable are named, not refused. */
-  async setMoves(projectId: string, moves: readonly ProjectStageMoveInput[]): Promise<SetProjectMovesResult> {
+  /**
+   * `PUT /projects/:id/moves` — the whole workflow; Stages it leaves unreachable
+   * are named, not refused. The answer names the `configurationVersion` the
+   * write left the Project at, for the next of its sets.
+   */
+  async setMoves(
+    projectId: string,
+    moves: readonly ProjectStageMoveInput[],
+    version?: number,
+  ): Promise<SetProjectMovesResult> {
     const visible = await this.deps.access.loadVisible(projectId);
+    assertConfigurationReadAt(visible, version);
     return this.deps.commandBus.run({
       action: 'projects.project.moves_set',
       objectType: 'project',
       objectId: visible.id,
       run: async ({ em }) => {
-        await lockProject(em, this.deps.access, visible.id);
+        const project = await lockProjectForConfiguration(em, this.deps.access, visible.id, version);
         const stages = await stagesOf(em, visible.id);
         let graph: StageGraph;
         try {
@@ -265,7 +290,11 @@ export class StageService {
               (positionOf.get(a.fromStageId) ?? 0) - (positionOf.get(b.fromStageId) ?? 0) ||
               (positionOf.get(a.toStageId) ?? 0) - (positionOf.get(b.toStageId) ?? 0),
           );
-        const result: SetProjectMovesResult = { moves: ordered, unreachableStageIds: graph.unreachable() };
+        const result: SetProjectMovesResult = {
+          moves: ordered,
+          unreachableStageIds: graph.unreachable(),
+          configurationVersion: project.configurationVersion,
+        };
         return { result, before: { moves: before }, after: { moves: ordered } };
       },
     });
