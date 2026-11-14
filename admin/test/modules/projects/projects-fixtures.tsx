@@ -147,6 +147,7 @@ export function stage(overrides: Partial<ProjectStage> & Pick<ProjectStage, 'id'
     tasksSkippedAt: null,
     tasksMaterializeFailed: false,
     stageTasks: [],
+    version: 1,
     ...overrides,
   };
 }
@@ -186,6 +187,7 @@ export function detail(overrides: Partial<ProjectDetail> = {}): ProjectDetail {
     unreadMessageCount: 0,
     customFieldValues: {},
     version: 3,
+    configurationVersion: 2,
     permissions: { canWrite: true, canConfigure: false },
     ...overrides,
   };

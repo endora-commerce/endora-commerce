@@ -241,6 +241,40 @@ describe('ProjectDetail — Stage Task definitions on the Stages tab', () => {
     await userEvent.click(within(section).getByRole('button', { name: en('stageTasks.save', { position: 2 }) }));
     expect(putSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/stages/${STAGE_BUILD}/tasks`, {
       tasks: [{ title: 'Book the crane', dueOffsetDays: 3, responsibleRoleId: ROLE_MANAGER }],
+      // The Stage's version as read (issue #449).
+      version: 1,
+    });
+  });
+
+  it('a Stage edit names the Stage version it was read at, and a 409 re-reads the Project (issue #449)', async () => {
+    patchSpy.mockRejectedValue(
+      new ApiError(409, {
+        error: { code: 'PROJECT_CHANGED', message: 'The project changed since it was read. Reload it and try again.' },
+      }),
+    );
+    await renderPage({ search: '?tab=stages' });
+    const panel = await screen.findByRole('tabpanel');
+    const name = await within(panel).findByLabelText(en('stage.name', { position: 2 }));
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Assembly');
+    const reads = getSpy.mock.calls.filter(([path]) => path === DETAIL_PATH).length;
+    await userEvent.click(within(panel).getByRole('button', { name: en('editor.save', { position: 2 }) }));
+
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect(patchSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/stages/${STAGE_BUILD}`, { name: 'Assembly', version: 1 });
+    expect(await screen.findByText('The project changed since it was read. Reload it and try again.')).toBeTruthy();
+    await waitFor(() => expect(getSpy.mock.calls.filter(([path]) => path === DETAIL_PATH).length).toBe(reads + 1));
+  });
+
+  it('reordering the Stages names the Project’s configurationVersion as read (issue #449)', async () => {
+    putSpy.mockResolvedValue({ data: current });
+    await renderPage({ search: '?tab=stages' });
+    const panel = await screen.findByRole('tabpanel');
+    await userEvent.click(await within(panel).findByRole('button', { name: en('stage.moveDown', { position: 1 }) }));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
+    expect(putSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/stages/order`, {
+      stageIds: [STAGE_BUILD, STAGE_DESIGN, STAGE_HANDOVER],
+      configurationVersion: current.configurationVersion,
     });
   });
 

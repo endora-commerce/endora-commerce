@@ -24,13 +24,10 @@ export async function registerStageTaskRoutes(app: FastifyInstance, deps: StageT
   app.put<{ Params: { id: string; stageId: string } }>(
     `${PROJECT}/stages/:stageId/tasks`,
     { preHandler: requireAdmin('projects:write'), schema: { body: SetProjectStageTasksBodySchema } },
-    async (request) => ({
-      data: await stageTasks.setDefinitions(
-        request.params.id,
-        request.params.stageId,
-        SetProjectStageTasksBodySchema.parse(request.body).tasks,
-      ),
-    }),
+    async (request) => {
+      const body = SetProjectStageTasksBodySchema.parse(request.body);
+      return { data: await stageTasks.setDefinitions(request.params.id, request.params.stageId, body.tasks, body.version) };
+    },
   );
 
   app.post<{ Params: { id: string; stageId: string } }>(

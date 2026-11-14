@@ -120,6 +120,7 @@ template stages cascade), unique (from, to), check from ≠ to.
 | custom_field_values | jsonb not null default '{}' | R-18 |
 | created_by_admin_user_id | uuid not null | |
 | version | int not null default 1 | optimistic concurrency for moves/closes (edge case "two users move at once") |
+| configuration_version | int not null default 1 | optimistic concurrency for the Project's sets — Stages added/deleted/reordered, workflow, Organizations, Members (issue #449) |
 | created_at, updated_at | | |
 
 Checks: `(state = 'open') = (closed_at is null)`; `(state = 'lost') = (loss_reason_id is not
@@ -164,6 +165,7 @@ unique (project_id, admin_user_id).
 | deadline_manual | boolean not null default false | |
 | tasks_materialized_at | timestamptz null | R-8, terminal |
 | tasks_skipped_at | timestamptz null | R-8, terminal |
+| version | int not null default 1 | optimistic concurrency for the Stage's own edits — attributes, Stage Task definitions (issue #449) |
 
 Deleting a Stage: refused if current (409 `PROJECT_STAGE_CURRENT`), if Tasks exist in it
 (`taskReadPort.countInContext`, 409 `PROJECT_STAGE_HAS_TASKS`) or if it is the only Stage.
@@ -242,6 +244,12 @@ Sequence: `projects_number_seq`.
 `.stage_move`, `.close`, `.reopen`, `.link_add`, `.link_remove`, `.note_add`, `.note_update`,
 `.note_delete`, `.message_add`, `.attachment_add`, `.attachment_remove`,
 `.custom_fields_update`, `.stage_tasks_set`.
+`PUT /organizations` runs one `.organization_add` / `.organization_remove` per Organization as
+**child** Commands of `.organizations_set`, which records no entry of its own, so the set changes
+in one transaction and the trail still names each (issue #449). A Stage's own edits move
+`project_stages.version`; the Project's sets (Stages added, deleted or reordered, workflow,
+Organizations, Members) move `projects.configuration_version`; each is held, when the request
+names it, to the value read (409 `PROJECT_CHANGED`). Neither moves `projects.version`.
 Configuration (`objectType` per table): `projects.role.*`, `projects.loss_reason.*`,
 `projects.template.*`. Audit states never carry comment text (CRM rule: the audit trail is not
 tenant-scoped) — `{ commentId, kind, length }` only. Message read markers and alert

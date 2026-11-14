@@ -288,9 +288,25 @@ export const UpdateProjectBodySchema = z
   .strict();
 export type UpdateProjectBody = z.infer<typeof UpdateProjectBodySchema>;
 
-/** `PUT /projects/:id/organizations` — the whole set (409 `PROJECT_ORGANIZATION_IN_USE`). */
+/**
+ * Optimistic concurrency for a Project's configuration (issue #449) — two
+ * tokens, each optional, so a client that sends none is served as before. Sent
+ * and stale, the write answers 409 `PROJECT_CHANGED` and nothing is written.
+ * Neither is the Project's `version`, which no write of its configuration moves.
+ *
+ * - `configurationVersion` (`ProjectDetail.configurationVersion`) — the
+ *   Project's sets: `POST …/stages`, `PUT …/stages/order`, `PUT …/moves`,
+ *   `PUT …/organizations`, `PUT …/members`; each of them, and
+ *   `DELETE …/stages/:stageId`, moves it.
+ * - `version` (`ProjectStage.version`) — a Stage's own edits:
+ *   `PATCH …/stages/:stageId`, `PUT …/stages/:stageId/tasks`; each moves it.
+ */
+const configurationVersionShape = { configurationVersion: z.number().int().positive().optional() };
+const stageVersionShape = { version: z.number().int().positive().optional() };
+
+/** `PUT /projects/:id/organizations` — the whole set, in one transaction (409 `PROJECT_ORGANIZATION_IN_USE`). */
 export const SetProjectOrganizationsBodySchema = z
-  .object({ organizationIds: distinctIds(50) })
+  .object({ organizationIds: distinctIds(50), ...configurationVersionShape })
   .strict();
 export type SetProjectOrganizationsBody = z.infer<typeof SetProjectOrganizationsBodySchema>;
 
@@ -305,7 +321,7 @@ export const ProjectOutOfReachAfterWriteSchema = z.object({ id: uuid, outOfReach
 export type ProjectOutOfReachAfterWrite = z.infer<typeof ProjectOutOfReachAfterWriteSchema>;
 
 /** `PUT /projects/:id/members` — the whole set, Members and their Roles, in one Command. */
-export const SetProjectMembersBodySchema = z.object({ members: membersSchema }).strict();
+export const SetProjectMembersBodySchema = z.object({ members: membersSchema, ...configurationVersionShape }).strict();
 export type SetProjectMembersBody = z.infer<typeof SetProjectMembersBodySchema>;
 
 // ---------------------------------------------------------------------------
@@ -313,7 +329,7 @@ export type SetProjectMembersBody = z.infer<typeof SetProjectMembersBodySchema>;
 // ---------------------------------------------------------------------------
 
 /** `POST /projects/:id/stages`. */
-export const CreateProjectStageBodySchema = z.object(stageAttributesShape).strict();
+export const CreateProjectStageBodySchema = z.object({ ...stageAttributesShape, ...configurationVersionShape }).strict();
 export type CreateProjectStageBody = z.infer<typeof CreateProjectStageBodySchema>;
 
 /**
@@ -324,13 +340,17 @@ export type CreateProjectStageBody = z.infer<typeof CreateProjectStageBodySchema
 export const UpdateProjectStageBodySchema = z
   .object({ ...stageAttributesShape, deadlineOn: calendarDateSchema.nullable() })
   .partial()
+  .extend(stageVersionShape)
   .strict()
-  .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to change' });
+  .refine((body) => Object.keys(body).some((key) => key !== 'version'), { message: 'Nothing to change' });
 export type UpdateProjectStageBody = z.infer<typeof UpdateProjectStageBodySchema>;
 
 /** `PUT /projects/:id/stages/order` — every Stage id of the Project, in the new order. */
 export const ReorderProjectStagesBodySchema = z
-  .object({ stageIds: distinctIds(PROJECT_STAGES_MAX).refine((ids) => ids.length > 0, 'At least one Stage') })
+  .object({
+    stageIds: distinctIds(PROJECT_STAGES_MAX).refine((ids) => ids.length > 0, 'At least one Stage'),
+    ...configurationVersionShape,
+  })
   .strict();
 export type ReorderProjectStagesBody = z.infer<typeof ReorderProjectStagesBodySchema>;
 
@@ -344,12 +364,15 @@ export type ProjectStageMove = z.infer<typeof ProjectStageMoveSchema>;
 
 /** `PUT /projects/:id/moves` — the whole set of permitted moves (FR-011). */
 export const SetProjectMovesBodySchema = z
-  .object({ moves: z.array(ProjectStageMoveSchema).max(PROJECT_STAGES_MAX * PROJECT_STAGES_MAX) })
+  .object({
+    moves: z.array(ProjectStageMoveSchema).max(PROJECT_STAGES_MAX * PROJECT_STAGES_MAX),
+    ...configurationVersionShape,
+  })
   .strict();
 export type SetProjectMovesBody = z.infer<typeof SetProjectMovesBodySchema>;
 
 /** `PUT /projects/:id/stages/:stageId/tasks` — the Stage's Task definitions, replaced whole. */
-export const SetProjectStageTasksBodySchema = z.object({ tasks: stageTasksSchema }).strict();
+export const SetProjectStageTasksBodySchema = z.object({ tasks: stageTasksSchema, ...stageVersionShape }).strict();
 export type SetProjectStageTasksBody = z.infer<typeof SetProjectStageTasksBodySchema>;
 
 /** `POST /projects/:id/move`. */
@@ -674,6 +697,8 @@ export const ProjectStageSchema = z.object({
   tasksMaterializeFailed: z.boolean(),
   /** The Stage's own Task definitions (R-7). */
   stageTasks: z.array(StageTaskDefinitionSchema.extend({ id: uuid, position: z.number().int() })),
+  /** What `PATCH …/stages/:stageId` and `PUT …/stages/:stageId/tasks` name (issue #449). */
+  version: z.number().int().positive(),
 });
 export type ProjectStage = z.infer<typeof ProjectStageSchema>;
 
@@ -705,6 +730,8 @@ export const ProjectDetailSchema = ProjectSummarySchema.extend({
   unreadMessageCount: z.number().int().nonnegative(),
   customFieldValues: customFieldValuesSchema,
   version: z.number().int().positive(),
+  /** What the Project's sets — Stages added or reordered, workflow, Organizations, Members — name (issue #449). */
+  configurationVersion: z.number().int().positive(),
   permissions: z.object({ canWrite: z.boolean(), canConfigure: z.boolean() }),
 });
 export type ProjectDetail = z.infer<typeof ProjectDetailSchema>;
@@ -725,6 +752,8 @@ export type ProjectStageEntry = z.infer<typeof ProjectStageEntrySchema>;
 export const SetProjectMovesResultSchema = z.object({
   moves: z.array(z.object({ fromStageId: uuid, toStageId: uuid })),
   unreachableStageIds: z.array(uuid),
+  /** The Project's `configurationVersion` after the write — what the next of its sets names (issue #449). */
+  configurationVersion: z.number().int().positive(),
 });
 export type SetProjectMovesResult = z.infer<typeof SetProjectMovesResultSchema>;
 

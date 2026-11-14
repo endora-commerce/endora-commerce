@@ -37,8 +37,8 @@ context: { type, label, href, groupLabel } | null }`.
 | `GET /projects/:id` | `projects:read` | → `ProjectDetail` (incl. stages, moves, members, organizations, links count, unread messages, `permissions: { canWrite, canConfigure }`) |
 | `PATCH /projects/:id` | `projects:write` | `UpdateProjectBody` (title, description, value, startOn, visibility, viewerIds, customFieldValues, `version`) → `ProjectDetail`; `customFieldValues` is a patch (named fields only; `null` clears one), validated by `custom_fields` — 422 `CUSTOM_FIELD_VALUE_INVALID`, one issue per field, `path` = its key — and written by its own Command `projects.project.custom_fields_update`. On `POST` the definitions are always enforced, so a required field is asked for even when `customFieldValues` is absent |
 | `DELETE /projects/:id` | `projects:write` | → 204; 409 `PROJECT_HAS_LINKS` while links exist |
-| `PUT /projects/:id/organizations` | `projects:write` | `{ organizationIds[] }` → `ProjectDetail`, or `{ id, outOfReach: true }` when the caller's own change took the Project out of their Organization reach (made it internal — T144 F3); 409 `PROJECT_ORGANIZATION_IN_USE`; 422 `PROJECT_ORGANIZATION_OUT_OF_SCOPE` |
-| `PUT /projects/:id/members` | `projects:write` | `{ members: { adminUserId, roleIds[] }[] }` → `ProjectDetail` |
+| `PUT /projects/:id/organizations` | `projects:write` | `{ organizationIds[], configurationVersion? }`, one transaction → `ProjectDetail`, or `{ id, outOfReach: true }` when the caller's own change took the Project out of their Organization reach (made it internal — T144 F3); 409 `PROJECT_ORGANIZATION_IN_USE`; 422 `PROJECT_ORGANIZATION_OUT_OF_SCOPE` |
+| `PUT /projects/:id/members` | `projects:write` | `{ members: { adminUserId, roleIds[] }[], configurationVersion? }` → `ProjectDetail` |
 
 `ProjectSummary { id, number, title, state, currentStage: { id, name, color, deadlineOn,
 overdue } | null, organizations: { id, name }[], value, projectManagers: { id, name }[],
@@ -60,14 +60,21 @@ the list's Organization and any-member filters are a reader's (CRM gates its fil
 
 ### 2.2 Stages and moves
 
+Optimistic concurrency for a Project's configuration (issue #449), additive: a Stage's own
+edits (`PATCH …/stages/:stageId`, `PUT …/stages/:stageId/tasks`) take an optional `version` —
+the Stage's, `ProjectStage.version`; the Project's sets (`POST …/stages`, `PUT …/stages/order`,
+`PUT …/moves`, and §2.1's `organizations` and `members`) take an optional `configurationVersion`
+— `ProjectDetail.configurationVersion`, which `DELETE …/stages/:stageId` moves too. Sent and
+stale → 409 `PROJECT_CHANGED`, nothing written. None of them moves the Project `version`.
+
 | Method & path | Permission | Request → Response |
 | --- | --- | --- |
-| `POST /projects/:id/stages` | `projects:write` | `StageBody` → `ProjectStage` |
-| `PATCH /projects/:id/stages/:stageId` | `projects:write` | `StageBody` partial (name, color, plannedDurationDays, responsibleRoleIds, alertOffsetsDays, completionGate, completionPermitted, deadlineOn \| null to recompute) → `ProjectStage` |
+| `POST /projects/:id/stages` | `projects:write` | `StageBody` + `configurationVersion?` → `ProjectStage` |
+| `PATCH /projects/:id/stages/:stageId` | `projects:write` | `StageBody` partial (name, color, plannedDurationDays, responsibleRoleIds, alertOffsetsDays, completionGate, completionPermitted, deadlineOn \| null to recompute) + `version?` → `ProjectStage` |
 | `DELETE /projects/:id/stages/:stageId` | `projects:write` | → 204; 409 `PROJECT_STAGE_CURRENT` \| `PROJECT_STAGE_HAS_TASKS` \| `PROJECT_STAGE_LAST` |
-| `PUT /projects/:id/stages/order` | `projects:write` | `{ stageIds[] }` |
-| `PUT /projects/:id/moves` | `projects:write` | `{ moves: { fromStageId, toStageId }[] }` → `{ moves, unreachableStageIds[] }` |
-| `PUT /projects/:id/stages/:stageId/tasks` | `projects:write` | `{ tasks: StageTaskDefinition[] }` (Stage Task definitions, R-7) → `ProjectStage` |
+| `PUT /projects/:id/stages/order` | `projects:write` | `{ stageIds[], configurationVersion? }` |
+| `PUT /projects/:id/moves` | `projects:write` | `{ moves: { fromStageId, toStageId }[], configurationVersion? }` → `{ moves, unreachableStageIds[], configurationVersion }` |
+| `PUT /projects/:id/stages/:stageId/tasks` | `projects:write` | `{ tasks: StageTaskDefinition[], version? }` (Stage Task definitions, R-7) → `ProjectStage` |
 | `POST /projects/:id/stages/:stageId/materialize-tasks` | `projects:write` | retry after `tasks_materialize_failed` only → `{ created }`; 409 otherwise |
 | `POST /projects/:id/move` | `projects:write` | `{ toStageId, version }` → `MoveResult { project, entry, createdTaskIds[], notes[] }`; 409 `PROJECT_MOVE_NOT_PERMITTED` \| `PROJECT_STAGE_GATE_OPEN_TASKS { openTaskCount, openTasks[]? }` (`openTasks` only to a `tasks:read` holder — T144 F2) \| `PROJECT_CHANGED` \| `PROJECT_GUARD_REFUSED { reason }` |
 | `POST /projects/:id/close` | `projects:write` | `{ outcome: 'completed' } \| { outcome: 'lost', lossReasonId, comment? }` + `version` → `ProjectDetail`; 409 `PROJECT_COMPLETION_NOT_PERMITTED` \| gate as above |

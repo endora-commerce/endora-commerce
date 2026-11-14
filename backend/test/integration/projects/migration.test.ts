@@ -157,6 +157,8 @@ describe('projects init migration', () => {
       { column_name: 'version', data_type: 'integer', is_nullable: 'NO', column_default: '1' },
       { column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'NO', column_default: 'now()' },
       { column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'NO', column_default: 'now()' },
+      // Issue #449 — the token of the Project's sets, added by a later migration.
+      { column_name: 'configuration_version', data_type: 'integer', is_nullable: 'NO', column_default: '1' },
     ]);
     const amount = await rows<{ numeric_precision: number; numeric_scale: number }>(
       `select numeric_precision, numeric_scale from information_schema.columns
@@ -332,6 +334,8 @@ describe('projects init migration', () => {
         ['tasks_skipped_at', 'timestamptz', 'YES'],
         ['created_at', 'timestamptz', 'NO'],
         ['updated_at', 'timestamptz', 'NO'],
+        // Issue #449 — the token of the Stage's own edits, added by a later migration.
+        ['version', 'int4', 'NO'],
       ]);
     });
 

@@ -232,6 +232,51 @@ describe('§2.2 Stages', () => {
   });
 });
 
+describe('§2.2 the version a configuration write was read at (issue #449)', () => {
+  type Schema = { safeParse(v: unknown): { success: boolean } };
+  const ORG = UUID_A;
+  /** A Stage's own edits name the Stage's `version`. */
+  const stageBodies: Array<[string, Schema, Record<string, unknown>]> = [
+    ['PATCH /stages/:stageId', projects.UpdateProjectStageBodySchema, { name: 'Delivery' }],
+    ['PUT /stages/:stageId/tasks', projects.SetProjectStageTasksBodySchema, { tasks: [] }],
+  ];
+  /** The Project's sets name its `configurationVersion`. */
+  const configurationBodies: Array<[string, Schema, Record<string, unknown>]> = [
+    ['POST /stages', projects.CreateProjectStageBodySchema, { name: 'Design', color: '#3366ff' }],
+    ['PUT /stages/order', projects.ReorderProjectStagesBodySchema, { stageIds: [UUID_A, UUID_B] }],
+    ['PUT /moves', projects.SetProjectMovesBodySchema, { moves: [] }],
+    ['PUT /organizations', projects.SetProjectOrganizationsBodySchema, { organizationIds: [ORG] }],
+    ['PUT /members', projects.SetProjectMembersBodySchema, { members: [] }],
+  ];
+  const positiveWhole = (schema: Schema, body: Record<string, unknown>, field: string): void => {
+    accepts(schema, body);
+    accepts(schema, { ...body, [field]: 3 });
+    rejects(schema, { ...body, [field]: 0 });
+    rejects(schema, { ...body, [field]: 2.5 });
+  };
+
+  it.each(stageBodies)('%s takes an optional Stage version', (_route, schema, body) => {
+    positiveWhole(schema, body, 'version');
+    rejects(schema, { ...body, configurationVersion: 3 });
+  });
+
+  it.each(configurationBodies)('%s takes an optional configurationVersion', (_route, schema, body) => {
+    positiveWhole(schema, body, 'configurationVersion');
+    rejects(schema, { ...body, version: 3 });
+  });
+
+  it('a Stage edit naming only the version still has nothing to change', () => {
+    rejects(projects.UpdateProjectStageBodySchema, { version: 3 });
+  });
+
+  it('a Stage carries its version, a Project its configurationVersion, and PUT /moves answers the new one', () => {
+    expect(projects.ProjectStageSchema.shape).toHaveProperty('version');
+    expect(projects.ProjectDetailSchema.shape).toHaveProperty('configurationVersion');
+    accepts(projects.SetProjectMovesResultSchema, { moves: [], unreachableStageIds: [], configurationVersion: 4 });
+    rejects(projects.SetProjectMovesResultSchema, { moves: [], unreachableStageIds: [] });
+  });
+});
+
 describe('§2.2 move, close, reopen', () => {
   it('move: needs the target Stage and the version', () => {
     accepts(projects.MoveProjectBodySchema, { toStageId: UUID_A, version: 2 });

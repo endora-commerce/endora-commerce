@@ -289,7 +289,8 @@ describe('ProjectDetail — the tabs', () => {
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     const [path, body] = patchSpy.mock.calls[0] as [string, Record<string, unknown>];
     expect(path).toBe(`${DETAIL_PATH}/stages/${STAGE_DESIGN}`);
-    expect(body).toEqual({ deadlineOn: '2026-11-30' });
+    // The deadline alone among the Stage's attributes, with the Stage's version as read (issue #449).
+    expect(body).toEqual({ deadlineOn: '2026-11-30', version: 1 });
   });
 
   it('clears a deadline set by hand, so it is counted from the start again', async () => {
@@ -307,7 +308,7 @@ describe('ProjectDetail — the tabs', () => {
     fireEvent.change(field, { target: { value: '' } });
     await userEvent.click(within(panel).getByRole('button', { name: en('editor.save', { position: 1 }) }));
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
-    expect((patchSpy.mock.calls[0] as [string, Record<string, unknown>])[1]).toEqual({ deadlineOn: null });
+    expect((patchSpy.mock.calls[0] as [string, Record<string, unknown>])[1]).toEqual({ deadlineOn: null, version: 1 });
   });
 
   it('says on the Stage bar when the current deadline was set by hand', async () => {

@@ -665,6 +665,19 @@ ma, a wskaźniki nie są udostępniane.
 
 ### API
 
+**Współbieżność.** Konfiguracja projektu ma dwa własne znaczniki współbieżności
+optymistycznej; żaden z nich nie jest `version` projektu, którego używają
+przejścia, zamknięcia, ponowne otwarcia i edycje. Edycje samego etapu —
+`PATCH …/stages/:stageId` i `PUT …/stages/:stageId/tasks` — przyjmują `version`
+etapu (`ProjectStage.version`); zestawy projektu — `POST …/stages`,
+`PUT …/stages/order`, `PUT …/moves`, `PUT …/organizations` i `PUT …/members` —
+jego `configurationVersion` (`ProjectDetail.configurationVersion`). Oba pola są
+opcjonalne, więc klient, który ich nie wysyła, jest obsługiwany jak dotąd;
+wysłane i nieaktualne daje `409` `PROJECT_CHANGED` i nic nie zostaje zapisane.
+Każdy zapis podnosi własny znacznik, wysłany czy nie — usunięcie etapu podnosi
+`configurationVersion` — a żaden nie zmienia `version` projektu. Po `409`
+odczytaj projekt ponownie.
+
 | Metoda i ścieżka | Uprawnienie | Odpowiedź |
 | --- | --- | --- |
 | `GET /api/v1/admin/projects` | `projects:read` | Strona projektów oraz liczba projektów widocznych dla wywołującego: `{ items, nextCursor, total }`. Filtry: `state` (powtarzalny), `organizationId`, `memberId` (identyfikator administratora lub `me`), `roleId`, `templateId`, `stageName` (nazwa bieżącego etapu), `q` (numer lub tytuł), `sort` (`createdAt` — domyślnie, `value` albo `deadline` — termin bieżącego etapu; projekty bez wartości lub terminu są zawsze na końcu), `order` (`asc` lub `desc`, domyślnie `desc`), `cursor`, `limit` (najwyżej 100) oraz `customFieldFilters` — pola niestandardowe oznaczone jako filtry listy, jako JSON, w kształcie przyjmowanym przez listy zamówień, zapytań ofertowych i szans sprzedażowych; pole, którego lista nie oferuje, to `400` `CUSTOM_FIELD_FILTER_UNAVAILABLE` z jego nazwą. |
@@ -676,18 +689,18 @@ ma, a wskaźniki nie są udostępniane.
 | `GET /api/v1/admin/projects/lookups/organizations` | `projects:read` | `{ data: { id, name }[] }` — organizacje, do których wywołujący ma dostęp, według nazwy (`q`) albo jedna według `id`; najwyżej `limit` (50). |
 | `GET /api/v1/admin/projects/lookups/admin-users` | `projects:read` | `{ data: { id, name, email }[] }` — aktywni administratorzy według imienia i nazwiska lub adresu e-mail (`q`) albo jeden według `id`; najwyżej `limit` (50). |
 | `GET /api/v1/admin/projects/visibility-setting` | `projects:read` | `{ data: { setting } }` — bieżąca wartość ustawienia modułu `projects.visibility`. |
-| `PUT /api/v1/admin/projects/:id/organizations` | `projects:write` | Cały zestaw → szczegóły projektu albo `{ data: { id, outOfReach: true } }`, gdy wywołujący ograniczony do części organizacji usunął je wszystkie — projekt jest wewnętrzny i poza jego zasięgiem; `422` `PROJECT_ORGANIZATION_OUT_OF_SCOPE`; `409` `PROJECT_ORGANIZATION_IN_USE` przy usuwaniu organizacji, do której należy podpięty dokument. |
-| `PUT /api/v1/admin/projects/:id/members` | `projects:write` | Cały zestaw członków i ich ról; `422` `PROJECT_MEMBER_INVALID`. |
-| `POST /api/v1/admin/projects/:id/stages` | `projects:write` | `201` `{ data: ProjectStage }`, dodany na końcu. Projekt, który ma już 50 etapów, dostaje `422` `PROJECT_STAGE_LIMIT` (`details`: `projectId`, `maximum`); do zgłoszenia #634 była to odpowiedź `422` `VALIDATION_FAILED`. |
-| `PATCH /api/v1/admin/projects/:id/stages/:stageId` | `projects:write` | Dowolny atrybut; `deadlineOn` ustawia termin ręcznie, `null` przywraca termin liczony jako początek + czas trwania. |
+| `PUT /api/v1/admin/projects/:id/organizations` | `projects:write` | Cały zestaw, z opcjonalnym `configurationVersion`, w jednej transakcji → szczegóły projektu albo `{ data: { id, outOfReach: true } }`, gdy wywołujący ograniczony do części organizacji usunął je wszystkie — projekt jest wewnętrzny i poza jego zasięgiem; `422` `PROJECT_ORGANIZATION_OUT_OF_SCOPE`; `409` `PROJECT_ORGANIZATION_IN_USE` przy usuwaniu organizacji, do której należy podpięty dokument. Dziennik zdarzeń nadal wymienia każdą dodaną i usuniętą organizację (`projects.project.organization_add`, `projects.project.organization_remove`); błąd w połowie zostawia zestaw bez zmian. |
+| `PUT /api/v1/admin/projects/:id/members` | `projects:write` | Cały zestaw członków i ich ról, z opcjonalnym `configurationVersion`; `422` `PROJECT_MEMBER_INVALID`. |
+| `POST /api/v1/admin/projects/:id/stages` | `projects:write` | Z opcjonalnym `configurationVersion` → `201` `{ data: ProjectStage }`, dodany na końcu. Projekt, który ma już 50 etapów, dostaje `422` `PROJECT_STAGE_LIMIT` (`details`: `projectId`, `maximum`); do zgłoszenia #634 była to odpowiedź `422` `VALIDATION_FAILED`. |
+| `PATCH /api/v1/admin/projects/:id/stages/:stageId` | `projects:write` | Dowolny atrybut, z opcjonalnym `version` etapu; `deadlineOn` ustawia termin ręcznie, `null` przywraca termin liczony jako początek + czas trwania. |
 | `DELETE /api/v1/admin/projects/:id/stages/:stageId` | `projects:write` | `204`; `409` `PROJECT_STAGE_CURRENT`, `PROJECT_STAGE_LAST` lub `PROJECT_STAGE_HAS_TASKS`. |
-| `PUT /api/v1/admin/projects/:id/stages/order` | `projects:write` | Identyfikatory wszystkich etapów w nowej kolejności. |
-| `PUT /api/v1/admin/projects/:id/moves` | `projects:write` | Cały przebieg → `{ data: { moves, unreachableStageIds } }`. |
+| `PUT /api/v1/admin/projects/:id/stages/order` | `projects:write` | Identyfikatory wszystkich etapów w nowej kolejności, z opcjonalnym `configurationVersion`. |
+| `PUT /api/v1/admin/projects/:id/moves` | `projects:write` | Cały przebieg, z opcjonalnym `configurationVersion` → `{ data: { moves, unreachableStageIds, configurationVersion } }` — `configurationVersion`, w którym zapis zostawił projekt. |
 | `POST /api/v1/admin/projects/:id/move` | `projects:write` | `{ toStageId, version }` → `{ data: { project, entry, createdTaskIds, notes } }` — `createdTaskIds` to zadania etapu utworzone przez przejście, `notes` to, co zapisał wpis (`gate_not_applied_tasks_off`, `stage_tasks_skipped`, `tasks_materialize_failed`); `409` `PROJECT_MOVE_NOT_PERMITTED`, `PROJECT_STAGE_GATE_OPEN_TASKS` (`details.openTaskCount`; `details.openTasks`: `{ id, number, title }[]` tylko dla wywołującego z `tasks:read`), `PROJECT_CHANGED` lub `PROJECT_GUARD_REFUSED`. |
 | `POST /api/v1/admin/projects/:id/close` | `projects:write` | `{ outcome: 'completed', version }` albo `{ outcome: 'lost', lossReasonId, comment?, version }`; `409` `PROJECT_COMPLETION_NOT_PERMITTED` albo, przy zakończeniu, `PROJECT_STAGE_GATE_OPEN_TASKS`; `422` `PROJECT_LOSS_REASON_INVALID`. |
 | `POST /api/v1/admin/projects/:id/reopen` | `projects:write` | `{ version }` → powrót do etapu, w którym projekt zamknięto. |
 | `GET /api/v1/admin/projects/:id/stage-history` | `projects:read` | Każde wejście do etapu, zamknięcie i ponowne otwarcie, od najstarszych. |
-| `PUT /api/v1/admin/projects/:id/stages/:stageId/tasks` | `projects:write` | `{ tasks: StageTaskDefinition[] }` (najwyżej 100), zastępuje zadania etapu → `{ data: ProjectStage }`; `422` dla nieznanej roli odpowiedzialnej. |
+| `PUT /api/v1/admin/projects/:id/stages/:stageId/tasks` | `projects:write` | `{ tasks: StageTaskDefinition[], version? }` (najwyżej 100; `version` to wersja etapu), zastępuje zadania etapu → `{ data: ProjectStage }`; `422` dla nieznanej roli odpowiedzialnej. |
 | `POST /api/v1/admin/projects/:id/stages/:stageId/materialize-tasks` | `projects:write` | Ponownie tworzy zadania etapu po zapisanym błędzie — `tasksMaterializeFailed` etapu — → `{ data: { created } }`; w innym przypadku `409` `PROJECT_STAGE_TASKS_NOT_RETRYABLE`, a przy wyłączonym module Zadania `503` `MODULE_DISABLED`. |
 | `GET /api/v1/admin/projects/:id/tasks` | `projects:read` | `{ data: { tasksAvailable, stages: [{ stageId, tasks: TaskSummary[] }] } }`, w kolejności etapów; `tasksAvailable: false` i brak etapów, gdy moduł Zadania jest wyłączony albo czytający nie ma `tasks:read`. |
 | `GET /api/v1/admin/projects/:id/links` | `projects:read` | `{ data: ProjectLink[] }`, od najstarszych: `{ id, kind, recordId, available, number?, status?, amount?, currency?, href?, linkedBy, linkedAt }`. Pola dokumentu są obecne tylko przy `available` — czytający ma kod odczytu właściciela (`orders:read`, `rfqs:handle`, `crm:read`), jego moduł jest włączony, a dokument nadal istnieje. |

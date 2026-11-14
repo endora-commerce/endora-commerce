@@ -51,6 +51,9 @@ import type {
  * Every write that changes where a Project is — a move, a close, a reopen —
  * names the `version` it was read at; the server answers 409 `PROJECT_CHANGED`
  * when somebody else changed the Project in between, and nothing is written.
+ * Every write of its Stages and workflow names a version too (issue #449): a
+ * Stage's edit the Stage's `version`, the others the Project's
+ * `configurationVersion`.
  */
 
 const BASE = '/api/v1/admin/projects';
@@ -298,14 +301,16 @@ export const projectsApi = {
     return apiClient.delete<void>(`${BASE}/${projectId}/stages/${stageId}`);
   },
 
-  /** Every Stage id of the Project, in the new order; answers the Project. */
-  reorderStages(projectId: string, stageIds: readonly string[]): Promise<ProjectDetail> {
-    return data(apiClient.put<{ data: ProjectDetail }>(`${BASE}/${projectId}/stages/order`, { stageIds }));
+  /** Every Stage id of the Project, in the new order, against the `configurationVersion` read; answers the Project. */
+  reorderStages(projectId: string, stageIds: readonly string[], configurationVersion: number): Promise<ProjectDetail> {
+    return data(
+      apiClient.put<{ data: ProjectDetail }>(`${BASE}/${projectId}/stages/order`, { stageIds, configurationVersion }),
+    );
   },
 
-  /** The whole workflow, replaced. */
-  setMoves(projectId: string, moves: readonly ProjectStageMove[]): Promise<SetProjectMovesResult> {
-    return data(apiClient.put<{ data: SetProjectMovesResult }>(`${BASE}/${projectId}/moves`, { moves }));
+  /** The whole workflow, replaced, against the `configurationVersion` read; answers the one it left the Project at. */
+  setMoves(projectId: string, moves: readonly ProjectStageMove[], configurationVersion: number): Promise<SetProjectMovesResult> {
+    return data(apiClient.put<{ data: SetProjectMovesResult }>(`${BASE}/${projectId}/moves`, { moves, configurationVersion }));
   },
 
   move(projectId: string, toStageId: string, version: number): Promise<ProjectMoveResult> {
@@ -320,9 +325,14 @@ export const projectsApi = {
     return data(apiClient.post<{ data: ProjectDetail }>(`${BASE}/${projectId}/reopen`, { version }));
   },
 
-  /** The Tasks a Stage creates on entry, the whole list replaced; answers the Stage. */
-  setStageTasks(projectId: string, stageId: string, tasks: readonly StageTaskDefinition[]): Promise<ProjectStage> {
-    return data(apiClient.put<{ data: ProjectStage }>(`${BASE}/${projectId}/stages/${stageId}/tasks`, { tasks }));
+  /** The Tasks a Stage creates on entry, the whole list replaced, against the Stage's `version` read; answers the Stage. */
+  setStageTasks(
+    projectId: string,
+    stageId: string,
+    tasks: readonly StageTaskDefinition[],
+    version: number,
+  ): Promise<ProjectStage> {
+    return data(apiClient.put<{ data: ProjectStage }>(`${BASE}/${projectId}/stages/${stageId}/tasks`, { tasks, version }));
   },
 
   /**
