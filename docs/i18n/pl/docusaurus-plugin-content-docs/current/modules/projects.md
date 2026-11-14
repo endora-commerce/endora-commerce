@@ -128,7 +128,12 @@ Jego zakładki:
   jest prowadzony osobno dla każdej organizacji, wymienia tylko, *które* pola
   się zmieniły. Wpisy zapisane, zanim tytuł zaczął być przechowywany w ten
   sposób, nadal pokazują go tak, jak został zapisany. Organizacja spoza Twojego zasięgu, do której projekt kiedyś
-  należał, nie jest w niej wymieniana.
+  należał, nie jest w niej wymieniana. Osoby, organizacje, etapy i role są
+  podawane z nazwy, nigdy jako identyfikatory: zmiana członków wymienia, kogo
+  dodano, kogo usunięto i komu zmieniono role; zmiana przebiegu wymienia
+  przejścia, które dopuściła i wycofała; zmiana zadań etapu wymienia zadania
+  dodane, zmienione i usunięte. Osoba, której nie ma już w projekcie, albo etap,
+  którego projekt już nie ma, są opisane właśnie tak.
 
 **Na ekranach dokumentów należących do projektu** — zamówienia, zapytania
 ofertowego, szansy sprzedażowej, zadania — panel **Projekt** wskazuje projekt,
@@ -454,8 +459,9 @@ Rola projektowa nie jest jednym z tych uprawnień: jej pełnienie nie nadaje
 
 Zakładka **Powiązane dokumenty** projektu wymienia podpięte do niego
 zamówienia, zapytania ofertowe i szanse sprzedażowe, każdy rodzaj w osobnej
-grupie: każdy dokument z numerem — odnośnikiem do niego — statusem i kwotą.
-Kwota zapytania ofertowego to ta, którą wylicza moduł Zapytania ofertowe, ta
+grupie: każdy dokument z numerem — odnośnikiem do niego — statusem, nazwanym
+tak, jak nazywa go jego własny moduł w Twoim języku, i kwotą. Wybór dokumentu
+nazywa każdy status tak samo. Kwota zapytania ofertowego to ta, którą wylicza moduł Zapytania ofertowe, ta
 sama, którą pokazuje jego własna lista. Dopóki uzgodnioną cenę ma tylko część
 jego pozycji, kwota ma oznaczenie **Częściowo uzgodnione**; dopóki nie ma jej
 żadna — **Jeszcze nieuzgodnione**. Zapytanie ofertowe bez żadnej ceny jest
@@ -704,7 +710,7 @@ odczytaj projekt ponownie.
 | `PUT /api/v1/admin/projects/:id/stages/:stageId/tasks` | `projects:write` | `{ tasks: StageTaskDefinition[], version? }` (najwyżej 100; `version` to wersja etapu), zastępuje zadania etapu → `{ data: ProjectStage }`; `422` dla nieznanej roli odpowiedzialnej. |
 | `POST /api/v1/admin/projects/:id/stages/:stageId/materialize-tasks` | `projects:write` | Ponownie tworzy zadania etapu po zapisanym błędzie — `tasksMaterializeFailed` etapu — → `{ data: { created } }`; w innym przypadku `409` `PROJECT_STAGE_TASKS_NOT_RETRYABLE`, a przy wyłączonym module Zadania `503` `MODULE_DISABLED`. |
 | `GET /api/v1/admin/projects/:id/tasks` | `projects:read` | `{ data: { tasksAvailable, stages: [{ stageId, tasks: TaskSummary[] }] } }`, w kolejności etapów; `tasksAvailable: false` i brak etapów, gdy moduł Zadania jest wyłączony albo czytający nie ma `tasks:read`. |
-| `GET /api/v1/admin/projects/:id/links` | `projects:read` | `{ data: ProjectLink[] }`, od najstarszych: `{ id, kind, recordId, available, number?, status?, amount?, currency?, href?, linkedBy, linkedAt }`. Pola dokumentu są obecne tylko przy `available` — czytający ma kod odczytu właściciela (`orders:read`, `rfqs:handle`, `crm:read`), jego moduł jest włączony, a dokument nadal istnieje. |
+| `GET /api/v1/admin/projects/:id/links` | `projects:read` | `{ data: ProjectLink[] }`, od najstarszych: `{ id, kind, recordId, available, number?, status?, statusName?, amount?, currency?, href?, linkedBy, linkedAt }`; `status` to kod właściciela, a `statusName` jego nazwa w języku odpowiedzi. Pola dokumentu są obecne tylko przy `available` — czytający ma kod odczytu właściciela (`orders:read`, `rfqs:handle`, `crm:read`), jego moduł jest włączony, a dokument nadal istnieje. |
 | `POST /api/v1/admin/projects/:id/links` | `projects:write` | `{ kind: 'order' \| 'quote_request' \| 'opportunity', recordId }` → `201` `{ data: ProjectLink }`. `503` `MODULE_DISABLED`, gdy moduł danego rodzaju jest wyłączony; `403` bez kodu odczytu właściciela; `404` `PROJECT_RECORD_NOT_FOUND` dla dokumentu, który nie istnieje lub jest poza zasięgiem wywołującego; `422` `PROJECT_LINK_ORGANIZATION_MISMATCH` dla dokumentu organizacji, której projekt nie ma; `409` `PROJECT_RECORD_ALREADY_LINKED`, którego `details.project` (`{ id, number, title }`) wskazuje projekt zawierający dokument tylko wywołującemu, który może ten projekt zobaczyć. |
 | `DELETE /api/v1/admin/projects/:id/links/:linkId` | `projects:write` | `204`; `404` dla powiązania innego projektu albo nieistniejącego. |
 | `GET /api/v1/admin/projects/records/:kind/:recordId/project` | `projects:read` | `{ data: ProjectSummary }` — projekt, do którego należy `order`, `quote_request`, `opportunity` lub `task` (przez swój kontekst); `404` `PROJECT_NOT_FOUND` jednakowo dla dokumentu spoza projektów i dla dokumentu z projektu, którego wywołujący nie może zobaczyć. Wymaga też kodu odczytu danego rodzaju (`403`) i włączonego modułu (`503`). |
@@ -877,8 +883,15 @@ wkładu). Następnie wiersz otrzymuje wynik — `bell_email`, `bell`, `email`,
 `no_recipient` albo `undeliverable` — i liczbę powiadomionych członków.
 Rezerwacja, której dostarczenie nie powiodło się, zanim cokolwiek wyszło, wraca
 do następnego wywołania; proces, który zginie między rezerwacją a zapisem
-wyniku, zostawia alert, który nigdy nie zostanie wysłany dwa razy. Instrukcje
-rezerwacji i zapisu wyniku przechodzą przez Command Bus bez wpisu audytu: to
+wyniku, zostawia alert, który nigdy nie zostanie wysłany dwa razy. Pierwszy
+przebieg trzydzieści minut po takiej rezerwacji oznacza ją jako `interrupted`
+(`STAGE_ALERT_CLAIM_STALE_MS`, tak jak przypomnienia CRM oznaczają własne) i
+zapisuje w logu ostrzeżenie z identyfikatorami wierszy, więc alert, który mógł
+do nikogo nie dotrzeć, jest widoczny, a nie pozostaje bez wyniku; częściowy
+indeks na `claimed_at` dla `outcome is null` sprawia, że to pytanie jest
+wyszukaniem w indeksie. Przebieg, który przekroczy ten limit, nadal zapisuje
+to, co dostarczył, zastępując domniemanie. Instrukcje rezerwacji, oznaczenia
+przerwanych i zapisu wyniku przechodzą przez Command Bus bez wpisu audytu: to
 ewidencja, a nie zmiana projektu.
 
 ### Podpięte dokumenty i ich właściciele

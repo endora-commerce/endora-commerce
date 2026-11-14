@@ -19,6 +19,8 @@
  */
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 
+import { reportZoneContributionCrash } from '../save-session/contribution-context.js';
+
 export interface ZoneErrorBoundaryProps {
   readonly module: string;
   readonly zone: string;
@@ -47,6 +49,9 @@ export class ZoneErrorBoundary extends Component<ZoneErrorBoundaryProps, ZoneErr
       error,
       info.componentStack,
     );
+    // Feature 180: a save participant inside the contribution can no longer be shown or saved,
+    // so its session drops it — with a notice when it held unsaved changes.
+    reportZoneContributionCrash({ module: this.props.module, zone: this.props.zone });
   }
 
   override render(): ReactNode {

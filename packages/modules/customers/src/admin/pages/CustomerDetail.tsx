@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, formatDateTime, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Badge, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { OrdersPanel, QuoteRequestsPanel, CartsPanel } from '../panels/HistoryPanels.js';
@@ -215,7 +215,8 @@ export function CustomerDetail(): ReactNode {
           with the organization screen, because `unrendered-zone` is computed per
           member and a shared one would let that host's mount cover this host's
           absence (Z13). */}
-      <AdminZone name="customer.detail.after" props={{ customerId: id }} />
+      {/* Feature 180 — the inert handle until this screen runs its save session (WP-8). */}
+      <AdminZone name="customer.detail.after" props={{ customerId: id, saveSession: INERT_SAVE_SESSION }} />
 
       {/* Feature 055 — operator-defined custom fields for this customer. */}
       <CustomFieldValuesPanel

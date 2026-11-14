@@ -125,6 +125,38 @@ describe('Admin Quote Requests routes (US2)', () => {
     expect(body.data.find((r) => r.id === created.id)?.status).toBe('Pending');
   });
 
+  it('names each listed status in the response language, beside its code (issue #455)', async () => {
+    const created = await createPendingRfq();
+    // An administrator's language is the stored preference, not a header.
+    const setLanguage = async (preferredLanguage: 'en' | 'pl' | null) => {
+      const res = await h.app.inject({
+        method: 'PATCH',
+        url: '/api/v1/admin/me/preferred-language',
+        cookies: { b2b_session: 'stub-admin-session' },
+        payload: { preferredLanguage },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+    };
+    const named = async (language: 'en' | 'pl') => {
+      await setLanguage(language);
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/quote-requests',
+        cookies: { b2b_session: 'stub-admin-session' },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json() as { data: Array<{ id: string; status: string; statusName?: string }> };
+      const row = body.data.find((r) => r.id === created.id);
+      return [row?.status, row?.statusName];
+    };
+    try {
+      expect(await named('pl')).toEqual(['Pending', 'Oczekujące']);
+      expect(await named('en')).toEqual(['Pending', 'Pending']);
+    } finally {
+      await setLanguage(null);
+    }
+  });
+
   it('approves a priced Pending Quote Request', async () => {
     const created = await createPricedPendingRfq();
     const res = await h.app.inject({

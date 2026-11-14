@@ -8,23 +8,23 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 
 ## Phase 1: Setup
 
-- [ ] T001 Branch from `origin/master`; `bash scripts/setup-worktree.sh`; `pnpm run build:packages`
+- [x] T001 Branch from `origin/master`; `bash scripts/setup-worktree.sh`; `pnpm run build:packages`
 
 ## Phase 2: Foundational — WP-1 API, WP-5 controls (block every editor)
 
-- [ ] T010 [P] [US6] Type-level test `packages/admin-kit/src/save-session/save-session.types.test-d.ts`: `saveSession` required on `ProductEditorZoneProps`, `ProductEditorFieldZoneProps`, `CategoryEditorZoneProps`, `OrganizationDetailZoneProps`, `CustomerDetailZoneProps`, `SalesChannelEditorZoneProps`; absent on `ProductEditorSeoZoneProps` and every non-adopting zone (`@ts-expect-error`)
-- [ ] T011 [US6] `EditorSaveSessionHandle` and the six `saveSession` props in `packages/contracts/src/admin-contributions.ts`; correct the `category.editor.after` comment (FR-052); rebuild contracts
-- [ ] T012 [P] [US6] Failing tests `packages/admin-kit/src/save-session/run-save.test.ts`: refusal calls no `save`; all validations run; blocking failure → `not-attempted`; non-blocking failure continues; retry writes only what is left
-- [ ] T013 [US6] `packages/admin-kit/src/save-session/run-save.ts`
-- [ ] T014 [P] [US6] Failing tests `admin/test/kit/save-session.test.tsx`: zone registration; host-owned registration under `hostModule` (and refusal without one); draft survives unmount; clean unmounted entry removed; `loaded` does not overwrite a dirty draft; `writable:false` never dirty; module no longer visible → dropped + notice; boundary crash → dropped + notice; `resetKey` clears; `discardAll`
-- [ ] T015 [US6] Zone contribution context in `packages/admin-kit/src/zones/AdminZone.tsx`
-- [ ] T016 [US6] `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant` in `packages/admin-kit/src/save-session/`; explicit exports in `packages/admin-kit/src/lib/index.ts`
-- [ ] T017 [P] [US6] Failing tests `admin/test/kit/save-session-controls.test.tsx`: `SaveSessionActions` count / inert / note; `SaveSessionSummary` per outcome, "Show" callback, `role="alert"`, axe clean
-- [ ] T018 [US6] `packages/admin-kit/src/components/save-session/` (WP-5); exports in `packages/admin-kit/src/components/index.ts`
-- [ ] T019 [P] [US9] Failing test `admin/test/kit/custom-field-values-participant.test.tsx`: with `saveSession` it registers and renders no Save; without it, unchanged (FR-062)
-- [ ] T020 [US9] `saveSession` option in `packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx`
-- [ ] T021 [P] `core` strings `saveSession.*` in `packages/modules/_i18n/i18n/{en,pl}.json`
-- [ ] T022 Changesets: contracts minor, admin-kit minor
+- [x] T010 [P] [US6] Type-level test `packages/admin-kit/src/save-session/save-session.types.test-d.ts`: `saveSession` required on `ProductEditorZoneProps`, `ProductEditorFieldZoneProps`, `CategoryEditorZoneProps`, `OrganizationDetailZoneProps`, `CustomerDetailZoneProps`, `SalesChannelEditorZoneProps`; absent on `ProductEditorSeoZoneProps` and every non-adopting zone (`@ts-expect-error`) — written as `packages/contracts/src/admin-contributions.save-session.test.ts` (`expectTypeOf` + `@ts-expect-error`): admin-kit has no test runner, and contracts already holds its zone type tests there
+- [x] T011 [US6] `EditorSaveSessionHandle` and the six `saveSession` props in `packages/contracts/src/admin-contributions.ts`; correct the `category.editor.after` comment (FR-052); rebuild contracts
+- [x] T012 [P] [US6] Failing tests `packages/admin-kit/src/save-session/run-save.test.ts`: refusal calls no `save`; all validations run; blocking failure → `not-attempted`; non-blocking failure continues; retry writes only what is left — written as `admin/test/kit/save-session-run.test.ts`, where every admin-kit test lives
+- [x] T013 [US6] `packages/admin-kit/src/save-session/run-save.ts`
+- [x] T014 [P] [US6] Failing tests `admin/test/kit/save-session.test.tsx`: zone registration; host-owned registration under `hostModule` (and refusal without one); draft survives unmount; clean unmounted entry removed; `loaded` does not overwrite a dirty draft; `writable:false` never dirty; module no longer visible → dropped + notice; boundary crash → dropped + notice; `resetKey` clears; `discardAll`
+- [x] T015 [US6] Zone contribution context in `packages/admin-kit/src/zones/AdminZone.tsx`
+- [x] T016 [US6] `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant` in `packages/admin-kit/src/save-session/`; explicit exports in `packages/admin-kit/src/lib/index.ts` — plus `INERT_SAVE_SESSION`, which the five hosts pass until their own WP adopts the session
+- [x] T017 [P] [US6] Failing tests `admin/test/kit/save-session-controls.test.tsx`: `SaveSessionActions` count / inert / note; `SaveSessionSummary` per outcome, "Show" callback, `role="alert"`, axe clean
+- [x] T018 [US6] `packages/admin-kit/src/components/save-session/` (WP-5); exports in `packages/admin-kit/src/components/index.ts`
+- [x] T019 [P] [US9] Failing test `admin/test/kit/custom-field-values-participant.test.tsx`: with `saveSession` it registers and renders no Save; without it, unchanged (FR-062)
+- [x] T020 [US9] `saveSession` option in `packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx`
+- [x] T021 [P] `core` strings `saveSession.*` in `packages/modules/_i18n/i18n/{en,pl}.json` — WP-1 shipped the notices and `saveSession.error.moduleOff`; WP-5 the `saveSession.action.*` and `saveSession.summary.*` keys
+- [x] T022 Changesets: contracts minor, admin-kit minor
 
 ## Phase 3: Product editor — WP-2 + WP-3 (US1–US5, P1)
 

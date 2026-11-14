@@ -223,8 +223,10 @@ added_by_admin_user_id, added_at, unique (project_id, asset_id). Registered with
 `assetReferenceRegistry` (`ownerModuleId: 'projects'`).
 
 **`project_stage_alert_deliveries`** (R-12): id, stage_id (cascade), offset_days, deadline_on,
-claimed_at, outcome null|`bell`|`bell_email`|`email`|`no_recipient`|`undeliverable`,
-recipient_count, settled_at; **unique (stage_id, offset_days, deadline_on)**.
+claimed_at, outcome null|`bell`|`bell_email`|`email`|`no_recipient`|`undeliverable`|`interrupted`,
+recipient_count, settled_at; **unique (stage_id, offset_days, deadline_on)**; index (claimed_at)
+where outcome is null. `interrupted` is set by a later pass on a claim left unsettled for thirty
+minutes (issue #462).
 
 Sequence: `projects_number_seq`.
 

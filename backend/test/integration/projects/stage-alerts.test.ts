@@ -12,6 +12,7 @@ import { seedCrmAdmin, seedCrmOrganization, seedCrmSalesRep } from '../../helper
 import { runWithoutTenantContext } from '../../../src/tenancy/tenant-context.js';
 import type {
   StageAlertService,
+  StageAlertStorePort,
   StageAlertSweepSummary,
 } from '../../../../packages/modules/projects/src/backend/services/stage-alert-service.js';
 import {
@@ -435,6 +436,88 @@ describe('projects — Stage deadline alerts (US8)', () => {
         runStageAlertJob({ isPresent: () => true, hasWork: () => composed().hasWork(at('2031-12-21')), tick: pass }),
       );
       expect(pass).toHaveBeenCalledTimes(1);
+    });
+
+    describe('a claim its pass never settled (issue #462)', () => {
+      const MINUTE = 60 * 1000;
+      /**
+       * The clock of these cases is in 2040, after every other file's: a claim
+       * is stale to any clock thirty minutes past it, so one left unsettled here
+       * for a moment must not look interrupted to another file's probe — the
+       * idle-tick audit's, in 2033, asks the same table.
+       */
+      const CLOCK = (day: number) => new Date(Date.UTC(2040, 0, day, 7, 30));
+      /** A claim as a pass that died after claiming leaves it: inserted, with no outcome. */
+      const claimLeftBy = async (detail: ProjectDetail, claimedAt: Date): Promise<string> => {
+        const rows = (await h
+          .em()
+          .getConnection()
+          .execute(
+            `insert into "project_stage_alert_deliveries" ("stage_id", "offset_days", "deadline_on", "claimed_at")
+             select s."id", 1, s."deadline_on", ? from "project_stages" s where s."id" = ? returning "id"`,
+            [claimedAt, stageNamed(detail, 'Design')],
+          )) as Array<{ id: string }>;
+        return rows[0]!.id;
+      };
+      const store = () =>
+        (composed() as unknown as { deps: { store: StageAlertStorePort } }).deps.store;
+
+      it('is marked interrupted by the next pass once it is thirty minutes old, and is never delivered', async () => {
+        const crashed = await dueOn('crashed', '2031-12-26');
+        const recent = await dueOn('still sending', '2031-12-26');
+        const now = CLOCK(2);
+        await claimLeftBy(crashed, new Date(now.getTime() - 31 * MINUTE));
+        const recentId = await claimLeftBy(recent, new Date(now.getTime() - 5 * MINUTE));
+
+        const summary = await sweep(now);
+
+        // Platform-wide: another file's abandoned claim would be marked by the same pass.
+        expect(summary.interrupted).toBeGreaterThanOrEqual(1);
+        expect(await deliveries(stageNamed(crashed, 'Design'))).toMatchObject([{ outcome: 'interrupted', recipient_count: null }]);
+        // A claim younger than the bound may belong to a pass still delivering it.
+        expect(await deliveries(stageNamed(recent, 'Design'))).toMatchObject([{ outcome: null }]);
+        for (const detail of [crashed, recent]) {
+          expect(await bells(detail.id, ada)).toEqual([]);
+          expect(mailsAbout(detail.number)).toEqual([]);
+        }
+        // Settled by its pass after all: what it delivered stands, and nothing is left unsettled here.
+        await enterSystemScope('test: projects stage alerts', () =>
+          store().settle(recentId, 'bell', 1, new Date(now.getTime() + MINUTE)),
+        );
+        // Marked once, and still not delivered by a later pass.
+        await sweep(new Date(now.getTime() + 15 * MINUTE));
+        expect(await deliveries(stageNamed(crashed, 'Design'))).toMatchObject([{ outcome: 'interrupted' }]);
+        expect(mailsAbout(crashed.number)).toEqual([]);
+      });
+
+      it('is work for the probe, so a tick with nothing else due still marks it', async () => {
+        const crashed = await dueOn('crashed probe', '2031-12-27');
+        const now = CLOCK(3);
+        // The alert was claimed and lost; nothing is due that day.
+        await claimLeftBy(crashed, new Date(now.getTime() - 45 * MINUTE));
+        const pass = vi.fn(async () => undefined);
+        await runWithoutTenantContext(() =>
+          runStageAlertJob({ isPresent: () => true, hasWork: () => composed().hasWork(now), tick: pass }),
+        );
+        expect(pass).toHaveBeenCalledTimes(1);
+        await tick(now);
+        expect(await deliveries(stageNamed(crashed, 'Design'))).toMatchObject([{ outcome: 'interrupted' }]);
+      });
+
+      it('a pass that outlives the bound replaces the presumption with what it delivered, or gives the claim back', async () => {
+        const slow = await dueOn('slow pass', '2031-12-28');
+        const givenBack = await dueOn('slow pass given back', '2031-12-28');
+        const now = CLOCK(4);
+        const settled = await claimLeftBy(slow, new Date(now.getTime() - 40 * MINUTE));
+        const released = await claimLeftBy(givenBack, new Date(now.getTime() - 40 * MINUTE));
+        await enterSystemScope('test: projects stage alerts', async () => {
+          await store().expire(now);
+          await store().settle(settled, 'bell', 1, now);
+          await store().release([released]);
+        });
+        expect(await deliveries(stageNamed(slow, 'Design'))).toMatchObject([{ outcome: 'bell', recipient_count: 1 }]);
+        expect(await deliveries(stageNamed(givenBack, 'Design'))).toEqual([]);
+      });
     });
 
     it('the alert-zone setting is honoured: the same instant is another day in another zone', async () => {

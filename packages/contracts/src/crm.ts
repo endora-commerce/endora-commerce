@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { calendarDateSchema, isoDateTimeSchema } from './common.js';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
 import { customFieldFilterSchema, customFieldValuesSchema } from './custom-fields.js';
+import type { SupportedLanguage } from './platform-language.js';
 import type { QuoteRequestStatus } from './quote-requests.js';
 import { twoDecimalAmountString } from './money-input.js';
 import {
@@ -1611,6 +1612,15 @@ export interface OpportunityReadPort {
    * link picker (R-5, R-16).
    */
   search(query: OpportunitySearchQuery): Promise<OpportunityRecord[]>;
+  /**
+   * A status's name in `language`, by this module's own rule: the operator's
+   * name in that language, else the status's default name, else the code (a
+   * status the workflow no longer holds). Published for issue #455, so that a
+   * module showing a linked Opportunity names its status as `crm` does rather
+   * than showing `statusCode`. Reads no Opportunity, so it checks no
+   * permission.
+   */
+  statusName(code: string, language: SupportedLanguage): Promise<string>;
 }
 
 /** What `OpportunityReadPort.search` is asked. */

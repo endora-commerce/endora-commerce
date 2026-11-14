@@ -17,7 +17,7 @@ export function HistoryTab({ project }: ProjectTabProps): ReactNode {
   return (
     <>
       <h2 className="sr-only">{t('tabs.changeHistory')}</h2>
-      <ProjectHistory projectId={project.id} reloadKey={project.version} />
+      <ProjectHistory project={project} reloadKey={project.version} />
     </>
   );
 }

@@ -441,6 +441,17 @@ describe('projects init migration', () => {
            values ('${stageId}', 3, '2026-12-01', 'pigeon')`,
         ),
       ).rejects.toThrow(/check constraint/i);
+      // A claim its pass never settled (issue #462), and the index the sweep finds it by.
+      await expect(
+        rows(
+          `insert into "project_stage_alert_deliveries" ("stage_id", "offset_days", "deadline_on", "outcome")
+           values ('${stageId}', 1, '2026-12-01', 'interrupted')`,
+        ),
+      ).resolves.toBeDefined();
+      expectIndex(
+        await indexDefinitions('project_stage_alert_deliveries'),
+        /CREATE INDEX .*\(claimed_at\) WHERE \(outcome IS NULL\)$/,
+      );
     });
 
     it('holds comment kinds and reference targets to their sets, and indexes references by target', async () => {

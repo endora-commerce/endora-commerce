@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, waitFor, type RenderResult } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import type { AdminZoneName } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
@@ -133,7 +134,7 @@ function zoneTree(options: ZoneOptions): ReactElement {
               the cast is the harness's and not a host's. */}
           <AdminZone
             name={options.name as 'organization.detail.after'}
-            props={options.props as { organizationId: string }}
+            props={{ ...(options.props as { organizationId: string }), saveSession: INERT_SAVE_SESSION }}
           />
         </MemoryRouter>,
         {

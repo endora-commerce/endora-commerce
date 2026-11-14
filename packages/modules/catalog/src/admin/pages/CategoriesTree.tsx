@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Pencil, Trash2, Eye, EyeOff, FileText } from 'lucide-react';
-import { ApiError, apiClient, cn, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, cn, useAuth, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { AssetPicker, CustomFieldValuesPanel, adminLanguageToLocale, customFieldErrorsOf, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type { CategoryTreePickerCategory } from '@endora-commerce/admin-kit/components';
@@ -534,7 +534,9 @@ function EditForm({
   // Feature 175 — `undefined` until the operator edits a field, so a save that
   // touched none sends no bag and leaves the stored values to the server.
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown> | undefined>(undefined);
-  const contributions = useAdminZone('category.editor.after', { categoryId: category.id });
+  // Feature 180 — the category editor runs no save session until WP-6, so its zone carries the
+  // inert handle.
+  const contributions = useAdminZone('category.editor.after', { categoryId: category.id, saveSession: INERT_SAVE_SESSION });
   return (
     <form
       className="space-y-4"
@@ -613,7 +615,7 @@ function EditForm({
           integrations card, applied to a rule instead of a panel. */}
       {contributions.length > 0 ? (
         <div className="space-y-2 pt-3 border-t mt-2">
-          <AdminZone name="category.editor.after" props={{ categoryId: category.id }} />
+          <AdminZone name="category.editor.after" props={{ categoryId: category.id, saveSession: INERT_SAVE_SESSION }} />
         </div>
       ) : null}
     </form>

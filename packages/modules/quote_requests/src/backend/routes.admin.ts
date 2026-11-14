@@ -13,6 +13,7 @@ import {
   isCustomFieldFilterUnavailableFailure,
   rfqStatusSchema,
   updateQuoteRequestSavedViewRequestSchema,
+  type SupportedLanguage,
 } from '@endora-commerce/contracts';
 import { savedViewActor } from './saved-view-actor.js';
 import type { RfqAdminService, AdminContext, AdminAssignmentScope } from './services/rfq-admin-service.js';
@@ -30,6 +31,8 @@ export interface QuoteRequestsAdminDeps {
   resolveAdminContext: AdminContextResolver;
   /** `specs/147-saved-views/` (US3) — the Quote Request list's saved views. */
   listViewService: QuoteRequestListViewService;
+  /** A status's name in a language, in this module's wording (issue #455). */
+  statusName: (status: string, language: SupportedLanguage) => Promise<string>;
 }
 
 /** The list's one query member with a schema: the custom-field filters (feature 157). */
@@ -51,7 +54,7 @@ export async function registerQuoteRequestsAdminRoutes(
   app: FastifyInstance,
   deps: QuoteRequestsAdminDeps,
 ): Promise<void> {
-  const { adminService, requireAdmin, resolveAdminContext, listViewService } = deps;
+  const { adminService, requireAdmin, resolveAdminContext, listViewService, statusName } = deps;
   const guard = requireAdmin('rfqs:handle');
 
   // `specs/157-custom-fields-list-filters/` — the custom fields the list offers as filters.
@@ -96,8 +99,18 @@ export async function registerQuoteRequestsAdminRoutes(
       }
       throw error;
     });
+    // Each row's status by its name in the response language, beside the code
+    // (issue #455) — what another module's link picker shows. Six statuses at
+    // most, so each is named once.
+    const language = await request.responseLanguage();
+    const names = new Map<string, Promise<string>>();
+    const nameOf = (status: string): Promise<string> => {
+      let name = names.get(status);
+      if (!name) names.set(status, (name = statusName(status, language)));
+      return name;
+    };
     return {
-      data,
+      data: await Promise.all(data.map(async (row) => ({ ...row, statusName: await nameOf(row.status) }))),
       pagination: { limit: 50, nextCursor: null, hasMore: false },
     };
   });

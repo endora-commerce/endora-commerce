@@ -11,6 +11,7 @@ const ID = '00000000-0000-4000-8000-0000000000b1';
 function port(): QuoteRequestReadPort {
   return {
     findById: vi.fn(async () => ({ id: ID, businessId: 'QR-1', status: 'Pending' }) as unknown as QuoteRequestRecord),
+    statusName: vi.fn(async (status: string) => status),
     findByBusinessId: vi.fn(async () => null),
     listOpenForOrganizations: vi.fn(async () => []),
     // Lines that would add up to something else: they must not be read.
