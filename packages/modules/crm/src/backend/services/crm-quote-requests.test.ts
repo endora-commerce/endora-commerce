@@ -19,6 +19,8 @@ function port(): QuoteRequestReadPort {
       throw new Error('the lines are quote_requests’ to value');
     }),
     amountOf: vi.fn(async () => ({ amount: '35.00', currency: 'PLN', agreement: 'partial' as const })),
+    findByIds: vi.fn(async () => []),
+    amountsOf: vi.fn(async () => new Map()),
   };
 }
 

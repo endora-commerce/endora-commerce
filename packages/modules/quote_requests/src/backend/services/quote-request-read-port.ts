@@ -117,6 +117,38 @@ export class QuoteRequestReadService implements QuoteRequestReadPort {
     if (!quote) return null;
     return quoteRequestAmount(await em.find(QuoteRequestItem, { quoteRequestId: quote.id }));
   }
+
+  /**
+   * Issue #457 — {@link findById} for many ids in one statement, under the
+   * same scoped EntityManager, so an out-of-scope quote is absent exactly as
+   * `findById` answers `null` for it.
+   */
+  async findByIds(ids: readonly string[]): Promise<QuoteRequestRecord[]> {
+    const candidates = [...new Set(ids.filter(isUuidShape))];
+    if (candidates.length === 0) return [];
+    const quotes = await this.emFactory().find(QuoteRequest, { id: { $in: candidates } });
+    return quotes.map(toQuoteRequestRecord);
+  }
+
+  /**
+   * Issue #457 — {@link amountOf} for many quotes in two statements: the
+   * quotes under the caller's scope, then the lines of the ones found. A quote
+   * not found has no entry, as `amountOf` answers `null` for it.
+   */
+  async amountsOf(quoteRequestIds: readonly string[]): Promise<Map<string, QuoteRequestAmount>> {
+    const candidates = [...new Set(quoteRequestIds.filter(isUuidShape))];
+    const amounts = new Map<string, QuoteRequestAmount>();
+    if (candidates.length === 0) return amounts;
+    const em = this.emFactory();
+    const quotes = await em.find(QuoteRequest, { id: { $in: candidates } });
+    if (quotes.length === 0) return amounts;
+    const linesByQuote = new Map<string, QuoteRequestItem[]>(quotes.map((quote) => [quote.id, []]));
+    for (const item of await em.find(QuoteRequestItem, { quoteRequestId: { $in: [...linesByQuote.keys()] } })) {
+      linesByQuote.get(item.quoteRequestId)?.push(item);
+    }
+    for (const [id, lines] of linesByQuote) amounts.set(id, quoteRequestAmount(lines));
+    return amounts;
+  }
 }
 
 export function toQuoteRequestRecord(quote: QuoteRequest): QuoteRequestRecord {
