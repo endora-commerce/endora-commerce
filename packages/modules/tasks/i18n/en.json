@@ -15,6 +15,7 @@
   "errors.TASK_TAG_UNKNOWN": "One of these tags does not exist.",
   "errors.TASK_TAG_NAME_TAKEN": "A tag with this name already exists.",
   "errors.TASK_ATTACHMENT_REFUSED": "This file cannot be attached: it is too large, or it is a file a browser would run (HTML, SVG, XML, JavaScript).",
+  "errors.TASK_ATTACHMENT_REFUSED.not_private": "An attachment must be a private file. Upload it to the media library as private.",
   "errors.TASK_VIEW_NAME_TAKEN": "You already have a saved view with this name on the task list. Choose a different name.",
   "errors.TASK_PARENT_CYCLE": "A task cannot be a sub-task of itself or of one of its own sub-tasks.",
   "errors.TASK_HIERARCHY_TOO_DEEP": "Sub-tasks can be nested at most 5 levels deep. Choose a parent higher up.",

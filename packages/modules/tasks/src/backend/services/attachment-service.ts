@@ -109,10 +109,15 @@ export class TaskAttachmentService {
     if (!(await this.deps.assets.visibleToCaller([assetId])).has(assetId)) throw fileUnavailable();
     await this.#refuseAFileHeldOutOfSight(em, assetId);
     if (asset.visibility !== 'private') {
+      // The file's visibility refuses a well-formed request, so this is the
+      // module's attachment refusal, not `VALIDATION_FAILED` (issue #642).
+      // `code` is the refusal token that picks the sentence; `reason` is the
+      // member a screen reads, as the size and active-content refusals carry.
       throw new HttpError(
         422,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.TASK_ATTACHMENT_REFUSED,
         'An attachment must be a private file. Upload it to the media library as private.',
+        { code: 'not_private', reason: 'not_private', assetId, visibility: asset.visibility },
       );
     }
     refuseActiveContent({ filename: asset.filename, mimeType: asset.mimeType });

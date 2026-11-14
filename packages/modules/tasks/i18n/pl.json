@@ -15,6 +15,7 @@
   "errors.TASK_TAG_UNKNOWN": "Jedna z tych etykiet nie istnieje.",
   "errors.TASK_TAG_NAME_TAKEN": "Etykieta o tej nazwie już istnieje.",
   "errors.TASK_ATTACHMENT_REFUSED": "Tego pliku nie można załączyć: jest za duży albo przeglądarka by go uruchomiła (HTML, SVG, XML, JavaScript).",
+  "errors.TASK_ATTACHMENT_REFUSED.not_private": "Załącznik musi być plikiem prywatnym. Prześlij go do biblioteki mediów jako prywatny.",
   "errors.TASK_VIEW_NAME_TAKEN": "Masz już zapisany widok o tej nazwie na liście zadań. Wybierz inną nazwę.",
   "errors.TASK_PARENT_CYCLE": "Zadanie nie może być podzadaniem samego siebie ani żadnego ze swoich podzadań.",
   "errors.TASK_HIERARCHY_TOO_DEEP": "Podzadania można zagnieżdżać najwyżej na 5 poziomach. Wybierz zadanie nadrzędne wyżej w hierarchii.",
