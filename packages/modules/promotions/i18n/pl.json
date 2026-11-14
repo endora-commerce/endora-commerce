@@ -34,5 +34,12 @@
   "nav.promotions.label": "Promocje",
   "nav.promotionRules.label": "Reguły promocji",
   "actions.openPromotionRules.keywords": "reguły, reguła, promocja",
-  "settingGroups.promotions.name": "Promocje"
+  "settingGroups.promotions.name": "Promocje",
+  "errors.PROMOTION_USAGE_LIMIT_REACHED": "Promocja w Twoim koszyku osiągnęła limit użyć, więc zamówienie nie zostało złożone. Wróć do koszyka, aby zobaczyć aktualną cenę.",
+  "errors.PROMOTION_USAGE_LIMIT_REACHED.with_coupon": "Promocja kuponu {couponCode} osiągnęła limit użyć, więc zamówienie nie zostało złożone. Usuń kupon albo wróć do koszyka, aby zobaczyć aktualną cenę.",
+  "errors.PROMOTION_COUPON_CODE_TAKEN": "Kod kuponu {couponCode} jest już używany. Wybierz inny kod.",
+  "errors.PROMOTION_COUPON_SPACE_EXHAUSTED": "W tej długości i formacie mieści się tylko {generated} z {requested} unikalnych kodów. Wydłuż kody albo poszerz format.",
+  "errors.PROMOTION_RULE_NAME_TAKEN": "Reguła o nazwie {name} już istnieje. Wybierz inną nazwę.",
+  "errors.PROMOTION_RULE_IN_USE": "Promocje, które korzystają z tej reguły: {promotionCount}. Odłącz od nich regułę, zanim ją usuniesz.",
+  "errors.PROMOTION_ATTRIBUTE_NOT_ELIGIBLE": "Atrybutu {attributeKey} nie można używać w regułach promocyjnych. Włącz to dla atrybutu w katalogu albo wybierz inny atrybut."
 }

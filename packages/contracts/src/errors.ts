@@ -273,6 +273,24 @@ export const ERROR_CODES = {
   CART_ALREADY_TERMINAL: 'CART_ALREADY_TERMINAL',
   STOCK_UNAVAILABLE: 'STOCK_UNAVAILABLE',
   PROMOTION_INVALID: 'PROMOTION_INVALID',
+  // Seven `promotions` refusals raised as `VALIDATION_FAILED` with a machine token
+  // glued to an English message until issue #628 (#86). Declared by the
+  // `promotions` manifest.
+  /**
+   * 409 — a promotion's usage limit was reached between the cart and placement
+   * (`details.promotionId`; with a coupon, token `with_coupon` and `couponCode`).
+   */
+  PROMOTION_USAGE_LIMIT_REACHED: 'PROMOTION_USAGE_LIMIT_REACHED',
+  /** 409 — another coupon already has this code (`details.couponCode`). */
+  PROMOTION_COUPON_CODE_TAKEN: 'PROMOTION_COUPON_CODE_TAKEN',
+  /** 400 — the length and format hold fewer unique codes than asked for (`details.requested`, `generated`). */
+  PROMOTION_COUPON_SPACE_EXHAUSTED: 'PROMOTION_COUPON_SPACE_EXHAUSTED',
+  /** 409 — another named promotion rule already has this name (`details.name`). */
+  PROMOTION_RULE_NAME_TAKEN: 'PROMOTION_RULE_NAME_TAKEN',
+  /** 409 — a named rule promotions use is not deleted (`details.ruleId`, `promotionCount`). */
+  PROMOTION_RULE_IN_USE: 'PROMOTION_RULE_IN_USE',
+  /** 400 — a criterion names an attribute not flagged usable in promotion rules (`details.attributeKey`). */
+  PROMOTION_ATTRIBUTE_NOT_ELIGIBLE: 'PROMOTION_ATTRIBUTE_NOT_ELIGIBLE',
   ORGANIZATION_SUSPENDED: 'ORGANIZATION_SUSPENDED',
   ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
   ORDER_NOT_CANCELLABLE: 'ORDER_NOT_CANCELLABLE',

@@ -111,7 +111,11 @@ export class CouponService {
     }
     const existing = await em.findOne(PromotionCoupon, { code });
     if (existing) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `coupon_code_taken: ${code}`);
+      // The coupon's code travels as `couponCode`: `details.code` is the
+      // envelope's refusal-token slot (issue #628).
+      throw new HttpError(409, ERROR_CODES.PROMOTION_COUPON_CODE_TAKEN, `The coupon code ${code} is already in use.`, {
+        couponCode: code,
+      });
     }
     const coupon = em.create(PromotionCoupon, {
       promotionId,
@@ -162,8 +166,9 @@ export class CouponService {
     if (codes.size < req.count) {
       throw new HttpError(
         400,
-        ERROR_CODES.VALIDATION_FAILED,
-        'coupon_space_exhausted: increase length or widen the format',
+        ERROR_CODES.PROMOTION_COUPON_SPACE_EXHAUSTED,
+        `Only ${codes.size} of ${req.count} unique codes fit this length and format.`,
+        { requested: req.count, generated: codes.size },
       );
     }
 

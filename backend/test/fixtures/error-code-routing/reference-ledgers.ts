@@ -1847,6 +1847,49 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted with the `forms` module (`specs/170-forms-module/`, User Story 6), which did not exist ' +
       'when the prefix chain was deleted: a form submission refused because the CAPTCHA provider could not be reached to verify it; retryable (FR-042).',
   },
+  PROMOTION_USAGE_LIMIT_REACHED: {
+    to: 'promotions',
+    reason:
+      'Minted by issue #628 (#86) for a promotion whose usage limit is reached between the cart ' +
+      'and placement — the buyer\'s one refusal in the module. It was `409 VALIDATION_FAILED` ' +
+      'reading `promotion_unavailable: usage limit reached for <uuid>`; the sentence now names ' +
+      'the coupon applied (token `with_coupon`) and never the id.',
+  },
+  PROMOTION_COUPON_CODE_TAKEN: {
+    to: 'promotions',
+    reason:
+      'Minted by issue #628 (#86) for a coupon created with a code another coupon has. It was ' +
+      '`409 VALIDATION_FAILED` reading `coupon_code_taken: <code>`; the code travels as ' +
+      '`couponCode` because `details.code` is the token slot.',
+  },
+  PROMOTION_COUPON_SPACE_EXHAUSTED: {
+    to: 'promotions',
+    reason:
+      'Minted by issue #628 (#86) for a coupon batch whose length and format hold fewer unique ' +
+      'codes than were asked for. It was `400 VALIDATION_FAILED` reading ' +
+      '`coupon_space_exhausted: …`; the batch size bound beside it stays validation.',
+  },
+  PROMOTION_RULE_NAME_TAKEN: {
+    to: 'promotions',
+    reason:
+      'Minted by issue #628 (#86) for a named promotion rule created or renamed onto a name ' +
+      'another rule has. It was `409 VALIDATION_FAILED` reading `rule_name_taken: <name>` at ' +
+      'both raise sites of `promotion-rule-store.ts`.',
+  },
+  PROMOTION_RULE_IN_USE: {
+    to: 'promotions',
+    reason:
+      'Minted by issue #628 (#86) for deleting a named rule promotions reference. It was ' +
+      '`409 VALIDATION_FAILED` reading `rule_in_use: referenced by N promotion(s)`; the count ' +
+      'now travels as `details.promotionCount`.',
+  },
+  PROMOTION_ATTRIBUTE_NOT_ELIGIBLE: {
+    to: 'promotions',
+    reason:
+      'Minted by issue #628 (#86) for a criterion naming a catalogue attribute that exists but ' +
+      'is not flagged usable in promotion rules — configuration the operator can change, so a ' +
+      'refusal; an attribute that names nothing stays `VALIDATION_FAILED`.',
+  },
   NEWSLETTER_AUTOMATION_ACTIVE: {
     to: 'newsletter',
     reason:

@@ -59,9 +59,12 @@ and surfaces the result in the cart and on the placed order.
 `finalizeUsage` runs inside the order-placement transaction. Each applicable
 scope counter is bumped with `UPDATE promotion_usage_counters SET count =
 count + 1 WHERE (scope_type, scope_key) = … AND count < :limit`. Zero rows
-affected means the cap was reached, so a `409 promotion_unavailable` is thrown
-and the whole placement rolls back. Two carts racing for the final use can
-never both succeed.
+affected means the cap was reached, so a `409 PROMOTION_USAGE_LIMIT_REACHED` is
+thrown and the whole placement rolls back. Two carts racing for the final use can
+never both succeed. The buyer reads a sentence that names the coupon they applied
+(`details.code` `with_coupon`, `couponCode`), or the promotion without its name
+when no coupon was applied — never the promotion's id, which travels only as
+`details.promotionId`.
 
 ## Public surface (admin, gated by `promotions:read|write|delete`)
 
@@ -76,6 +79,25 @@ never both succeed.
 | `GET .../coupon-batches/:batchId/export` | CSV export of generated codes |
 | `GET /api/v1/admin/promotions/:id/stats` | Usage statistics |
 | `GET/POST/PUT/DELETE /api/v1/admin/promotion-rules[/:id]` | Named-rule library |
+
+## Refusals
+
+Each refusal has its own code and a sentence in English and Polish, which
+names the values in `details`. They were `VALIDATION_FAILED` with a machine
+token in front of the message until issue #628; the status is unchanged.
+
+| Code | Status | When | `details` |
+| --- | --- | --- | --- |
+| `PROMOTION_USAGE_LIMIT_REACHED` | `409` | `POST /api/v1/orders` — a promotion's usage limit was reached between the cart and placement | `promotionId`; with a coupon, `code: 'with_coupon'` and `couponCode` |
+| `PROMOTION_COUPON_CODE_TAKEN` | `409` | `POST …/coupons` — another coupon has this code | `couponCode` |
+| `PROMOTION_COUPON_SPACE_EXHAUSTED` | `400` | `POST …/coupon-batches` — the length and format hold fewer unique codes than asked for | `requested`, `generated` |
+| `PROMOTION_RULE_NAME_TAKEN` | `409` | `POST`, `PUT /api/v1/admin/promotion-rules[/:id]` — another rule has this name | `name` |
+| `PROMOTION_RULE_IN_USE` | `409` | `DELETE /api/v1/admin/promotion-rules/:id` — promotions use the rule | `ruleId`, `promotionCount` |
+| `PROMOTION_ATTRIBUTE_NOT_ELIGIBLE` | `400` | `POST`, `PUT /api/v1/admin/promotions[/:id]` — a criterion names an attribute not usable in promotion rules | `attributeKey` |
+
+A batch larger than the generator's bound, an unknown action type, rule or
+attribute, an operator the attribute's type does not allow and an option the
+attribute does not have stay `VALIDATION_FAILED`.
 
 Coupon redemption on the storefront flows through the existing cart coupon
 endpoints (`POST /api/v1/cart/coupon`), which resolve the code via the coupon
