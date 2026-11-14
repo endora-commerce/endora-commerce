@@ -126,6 +126,12 @@ const NOTIFICATION_EMAIL_VARIABLES = {
     sampleValue: 'https://shop.example.com/quote-requests/2f1c0d1e-0000-4000-8000-000000000153',
     description: 'Empty when the sales channel has no storefront address; the button is then left out.',
   },
+  adminUrl: {
+    key: 'quote.adminUrl',
+    label: 'Link to the quote request in the admin panel',
+    sampleValue: 'https://admin.example.com/quote-requests/2f1c0d1e-0000-4000-8000-000000000153',
+    description: 'Empty when ADMIN_BASE_URL is not set; the button is then left out.',
+  },
   customer: { key: 'customer.name', label: 'Recipient name', sampleValue: 'Anna Example' },
   organization: { key: 'organization.name', label: 'Organization name', sampleValue: 'Acme Sp. z o.o.' },
   channel: { key: 'channel.name', label: 'Sales channel', sampleValue: 'B2B store' },
@@ -139,8 +145,8 @@ const NOTIFICATION_EMAIL_VARIABLES = {
 
 const V = NOTIFICATION_EMAIL_VARIABLES;
 const CUSTOMER_COMMON = [V.number, V.url, V.customer, V.organization, V.channel];
-// No link in the operator e-mails until #185 (owner ruling OQ-1 = A).
-const OPERATOR_COMMON = [V.number, V.customer, V.organization, V.channel];
+// The operator e-mails link into the admin panel when ADMIN_BASE_URL is set (spec 179 OQ-1, #1204).
+const OPERATOR_COMMON = [V.number, V.adminUrl, V.customer, V.organization, V.channel];
 
 /** The eleven notification e-mails — {@link manifest}'s `transactionalEmails`, after `quote_request_pdf`. */
 const QUOTE_NOTIFICATION_EMAILS = [

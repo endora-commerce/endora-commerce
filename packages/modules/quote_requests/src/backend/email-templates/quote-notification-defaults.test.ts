@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { renderDirectives } from '@endora-commerce/email-components/directives/directive-engine';
+import { renderEmailHtml } from '@endora-commerce/email-components/render/render-email-html';
+import { renderEmailText } from '@endora-commerce/email-components/render/render-email-text';
+import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
 import { manifest } from '../../manifest.js';
 import { customerEmailCode, operatorEmailCode } from '../services/notifications/channel-adapters.js';
 import { NOTIFICATION_CHANGES, NOTIFICATION_MATRIX } from '../services/notifications/notification-matrix.js';
@@ -29,7 +33,7 @@ const EXPECTED_CODES = [
 ];
 
 const COMMON_CUSTOMER = ['quote.number', 'quote.url', 'customer.name', 'organization.name', 'channel.name'];
-const COMMON_OPERATOR = ['quote.number', 'customer.name', 'organization.name', 'channel.name'];
+const COMMON_OPERATOR = ['quote.number', 'quote.adminUrl', 'customer.name', 'organization.name', 'channel.name'];
 const EXTRA: Record<string, string[]> = {
   quote_request_customer_submitted: ['actor.name'],
   quote_request_customer_resubmitted: ['actor.name', 'quote.previousNumber'],
@@ -113,4 +117,39 @@ describe('the eleven quote request notification e-mails', () => {
     expect(text).not.toContain('pdf');
     expect(text).not.toContain('załącz');
   });
+});
+
+/**
+ * Issue #1204 (spec 179 OQ-1): each operator default shows a button to the
+ * request in the admin panel when `quote.adminUrl` is sent, and nothing in its
+ * place — no `href="#"`, no bare label — when it is not.
+ */
+describe('the operator e-mails’ link into the admin panel (#1204)', () => {
+  const ADMIN_URL = 'https://admin.example.com/quote-requests/2f1c0d1e-0000-4000-8000-000000000153';
+  const OPERATOR_CODES = ['quote_request_operator_submitted', 'quote_request_operator_resubmitted'] as const;
+
+  it.each(OPERATOR_CODES.flatMap((code) => LANGUAGES.map((language) => [code, language] as const)))(
+    '%s (%s): a button to the request with the link, nothing in its place without one',
+    (code, language) => {
+      const content = (QUOTE_NOTIFICATION_EMAIL_DEFAULTS[code].defaultContent['languages'] as Record<string, unknown>)[
+        language
+      ] as PuckDataTree;
+      const base = {
+        quote: { number: 'QR-000153', lineCount: '4', previousNumber: 'QR-000150' },
+        customer: { name: 'Olga Operator' },
+        actor: { name: 'Anna Buyer' },
+        organization: { name: 'Acme' },
+        channel: { name: 'B2B store' },
+      };
+      const linked = { ...base, quote: { ...base.quote, adminUrl: ADMIN_URL } };
+      const html = (ctx: Record<string, unknown>) => renderDirectives(renderEmailHtml(content), ctx, { escape: true });
+      const text = (ctx: Record<string, unknown>) => renderDirectives(renderEmailText(content), ctx);
+
+      expect(html(linked)).toContain(`href="${ADMIN_URL}"`);
+      expect(text(linked)).toContain(ADMIN_URL);
+      expect(html(base)).not.toContain('<a href');
+      expect(html(base)).not.toContain('href="#"');
+      expect(text(base)).not.toContain('http');
+    },
+  );
 });

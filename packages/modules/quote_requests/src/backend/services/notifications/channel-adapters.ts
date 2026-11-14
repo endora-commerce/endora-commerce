@@ -16,7 +16,11 @@ import type {
   TransactionalSendOutcome,
 } from '@endora-commerce/contracts';
 import { LANGUAGE_FALLBACK, SUPPORTED_LANGUAGES, type SupportedLanguage } from '@endora-commerce/contracts';
-import { rethrowIfModuleDisabled, type SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
+import {
+  configuredAdminBaseUrl,
+  rethrowIfModuleDisabled,
+  type SalesChannelResolutionPort,
+} from '@endora-commerce/platform/kernel';
 import { formatQuoteDate } from '../../document/blocks/types.js';
 import { QuoteRequest } from '../../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../../entities/quote-request-item.entity.js';
@@ -130,7 +134,10 @@ export function quoteRequestStorefrontLinkPath(rfqId: string): string {
 /** The push's title key in this module's bundle; the sentence is the body. */
 export const PUSH_TITLE_KEY = 'customerPush.title';
 
-/** Where a bell entry about a request leads: its admin screen. */
+/**
+ * Where a bell entry about a request leads: its admin screen. The operator
+ * e-mail's `quote.adminUrl` is this path on the platform's `ADMIN_BASE_URL`.
+ */
 export function quoteRequestAdminLinkPath(rfqId: string): string {
   return `/quote-requests/${rfqId}`;
 }
@@ -217,6 +224,12 @@ export interface ChannelAdapterDeps {
   channels: Pick<SalesChannelResolutionPort, 'getById' | 'getSystemDefault'>;
   /** `sales_channels.storefront_url` of a channel, `null` when not configured. */
   storefrontUrl: (salesChannelId: string) => Promise<string | null>;
+  /**
+   * The Admin UI's base address, read per send; `null` when it is not
+   * configured, and the operator e-mail then carries no link. The platform's
+   * `configuredAdminBaseUrl` unless a test injects one.
+   */
+  adminBaseUrl?: () => string | null;
 }
 
 type SalesChannel = NonNullable<Awaited<ReturnType<SalesChannelResolutionPort['getById']>>>;
@@ -252,6 +265,8 @@ function channelName(channel: Pick<SalesChannel, 'name' | 'defaultLanguage' | 'c
 }
 
 export function createChannelAdapters(deps: ChannelAdapterDeps): Record<DeliveredChannel, ChannelAdapter> {
+  const adminBaseUrl = deps.adminBaseUrl ?? (() => configuredAdminBaseUrl());
+
   /** An administrator who may still be told: active, not deleted, holding `rfqs:handle`. */
   const handler = async (adminUserId: string): Promise<AdminUserRecord | null> => {
     const admin = await deps.adminUsers.findById(adminUserId);
@@ -368,8 +383,11 @@ export function createChannelAdapters(deps: ChannelAdapterDeps): Record<Delivere
         const language = operatorEmailLanguage(admin.preferredLanguage);
         const known = await facts(context, await channelOf(context.rfq), language);
         const lineCount = await context.em.count(QuoteRequestItem, { quoteRequestId: context.rfq.id });
-        // An administrator is not a channel's customer: platform-wide content,
-        // and no link until #185 (owner ruling OQ-1 = A).
+        // The bell entry's address, made absolute on `ADMIN_BASE_URL` — or no
+        // link at all: never a relative one, which opens nothing from a mail
+        // client (spec 179 OQ-1, issue #1204). An administrator is not a
+        // channel's customer: platform-wide content.
+        const base = adminBaseUrl();
         return send(context, {
           code: operatorEmailCode(context.record.change),
           salesChannelId: null,
@@ -380,6 +398,7 @@ export function createChannelAdapters(deps: ChannelAdapterDeps): Record<Delivere
               number: quoteRequestNumber(context.rfq),
               lineCount: String(lineCount),
               previousNumber: known.previousNumber,
+              ...(base === null ? {} : { adminUrl: `${base}${quoteRequestAdminLinkPath(context.rfq.id)}` }),
             },
             customer: { name: adminName(admin) },
             actor: { name: known.actorName },
