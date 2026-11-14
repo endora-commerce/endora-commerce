@@ -90,10 +90,14 @@ export class CurrencyService {
     const em = this.emFactory();
     const existing = await em.findOne(Currency, { code: input.code });
     if (existing) {
+      // Issue #643 — the family's code, owned by `dictionaries`. `details.code`
+      // names the dictionary; the entry's own code is `entryCode`, because the
+      // envelope reads `details.code` as the refusal token.
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.DICTIONARY_ENTRY_CODE_TAKEN,
         `Currency ${input.code} already exists.`,
+        { code: 'currency', entryCode: input.code },
       );
     }
     const row = em.create(Currency, {
@@ -248,8 +252,9 @@ export class CurrencyService {
     if (!target.isActive) {
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.DICTIONARY_DEFAULT_ENTRY_INACTIVE,
         'Cannot mark an inactive currency as default.',
+        { code: 'currency', entryCode: target.code },
       );
     }
     if (target.isDefault) return target;

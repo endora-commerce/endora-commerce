@@ -45,6 +45,12 @@ Same partial-unique-index pattern as `languages`. The migration bootstrap
 seeds `PLN` (default) and `EUR`; symbol values are stored via Postgres
 Unicode literals so the migration source stays ASCII.
 
+Promoting an inactive currency is refused with
+`409 DICTIONARY_DEFAULT_ENTRY_INACTIVE`, and creating a currency whose code
+exists with `409 DICTIONARY_ENTRY_CODE_TAKEN`; both carry
+`details.code: "currency"` and the currency's `details.entryCode`, and are
+`dictionaries`' codes. Until issue #643 both were `409 VALIDATION_FAILED`.
+
 ## Entities
 
 `Currency` — natural primary key on the ISO 4217 code; `label`,

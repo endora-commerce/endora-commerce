@@ -32,6 +32,17 @@ historical records can keep reading the existing value. This is intentional:
 orders, addresses, content scopes, and configuration records must remain
 auditable after a code is retired from active use.
 
+Two refusals are shared by the three tabs and answered in the operator's
+language. Creating an entry whose code already exists is
+`409 DICTIONARY_ENTRY_CODE_TAKEN`, and making an inactive entry the default is
+`409 DICTIONARY_DEFAULT_ENTRY_INACTIVE`. Both carry the dictionary as
+`details.code` (`country`, `currency` or `language`) and the entry's code as
+`details.entryCode`. They are raised by `dictionaries` for countries and by
+`currencies` and `languages` for theirs, including on those modules' own
+`POST /api/v1/admin/currencies/:code/default` and
+`POST /api/v1/admin/languages/:code/default`. Until issue #643 both were
+`409 VALIDATION_FAILED` with an English sentence.
+
 Localized labels are edited from each row. Storefront registry reads choose the
 requested locale when present and fall back to the default label when a
 translation is missing.

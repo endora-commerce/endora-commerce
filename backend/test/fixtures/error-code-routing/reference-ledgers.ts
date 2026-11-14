@@ -1585,6 +1585,22 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'a product URL redirect, a `catalog` row; `NOT_FOUND` is not reused because the admin ' +
       'needs to tell this apart from the product itself being gone.',
   },
+  DICTIONARY_ENTRY_CODE_TAKEN: {
+    to: 'dictionaries',
+    reason:
+      'Minted by issue #643 (#86) for creating a country, currency or language whose code already ' +
+      'exists (token: the dictionary). It was `409 VALIDATION_FAILED` with an English literal the ' +
+      'envelope never replaces. `currencies` and `languages` raise it as well as `dictionaries`: ' +
+      'the three reference dictionaries share the `DICTIONARY_*` family, which `dictionaries` owns.',
+  },
+  DICTIONARY_DEFAULT_ENTRY_INACTIVE: {
+    to: 'dictionaries',
+    reason:
+      'Minted by issue #643 (#86) for making an inactive country, currency or language the default ' +
+      '(token: the dictionary), `409 VALIDATION_FAILED` until then. Owned by `dictionaries` and ' +
+      'raised by all three services, as its family is. `DICTIONARY_ENTRY_INACTIVE` is not reused: ' +
+      'its sentence speaks of an entry that can no longer be selected.',
+  },
   RETURN_LINE_NOT_RETURNABLE: {
     to: 'returns',
     reason:
