@@ -131,7 +131,10 @@ export const ERROR_CODES = {
   // (`variants_need_configurable`) and `SELF_LINK_NOT_ALLOWED` (`grouped`).
   /** 409 — another attribute already has this key (`details.attributeKey`). */
   ATTRIBUTE_KEY_TAKEN: 'ATTRIBUTE_KEY_TAKEN',
-  /** 409 — the value type cannot change while products hold values (`details.attributeKey`). */
+  /**
+   * 409 — the value type cannot change while products hold values (`details.attributeKey`);
+   * token `page_builder` — never to or from Page Builder content (issue #1218).
+   */
   ATTRIBUTE_VALUE_TYPE_LOCKED: 'ATTRIBUTE_VALUE_TYPE_LOCKED',
   /**
    * 409 — the attribute is still in use, so it is not deleted: token `attribute_sets`
@@ -166,6 +169,12 @@ export const ERROR_CODES = {
   CATEGORY_MOVE_CYCLE: 'CATEGORY_MOVE_CYCLE',
   /** 409 — the child is already in the group (`details.parentProductId`, `childProductId`, `childSku`). */
   GROUPED_ITEM_ALREADY_EXISTS: 'GROUPED_ITEM_ALREADY_EXISTS',
+  /**
+   * 400 — a stored Page Builder content attribute is patched to switch on a capability it
+   * holds off (`details.attributeKey`, `capabilities` joined). Issue #1218 (#86); on create
+   * the same rule judges the request and stays `VALIDATION_FAILED`.
+   */
+  CONTENT_ATTRIBUTE_CAPABILITY_LOCKED: 'CONTENT_ATTRIBUTE_CAPABILITY_LOCKED',
 
   // Quote Requests (RFQ)
   RFQ_NOT_DRAFT: 'RFQ_NOT_DRAFT',

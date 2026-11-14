@@ -68,11 +68,13 @@ edytuje się na osobnym ekranie, a sklep pokazuje ją w zakładce opisu na stron
   kanału sprzedaży ani dla języka kanału;
 - `isSearchable`, `isFilterable`, `isVariantAxis`, `displayAsSlider`, `isComparable`,
   `quickSearchable`, `isPromoRule`, `isPriceRule`, `massEditable`, `isRequired`,
-  `isVisibleOnProductPage` i `scopable` pozostają `false`. Ustawienie którejkolwiek z nich przy
-  tworzeniu lub zmianie jest odrzucane z `400 VALIDATION_FAILED`, z osobną pozycją dla każdego
-  ustawienia, i nic nie zostaje zapisane;
+  `isVisibleOnProductPage` i `scopable` pozostają `false`. Ustawienie którejkolwiek z nich jest
+  odrzucane i nic nie zostaje zapisane: przy tworzeniu z `400 VALIDATION_FAILED`, z osobną
+  pozycją dla każdego ustawienia; przy zmianie, gdy odmawia zapisany typ, z
+  `400 CONTENT_ATTRIBUTE_CAPABILITY_LOCKED`;
 - atrybut nie ma opcji;
-- typu nie można zmienić ani zmienić na niego typu innego atrybutu (`409`).
+- typu nie można zmienić ani zmienić na niego typu innego atrybutu
+  (`409 ATTRIBUTE_VALUE_TYPE_LOCKED`, token `page_builder`).
 
 Edytor atrybutu ukrywa te ustawienia dla tego typu, a lista pokazuje flagi wiersza jako
 zablokowane. Typ jest dostępny wyłącznie dla produktów.
@@ -152,21 +154,24 @@ już go nie blokuje; usunięcie emituje teraz `attribute.updated.v1`.
 ## Błędy
 
 Każda odmowa, której przyczyną jest zapisany atrybut albo jego opcje, ma własny kod i zdanie po
-angielsku i po polsku, które wymienia wartości z `details`. Do zgłoszenia #624 były to odpowiedzi
-`VALIDATION_FAILED` z angielskim komunikatem albo tokenem maszynowym (`option_in_use: …`).
-Niepoprawne żądanie — klucz niepasujący do `^[a-z][a-z0-9_]*$`, wartość opcji niepasująca do wzorca,
-opcje albo suwak dla typu podanego w tym samym żądaniu — nadal daje `400 VALIDATION_FAILED`.
+angielsku i po polsku, które wymienia wartości z `details`. Do zgłoszenia #624 (a dla atrybutów z
+treścią Page Builder do zgłoszenia #1218) były to odpowiedzi `VALIDATION_FAILED` z angielskim
+komunikatem albo tokenem maszynowym (`option_in_use: …`). Niepoprawne żądanie — klucz niepasujący
+do `^[a-z][a-z0-9_]*$`, wartość opcji niepasująca do wzorca, opcje, suwak albo zablokowane
+ustawienie atrybutu z treścią dla typu podanego w tym samym żądaniu — nadal daje
+`400 VALIDATION_FAILED`.
 
 | Kod | Status | Kiedy | `details` |
 | --- | --- | --- | --- |
 | `ATTRIBUTE_KEY_TAKEN` | 409 | Inny atrybut ma już ten klucz | `attributeKey` |
-| `ATTRIBUTE_VALUE_TYPE_LOCKED` | 409 | Zmiana typu wartości, gdy produkty mają wartości atrybutu | `attributeKey` |
+| `ATTRIBUTE_VALUE_TYPE_LOCKED` | 409 | Zmiana typu wartości, gdy produkty mają wartości atrybutu; token `page_builder`: zmiana na treść Page Builder albo z niej | `attributeKey` |
 | `ATTRIBUTE_IN_USE` | 409 | Usunięcie zablokowane: atrybut jest w zestawie atrybutów (token `attribute_sets`) albo produkty mają jego wartości (token `products`) | `attributeKey`, `attributeSetCount` albo `productCount` |
 | `ATTRIBUTE_OPTION_VALUE_TAKEN` | 409 | Atrybut ma już opcję o tej wartości | `attributeKey`, `value` |
 | `ATTRIBUTE_DEFAULT_OPTION_TAKEN` | 409 | Druga opcja domyślna w atrybucie jednokrotnego wyboru, przy tworzeniu albo przy ustawianiu opcji jako domyślnej | `attributeKey`, `value` |
 | `ATTRIBUTE_OPTIONS_NOT_SUPPORTED` | 400 | Opcja zapisywana dla atrybutu, którego typ nie przyjmuje opcji | `attributeKey`, `valueType` |
 | `ATTRIBUTE_OPTION_IN_USE` | 409 | Usunięcie zablokowane: produkty mają tę opcję (token `products` z liczbą) | `attributeKey`, `value`, `productCount` |
 | `ATTRIBUTE_SLIDER_NOT_SUPPORTED` | 400 | Włączenie `displayAsSlider` dla atrybutu, którego zapisany typ nie jest liczbą ani ceną | `attributeKey`, `valueType` |
+| `CONTENT_ATTRIBUTE_CAPABILITY_LOCKED` | 400 | Zmiana włącza ustawienie, którego atrybut z treścią Page Builder nie może mieć | `attributeKey`, `capabilities` (połączone) |
 | `NOT_FOUND` | 404 | Brak `:idOrKey` albo `:optionId` | — |
 
 ## Storefront

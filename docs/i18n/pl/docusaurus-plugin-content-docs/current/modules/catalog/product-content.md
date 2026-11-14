@@ -18,10 +18,11 @@ W **Katalog → Atrybuty** utwórz atrybut typu **Treść Page Builder**. Ten ty
 - nie może być wyszukiwalny, filtrowalny, porównywalny, osią wariantu, regułą promocji ani
   cennika, edytowalny masowo, dostępny w szybkim wyszukiwaniu, wymagany, pokazywany w zakładce
   **Parametry** ani ustawiany osobno dla kanału sprzedaży. Formularz nie oferuje tych ustawień,
-  lista pokazuje je jako zablokowane, a API odrzuca każde z nich z `400 VALIDATION_FAILED`, podając
-  nazwę ustawienia;
+  lista pokazuje je jako zablokowane, a API odrzuca każde z nich, podając nazwę ustawienia: przy
+  tworzeniu z `400 VALIDATION_FAILED`, a przy zmianie z `400 CONTENT_ATTRIBUTE_CAPABILITY_LOCKED`;
 - nie ma opcji;
-- jego typu nie można później zmienić ani zmienić na niego typu innego atrybutu (`409`).
+- jego typu nie można później zmienić ani zmienić na niego typu innego atrybutu
+  (`409 ATTRIBUTE_VALUE_TYPE_LOCKED`, token `page_builder`).
 
 Następnie dodaj atrybut do [zestawu atrybutów](./attribute-sets.md). Jego pozycja w zestawie
 wyznacza kolejność, w jakiej strona produktu pokazuje atrybuty treści z tego zestawu. Typ jest

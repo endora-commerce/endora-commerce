@@ -1945,7 +1945,7 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
   ATTRIBUTE_VALUE_TYPE_LOCKED: {
     to: 'catalog',
     reason:
-      "Minted by issue #624 (#86) for an attribute whose value type is changed while products hold values for it (the custom-fields `value_type_locked` failure). It was `409 VALIDATION_FAILED` with the custom-fields message.",
+      "Minted by issue #624 (#86) for an attribute whose value type is changed while products hold values for it (the custom-fields `value_type_locked` failure). It was `409 VALIDATION_FAILED` with the custom-fields message. Issue #1218 added the token `page_builder` for a type change to or from Page Builder content (feature 172, FR-005), which was `409 VALIDATION_FAILED` too.",
   },
   ATTRIBUTE_IN_USE: {
     to: 'catalog',
@@ -2006,6 +2006,11 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
     to: 'catalog',
     reason:
       "Minted by issue #624 (#86) for adding a child a grouped product already contains. It was `409 VALIDATION_FAILED` naming the child's id; the sentence names its SKU.",
+  },
+  CONTENT_ATTRIBUTE_CAPABILITY_LOCKED: {
+    to: 'catalog',
+    reason:
+      "Minted by issue #1218 (#86) for a stored Page Builder content attribute patched to switch on a capability it holds off (feature 172, FR-003). It was `400 VALIDATION_FAILED` with one `details[]` entry per flag; the flags travel joined as `details.capabilities`. On create, where the request names the type, it stays validation.",
   },
   DICTIONARY_ENTRY_CODE_TAKEN: {
     to: 'dictionaries',
