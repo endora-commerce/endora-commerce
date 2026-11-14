@@ -47,6 +47,7 @@
   "errors.INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE": "Another invoice ledger vendor is already active ({activeModuleId}). Switch it off first.",
   "errors.INVOICE_LEDGER_CREDENTIALS_MISSING": "The ledger vendor credentials for this invoice are missing.",
   "errors.INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE": "This delivery cannot be retried.",
+  "errors.INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED": "Changing the invoice numbering source has to be confirmed. Tick the confirmation and save again.",
   "actions.openDeliveries.keywords": "invoices",
   "settingGroups.invoice_ledger.name": "Invoice ledger"
 }

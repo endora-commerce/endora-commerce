@@ -1299,6 +1299,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       + 'meets when they retry a delivery that has already succeeded or is otherwise not in a '
       + 'retryable state. The noun is the ledger delivery, which `invoice_ledger` owns.',
   },
+  INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED: {
+    to: 'invoice_ledger',
+    reason:
+      'Minted by issue #644 (#86) for a routing write that changes the numbering mode without '
+      + '`confirm: true`. It was `400 VALIDATION_FAILED`, yet `confirm` is required only when the '
+      + 'stored mode differs from the submitted one, so the refusal follows from state. The noun '
+      + 'is the ledger routing, `invoice_ledger`\'s settings, and the one raise site is its '
+      + 'routing write service.',
+  },
   // `INFAKT_CONNECTION_FAILED` and `INFAKT_WEBHOOK_UNAUTHORIZED` were minted here with
   // the Infakt adapter (feature 119) and left the repository with it (feature 134,
   // T069); `ERROR_CODES` no longer holds them.
