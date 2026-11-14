@@ -29,6 +29,7 @@ describe('an admin scope that carries a refusal', () => {
   it('is confined to no organization, with the admin still the recorded actor', async () => {
     const tenant = await contextFor({
       resolveForAdmin: async () => ({ allowAll: false, allowedOrganizationIds: [], unresolved: refusal }),
+      resolveForAdmins: async () => new Map(),
     });
 
     expect(tenant.mode).toBe('allowed-set');
@@ -40,6 +41,7 @@ describe('an admin scope that carries a refusal', () => {
   it('raises that refusal when a tenant predicate is built from it', async () => {
     const tenant = await contextFor({
       resolveForAdmin: async () => ({ allowAll: false, allowedOrganizationIds: [], unresolved: refusal }),
+      resolveForAdmins: async () => new Map(),
     });
 
     expect(() => orgConstraintFor(tenant)).toThrow(refusal);

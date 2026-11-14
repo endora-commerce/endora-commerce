@@ -3,6 +3,7 @@ import {
   ERROR_CODES,
   type AdminRoleResolution,
   type AdminUserReadPort,
+  type AdminUserRecord,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { AdminRole } from '../entities/admin-role.entity.js';
@@ -92,6 +93,54 @@ export class PermissionService {
     const admin = await this.adminUsers.findById(adminUserId, { activeOnly: true });
     const role = await this.#roleById(admin?.adminRoleId ?? null);
     return role ? { role: toAdminRoleRecord(role) } : { refusal: adminRoleRequiredRefusal() };
+  }
+
+  /**
+   * Issue #461 — {@link resolveRole} for many administrators, in two
+   * statements whatever their number: every id asked has an entry, a role or
+   * the same refusal `resolveRole` answers for it.
+   */
+  async resolveRoles(adminUserIds: readonly string[]): Promise<Map<string, AdminRoleResolution>> {
+    const ids = [...new Set(adminUserIds)];
+    const answers = new Map<string, AdminRoleResolution>();
+    if (ids.length === 0) return answers;
+    const roleOf = await this.#rolesOf(ids);
+    for (const id of ids) {
+      const role = roleOf.get(id)?.role;
+      answers.set(id, role ? { role: toAdminRoleRecord(role) } : { refusal: adminRoleRequiredRefusal() });
+    }
+    return answers;
+  }
+
+  /**
+   * Issue #461 — {@link hasPermission} for many administrators, in two
+   * statements: the ids it answers yes for. It refuses as `hasPermission` does
+   * — throwing `ADMIN_ROLE_REQUIRED` — when any active administrator asked
+   * holds no role, rather than reading that state as "no".
+   */
+  async holdersOf(adminUserIds: readonly string[], permission: string): Promise<Set<string>> {
+    const holders = new Set<string>();
+    const ids = [...new Set(adminUserIds)];
+    if (ids.length === 0) return holders;
+    for (const [id, { admin, role }] of await this.#rolesOf(ids)) {
+      if (admin.status !== 'active') continue;
+      if (!role) throw adminRoleRequiredRefusal();
+      if (role.permissions.includes('*') || role.permissions.includes(permission)) holders.add(id);
+    }
+    return holders;
+  }
+
+  /** The live accounts among `ids`, each with its role (`null` when it has none, or it is gone). */
+  async #rolesOf(ids: readonly string[]): Promise<Map<string, { admin: AdminUserRecord; role: AdminRole | null }>> {
+    const admins = await this.adminUsers.findByIds(ids, { activeOnly: true });
+    const roleIds = [...new Set(admins.map((admin) => admin.adminRoleId).filter((id): id is string => !!id))];
+    const roles =
+      roleIds.length === 0
+        ? new Map<string, AdminRole>()
+        : new Map((await this.emFactory().find(AdminRole, { id: { $in: roleIds } })).map((role) => [role.id, role]));
+    return new Map(
+      admins.map((admin) => [admin.id, { admin, role: (admin.adminRoleId && roles.get(admin.adminRoleId)) || null }]),
+    );
   }
 
   async #roleById(id: string | null | undefined): Promise<AdminRole | null> {
