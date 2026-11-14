@@ -102,6 +102,8 @@ export function renderEditor(
     contributions?: Parameters<typeof withSession>[1]['contributions'];
     /** Modules the session reports switched off (every other declared module is present). */
     absent?: readonly string[];
+    /** Test-only modules to report present beside every declared one (feature 180, SC-006). */
+    present?: readonly string[];
   } = {},
 ): RenderResult {
   return render(
@@ -128,7 +130,7 @@ export function renderEditor(
           {
             session: adminSession({ permissions: options.permissions ?? ['catalog:read', 'catalog:write'] }),
             presence: modulePresence({
-              present: everyDeclaredModule().filter((id) => !(options.absent ?? []).includes(id)),
+              present: [...everyDeclaredModule(), ...(options.present ?? [])].filter((id) => !(options.absent ?? []).includes(id)),
               absent: [...(options.absent ?? [])],
             }),
             ...(options.contributions ? { contributions: options.contributions } : {}),

@@ -276,6 +276,16 @@ export const basePricesWriteSchema = z.object({
 });
 export type BasePricesWrite = z.infer<typeof basePricesWriteSchema>;
 
+/**
+ * Feature 180 (FR-021) — the answer of `PUT …/base-prices/:productId?dryRun=true`, the
+ * product editor's pre-check of a base-price write: every rule passed and nothing was written. A
+ * refusal answers as the real write does.
+ */
+export const basePricesDryRunResponseSchema = z.object({
+  data: z.object({ valid: z.literal(true) }),
+});
+export type BasePricesDryRunResponse = z.infer<typeof basePricesDryRunResponseSchema>;
+
 // --- Resolution: source, cells, explanation (FR-020) ----------------------------
 
 /** Which tier priced a line (FR-030). */

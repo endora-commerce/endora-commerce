@@ -26,10 +26,13 @@ import {
 export interface SaveParticipantHandlers<D> {
   /** Number of unsaved changes; 0 = clean. Pure. */
   changeCount(draft: D, baseline: D): number;
-  /** All checks, local and the module's server pre-check. */
-  validate(draft: D, ctx: SaveContext): Promise<ParticipantIssues>;
+  /**
+   * All checks, local and the module's server pre-check. `baseline` is the saved state the
+   * draft is compared to, so a part can check and write only what changed.
+   */
+  validate(draft: D, ctx: SaveContext, baseline: D): Promise<ParticipantIssues>;
   /** Write the part through the module's own API. Returns the new baseline. */
-  save(draft: D, ctx: SaveContext): Promise<D>;
+  save(draft: D, ctx: SaveContext, baseline: D): Promise<D>;
 }
 
 export type ParticipantStatus = 'clean' | 'dirty' | 'invalid' | 'saving' | 'failed';
@@ -236,6 +239,11 @@ export class SaveSessionStore {
     return [...this.#snapshot.entries.values()].filter(isCounted).sort(compareEntries);
   }
 
+  /** The zone a participant rendered in; `null` for a host-owned section or an unknown id. */
+  zoneOf(id: string): ParticipantEntry['zone'] {
+    return this.#snapshot.entries.get(id)?.zone ?? null;
+  }
+
   clearOutcome(): void {
     if (this.#snapshot.lastOutcome !== null) this.#commit({ lastOutcome: null });
   }
@@ -285,17 +293,16 @@ export class SaveSessionStore {
   /** The dirty participants as parts of a Save, in zone order. */
   dirtyParticipants(saved?: Map<string, { draft: unknown; baseline: unknown }>): readonly SavePart[] {
     return this.dirtyEntries().map((entry): SavePart => {
-      const draft = entry.draft;
-      const { handlers } = entry;
+      const { draft, baseline, handlers } = entry;
       return {
         id: entry.id,
         label: entry.label,
         blocking: false,
         count: entry.changeCount,
-        validate: (ctx) => handlers.validate(draft, ctx),
+        validate: (ctx) => handlers.validate(draft, ctx, baseline),
         save: async (ctx) => {
-          const baseline = await handlers.save(draft, ctx);
-          saved?.set(entry.id, { draft, baseline });
+          const next = await handlers.save(draft, ctx, baseline);
+          saved?.set(entry.id, { draft, baseline: next });
         },
       };
     });

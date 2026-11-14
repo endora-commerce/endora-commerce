@@ -354,9 +354,6 @@ administratorem i stanem przed zmianą i po niej; *Zobacz historię* w cenniku o
 - **Promocje działają dodatkowo na ceny promocyjne i kontraktowe.** Promocja koszyka nie wie jeszcze,
   czy pozycja jest wyceniona ceną promocyjną albo kontraktową; wykluczanie takich pozycji pojawi się w
   jednym z kolejnych wydań.
-- **Panel cen bazowych w produkcie ma własny przycisk *Zapisz ceny***, oddzielny od zapisu edytora
-  produktu, i pyta przed opuszczeniem go z niezapisanymi zmianami. Jeden zapis dla całej strony
-  produktu to zgłoszenie #407.
 - **Lista cenników nie ma zapisanych widoków**; jej filtry są przechowywane w adresie strony, więc
   przefiltrowaną listę można dodać do zakładek i udostępnić (zgłoszenie #408).
 - **Tuż po dużym imporcie** stronicowanie i wyszukiwanie w siatce bardzo dużego cennika (dziesiątki

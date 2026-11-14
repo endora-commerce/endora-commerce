@@ -17,6 +17,7 @@ import {
   showListPriceWriteSchema,
   SHOW_LIST_PRICE_SETTING_CODE,
   type Actor,
+  type BasePricesDryRunResponse,
   type CatalogAttributeReadPort,
   type CatalogCategoryReadPort,
   type CustomerAccountReadPort,
@@ -217,11 +218,17 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
     return { data: await books.basePrices(productId, await currentPriceBookScope()) };
   });
 
-  app.put<{ Params: { productId: string } }>(`${base}/base-prices/:productId`, { preHandler: writeGate }, async (request) => {
+  app.put<{ Params: { productId: string }; Querystring: { dryRun?: string } }>(`${base}/base-prices/:productId`, { preHandler: writeGate }, async (request) => {
     if (!isUuidShape(request.params.productId)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product not found.');
     // Base books are everyone's prices: a representative reads them and does not write them.
     if (!(await currentPriceBookScope()).all) throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Base prices are read-only for you.');
     const body = parseOr400(basePricesWriteSchema, request.body);
+    // Feature 180 (FR-021): `?dryRun=true` applies every rule of the write and writes nothing.
+    const dryRun = request.query.dryRun === 'true' || request.query.dryRun === '1';
+    if (dryRun) {
+      await books.setBasePrices(request.params.productId, body, { dryRun: true });
+      return { data: { valid: true as const } } satisfies BasePricesDryRunResponse;
+    }
     await books.setBasePrices(request.params.productId, body);
     return { data: await books.basePrices(request.params.productId, await currentPriceBookScope()) };
   });

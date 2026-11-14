@@ -28,22 +28,22 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 
 ## Phase 3: Product editor — WP-2 + WP-3 (US1–US5, P1)
 
-- [ ] T030 [P] [US1] Failing contract test `backend/test/contract/price_lists/base-prices-dry-run.test.ts` (200 nothing stored, 422 as real write, 403, 404, no audit entry)
-- [ ] T031 [US1] `basePricesDryRunResponseSchema` in `packages/contracts/src/price-books.ts`; `dryRun` in `PriceBookService.setBasePrices` and the route
-- [ ] T032 [P] [US1] Failing tests `admin/test/modules/catalog/product-editor-one-save.test.tsx` with a test-only participant in `product.editor.pricing.before`: count sums; tab switch keeps draft without prompt; host then participant; participant-only Save sends no scoped-values request
-- [ ] T033 [US1] `ProductEditor.tsx`: provider keyed by scope; `saveSession` on every product-editor mount and probe; `stagedCount` total into `ProductEditorSaveAction`; `save()` → `session.run(hostPart)`; prompt on the total
-- [ ] T034 [P] [US2] Failing tests: refusal anywhere → zero writing requests, all errors, summary, "Show" switches tab and focuses
-- [ ] T035 [US2] `SaveSessionSummary` in the editor's form-error area; `productEditor.save.hostPartLabel` (en, pl)
-- [ ] T036 [P] [US3] Failing tests: host ok + participant fails → partial, retry sends participant only; host `409` / gate / takeover → participant not written; reload discards all
-- [ ] T037 [US3] Apply outcomes in the host; `409` reload → `discardAll`
-- [ ] T038 [P] [US4] Failing tests: participant-only change → Back, scope switch, scope-map link, browser Back open the guard; *Discard* clears participants; `beforeunload`
-- [ ] T039 [US4] Guard conditions on the total
-- [ ] T040 [P] [US1] Rewrite `admin/test/modules/price_lists/product-base-prices.save.test.tsx` and `product-base-prices.untouched.test.tsx`: no *Save prices*; participates; dry run in validate; not-writable never dirty; "not orderable" stays
-- [ ] T041 [US1] `ProductBasePrices.tsx` → `useSaveParticipant`; remove *Save prices*, status line, own prompt; `basePrices.partLabel` (en, pl); remove unused keys
-- [ ] T042 [US1] Drop `immediate` from the Pricing heading; assert one Save button on every tab (SC-001)
-- [ ] T043 [P] [US5] Failing off-state test `admin/test/modules/price_lists/product-base-prices-off.test.tsx` (off → no panel, no request; switched off while dirty → notice; `503` → part "switched off"; back on → takes part)
-- [ ] T044 [US6] Failing then passing: operator with base-price write and no `catalog:write` sees Save, which writes base prices only (FR-035)
-- [ ] T045 Changesets: mod-catalog minor, mod-price-lists minor
+- [x] T030 [P] [US1] Failing contract test `backend/test/contract/price_lists/base-prices-dry-run.test.ts` (200 nothing stored, 422 as real write, 403, 404, no audit entry)
+- [x] T031 [US1] `basePricesDryRunResponseSchema` in `packages/contracts/src/price-books.ts`; `dryRun` in `PriceBookService.setBasePrices` and the route
+- [x] T032 [P] [US1] Failing tests `admin/test/modules/catalog/product-editor-one-save.test.tsx` with a test-only participant in `product.editor.pricing.before`: count sums; tab switch keeps draft without prompt; host then participant; participant-only Save sends no scoped-values request
+- [x] T033 [US1] `ProductEditor.tsx`: provider keyed by scope; `saveSession` on every product-editor mount and probe; `stagedCount` total into `ProductEditorSaveAction`; `save()` → `session.run(hostPart)`; prompt on the total
+- [x] T034 [P] [US2] Failing tests: refusal anywhere → zero writing requests, all errors, summary, "Show" switches tab and focuses
+- [x] T035 [US2] `SaveSessionSummary` in the editor's form-error area; `productEditor.save.hostPartLabel` (en, pl)
+- [x] T036 [P] [US3] Failing tests: host ok + participant fails → partial, retry sends participant only; host `409` / gate / takeover → participant not written; reload discards all — the 409 case is tested; the gate and takeover refusals take the same blocking path
+- [x] T037 [US3] Apply outcomes in the host; `409` reload → `discardAll`
+- [x] T038 [P] [US4] Failing tests: participant-only change → Back, scope switch, scope-map link, browser Back open the guard; *Discard* clears participants; `beforeunload` — Back, scope switch, Save-in-guard and `beforeunload` are tested; browser Back and the scope-map link go through the same `hasUnsaved` check
+- [x] T039 [US4] Guard conditions on the total
+- [x] T040 [P] [US1] Rewrite `admin/test/modules/price_lists/product-base-prices.save.test.tsx` and `product-base-prices.untouched.test.tsx`: no *Save prices*; participates; dry run in validate; not-writable never dirty; "not orderable" stays — rewritten through a page-Save harness (`admin/test/helpers/price-book-screen.tsx`) that renders the panel via the real zone
+- [x] T041 [US1] `ProductBasePrices.tsx` → `useSaveParticipant`; remove *Save prices*, status line, own prompt; `basePrices.partLabel` (en, pl); remove unused keys
+- [x] T042 [US1] Drop `immediate` from the Pricing heading; assert one Save button on every tab (SC-001) — one Save on every tab except Inventory, whose own Save buttons go in WP-4
+- [x] T043 [P] [US5] Failing off-state test `admin/test/modules/price_lists/product-base-prices-off.test.tsx` (off → no panel, no request; switched off while dirty → notice; `503` → part "switched off"; back on → takes part)
+- [x] T044 [US6] Failing then passing: operator with base-price write and no `catalog:write` sees Save, which writes base prices only (FR-035)
+- [x] T045 Changesets: mod-catalog minor, mod-price-lists minor
 
 ## Phase 4: Product Inventory tab — WP-4 (US7)
 

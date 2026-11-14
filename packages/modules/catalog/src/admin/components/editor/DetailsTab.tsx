@@ -4,7 +4,6 @@ import { Alert, AlertDescription, Button, Input } from '@endora-commerce/admin-k
 import { useContext } from 'react';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { PRODUCT_NAME_MAX } from '@endora-commerce/contracts';
 import { EditorField, globalOnlyView, useProductEditor } from './editor-context.js';
 import { SelectControl, TextControl, TextareaControl, WindowControl, type WindowValue } from './scoped-controls.js';
@@ -55,8 +54,8 @@ export function DetailsTab({
   if (!data) return null;
   const product = data.product;
   const scope = ctx.state.scope;
-  // Feature 180 — the inert handle until the product editor runs its save session (WP-2).
-  const zoneProps = (fieldPath: string) => ({ productId: ctx.productId, fieldPath, scope, languageCodes: null, saveSession: INERT_SAVE_SESSION });
+  // Feature 180 — the editor's save session rides on every product-editor zone but SEO.
+  const zoneProps = (fieldPath: string) => ({ productId: ctx.productId, fieldPath, scope, languageCodes: null, saveSession: ctx.saveSession });
   const orgName = new Map(data.organizations.map((o) => [o.id, o.name]));
   const categoryName = (id: string): string => {
     const category = categories.find((c) => c.id === id);
@@ -68,7 +67,7 @@ export function DetailsTab({
 
   return (
     <div className="b2b-col" style={{ gap: 18 }}>
-      <AdminZone name="product.editor.details.before" props={{ productId: ctx.productId, saveSession: INERT_SAVE_SESSION }} />
+      <AdminZone name="product.editor.details.before" props={{ productId: ctx.productId, saveSession: ctx.saveSession }} />
 
       {referenceError ? (
         <Alert variant="destructive" data-testid="product-reference-error">

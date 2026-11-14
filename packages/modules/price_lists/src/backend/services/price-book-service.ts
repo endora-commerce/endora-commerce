@@ -301,7 +301,7 @@ export class PriceBookService {
   async setBasePrices(
     productId: string,
     write: BasePricesWrite,
-    options: { keepVariantRows?: boolean } = {},
+    options: { keepVariantRows?: boolean; dryRun?: boolean } = {},
   ): Promise<{ bookIds: Record<string, string> }> {
     const keepVariantRows = options.keepVariantRows === true;
     const currencies = Object.keys(write.byCurrency).sort();
@@ -332,6 +332,9 @@ export class PriceBookService {
       planned.set(currencyCode, plan.rows);
     }
     if (issues.length > 0) validation(issues, 'The base prices were refused.');
+    // Feature 180 (FR-021, `contracts/base-prices-dry-run.md`): the pre-check of the product
+    // editor's one Save stops here — every rule above ran, nothing is written, no Command runs.
+    if (options.dryRun === true) return { bookIds: {} };
 
     const em = this.deps.emFactory();
     const existing = await em.find(PriceList, { isSystem: true, currency: { $in: currencies } });

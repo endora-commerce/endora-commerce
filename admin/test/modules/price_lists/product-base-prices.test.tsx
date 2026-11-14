@@ -75,7 +75,7 @@ describe('base-price panel — what it shows', () => {
     serveBasePrices(api, basePrices({ writable: false }));
     await open();
     expect(screen.queryByRole('textbox')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Save prices' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Save/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Add tier/ })).toBeNull();
     expect(within(pln()).getByText('From 1: 80.00')).toBeInTheDocument();
     expect(screen.getByText('You can view the base prices but not change them.')).toBeInTheDocument();
@@ -87,8 +87,8 @@ describe('base-price panel — what it shows', () => {
     const price = within(pln()).getByLabelText('Price from 1, PLN');
     await user.clear(price);
     await user.type(price, '-5%');
-    await user.click(screen.getByRole('button', { name: 'Save prices' }));
-    expect(price).toHaveAttribute('aria-invalid', 'true');
+    await user.click(screen.getByRole('button', { name: /^Save \d+ changes?$/ }));
+    await waitFor(() => expect(price).toHaveAttribute('aria-invalid', 'true'));
     expect(document.getElementById(price.getAttribute('aria-describedby')!.split(' ').at(-1)!)).toHaveTextContent('A base price is a fixed amount');
     expect(api.put).not.toHaveBeenCalled();
   });
@@ -100,8 +100,8 @@ describe('base-price panel — what it shows', () => {
     const from = within(pln()).getByLabelText('Start of tier 2, PLN');
     await user.type(from, '1');
     await user.type(within(pln()).getByLabelText('Price of tier 2, PLN'), '70');
-    await user.click(screen.getByRole('button', { name: 'Save prices' }));
-    expect(from).toHaveAttribute('aria-invalid', 'true');
+    await user.click(screen.getByRole('button', { name: /^Save \d+ changes?$/ }));
+    await waitFor(() => expect(from).toHaveAttribute('aria-invalid', 'true'));
     expect(within(pln()).getByText('Each tier starts above the one before it.')).toBeInTheDocument();
     await user.click(within(pln()).getByRole('button', { name: 'Remove tier 2, PLN' }));
     await waitFor(() => expect(within(pln()).queryByLabelText('Start of tier 2, PLN')).toBeNull());
@@ -112,7 +112,8 @@ describe('base-price panel — what it shows', () => {
     await expectNoAxeViolations(container);
     unmount();
     await open('pl');
-    expect(screen.getByRole('button', { name: 'Zapisz ceny' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Zapisz ceny' })).toBeNull();
+    expect(await screen.findByRole('button', { name: 'Zapisz' })).toBeInTheDocument();
     expect(within(pln()).getByLabelText('Cena od 1, PLN')).toHaveValue('80,00');
   });
 });

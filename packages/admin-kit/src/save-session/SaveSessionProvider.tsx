@@ -26,7 +26,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import type { EditorSaveSessionHandle } from '@endora-commerce/contracts';
+import type { AdminZoneName, EditorSaveSessionHandle } from '@endora-commerce/contracts';
 
 import { useTranslation } from '../i18n/useTranslation.js';
 import { ApiError } from '../lib/api-client.js';
@@ -138,6 +138,11 @@ export interface SaveSessionValue {
   discardAll(): void;
   /** Clears the last outcome — the host calls it on an edit of its own (FR-016). */
   clearOutcome(): void;
+  /**
+   * The zone a participant rendered in, or `null` for a host-owned section — so the host can take
+   * the operator to the part (its tab) from the summary's "Show" without naming the contributor.
+   */
+  zoneOf(id: string): AdminZoneName | null;
   readonly saving: boolean;
   readonly notices: readonly string[];
   readonly lastOutcome: SaveOutcome | null;
@@ -160,6 +165,7 @@ export function useSaveSession(): SaveSessionValue {
       dirtyParticipants: () => store.dirtyParticipants(),
       discardAll: () => store.discardAll(),
       clearOutcome: () => store.clearOutcome(),
+      zoneOf: (id) => store.zoneOf(id),
       saving: snapshot.saving,
       notices: snapshot.notices,
       lastOutcome: snapshot.lastOutcome,
@@ -250,8 +256,12 @@ export function useSaveParticipant<D>(
   }, [store, id, loaded]);
 
   useEffect(() => {
+    // While the panel is (re)loading it knows nothing yet — not even whether it may write — so it
+    // must not touch the entry the session kept for it: a remounted panel reads `writable: false`
+    // until its read is back, and that would discard the kept draft (FR-003).
+    if (loaded === null) return;
     store?.updateMeta(id, meta);
-  }, [store, id, meta]);
+  }, [store, id, meta, loaded]);
 
   const snapshot = useStoreSnapshot(store);
   const entry = snapshot?.entries.get(id);

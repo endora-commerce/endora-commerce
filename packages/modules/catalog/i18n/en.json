@@ -1498,6 +1498,7 @@
   "productEditor.save.reason.product.attributeSetId": "This attribute set no longer exists. Pick another one.",
   "productEditor.save.reason.product.categoryIds": "A selected category no longer exists. Remove it and save again.",
   "productEditor.save.error.download": "Nothing was saved: the download of this virtual product is not valid, or its file no longer exists. Check the download on the product's virtual settings.",
+  "productEditor.save.hostPartLabel": "Product fields",
   "productEditor.save.actionCount.one": "Save {count} change",
   "productEditor.save.actionCount.few": "Save {count} changes",
   "productEditor.save.actionCount.many": "Save {count} changes",

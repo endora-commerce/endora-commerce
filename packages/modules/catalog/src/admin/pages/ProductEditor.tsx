@@ -19,7 +19,18 @@ import {
   type ScopedWriteOp,
   type UrlKeyRedirectTakeoverRequiredDetails,
 } from '@endora-commerce/contracts';
-import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt, cn, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
+import {
+  ApiError,
+  apiClient,
+  useAuth,
+  useUnsavedChangesPrompt,
+  cn,
+  INERT_SAVE_SESSION,
+  SaveSessionProvider,
+  useSaveSession,
+  type SaveOutcome,
+  type SavePart,
+} from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -43,7 +54,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog, ProductPicker } from '@endora-commerce/admin-kit/components';
+import { ModalDialog, ProductPicker, SaveSessionSummary } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from '../components/ProductInventoryTab.js';
@@ -139,7 +150,30 @@ export function ProductEditor(): ReactNode {
   const params = useParams<{ id: string }>();
   if (params.id === 'new') return <ProductCreateForm />;
   if (!params.id) return null;
-  return <ScopedProductEditor key={params.id} productId={params.id} />;
+  return <ProductEditorSession key={params.id} productId={params.id} />;
+}
+
+/**
+ * Feature 180 (`specs/180-one-save-zone-editors/contracts/product-editor-save-ui.md` §1) — the
+ * editor's one Save covers its zone panels through a save session. The session belongs to the
+ * scope it was made at (OQ-4 = A): its key is the scope the editor last opened, so a scope switch
+ * — which the guard lets through only once every part is saved or discarded — starts an empty
+ * session.
+ */
+function ProductEditorSession({ productId }: { productId: string }): ReactNode {
+  const [openedScope, setOpenedScope] = useState('');
+  return (
+    <SaveSessionProvider resetKey={`${productId}|${openedScope}`} hostModule="catalog">
+      <ScopedProductEditor productId={productId} onScopeOpened={setOpenedScope} />
+    </SaveSessionProvider>
+  );
+}
+
+/** Zone → tab, for the summary's "Show" (`product-editor-save-ui.md` §2). */
+function tabOfZone(zone: string | null): TabId {
+  if (zone === 'product.editor.pricing.before' || zone === 'product.editor.pricing.after') return 'pricing';
+  if (zone === 'product.editor.channels') return 'channels';
+  return 'details';
 }
 
 /** A field whose `empty` the server refuses outside `view.required` (data-model §9, R21). */
@@ -183,7 +217,13 @@ function familyOfPath(path: string): ImmediateFamily | null {
   return null;
 }
 
-function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
+function ScopedProductEditor({
+  productId,
+  onScopeOpened,
+}: {
+  productId: string;
+  onScopeOpened(key: string): void;
+}): ReactNode {
   const t = useTranslation('catalog') as Translate;
   // The admin's language names languages (`Intl.DisplayNames`); a screen mounted without the
   // shell's provider (a test) falls back to English.
@@ -193,9 +233,11 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('catalog:write');
   const readOnly = !canWrite;
+  const session = useSaveSession();
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
-  // Feature 180 — the product editor runs no save session until WP-2, so its zones carry the
-  // inert handle: a participant there keeps a local draft and takes part in nothing.
+  // The probe only counts contributions; it renders none, so it carries the inert handle.
   const channelContributions = useAdminZone('product.editor.channels', { productId, saveSession: INERT_SAVE_SESSION });
   const seoContributions = useAdminZone('product.editor.seo', {
     productId,
@@ -314,6 +356,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
           if (request !== requestRef.current) return;
           dispatch({ type: 'loaded', data: res.data });
           const opened = res.data.scope;
+          onScopeOpened(scopeKey(opened));
           if (!sameScope(opened, requested)) {
             loadedKeyRef.current = scopeKey(opened);
             setSearchParams((prev) => searchWithScope(prev, opened), { replace: true });
@@ -355,8 +398,11 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
         }
       }
     },
-    [productId, setSearchParams, t, adminLanguage, announce],
+    [productId, setSearchParams, t, adminLanguage, announce, onScopeOpened],
   );
+
+  /** The host's staged cells plus every participant's changes (FR-010, FR-030). */
+  const hasUnsaved = useCallback((): boolean => stateRef.current.staged.size + sessionRef.current.dirtyCount > 0, []);
 
   // No scope in the URL: the preference seeds it (Global when there is none), replacing the entry.
   useEffect(() => {
@@ -378,7 +424,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
   useEffect(() => {
     if (!urlScope) return;
     if (scopeKey(urlScope) === loadedKeyRef.current) return;
-    if (!skipGuardRef.current && loadedKeyRef.current !== null && stateRef.current.staged.size > 0) {
+    if (!skipGuardRef.current && loadedKeyRef.current !== null && hasUnsaved()) {
       setGuard({ kind: 'url', target: urlScope });
       return;
     }
@@ -411,12 +457,20 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
     );
   }, [state.dropped, t, announce]);
 
-  useUnsavedChangesPrompt(state.staged.size > 0);
+  const totalUnsaved = state.staged.size + session.dirtyCount;
+  useUnsavedChangesPrompt(totalUnsaved > 0);
 
-  // "Saved N changes" belongs to the last save: a new staged edit clears it.
+  // "Saved N changes" belongs to the last save: a new staged edit clears it, and the summary of
+  // the last save with it (FR-016; a participant's edit clears the summary itself).
   useEffect(() => {
-    if (state.staged.size > 0) setInfo(null);
-  }, [state.staged.size]);
+    if (state.staged.size > 0) {
+      setInfo(null);
+      sessionRef.current.clearOutcome();
+    }
+  }, [state.staged]);
+  useEffect(() => {
+    if (session.dirtyCount > 0) setInfo(null);
+  }, [session.dirtyCount]);
 
   const go = useCallback(
     (next: ScopeRef, note?: string, field?: string, tab?: string): void => {
@@ -447,13 +501,13 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
         if (field) setTimeout(() => document.getElementById(fieldDomId(field))?.focus(), 0);
         return;
       }
-      if (stateRef.current.staged.size > 0) {
+      if (hasUnsaved()) {
         setGuard({ kind: 'switch', target: next, ...(note ? { note } : {}), ...(field ? { field } : {}), ...(tab ? { tab } : {}) });
         return;
       }
       go(next, note, field, tab);
     },
-    [go, setSearchParams],
+    [go, setSearchParams, hasUnsaved],
   );
 
   const refreshFamily = useCallback(
@@ -481,63 +535,103 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
   );
 
   // --- Save --------------------------------------------------------------------------------
+  /**
+   * Feature 180 — the editor's own write, as the first and blocking part of the one Save
+   * (`product-editor-save-ui.md` §1, OQ-2 = A): the required-empty checks are its `validate`, the
+   * `PUT …/scoped-values` its `save`, and the error handling is 174's, unchanged. `null` when no
+   * scoped change is staged or the operator may not write the product (OQ-6 = A).
+   */
+  const hostPart = (s: ScopedEditorState, confirmTakeover?: string[]): SavePart | null => {
+    if (!s.data || s.version === null || s.staged.size === 0 || readOnly) return null;
+    const data = s.data;
+    const version = s.version;
+    return {
+      id: 'host',
+      label: t('productEditor.save.hostPartLabel'),
+      blocking: true,
+      count: s.staged.size,
+      validate: async () => {
+        const parent = scopeShortWords(parentScope(s.scope), data.validScopes, t, adminLanguage);
+        const errors: Record<string, string> = {};
+        for (const [path, op] of s.staged) {
+          if (op.op !== 'empty') continue;
+          if (fieldViewAt(data, path)?.required || refusesEmpty(path, s)) {
+            errors[path] =
+              s.scope.level === 'global'
+                ? t('productEditor.save.error.requiredEmpty')
+                : t('productEditor.save.error.requiredEmptyScoped', { scope: parent });
+          }
+        }
+        if (Object.keys(errors).length > 0) {
+          dispatch({ type: 'errors', errors });
+          setFormError({ kind: 'validation', count: Object.keys(errors).length });
+          const first = Object.keys(errors)[0]!;
+          setTimeout(() => document.getElementById(fieldDomId(first))?.focus(), 0);
+        }
+        return { fields: errors };
+      },
+      save: async () => {
+        try {
+          const changes = stagedToChanges(s.staged);
+          const res = await saveScopedValues(productId, {
+            scope: scopeToRequest(s.scope),
+            version,
+            changes: confirmTakeover ? { ...changes, confirmTakeover } : changes,
+          });
+          dispatch({ type: 'loaded', data: res.data });
+          setTakeovers(null);
+          const completeness = (res.warnings ?? []).filter(
+            (w): w is Extract<ScopeWarning, { kind: 'completeness' }> => w.kind === 'completeness',
+          );
+          if (completeness.length > 0) {
+            gateWarnedRef.current = true;
+            const name = (id: string): string => channelName(res.data.validScopes, id);
+            setGateWarning(
+              t('productEditor.scopeControls.warning.incomplete', {
+                details: completeness.map((w) => describeIncompletePair(w, name, t)).join('; '),
+              }),
+            );
+          }
+        } catch (err) {
+          handleSaveError(err, s);
+          throw err;
+        }
+      },
+    };
+  };
+
+  /** Set by the host part when the write answered a completeness warning (no success sentence then). */
+  const gateWarnedRef = useRef(false);
+
+  /**
+   * The one Save (FR-010…FR-016): the host part first, then every participant in zone order,
+   * through the session. True when every part was saved.
+   */
   const save = useCallback(
     async (confirmTakeover?: string[]): Promise<boolean> => {
       const s = stateRef.current;
-      if (!s.data || s.version === null || s.staged.size === 0 || readOnly) return false;
-      const parent = scopeShortWords(parentScope(s.scope), s.data.validScopes, t, adminLanguage);
-      const errors: Record<string, string> = {};
-      for (const [path, op] of s.staged) {
-        if (op.op !== 'empty') continue;
-        if (fieldViewAt(s.data, path)?.required || refusesEmpty(path, s)) {
-          errors[path] =
-            s.scope.level === 'global'
-              ? t('productEditor.save.error.requiredEmpty')
-              : t('productEditor.save.error.requiredEmptyScoped', { scope: parent });
-        }
-      }
-      if (Object.keys(errors).length > 0) {
-        dispatch({ type: 'errors', errors });
-        setFormError({ kind: 'validation', count: Object.keys(errors).length });
-        const first = Object.keys(errors)[0]!;
-        setTimeout(() => document.getElementById(fieldDomId(first))?.focus(), 0);
-        return false;
-      }
+      const current = sessionRef.current;
+      if (!s.data) return false;
+      const host = hostPart(s, confirmTakeover);
+      if (host === null && current.dirtyCount === 0) return false;
+      const total = (host?.count ?? 0) + current.dirtyCount;
+      gateWarnedRef.current = false;
       setSaving(true);
       setFormError(null);
       setGateWarning(null);
       setInfo(null);
       try {
-        const changes = stagedToChanges(s.staged);
-        const res = await saveScopedValues(productId, {
-          scope: scopeToRequest(s.scope),
-          version: s.version,
-          changes: confirmTakeover ? { ...changes, confirmTakeover } : changes,
-        });
-        const count = s.staged.size;
-        dispatch({ type: 'loaded', data: res.data });
-        setTakeovers(null);
-        const completeness = (res.warnings ?? []).filter(
-          (w): w is Extract<ScopeWarning, { kind: 'completeness' }> => w.kind === 'completeness',
-        );
-        if (completeness.length > 0) {
-          const name = (id: string): string => channelName(res.data.validScopes, id);
-          setGateWarning(
-            t('productEditor.scopeControls.warning.incomplete', {
-              details: completeness.map((w) => describeIncompletePair(w, name, t)).join('; '),
-            }),
-          );
-        } else {
-          setInfo(plural('productEditor.save.saved', count, { scope: scopeInWords(s.scope, s.data.validScopes, t, adminLanguage) }));
+        const outcome: SaveOutcome = await current.run(host);
+        if (outcome.result === 'saved') {
+          if (!gateWarnedRef.current) setInfo(plural('productEditor.save.saved', total, { scope: scopeInWords(s.scope, s.data.validScopes, t, adminLanguage) }));
+          return true;
         }
-        return true;
-      } catch (err) {
-        handleSaveError(err, s);
         return false;
       } finally {
         setSaving(false);
       }
     },
+    // `hostPart` and `plural` read `t`, the admin language, `productId` and `readOnly` only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [productId, readOnly, t, adminLanguage],
   );
@@ -623,6 +717,8 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
 
   const reloadDiscarding = (): void => {
     dispatch({ type: 'discard' });
+    // The reload discards every change on the page, the panels' too (spec § Edge cases).
+    sessionRef.current.discardAll();
     setFormError(null);
     // The Reload button goes with the alert: focus the panel the fresh values are in.
     void load(stateRef.current.scope, { note: t('productEditor.save.reloaded') }).then(() =>
@@ -885,8 +981,9 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
       missingText,
       afterCopy,
       reloadDiscarding: () => reloadDiscardingRef.current(),
+      saveSession: session.handle,
     }),
-    [productId, state, readOnly, scopeLabel, parentLabel, requestScope, refreshFamily, missingText, afterCopy],
+    [productId, state, readOnly, scopeLabel, parentLabel, requestScope, refreshFamily, missingText, afterCopy, session.handle],
   );
 
   const archivedAt = archivedOverride !== undefined ? archivedOverride : (data?.product.archivedAt ?? null);
@@ -899,7 +996,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
         ? t('productEditor.statusSource.from', { scope: parentLabel })
         : t('productEditor.statusSource.from', { scope: t('productEditor.scope.global') });
   const title = data?.fields.name.value || data?.product.sku || '';
-  const stagedCount = state.staged.size;
+  const stagedCount = totalUnsaved;
   const atGlobal = state.scope.level === 'global';
 
   const globalOnlyNotice = (
@@ -967,9 +1064,11 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
       case 'pricing':
         return (
           <div className="b2b-col" style={{ gap: 16 }}>
-            <SectionHeading title={t('productEditor.tab.pricing')} immediate={!readOnly} />
-            <AdminZone name="product.editor.pricing.before" props={{ productId, saveSession: INERT_SAVE_SESSION }} />
-            <AdminZone name="product.editor.pricing.after" props={{ productId, saveSession: INERT_SAVE_SESSION }} />
+            {/* FR-024: the Pricing tab saves with the one Save; a contributor that still applies
+                immediately labels its own section. */}
+            <SectionHeading title={t('productEditor.tab.pricing')} immediate={false} />
+            <AdminZone name="product.editor.pricing.before" props={{ productId, saveSession: session.handle }} />
+            <AdminZone name="product.editor.pricing.after" props={{ productId, saveSession: session.handle }} />
           </div>
         );
       case 'variants':
@@ -993,7 +1092,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
       case 'media':
         return (
           <>
-            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'gallery', scope: state.scope, languageCodes: null, saveSession: INERT_SAVE_SESSION }} />
+            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'gallery', scope: state.scope, languageCodes: null, saveSession: session.handle }} />
             <GallerySection />
           </>
         );
@@ -1035,7 +1134,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
       case 'attachments':
         return (
           <>
-            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'attachments', scope: state.scope, languageCodes: null, saveSession: INERT_SAVE_SESSION }} />
+            <AdminZone name="product.editor.field.after" props={{ productId, fieldPath: 'attachments', scope: state.scope, languageCodes: null, saveSession: session.handle }} />
             <AttachmentsSection />
           </>
         );
@@ -1050,7 +1149,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
         return (
           <div className="space-y-2">
             <SectionHeading title={t('productEditor.tab.channels')} immediate={!readOnly} />
-            <AdminZone name="product.editor.channels" props={{ productId, saveSession: INERT_SAVE_SESSION }} />
+            <AdminZone name="product.editor.channels" props={{ productId, saveSession: session.handle }} />
           </div>
         );
       case 'scopes':
@@ -1092,6 +1191,26 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
     }
   };
 
+  /**
+   * The summary speaks for the parts the editor's own alert does not (`product-editor-save-ui.md`
+   * §2): a refusal or failure of the host part alone keeps 174's messages; a part of a panel, or a
+   * partial save, is listed part by part.
+   */
+  function showSummary(outcome: SaveOutcome | null): boolean {
+    if (outcome === null || outcome.result === 'saved') return false;
+    return outcome.result === 'partial' || outcome.parts.some((part) => part.id !== 'host' && part.result !== 'saved' && part.result !== 'not-attempted');
+  }
+  /** "Show": the part's tab, then its first marked field. */
+  const showPart = (partId: string): void => {
+    const tab = partId === 'host' ? activeTab : tabOfZone(session.zoneOf(partId));
+    selectTab(tab);
+    setTimeout(() => {
+      const panel = document.getElementById('product-tabpanel');
+      const first = panel?.querySelector<HTMLElement>('[aria-invalid="true"]');
+      (first ?? panel)?.focus();
+    }, 0);
+  };
+
   const guardOpen = guard !== null;
   return (
     <ProductEditorContextProvider value={contextValue}>
@@ -1102,7 +1221,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
               type="button"
               className="b2b-page-head__back"
               onClick={(): void => {
-                if (stateRef.current.staged.size > 0) setGuard({ kind: 'leave' });
+                if (hasUnsaved()) setGuard({ kind: 'leave' });
                 else navigate('/catalog/products');
               }}
             >
@@ -1169,10 +1288,11 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
           onOpenScopeMap={(): void => selectTab('scopes')}
           completeness={completenessNode}
           action={
-            canWrite ? (
+            // OQ-6 = A (FR-035): shown when the operator may write the product or any panel.
+            canWrite || session.hasWritableParticipant ? (
               <ProductEditorSaveAction
                 stagedCount={stagedCount}
-                saving={saving}
+                saving={saving || session.saving}
                 ready={Boolean(data)}
                 scopeWords={words(state.scope)}
                 onSave={(): void => void save()}
@@ -1210,6 +1330,15 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
               </AlertDescription>
             </Alert>
           ) : null}
+        {showSummary(session.lastOutcome) || session.notices.length > 0 ? (
+          <div className="mb-4" data-testid="product-save-summary">
+            <SaveSessionSummary
+              outcome={showSummary(session.lastOutcome) ? session.lastOutcome : null}
+              notices={session.notices}
+              onShow={showPart}
+            />
+          </div>
+        ) : null}
         <div role="status">
           {info ? (
             <Alert variant="success" role="none" className="mb-4" data-testid="product-save-info">
@@ -1306,6 +1435,7 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
                   disabled={saving}
                   onClick={(): void => {
                     dispatch({ type: 'discard' });
+                    session.discardAll();
                     proceed(guard);
                   }}
                 >
@@ -1322,7 +1452,10 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
                         return;
                       }
                       setGuard(null);
-                      setTimeout(() => document.getElementById('product-save-error')?.focus(), 0);
+                      // The summary focuses itself when it has something to say; else the form error.
+                      setTimeout(() => {
+                        if (!document.querySelector('[data-testid="product-save-summary"]')) document.getElementById('product-save-error')?.focus();
+                      }, 0);
                     });
                   }}
                 >

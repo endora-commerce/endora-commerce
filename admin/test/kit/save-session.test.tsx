@@ -138,6 +138,7 @@ function HostBody({ withHostSection }: { withHostSection: boolean }): ReactEleme
     <div>
       <output data-testid="count">{session.dirtyCount}</output>
       <output data-testid="outcome">{session.lastOutcome?.result ?? ''}</output>
+      <output data-testid="zone">{session.zoneOf('test_prices:prices') ?? ''}</output>
       <output data-testid="ids">
         {session
           .dirtyParticipants()
@@ -249,6 +250,19 @@ describe('useSaveParticipant inside a zone', () => {
     expect(count()).toBe('1');
   });
 
+  it('keeps a dirty draft through a remount that is still loading and not yet writable', async () => {
+    renderHost();
+    fireEvent.change(await amountInput(), { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'toggle zone' }));
+
+    // The remounted panel has not read yet: nothing loaded, and so not writable either.
+    panel.loaded = null;
+    panel.writable = false;
+    fireEvent.click(screen.getByRole('button', { name: 'toggle zone' }));
+    expect((await amountInput()).value).toBe('12');
+    expect(count()).toBe('1');
+  });
+
   it('removes a clean entry on unmount, so a remount seeds from what it loads', async () => {
     renderHost();
     await amountInput();
@@ -348,6 +362,26 @@ describe('host-owned sections (FR-006)', () => {
 });
 
 describe('useSaveSession().run', () => {
+  it('hands validate and save the baseline the draft is compared to (feature 180, WP-3)', async () => {
+    const validate = vi.fn(async () => ({ fields: {} }));
+    const save = vi.fn(async (draft: PricesDraft) => draft);
+    panel.handlers = { ...defaultHandlers(), validate, save };
+    renderHost();
+    fireEvent.change(await amountInput(), { target: { value: '12' } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    await waitFor(() => expect(lastOutcome?.result).toBe('saved'));
+    expect(validate).toHaveBeenCalledWith({ amount: '12' }, expect.objectContaining({ signal: expect.any(AbortSignal) }), { amount: '10' });
+    expect(save).toHaveBeenCalledWith({ amount: '12' }, expect.objectContaining({ signal: expect.any(AbortSignal) }), { amount: '10' });
+  });
+
+  it('names the zone a participant rendered in, so the host can take the operator to it', async () => {
+    renderHost();
+    fireEvent.change(await amountInput(), { target: { value: '12' } });
+    expect(screen.getByTestId('zone').textContent).toBe('product.editor.pricing.before');
+  });
+
   it('validates and writes each dirty participant, then marks it clean at the returned baseline', async () => {
     const save = vi.fn(async (draft: PricesDraft) => ({ amount: `${draft.amount}.00` }));
     panel.handlers = { ...defaultHandlers(), save };
@@ -357,7 +391,7 @@ describe('useSaveSession().run', () => {
     fireEvent.click(screen.getByRole('button', { name: 'save' }));
 
     await waitFor(() => expect(lastOutcome?.result).toBe('saved'));
-    expect(save).toHaveBeenCalledWith({ amount: '12' }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(save).toHaveBeenCalledWith({ amount: '12' }, expect.objectContaining({ signal: expect.any(AbortSignal) }), { amount: '10' });
     expect(panel.handlers.validate).toHaveBeenCalledTimes(1);
     expect(count()).toBe('0');
     expect((await amountInput()).value).toBe('12.00');

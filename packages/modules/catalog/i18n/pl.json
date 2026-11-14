@@ -1498,6 +1498,7 @@
   "productEditor.save.reason.product.attributeSetId": "Ten zestaw atrybutów już nie istnieje. Wybierz inny.",
   "productEditor.save.reason.product.categoryIds": "Wybrana kategoria już nie istnieje. Usuń ją i zapisz ponownie.",
   "productEditor.save.error.download": "Nic nie zapisano: plik do pobrania tego produktu wirtualnego jest nieprawidłowy albo już nie istnieje. Sprawdź ustawienia pobierania produktu.",
+  "productEditor.save.hostPartLabel": "Pola produktu",
   "productEditor.save.actionCount.one": "Zapisz {count} zmianę",
   "productEditor.save.actionCount.few": "Zapisz {count} zmiany",
   "productEditor.save.actionCount.many": "Zapisz {count} zmian",

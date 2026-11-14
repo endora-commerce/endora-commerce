@@ -291,6 +291,17 @@ describe('price-books API client — base prices, explanation, precedence, setti
     });
   });
 
+  it('pre-checks a base-price write with ?dryRun=true (feature 180, FR-021)', async () => {
+    const body = { byCurrency: { PLN: { product: [{ minQuantity: 1, maxQuantity: null, amount: '100' }], variants: {} } } };
+    const { client, calls } = fakeClient({
+      [`PUT ${B}/base-prices/${PRODUCT_ID}?dryRun=true`]: { data: { valid: true } },
+    });
+    const api = createPriceBooksApi(client);
+    await expect(api.checkBasePrices(PRODUCT_ID, body)).resolves.toBeUndefined();
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.body).toEqual(body);
+  });
+
   it('explains prices, reads the precedence and the list-price switch', async () => {
     const { client, calls } = fakeClient({
       [`POST ${B}/resolve`]: {

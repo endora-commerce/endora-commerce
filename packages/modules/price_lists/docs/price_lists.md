@@ -346,9 +346,6 @@ administrator and the state before and after; *View history* on a book opens its
   with an impact preview, is a later release.
 - **Promotions apply on top of sale and contract prices.** A cart promotion does not yet know
   whether a line is priced by a sale or a contract; excluding such lines is a later release.
-- **The base-price panel on the product has its own *Save prices* button**, separate from the
-  product editor's save, and asks before you leave it with unsaved changes. One save for the whole
-  product page is issue #407.
 - **The book list has no saved views**; its filters live in the address, so a filtered list can be
   bookmarked and shared (issue #408).
 - **Right after a large import**, the grid of a very large book (tens of thousands of lines) can take
