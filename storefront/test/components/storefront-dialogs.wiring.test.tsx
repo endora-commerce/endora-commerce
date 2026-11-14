@@ -3,6 +3,7 @@ import type { ReactElement } from 'react';
 import { ClearListButton } from '../../components/shopping-lists/ClearListButton';
 import { DeleteShoppingListButton } from '../../components/shopping-lists/DeleteShoppingListButton';
 import { NotifyWhenAvailableDialog } from '../../components/inventory/NotifyWhenAvailableDialog';
+import { RemoveMemberButton } from '../../components/account/RemoveMemberButton';
 import { ModalDialog, ModalDialogAction, ModalDialogClose } from '../../components/ModalDialog';
 import { findElement, findElements } from './element-tree';
 
@@ -117,6 +118,39 @@ describe('DeleteShoppingListButton — the action still runs (issue #804)', () =
   it('cancelling only closes', () => {
     const tree = DeleteShoppingListButton({ listId: 'l9', listName: 'Site A', locale: 'en-US', deleteAction: vi.fn() });
     expect(byClass(footerCloses(tree), 'btn--outline').props.onClick).toBeUndefined();
+  });
+});
+
+describe('RemoveMemberButton — removal waits for the confirm (issue #1178)', () => {
+  const props = (removeAction: (fd: FormData) => Promise<void> | void) => ({
+    memberId: 'acc-2',
+    memberName: 'Piotr Kowalski',
+    memberEmail: 'piotr@acme.example',
+    locale: 'en-US',
+    removeAction,
+  });
+
+  it('confirming dispatches removeAction with the member id', async () => {
+    const removeAction = vi.fn(async (_fd: FormData): Promise<void> => undefined);
+    const confirm = confirmOf(RemoveMemberButton(props(removeAction)));
+    expect(confirm.props.pendingLabel).toBe('Removing…');
+    await (confirm.props.action as () => Promise<void>)();
+    expect(removeAction).toHaveBeenCalledOnce();
+    expect(removeAction.mock.calls[0]![0].get('memberId')).toBe('acc-2');
+  });
+
+  it('dispatches nothing when the dialog only opens or is cancelled', () => {
+    const removeAction = vi.fn();
+    const tree = RemoveMemberButton(props(removeAction));
+    expect(byClass(footerCloses(tree), 'btn--outline').props.onClick).toBeUndefined();
+    expect(removeAction).not.toHaveBeenCalled();
+  });
+
+  it('says so in the dialog when the request fails, so it can be retried', () => {
+    seeded = [true];
+    const failed = RemoveMemberButton(props(vi.fn()));
+    const status = findElement(failed, (el) => el.props.role === 'status');
+    expect(JSON.stringify(status.props.children)).toContain('Could not remove the member.');
   });
 });
 

@@ -67,7 +67,7 @@ export async function removeAction(formData: FormData): Promise<void> {
   } catch (err) {
     return await refused(err, 'REMOVE_FAILED');
   }
-  return await localeRedirect(PAGE);
+  return await localeRedirect(`${PAGE}?status=removed`);
 }
 
 export async function revokeAction(formData: FormData): Promise<void> {
