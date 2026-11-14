@@ -1209,10 +1209,11 @@ role change after the change was saved adds nobody.
   **E-mail templates**, in the default language of the request's sales channel
   (English for a request raised with no channel). It names the request number
   and links to the request on the storefront when the channel has a storefront
-  address (the `sales_channels.storefront_url` setting, *Storefront URL*);
-  without one it names the number and carries no link. The approval e-mail
-  carries the link and **no PDF** — *Send PDF to customer* stays a separate
-  action.
+  address: the `sales_channels.storefront_url` setting (*Storefront URL*), or,
+  when the channel leaves it empty, the `STOREFRONT_BASE_URL` environment
+  variable. With neither set it names the number and carries no link. The
+  approval e-mail carries the link and **no PDF** — *Send PDF to customer* stays
+  a separate action.
 - **Centre entry** — one sentence naming the request by number, linking to the
   request, shown in the language the buyer is browsing in, on the request's own
   sales channel only (on every channel for a request raised with none). See the

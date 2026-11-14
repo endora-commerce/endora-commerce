@@ -5,9 +5,8 @@ Prerequisites: `pnpm run build:packages`, `pnpm run setup`,
 reachable. The demo seed assigns **no** sales representative, so assign `sales-rep@demo.local` to the
 demo Organization first (its *Sales representatives* tab, or
 `POST /api/v1/admin/organizations/:id/sales-reps`); without one, every administrator holding
-`rfqs:handle` is told instead. The customer e-mails carry a link only while the channel's *Storefront
-URL* setting (`sales_channels.storefront_url`) is set: `quote_requests` does not fall back to
-`STOREFRONT_BASE_URL`.
+`rfqs:handle` is told instead. The customer e-mails carry a link when the channel's *Storefront URL*
+setting (`sales_channels.storefront_url`) is set, or else when `STOREFRONT_BASE_URL` is.
 
 1. **Operator side.** Sign in to the storefront as a buyer and submit a quote request. Within a
    minute: the representative's admin bell shows *Quote request {number} was submitted*; the sink holds
