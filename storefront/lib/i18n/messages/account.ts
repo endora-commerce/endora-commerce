@@ -551,6 +551,10 @@ export const account = defineMessages({
     'account.order.error.PAYMENT_NOT_DUE': 'This order is not awaiting payment.',
     'account.order.error.PAYMENT_ORDER_CLOSED': 'This order is closed and can no longer be paid.',
     'account.order.error.PAYMENT_ADAPTER_UNAVAILABLE': 'The payment method this order was placed with is no longer available.',
+    'account.order.error.PAYMENT_ALREADY_PAID': 'This order is already paid, so there is nothing to retry.',
+    'account.order.error.PAYMENT_REFUNDED': 'This payment has been refunded, so it cannot be retried.',
+    'account.order.error.PAYMENT_SETTLED_OUT_OF_BAND':
+      'This order is settled outside the payment gateway, so there is nothing to retry.',
     'account.order.error.FAILED': 'Something went wrong with this order. Please try again.',
     // ── issue #745: the address, shopping-list and password pages' error codes
     // (`lib/account/address-errors.ts`, `shopping-list-errors.ts`, `password-errors.ts`).
@@ -1074,6 +1078,10 @@ export const account = defineMessages({
     'account.order.error.PAYMENT_NOT_DUE': 'To zamówienie nie oczekuje na płatność.',
     'account.order.error.PAYMENT_ORDER_CLOSED': 'To zamówienie zostało zamknięte i nie można go już opłacić.',
     'account.order.error.PAYMENT_ADAPTER_UNAVAILABLE': 'Metoda płatności wybrana przy składaniu tego zamówienia nie jest już dostępna.',
+    'account.order.error.PAYMENT_ALREADY_PAID': 'To zamówienie jest już opłacone, więc nie ma czego ponawiać.',
+    'account.order.error.PAYMENT_REFUNDED': 'Ta płatność została zwrócona, więc nie można jej ponowić.',
+    'account.order.error.PAYMENT_SETTLED_OUT_OF_BAND':
+      'To zamówienie jest rozliczane poza bramką płatności, więc nie ma czego ponawiać.',
     'account.order.error.FAILED': 'Coś poszło nie tak z tym zamówieniem. Spróbuj ponownie.',
     // ── issue #745
     'account.addresses.error.FAILED': 'Coś poszło nie tak z adresami. Spróbuj ponownie.',

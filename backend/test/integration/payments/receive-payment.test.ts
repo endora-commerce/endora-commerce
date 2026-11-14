@@ -232,7 +232,7 @@ describe('ReceivePaymentHandler', () => {
 
     await expect(
       handler.receive({ paymentId: payment.id, outcome: 'failure', failureReason: 'late' }),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    ).rejects.toMatchObject({ statusCode: 409, code: 'PAYMENT_ALREADY_PAID', details: { code: 'mark_failed' } });
   });
 
   it('opens a retry Payment after a failure, preserving prior attempts (T035)', async () => {
@@ -284,11 +284,18 @@ describe('ReceivePaymentHandler', () => {
   it('refuses to open an attempt against a settled payment (#264)', async () => {
     const service = paymentService();
 
+    // Each with its own code since issue #630, where all four were `VALIDATION_FAILED`.
+    const codes = {
+      paid: 'PAYMENT_ALREADY_PAID',
+      refunded: 'PAYMENT_REFUNDED',
+      partially_refunded: 'PAYMENT_REFUNDED',
+      deferred: 'PAYMENT_SETTLED_OUT_OF_BAND',
+    } as const;
     for (const status of ['paid', 'refunded', 'partially_refunded', 'deferred'] as const) {
       const { order, payment } = await seedOrderWithPayment(h.em());
       payment.status = status;
       await h.em().persistAndFlush(payment);
-      await expect(service.openRetry(order.id)).rejects.toMatchObject({ statusCode: 409 });
+      await expect(service.openRetry(order.id)).rejects.toMatchObject({ statusCode: 409, code: codes[status] });
       expect(await service.listForOrder(order.id)).toHaveLength(1);
     }
   });
