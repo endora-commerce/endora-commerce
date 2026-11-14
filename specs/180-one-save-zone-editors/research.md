@@ -3,8 +3,8 @@
 Feature: `specs/180-one-save-zone-editors/` (renamed from `180-product-editor-one-save`) · Issue #407 · Base: `origin/master` `2cc56ea9b` plus
 PR #1217. Each section is decision → rationale → alternatives rejected. OQ-1…OQ-8 were ruled by the owner on
 2026-11-14 (`spec.md` § *Owner rulings*); R1–R13 were written to the recommendations, which the
-owner accepted except OQ-8 (C, every editor with zone panels). R14–R21 cover the widening. The new
-questions OQ-9…OQ-11 are in `spec.md`; R18–R21 are written to their recommendations.
+owner accepted except OQ-8 (C, every editor with zone panels). R14–R21 cover the widening. OQ-9…OQ-11
+were ruled A (as recommended) the same day; R18–R21 stand as written.
 
 Abbreviations: **AK** = `packages/admin-kit/src/`, **CAT** = `packages/modules/catalog/src/admin/`,
 **PL** = `packages/modules/price_lists/src/`.
@@ -244,7 +244,7 @@ from the provider (`SaveSessionProvider hostModule="organizations"`). Host secti
 same record are gathered into **one** host part by the host (organization: one `PATCH
 …/organizations/:id` with `expectedUpdatedAt`, blocking), so the record's version check still guards
 everything; `CustomFieldValuesPanel` gains an optional `saveSession` prop and, when given one,
-registers instead of rendering its Save (OQ-11 A).
+registers instead of rendering its Save (OQ-11 = A).
 
 **Rejected.** *Each host section as its own participant writing its own `PATCH`*: several writes to
 one record, each racing the same `expectedUpdatedAt`; the second would always conflict.
@@ -280,7 +280,7 @@ existing category `PATCH`; move the zone mount above the Save row (FR-052, the c
 Cancel discards. `DisplayModeOverrideRow` becomes a participant (draft = selected mode; validate =
 the contracts enum; save = the existing `PUT`).
 
-## R18. Organization and customer detail (OQ-9 = A, recommended)
+## R18. Organization and customer detail (OQ-9 = A)
 
 **Decision.** Each screen gets `SaveSessionProvider` (reset on record id), `SaveSessionActions` in the
 page head (sticky below 1024 px, as the product editor), `SaveSessionSummary`. Organization host part:
@@ -305,7 +305,7 @@ Only `price_lists` base prices have server rules beyond the request schema (R6).
 participants validate against their `@endora-commerce/contracts` schemas locally; adding dry runs
 there would be speculative (Principle IV). The partial-failure path (OQ-1 A) covers the rest.
 
-## R21. Sales-channel editor (OQ-10 = A, recommended)
+## R21. Sales-channel editor (OQ-10 = A)
 
 `SalesChannelEditPage.tsx` wraps the existing-channel branch in `SaveSessionProvider resetKey={
 channel.id}` and passes `saveSession` to `sales_channel.editor.after`; `ChannelIdentityForm`'s submit

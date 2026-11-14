@@ -1,7 +1,7 @@
 # Implementation Plan: One Save for every admin editor with zone panels
 
 **Branch**: `spec/407-product-editor-one-save` | **Date**: 2026-11-14 (revised after the owner rulings) | **Spec**: `specs/180-one-save-zone-editors/spec.md`
-**Input**: Issue #407; owner rulings OQ-1…OQ-8 (2026-11-14); `specs/161-price-book-editor/` (FR-020,
+**Input**: Issue #407; owner rulings OQ-1…OQ-11 (2026-11-14); `specs/161-price-book-editor/` (FR-020,
 R7); `specs/174-product-editor-scope-switcher/` (FR-070…FR-076, `contracts/editor-ui.md`); PR #1217
 (merged).
 
@@ -14,7 +14,7 @@ then writes the host's own changes and each participant in order through its own
 two generic controls (Save with count, outcome summary). Every editor whose zone panels write adopts
 it (OQ-8 = C): the product editor first (base prices, Inventory product-row settings), then the
 category editor (price display mode), the organization and customer detail (ordering defaults,
-display mode, price negotiation and, by OQ-9 A, their own draft sections), and the sales-channel
+display mode, price negotiation and, by OQ-9 = A, their own draft sections), and the sales-channel
 editor (session only; warehouse routing stays immediate). `price_lists` gains a dry run of its
 base-price write. No database change, no new dependency.
 
@@ -136,8 +136,7 @@ merge request.
 | WP-10 | docs EN + PL for every changed screen; FR-083 convention rule; amendment pointers in 161 / 174 | each WP's docs may ship with it; WP-10 closes the rest | — |
 
 WP-2 and WP-3's admin half merge together (the base-price panel must not lose *Save prices* before the
-host saves it). WP-7 and WP-8 depend on OQ-9; with OQ-9 = B they shrink to the participants and
-FR-060 only; with C they are dropped. WP-9 depends on OQ-10.
+host saves it). WP-7 and WP-8 follow OQ-9 = A and OQ-11 = A; WP-9 follows OQ-10 = A.
 
 ## Requirement → test traceability
 
@@ -182,8 +181,8 @@ No violations; no new runtime dependency.
 
 ## Handoff to `endora-commerce-dev`
 
-OQ-1…OQ-8 are ruled; OQ-9…OQ-11 wait for the owner and affect WP-7, WP-8, WP-9 only. WP-1 → WP-5 →
-(WP-2 + WP-3) → WP-4 may start now; WP-6 after WP-5. Tests first per *Traceability*.
+Every question is ruled (OQ-1…OQ-11); nothing waits for the owner. Order: WP-1 → WP-5 → (WP-2 + WP-3)
+→ WP-4; WP-6 after WP-5; WP-9 after WP-5; WP-7 after WP-6; WP-8 after WP-7; WP-10 closes. Tests first per *Traceability*.
 `pnpm run build:packages` after contracts / admin-kit changes; verify with `pnpm -r run typecheck`,
 `pnpm -r run lint`, the targeted admin and module tests, `pnpm --filter '!backend' run test`, and
 `check:admin-zones` (WP-6 moves a mount).

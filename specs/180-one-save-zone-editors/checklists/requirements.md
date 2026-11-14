@@ -12,7 +12,7 @@
 
 ## Requirement Completeness
 
-- [ ] No open questions remain — OQ-1…OQ-8 ruled 2026-11-14; **OQ-9…OQ-11 wait for the owner** (they affect WP-7, WP-8, WP-9 only)
+- [x] No open questions remain — OQ-1…OQ-11 ruled 2026-11-14
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Acceptance scenarios defined for every story

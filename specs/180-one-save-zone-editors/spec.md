@@ -1,8 +1,8 @@
 # Feature Specification: One Save for every admin editor with zone panels
 
 **Feature Branch**: `spec/407-product-editor-one-save`
-**Created**: 2026-11-14 · **Revised**: 2026-11-14 (owner rulings OQ-1…OQ-8; scope widened by OQ-8 = C)
-**Status**: Draft — OQ-1…OQ-8 ruled; new questions OQ-9…OQ-11 wait for the owner
+**Created**: 2026-11-14 · **Revised**: 2026-11-14 (owner rulings OQ-1…OQ-11; scope widened by OQ-8 = C)
+**Status**: Draft — every open question ruled (OQ-1…OQ-11); none open
 **Input**: Issue #407 — *Product editor: one Save for every panel on the page*. The base-price panel
 of `specs/161-price-book-editor/` shipped with its own *Save prices* button by owner ruling
 2026-10-22 (161 research R7, OQ-1 = B; 161 FR-020 amended), "one Save for the whole product page is
@@ -25,6 +25,9 @@ product editor to **every admin editor that hosts zone panels**; the directory w
 | OQ-6 | Save for an operator who can write a panel but not the host record | **A** — Save shows when any part is writable and saves only what they may write (FR-035) |
 | OQ-7 | The product Inventory tab's own Save buttons | **B** — the product-row settings join the one Save; per-warehouse stock levels and thresholds stay immediate (FR-025, WP-4) |
 | OQ-8 | Do other editors adopt now? | **C** — **every editor with zone panels adopts the one Save**, against the architect's recommendation (A) |
+| OQ-9 | How far do the organization and customer screens convert? | **A** — one Save covering the zone panels and the host's own draft sections; immediate actions stay immediate and labelled (FR-060, FR-061, WP-7, WP-8) |
+| OQ-10 | Immediate list panels on other editors | **A** — warehouse routing and opportunity links stay immediate and labelled; the sales-channel editor still offers a session; order and quote-request detail do not adopt (FR-070, WP-9) |
+| OQ-11 | `CustomFieldValuesPanel` under a page Save | **A** — it can take part when given a session and keeps its own Save where the host does not adopt (FR-062) |
 
 The **amendments** to `specs/161-price-book-editor/` FR-020 and `specs/174-product-editor-scope-switcher/`
 FR-070, FR-072 and `contracts/editor-ui.md` §3 are **approved** with these rulings (§ *Amendments*).
@@ -58,7 +61,7 @@ themselves too (organization: status and VAT status auto-save on change, confirm
 blur, `FulfilmentStrategyPanel` and `RestrictionsPanel` have Save buttons, `CustomFieldValuesPanel`
 has one; customer: `CustomFieldValuesPanel`; both also carry immediate actions — members, hierarchy,
 moderation, VAT validation, organization assignment, group, addresses, block / reset / impersonate).
-OQ-9 asks how far their conversion goes.
+OQ-9 = A: both convert fully (FR-061).
 
 ### Zone hosts that do not change, and why
 
@@ -66,13 +69,13 @@ OQ-9 asks how far their conversion goes.
 | --- | --- | --- | --- |
 | Setting row editor (`packages/modules/settings/src/admin/components/SettingRowEditor.tsx`) | `settings.setting.after` | `seo` previews (robots.txt, llms.txt, default robots notice), `organizations` PL-sources warning | The panels **write nothing**: they render the host's draft (`draftText`, `dirty`); the row's own Save is already the one Save |
 | Category content / product content screens (`CategoryContentPage.tsx`, `ProductContentPage.tsx`) | `category.content.editor`, `product.content.editor` | `cms` page-builder canvas | The host already saves the contribution (`onChange`; "the host saves; the contributor never does") — already one Save |
-| Order detail (`packages/modules/orders/src/admin/pages/OrderDetail.tsx`) | `order.detail.after`, `order.detail.payment`; `order.shipment.row.actions`, `order.shipments.tab.actions` | `crm` linked opportunity (immediate link), `projects` and `tasks` panels (read-only), `payments` tab (reads) | No panel holds a draft; linking is an immediate action (OQ-10) |
+| Order detail (`packages/modules/orders/src/admin/pages/OrderDetail.tsx`) | `order.detail.after`, `order.detail.payment`; `order.shipment.row.actions`, `order.shipments.tab.actions` | `crm` linked opportunity (immediate link), `projects` and `tasks` panels (read-only), `payments` tab (reads) | No panel holds a draft; linking is an immediate action (OQ-10 = A) |
 | Quote-request detail (`RfqDetail.tsx`) | `quote_request.detail.after` | `crm` linked opportunity (immediate), `projects`, `tasks` (read-only) | as order detail |
 | Opportunity detail (`OpportunityDetail.tsx`), task detail (`TaskDetail.tsx`), invoice detail (`InvoiceDetail.tsx`) | `opportunity.detail.after`, `task.detail.after`, `invoice.detail.after` | `projects`, `tasks`, `invoice_ledger` panels | read-only panels |
 | Order entry (`OrderCreatePage.tsx`, `QuickOrderOnBehalfPage.tsx`), ledger sections, delivery / payment method lists | `order.entry.tabs`, `ledger.section.tabs`, `*.list.integrations` | entry modes, route tabs, link cards | not editors: each tab or card is a whole screen or a link |
 
 The rule this table applies: **an editor adopts when one of its zone panels writes something**. A
-read-only panel has no Save to merge. Immediate panels follow OQ-5's reasoning (OQ-10).
+read-only panel has no Save to merge. Immediate panels follow OQ-5's reasoning (OQ-10 = A).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -176,12 +179,12 @@ editor's Save. Both are written; the display-mode select no longer saves on chan
 4. **Given** the category write is refused (slug taken), **When** the save ends, **Then** the display
    mode is not written.
 
-### User Story 9 — The organization and customer screens get one Save (Priority: P3, shape per OQ-9)
+### User Story 9 — The organization and customer screens get one Save (Priority: P3, OQ-9 = A)
 
 An operator changes an organization's ordering defaults, its price display mode and its
 price-negotiation setting, and presses one Save for the screen.
 
-**Acceptance Scenarios** (recommended OQ-9 = A):
+**Acceptance Scenarios** (OQ-9 = A):
 
 1. **Given** changes in the three panels, **When** the operator presses the screen's Save, **Then**
    each module's write runs in zone order and the summary names each part.
@@ -194,7 +197,7 @@ price-negotiation setting, and presses one Save for the screen.
 
 ### User Story 10 — The sales-channel editor offers the session (Priority: P3)
 
-**Acceptance Scenarios** (recommended OQ-10 = A):
+**Acceptance Scenarios** (OQ-10 = A):
 
 1. **Given** the warehouse-routing panel, **When** the operator assigns a warehouse, **Then** it
    applies immediately as today, under an "Applies immediately" badge, and Save is unaffected.
@@ -243,7 +246,7 @@ price-negotiation setting, and presses one Save for the screen.
 - **FR-005**: The API MUST give the host the list of participants with changes, their total count,
   and one operation that runs FR-011…FR-016, so every adopting editor shares one set of semantics.
 - **FR-006**: A **host-owned section** (not a zone contribution) MUST be able to take part through
-  the same hook, under the host's module (needed by the organization and customer screens, OQ-9).
+  the same hook, under the host's module (needed by the organization and customer screens, OQ-9 = A).
 - **FR-007**: admin-kit MUST offer a generic Save control with the change count and a generic outcome
   summary, composed of existing primitives, for hosts that have no Save of their own to extend.
 
@@ -319,13 +322,13 @@ price-negotiation setting, and presses one Save for the screen.
   its name, and its contract comment is corrected ("the end of the category editor's form, before its
   save row").
 
-#### Organization and customer detail (OQ-9)
+#### Organization and customer detail (OQ-9 = A)
 
 - **FR-060**: The organization detail and the customer detail MUST each get one Save (FR-007's
   control) covering their zone participants: `quick_order` ordering defaults (losing its Save
   button), `price_lists` display mode and `quote_requests` price negotiation (both losing their
   save-on-change).
-- **FR-061** *(OQ-9 = A, recommended)*: The same Save MUST cover the host's own draft sections —
+- **FR-061** *(OQ-9 = A)*: The same Save MUST cover the host's own draft sections —
   organization: status, VAT status, order-confirmation e-mails, fulfilment strategy, restrictions,
   custom fields; customer: custom fields — written as the host writes them today (organization: one
   `PATCH …/organizations/:id` with `expectedUpdatedAt`, blocking); their own Save buttons,
@@ -333,11 +336,11 @@ price-negotiation setting, and presses one Save for the screen.
   validation, sales channels, organization assignment, customer group, addresses, block / reset /
   impersonate / delete) MUST stay immediate and be labelled so.
 - **FR-062**: `CustomFieldValuesPanel` (admin-kit) MUST be able to take part as a host-owned section
-  (FR-006) while keeping its current standalone behaviour for hosts that do not adopt (OQ-11).
+  (FR-006) while keeping its current standalone behaviour for hosts that do not adopt (OQ-11 = A).
 
-#### Sales-channel editor (OQ-10)
+#### Sales-channel editor (OQ-10 = A)
 
-- **FR-070** *(OQ-10 = A, recommended)*: The sales-channel editor MUST offer a save session to
+- **FR-070** *(OQ-10 = A)*: The sales-channel editor MUST offer a save session to
   `sales_channel.editor.after` and include participants in the identity form's Save; the warehouse
   routing panel (`inventory`) MUST stay immediate and carry the "Applies immediately" badge.
 
@@ -399,7 +402,9 @@ price-negotiation setting, and presses one Save for the screen.
 
 T090 writes the pointers into those files.
 
-## Open questions for the owner (new, raised by OQ-8 = C)
+## Resolved questions raised by OQ-8 = C *(ruled 2026-11-14)*
+
+Kept for provenance: the options the owner chose between. Rulings are in the table at the top.
 
 ### OQ-9 — How far do the organization and customer screens convert?
 
@@ -416,7 +421,7 @@ per-section buttons), and many of their actions are immediate.
   and treat organization / customer as detail screens with self-saving sections.
 
 **Recommendation: A**, shipped as its own work packages after the product and category editors, so
-the shared API is proven first.
+the shared API is proven first. **Ruling: A.**
 
 ### OQ-10 — Immediate list panels on other editors
 
@@ -429,7 +434,7 @@ quote-request detail are list actions like channel membership.
 - **B — Stage them**: warehouse assignments and opportunity links wait for Save.
 - **C — As A, but the sales-channel editor offers no session until it has a participant** (YAGNI).
 
-**Recommendation: A.**
+**Recommendation: A. Ruling: A.**
 
 ### OQ-11 — `CustomFieldValuesPanel` under a page Save
 
@@ -439,4 +444,4 @@ customer screens and elsewhere.
 - **A — Make it able to take part (FR-062) and keep its own Save where the host does not adopt.**
 - **B — Convert it everywhere it is used**, adopting a session on each of those hosts too.
 
-**Recommendation: A** (only if OQ-9 = A; moot otherwise).
+**Recommendation: A** (only if OQ-9 = A). **Ruling: A.**

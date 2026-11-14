@@ -1,7 +1,7 @@
 # Tasks: One Save for every admin editor with zone panels
 
 **Input**: `specs/180-one-save-zone-editors/` — spec.md, plan.md, research.md, data-model.md, contracts/
-**Prerequisites**: OQ-1…OQ-8 ruled (2026-11-14); PR #1217 merged. Phases 7–9 wait for OQ-9…OQ-11.
+**Prerequisites**: OQ-1…OQ-11 ruled (2026-11-14); PR #1217 merged. Nothing is blocked on the owner.
 
 **Tests are mandatory** (Principle III): each test task comes before the task it covers and must be
 seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel-safe.
@@ -60,13 +60,13 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 - [ ] T064 [P] [US5] Off-state test: `price_lists` off → category editor shows no row and sends no `pricing` request
 - [ ] T065 `pnpm run check:admin-zones`; changesets mod-catalog, mod-price-lists
 
-## Phase 6: Sales-channel editor — WP-9 (US10, after OQ-10)
+## Phase 6: Sales-channel editor — WP-9 (US10, OQ-10 = A)
 
 - [ ] T070 [P] [US10] Failing test `admin/test/modules/sales_channels/sales-channel-editor-one-save.test.tsx`: test-only participant joins the identity Save; leave guard; `ChannelWarehouses` immediate with badge
 - [ ] T071 [US10] `SalesChannelEditPage.tsx` provider + submit through `session.run`; badge in `packages/modules/inventory/src/admin/zones/ChannelWarehouses.tsx`; `channelEditor.save.hostPartLabel`
 - [ ] T072 Changesets: mod-sales-channels, mod-inventory
 
-## Phase 7: Organization detail — WP-7 (US9, after OQ-9 / OQ-11)
+## Phase 7: Organization detail — WP-7 (US9, OQ-9 = A, OQ-11 = A)
 
 - [ ] T080 [P] [US9] Failing tests `admin/test/modules/organizations/organization-detail-one-save.test.tsx`: one Save; host part gathers status, VAT status, e-mails, fulfilment strategy, restrictions, custom fields into one `PATCH` with `expectedUpdatedAt`; `VERSION_CONFLICT` writes no panel; panels in zone order; immediate sections keep working with badges; no other Save, no save-on-change / on-blur
 - [ ] T081 [US9] `OrganizationDetail.tsx` and `panels/FulfilmentStrategyPanel.tsx`, `panels/RestrictionsPanel.tsx`: drafts into the host part; `SaveSessionActions`, `SaveSessionSummary`; badges; `organizations.detail.save.hostPartLabel`
@@ -75,7 +75,7 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 - [ ] T084 [P] [US5] Off-state tests for `quick_order`, `quote_requests`, `price_lists` on the organization screen
 - [ ] T085 Changesets: mod-organizations, mod-quick-order, mod-quote-requests
 
-## Phase 8: Customer detail — WP-8 (US9, after OQ-9)
+## Phase 8: Customer detail — WP-8 (US9, OQ-9 = A)
 
 - [ ] T086 [P] [US9] Failing tests `admin/test/modules/customers/customer-detail-one-save.test.tsx`: one Save; custom-fields host part; two participants; immediate actions unchanged with badges
 - [ ] T087 [US9] `CustomerDetail.tsx`: provider, `SaveSessionActions`, `SaveSessionSummary`, `CustomFieldValuesPanel saveSession`; `detail.save.hostPartLabel`
@@ -90,6 +90,5 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 
 ## Dependencies
 
-Phase 2 → Phase 3 → Phase 4. Phase 5 after Phase 2 (independent of 3–4). Phase 6 after Phase 2 and
-OQ-10. Phase 7 after Phases 2 and 5 (shares `DisplayModeOverrideRow`) and OQ-9 / OQ-11; Phase 8 after
-Phase 7. Phase 9 closes. T030–T031 (backend) may start in parallel with Phase 2.
+Phase 2 → Phase 3 → Phase 4. Phase 5 after Phase 2 (independent of 3–4). Phase 6 after Phase 2. Phase 7
+after Phases 2 and 5 (shares `DisplayModeOverrideRow`); Phase 8 after Phase 7. Phase 9 closes. T030–T031 (backend) may start in parallel with Phase 2.
