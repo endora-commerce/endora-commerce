@@ -34,11 +34,55 @@ on and off on **Platform → Modules**.
 An entry can lead to a page — a quote request, for instance. Opening the entry
 marks it as read.
 
+Today *Quote requests* is the one module that records entries: the requester
+and the members of the organization who may open the request get one when the
+request is submitted or re-submitted, its offer is accepted or rejected, it is
+prepared, revised, approved or cancelled by the shop's staff, or it expires. The buyer whose own action caused the change
+gets no entry for it — they are looking at the result, and the e-mail confirms
+it. The *Quote requests* module's page says who is told, and when.
+
+## On the storefront
+
+- **The unread count on the account entry.** There is no separate bell in the
+  header. While a signed-in buyer has unread entries, the account entry shows
+  the count: the account button on wide screens, and the account tab of the
+  bottom tab bar on narrow ones, whose menu drawer also has a *Notifications*
+  row with the count. It shows on every page at every screen width, except
+  during checkout. The badge shows at most `9+`; a screen reader hears the
+  exact count after the entry's name ("Unread notifications: 12"). A guest, or
+  a buyer with nothing unread, sees no badge. The count is refreshed whenever a
+  page is loaded and right after the buyer opens an entry or marks entries
+  read; it is not refreshed live.
+- **The Notifications page** (`/account/notifications`) is the second item of
+  the account navigation, after the profile, with the unread count beside it
+  ("Notifications (2)"). The account overview shows a line such as *You have
+  2 unread notifications* linking to it.
+- **The list.** Entries are listed newest first, 20 to a page, with *Show
+  older* for the next page. Each shows its sentence and its date — relative
+  ("2 h ago") for the last seven days, the date after that. An unread entry is
+  marked *New* and in bold, so the difference does not rest on colour.
+- **Opening an entry.** An entry with a link is a real link: it can be opened in
+  a new tab or copied. Opening it marks it as read and takes the buyer to the
+  page it is about; if marking fails, the buyer still gets there. An entry
+  without a link has a *Mark as read* button instead.
+- **Mark all as read** is offered while something is unread. It marks the
+  entries of the shop the buyer is on, announces the result beside the heading
+  and moves the focus to the heading; if it fails, an error says so and the
+  buyer can try again.
+- **Empty and error states.** With no entries the page says what will appear
+  there and, when quote requests are available to the buyer, offers *Go to
+  quote requests*. When the list cannot be loaded, the page says so and offers
+  *Try again*.
+- **Push.** When push notifications are switched on for the shop, the page ends
+  with *Manage push notifications*, which leads to the buyer's push choices on
+  their account profile. Push itself is the *PWA* module's.
+
 ## Impersonation
 
 When an operator impersonates a buyer, the notification centre can be read,
 but nothing is marked as read: the buyer still finds their unread entries when
-they sign in themselves.
+they sign in themselves. Opening an entry still leads to its page; *Mark all as
+read* is shown disabled, with the reason beside it.
 
 ## Retention
 
@@ -54,14 +98,26 @@ anonymised.
 **Customer notifications enabled** switches the centre on or off. While it is
 off:
 
-- the storefront shows neither the notifications page nor the unread count, and
-  the notifications API answers that the module is not available;
+- the storefront shows neither the notifications page (its address answers the
+  shop's *page not found*) nor the unread count, the account navigation item or
+  the overview line, and the notifications API answers that the module is not
+  available;
 - modules that would record an entry skip it — *Quote requests*, for example,
   records the delivery as skipped because the module is off;
 - the retention sweep does not run.
 
 Nothing is deleted. Entries recorded before the module was switched off are
 kept and reappear when it is switched back on.
+
+## Settings
+
+Both are in the *Customer notifications* group of the **Settings** screen and
+apply platform-wide.
+
+| Code | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `customer_notifications.enabled` | boolean | `true` | The module's activation control, also on **Platform → Modules**. |
+| `customer_notifications.retention_days` | number | `90` | **Keep notifications for (days)**, from 7 to 730; a value outside the range is refused when it is saved. |
 
 ## For developers
 
@@ -93,4 +149,24 @@ The storefront API, for a signed-in buyer:
 | `POST` | `/api/v1/storefront/notifications/:id/read` | `204`; `404` for an entry that is not the caller's |
 | `POST` | `/api/v1/storefront/notifications/read-all` | the number of entries marked as read |
 
-Every answer is `Cache-Control: private, no-store`.
+Every answer is `Cache-Control: private, no-store`. Each shows only the
+caller's own entries, of the request's sales channel and of no channel, and
+only those whose producing module is present; entries are rendered in the
+request's language, with the English sentence as the fallback. Under
+impersonation the reads answer and the two writes change nothing. While the
+module is off every route answers `503 MODULE_DISABLED`, and the port refuses
+with `ModuleDisabledError`.
+
+The retention sweep is a BullMQ Job Scheduler on the queue
+`customer_notifications.retention.sweep`, once a day, registered through
+`ctx.worker`. An idle tick enters no tenant scope.
+
+The storefront side lives in `storefront/`: the page, its server actions and
+the open route under `app/(account)/account/notifications/` (`page.tsx`,
+`actions.ts`, `[id]/open/route.ts` — `GET /account/notifications/<id>/open`
+reads the entry by id, marks it read and answers `303` to its link), the API
+client `lib/api/customer-notifications.ts`, the count on the account entry in
+`components/Header.tsx`, `components/mobile/MobileTabBar.tsx` and
+`components/Megamenu/MegamenuMobileDrawer.tsx`, and the copy in
+`lib/i18n/messages/account.ts` and `chrome.ts`. Every surface is rendered only
+while `customer_notifications` is present.

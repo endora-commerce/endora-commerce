@@ -304,6 +304,9 @@ English and Polish:
   can open the request reads it. The entry is **admin-only**: the customer's view
   of the request never shows it. Values that were carried are not an entry of
   their own.
+- **Who was told.** Under an entry that notified anybody, the deliveries are
+  listed — recipient, channel and outcome; see *Notifications*. Admin-only,
+  like the names.
 - **Bounded.** The history reads the **most recent 100 events**. When older
   events exist, the reply carries `truncated: true` and the tab says that older
   entries are not shown.
@@ -966,6 +969,10 @@ queues (`BACKEND_ROLE=worker` or `all`): a BullMQ Job Scheduler on the queue
 `quote_requests.expiry.sweep`, installed by the module itself. While the module
 is switched off, no tick runs.
 
+The notification delivery worker runs beside it, on the queue
+`quote_requests.notifications.deliver`: every minute, and within seconds of
+every change that recorded a notification. See *Notifications*.
+
 ### Which requests it expires
 
 Each tick reads `quote_requests.expiry_days` **for every sales channel**, and
@@ -1007,11 +1014,13 @@ see *Validity date*); it does not, on its own, close the request.
   exactly one of the two happens.
 - **A bounded batch.** A tick expires at most 500 requests, oldest first. A
   larger backlog is worked off over the following ticks.
-- **No notification record for an expiry that is old news.** A request that
+- **Nobody is notified about an expiry that is old news.** A request that
   became due more than 24 hours before the tick that reaches it is expired,
   gets its history entry and is announced as `rfq.expired.v1` like any other,
-  but no notification record is written for it. See *Notifications* below for
-  what a notification record is today.
+  but no notification is recorded for it, so neither side is told — the same
+  24 hours after which no notification is sent at all (see *Notifications*).
+  A tick that recorded notifications wakes the delivery worker once, after its
+  commits.
 - **An idle tick is silent.** When nothing is due, the tick enters no system
   scope and writes no `tenant.escape_hatch` audit row.
 
@@ -1022,8 +1031,8 @@ everything that is open. **Changing it from `0` to `N` expires, over the next
 ticks, every open request that has been quiet for more than `N` days** — on an
 instance that has run with `0` for a year, that can be most of the open
 requests. The same holds for lowering it. Requests with an offer that is still
-valid are not touched (rule 3), and no notification record is written for the
-ones that became due more than 24 hours earlier.
+valid are not touched (rule 3), and nobody is notified about the ones that
+became due more than 24 hours earlier.
 
 Releases up to and including 0.104.0 documented this sweep and never ran it, so
 an instance that already has `expiry_days` set meets the same backlog on the
@@ -1055,9 +1064,14 @@ Three tables on top of the foundation `quote_requests` and
 - `quote_request_revisions` — full snapshot per modify event.
 - `quote_request_events` — append-only history (one row per state
   transition or modification, with discriminated-union payload).
-- `quote_request_notification_events` — one row per recipient ×
-  channel; unique on `(quote_request_id, source_event_id, recipient*,
-  channel)` so retries are idempotent.
+- `quote_request_notifications` — one delivery record per history entry ×
+  recipient × channel (unique on `(source_event_id, recipient_kind,
+  recipient_id, channel)`), with its status, attempts, next attempt, last
+  error, the time of the change it announces and when it closed. It is
+  organization-scoped, deleted with the request, and holds no foreign key to
+  the recipient's table. It replaced `quote_request_notification_events`, which
+  the migration `20261113T081826_quote_requests_notifications_redesign.ts`
+  dropped with its rows — nothing had ever delivered them.
 
 `quote_request_items` carries the stored reference price in
 `reference_unit_price`, `reference_currency` and `reference_captured_at` — all
@@ -1141,19 +1155,233 @@ will be one.
 
 ## Notifications
 
-Every state transition **records** who should be told: `RfqNotificationService`
-writes one row per recipient and channel (`email`, `in_app`) into
-`quote_request_notification_events`, with status `queued` — the customer for
-admin-side actions, sales reps and platform admins for customer-side actions,
-both parties on expiry. The unique constraint on that table keeps it to one
-row per (transition, recipient, channel).
+Every change of a quote request that the other side should hear about is
+**delivered**: the buyer side is e-mailed, gets an entry in the storefront
+notification centre and, if they opted in, a push on their device; the operators
+who handle the request get an entry on the admin bell and, for a new request, an
+e-mail. Who was told, how, and whether it went out is shown on the request's
+**History**.
 
-**Nothing delivers these rows yet.** No worker reads the table, so no e-mail
-and no in-account notification is sent for any quote-request transition; the
-rows stay `queued`. They are the record a delivery worker would work from. The
-one e-mail this module does send is the explicit *Send PDF to customer* (see
-*Quote PDF*), delivered while the representative waits and recorded on the
-quote's History.
+### Who is told, and when
+
+There are two sides.
+
+- **The buyer side** is the customer account that raised the request **plus**
+  every member of its organization who may open it on the storefront — today
+  the holders of the organization's *Administrator* role. A member who holds
+  only *Member* rights and did not raise the request is not told, because they
+  cannot open it. Deleted, blocked and anonymised accounts are left out. In a
+  personal (B2C) organization the buyer side is the requester alone. A
+  requester who is also an *Administrator* is told once per channel.
+- **The operator side** is the administrator the request is assigned to plus
+  the sales representatives assigned to the organization, each only while
+  active and holding `rfqs:handle`. When none of them remains — nobody is
+  assigned, or nobody assigned may handle quote requests — **every active
+  administrator holding `rfqs:handle`** is told instead, and nobody without it.
+
+| Change | Buyer side | Operator side |
+| --- | --- | --- |
+| A buyer submits a request | e-mail; centre entry and push for everybody but the buyer who submitted | bell and e-mail |
+| A buyer re-submits a request (a new request) | as above | bell and e-mail |
+| A buyer accepts the offer | as above | bell |
+| A buyer rejects the offer | as above | bell |
+| The request expires | e-mail, centre entry, push | bell |
+| An operator creates a request on the buyer's behalf | e-mail, centre entry, push | — |
+| An operator saves a new offer (revision) | e-mail, centre entry, push | — |
+| An operator approves the request | e-mail, centre entry, push | — |
+| An operator cancels the request | e-mail, centre entry, push | — |
+| An order completes the request | nothing — the order confirmation covers it | — |
+
+The buyer whose own action caused a change gets the **e-mail** as a
+confirmation but no centre entry and no push: they are looking at the result.
+The buyer's own draft edits, notes, *Send PDF to customer* and the other
+history entries tell nobody.
+
+**Who is told is fixed when the change is saved.** At delivery each person is
+checked again: an account that has since been deleted, blocked or anonymised,
+has left the organization or may no longer open the request, and an
+administrator who is no longer active or has lost `rfqs:handle`, is skipped. A
+role change after the change was saved adds nobody.
+
+### What each channel carries
+
+- **Buyer e-mail** — one of nine e-mails in the *Quote requests* group of
+  **E-mail templates**, in the default language of the request's sales channel
+  (English for a request raised with no channel). It names the request number
+  and links to the request on the storefront when the channel has a storefront
+  address (the `sales_channels.storefront_url` setting, *Storefront URL*);
+  without one it names the number and carries no link. The approval e-mail
+  carries the link and **no PDF** — *Send PDF to customer* stays a separate
+  action.
+- **Centre entry** — one sentence naming the request by number, linking to the
+  request, shown in the language the buyer is browsing in, on the request's own
+  sales channel only (on every channel for a request raised with none). See the
+  *Customer notifications* module's page.
+- **Push** — the same sentence, under the title *Quote request update*, written
+  in the default language of the request's sales channel (Polish or English;
+  English for any other language), opening the request. It needs push switched
+  on for the channel, quote pushes switched on (*Notify on quote status
+  changes*), the buyer's own *Quote updates* choice left on, and a device the
+  buyer subscribed on that channel. See the *PWA* module's page.
+- **Bell entry** — one entry per administrator, naming the request by number
+  only, linking to the request's admin screen.
+- **Operator e-mail** — for a submitted or re-submitted request only, in the
+  administrator's Admin UI language (Polish for Polish, English otherwise),
+  naming the request number, the organization, the buyer who acted and the
+  number of lines. It carries no link to the Admin UI yet; the bell entry does.
+
+No centre entry, push or bell entry names a product, a price or an
+organization: they are read outside the request's own screen, so they say the
+number and nothing more.
+
+### The e-mails
+
+All eleven are switched on by default. Their subject and content are edited
+per language and sales channel, or each e-mail is switched off, under
+**E-mail templates**; each ships English and Polish defaults.
+
+| Code | Sent to | When |
+| --- | --- | --- |
+| `quote_request_customer_submitted` | buyer side | a request is submitted |
+| `quote_request_customer_resubmitted` | buyer side | a request is re-submitted as a new one |
+| `quote_request_customer_offer_accepted` | buyer side | a buyer accepts the offer |
+| `quote_request_customer_offer_rejected` | buyer side | a buyer rejects the offer |
+| `quote_request_customer_expired` | buyer side | the request expires |
+| `quote_request_customer_prepared` | buyer side | an operator creates a request on the buyer's behalf |
+| `quote_request_customer_revised` | buyer side | an operator saves an offer awaiting the buyer |
+| `quote_request_customer_approved` | buyer side | an operator approves the request |
+| `quote_request_customer_canceled` | buyer side | an operator cancels the request |
+| `quote_request_operator_submitted` | operator side | a buyer submits a request |
+| `quote_request_operator_resubmitted` | operator side | a buyer re-submits a request |
+
+Every e-mail can use `quote.number`, `customer.name` (the recipient),
+`organization.name` and `channel.name`; the buyer e-mails also `quote.url`
+(empty when there is no link, and the button is then left out). Per e-mail:
+`actor.name` (the buyer who acted) for submitted, re-submitted, accepted,
+rejected and both operator e-mails; `quote.previousNumber` for both
+re-submitted e-mails; `reason` for rejected and canceled; `quote.validUntil` for
+prepared, revised and approved; `quote.revisionNumber` for revised;
+`quote.lineCount` for both operator e-mails.
+
+### Late, failed and switched-off deliveries
+
+- **24 hours at most.** A notification that could not go out within 24 hours of
+  its change — a stopped worker, Redis down — is skipped as stale and never
+  sent, on every channel. An expiry that became due more than 24 hours before
+  the expiry sweep reached it notifies nobody (see *Background jobs*).
+- **Retries.** A delivery that fails (the mail server refuses, an error) is
+  tried again after 1 minute, 5 minutes, 30 minutes and 2 hours; the fifth
+  failure records it as failed, with the last error. A retry never sends a
+  second e-mail or push for an attempt that was already accepted.
+- **An e-mail switched off** on **E-mail templates**, a buyer's *Quote updates*
+  choice turned off, push switched off for the channel, no subscribed device,
+  no mail server configured, or a recipient with no e-mail address: that one
+  delivery is skipped, with the reason, and the other channels go out.
+- **A receiving module switched off** — *Admin notifications* (the bell),
+  *Customer notifications* (the centre) or *PWA* (push): its deliveries are
+  skipped as *module off* when the worker reaches them, and are **not** sent
+  later when the module comes back. Every other channel still delivers, and no
+  quote request change ever fails because a channel is unavailable.
+- **Quote requests itself switched off**: no change can happen, so nothing new
+  is recorded, and the delivery worker stops. When the module is switched back
+  on, the waiting deliveries go out — those still within their 24 hours.
+
+### On the History
+
+Under each **History** entry that notified anybody, the admin detail lists the
+deliveries: the recipient (operator or customer, by name), the channel
+(*Admin notification*, *E-mail*, *Account notification*, *Push notification*),
+the outcome — *Pending*, *Sent*, *Failed*, or *Skipped* with the reason (older
+than 24 hours, module off, switched off, no mail server configured, written to
+the log only, no address or account, turned off by the recipient, no subscribed
+device) — and the number of attempts. A failed delivery shows its last error
+behind *Show error*. A person who can no longer be read is shown as an unknown
+user. It needs `rfqs:handle`, like the rest of the History; the buyer's view of
+the request never shows any of it.
+
+### For developers
+
+**Recording.** `RfqNotificationService.record(em, { change, sourceEvent, rfq, actor })`
+(`src/backend/services/rfq-notification-service.ts`) writes one row of
+`quote_request_notifications` per recipient and channel, **in the transaction of
+the change** and its history entry: a transition that rolls back leaves no
+record, and one that commits always has them. Who is told is data —
+`src/backend/services/notifications/notification-matrix.ts`, the table under
+*Who is told, and when* as code, and the only place recipients are decided —
+and the two sides are resolved by
+`notifications/recipients.ts` through published ports only
+(`customerAccountReadPort`, `organizationRoleReadPort`,
+`organizationSalesRepScopePort`, `adminUserReadPort`, `permissionService`). The
+customer side's rule is `orgWideViewerRoleIds`, the same function the
+storefront's visibility check uses, so a person is never told about a request
+they would get a `404` for. A record is unique per (history entry, recipient,
+channel).
+
+**Delivery.** After each committing change the writer adds one job to the BullMQ
+queue `quote_requests.notifications.deliver` (fixed job id
+`quote_requests.notifications.kick`, not awaited; a failure is logged at `warn`
+and never fails the transition), and a Job Scheduler on the same queue ticks
+every minute. The table is the queue: a tick first asks, outside any tenant
+scope, whether anything is due, and only then enters the system scope; it
+delivers up to 200 due records, oldest first, each in a transaction of its own
+locked `for update skip locked`, so several worker processes share the table.
+The consumer is registered through `ctx.worker`, so nothing runs while the
+module is off. `RfqNotificationDeliveryService`
+(`notifications/delivery-service.ts`) closes each record in this order:
+
+1. its change is more than 24 hours old → `skipped_stale`;
+2. the channel's owner is not present → `skipped_module_off` (decided in front
+   of the port; a `ModuleDisabledError` raised by the port all the same closes
+   it the same way);
+3. otherwise the channel's adapter (`notifications/channel-adapters.ts`)
+   delivers it.
+
+| Channel | Owner | Delivered through | Closing |
+| --- | --- | --- | --- |
+| `admin_in_app` | `admin_notifications` | `adminNotificationRecordPort.recordWithin(em, …)`, on the record's transaction | `sent` |
+| `admin_email` | `transactional_emails` | `TransactionalEmailSender.send`, `salesChannelId: null` | by the sender's answer |
+| `customer_email` | `transactional_emails` | `TransactionalEmailSender.send`, the request's channel | by the sender's answer |
+| `customer_in_app` | `customer_notifications` | `customerNotificationRecordPort.recordWithin(em, …)`, `sourceModule 'quote_requests'`, `sourceKey` = record id, on the record's transaction | `sent` |
+| `customer_push` | `pwa` | `customerPushPort.push(…)`, `category 'quote'`, `sourceKey` = record id; `pwa` commits on its own | by `pwa`'s answer |
+
+The bell and centre entries commit with the record's closing, so each is
+delivered exactly once. Every e-mail is sent with
+`messageId = quote_request_notification:<record id>` and every push with the
+record id as its key, so a retry after a crash between the transport's
+acceptance and the commit produces no second message. The sender's answer maps
+`sent` → `sent`, `logged` → `skipped_logged`, `deactivated` →
+`skipped_deactivated`, `no_transport` (or no sender) → `skipped_no_transport`,
+and `no_definition` → `failed` at once. `pwa`'s answer maps `enqueued` → `sent`,
+`skipped:customer_preference` → `skipped_preference`, `skipped:no_subscription`
+→ `skipped_no_subscription`, `skipped:no_account` → `skipped_no_recipient`, and
+`skipped:switched_off` → `skipped_deactivated`. A recipient who no longer
+qualifies, or has no e-mail address for an e-mail, closes
+`skipped_no_recipient`. Any thrown error is a failed attempt: the attempt's
+transaction rolls back, and the attempt is counted in a second one with the
+next try backed off 1 min / 5 min / 30 min / 2 h; the fifth failure closes the
+record `failed`, with the error (at most 2 000 characters, the recipient's
+address replaced by `<recipient>`) in `last_error`.
+
+The bell titles are `notifications.<change>.title`, the centre and push
+sentences `customerNotifications.<change>.title` and the push title
+`customerPush.title`, all in this module's `i18n/{en,pl}.json`. The e-mail
+defaults are `src/backend/email-templates/quote-notification-defaults.ts`,
+pushed through `emailDefaultsPort` at boot; the definitions are the
+`transactionalEmails` of `src/manifest.ts`. The module declares
+`degrades-without` edges on `admin_notifications`, `customer_notifications` and
+`pwa`.
+
+**History.** `GET /api/v1/admin/quote-requests/:id/history` adds an optional
+`deliveries` array (`quoteRequestDeliverySchema` in
+`@endora-commerce/contracts`) to every entry whose `eventIds` contain the
+records' history entry: `id`, `channel`, `recipient` (`kind`, `id`,
+`displayName`, `''` once the person is gone), `status`, `attempts`, `lastError`
+and `closedAt`. An entry with no records has no `deliveries` key. The customer
+`GET /api/v1/quote-requests/:id` never carries it.
+
+The *Send PDF to customer* e-mail (see *Quote PDF*) is separate from all of
+this: it is sent while the representative waits and recorded as its own
+History entry.
 
 ## Archived products are never quote lines
 
@@ -1189,8 +1417,8 @@ basket at the agreed price; the Orders module's page says what drops the mark.
 
 When an order is created with a populated `source_quote_request_id`,
 an event subscriber inside the module flips the originating Quote
-Request to `Completed`, populates `converted_order_id`, and fires the
-`completed` notification. A completed quote request cannot be ordered a second
+Request to `Completed` and populates `converted_order_id`, and nobody is
+notified: the order confirmation covers it. A completed quote request cannot be ordered a second
 time, and the conversion is refused while any line has no agreed unit price
 (see *Agreed prices*). The subscriber waits for the order to be committed — a little over two
 seconds at most — and completes nothing for an order of another organization.
