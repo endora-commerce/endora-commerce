@@ -13,6 +13,7 @@ import {
   SEED_ADDRESS_DELIVERY_ID,
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
+  topUpStock,
 } from '../../helpers/seed-commerce.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { TEST_ADMIN_ID, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
@@ -126,7 +127,7 @@ describe('crm — documents created from an Opportunity (US10)', () => {
     h = await setupBackendServer();
     orderChannelId = await systemDefaultSalesChannelId(h.em());
     await restoreDefaultCrmWorkflow(h.em());
-    await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
     foreignOrganizationId = await seedCrmOrganization(h.em(), 'origin-foreign');
   });
 

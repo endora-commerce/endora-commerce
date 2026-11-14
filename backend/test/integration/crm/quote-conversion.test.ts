@@ -32,6 +32,7 @@ import {
   whenCrmEventSettled,
 } from '../../helpers/seed-crm.js';
 import { acceptedQuoteRequest, checkOutBasket, convertQuoteRequestToCart } from '../../helpers/quote-conversion.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
 
 /**
  * An Order placed from a Quote Request that is linked to an Opportunity joins
@@ -118,7 +119,7 @@ describe('crm — an order placed from a linked quote request (the real road)', 
       reserved: 0,
     });
     await em.flush();
-    await em.execute(`update "stock_levels" set "on_hand" = 100000`);
+    await topUpStock(em, [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID]);
     // Both documents count in the state the road leaves them in, so a value
     // that added the request to its Order would show it.
     const counting = await setCrmCountingStatuses(h, {

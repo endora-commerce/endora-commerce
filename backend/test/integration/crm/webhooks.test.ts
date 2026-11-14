@@ -34,6 +34,8 @@ import {
   transitionCrmOpportunity,
   whenCrmEventSettled,
 } from '../../helpers/seed-crm.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
  * User Story 16 — other systems are told when an Opportunity changes status
@@ -246,7 +248,7 @@ describe('crm outbound webhooks (US16)', () => {
       }),
     );
     await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, true);
-    await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
     try {
       // By hand, with and without a value; moved, reopened, won, lost; and
       // created by the system for a placed Order.

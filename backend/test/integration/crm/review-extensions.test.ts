@@ -36,6 +36,7 @@ import {
 } from '../../helpers/seed-crm.js';
 import { TINY_PNG, uploadCrmAttachment, useTemporaryAssetStore } from '../../helpers/crm-attachment-upload.js';
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
 
 /**
  * The review's fixes (`specs/143-crm-sales-opportunities/research.md` N-R1 …
@@ -101,7 +102,7 @@ describe('crm review fixes, on the code written after them', () => {
     h = await setupBackendServer();
     await restoreDefaultCrmWorkflow(h.em());
     await clearCrmTags(h.em());
-    await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
     crmOnly = await seedCrmAdmin(h.em(), 'ext-crm-only', ['crm:read', 'crm:write', 'crm:analytics']);
     withOrders = await seedCrmAdmin(h.em(), 'ext-orders', ['crm:read', 'crm:write', 'orders:read']);
     withQuotes = await seedCrmAdmin(h.em(), 'ext-quotes', ['crm:read', 'crm:write', 'rfqs:handle']);
