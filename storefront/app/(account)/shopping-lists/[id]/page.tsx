@@ -381,7 +381,7 @@ function ConversionSkipReport({
   return (
     <section
       aria-labelledby={id}
-      className="my-[12px] rounded-md border border-warn bg-warn-soft px-[16px] py-[12px] text-fg"
+      className="b2b-auth__warning my-[12px] rounded-md px-[16px] py-[12px] text-[14px]"
     >
       <h3 id={id} className="m-0 mb-1 text-[14px] font-semibold">
         {heading}

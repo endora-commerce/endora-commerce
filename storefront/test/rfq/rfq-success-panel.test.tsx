@@ -36,4 +36,13 @@ describe('RfqSuccessPanel', () => {
     );
     expect(html).toContain(`/quote-requests/${rfqId}`);
   });
+
+  it('styles every link with the shared link class, so none reads as plain text (issue #1220)', () => {
+    const html = renderToString(
+      <RfqSuccessPanel businessId="RFQ-7" rfqId={rfqId} locale="en-US" />,
+    );
+    const anchors = html.match(/<a\b[^>]*>/g) ?? [];
+    expect(anchors).toHaveLength(3);
+    for (const anchor of anchors) expect(anchor).toMatch(/class="[^"]*\bb2b-account__link\b/);
+  });
 });
