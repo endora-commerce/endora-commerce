@@ -11,8 +11,11 @@ import { actionsOf, form, redirectOf } from '../url-errors/actions';
  * anonymous basket only if the storefront forwards `b2b_cart_anon`. It forwarded
  * the known-device cookie alone, so the backend never merged anything.
  *
- * The header is built from an allow-list: the session, the comparison token, the
- * second-step challenge and anything else the browser holds stay behind.
+ * The header is built from an allow-list: the session, the second-step challenge
+ * and anything else the browser holds stay behind. The signed-out comparison's
+ * `compare_token` is on it since issue #1189: the backend's post-sign-in step
+ * (`completeCustomerSignIn`) carries that comparison over, and sees it only if
+ * it is forwarded from here.
  *
  * The second half drives the sign-in page's action over the real `lib/api/auth`
  * and `lib/session`, with only the cookie jar and the network stubbed: the
@@ -61,6 +64,8 @@ const { default: LoginPage } = await import('../../app/(auth)/login/page');
 
 const DEVICE = 'b2b_customer_device';
 const ANON = 'b2b_cart_anon';
+const COMPARE = 'compare_token';
+const COMPARE_TOKEN = 'Xk3_pQ9-aB7cD2eF4gH6iJ';
 /** A signed value as `@fastify/cookie` writes it: the signature may hold `+` and `/`. */
 const SIGNED = 'v1.c-1.0a1b.2c3d.ab+cd/ef';
 const ANON_TOKEN = 'anon-7f3c2a9e-4b1d-4e8a-9c6f-2d5b8e1a0c3f';
@@ -130,7 +135,30 @@ describe('the sign-in call carries the signed-out basket', () => {
     await loginCustomer({ email: 'buyer@example.test', password: 'secret' });
 
     const names = seen[0]!.cookie!.split('; ').map((pair) => pair.split('=')[0]);
-    expect(names.sort()).toEqual([ANON, DEVICE].sort());
+    expect(names.sort()).toEqual([ANON, COMPARE, DEVICE].sort());
+  });
+
+  // Issue #1189 — the signed-out comparison travels with the sign-in, so the backend carries it over.
+  it('forwards compare_token beside the known-device cookie and the basket', async () => {
+    jar.set(DEVICE, SIGNED);
+    jar.set(ANON, ANON_TOKEN);
+    jar.set(COMPARE, COMPARE_TOKEN);
+    const seen = stubFetch(MFA_REQUIRED);
+
+    await loginCustomer({ email: 'buyer@example.test', password: 'secret' });
+
+    expect(seen[0]!.cookie).toBe(
+      `${DEVICE}=${encodeURIComponent(SIGNED)}; ${ANON}=${ANON_TOKEN}; ${COMPARE}=${COMPARE_TOKEN}`,
+    );
+  });
+
+  it('forwards compare_token when the browser holds no basket', async () => {
+    jar.set(COMPARE, COMPARE_TOKEN);
+    const seen = stubFetch(MFA_REQUIRED);
+
+    await loginCustomer({ email: 'buyer@example.test', password: 'secret' });
+
+    expect(seen[0]!.cookie).toBe(`${COMPARE}=${COMPARE_TOKEN}`);
   });
 
   it('sends no cookie when the browser holds neither', async () => {
@@ -171,6 +199,21 @@ describe('the sign-in page, end to end over the real auth and session helpers', 
       expect(jar.get('b2b_cart_merge_flash')).toBe(outcome);
     },
   );
+
+  // Issue #1189 — the password sign-in page sends the signed-out comparison, so it survives sign-in.
+  it('a password sign-in sends the signed-out comparison and keeps its cookie', async () => {
+    jar.set(COMPARE, COMPARE_TOKEN);
+    const seen = stubFetch({
+      body: { data: { status: 'authenticated', cartMerge: null } },
+      setCookie: ['b2b_session=s.tok; Path=/; HttpOnly'],
+    });
+
+    expect(await signIn()).toBe('/cart');
+
+    expect(seen[0]!.url).toMatch(/\/api\/v1\/auth\/customer\/login$/);
+    expect(seen[0]!.cookie).toBe(`${COMPARE}=${COMPARE_TOKEN}`);
+    expect(jar.get(COMPARE)).toBe(COMPARE_TOKEN);
+  });
 
   it('a noop merge flashes nothing', async () => {
     jar.set(ANON, ANON_TOKEN);

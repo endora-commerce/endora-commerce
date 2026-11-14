@@ -47,7 +47,8 @@ export async function completeMfaSetupTicket(
     path: '/api/v1/auth/customer/mfa/setup-ticket/complete',
     body: { setupTicket, code },
     // Issue #368 — the session is established here, so the signed-out basket
-    // travels with this call and the backend merges it.
+    // travels with this call and the backend merges it; so does the signed-out
+    // comparison, which the backend carries over (issue #1189).
     rawCookieHeader: await signInCookieHeader(),
     ...(ctx ? { ctx } : {}),
   });

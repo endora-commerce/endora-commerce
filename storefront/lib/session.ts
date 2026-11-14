@@ -16,6 +16,12 @@ import {
 
 const SESSION_COOKIE = 'b2b_session';
 const ANON_CART_COOKIE = 'b2b_cart_anon';
+/**
+ * The signed-out comparison's owner token, set by the `comparisons` backend
+ * module on the browser's own calls (`httpOnly`). The storefront never writes
+ * it; it only forwards it with a sign-in (issue #1189).
+ */
+const ANON_COMPARE_COOKIE = 'compare_token';
 const CART_MERGE_FLASH_COOKIE = 'b2b_cart_merge_flash';
 // Published by the contracts package: the backend sets the same cookie when a
 // federated sign-in hands over to the second step.
@@ -267,14 +273,15 @@ export async function knownDeviceCookieHeader(): Promise<string | null> {
  * The `Cookie` header value for the calls that can establish a customer
  * session — the password sign-in (issue #358), the second-step verify and the
  * enforced-enrolment completion (issue #368) — or `null`: the known-device
- * cookie and the signed-out basket's `b2b_cart_anon`.
- * The backend's sign-in hands the anonymous basket to its merge at sign-in
- * (`specs/154-sales-channel-access/contracts/basket-attribution.md` §3), which
- * sees it only if it is forwarded from here. Nothing else the browser holds is
- * sent.
+ * cookie, the signed-out basket's `b2b_cart_anon` and the signed-out
+ * comparison's `compare_token` (issue #1189).
+ * The backend's post-sign-in step hands the anonymous basket to its merge
+ * (`specs/154-sales-channel-access/contracts/basket-attribution.md` §3) and the
+ * anonymous comparison to its adoption; it sees either only if it is forwarded
+ * from here. Nothing else the browser holds is sent.
  */
 export async function signInCookieHeader(): Promise<string | null> {
-  return allowListedCookieHeader([CUSTOMER_KNOWN_DEVICE_COOKIE_NAME, ANON_CART_COOKIE]);
+  return allowListedCookieHeader([CUSTOMER_KNOWN_DEVICE_COOKIE_NAME, ANON_CART_COOKIE, ANON_COMPARE_COOKIE]);
 }
 
 /** The named cookies of the browser's jar, in the order named, as one `Cookie` header value. */
