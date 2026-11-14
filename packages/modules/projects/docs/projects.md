@@ -828,8 +828,14 @@ boot hook). The row is then settled with its outcome — `bell_email`, `bell`,
 `email`, `no_recipient` or `undeliverable` — and how many members were told. A
 claim whose delivery failed before anything went out is given back for the
 next tick; a process that dies between claim and settle leaves an alert that
-is never sent twice. The claim and settle statements run through the Command
-Bus with no audit entry: they are bookkeeping, not a change to a project.
+is never sent twice. The first pass thirty minutes after such a claim marks it
+`interrupted` (`STAGE_ALERT_CLAIM_STALE_MS`, as CRM's reminder sweep marks its
+own) and logs a warning naming the delivery rows, so an alert that may have
+reached nobody is visible rather than left without an outcome; a partial index
+on `claimed_at` where `outcome is null` keeps that question a lookup. A pass
+that outlives the bound still records what it delivered, over the presumption.
+The claim, expire and settle statements run through the Command Bus with no
+audit entry: they are bookkeeping, not a change to a project.
 
 ### Linked records and their owners
 

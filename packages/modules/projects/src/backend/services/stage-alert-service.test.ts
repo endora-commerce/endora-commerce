@@ -4,6 +4,7 @@ import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import type { ProjectNotification, ProjectNotificationOutcome } from './project-notifier.js';
 import type { StageAlertEmailInput, StageAlertEmailResult } from './stage-alert-email.js';
 import {
+  STAGE_ALERT_CLAIM_STALE_MS,
   STAGE_ALERT_SEND_HOUR,
   StageAlertService,
   alertDueOn,
@@ -131,13 +132,17 @@ function harness(options: {
   people?: AdminUserRecord[];
   bell?: (notification: ProjectNotification) => Promise<ProjectNotificationOutcome>;
   mail?: (input: StageAlertEmailInput) => Promise<StageAlertEmailResult>;
+  /** The claims the store finds unsettled past the bound (default: none). */
+  interrupted?: string[];
+  log?: (message: string, context: Record<string, unknown>) => void;
 } = {}): Harness {
   const bells: ProjectNotification[] = [];
   const mails: StageAlertEmailInput[] = [];
   const members = options.members ?? ['ada', 'bob'];
   const people = options.people ?? members.map((id) => admin(id));
   const store = {
-    hasSweepWork: vi.fn(async (_clock: StageAlertClock) => true),
+    hasSweepWork: vi.fn(async (_clock: StageAlertClock, _now: Date) => true),
+    expire: vi.fn(async (_now: Date) => options.interrupted ?? []),
     claim: vi.fn(async (_clock: StageAlertClock, _now: Date) => options.claims ?? [claim('a1')]),
     stillDue: vi.fn(async (_claim: ClaimedStageAlert) => options.stillDue ?? true),
     memberIdsOf: vi.fn(async (_projectId: string) => members),
@@ -161,7 +166,7 @@ function harness(options: {
         return options.mail ? options.mail(input) : { sent: true };
       },
     },
-    log: () => undefined,
+    log: options.log ?? (() => undefined),
   });
   return { service, store, bells, mails };
 }
@@ -179,7 +184,7 @@ describe('StageAlertService — claim, deliver, settle', () => {
   it('from 08:00 asks the store for today in the alert zone', async () => {
     const { service, store } = harness();
     expect(await service.hasWork(SENDING)).toBe(true);
-    expect(store.hasSweepWork).toHaveBeenCalledWith({ today: '2026-10-26', sending: true });
+    expect(store.hasSweepWork).toHaveBeenCalledWith({ today: '2026-10-26', sending: true }, SENDING);
     await service.sweep(SENDING);
     expect(store.claim).toHaveBeenCalledWith({ today: '2026-10-26', sending: true }, SENDING);
   });
@@ -274,5 +279,44 @@ describe('StageAlertService — claim, deliver, settle', () => {
     expect(store.release).toHaveBeenCalledWith(['a1']);
     expect(store.release).toHaveBeenCalledWith(['a2', 'a3']);
     expect(store.settle).not.toHaveBeenCalled();
+  });
+});
+
+describe('StageAlertService — claims interrupted by a crash (issue #462)', () => {
+  it('a claim is presumed interrupted after thirty minutes — two ticks of the fifteen-minute clock', () => {
+    expect(STAGE_ALERT_CLAIM_STALE_MS).toBe(30 * 60 * 1000);
+  });
+
+  it('marks the stale claims first, before it claims anything, and counts them', async () => {
+    const { service, store } = harness({ interrupted: ['old-1', 'old-2'] });
+    const summary = await service.sweep(SENDING);
+    expect(store.expire).toHaveBeenCalledWith(SENDING);
+    expect(store.expire.mock.invocationCallOrder[0]!).toBeLessThan(store.claim.mock.invocationCallOrder[0]!);
+    expect(summary.interrupted).toBe(2);
+  });
+
+  it('says so in the log, naming the delivery rows, so an alert nobody received is seen', async () => {
+    const log = vi.fn();
+    const { service } = harness({ interrupted: ['old-1'], claims: [], log });
+    await service.sweep(SENDING);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining('interrupted'),
+      expect.objectContaining({ interrupted: 1, deliveryIds: ['old-1'] }),
+    );
+  });
+
+  it('says nothing when no claim was interrupted', async () => {
+    const log = vi.fn();
+    const { service } = harness({ log });
+    const summary = await service.sweep(SENDING);
+    expect(summary.interrupted).toBe(0);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('before 08:00 it marks nothing either: the pass asks the store nothing at all', async () => {
+    const { service, store } = harness({ interrupted: ['old-1'] });
+    const summary = await service.sweep(BEFORE_EIGHT);
+    expect(store.expire).not.toHaveBeenCalled();
+    expect(summary.interrupted).toBe(0);
   });
 });

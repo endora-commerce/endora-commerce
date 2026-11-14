@@ -15,6 +15,15 @@ export const STAGE_ALERT_SEND_HOUR = 8;
 /** The most alerts one pass claims. The next tick — fifteen minutes later — takes the rest. */
 export const STAGE_ALERT_BATCH_SIZE = 100;
 
+/**
+ * A claim still unsettled this long after it was made was interrupted — its
+ * pass died between the claim and the settle — and is marked so (issue #462,
+ * CRM's `REMINDER_CLAIM_STALE_MS`). Two ticks of the fifteen-minute clock: a
+ * pass still delivering by then is presumed dead, and when it turns out not to
+ * be, what it settles replaces the presumption.
+ */
+export const STAGE_ALERT_CLAIM_STALE_MS = 30 * 60 * 1000;
+
 /** The day an alert `offsetDays` before `deadlineOn` is due. */
 export function alertDueOn(deadlineOn: string, offsetDays: number): string {
   return addDays(deadlineOn, -offsetDays);
@@ -49,7 +58,7 @@ export interface StageAlertTally {
 }
 
 /** What a delivered alert came to — the outcome settled on its row. */
-export function stageAlertOutcome(tally: StageAlertTally): ProjectStageAlertOutcome {
+export function stageAlertOutcome(tally: StageAlertTally): StageAlertDeliveryOutcome {
   if (tally.recipients === 0) return 'no_recipient';
   if (tally.bell > 0) return tally.email > 0 ? 'bell_email' : 'bell';
   return tally.email > 0 ? 'email' : 'undeliverable';
@@ -70,11 +79,13 @@ export interface ClaimedStageAlert {
 
 /** The table side of the sweep — {@link StageAlertStore}; an interface so the state machine is testable alone. */
 export interface StageAlertStorePort {
-  hasSweepWork(clock: StageAlertClock): Promise<boolean>;
+  hasSweepWork(clock: StageAlertClock, now: Date): Promise<boolean>;
+  /** Mark `interrupted` every claim unsettled past {@link STAGE_ALERT_CLAIM_STALE_MS}; answers their ids. */
+  expire(now: Date): Promise<string[]>;
   claim(clock: StageAlertClock, now: Date): Promise<ClaimedStageAlert[]>;
   stillDue(claim: ClaimedStageAlert): Promise<boolean>;
   memberIdsOf(projectId: string): Promise<string[]>;
-  settle(id: string, outcome: ProjectStageAlertOutcome, recipientCount: number, now: Date): Promise<void>;
+  settle(id: string, outcome: StageAlertDeliveryOutcome, recipientCount: number, now: Date): Promise<void>;
   release(ids: readonly string[]): Promise<void>;
 }
 
@@ -103,6 +114,20 @@ function dueAlerts(today: string): WorkRows {
                                where d."stage_id" = s."id" and d."offset_days" = a."offset_days"
                                  and d."deadline_on" = s."deadline_on")`,
     params: [today, today, today],
+  };
+}
+
+/**
+ * Claimed, and still unsettled after {@link STAGE_ALERT_CLAIM_STALE_MS}: marked
+ * `interrupted` — the one statement of it, read by the pass and by the probe.
+ * The partial index on `claimed_at` where `outcome is null` keeps it a lookup.
+ */
+function interruptedClaims(now: Date): WorkRows & { where: string } {
+  const where = `"outcome" is null and "claimed_at" < ?`;
+  return {
+    where,
+    from: `from "project_stage_alert_deliveries" where ${where}`,
+    params: [new Date(now.getTime() - STAGE_ALERT_CLAIM_STALE_MS)],
   };
 }
 
@@ -140,9 +165,34 @@ export class StageAlertStore implements StageAlertStorePort {
    * runs with no tenant context, and what keeps that legitimate is that it
    * learns one bit, through `anyRowExists`, over the claim's own row source.
    */
-  async hasSweepWork(clock: StageAlertClock): Promise<boolean> {
+  async hasSweepWork(clock: StageAlertClock, now: Date): Promise<boolean> {
     if (!clock.sending) return false;
-    return anyRowExists(this.deps.emFactory(), [dueAlerts(clock.today)]);
+    return anyRowExists(this.deps.emFactory(), [interruptedClaims(now), dueAlerts(clock.today)]);
+  }
+
+  /**
+   * The claims nobody will settle any more (issue #462): unsettled
+   * {@link STAGE_ALERT_CLAIM_STALE_MS} after they were made, so their pass died
+   * between claim and settle. They are marked `interrupted` and never retried —
+   * a bell entry or an e-mail may already have gone out, and there is no way to
+   * know. `settled_at` stays empty: nobody settled them.
+   */
+  async expire(now: Date): Promise<string[]> {
+    const stale = interruptedClaims(now);
+    return this.deps.commandBus.run({
+      action: 'projects.stage_alert.expire',
+      objectType: 'project_stage_alert',
+      objectId: 'sweep',
+      run: async ({ em }) => {
+        const rows = (await em.execute(
+          `update "project_stage_alert_deliveries" set "outcome" = 'interrupted'
+            where ${stale.where}
+        returning "id"`,
+          [...stale.params],
+        )) as Array<{ id: string }>;
+        return { result: rows.map((row) => row.id), skipAudit: true };
+      },
+    });
   }
 
   /**
@@ -223,8 +273,12 @@ export class StageAlertStore implements StageAlertStorePort {
     return rows.map((row) => row.admin_user_id);
   }
 
-  /** What a claim came to. Only an unsettled claim is touched. */
-  async settle(id: string, outcome: ProjectStageAlertOutcome, recipientCount: number, now: Date): Promise<void> {
+  /**
+   * What a claim came to. Only an unsettled claim is touched — or one a later
+   * pass presumed `interrupted`: a pass that outlived the bound is not dead
+   * after all, and what it delivered replaces the presumption (CRM's rule).
+   */
+  async settle(id: string, outcome: StageAlertDeliveryOutcome, recipientCount: number, now: Date): Promise<void> {
     await this.deps.commandBus.run({
       action: 'projects.stage_alert.record',
       objectType: 'project_stage_alert',
@@ -233,7 +287,7 @@ export class StageAlertStore implements StageAlertStorePort {
         await em.execute(
           `update "project_stage_alert_deliveries"
               set "outcome" = ?, "recipient_count" = ?, "settled_at" = ?
-            where "id" = ? and "outcome" is null`,
+            where "id" = ? and ("outcome" is null or "outcome" = 'interrupted')`,
           [outcome, recipientCount, now, id],
         );
         return { result: undefined, skipAudit: true };
@@ -241,7 +295,11 @@ export class StageAlertStore implements StageAlertStorePort {
     });
   }
 
-  /** Give claims back — it is known that nothing was written for them — so the next tick may deliver them. */
+  /**
+   * Give claims back — it is known that nothing was written for them — so the
+   * next tick may deliver them; over `interrupted` too, for the same reason as
+   * {@link settle}.
+   */
   async release(ids: readonly string[]): Promise<void> {
     if (ids.length === 0) return;
     await this.deps.commandBus.run({
@@ -250,7 +308,8 @@ export class StageAlertStore implements StageAlertStorePort {
       objectId: 'sweep',
       run: async ({ em }) => {
         await em.execute(
-          `delete from "project_stage_alert_deliveries" where "id" = any(?::uuid[]) and "outcome" is null`,
+          `delete from "project_stage_alert_deliveries"
+            where "id" = any(?::uuid[]) and ("outcome" is null or "outcome" = 'interrupted')`,
           [`{${ids.join(',')}}`],
         );
         return { result: undefined, skipAudit: true };
@@ -260,6 +319,8 @@ export class StageAlertStore implements StageAlertStorePort {
 }
 
 export interface StageAlertSweepSummary {
+  /** Claims found unsettled past {@link STAGE_ALERT_CLAIM_STALE_MS}, and marked `interrupted`. */
+  interrupted: number;
   /** Alerts this pass claimed. */
   claimed: number;
   /** Claims given back for the next tick: nothing was written for them. */
@@ -271,8 +332,11 @@ export interface StageAlertSweepSummary {
    */
   withdrawn: number;
   /** What the delivered claims came to. */
-  outcomes: Record<ProjectStageAlertOutcome, number>;
+  outcomes: Record<StageAlertDeliveryOutcome, number>;
 }
+
+/** What a delivery came to — every stored outcome but the `interrupted` a later pass presumes. */
+export type StageAlertDeliveryOutcome = Exclude<ProjectStageAlertOutcome, 'interrupted'>;
 
 export interface StageAlertServiceDeps {
   store: StageAlertStorePort;
@@ -284,7 +348,7 @@ export interface StageAlertServiceDeps {
   adminUsers: Pick<AdminUserReadPort, 'findByIds'>;
   notifier: ProjectNotifier;
   email: StageAlertEmail;
-  /** Where a delivery that raised is reported. */
+  /** Where a delivery that raised, and a claim found interrupted, are reported. */
   log: (message: string, context: Record<string, unknown>) => void;
 }
 
@@ -312,7 +376,10 @@ export interface StageAlertServiceDeps {
  * the next tick of the same day delivers it; one that raised after a bell entry
  * or an e-mail went out is settled with what is known, and is never sent again.
  * A process that dies between 1 and 3 leaves a claim with no outcome — an alert
- * that is never retried, because there is no way to know what reached whom.
+ * that is never retried, because there is no way to know what reached whom. The
+ * first pass {@link STAGE_ALERT_CLAIM_STALE_MS} later marks it `interrupted` and
+ * says so in the log (issue #462, as CRM's reminder sweep does), so an alert
+ * nobody may have received is seen rather than left blank.
  */
 export class StageAlertService {
   constructor(private readonly deps: StageAlertServiceDeps) {}
@@ -330,19 +397,31 @@ export class StageAlertService {
   async hasWork(now: Date = new Date()): Promise<boolean> {
     const clock = await this.clock(now);
     if (!clock.sending) return false;
-    return this.deps.store.hasSweepWork(clock);
+    return this.deps.store.hasSweepWork(clock, now);
   }
 
   /** One pass. `now` is the clock, handed in so that a test needs no sleep. */
   async sweep(now: Date = new Date()): Promise<StageAlertSweepSummary> {
     const summary: StageAlertSweepSummary = {
+      interrupted: 0,
       claimed: 0,
       released: 0,
       withdrawn: 0,
       outcomes: { bell: 0, bell_email: 0, email: 0, no_recipient: 0, undeliverable: 0 },
     };
     const clock = await this.clock(now);
+    // Before 08:00 nothing is asked at all; a claim interrupted late in the day
+    // is marked by the first pass of the next morning.
     if (!clock.sending) return summary;
+
+    const interrupted = await this.deps.store.expire(now);
+    summary.interrupted = interrupted.length;
+    if (interrupted.length > 0) {
+      this.deps.log('projects: stage deadline alerts interrupted between claim and delivery; not retried', {
+        interrupted: interrupted.length,
+        deliveryIds: interrupted,
+      });
+    }
 
     const claims = await this.deps.store.claim(clock, now);
     summary.claimed = claims.length;

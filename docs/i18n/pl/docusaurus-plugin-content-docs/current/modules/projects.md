@@ -863,8 +863,15 @@ wkładu). Następnie wiersz otrzymuje wynik — `bell_email`, `bell`, `email`,
 `no_recipient` albo `undeliverable` — i liczbę powiadomionych członków.
 Rezerwacja, której dostarczenie nie powiodło się, zanim cokolwiek wyszło, wraca
 do następnego wywołania; proces, który zginie między rezerwacją a zapisem
-wyniku, zostawia alert, który nigdy nie zostanie wysłany dwa razy. Instrukcje
-rezerwacji i zapisu wyniku przechodzą przez Command Bus bez wpisu audytu: to
+wyniku, zostawia alert, który nigdy nie zostanie wysłany dwa razy. Pierwszy
+przebieg trzydzieści minut po takiej rezerwacji oznacza ją jako `interrupted`
+(`STAGE_ALERT_CLAIM_STALE_MS`, tak jak przypomnienia CRM oznaczają własne) i
+zapisuje w logu ostrzeżenie z identyfikatorami wierszy, więc alert, który mógł
+do nikogo nie dotrzeć, jest widoczny, a nie pozostaje bez wyniku; częściowy
+indeks na `claimed_at` dla `outcome is null` sprawia, że to pytanie jest
+wyszukaniem w indeksie. Przebieg, który przekroczy ten limit, nadal zapisuje
+to, co dostarczył, zastępując domniemanie. Instrukcje rezerwacji, oznaczenia
+przerwanych i zapisu wyniku przechodzą przez Command Bus bez wpisu audytu: to
 ewidencja, a nie zmiana projektu.
 
 ### Podpięte dokumenty i ich właściciele

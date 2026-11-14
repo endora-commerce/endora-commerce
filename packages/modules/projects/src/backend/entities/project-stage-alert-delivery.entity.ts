@@ -2,7 +2,11 @@ import { Entity, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { RuleScoped } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
-export type ProjectStageAlertOutcome = 'bell' | 'bell_email' | 'email' | 'no_recipient' | 'undeliverable';
+/**
+ * What an alert came to. `interrupted` is not a delivery's: a later pass sets
+ * it on a claim left unsettled past `STAGE_ALERT_CLAIM_STALE_MS` (issue #462).
+ */
+export type ProjectStageAlertOutcome = 'bell' | 'bell_email' | 'email' | 'no_recipient' | 'undeliverable' | 'interrupted';
 
 /**
  * One deadline alert of one Stage (research R-12): claimed before it is
