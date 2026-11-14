@@ -60,7 +60,7 @@ export default async function OrganizationCartPage({
   const t = tForLocale(locale);
   const back = (
     <p className="mb-3 mt-0 text-[13px]">
-      <LocalizedLink href="/organization/carts">← {t('account.orgCart.back')}</LocalizedLink>
+      <LocalizedLink href="/organization/carts" className="b2b-account__link b2b-account__link--standalone">← {t('account.orgCart.back')}</LocalizedLink>
     </p>
   );
   if (access === 'refused') {
@@ -163,7 +163,7 @@ export default async function OrganizationCartPage({
           <>
             <dt className="text-muted">{t('account.orders.col.order')}</dt>
             <dd className="m-0">
-              <LocalizedLink href={orderHref}>{t('account.orgCart.viewOrder')}</LocalizedLink>
+              <LocalizedLink href={orderHref} className="b2b-account__link b2b-account__link--standalone">{t('account.orgCart.viewOrder')}</LocalizedLink>
             </dd>
           </>
         ) : null}

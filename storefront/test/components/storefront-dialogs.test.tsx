@@ -7,6 +7,7 @@ import { ClearListButton } from '../../components/shopping-lists/ClearListButton
 import { DeleteShoppingListButton } from '../../components/shopping-lists/DeleteShoppingListButton';
 import { NotifyWhenAvailableDialog } from '../../components/inventory/NotifyWhenAvailableDialog';
 import { RemoveMemberButton } from '../../components/account/RemoveMemberButton';
+import { RevokeInvitationButton } from '../../components/account/RevokeInvitationButton';
 
 /**
  * Issue #804 — the storefront's three remaining hand-rolled dialogs are built
@@ -70,6 +71,16 @@ const renders = {
         removeAction={noop}
       />,
     ),
+  revokeInvitation: (): string =>
+    renderToString(
+      <RevokeInvitationButton
+        invitationId="inv-7"
+        email="anna@acme.example"
+        locale="en-US"
+        triggerClassName="btn btn--outline btn--sm min-h-11 border-bad text-bad"
+        revokeAction={noop}
+      />,
+    ),
   notify: (): string =>
     renderToString(
       <NotifyWhenAvailableDialog
@@ -85,6 +96,7 @@ describe.each([
   ['ClearListButton', renders.clear, 'Clear list', 'Clear this list?'],
   ['DeleteShoppingListButton', renders.delete, 'Delete', 'Delete this list?'],
   ['RemoveMemberButton', renders.removeMember, 'Remove', 'Remove this member?'],
+  ['RevokeInvitationButton', renders.revokeInvitation, 'Revoke', 'Revoke this invitation?'],
   ['NotifyWhenAvailableDialog', renders.notify, 'Notify when available', 'Get notified'],
 ])('%s on ModalDialog (issue #804)', (_name, render, trigger, title) => {
   it('opens a native dialog from a button trigger', () => {
@@ -115,6 +127,7 @@ describe.each([
   ['ClearListButton', renders.clear, 'Clear list'],
   ['DeleteShoppingListButton', renders.delete, 'Delete list'],
   ['RemoveMemberButton', renders.removeMember, 'Remove member'],
+  ['RevokeInvitationButton', renders.revokeInvitation, 'Revoke invitation'],
 ])('%s — a destructive confirmation (issue #804)', (_name, render, confirm) => {
   it('is an alertdialog described by its warning', () => {
     const html = render();
@@ -225,5 +238,31 @@ describe('RemoveMemberButton — whom the confirmation is about (issue #1178)', 
     expect(nameOf(html)).toBe('Usunąć tego członka organizacji?');
     expect(dialogOf(html)).toContain('Tej operacji nie można cofnąć.');
     expect(dialogOf(html)).toMatch(/>Usuń członka<\/button>/);
+  });
+});
+
+describe('RevokeInvitationButton — which invitation the confirmation is about (issue #1214)', () => {
+  it('names the invitee’s address and says what revoking does', () => {
+    const dialog = dialogOf(renders.revokeInvitation());
+    expect(dialog).toContain('<strong>anna@acme.example</strong>');
+    expect(dialog).toContain('will stop working');
+    // A new invitation can be sent, so it does not claim the step is irreversible.
+    expect(dialog).not.toContain('cannot be undone');
+  });
+
+  it('keeps the row’s destructive button as its trigger', () => {
+    expect(renders.revokeInvitation()).toMatch(
+      /<button type="button"[^>]*aria-haspopup="dialog"[^>]*class="btn btn--outline btn--sm min-h-11 border-bad text-bad"[^>]*>Revoke<\/button>/,
+    );
+  });
+
+  it('speaks Polish on a Polish page', () => {
+    const html = renderToString(
+      <RevokeInvitationButton invitationId="inv-7" email="anna@acme.example" locale="pl-PL" revokeAction={noop} />,
+    );
+    expect(triggerOf(html)).toBe('Cofnij');
+    expect(nameOf(html)).toBe('Cofnąć to zaproszenie?');
+    expect(dialogOf(html)).toContain('przestanie działać');
+    expect(dialogOf(html)).toMatch(/>Cofnij zaproszenie<\/button>/);
   });
 });

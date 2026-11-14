@@ -81,7 +81,7 @@ export function SocialLinksPanel({
             ) : (
               <p className="b2b-auth__hint">
                 {t('account.socialLinks.lastCredential')}{' '}
-                <LocalizedAnchor href="/password-reset/request">{t('account.socialLinks.setPassword')}</LocalizedAnchor>
+                <LocalizedAnchor href="/password-reset/request" className="b2b-account__link">{t('account.socialLinks.setPassword')}</LocalizedAnchor>
               </p>
             )}
           </li>

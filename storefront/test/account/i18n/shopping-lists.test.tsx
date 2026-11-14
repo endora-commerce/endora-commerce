@@ -400,3 +400,36 @@ describe('shopping lists — the auto-created default list is named in the shop 
     expect(html).toContain(`href="/shopping-lists/${LD}">Default</a>`);
   });
 });
+
+describe('shopping-list detail — its links look like links (issue #1214)', () => {
+  async function raw(sp: Record<string, string> = {}): Promise<string> {
+    const { default: Page } = await import('../../../app/(account)/shopping-lists/[id]/page');
+    locale = 'en-US';
+    const tree = await Page({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000f1' }), searchParams: Promise.resolve(sp) });
+    return renderToString(<>{tree}</>).replaceAll('<!-- -->', '');
+  }
+
+  it('styles the product link, underlining the name and not the SKU line', async () => {
+    const html = await raw();
+    const anchor = /<a[^>]*href="\/p\/bolt"[^>]*>[\s\S]*?<\/a>/.exec(html)?.[0] ?? '';
+    expect(anchor).toMatch(/^<a class="b2b-account__link b2b-account__link--stacked"/);
+    expect(anchor).toMatch(/<span class="font-medium">Bolt<\/span>/);
+    expect(anchor).toMatch(/<span class="text-xs text-fg-soft">SKU: BOLT-1<\/span>/);
+  });
+
+  it('gives the back link the shared link style at the 44px floor', async () => {
+    expect(await raw()).toMatch(
+      /<a class="b2b-account__link b2b-account__link--standalone" href="\/shopping-lists">← All lists<\/a>/,
+    );
+  });
+
+  it('styles the catalogue link inside the empty-list sentence', async () => {
+    detailList = { ...list, items: [] };
+    expect(await raw()).toMatch(/<a class="b2b-account__link" href="\/catalog">/);
+  });
+
+  it('styles the quote-request link inside the conversion notice', async () => {
+    const html = await raw({ rfqAdded: '1', rfqId: 'rfq-1' });
+    expect(html).toMatch(/<a class="b2b-account__link" href="\/quote-requests\/rfq-1">/);
+  });
+});

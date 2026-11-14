@@ -254,3 +254,26 @@ describe("quick order — the actions' refusals travel as codes", () => {
     expect(page).not.toContain(literal);
   });
 });
+
+/**
+ * Issue #1214 — the links inside the page's sentences read as links: they carry
+ * the shared `.b2b-account__link` (underlined, never colour alone), which takes
+ * the banner's own colour inside a success notice (see `globals.css`).
+ */
+describe('quick order — its in-sentence links look like links (issue #1214)', () => {
+  const anchor = (html: string, href: string): string =>
+    new RegExp(`<a[^>]*href="${href.replace(/[.?]/g, '\\$&')}"[^>]*>`).exec(html)?.[0] ?? '';
+
+  it('styles the template download in the intro', async () => {
+    expect(anchor(await render({}), '/quick-order-template.csv')).toMatch(/class="b2b-account__link"/);
+  });
+
+  it('styles the cart, checkout and quote links of the build confirmations', async () => {
+    const cart = await render({ built: 'cart' });
+    expect(anchor(cart, '/cart')).toMatch(/class="b2b-account__link"/);
+    expect(anchor(cart, '/checkout')).toMatch(/class="b2b-account__link"/);
+    expect(cart).toMatch(/<p class="b2b-auth__success">[^]*?<a class="b2b-account__link" href="\/cart"/);
+    const quote = await render({ built: 'quote', rfqId: '11111111-2222-4333-8444-555555555555' });
+    expect(anchor(quote, '/quote-requests')).toMatch(/class="b2b-account__link"/);
+  });
+});

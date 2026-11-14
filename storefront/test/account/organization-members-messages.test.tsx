@@ -21,6 +21,7 @@ const R_MEMBER = '00000000-0000-4000-8000-0000000000b1';
 
 let locale = 'en-US';
 let failure: Error | null = null;
+let pending: unknown[] = [];
 
 vi.mock('../../lib/session', () => ({
   getSessionCookie: async () => 'session',
@@ -53,7 +54,7 @@ const mutation = async (): Promise<unknown> => {
 
 vi.mock('../../lib/api/organization', () => ({
   listMembers: async () => [],
-  listPendingInvitations: async () => [],
+  listPendingInvitations: async () => pending,
   listRoles: async () => [
     { id: R_ADMIN, kind: 'administrator', name: 'Administrator' },
     { id: R_MEMBER, kind: 'member', name: 'Member' },
@@ -92,6 +93,7 @@ function form(entries: Array<[string, string]>): FormData {
 beforeEach(() => {
   locale = 'en-US';
   failure = null;
+  pending = [];
 });
 
 describe('a crafted ?error= never reaches the page (issue #740)', () => {
@@ -219,5 +221,43 @@ describe('the actions redirect with a code, never a sentence or an address', () 
     expect(await run()).toBe(`/organization/members?error=${code}`);
     failure = new Error('fetch failed');
     expect(await run()).toBe(`/organization/members?error=${code}`);
+  });
+});
+
+describe('revoking a pending invitation asks first (issue #1214)', () => {
+  const invitation = {
+    id: 'inv-7',
+    organizationId: 'org-1',
+    email: 'anna@acme.example',
+    organizationRole: { id: R_MEMBER, kind: 'member', name: 'Member' },
+    invitedByCustomerAccountId: 'acc-1',
+    expiresAt: '2026-11-21T10:00:00.000Z',
+    createdAt: '2026-11-14T10:00:00.000Z',
+  };
+
+  async function html(): Promise<string> {
+    const tree = await MembersPage({ searchParams: Promise.resolve({}) });
+    return renderToString(<>{tree as ReactNode}</>);
+  }
+
+  it('opens a confirmation naming the invitee instead of posting from the row', async () => {
+    pending = [invitation];
+    const out = await html();
+    expect(out).not.toMatch(/<button type="submit"[^>]*>Revoke<\/button>/);
+    expect(out).not.toContain('name="invitationId"');
+    expect(out).toMatch(
+      /<button type="button"[^>]*aria-haspopup="dialog"[^>]*class="btn btn--outline btn--sm min-h-11 border-bad text-bad"[^>]*>Revoke<\/button>/,
+    );
+    const dialog = /<dialog\b[^>]*role="alertdialog"[\s\S]*?<\/dialog>/.exec(out)?.[0] ?? '';
+    expect(dialog).toContain('Revoke this invitation?');
+    expect(dialog).toContain('<strong>anna@acme.example</strong>');
+  });
+
+  it('speaks Polish on a Polish page', async () => {
+    pending = [invitation];
+    locale = 'pl-PL';
+    const out = await html();
+    expect(out).toContain('Cofnąć to zaproszenie?');
+    expect(out).toMatch(/>Cofnij zaproszenie<\/button>/);
   });
 });

@@ -32,7 +32,7 @@ export function OrderItemRows(props: {
       renderRow={(it) => (
         <tr key={it.id}>
           <td>
-            <LocalizedLink href={`/p/${it.productId}`}>{it.productSnapshot.name}</LocalizedLink>
+            <LocalizedLink href={`/p/${it.productId}`} className="b2b-account__link">{it.productSnapshot.name}</LocalizedLink>
             <br />
             <small className="text-subtle">
               {format(t('account.common.sku'), { sku: it.variantSnapshot?.sku ?? it.productSnapshot.sku })}

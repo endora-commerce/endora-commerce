@@ -62,3 +62,39 @@ describe('.b2b-account__link (issue #1178)', () => {
     expect(html).toMatch(/<button type="button"[^>]*class="b2b-dialog__trigger b2b-account__link"[^>]*>Details<\/button>/);
   });
 });
+
+/**
+ * Issue #1214 — the same class outside the tables. Inside a sentence it stays
+ * inline (WCAG 2.5.8 exempts an inline target; growing it would break the line
+ * spacing); inside a coloured notice it takes the notice's own colour, which is
+ * contrast-checked against that background — the accent, and in dark mode the
+ * light brand tint, are not (the notice backgrounds stay light in dark mode).
+ * A link that stands on its own line — a back link, "View order" — is grown to
+ * the 44px floor; a product link with a SKU line under it underlines the name only.
+ */
+describe('.b2b-account__link outside the tables (issue #1214)', () => {
+  it('grows a link on its own line to the 44px floor', () => {
+    const standalone = rule('.b2b-account__link--standalone');
+    expect(standalone).toMatch(/\binline-flex\b/);
+    expect(standalone).toMatch(/\bmin-h-11\b/);
+    expect(standalone).toMatch(/\bitems-center\b/);
+  });
+
+  it('takes the notice’s own colour inside a success or error notice, in both modes', () => {
+    const body = /\.b2b-auth__success \.b2b-account__link,\s*\.b2b-auth__error \.b2b-account__link\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+    expect(body).toMatch(/\btext-inherit\b/);
+    expect(body).toMatch(/\bdark:text-inherit\b/);
+  });
+
+  it('underlines only the first line of a stacked product link, after the table rule', () => {
+    const stacked = rule('.b2b-account__link.b2b-account__link--stacked');
+    expect(stacked).toMatch(/\bflex-col\b/);
+    expect(stacked).toMatch(/\bitems-start\b/);
+    expect(stacked).toMatch(/\bno-underline\b/);
+    expect(rule('.b2b-account__link--stacked > :first-child')).toMatch(/\bunderline\b/);
+    expect(rule('.b2b-account__link--stacked:hover > :first-child')).toMatch(/decoration-2/);
+    expect(css.indexOf('.b2b-account__link.b2b-account__link--stacked')).toBeGreaterThan(
+      css.indexOf('.b2b-account__table .b2b-account__link {'),
+    );
+  });
+});

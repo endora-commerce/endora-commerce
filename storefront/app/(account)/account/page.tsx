@@ -81,7 +81,7 @@ export default async function AccountProfilePage({
       <h2>{t('account.profile.heading')}</h2>
       {unread > 0 ? (
         <p className="mb-[16px]">
-          <LocalizedLink href="/account/notifications" className="underline">
+          <LocalizedLink href="/account/notifications" className="b2b-account__link b2b-account__link--standalone">
             {format(t('account.notifications.summary'), { count: unread.toLocaleString(locale) })}
           </LocalizedLink>
         </p>

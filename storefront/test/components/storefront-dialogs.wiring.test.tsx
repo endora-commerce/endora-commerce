@@ -4,6 +4,7 @@ import { ClearListButton } from '../../components/shopping-lists/ClearListButton
 import { DeleteShoppingListButton } from '../../components/shopping-lists/DeleteShoppingListButton';
 import { NotifyWhenAvailableDialog } from '../../components/inventory/NotifyWhenAvailableDialog';
 import { RemoveMemberButton } from '../../components/account/RemoveMemberButton';
+import { RevokeInvitationButton } from '../../components/account/RevokeInvitationButton';
 import { ModalDialog, ModalDialogAction, ModalDialogClose } from '../../components/ModalDialog';
 import { findElement, findElements } from './element-tree';
 
@@ -151,6 +152,41 @@ describe('RemoveMemberButton — removal waits for the confirm (issue #1178)', (
     const failed = RemoveMemberButton(props(vi.fn()));
     const status = findElement(failed, (el) => el.props.role === 'status');
     expect(JSON.stringify(status.props.children)).toContain('Could not remove the member.');
+  });
+});
+
+describe('RevokeInvitationButton — revoking waits for the confirm (issue #1214)', () => {
+  const props = (revokeAction: (fd: FormData) => Promise<void> | void) => ({
+    invitationId: 'inv-7',
+    email: 'anna@acme.example',
+    locale: 'en-US',
+    revokeAction,
+  });
+
+  it('confirming dispatches revokeAction with the invitation id', async () => {
+    const revokeAction = vi.fn(async (_fd: FormData): Promise<void> => undefined);
+    const confirm = confirmOf(RevokeInvitationButton(props(revokeAction)));
+    expect(confirm.props.pendingLabel).toBe('Revoking…');
+    await (confirm.props.action as () => Promise<void>)();
+    expect(revokeAction).toHaveBeenCalledOnce();
+    expect(revokeAction.mock.calls[0]![0].get('invitationId')).toBe('inv-7');
+  });
+
+  it('dispatches nothing when the dialog only opens or is cancelled', () => {
+    const revokeAction = vi.fn();
+    const tree = RevokeInvitationButton(props(revokeAction));
+    expect(byClass(footerCloses(tree), 'btn--outline').props.onClick).toBeUndefined();
+    expect(revokeAction).not.toHaveBeenCalled();
+  });
+
+  it('says so in the dialog when the request fails, so it can be retried', () => {
+    const tree = RevokeInvitationButton(props(vi.fn()));
+    (confirmOf(tree).props.onError as (e: unknown) => void)(new Error('network down'));
+    expect(setters.some((s) => s.mock.calls.some((c) => c[0] === true))).toBe(true);
+    seeded = [true];
+    const failed = RevokeInvitationButton(props(vi.fn()));
+    const status = findElement(failed, (el) => el.props.role === 'status');
+    expect(JSON.stringify(status.props.children)).toContain('Could not revoke the invitation.');
   });
 });
 
