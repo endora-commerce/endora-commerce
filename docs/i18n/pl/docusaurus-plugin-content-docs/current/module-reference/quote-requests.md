@@ -49,6 +49,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `customer_notifications` | nie | degrades-without `customerNotificationRecordPort` — kupujący nie dostają wpisów o swoich zapytaniach ofertowych w centrum powiadomień sklepu; każdy rekord dostarczenia zamyka się jako pominięty (moduł wyłączony). |
 | `document_templates` | nie | refuses-without `documentRenderPort` — zapytań ofertowych nie można eksportować do PDF ani wybrać dla nich szablonu PDF |
 | `document_templates` | nie | contributes-to `documentTypeRegistry` |
+| `pwa` | nie | degrades-without `customerPushPort` — kupujący nie dostają powiadomień push o swoich zapytaniach ofertowych na swoje urządzenia; każdy rekord dostarczenia zamyka się jako pominięty (moduł wyłączony). |
 | `webhooks` | nie | contributes-to `webhookEventRegistry` |
 
 ## Uprawnienia

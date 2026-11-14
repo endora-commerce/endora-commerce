@@ -9,7 +9,7 @@ import type {
   CustomerGroupReadPort,
   OrderReadPort,
   OrganizationDetailsPort,
-  QuoteRequestReadPort,
+  CustomerPushPort,
 } from '@endora-commerce/contracts';
 import { PwaConfigResolver, type SettingsReadPort } from './services/pwa-config-resolver.js';
 import { PwaIconService, type AssetUploadPort } from './services/pwa-icon-service.js';
@@ -23,6 +23,7 @@ import {
   type PushEventLogger,
 } from './services/push-event-subscriber.js';
 import { createStatusPushComposer } from './services/status-push-composer.js';
+import { createCustomerPushPort } from './services/customer-push-port.js';
 import {
   createPushDeliveryQueue,
   createPushDeliveryWorker,
@@ -101,20 +102,19 @@ export interface PwaModuleOptions {
    */
   log: PushEventLogger;
   /**
-   * What the automatic status pushes read (`specs/149-pwa-order-status-push/`),
+   * What the automatic order status push reads (`specs/149-pwa-order-status-push/`),
    * each a published port `backend/index.ts` resolves as a `lazyPort`:
-   * the order and its status label, the quote request (a `degrades-without`
-   * owner — the composer asks its presence before the port), the channel the
-   * subject belongs to, and `_i18n`'s translation of this module's own bundle.
+   * the order and its status label, the channel the order belongs to, and
+   * `_i18n`'s translation of this module's own bundle. The channel port also
+   * answers `customerPushPort`'s system default channel.
    *
    * It replaces the two root-shaped target resolvers this option set used to
-   * carry. The order one composed an English sentence linking to a page that
-   * redirected to the order list; the quote one was supplied by nobody, so no
-   * quote push had ever been sent (research R-1).
+   * carry (research R-1). The quote push's read of `quoteRequestReadPort` went
+   * with `specs/179-rfq-and-customer-notifications/` WP-10: `quote_requests`
+   * now pushes through `customerPushPort` with the sentence already rendered.
    */
   statusPush: {
     orders: Pick<OrderReadPort, 'findById' | 'findStatusDefinition'>;
-    quotes: Pick<QuoteRequestReadPort, 'findById'>;
     channels: Pick<SalesChannelResolutionPort, 'getById' | 'getSystemDefault'>;
     translate: Pick<AdminI18nTranslatePort, 'translate'>;
   };
@@ -123,6 +123,11 @@ export interface PwaModuleOptions {
 export interface PwaModuleHandle {
   /** The FR-024 auto-trigger handlers; `backend.ts` owns their registration. */
   pushEventHandlers: ReturnType<typeof createPushEventHandlers>;
+  /**
+   * The published `customerPushPort` (`specs/179-rfq-and-customer-notifications/`
+   * FR-060); `backend/index.ts` provides it, gated on this module's presence.
+   */
+  customerPushPort: CustomerPushPort;
   configResolver: PwaConfigResolver;
   iconService: PwaIconService;
   subscriptionService: PushSubscriptionService;
@@ -187,19 +192,18 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   // Automatic status pushes — producer only; enqueues, never sends inline.
   // `backend/index.ts` registers the handlers through `ctx.subscribe`, so they
   // stop with the module (issue #107).
+  const isSettingOn = async (code: string, salesChannelId: string): Promise<boolean> => {
+    try {
+      return await options.settings.get(code, salesChannelId, BoolSchema);
+    } catch {
+      return false;
+    }
+  };
   const statusPushComposer = createStatusPushComposer({
     orders: options.statusPush.orders,
-    quotes: options.statusPush.quotes,
-    isQuoteRequestsPresent: () => effectiveState.isPresent('quote_requests'),
     customerAccounts: options.customerAccounts,
     channels: options.statusPush.channels,
-    isSettingOn: async (code, salesChannelId) => {
-      try {
-        return await options.settings.get(code, salesChannelId, BoolSchema);
-      } catch {
-        return false;
-      }
-    },
+    isSettingOn,
     preferences: preferenceService,
     translate: options.statusPush.translate,
     messageService,
@@ -209,6 +213,20 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
   const pushEventHandlers = createPushEventHandlers({
     composer: statusPushComposer,
     log: () => eventLogger,
+  });
+
+  // `specs/179-rfq-and-customer-notifications/` FR-060 — another module's push
+  // to one account, under the composer's gates plus a device check. Producer
+  // only, like the composer.
+  const customerPushPort = createCustomerPushPort({
+    channels: options.statusPush.channels,
+    isSettingOn,
+    customerAccounts: options.customerAccounts,
+    preferences: preferenceService,
+    hasActiveSubscription: (customerAccountId, salesChannelId) =>
+      subscriptionService.hasActive(customerAccountId, salesChannelId),
+    messageService,
+    runInSystemScope: (reason, run) => enterSystemScope(reason, run),
   });
 
   // Push-delivery consumer (Principle X). Separable entrypoint; co-located by
@@ -238,6 +256,7 @@ export function pwaModule(options: PwaModuleOptions): PwaModuleResult {
 
   const handle: PwaModuleHandle = {
     pushEventHandlers,
+    customerPushPort,
     configResolver,
     iconService,
     subscriptionService,

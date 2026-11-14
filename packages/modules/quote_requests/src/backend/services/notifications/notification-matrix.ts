@@ -90,11 +90,11 @@ export const NOTIFICATION_MATRIX: Readonly<Record<QuoteRequestNotificationChange
 };
 
 /**
- * The channels the recording step writes today. A record is only worth writing
- * for a channel something will deliver: `customer_in_app` joined with the
- * customer notification centre (`specs/179-…` WP-08); `customer_push` joins
- * with the PWA port (WP-10), and until then its matrix cells stand and write
- * nothing.
+ * The channels the recording step writes — every channel, now that each has
+ * a delivery: `customer_in_app` joined with the customer notification centre
+ * (`specs/179-…` WP-08), `customer_push` with `pwa`'s `customerPushPort`
+ * (WP-10). A record is only worth writing for a channel something will
+ * deliver; a channel added to the matrix without an adapter stays out of here.
  *
  * A channel is recorded whether or not its owner is on when the change
  * commits: presence is the delivery's question, asked when the worker reaches
@@ -104,6 +104,7 @@ export const NOTIFICATION_MATRIX: Readonly<Record<QuoteRequestNotificationChange
 export const RECORDED_CHANNELS: readonly QuoteRequestNotificationChannel[] = [
   'customer_email',
   'customer_in_app',
+  'customer_push',
   'admin_in_app',
   'admin_email',
 ];

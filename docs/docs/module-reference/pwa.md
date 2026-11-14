@@ -38,7 +38,6 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `organizations` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `sales_channels` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
-| `quote_requests` | no | degrades-without `quoteRequestReadPort` — Customers stop receiving push notifications about their quote requests, and the quote switch and choice are not offered; order notifications keep working |
 
 ## Permissions
 

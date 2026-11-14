@@ -5,7 +5,6 @@ import {
   type OrderRecord,
   type OrderStatusDefinitionRecord,
   type PushPreferences,
-  type QuoteRequestRecord,
 } from '@endora-commerce/contracts';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import type { CreateMessageInput } from './push-message-service.js';
@@ -19,7 +18,8 @@ type CachedChannel = NonNullable<Awaited<ReturnType<SalesChannelResolutionPort['
 
 /**
  * `specs/149-pwa-order-status-push/` T010 / T028 — the status push composer
- * over stub ports, one case per gate in research R-11's order: subject →
+ * over stub ports, one case per gate in research R-11's order (orders only
+ * since `specs/179-rfq-and-customer-notifications/` WP-10): subject →
  * channel → push and category switches → account → customer preference →
  * render and enqueue.
  */
@@ -62,16 +62,6 @@ function order(overrides: Partial<OrderRecord> = {}): OrderRecord {
   } as OrderRecord;
 }
 
-function quote(overrides: Partial<QuoteRequestRecord> = {}): QuoteRequestRecord {
-  return {
-    id: 'quote-1',
-    businessId: 'QR-77',
-    customerAccountId: 'cust-1',
-    salesChannelId: CHANNEL_DEFAULT,
-    ...overrides,
-  } as QuoteRequestRecord;
-}
-
 function account(overrides: Partial<CustomerAccountRecord> = {}): CustomerAccountRecord {
   return {
     id: 'cust-1',
@@ -91,7 +81,6 @@ const STATUS: OrderStatusDefinitionRecord = {
 interface Harness {
   deps: StatusPushComposerDeps;
   enqueued: CreateMessageInput[];
-  quoteReads: string[];
   preferenceReads: string[];
   debugLines: string[];
 }
@@ -99,8 +88,6 @@ interface Harness {
 function harness(
   options: {
     order?: OrderRecord | null;
-    quote?: QuoteRequestRecord | null;
-    quotesPresent?: boolean;
     account?: CustomerAccountRecord | null;
     settings?: Partial<Record<string, boolean>>;
     channelSettings?: Record<string, Partial<Record<string, boolean>>>;
@@ -109,7 +96,6 @@ function harness(
   } = {},
 ): Harness {
   const enqueued: CreateMessageInput[] = [];
-  const quoteReads: string[] = [];
   const preferenceReads: string[] = [];
   const debugLines: string[] = [];
   const globalSettings: Record<string, boolean> = {
@@ -124,13 +110,6 @@ function harness(
       findById: async () => ('order' in options ? options.order! : order()),
       findStatusDefinition: async () => ('status' in options ? options.status! : STATUS),
     },
-    quotes: {
-      findById: async (id) => {
-        quoteReads.push(id);
-        return 'quote' in options ? options.quote! : quote();
-      },
-    },
-    isQuoteRequestsPresent: () => options.quotesPresent ?? true,
     customerAccounts: {
       findById: async () => ('account' in options ? options.account! : account()),
     },
@@ -166,7 +145,7 @@ function harness(
       error: noop,
     }) as never,
   };
-  return { deps, enqueued, quoteReads, preferenceReads, debugLines };
+  return { deps, enqueued, preferenceReads, debugLines };
 }
 
 const ORDER_EVENT = {
@@ -175,7 +154,6 @@ const ORDER_EVENT = {
   salesChannelId: CHANNEL_PL,
   to: 'shipment_sent',
 };
-const QUOTE_EVENT = { eventId: 'evt-q-1', rfqId: 'quote-1', what: 'approved' as const };
 
 describe('status push composer — order status', () => {
   it('queues exactly one localised notification for the placing account', async () => {
@@ -261,85 +239,29 @@ describe('status push composer — order status', () => {
   });
 });
 
-describe('status push composer — quote status', () => {
-  it('queues exactly one notification for the requesting account', async () => {
-    const h = harness();
-    const outcome = await createStatusPushComposer(h.deps).quote(QUOTE_EVENT);
-
-    expect(outcome).toBe('enqueued');
-    expect(h.enqueued).toEqual([
-      {
-        salesChannelId: CHANNEL_DEFAULT,
-        title: '[pwa:en] notification.quote.title {"quoteNumber":"QR-77"}',
-        body: '[pwa:en] notification.quote.body.approved {"quoteNumber":"QR-77"}',
-        url: '/quote-requests/quote-1',
-        audience: { kind: 'customers', customerAccountIds: ['cust-1'] },
-        trigger: 'quote_request',
-        sourceEventId: 'evt-q-1',
-      },
-    ]);
-  });
-
-  it('never calls the quote port while quote_requests is absent', async () => {
-    const h = harness({ quotesPresent: false });
-    expect(await createStatusPushComposer(h.deps).quote(QUOTE_EVENT)).toBe(
-      'skipped:quote_requests_absent',
-    );
-    expect(h.quoteReads).toEqual([]);
-    expect(h.enqueued).toEqual([]);
-  });
-
-  it('sends a channel-less quote on the system default channel', async () => {
-    const h = harness({ quote: quote({ salesChannelId: null }) });
-    await createStatusPushComposer(h.deps).quote(QUOTE_EVENT);
-    expect(h.enqueued[0]!.salesChannelId).toBe(CHANNEL_DEFAULT);
-  });
-
-  it('uses a Polish channel’s language', async () => {
-    const h = harness({ quote: quote({ salesChannelId: CHANNEL_PL }) });
-    await createStatusPushComposer(h.deps).quote({ ...QUOTE_EVENT, what: 'expired' });
-    expect(h.enqueued[0]!.body).toBe(
-      '[pwa:pl] notification.quote.body.expired {"quoteNumber":"QR-77"}',
-    );
-  });
-
-  it('skips while the quote category is off, independently of orders', async () => {
-    const quoteOff = harness({ settings: { [PWA_SETTING_CODES.PUSH_QUOTE_STATUS_ENABLED]: false } });
-    expect(await createStatusPushComposer(quoteOff.deps).quote(QUOTE_EVENT)).toBe(
-      'skipped:switched_off',
-    );
-    const orderOff = harness({ settings: { [PWA_SETTING_CODES.PUSH_ORDER_STATUS_ENABLED]: false } });
-    expect(await createStatusPushComposer(orderOff.deps).quote(QUOTE_EVENT)).toBe('enqueued');
-  });
-
-  it('skips an unknown quote', async () => {
-    const h = harness({ quote: null });
-    expect(await createStatusPushComposer(h.deps).quote(QUOTE_EVENT)).toBe('skipped:no_subject');
-  });
-});
-
 describe('status push composer — customer preference (US3)', () => {
-  it('drops order pushes and keeps quote pushes when the order choice is off', async () => {
+  it('drops order pushes when the order choice is off', async () => {
     const h = harness({ preferences: { orderStatus: false, quoteStatus: true } });
-    const composer = createStatusPushComposer(h.deps);
-    expect(await composer.order(ORDER_EVENT)).toBe('skipped:customer_preference');
-    expect(await composer.quote(QUOTE_EVENT)).toBe('enqueued');
-    expect(h.enqueued.map((m) => m.trigger)).toEqual(['quote_request']);
+    expect(await createStatusPushComposer(h.deps).order(ORDER_EVENT)).toBe('skipped:customer_preference');
+    expect(h.enqueued).toEqual([]);
     expect(h.debugLines).toContain('pwa.push_skipped_customer_preference');
   });
 
-  it('drops quote pushes and keeps order pushes when the quote choice is off', async () => {
+  it('keeps order pushes when only the quote choice is off', async () => {
     const h = harness({ preferences: { orderStatus: true, quoteStatus: false } });
-    const composer = createStatusPushComposer(h.deps);
-    expect(await composer.quote(QUOTE_EVENT)).toBe('skipped:customer_preference');
-    expect(await composer.order(ORDER_EVENT)).toBe('enqueued');
-    expect(h.enqueued.map((m) => m.trigger)).toEqual(['order_status']);
+    expect(await createStatusPushComposer(h.deps).order(ORDER_EVENT)).toBe('enqueued');
   });
 
   it('reads the preference only after every cheaper gate passed', async () => {
     const h = harness({ settings: { [PWA_SETTING_CODES.PUSH_ENABLED]: false } });
     await createStatusPushComposer(h.deps).order(ORDER_EVENT);
     expect(h.preferenceReads).toEqual([]);
+  });
+});
+
+describe('status push composer — orders only (specs/179-… T091, FR-061)', () => {
+  it('has no quote branch: quote pushes go through customerPushPort', () => {
+    expect(Object.keys(createStatusPushComposer(harness().deps))).toEqual(['order']);
   });
 });
 

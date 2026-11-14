@@ -49,9 +49,10 @@ function channelLabel(name: SalesChannelSummary['name'], code: string): string {
  */
 export function PwaPage(): ReactNode {
   const t = useTranslation('pwa');
-  // `quote_requests` is a `degrades-without` owner for the quote status push
-  // (`specs/149-pwa-order-status-push/`): while it is absent the quote switch
-  // is not offered, and its stored value is left alone.
+  // Quote pushes come from `quote_requests` (through `customerPushPort` since
+  // `specs/179-rfq-and-customer-notifications/` WP-10): while it is absent no
+  // quote push is produced, so the quote switch is not offered, and its stored
+  // value is left alone.
   const { isPresent } = useModulePresence();
   const quotesPresent = isPresent('quote_requests');
   const [config, setConfig] = useState<PwaAdminConfig | null>(null);

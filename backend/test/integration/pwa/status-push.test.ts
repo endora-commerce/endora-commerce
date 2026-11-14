@@ -16,10 +16,14 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
  * settings store and `_i18n`, and `push_messages` as the observable.
  *
  * Every event here is emitted from the test body, i.e. with **no ambient
- * tenant context** — which is exactly the expiry sweep's situation, and what
- * the composer's system scope exists for.
+ * tenant context** — what the composer's system scope exists for.
+ *
+ * Since `specs/179-rfq-and-customer-notifications/` WP-10 (FR-061) the quote
+ * half is not event-driven: `quote_requests` pushes through `customerPushPort`
+ * after its own delivery records (`test/integration/quote_requests/notification-delivery.test.ts`),
+ * so a quote event reaching this module writes nothing.
  */
-describe('149 — order and quote status pushes [integration]', () => {
+describe('149 — order status pushes; quote events push nothing [integration]', () => {
   let h: BackendServerHandle;
   const customer = { b2b_session: 'stub-customer-session' };
   const adminCookie = { b2b_session: 'stub-admin-session' };
@@ -27,7 +31,6 @@ describe('149 — order and quote status pushes [integration]', () => {
   let defaultChannelId: string;
   let quoteId: string;
   let orderBusinessId: string;
-  let quoteBusinessId: string;
   let originalStatusName: string;
 
   const settleEvents = (): Promise<void> => new Promise((r) => setTimeout(r, 50));
@@ -142,11 +145,6 @@ describe('149 — order and quote status pushes [integration]', () => {
     });
     expect(convert.statusCode, convert.body).toBe(200);
     quoteId = (convert.json() as { data: { quoteRequestId: string } }).data.quoteRequestId;
-    quoteBusinessId = (
-      await sql<{ business_id: string }>(`select business_id from quote_requests where id = ?`, [
-        quoteId,
-      ])
-    )[0]!.business_id;
 
     for (const channelId of [plChannelId, defaultChannelId]) {
       await h.pwa.subscriptionService.register({
@@ -252,72 +250,32 @@ describe('149 — order and quote status pushes [integration]', () => {
     await setGlobal(PWA_SETTING_CODES.PUSH_ENABLED, false);
     await settleEvents();
     const order = `evt-${randomUUID()}`;
-    const quote = `evt-${randomUUID()}`;
     emitOrderStatus(order);
-    emitQuote('rfq.approved.v1', quote);
 
     expect(await awaitNothing(order)).toHaveLength(0);
-    expect(await awaitNothing(quote)).toHaveLength(0);
   });
 
   it.each([
-    ['rfq.created_by_admin.v1', `A quote QUOTE has been prepared for you.`],
-    ['rfq.modified.v1', `Quote QUOTE has a revised offer waiting for you.`],
-    ['rfq.approved.v1', `Quote QUOTE has been approved.`],
-    ['rfq.canceled.v1', `Quote QUOTE has been cancelled.`],
-    ['rfq.expired.v1', `Quote QUOTE has expired.`],
-  ])('queues one notification for %s, opening the quote', async (name, body) => {
+    'rfq.created.v1',
+    'rfq.created_by_admin.v1',
+    'rfq.modified.v1',
+    'rfq.approved.v1',
+    'rfq.canceled.v1',
+    'rfq.expired.v1',
+  ])('queues nothing for %s, with push and quote pushes on (FR-061)', async (name) => {
     const eventId = `evt-${randomUUID()}`;
     emitQuote(name, eventId);
-
-    const rows = await awaitRows(eventId);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toEqual({
-      trigger: 'quote_request',
-      title: 'Quote request update',
-      body: body.replace('QUOTE', quoteBusinessId),
-      url: `/quote-requests/${quoteId}`,
-      sales_channel_id: defaultChannelId,
-    });
-  });
-
-  it('queues nothing for the customer’s own submission (rfq.created.v1)', async () => {
-    const eventId = `evt-${randomUUID()}`;
-    emitQuote('rfq.created.v1', eventId);
 
     expect(await awaitNothing(eventId)).toHaveLength(0);
   });
 
-  it('renders a quote on a Polish channel in Polish', async () => {
-    await sql(`update quote_requests set sales_channel_id = ? where id = ?`, [plChannelId, quoteId]);
-    const eventId = `evt-${randomUUID()}`;
-    emitQuote('rfq.approved.v1', eventId);
-
-    const rows = await awaitRows(eventId);
-    expect(rows[0]?.body).toBe(`Zapytanie ofertowe ${quoteBusinessId} zostało zatwierdzone.`);
-    expect(rows[0]?.sales_channel_id).toBe(plChannelId);
-  });
-
-  it('sends a channel-less quote on the system default channel', async () => {
-    await sql(`update quote_requests set sales_channel_id = null where id = ?`, [quoteId]);
-    const eventId = `evt-${randomUUID()}`;
-    emitQuote('rfq.expired.v1', eventId);
-
-    const rows = await awaitRows(eventId);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.sales_channel_id).toBe(defaultChannelId);
-  });
-
-  it('keeps the two categories independent', async () => {
+  it('does not let the quote category switch order pushes', async () => {
     await setGlobal(PWA_SETTING_CODES.PUSH_QUOTE_STATUS_ENABLED, false);
     await settleEvents();
-    const quote = `evt-${randomUUID()}`;
     const order = `evt-${randomUUID()}`;
-    emitQuote('rfq.approved.v1', quote);
     emitOrderStatus(order);
 
     expect(await awaitRows(order)).toHaveLength(1);
-    expect(await awaitNothing(quote)).toHaveLength(0);
   });
 
   it('leaves an administrator’s manual send alone while both categories are off (FR-006)', async () => {
@@ -342,7 +300,7 @@ describe('149 — order and quote status pushes [integration]', () => {
     expect(await sql(`select id from push_messages where title = ?`, [title])).toHaveLength(1);
   });
 
-  it('honours the customer’s choice per category, leaving devices alone (US3, FR-019)', async () => {
+  it('honours the customer’s order choice, which the quote choice does not touch, leaving devices alone (US3, FR-019)', async () => {
     const activeDevices = (): Promise<Array<{ n: string }>> =>
       sql<{ n: string }>(
         `select count(*)::text as n from push_subscriptions where customer_account_id = ? and status = 'active'`,
@@ -357,13 +315,10 @@ describe('149 — order and quote status pushes [integration]', () => {
     });
     expect(put.statusCode, put.body).toBe(200);
 
-    const quote = `evt-${randomUUID()}`;
     const order = `evt-${randomUUID()}`;
-    emitQuote('rfq.approved.v1', quote);
     emitOrderStatus(order);
 
     expect(await awaitRows(order)).toHaveLength(1);
-    expect(await awaitNothing(quote)).toHaveLength(0);
     expect(await activeDevices()).toEqual(devicesBefore);
 
     // And the reverse.
@@ -374,11 +329,8 @@ describe('149 — order and quote status pushes [integration]', () => {
       payload: { orderStatus: false, quoteStatus: true },
     });
     expect(flip.statusCode, flip.body).toBe(200);
-    const quote2 = `evt-${randomUUID()}`;
     const order2 = `evt-${randomUUID()}`;
-    emitQuote('rfq.approved.v1', quote2);
     emitOrderStatus(order2);
-    expect(await awaitRows(quote2)).toHaveLength(1);
     expect(await awaitNothing(order2)).toHaveLength(0);
   });
 });

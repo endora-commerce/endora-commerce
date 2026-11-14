@@ -52,9 +52,14 @@ import type { QuoteRequestNotificationChannel } from './notification-matrix.js';
  * answer. One for `quote_requests` itself is re-thrown and fails the pass,
  * which the worker gate then holds (module-composition item 7).
  *
- * **Only channels with an adapter are claimed.** A record of a channel whose
- * delivery is not built yet (`customer_push`, WP-10) is not read, not counted
- * and not closed by this pass.
+ * **Only channels with an adapter are claimed.** Every channel of the matrix
+ * has one since WP-10; a channel added without one would not be read, counted
+ * or closed by this pass.
+ *
+ * A push is the one delivery not written on the record's transaction: `pwa`
+ * writes and enqueues it through `customerPushPort` on its own, keyed by the
+ * record id, so a retry after a crash between the two commits is answered
+ * `enqueued` and writes nothing (FR-014).
  *
  * The pass runs in the system scope the worker opens; the probe
  * ({@link RfqNotificationDeliveryService.hasDeliverable}) runs outside it and

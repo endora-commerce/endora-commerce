@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   AdminUserRecord,
   CustomerAccountRecord,
+  CustomerPushInput,
+  CustomerPushOutcome,
   RecordAdminNotificationInput,
   RecordCustomerNotificationInput,
   TransactionalEmailSendInput,
@@ -18,6 +20,7 @@ import {
   CENTRE_CHANGES,
   createChannelAdapters,
   customerEmailCode,
+  pushOutcomeStatus,
   quoteRequestCentreText,
   quoteRequestStorefrontLinkPath,
   emailOutcomeStatus,
@@ -31,7 +34,7 @@ import { NOTIFICATION_CHANGES, NOTIFICATION_MATRIX, type QuoteRequestNotificatio
 
 /**
  * `specs/179-rfq-and-customer-notifications/` FR-020 – FR-024, FR-030, FR-040 –
- * FR-048 (T041, T042, T070): what each adapter hands its channel's owner,
+ * FR-048, FR-060 (T041, T042, T070, T092): what each adapter hands its channel's owner,
  * and how the owner's answer becomes the record's closing status
  * (`contracts/notification-matrix.md` §2, §4; `contracts/delivery-and-ports.md` §3).
  */
@@ -51,6 +54,7 @@ const ADMIN_ID = '40000000-0000-4000-8000-000000000001';
 const REQUESTER_ID = '50000000-0000-4000-8000-000000000001';
 const MEMBER_ID = '50000000-0000-4000-8000-000000000002';
 const CHANNEL_ID = '60000000-0000-4000-8000-000000000001';
+const DEFAULT_CHANNEL_ID = '60000000-0000-4000-8000-000000000002';
 const ADMIN_ROLE = '70000000-0000-4000-8000-000000000001';
 const MEMBER_ROLE = '70000000-0000-4000-8000-000000000002';
 const PREVIOUS_ID = '20000000-0000-4000-8000-0000000000bb';
@@ -154,6 +158,8 @@ function deps(overrides: Partial<ChannelAdapterDeps> = {}) {
   let outcome: TransactionalSendOutcome = { status: 'sent' };
   const bellInputs: Array<{ em: unknown; input: RecordAdminNotificationInput }> = [];
   const centreInputs: Array<{ em: unknown; input: RecordCustomerNotificationInput }> = [];
+  const pushInputs: CustomerPushInput[] = [];
+  let pushOutcome: CustomerPushOutcome = 'enqueued';
   const value: ChannelAdapterDeps = {
     adminUsers: { findById: vi.fn(async (id: string) => (id === ADMIN_ID ? admin() : null)) },
     permissions: { listPermissions: vi.fn(async () => ['rfqs:handle']) },
@@ -188,11 +194,24 @@ function deps(overrides: Partial<ChannelAdapterDeps> = {}) {
         return outcome;
       }),
     }),
+    push: {
+      push: vi.fn(async (input: CustomerPushInput) => {
+        pushInputs.push(input);
+        return pushOutcome;
+      }),
+    },
+    translate: vi.fn(
+      async (key: string, language: string, params?: Record<string, string | number>) =>
+        `[${language}] ${key} ${JSON.stringify(params ?? {})}`,
+    ),
     channels: {
       getById: vi.fn(async (id: string) =>
         id === CHANNEL_ID
           ? ({ id, code: 'b2b', name: { 'pl-PL': 'Sklep B2B', 'en-US': 'B2B store' }, defaultLanguage: 'pl-PL' } as never)
           : null,
+      ),
+      getSystemDefault: vi.fn(
+        async () => ({ id: DEFAULT_CHANNEL_ID, code: 'default', name: { 'en-US': 'Default' }, defaultLanguage: 'en-US' }) as never,
       ),
     },
     storefrontUrl: vi.fn(async () => 'https://shop.example.com/'),
@@ -203,8 +222,12 @@ function deps(overrides: Partial<ChannelAdapterDeps> = {}) {
     sent,
     bellInputs,
     centreInputs,
+    pushInputs,
     answer: (next: TransactionalSendOutcome) => {
       outcome = next;
+    },
+    answerPush: (next: CustomerPushOutcome) => {
+      pushOutcome = next;
     },
   };
 }
@@ -351,7 +374,7 @@ describe('customer_email (FR-020 – FR-022, FR-024, T042)', () => {
   });
 
   it('a channel that no longer resolves: en-US', async () => {
-    const d = deps({ channels: { getById: vi.fn(async () => null) } });
+    const d = deps({ channels: { getById: vi.fn(async () => null), getSystemDefault: vi.fn() } });
     await createChannelAdapters(d.value).customer_email.deliver(context('expired', 'customer_email'));
     expect(d.sent[0]!.language).toBe('en-US');
   });
@@ -654,5 +677,126 @@ describe('customer_in_app — the customer notification centre (FR-040 – FR-04
     await expect(
       createChannelAdapters(d.value).customer_in_app.deliver(context('approved', 'customer_in_app')),
     ).rejects.toBeInstanceOf(ModuleDisabledError);
+  });
+});
+
+describe('customer_push — the buyer’s devices, through customerPushPort (FR-060, T092)', () => {
+  it('pushes the centre’s sentence in the request channel’s language, keyed by the record id', async () => {
+    const d = deps();
+    const ctx = context('approved', 'customer_push');
+    expect(await createChannelAdapters(d.value).customer_push.deliver(ctx)).toEqual({ status: 'sent' });
+    expect(d.pushInputs).toEqual([
+      {
+        organizationId: ORG,
+        customerAccountId: REQUESTER_ID,
+        salesChannelId: CHANNEL_ID,
+        category: 'quote',
+        title: '[pl] customerPush.title {}',
+        body: '[pl] customerNotifications.approved.title {"number":"QR-000153"}',
+        url: `/quote-requests/${RFQ_ID}`,
+        sourceKey: ctx.record.id,
+      },
+    ]);
+  });
+
+  it('owned by pwa', () => {
+    expect(createChannelAdapters(deps().value).customer_push.owner).toBe('pwa');
+  });
+
+  it('a request raised with no channel: the system default channel’s language, and no channel named to the port', async () => {
+    const d = deps();
+    await createChannelAdapters(d.value).customer_push.deliver(
+      context('expired', 'customer_push', { rfq: { salesChannelId: null } }),
+    );
+    expect(d.pushInputs[0]).toMatchObject({
+      salesChannelId: null,
+      title: '[en] customerPush.title {}',
+      body: '[en] customerNotifications.expired.title {"number":"QR-000153"}',
+    });
+  });
+
+  it('a channel language with no bundle falls back to English', async () => {
+    const d = deps({
+      channels: {
+        getById: vi.fn(async () => ({ id: CHANNEL_ID, code: 'de', name: {}, defaultLanguage: 'de-DE' }) as never),
+        getSystemDefault: vi.fn(),
+      },
+    });
+    await createChannelAdapters(d.value).customer_push.deliver(context('revised', 'customer_push'));
+    expect(d.pushInputs[0]!.body).toBe('[en] customerNotifications.revised.title {"number":"QR-000153"}');
+  });
+
+  it('a member who may open the request is pushed to on their own account', async () => {
+    const d = deps();
+    await createChannelAdapters(d.value).customer_push.deliver(
+      context('submitted', 'customer_push', { recipientId: MEMBER_ID }),
+    );
+    expect(d.pushInputs[0]).toMatchObject({ customerAccountId: MEMBER_ID, organizationId: ORG });
+  });
+
+  it('both bundles hold the push title', () => {
+    expect(en['customerPush.title']).toBeTypeOf('string');
+    expect(pl['customerPush.title']).toBeTypeOf('string');
+    expect(pl['customerPush.title']).not.toBe(en['customerPush.title']);
+  });
+
+  it.each([
+    ['enqueued', 'sent'],
+    ['skipped:customer_preference', 'skipped_preference'],
+    ['skipped:no_account', 'skipped_no_recipient'],
+    ['skipped:no_subscription', 'skipped_no_subscription'],
+    ['skipped:switched_off', 'skipped_deactivated'],
+  ] as const)('the port’s %s closes the record %s (contracts/delivery-and-ports.md §3)', async (answer, status) => {
+    expect(pushOutcomeStatus(answer)).toEqual({ status });
+    const d = deps();
+    d.answerPush(answer);
+    expect(await createChannelAdapters(d.value).customer_push.deliver(context('approved', 'customer_push'))).toEqual({
+      status,
+    });
+  });
+
+  it.each([
+    ['is gone', { id: 'x' }, 'nobody'],
+    ['is blocked', { blockedAt: new Date() }, REQUESTER_ID],
+    ['left the Organization', { organizationId: '10000000-0000-4000-8000-000000000009' }, REQUESTER_ID],
+  ])('a recipient who %s is not pushed to: skipped_no_recipient', async (_why, overrides, recipientId) => {
+    const d = deps({
+      customerAccounts: {
+        findById: vi.fn(async (id: string) => (id === REQUESTER_ID ? account(overrides as Partial<CustomerAccountRecord>) : null)),
+      },
+    });
+    const outcome = await createChannelAdapters(d.value).customer_push.deliver(
+      context('approved', 'customer_push', { recipientId }),
+    );
+    expect(outcome).toEqual({ status: 'skipped_no_recipient' });
+    expect(d.pushInputs).toHaveLength(0);
+  });
+
+  it('a member whose role no longer opens the request is not pushed to (SC-003)', async () => {
+    const d = deps({ orgWideViewerRoleIds: vi.fn(async () => ['70000000-0000-4000-8000-00000000000f']) });
+    expect(
+      await createChannelAdapters(d.value).customer_push.deliver(context('approved', 'customer_push', { recipientId: MEMBER_ID })),
+    ).toEqual({ status: 'skipped_no_recipient' });
+    expect(d.pushInputs).toHaveLength(0);
+  });
+
+  it('a switched-off pwa raised from the port is passed on as it is (closed skipped_module_off by the delivery service)', async () => {
+    const d = deps({
+      push: {
+        push: vi.fn(async () => {
+          throw new ModuleDisabledError('pwa');
+        }),
+      },
+    });
+    await expect(
+      createChannelAdapters(d.value).customer_push.deliver(context('approved', 'customer_push')),
+    ).rejects.toBeInstanceOf(ModuleDisabledError);
+  });
+
+  it('a failing port is a failed attempt: the error is thrown for the retry ladder', async () => {
+    const d = deps({ push: { push: vi.fn(async () => Promise.reject(new Error('redis down'))) } });
+    await expect(
+      createChannelAdapters(d.value).customer_push.deliver(context('approved', 'customer_push')),
+    ).rejects.toThrow('redis down');
   });
 });

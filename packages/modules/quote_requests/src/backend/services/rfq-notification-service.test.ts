@@ -129,7 +129,30 @@ describe('RfqNotificationService.record', () => {
     const r = rig();
     await r.service.record(r.em, { change: 'revised', sourceEvent: event('modified'), rfq, actor: null });
     expect(r.recipients.operatorSide).not.toHaveBeenCalled();
-    expect(r.persisted.map((row) => row.channel)).toEqual(['customer_email', 'customer_in_app']);
+    expect(r.persisted.map((row) => row.channel)).toEqual(['customer_email', 'customer_in_app', 'customer_push']);
+  });
+
+  it('records a push for every member who may open the request, and none for the actor (WP-10, FR-007)', async () => {
+    const r = rig({ customer: [REQUESTER, COLLEAGUE], operator: [REP] });
+    await r.service.record(r.em, {
+      change: 'offer_accepted',
+      sourceEvent: event('approved', { approvedBy: 'customer' }),
+      rfq,
+      actor: { customerAccountId: REQUESTER },
+    });
+    expect(r.persisted.filter((row) => row.channel === 'customer_push').map((row) => row.recipientId)).toEqual([
+      COLLEAGUE,
+    ]);
+    const approval = rig({ customer: [REQUESTER, COLLEAGUE] });
+    await approval.service.record(approval.em, {
+      change: 'approved',
+      sourceEvent: event('approved', { approvedBy: 'admin' }),
+      rfq,
+      actor: null,
+    });
+    expect(
+      approval.persisted.filter((row) => row.channel === 'customer_push').map((row) => row.recipientId).sort(),
+    ).toEqual([REQUESTER, COLLEAGUE].sort());
   });
 
   it('records a centre entry for every member who may open the request, and none for the actor (WP-08, FR-007)', async () => {

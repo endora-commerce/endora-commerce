@@ -43,17 +43,9 @@ describe('pwa manifest + permissions (feature 046)', () => {
     }
   });
 
-  it('degrades without quote_requests rather than binding to it', () => {
+  it('has no edge on quote_requests: quote pushes arrive through customerPushPort (specs/179-… FR-061)', () => {
     expect(manifest.dependencies).not.toContain('quote_requests');
-    expect(manifest.nonBindingDependencies).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          moduleId: 'quote_requests',
-          name: 'quoteRequestReadPort',
-          kind: 'degrades-without',
-        }),
-      ]),
-    );
+    expect((manifest.nonBindingDependencies ?? []).filter((edge) => edge.moduleId === 'quote_requests')).toEqual([]);
   });
 
   it('is reachable from the command palette under the code that opens its screen (Principle XVI)', () => {

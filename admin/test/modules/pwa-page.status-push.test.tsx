@@ -107,7 +107,7 @@ describe('PWA screen — status push category switches', () => {
     expect(order).toBeEnabled();
     expect(quote).toBeEnabled();
     expect(
-      screen.getByText(/Sent automatically to the customer who placed the order/),
+      screen.getByText(/Sent automatically to subscribed devices: order updates to the customer who placed the order/),
     ).toBeInTheDocument();
   });
 

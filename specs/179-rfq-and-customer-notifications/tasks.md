@@ -193,10 +193,38 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-10 `customerPushPort` and the `customer_push` channel (`pwa`, `qr`)
 
-- [ ] T090 [WP-10] [US4] Test: port — gate order (channel → push on + quote category on → account live → preference → subscription → enqueue); each `skipped:*`; repeated `sourceKey` writes nothing and answers `enqueued` — `pwa/src/backend/services/customer-push-port.test.ts`
-- [ ] T091 [WP-10] [US4] Test: `pwa` subscribes to no `rfq.*` event; the composer has no quote branch; the `quoteRequestReadPort` edge is gone — `pwa/src/backend/cross-module-ports.test.ts`, `status-push-composer.test.ts`
-- [ ] T092 [WP-10] [US4] Test: `customer_push` adapter renders the sentence in the channel language and maps each outcome (`contracts/delivery-and-ports.md` §3); matrix writes `customer_push` rows; requester and an *Administrator* member both pushed, actor not — `qr/.../channel-adapters.test.ts`, integration `notification-delivery.test.ts`
-- [ ] T093 [WP-10] Impl: `pwa/src/backend/services/customer-push-port.ts`, provided as `customerPushPort`; remove quote branch, `QUOTE_STATUS_EVENTS`, the five subscriptions and the edge; update `pwa.push_quote_status_enabled` description; `qr` adapter and `degrades-without pwa` edge; changesets `mod-pwa` minor, `mod-quote-requests`; add the `Container name: \`customerPushPort\`` marker to `CustomerPushPort`'s doc block in `contracts/pwa.ts` (left out in WP-01 for the same reason)
+- [x] T090 [WP-10] [US4] Test: port — gate order (channel → push on + quote category on → account live → preference → subscription → enqueue); each `skipped:*`; repeated `sourceKey` writes nothing and answers `enqueued` — `pwa/src/backend/services/customer-push-port.test.ts`
+- [x] T091 [WP-10] [US4] Test: `pwa` subscribes to no `rfq.*` event; the composer has no quote branch; the `quoteRequestReadPort` edge is gone — `pwa/src/backend/cross-module-ports.test.ts`, `status-push-composer.test.ts`
+- [x] T092 [WP-10] [US4] Test: `customer_push` adapter renders the sentence in the channel language and maps each outcome (`contracts/delivery-and-ports.md` §3); matrix writes `customer_push` rows; requester and an *Administrator* member both pushed, actor not — `qr/.../channel-adapters.test.ts`, integration `notification-delivery.test.ts`
+- [x] T093 [WP-10] Impl: `pwa/src/backend/services/customer-push-port.ts`, provided as `customerPushPort`; remove quote branch, `QUOTE_STATUS_EVENTS`, the five subscriptions and the edge; update `pwa.push_quote_status_enabled` description; `qr` adapter and `degrades-without pwa` edge; changesets `mod-pwa` minor, `mod-quote-requests`; add the `Container name: \`customerPushPort\`` marker to `CustomerPushPort`'s doc block in `contracts/pwa.ts` (left out in WP-01 for the same reason)
+  - *WP-10 as built (for WP-11 and WP-12):* `pwa/src/backend/services/customer-push-port.ts`
+    (`createCustomerPushPort`) is built in `plugin.ts` beside the composer, exposed as
+    `handle.customerPushPort` and provided in `index.ts` with `ctx.di.providePort('customerPushPort', …)`,
+    so it refuses with `MODULE_DISABLED` while `pwa` is off. Gate order as §2, with two decisions the
+    contract left open: an account whose `organizationId` differs from the input's answers
+    `skipped:no_account` (Principle XI), and the channel is taken as the caller gives it, not
+    resolved (only `null` reads the system default; `getSystemDefault` never answers null, D-48).
+    The subscription gate is `PushSubscriptionService.hasActive(account, channel)`, the predicate the
+    `customers` audience expands with. `pwa` subscribes to `order.status_changed.v1` only;
+    `QUOTE_STATUS_EVENTS`, `quoteStatusCopy`, the composer's `quote` branch and outcome
+    `skipped:quote_requests_absent`, the handler `onQuoteStatusEvent`, the `quoteRequestReadPort`
+    edge and the `notification.quote.*` bundle keys are deleted. `PwaConfigResolver` and `PwaPage`
+    still hide the quote switch while `quote_requests` is absent — a presence read, no edge. The
+    `customer_push` adapter (`channel-adapters.ts`, owner `pwa`) re-checks the recipient with the
+    centre's rule, renders title `customerPush.title` (new key, en/pl) and body
+    `customerNotifications.<change>.title` through `adminI18nService` in the request channel's
+    default language — the **system default channel's** for a request with none, since that is
+    where `pwa` pushes it — bounded to en/pl (`pushLanguage`). It maps outcomes with
+    `pushOutcomeStatus` (§3). It is the one adapter that does not write on the record's
+    transaction: `pwa` commits on its own, and the record id as `sourceKey` makes a retry after a
+    crash write nothing (integration case in `notification-delivery.test.ts`). `RECORDED_CHANNELS`
+    is now every channel. In `notification-delivery.test.ts` push off is the file's baseline, so
+    the earlier cases see every push record close `skipped_deactivated`; the push cases switch it on
+    with `withPushOn`, subscribe devices through `h.pwa.subscriptionService` and turn a colleague's
+    quote updates off through `h.pwa.preferenceService`. `test/integration/pwa/status-push.test.ts`
+    now asserts that each `rfq.*` event writes nothing. The `pwa` module page (en, pl) is updated
+    here rather than in WP-11, as `plan.md` *Conflicts* requires (T102 done); the module-reference
+    pages of both modules are regenerated and their Polish pages re-pinned.
 
 ---
 
@@ -206,7 +234,7 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 - [ ] T100 [P] [WP-11] `qr/docs/quote_requests.md`: rewrite *Notifications* (matrix in prose, recipients, channels, 24 h, History), *What one tick does* expiry wording; Polish page per `docs/docs/contributing/documentation-i18n.md`
 - [ ] T101 [P] [WP-11] `cn/docs/customer-notifications.md` en + pl (what buyers see, retention, activation)
-- [ ] T102 [P] [WP-11] `pwa/docs/pwa.md` quote push paragraph en + pl
+- [x] T102 [P] [WP-11] `pwa/docs/pwa.md` quote push paragraph en + pl — done in WP-10's MR (plan *Conflicts*: same MR as the behaviour)
 - [ ] T103 [WP-11] Upgrade note (changeset body): old table dropped, rows discarded, eleven new e-mails switched on by default; run `check:module-docs`
 
 - [ ] T104 [WP-11] Follow-up note (not in this feature; owner ruling OQ-1 = A, 2026-11-12): once #185 promotes `ADMIN_BASE_URL`, add the admin link (`quote.adminUrl`) to `quote_request_operator_submitted` and `quote_request_operator_resubmitted`, and the equivalent links to the `crm` and `tasks` e-mails. Record this in the #185 issue and in the changeset's upgrade note
