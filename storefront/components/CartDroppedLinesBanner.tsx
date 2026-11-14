@@ -52,7 +52,7 @@ export function CartDroppedLinesBanner({
 }: CartDroppedLinesBannerProps): ReactNode {
   if (droppedLines.length === 0) return null;
   return (
-    <div role="alert" className="mb-4 rounded-sm border border-warn bg-warn-soft px-4 py-3 text-fg">
+    <div role="alert" className="b2b-auth__warning mb-4 px-4 py-3 text-[14px]">
       <h2 className="m-0 mb-2 text-[0.95rem]">{strings.heading}</h2>
       <p className="m-0 mb-2">{strings.intro}</p>
       <ul className="m-0 pl-5">

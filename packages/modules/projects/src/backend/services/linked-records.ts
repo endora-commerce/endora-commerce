@@ -82,30 +82,32 @@ export interface LinkedRecordPorts {
 }
 
 export function createLinkedRecordOwners(ports: LinkedRecordPorts): LinkedRecordOwners {
-  const quoteRequest = async (id: string): Promise<LinkedRecordView | null> => {
-    const record = await ports.quoteRequests.findById(id);
-    if (!record) return null;
+  const quoteRequests = async (ids: readonly string[]): Promise<LinkedRecordView[]> => {
+    const records = await ports.quoteRequests.findByIds(ids);
+    if (records.length === 0) return [];
     // The amount is `quote_requests`' to compute (issue #456), not this module's.
-    const worth = await ports.quoteRequests.amountOf(record.id);
-    if (!worth) return null;
-    const { amount, currency, agreement } = worth;
-    return {
-      kind: 'quote_request',
-      id: record.id,
-      organizationId: record.organizationId,
-      number: record.businessId,
-      status: record.status,
-      amount,
-      currency,
-      agreement,
-      href: `/quote-requests/${record.id}`,
-    };
+    const worth = await ports.quoteRequests.amountsOf(records.map((record) => record.id));
+    const found: LinkedRecordView[] = [];
+    for (const record of records) {
+      const amount = worth.get(record.id);
+      if (!amount) continue;
+      found.push({
+        kind: 'quote_request',
+        id: record.id,
+        organizationId: record.organizationId,
+        number: record.businessId,
+        status: record.status,
+        amount: amount.amount,
+        currency: amount.currency,
+        agreement: amount.agreement,
+        href: `/quote-requests/${record.id}`,
+      });
+    }
+    return found;
   };
 
-  const opportunity = async (id: string): Promise<LinkedRecordView | null> => {
-    const record = await ports.opportunities.findById(id);
-    if (!record) return null;
-    return {
+  const opportunities = async (ids: readonly string[]): Promise<LinkedRecordView[]> =>
+    (await ports.opportunities.findByIds(ids)).map((record) => ({
       kind: 'opportunity',
       id: record.id,
       organizationId: record.organizationId,
@@ -114,8 +116,7 @@ export function createLinkedRecordOwners(ports: LinkedRecordPorts): LinkedRecord
       amount: record.value,
       currency: record.currency,
       href: `/crm/opportunities/${record.id}`,
-    };
-  };
+    }));
 
   const orders = async (ids: readonly string[]): Promise<LinkedRecordView[]> =>
     (await ports.orders.findByIds(ids)).map((record) => ({
@@ -131,16 +132,10 @@ export function createLinkedRecordOwners(ports: LinkedRecordPorts): LinkedRecord
 
   const many = async (kind: ProjectRecordKind, ids: readonly string[]): Promise<LinkedRecordView[]> => {
     if (ids.length === 0) return [];
+    // One batch per kind (issue #457): each owner's `findByIds` answers what
+    // its `findById` would for every id, under the caller's tenant scope.
     if (kind === 'order') return orders(ids);
-    const one = kind === 'quote_request' ? quoteRequest : opportunity;
-    const found: LinkedRecordView[] = [];
-    // One at a time: neither port publishes a batched read, and a Project
-    // links a handful of each.
-    for (const id of ids) {
-      const view = await one(id);
-      if (view) found.push(view);
-    }
-    return found;
+    return kind === 'quote_request' ? quoteRequests(ids) : opportunities(ids);
   };
 
   return {

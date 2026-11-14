@@ -339,6 +339,8 @@ export interface OrganizationsCradle {
   /** Owned by `admin_roles`: whether this rep holds the roll-up capability. */
   readonly permissionService: {
     hasPermission(adminUserId: string, permission: string): Promise<boolean>;
+    /** Issue #461 — `hasPermission` for many administrators: the ids it answers yes for. */
+    holdersOf(adminUserIds: readonly string[], permission: string): Promise<Set<string>>;
   };
   /**
    * Which organizations a sales-rep admin may see, subtree-expanded when the
@@ -1403,6 +1405,11 @@ function salesRepAssignmentServiceFor(
         ctx,
         'permissionService',
       ).hasPermission(adminUserId, 'organizations:rollup'),
+    hasRollupCapabilities: (adminUserIds: readonly string[]) =>
+      lazyPort<OrganizationsCradle['permissionService']>(ctx, 'permissionService').holdersOf(
+        adminUserIds,
+        'organizations:rollup',
+      ),
     warn: (fields, message) => ctx.log.warn(fields, message),
   });
 }

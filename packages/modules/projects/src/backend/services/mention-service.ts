@@ -14,7 +14,7 @@ import { projectNotificationText, type ProjectNotifier } from './project-notifie
 export const MENTIONABLE_LIMIT = 20;
 
 export interface ProjectMentionServiceDeps {
-  access: Pick<ProjectAccess, 'loadVisible' | 'canSeeAs'>;
+  access: Pick<ProjectAccess, 'loadVisible' | 'canSeeAs' | 'canSeeAsMany'>;
   /** Ports of other modules — lazy, resolved per call, never captured. */
   adminUsers: AdminUserReadPort;
   permissions: PermissionReadPort;
@@ -84,14 +84,29 @@ export class ProjectMentionService {
       .map((admin) => ({ admin, name: personName(admin) }))
       .sort((a, b) => a.name.localeCompare(b.name) || a.admin.id.localeCompare(b.admin.id));
 
-    const holds = this.#readPermission();
     const options: ProjectMentionableOption[] = [];
-    // In name order, stopping at the limit: the questions below are asked of
-    // as many people as the list shows, not of every administrator.
+    if (project !== null) {
+      // Issue #461 — who may see the Project, asked once for every candidate:
+      // a fixed number of statements, however many administrators there are.
+      const seeing =
+        candidates.length > 0
+          ? await this.deps.access.canSeeAsMany(
+              candidates.map(({ admin }) => admin.id),
+              project.id,
+            )
+          : new Set<string>();
+      for (const { admin, name } of candidates) {
+        if (options.length >= MENTIONABLE_LIMIT) break;
+        if (seeing.has(admin.id)) options.push({ id: admin.id, name, email: admin.email });
+      }
+      return options;
+    }
+    const holds = this.#readPermission();
+    // In name order, stopping at the limit: the permission is asked once per
+    // role, of as many people as the list shows.
     for (const { admin, name } of candidates) {
       if (options.length >= MENTIONABLE_LIMIT) break;
-      if (project !== null ? !(await this.deps.access.canSeeAs(admin.id, project.id)) : !(await holds(admin))) continue;
-      options.push({ id: admin.id, name, email: admin.email });
+      if (await holds(admin)) options.push({ id: admin.id, name, email: admin.email });
     }
     return options;
   }

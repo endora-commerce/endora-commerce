@@ -1098,10 +1098,12 @@ nie dodaje.
 - **E-mail do kupującego** — jeden z dziewięciu e-maili w grupie *Zapytania
   ofertowe* w **Szablonach e-maili**, w domyślnym języku kanału sprzedaży
   zapytania (po angielsku dla zapytania złożonego bez kanału). Podaje numer
-  zapytania i prowadzi do zapytania w sklepie, gdy kanał ma adres sklepu
-  (ustawienie `sales_channels.storefront_url`, *Storefront URL*); bez niego
-  podaje numer i nie zawiera odnośnika. E-mail o zatwierdzeniu zawiera odnośnik
-  i **nie zawiera PDF** — *Wyślij PDF do klienta* pozostaje osobną akcją.
+  zapytania i prowadzi do zapytania w sklepie, gdy kanał ma adres sklepu:
+  ustawienie `sales_channels.storefront_url` (*Storefront URL*), a gdy kanał
+  pozostawia je puste — zmienną środowiskową `STOREFRONT_BASE_URL`. Bez żadnego
+  z nich podaje numer i nie zawiera odnośnika. E-mail o zatwierdzeniu zawiera
+  odnośnik i **nie zawiera PDF** — *Wyślij PDF do klienta* pozostaje osobną
+  akcją.
 - **Wpis w centrum** — jedno zdanie z numerem zapytania i odnośnikiem do niego,
   wyświetlane w języku, w którym kupujący przegląda sklep, tylko w kanale
   sprzedaży zapytania (we wszystkich kanałach dla zapytania złożonego bez
@@ -1118,8 +1120,12 @@ nie dodaje.
 - **E-mail do operatora** — tylko przy złożonym lub ponownie złożonym
   zapytaniu, w języku panelu administracyjnego administratora (po polsku dla
   polskiego, w pozostałych przypadkach po angielsku); podaje numer zapytania,
-  organizację, kupującego, który działał, i liczbę pozycji. Nie zawiera jeszcze
-  odnośnika do panelu administracyjnego; ma go wpis w dzwonku.
+  organizację, kupującego, który działał, i liczbę pozycji. Gdy ustawiono
+  `ADMIN_BASE_URL` (adres, pod którym działa panel administracyjny), e-mail ma
+  przycisk **Otwórz zapytanie ofertowe**, prowadzący do ekranu zapytania w
+  panelu, czyli tam, dokąd prowadzi wpis w dzwonku. Bez tej zmiennej e-mail nie
+  ma odnośnika ani przycisku i nadal podaje numer zapytania. Adres względny ani
+  zgadywany nigdy nie jest wysyłany.
 
 Żaden wpis w centrum, push ani wpis w dzwonku nie podaje produktu, ceny ani
 organizacji: są czytane poza ekranem samego zapytania, więc podają numer i nic
@@ -1152,8 +1158,11 @@ poszczególnych e-maili: `actor.name` (kupujący, który działał) przy złoże
 ponownym złożeniu, akceptacji, odrzuceniu i w obu e-mailach do operatora;
 `quote.previousNumber` w obu e-mailach o ponownym złożeniu; `reason` przy
 odrzuceniu i anulowaniu; `quote.validUntil` przy przygotowaniu, rewizji i
-zatwierdzeniu; `quote.revisionNumber` przy rewizji; `quote.lineCount` w obu
-e-mailach do operatora.
+zatwierdzeniu; `quote.revisionNumber` przy rewizji; `quote.lineCount` oraz
+`quote.adminUrl` (odnośnik do zapytania w panelu administracyjnym) w obu
+e-mailach do operatora. `quote.adminUrl` jest pusty, gdy nie ustawiono
+`ADMIN_BASE_URL`, i wtedy przycisk zostaje pominięty. Szablon zmieniony, zanim
+odnośnik się pojawił, nie używa tej zmiennej i wygląda tak jak wcześniej.
 
 ### Spóźnione, nieudane i wyłączone doręczenia
 

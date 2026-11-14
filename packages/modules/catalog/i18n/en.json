@@ -759,6 +759,8 @@
   "errors.CATEGORY_MOVE_CYCLE": "A category cannot be moved beneath one of its own subcategories. Choose a different parent.",
   "errors.SELF_LINK_NOT_ALLOWED.grouped": "A grouped product cannot contain itself.",
   "errors.GROUPED_ITEM_ALREADY_EXISTS": "The product {childSku} is already in this group.",
+  "errors.ATTRIBUTE_VALUE_TYPE_LOCKED.page_builder": "The value type of the attribute {attributeKey} cannot change to or from Page Builder content: a document and a single value cannot be converted into each other. Create a new attribute instead.",
+  "errors.CONTENT_ATTRIBUTE_CAPABILITY_LOCKED": "The attribute {attributeKey} holds Page Builder content, so it cannot have: {capabilities}.",
   "blocks.productGrid.fields.source.label": "Source",
   "blocks.productGrid.fields.source.options.manual": "Manual selection",
   "blocks.productGrid.fields.source.options.category": "Category",

@@ -50,7 +50,8 @@ projektów dowolnego członka, według roli projektowej, którą ktoś w nich pe
 według szablonu, z którego je utworzono, i według nazwy bieżącego etapu;
 przeszukać po numerze lub tytule i posortować według daty utworzenia, wartości
 lub terminu bieżącego etapu; projekty bez wartości lub terminu są zawsze na
-końcu.
+końcu. Filtry i sortowanie są zapisane w adresie strony, więc powrót do listy,
+jej odświeżenie albo wysłanie odnośnika współpracownikowi je zachowuje.
 
 **Nowy projekt** (`/projects/new`) najpierw proponuje **szablony**: wybór
 szablonu wypełnia opis, proponuje każdemu członkowi najpierw role szablonu i
@@ -138,7 +139,7 @@ zobaczyć, nie pokazuje żadnego panelu.
 **Na ekranie organizacji** panel **Projekty** wymienia projekty tej organizacji,
 które możesz zobaczyć, od najnowszych — dziesięć najnowszych; gdy jest ich
 więcej, panel podaje, ile ich jest, i prowadzi odnośnikiem *Wszystkie projekty*
-do listy projektów — każdy z numerem jako odnośnikiem, tytułem, stanem i
+do listy projektów zawężonej do tej organizacji — każdy z numerem jako odnośnikiem, tytułem, stanem i
 bieżącym etapem. Administratorzy, którzy mogą tworzyć projekty, mają tam
 przycisk *Nowy projekt*, który otwiera formularz z wybraną już organizacją.
 

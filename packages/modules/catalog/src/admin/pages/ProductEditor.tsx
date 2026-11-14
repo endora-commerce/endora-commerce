@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, Copy, Lock, RotateCw, Save, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, Copy, Lock, RotateCw, Trash2 } from 'lucide-react';
 import {
   ERROR_CODES,
   type ScopeMissingValue,
@@ -43,7 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog, ProductPicker, StickyFormActions } from '@endora-commerce/admin-kit/components';
+import { ModalDialog, ProductPicker } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from '../components/ProductInventoryTab.js';
@@ -55,6 +55,7 @@ import { GallerySection } from '../components/ProductGallerySection.js';
 import { AttachmentsSection } from '../components/ProductAttachmentsSection.js';
 import { ArchivedPill, ProductStatusPill } from '../components/ProductStatusPills.js';
 import { ProductScopeBar } from '../components/ProductScopeBar.js';
+import { ProductEditorSaveAction } from '../components/ProductEditorSaveAction.js';
 import { DetailsTab } from '../components/editor/DetailsTab.js';
 import { EditorField, ProductEditorContextProvider, fieldDomId, type ProductEditorContextValue } from '../components/editor/editor-context.js';
 import { ImmediateBadge, SectionHeading } from '../components/editor/ImmediateBadge.js';
@@ -1152,31 +1153,6 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
               <span id="product-whole-caption" className="sr-only">
                 {t('productEditor.wholeProduct.caption')}
               </span>
-              {/* Below 1024 px StickyFormActions is the bottom bar, so Save sits there (§11). */}
-              <StickyFormActions className="b2b-page-head__actions">
-                <button
-                  type="button"
-                  className="b2b-btn b2b-btn--primary max-lg:min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-                  // aria-disabled, not disabled: focus stays on Save after it has saved (WCAG 2.4.3).
-                  aria-disabled={stagedCount === 0 || saving || !data}
-                  aria-describedby="product-save-note"
-                  onClick={(): void => {
-                    if (stagedCount === 0 || saving || !data) return;
-                    void save();
-                  }}
-                >
-                  <Save size={14} aria-hidden="true" />
-                  {saving
-                    ? t('productEditor.save.saving')
-                    : stagedCount > 0
-                      ? plural('productEditor.save.actionCount', stagedCount)
-                      : t('productEditor.save.action')}{' '}
-                  <span className="sr-only">{t('productEditor.save.atScope', { scope: words(state.scope) })}</span>
-                </button>
-                <span id="product-save-note" className="text-xs text-muted-foreground">
-                  {stagedCount === 0 ? t('productEditor.save.noChanges') : ''}
-                </span>
-              </StickyFormActions>
             </div>
           ) : null}
         </div>
@@ -1190,6 +1166,17 @@ function ScopedProductEditor({ productId }: { productId: string }): ReactNode {
           onRequestScope={(next, note): void => requestScope(next, note)}
           onOpenScopeMap={(): void => selectTab('scopes')}
           completeness={completenessNode}
+          action={
+            canWrite ? (
+              <ProductEditorSaveAction
+                stagedCount={stagedCount}
+                saving={saving}
+                ready={Boolean(data)}
+                scopeWords={words(state.scope)}
+                onSave={(): void => void save()}
+              />
+            ) : null
+          }
         />
 
         <p role="status" className="sr-only" data-testid="editor-announcer">

@@ -40,7 +40,7 @@ export function QuoteValidityNotice({
     <section
       id={id}
       aria-labelledby={headingId}
-      className="my-[16px] rounded-md border border-warn bg-warn-soft px-[16px] py-[14px] text-fg"
+      className="b2b-auth__warning my-[16px] rounded-md px-[16px] py-[14px] text-[14px]"
     >
       <h3 id={headingId} className="m-0 mb-1 flex items-center gap-2 text-[15px] font-semibold">
         <svg
@@ -62,7 +62,7 @@ export function QuoteValidityNotice({
         </svg>
         {t(`checkout.quoteEnded.heading.${refusal}`)}
       </h3>
-      <p className="m-0 mb-3 text-[13px] text-fg-soft">{t(`checkout.quoteEnded.body.${refusal}`)}</p>
+      <p className="m-0 mb-3 text-[13px]">{t(`checkout.quoteEnded.body.${refusal}`)}</p>
       <div className="flex flex-wrap gap-2">
         {refusal !== 'unavailable' && quoteRequestsPresent ? (
           <LocalizedLink href="/quote-requests" className={LINK_CLASS}>

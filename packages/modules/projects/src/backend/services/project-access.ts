@@ -189,12 +189,20 @@ export function projectNotFound(): HttpError {
 }
 
 /**
+ * What the SQL statement of the rules reads of a viewer: their reach as a
+ * constraint, never as the synchronous test — which, for a representative,
+ * costs a read of their reach that a predicate rendering the owner's own
+ * SELECT does not need (issue #461).
+ */
+export type ProjectSqlViewer = Omit<ProjectViewer, 'reach'> & { readonly reach: Pick<OrgReach, 'all' | 'constraint'> };
+
+/**
  * Both rules as one predicate over a Project aliased `p`, for `viewer` under
  * the module setting; `null` when nothing narrows (the system, or an
  * unrestricted holder of `projects:see_all`). Pure: the caller gathers the
  * viewer and the setting.
  */
-export function visibleProjectSqlFor(viewer: ProjectViewer, setting: ProjectVisibilitySetting): SqlFragment | null {
+export function visibleProjectSqlFor(viewer: ProjectSqlViewer, setting: ProjectVisibilitySetting): SqlFragment | null {
   // Not a reader of Projects at all: whatever surface asks, nothing is visible.
   if (!viewer.canRead) return { sql: 'false', params: [] };
   const sql: string[] = [];
@@ -536,28 +544,70 @@ export class ProjectAccess {
 
   /**
    * Whether **another** administrator may see a Project — for a notification
-   * or an alert about it (research R-4). Active, holding `projects:read`, and
-   * passing both rules against **their own** reach, which `organizations`
-   * establishes the way the request-scope hook does for a caller. An
-   * administrator whose reach cannot be established reaches nothing.
+   * or an alert about it (research R-4). {@link canSeeAsMany} for one person.
    */
   async canSeeAs(adminUserId: string, projectId: string): Promise<boolean> {
-    if (!isUuid(adminUserId) || !isUuid(projectId)) return false;
-    const admin = await this.deps.adminUsers.findById(adminUserId);
-    if (!admin || admin.status !== 'active' || admin.deletedAt !== null) return false;
-    const held = await this.deps.permissions.listPermissions(adminUserId);
-    if (!holds(held, PROJECTS_READ_PERMISSION)) return false;
-    const scope = await this.deps.tenantScopes.resolveForAdmin(adminUserId);
-    const reach: OrgReach = await orgReachOf(orgConstraintForAdminScope(scope));
-    const visible = visibleProjectSqlFor(
-      { adminUserId, canRead: true, seeAll: holds(held, PROJECTS_SEE_ALL_PERMISSION), reach },
-      await this.visibilitySetting(),
+    return (await this.canSeeAsMany([adminUserId], projectId)).has(adminUserId);
+  }
+
+  /**
+   * Which of `adminUserIds` may see a Project — active, holding
+   * `projects:read`, and passing both rules against **their own** reach, which
+   * `organizations` establishes the way the request-scope hook does for a
+   * caller. An administrator whose reach cannot be established reaches
+   * nothing; an id that names nobody is simply absent.
+   *
+   * Issue #461 — a fixed number of statements whatever the number of people:
+   * the accounts in one read, their roles in one batched read
+   * (`permissionService.resolveRoles`), their reach in one
+   * (`adminTenantScopePort.resolveForAdmins`), and both rules for everybody
+   * left in one statement — one branch per person, each the predicate
+   * {@link visibleProjectSqlFor} states for them.
+   */
+  async canSeeAsMany(adminUserIds: readonly string[], projectId: string): Promise<Set<string>> {
+    const seeing = new Set<string>();
+    const ids = [...new Set(adminUserIds.filter(isUuid))];
+    if (ids.length === 0 || !isUuid(projectId)) return seeing;
+    const active = (await this.deps.adminUsers.findByIds(ids)).filter(
+      (admin) => admin.status === 'active' && admin.deletedAt === null,
     );
-    const rows = (await this.deps.emFactory().execute(
-      `select 1 as "one" from "projects" p where p."id" = ?${visible ? ` and ${visible.sql}` : ''}`,
-      [projectId, ...(visible?.params ?? [])],
-    )) as unknown[];
-    return rows.length > 0;
+    if (active.length === 0) return seeing;
+    const roles = await this.deps.permissions.resolveRoles(active.map((admin) => admin.id));
+    const readers = active
+      .map((admin) => ({ adminUserId: admin.id, held: roles.get(admin.id)?.role?.permissions ?? [] }))
+      .filter((reader) => holds(reader.held, PROJECTS_READ_PERMISSION));
+    if (readers.length === 0) return seeing;
+    const [scopes, setting] = await Promise.all([
+      this.deps.tenantScopes.resolveForAdmins(readers.map((reader) => reader.adminUserId)),
+      this.visibilitySetting(),
+    ]);
+    const branches: string[] = [];
+    const params: unknown[] = [];
+    for (const { adminUserId, held } of readers) {
+      // No scope answered is no reach — never a wider one.
+      const constraint = orgConstraintForAdminScope(
+        scopes.get(adminUserId) ?? { allowAll: false, allowedOrganizationIds: [] },
+      );
+      const visible = visibleProjectSqlFor(
+        {
+          adminUserId,
+          canRead: true,
+          seeAll: holds(held, PROJECTS_SEE_ALL_PERMISSION),
+          reach: { all: constraint.kind === 'all', constraint },
+        },
+        setting,
+      );
+      branches.push(
+        `select ?::uuid as "admin_user_id"
+          where exists (select 1 from "projects" p where p."id" = ?${visible ? ` and ${visible.sql}` : ''})`,
+      );
+      params.push(adminUserId, projectId, ...(visible?.params ?? []));
+    }
+    const rows = (await this.deps.emFactory().execute(branches.join('\n union all\n'), params)) as Array<{
+      admin_user_id: string;
+    }>;
+    for (const row of rows) seeing.add(row.admin_user_id);
+    return seeing;
   }
 
   /**
