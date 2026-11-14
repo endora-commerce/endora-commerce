@@ -81,5 +81,13 @@
   "lines.priceReduction": "Price reduction (complaint {rma}): {product}",
   "lines.priceReductionUnreferenced": "Price reduction (complaint): {product}",
   "actions.openInvoices.keywords": "invoices",
-  "settingGroups.invoices.name": "Invoices"
+  "settingGroups.invoices.name": "Invoices",
+  "errors.INVOICE_SELLER_DATA_MISSING": "Configure the seller's VAT number (NIP) and company data in the invoice settings before issuing invoices.",
+  "errors.INVOICE_CORRECTION_CURRENCY_MISMATCH": "A correction must be issued in the corrected invoice's currency ({invoiceCurrency}), not {requestedCurrency}.",
+  "errors.INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES": "The correction total ({total} {currency}) is more than its lines add up to ({linesTotal} {currency}).",
+  "errors.INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES.below_charges": "The correction total ({total} {currency}) is less than the charges it credits ({linesTotal} {currency}).",
+  "errors.INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING": "This refund is more than the invoice still charges at {vatRatePercent}% VAT ({remaining} {currency}). Lower the amount.",
+  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING": "This refund of a charge is more than the invoice still charges for it ({remaining} {currency}). Lower the amount.",
+  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.delivery": "This refund of the delivery is more than the invoice still charges for it ({remaining} {currency}). Lower the amount.",
+  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.payment_surcharge": "This refund of the payment surcharge is more than the invoice still charges for it ({remaining} {currency}). Lower the amount."
 }

@@ -12,6 +12,7 @@ import {
   SEED_ADDRESS_DELIVERY_ID,
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
+  topUpStock,
 } from '../../helpers/seed-commerce.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
@@ -38,7 +39,7 @@ describe('orders — the origin of an admin-created order', () => {
   beforeAll(async () => {
     h = await setupBackendServer();
     orderChannelId = await systemDefaultSalesChannelId(h.em());
-    await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
   });
 
   afterAll(async () => {

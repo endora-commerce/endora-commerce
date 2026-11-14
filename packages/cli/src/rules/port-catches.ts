@@ -443,6 +443,23 @@ interface Analysis {
    * can shadow a property name.
    */
   readsPropertyAsPort(name: string, moduleId: string, file: string): boolean;
+  /**
+   * Does **calling** `x.<name>()` reach a gated port by the method's name alone,
+   * read inside `moduleId` — the receiver being nothing the tables can place
+   * (issue #459)?
+   *
+   * {@link readsPropertyAsPort} less the keys whose every value is a closure
+   * that merely **uses** a port on the way to data — a door's method,
+   * `{ find: (id) => port.findById(id) }`. A call through one of those runs the
+   * closure under the key **of the literal the receiver holds**, which the
+   * holder tables resolve per receiver (issue #576); by its spelling, it is any
+   * `em.find(…)` in the module. A container name, a parameter the port was
+   * passed as, a key holding the port itself and a key holding an
+   * **accessor** — a closure whose result is the port, `deps.sender()` — still
+   * answer by name, as they did: calling one of those hands on the port, and a
+   * receiver that holds no such key is not a thing the tables can tell apart.
+   */
+  callsPropertyAsPort(name: string, moduleId: string, file: string): boolean;
   /** The parsed sources, so the caller need not re-parse and node identity holds. */
   readonly parsed: ReadonlyMap<string, ts.SourceFile>;
   /** Pin key → why it is stale, for the pins that were refused before seeding. */
@@ -453,6 +470,12 @@ interface Analysis {
    * method's, resolved by {@link collectCarryingMethods}.
    */
   holdersOf(node: ts.Node, file: string): ReadonlySet<HolderToken>;
+  /**
+   * What key `key` of each holder in `tokens` holds — the lookup a property read
+   * `x.<key>` makes on the holders `x` evaluates to, exposed so that a call can
+   * ask it of its **arguments** too (issue #459, below).
+   */
+  keyHolders(tokens: Iterable<HolderToken>, key: string): ReadonlySet<HolderToken>;
   /** Every holder the tables hold, by token — the units a call on one resolves to. */
   readonly holderUnits: ReadonlyMap<HolderToken, HolderUnit>;
 }
@@ -648,6 +671,14 @@ function analyze(
    * port, whose result is data.
    */
   const accessorProperties = new Map<string, Set<string>>();
+  /**
+   * The keys that hold the port **as a value** at least once, by module scope:
+   * a port, an alias, a holder built over one, an accessor — anything but a
+   * closure that merely uses a port on the way to data (issue #459). A key that
+   * only ever holds such a closure is a door's method and is never called by its
+   * spelling; see {@link Analysis.callsPropertyAsPort}.
+   */
+  const valueProperties = new Map<string, Set<string>>();
   /** Parameter aliases (name → the files declaring them) — see {@link bindingReadAsProperty}. */
   const parameterAliases = new Map<string, Set<string>>();
   const addProperty = (
@@ -656,7 +687,16 @@ function analyze(
     where: string,
     gates: ReadonlySet<string>,
     accessor: boolean,
+    closure = false,
   ): void => {
+    if (!closure || accessor) {
+      const valueScopes = valueProperties.get(name) ?? new Set<string>();
+      valueProperties.set(name, valueScopes);
+      if (!valueScopes.has(scope)) {
+        valueScopes.add(scope);
+        grew = true;
+      }
+    }
     const byScope = propertyGates.get(name) ?? new Map<string, Set<string>>();
     propertyGates.set(name, byScope);
     let carried = byScope.get(scope);
@@ -730,6 +770,8 @@ function analyze(
 
   const readsPropertyAsPort = (name: string, moduleId: string, file: string): boolean =>
     bindingReadAsProperty(name, moduleId, file) || propertyVisible(name, moduleId);
+  const callsPropertyAsPort = (name: string, moduleId: string, file: string): boolean =>
+    bindingReadAsProperty(name, moduleId, file) || valueProperties.get(name)?.has(moduleId) === true;
 
   /** The gates property `name` carries as read inside `moduleId`: both kinds above, and its keys. */
   const propertyGatesAt = (name: string, moduleId: string, file: string): Set<string> => {
@@ -1150,6 +1192,7 @@ function analyze(
       const scope = moduleOf(`/src/${file}`, hostResident) ?? ROOT;
       const reads = (name: string, at?: ts.Node): boolean => readsAsPort(name, scope, file, at);
       const readsProperty = (name: string): boolean => readsPropertyAsPort(name, scope, file);
+      const callsProperty = (name: string): boolean => callsPropertyAsPort(name, scope, file);
       const at = (node: ts.Node): string =>
         `${file}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`;
       /** This file's classes by member, for `this.<method>()` — see {@link ownMethodReturns}. */
@@ -1252,7 +1295,7 @@ function analyze(
         // tables keep refusing it on purpose.
         if (ts.isArrayLiteralExpression(node)) return node.elements.some(carries);
         if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
-          return bodyReads(node, reads, readsProperty);
+          return bodyReads(node, reads, readsProperty, callsProperty);
         }
         if (ts.isNewExpression(node)) return (node.arguments ?? []).some(carries);
         if (ts.isCallExpression(node)) {
@@ -1422,6 +1465,7 @@ function analyze(
               at(node),
               gatesIn(node.initializer),
               handsOnPort(node.initializer),
+              isClosure(node.initializer),
             );
           }
         }
@@ -1586,9 +1630,11 @@ function analyze(
     gatesOfReach,
     readsAsPort,
     readsPropertyAsPort,
+    callsPropertyAsPort,
     parsed,
     pinProblems,
     holdersOf: (node, file) => holdersOf(node, file),
+    keyHolders: (tokens, key) => memberHolders(tokens, key, new Set()),
     holderUnits,
   };
 }
@@ -1744,12 +1790,16 @@ function bodyReads(
   fn: ts.ArrowFunction | ts.FunctionExpression,
   reads: (name: string, at?: ts.Node) => boolean,
   readsProperty: (name: string) => boolean,
+  callsProperty: (name: string) => boolean,
 ): boolean {
   let hit = false;
   const scan = (node: ts.Node): void => {
     if (hit || ts.isTypeNode(node)) return;
     if (ts.isPropertyAccessExpression(node)) {
-      if (readsProperty(node.name.text)) {
+      // Issue #459 — a property **called** answers as {@link propertyCallReach}
+      // answers: `em.find(…)` is not a door's `find` by its spelling.
+      const called = ts.isCallExpression(node.parent) && node.parent.expression === node;
+      if ((called ? callsProperty : readsProperty)(node.name.text)) {
         hit = true;
         return;
       }
@@ -2009,14 +2059,19 @@ const METHOD_HOP_ROUNDS = 12;
  * (`this.deps.getTransactionalEmailSender()` — the alias is the thing called).
  *
  * A bare receiver resolves lexically (issue #278) against the binding table; a
- * property receiver or method name is a property read, answered by
- * `readsPropertyAsPort` and by no lexical binding (issue #100). Only the
- * wrappers that pass a value on unchanged are looked through.
+ * property receiver is a property read, answered by `readsPropertyAsPort` and
+ * by no lexical binding (issue #100). The method name is asked of
+ * `callsPropertyAsPort` instead (issue #459): a key that only ever holds a
+ * door's closure is not reached by a call that merely spells it — that call is
+ * attributed through the holder its receiver, or one of its arguments, resolves
+ * to (`holderTargets`), or not at all. Only the wrappers that pass a value on
+ * unchanged are looked through.
  */
 function propertyCallReach(
   callee: ts.PropertyAccessExpression,
   reads: (name: string, at?: ts.Node) => boolean,
   readsProperty: (name: string) => boolean,
+  callsProperty: (name: string) => boolean,
 ): Reach | null {
   let receiver: ts.Expression = callee.expression;
   while (ts.isNonNullExpression(receiver) || ts.isParenthesizedExpression(receiver)) {
@@ -2026,7 +2081,7 @@ function propertyCallReach(
   if (ts.isPropertyAccessExpression(receiver) && readsProperty(receiver.name.text)) {
     return propertyReach(receiver.name.text);
   }
-  return readsProperty(callee.name.text) ? propertyReach(callee.name.text) : null;
+  return callsProperty(callee.name.text) ? propertyReach(callee.name.text) : null;
 }
 
 /** The name of a class member as `this.<name>` would spell it, or `null`. */
@@ -2144,6 +2199,7 @@ function collectCarryingMethods(
   parsed: ReadonlyMap<string, ts.SourceFile>,
   readsAsPortIn: (file: string, name: string, at?: ts.Node) => boolean,
   readsPropertyIn: (file: string, name: string) => boolean,
+  callsPropertyIn: (file: string, name: string) => boolean,
   declaresMember: (file: string, className: string, name: string) => boolean,
   holders: HolderResolution,
 ): CarryingUnits {
@@ -2169,6 +2225,7 @@ function collectCarryingMethods(
   const record = (file: string, className: string | null, key: string, body: ts.Node): void => {
     const reads = (name: string, at?: ts.Node): boolean => readsAsPortIn(file, name, at);
     const readsProperty = (name: string): boolean => readsPropertyIn(file, name);
+    const callsProperty = (name: string): boolean => callsPropertyIn(file, name);
     const ports = new Set<Reach>();
     const calls = new Set<string>();
     const viaHolders = new Set<string>();
@@ -2189,7 +2246,7 @@ function collectCarryingMethods(
           if (escapes) escapingCalls.add(methodKey(file, className, hop));
           reached = true;
         } else if (ts.isPropertyAccessExpression(inner.expression)) {
-          const found = propertyCallReach(inner.expression, reads, readsProperty);
+          const found = propertyCallReach(inner.expression, reads, readsProperty, callsProperty);
           if (found !== null) {
             reach(found);
             reached = true;
@@ -2531,6 +2588,14 @@ function scanSources(input: PortCatchInput): SiteScan {
    * Issue #576 — a call on a holder: the member it names of each class the
    * receiver holds (`read.list()`), and each closure the callee itself holds
    * (`this.deps.audience(id)`). `this.<m>()` is D-88's, not this.
+   *
+   * Issue #459 — and each closure an **argument** holds under the key the call
+   * names: `commandBus.run(command)` runs `command.run`, wherever the Command was
+   * built. Until #459 that was seen only because a door's method and the bus
+   * share a spelling — every `run` key in the module answered for every `.run(…)`
+   * call — and the same spelling made `em.find(…)` a door's `find`. Resolved
+   * through the value handed over, it is the Command actually run, and an inline
+   * `commandBus.run({ run: … })` is that same literal.
    */
   const holderTargets = (
     call: ts.CallExpression,
@@ -2557,12 +2622,21 @@ function scanSources(input: PortCatchInput): SiteScan {
         if (analysis.holderUnits.get(token)?.kind === 'function') callee.push(token);
       }
     }
+    if (ts.isPropertyAccessExpression(target)) {
+      for (const argument of call.arguments) {
+        const held = analysis.keyHolders(analysis.holdersOf(argument, file), target.name.text);
+        for (const token of held) {
+          if (analysis.holderUnits.get(token)?.kind === 'function') callee.push(token);
+        }
+      }
+    }
     return { receiver, callee };
   };
   const carrying = collectCarryingMethods(
     parsed,
     (file, name, at) => analysis.readsAsPort(name, moduleOfFile(file), file, at),
     (file, name) => analysis.readsPropertyAsPort(name, moduleOfFile(file), file),
+    (file, name) => analysis.callsPropertyAsPort(name, moduleOfFile(file), file),
     declaresMember,
     {
       targetsOf: holderTargets,
@@ -2594,6 +2668,8 @@ function scanSources(input: PortCatchInput): SiteScan {
       analysis.readsAsPort(name, moduleId, file, at);
     const readsPropertyAsPort = (name: string): boolean =>
       analysis.readsPropertyAsPort(name, moduleId, file);
+    const callsPropertyAsPort = (name: string): boolean =>
+      analysis.callsPropertyAsPort(name, moduleId, file);
 
     /**
      * One site, whichever spelling it is written in.
@@ -2661,7 +2737,7 @@ function scanSources(input: PortCatchInput): SiteScan {
           }
           if (!ts.isCallExpression(call)) return false;
           if (ts.isPropertyAccessExpression(call.expression)) {
-            return propertyCallReach(call.expression, readsAsPort, readsPropertyAsPort) !== null;
+            return propertyCallReach(call.expression, readsAsPort, readsPropertyAsPort, callsPropertyAsPort) !== null;
           }
           return ts.isIdentifier(call.expression) && readsAsPort(call.expression.text, call.expression);
         };
@@ -2674,7 +2750,7 @@ function scanSources(input: PortCatchInput): SiteScan {
             ownMethod(inner) === null
           ) {
             // The twin of `collectCarryingMethods`' read, by construction.
-            const reach = propertyCallReach(inner.expression, readsAsPort, readsPropertyAsPort);
+            const reach = propertyCallReach(inner.expression, readsAsPort, readsPropertyAsPort, callsPropertyAsPort);
             if (reach !== null) reached = true;
             if (reach !== null && !alreadyReached(inner.expression.expression)) {
               add(reachName(reach), [reach]);

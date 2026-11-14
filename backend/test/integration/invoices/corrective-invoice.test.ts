@@ -335,7 +335,8 @@ describe('invoices — corrective invoice from a return (US3)', () => {
       }),
     ).rejects.toMatchObject({
       statusCode: 422,
-      details: { code: 'correction_currency_mismatch', originalCurrency: 'PLN', requestedCurrency: 'EUR' },
+      code: 'INVOICE_CORRECTION_CURRENCY_MISMATCH',
+      details: { invoiceCurrency: 'PLN', requestedCurrency: 'EUR' },
     });
 
     // The refusal is at the seam: no document, and no correction number drawn.

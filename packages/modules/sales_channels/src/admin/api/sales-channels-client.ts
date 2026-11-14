@@ -1,5 +1,6 @@
 import type {
   ChannelMemberEntityType,
+  ChannelMemberIdListResponse,
   EntityMembershipListResponse,
   SalesChannelCreateRequest,
   SalesChannelDetail,
@@ -99,14 +100,7 @@ export const salesChannelsClient = {
     code: string,
     entityType: ChannelMemberEntityType,
     options: { page?: number; pageSize?: number } = {},
-  ): Promise<{
-    salesChannelCode: string;
-    entityType: ChannelMemberEntityType;
-    entityIds: string[];
-    page: number;
-    pageSize: number;
-    total: number;
-  }> {
+  ): Promise<ChannelMemberIdListResponse> {
     const qs = new URLSearchParams();
     if (options.page !== undefined) qs.set('page', String(options.page));
     if (options.pageSize !== undefined) qs.set('pageSize', String(options.pageSize));

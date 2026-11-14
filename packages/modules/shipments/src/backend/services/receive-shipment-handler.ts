@@ -99,8 +99,14 @@ export class ReceiveShipmentHandler {
         if (input.outcome === 'failure') {
           throw new HttpError(
             409,
-            ERROR_CODES.VALIDATION_FAILED,
+            ERROR_CODES.SHIPMENT_ALREADY_GENERATED,
             'Shipment is already generated; it cannot be marked failed.',
+            {
+              code: 'mark_failed',
+              shipmentId: shipment.id,
+              orderId: shipment.orderId,
+              status: shipment.status,
+            },
           );
         }
         return {

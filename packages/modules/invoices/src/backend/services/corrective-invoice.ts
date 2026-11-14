@@ -627,12 +627,11 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
     if (input.currency !== original.currency) {
       throw new HttpError(
         422,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.INVOICE_CORRECTION_CURRENCY_MISMATCH,
         `A correction must be issued in the corrected invoice's currency (${original.currency}), not ${input.currency}.`,
         {
-          code: 'correction_currency_mismatch',
           requestedCurrency: input.currency,
-          originalCurrency: original.currency,
+          invoiceCurrency: original.currency,
           originalInvoiceId: original.id,
         },
       );
@@ -746,27 +745,36 @@ export class CorrectiveInvoiceProvider implements CorrectiveInvoicePort {
         charges: charges.map(({ kind, amount, rate, remaining }) => ({ kind, amount, rate, remaining })),
       });
     } catch (err) {
+      // Issue #633 — each refusal has its own code; the amounts are the
+      // two-decimal strings the sentences interpolate, with the currency they
+      // are in (the invoice's, which the check above made the request's too).
       if (err instanceof CorrectionExceedsChargeRemainingError) {
-        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, err.message, {
-          code: 'correction_exceeds_charge_remaining',
+        throw new HttpError(422, ERROR_CODES.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING, err.message, {
+          // The token picks the sentence that names the charge.
+          code: err.kind,
           chargeKind: err.kind,
           remaining: err.remaining,
+          currency: original.currency,
         });
       }
       if (err instanceof CorrectionExceedsRateRemainingError) {
-        throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, err.message, {
-          code: 'correction_exceeds_rate_remaining',
+        throw new HttpError(422, ERROR_CODES.INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING, err.message, {
           taxRate: err.taxRate,
           remaining: err.remaining,
           // For the operator's sentence: 23, not 0.2300.
           vatRatePercent: String(Number(decimalProduct(err.taxRate, 100))),
+          currency: original.currency,
         });
       }
       if (!(err instanceof CorrectionTotalExceedsLinesError)) throw err;
-      throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, err.message, {
-        code: 'correction_total_exceeds_lines',
+      throw new HttpError(400, ERROR_CODES.INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES, err.message, {
+        // `correctionAmounts` raises this error twice: for a total above what
+        // the lines and charges credit, and for a total below the charges
+        // alone, where `linesTotal` is the charges. Only the second is "less".
+        ...(compareDecimals(err.total, err.linesTotal) < 0 ? { code: 'below_charges' } : {}),
         total: err.total,
         linesTotal: err.linesTotal,
+        currency: original.currency,
       });
     }
     // One at a time, as `invoicesProseTable` reads the bundle.

@@ -304,8 +304,9 @@ export const manifest = defineModuleManifest({
    *
    * The bundle holds a sentence for each of these keys and for no other, and
    * `backend/test/unit/invoices/error-sentences.test.ts` enumerates the same
-   * eight keys by hand. Both agree with the raise sites; neither is the
-   * authority, because a token nobody has written a sentence for is still a token
+   * sixteen keys by hand (eight before issue #633). Both agree with the raise
+   * sites; neither is the authority, because a token nobody has written a
+   * sentence for is still a token
    * (`specs/090-module-owned-error-codes/migration-runbook.md` §5).
    */
   errorCodes: [
@@ -319,6 +320,20 @@ export const manifest = defineModuleManifest({
     // refuses to invoice an order refunded in full before it was invoiced. No
     // `details`, so no token.
     { code: 'INVOICE_ORDER_REFUNDED' },
+    // Issue #633 (#86) — business refusals of issuance and correction that were
+    // `VALIDATION_FAILED` with an English sentence. `seller-settings.ts` raises
+    // the first; `corrective-invoice.ts` the four correction refusals, which
+    // reach an operator settling a return. The two `details.code` tokens the
+    // currency and lines-total refusals used to carry are gone: each code has
+    // one reason, except the two tokens declared below.
+    { code: 'INVOICE_SELLER_DATA_MISSING' },
+    { code: 'INVOICE_CORRECTION_CURRENCY_MISMATCH' },
+    { code: 'INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES', tokens: ['below_charges'] },
+    { code: 'INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING' },
+    {
+      code: 'INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING',
+      tokens: ['delivery', 'payment_surcharge'],
+    },
   ],
   actions: [
     {

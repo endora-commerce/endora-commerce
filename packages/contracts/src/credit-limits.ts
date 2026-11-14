@@ -48,6 +48,14 @@ export const creditLimitViewSchema = z.object({
   activeReservations: z.array(
     z.object({
       orderId: uuidSchema,
+      /**
+       * The order's customer-facing number (`businessId`, the one the buyer's
+       * order list shows), so the storefront never shows the database id
+       * (issue #661). Answered by the customer's `GET /api/v1/me/credit-limit`;
+       * the admin views omit it. `null` when `orders` returned no such order;
+       * optional for a server that predates it.
+       */
+      orderBusinessId: z.string().nullable().optional(),
       amount: z.number().finite(),
       createdAt: isoDateTimeSchema,
     }),

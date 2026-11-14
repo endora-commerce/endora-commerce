@@ -117,7 +117,10 @@ is not enough.
    requiredPermission, keywords, keywordsKey, weight }]` for the module's landing surface plus its few
    highest-value operator actions. Curate — this is a discovery surface, not a route dump.
 2. **`requiredPermission`** — the code gating the target surface, so the palette never
-   advertises a 403.
+   advertises a 403. Where the screen's API is not the one its SPA path names (a tab served
+   by another endpoint), add the optional **`entryApiRoute`** — the `/api/v1/admin/…` route
+   the screen opens on — so `check:action-route-permissions` compares against it instead of a
+   guess (issue #1088). Do not ledger a disagreement that a declaration would answer.
 3. **i18n** — `labelKey` / `descriptionKey` are **relative to the module namespace**
    (`actions.openX.label`, not `<module>.actions.openX.label`) and live in the module's own
    `i18n/en.json` + `pl.json`. Those files must be a **flat** `{"a.b.c": "text"}` map — a

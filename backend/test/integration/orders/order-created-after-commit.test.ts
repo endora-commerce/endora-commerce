@@ -10,6 +10,7 @@ import {
   SEED_ADDRESS_DELIVERY_ID,
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
+  topUpStock,
 } from '../../helpers/seed-commerce.js';
 import { promotionServiceFor } from '../../helpers/promotion-service.js';
 
@@ -36,7 +37,7 @@ describe('orders — order.created.v1 is announced after the placement commits',
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
 
     // A platform-wide subscription, so the bridge has somebody to enqueue for.
     const hook = await h.app.inject({

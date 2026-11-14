@@ -40,7 +40,7 @@ uprawnienie do katalogu nie daje już dostępu do wspólnej listy.
 | `GET /api/v1/admin/order-statuses` | administrator | `payment_methods:read` **albo** `delivery_methods:read` | Statusy zamówienia do list wyboru `statusOn*`, tutaj i na ekranie metod dostawy |
 | `PUT /api/v1/admin/payment-methods/:code` | administrator | `payment_methods:write` | Utworzenie lub aktualizacja według kodu; `adapter` domyślnie przyjmuje wartość `kind`, a `statusOn*` jest sprawdzane względem rejestru statusów zamówienia |
 | `PATCH /api/v1/admin/payment-methods/:id/status` | administrator | `payment_methods:write` | Wyłącznie dostępność — jedyna zmiana, do której odsyłają cztery ekrany bramek płatności |
-| `DELETE /api/v1/admin/payment-methods/:id` | administrator | `payment_methods:write` | Usunięcie — zablokowane (409), gdy metoda jest używana przez płatność `Payment`; zamiast tego ustaw `inactive` |
+| `DELETE /api/v1/admin/payment-methods/:id` | administrator | `payment_methods:write` | Usunięcie — zablokowane odpowiedzią `409 PAYMENT_METHOD_IN_USE` (`details`: `paymentMethodId`, `paymentMethodCode`, `paymentCount`), gdy metoda jest używana przez płatność `Payment`, oraz odpowiedzią `409 PAYMENT_METHOD_USAGE_UNKNOWN` (`details`: `paymentMethodId`, `module: "payments"`), gdy moduł `payments` jest wyłączony; zamiast tego ustaw `inactive`. Do zgłoszenia #635 obie były odpowiedzią `409 VALIDATION_FAILED` |
 
 ## Encje
 

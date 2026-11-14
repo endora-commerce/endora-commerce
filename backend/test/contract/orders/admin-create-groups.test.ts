@@ -22,6 +22,7 @@ import {
   SEED_ADDRESS_DELIVERY_ID,
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
+  topUpStock,
 } from '../../helpers/seed-commerce.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
@@ -94,7 +95,7 @@ describe('159 — POST /api/v1/admin/orders with line groups [contract]', () => 
       }
     }
     await em.flush();
-    await em.execute(`update "stock_levels" set "on_hand" = 100000`);
+    await topUpStock(em, [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID]);
     // A representative holding `orders:write` for another Organization only (FR-080).
     await withSystemScope('159: an orders representative of another organisation', async () => {
       const fork = h.orm.em.fork();

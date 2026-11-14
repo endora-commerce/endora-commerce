@@ -292,28 +292,36 @@
  *
  * What property reads still cannot do is see their **receiver**: `x.next()`
  * reads `next` whatever `x` is, so a method name that collides with a module's
- * deps key reads as that key. Two `catalog` sites reach no port at all for that
- * reason and are ledgered as artefacts rather than hidden; the alternative —
+ * deps key reads as that key. One `catalog` site reaches no port at all for that
+ * reason and is ledgered as an artefact rather than hidden; the alternative —
  * resolving receivers — is a type-checker's job, not this analysis's.
  *
- * **The same holds for a method of a door, and a common name makes it bite**
- * (issue #459). The property table takes a key from *any* object literal whose
- * value reaches a gate, so a factory returning
- * `{ find: (id) => port.findById(id) }` over a switchable owner's port
- * enters `find` for its whole module. The last clause of `propertyCallReach`
- * then attributes a call to that key by its **trailing method name** whenever
- * the receiver itself does not read as a port: `em.find(…)` inside a
- * `commandBus.run` callback reads as the door, and a `catch` around the Command
- * is reported as swallowing the owner's gate. `crm`'s door onto
- * `quote_requests` hit exactly this in `specs/163-projects-and-tasks/` Phase 9B,
- * on two unrelated Commands. **The workaround is a distinctive method name on
- * the door** — `findRecord`, not `find` — so that no ordinary call in the module
- * spells it; ledgering the site as an artefact is the fallback when the name is
- * not the door's to choose. Rename before you ledger: a ledger entry over a
- * false positive is also an entry that stops judging the site if a real reach
- * ever moves into it. `test/unit/kernel/port-catch-check.test.ts` pins both
- * halves (the false positive and the workaround) under issue #459, so the day
- * receivers are resolved that test goes red and this paragraph goes with it.
+ * **Except where the key holds a door's method** (issue #459). The property
+ * table takes a key from *any* object literal whose value reaches a gate, so a
+ * factory returning `{ find: (id) => port.findById(id) }` over a switchable
+ * owner's port entered `find` for its whole module, and a call was attributed
+ * to that key by its trailing method name whenever the receiver did not read as
+ * a port: `em.find(…)` inside a `commandBus.run` callback read as the door, the
+ * closure holding it made the Command's own `run` read as the door too, and a
+ * `catch` around the Command was reported as swallowing the owner's gate —
+ * `crm`'s door onto `quote_requests`, `specs/163-projects-and-tasks/` Phase 9B,
+ * worked around by naming the method `findRecord`. A key whose every value is a
+ * closure that merely **uses** a port on the way to data is now never reached by
+ * a call that only spells it (`callsPropertyAsPort`); such a call reaches it
+ * through the holder its receiver resolves to (#576, below), or — the half that
+ * the spelling used to cover by coincidence — through the holder an **argument**
+ * resolves to under the key the call names: `commandBus.run(command)` runs
+ * `command.run`, wherever `command` was built. A key holding the port itself, an
+ * alias or an **accessor** (`deps.sender()`, whose result is the port) still
+ * answers by its name, and so does a property read: those are the cases above,
+ * where the analysis has nothing but the spelling to go on. Measured on the tree
+ * when it landed: 304 sites became 278, every one of the 26 a reach through a
+ * lent spelling and none of them a violation — and the five
+ * `commandBus.run(command)` sites whose Command is built outside the `try` stayed
+ * judged, now with that Command's own gates rather than the module's union.
+ * `test/unit/kernel/port-catch-check.test.ts` holds the false positive, the door
+ * reached through its holder, the accessor and the Command passed by value under
+ * issue #459.
  *
  * ## A holder built from a deps bag carries per method (issue #576)
  *
@@ -526,19 +534,6 @@ export const PORT_CATCHES_TO_DRAIN: Readonly<Record<string, string>> = {
     'Before #100 this site read OWNER LOCKED, and only by accident: the gates that ' +
     "spelling lent it happened to be `languages`' alone. Retires when a property read " +
     'is attributed through its receiver rather than its name.',
-  'packages/modules/catalog/src/backend/services/product-page-revalidation.ts:keysOf':
-    'NO GATED PORT IS REACHED HERE — an analysis artefact, ledgered so that it is ' +
-    'argued with rather than hidden (issue #100). `keysOf` is the closure ' +
-    '`catalog/backend/index.ts` hands `ProductPageRevalidation`: three `em.find` reads ' +
-    "of this module's own `Product`, `ProductUrlKey` and `ProductUrlRedirect` rows, " +
-    'nothing else. The analysis reads the closure as a carrier because its body reads ' +
-    '`k.key` / `r.key`, and `key` is a `catalog` deps-object key of the same ' +
-    'spelling. The `catch` in `#send` is the best-effort keys read the revalidation ' +
-    'was designed around (it degrades to the shared product tag); narrowing it would ' +
-    'be wrong as well as pointless — `#send` runs under `#inFlight`, which has only a ' +
-    '`.finally`, so a re-throw would be an unhandled rejection. Before #100 this site ' +
-    "read OWNER LOCKED, and only by accident: the lent gates were `languages`' alone. " +
-    'Retires when a property read is attributed through its receiver rather than its name.',
   'packages/modules/product_feeds/src/backend/index.ts:run':
     'BOOT HOOK, and now a genuine tolerance rather than a swallowed presence ' +
     'answer (issue #147, D-62). The hook asks ' +

@@ -222,18 +222,20 @@ export function makeDeletePaymentMethodCommand(
       if (paymentRead === null) {
         throw new HttpError(
           409,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.PAYMENT_METHOD_USAGE_UNKNOWN,
           'Cannot delete payment method: the payments module is switched off, so the payments ' +
             'that may reference it cannot be counted. Switch payments back on, or set this ' +
             'method\'s status to "inactive" instead.',
+          { paymentMethodId: row.id, module: 'payments' },
         );
       }
       const referencing = await paymentRead.countByPaymentMethod(row.id);
       if (referencing > 0) {
         throw new HttpError(
           409,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.PAYMENT_METHOD_IN_USE,
           `Cannot delete payment method: ${referencing} payment(s) reference it. Set status to "inactive" instead.`,
+          { paymentMethodId: row.id, paymentMethodCode: row.code, paymentCount: referencing },
         );
       }
       const before = paymentMethodAuditState(row);

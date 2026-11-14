@@ -157,6 +157,11 @@ const MIGRATED_MODULES: readonly string[] = [
   // `d129-sweep.md` §5.4 keeps *writing* one available.
   'customer_accounts',
   'customers',
+  // Minted (issue #632): `DELIVERY_METHOD_IN_USE` and
+  // `DELIVERY_METHOD_USAGE_UNKNOWN` are this module's first codes and were
+  // created after the chain was deleted, so `MINTED_ERROR_CODES` accounts for
+  // them.
+  'delivery_methods',
   'dictionaries',
   // Minted with the modules (feature 119): neither `invoice_ledger` nor `infakt`
   // existed when the prefix chain was deleted, so the frozen capture holds none
@@ -218,6 +223,11 @@ const MIGRATED_MODULES: readonly string[] = [
   // the ledger entry without the roster line would leave the declaration
   // unmeasured.
   'newsletter',
+  // Minted (issue #635): `PAYMENT_METHOD_IN_USE` and
+  // `PAYMENT_METHOD_USAGE_UNKNOWN` are this module's first codes and were
+  // created after the chain was deleted, so `MINTED_ERROR_CODES` accounts for
+  // them.
+  'payment_methods',
   'payments',
   'price_lists',
   'promotions',
@@ -236,6 +246,10 @@ const MIGRATED_MODULES: readonly string[] = [
   // it.
   'seo',
   'settings',
+  // Minted (issue #637): `SHIPMENT_ALREADY_GENERATED` is this module's first
+  // code and was created after the chain was deleted, so `MINTED_ERROR_CODES`
+  // accounts for it.
+  'shipments',
   'shopping_lists',
   'transactional_emails',
   'webhooks',

@@ -140,8 +140,28 @@ Contract and integration files do not run on merge requests (D-198): run them lo
 
 ### WP-08 `customer_in_app` channel (`qr`)
 
-- [ ] T070 [WP-08] [US3] Test: adapter calls `customerNotificationRecordPort.recordWithin` on the record's EM with `sourceModule 'quote_requests'`, `sourceKey <record id>`, the request's channel, `kind quote_requests.<change>`, `titleMessage customerNotifications.<change>.title`, link `/quote-requests/<id>`; centre absent → `skipped_module_off`; the matrix now writes `customer_in_app` rows — `channel-adapters.test.ts`, `notification-matrix.test.ts`
-- [ ] T071 [WP-08] Impl: adapter; `degrades-without customer_notifications` edge; `customerNotifications.<change>.title` keys en/pl in `qr/i18n`
+- [x] T070 [WP-08] [US3] Test: adapter calls `customerNotificationRecordPort.recordWithin` on the record's EM with `sourceModule 'quote_requests'`, `sourceKey <record id>`, the request's channel, `kind quote_requests.<change>`, `titleMessage customerNotifications.<change>.title`, link `/quote-requests/<id>`; centre absent → `skipped_module_off`; the matrix now writes `customer_in_app` rows — `channel-adapters.test.ts`, `notification-matrix.test.ts`
+- [x] T071 [WP-08] Impl: adapter; `degrades-without customer_notifications` edge; `customerNotifications.<change>.title` keys en/pl in `qr/i18n`
+  - *WP-08 as built (for WP-10, WP-11 and WP-12):* the `customer_in_app` adapter sits in
+    `channel-adapters.ts` beside the other three and is wired in `plugin.ts` from
+    `options.delivery.centre`, a `lazyPort` on `customerNotificationRecordPort` in `index.ts`;
+    `customer_in_app` is in `RECORDED_CHANNELS`, so the recording step now writes its rows (still
+    whether or not the centre is on — presence is the delivery's question, FR-012). At delivery
+    the adapter re-checks the recipient with the customer e-mail's rule (live, still a member of
+    the request's Organization, the requester or a role `orgWideViewerRoleIds` names), without the
+    address check: an entry needs no e-mail. The entry carries `organizationId` = the request's,
+    `salesChannelId` = the request's (`null` for a request raised with none, shown on every
+    channel), `subjectType 'quote_request'` / `subjectId`, `sourceKey` = the record id, and
+    `linkPath` from `quoteRequestStorefrontLinkPath` — the same path the customer e-mail now
+    appends to the storefront address. The nine sentences are in the buyer's voice and follow each
+    change's customer e-mail subject (`CENTRE_SENTENCES`; `CENTRE_CHANGES` is held equal to the
+    matrix's `customer_in_app` column by `channel-adapters.test.ts`). The integration cases are in
+    `backend/test/integration/quote_requests/notification-delivery.test.ts`: an operator's
+    revision delivered into the centre and read back through `GET /api/v1/storefront/notifications`
+    in Polish, and the centre switched off closing `skipped_module_off` with no entry, also after it
+    is back. That file's first case no longer pins the submitted request's channel set to three: a
+    submission tells the requester's colleagues in the centre, and how many the seed Organization has
+    is the seed's business.
 
 ### WP-09a Tablet breakpoint alignment (`sf`) — own MR, before WP-09
 

@@ -32,7 +32,7 @@ interface View {
   grantedAmount: number;
   availableAmount: number;
   activeReservationCount: number;
-  activeReservations: Array<{ orderId: string; amount: number; createdAt: string }>;
+  activeReservations: Array<{ orderId: string; orderBusinessId?: string | null; amount: number; createdAt: string }>;
 }
 
 async function seedOrder(
@@ -155,6 +155,18 @@ describe('GET /api/v1/me/credit-limit — reservation list scope (issue #748)', 
     );
     expect(data.availableAmount).toBe(8500);
     expect(data.activeReservationCount).toBe(2);
+  });
+
+  it('each reservation carries its order’s customer-facing number, not only its id (issue #661)', async () => {
+    const data = await view(viewerCookie);
+    const ids = data.activeReservations.map((r) => r.orderId);
+    const placed = await h.em().find(Order, { id: { $in: ids } });
+    const numbers = new Map(placed.map((o) => [o.id, o.businessId]));
+    expect(data.activeReservations).toHaveLength(2);
+    for (const r of data.activeReservations) {
+      expect(r.orderBusinessId).toBeTruthy();
+      expect(r.orderBusinessId).toBe(numbers.get(r.orderId));
+    }
   });
 
   it('the Administrator sees every reservation of the limit', async () => {

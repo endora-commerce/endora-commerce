@@ -57,7 +57,12 @@ pokazuje stan, powód i przycisk.
 Kiedyś istniał tu drugi endpoint, `POST .../shipments/retry`, i został usunięty: dodawał próbę n+1,
 ale w żadnym stanie nie kontaktował się z adapterem, więc operator, który go użył, dostawał nowy
 wiersz `pending`, o który nikt nie został poproszony. Ponowienie **to** ponowne wygenerowanie —
-endpoint generowania dodaje kolejną próbę, odmawia dopiero po sukcesie i zleca ją przewoźnikowi.
+endpoint generowania dodaje kolejną próbę, odmawia dopiero po sukcesie
+(`409 SHIPMENT_ALREADY_GENERATED`, `details.code: "generate"`) i zleca ją przewoźnikowi.
+
+`SHIPMENT_ALREADY_GENERATED` niesie w `details` pola `shipmentId` i `orderId`, a dla
+`mark_failed` także `status` przesyłki. Do zgłoszenia #637 obie odmowy były odpowiedzią
+`409 VALIDATION_FAILED`.
 
 ## Cykl życia
 
@@ -68,7 +73,7 @@ endpoint generowania dodaje kolejną próbę, odmawia dopiero po sukcesie i zlec
 | `receive_shipment` | Wynik od przewoźnika lub adaptera | Przesyłka zostaje rozstrzygnięta; zamówienie przechodzi do `statusOnSuccess` / `statusOnFailure` metody dostawy; emitowane jest `shipment.received.v1` / `shipment.failed.v1`. |
 
 `receive_shipment` jest **idempotentne**: sukces po końcowym `success` niczego nie zmienia; porażka
-po sukcesie jest odrzucana (409, bez cofania statusu); brakujące lub już rozstrzygnięte odwołanie
+po sukcesie jest odrzucana (`409 SHIPMENT_ALREADY_GENERATED`, `details.code: "mark_failed"`, bez cofania statusu); brakujące lub już rozstrzygnięte odwołanie
 jest odrzucane bez uszkadzania rekordów. Nieudane utworzenie ponawia się, generując przesyłkę
 ponownie — powstaje kolejna próba, która trafia do przewoźnika, a wcześniejsze próby pozostają bez
 zmian.

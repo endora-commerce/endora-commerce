@@ -123,6 +123,15 @@ export const manifest = defineModuleManifest({
   // which is the intended meaning of switching a payment catalog off.
   demo,
   activation: { settingCode: 'payment_methods.enabled', default: true },
+  /**
+   * Issue #635 (#86) — the two refusals of the FR-003 delete guard, which were
+   * `409 VALIDATION_FAILED` with an English sentence the envelope never
+   * replaces. Both are this module's: the noun is the payment method, and the
+   * one raise site is `makeDeletePaymentMethodCommand`. No tokens: the guard
+   * protects one write, so each code has one reason and a `details.code` would
+   * add nothing.
+   */
+  errorCodes: [{ code: 'PAYMENT_METHOD_IN_USE' }, { code: 'PAYMENT_METHOD_USAGE_UNKNOWN' }],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   // Feature 076 (D-83 item 8) — a standing Principle XVI gap, closed here

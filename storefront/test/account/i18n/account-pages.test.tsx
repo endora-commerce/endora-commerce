@@ -520,6 +520,38 @@ describe('credit-limit widget — the shop language (issue #85)', () => {
     expect(text).not.toContain('order-2');
   });
 
+  it('shows each reservation’s order number, linked to the order (issue #661)', () => {
+    const view: CreditLimitView = {
+      ...limit(1),
+      activeReservations: [
+        {
+          orderId: 'aaaaaaaa-0000-4000-8000-000000000001',
+          orderBusinessId: 'ORD-2001-2026',
+          amount: 200,
+          createdAt: '2026-10-01T00:00:00.000Z',
+        },
+      ],
+    };
+    const html = renderToString(<CreditLimitWidget limit={view} locale="en-US" showReservations />);
+    expect(html).toMatch(
+      /<a[^>]*href="\/orders\/aaaaaaaa-0000-4000-8000-000000000001"[^>]*>ORD-2001-2026<\/a>/,
+    );
+    expect(visibleText(html)).not.toContain('aaaaaaaa');
+    // A storefront link inherits the text colour; the underline is what marks it as one.
+    expect(html).toMatch(/<a[^>]*class="underline"[^>]*>ORD-2001-2026/);
+  });
+
+  it('falls back to a linked short id when the API sent no number', () => {
+    const view: CreditLimitView = {
+      ...limit(1),
+      activeReservations: [
+        { orderId: 'bbbbbbbb-0000-4000-8000-000000000002', orderBusinessId: null, amount: 200, createdAt: '2026-10-01T00:00:00.000Z' },
+      ],
+    };
+    const html = renderToString(<CreditLimitWidget limit={view} locale="en-US" showReservations />);
+    expect(html).toMatch(/<a[^>]*href="\/orders\/bbbbbbbb-0000-4000-8000-000000000002"[^>]*>bbbbbbbb<\/a>/);
+  });
+
   it('counts the reserving orders in Polish, in its plural forms', () => {
     const one = visibleText(renderToString(<CreditLimitWidget limit={limit(1)} locale="pl-PL" />));
     expect(one).toContain('Limit kredytowy');

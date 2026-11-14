@@ -1,5 +1,8 @@
 {
   "settingGroups.shipments.name": "Shipments",
   "settingLabels.shipments.enabled.name": "Shipments enabled",
-  "settingLabels.shipments.enabled.description": "Switches the shipment lifecycle on or off: creating a shipment for an order (which is also how a failed one is retried), the carrier receive_shipment ingress and the per-order shipment history. Nothing is dropped — every shipment, its status transitions and its carrier references stay in the database, and an order mid-fulfilment resumes exactly where it was."
+  "settingLabels.shipments.enabled.description": "Switches the shipment lifecycle on or off: creating a shipment for an order (which is also how a failed one is retried), the carrier receive_shipment ingress and the per-order shipment history. Nothing is dropped — every shipment, its status transitions and its carrier references stay in the database, and an order mid-fulfilment resumes exactly where it was.",
+  "errors.SHIPMENT_ALREADY_GENERATED": "This shipment has already been generated successfully.",
+  "errors.SHIPMENT_ALREADY_GENERATED.generate": "This order already has a successfully generated shipment, so there is nothing to generate.",
+  "errors.SHIPMENT_ALREADY_GENERATED.mark_failed": "This shipment has already been generated successfully, so it cannot be marked as failed."
 }

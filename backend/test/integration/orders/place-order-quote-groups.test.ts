@@ -12,6 +12,7 @@ import { SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID } from '.
 import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 import { seedOtherTestCustomer } from '../../helpers/seed-organizations.js';
 import { checkOutBasket, convertQuoteRequestToCart, whenOrderCreatedSettled } from '../../helpers/quote-conversion.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
 
 const CUSTOMER = { b2b_session: 'stub-customer-session' };
 const OTHER_ORG_CUSTOMER = { b2b_session: 'stub-customer-session-other-org' };
@@ -151,7 +152,7 @@ describe('159 — an order placed from a grouped quote keeps its groups', () => 
       }
     }
     await em.flush();
-    await em.execute(`update "stock_levels" set "on_hand" = 100000`);
+    await topUpStock(em, [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID, SEED_PRODUCT_103_ID]);
     await seedOtherTestCustomer(em);
   }, 90_000);
 

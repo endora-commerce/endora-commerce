@@ -81,5 +81,13 @@
   "lines.priceReduction": "Obniżka ceny (reklamacja {rma}): {product}",
   "lines.priceReductionUnreferenced": "Obniżka ceny (reklamacja): {product}",
   "actions.openInvoices.keywords": "faktury",
-  "settingGroups.invoices.name": "Faktury"
+  "settingGroups.invoices.name": "Faktury",
+  "errors.INVOICE_SELLER_DATA_MISSING": "Przed wystawieniem faktur skonfiguruj NIP sprzedawcy i dane firmy w ustawieniach faktur.",
+  "errors.INVOICE_CORRECTION_CURRENCY_MISMATCH": "Korektę należy wystawić w walucie korygowanej faktury ({invoiceCurrency}), a nie w {requestedCurrency}.",
+  "errors.INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES": "Suma korekty ({total} {currency}) jest wyższa niż suma jej pozycji ({linesTotal} {currency}).",
+  "errors.INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES.below_charges": "Suma korekty ({total} {currency}) jest niższa niż zwracane w niej opłaty ({linesTotal} {currency}).",
+  "errors.INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING": "Ten zwrot przekracza kwotę, którą faktura nadal nalicza w stawce VAT {vatRatePercent}% ({remaining} {currency}). Zmniejsz kwotę.",
+  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING": "Zwrot opłaty przekracza kwotę, którą faktura nadal za nią nalicza ({remaining} {currency}). Zmniejsz kwotę.",
+  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.delivery": "Zwrot kosztów dostawy przekracza kwotę, którą faktura nadal za nią nalicza ({remaining} {currency}). Zmniejsz kwotę.",
+  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.payment_surcharge": "Zwrot dopłaty za płatność przekracza kwotę, którą faktura nadal za nią nalicza ({remaining} {currency}). Zmniejsz kwotę."
 }

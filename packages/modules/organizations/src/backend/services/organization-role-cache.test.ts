@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ORGANIZATION_ROLE_CACHE_MAX_AGE_MS,
@@ -165,6 +166,9 @@ describe('OrganizationRoleCache', () => {
     const h = harness();
     const listeners: Array<(channel: string, message: string) => void> = [];
     const subscriber = {
+      status: 'ready',
+      once: vi.fn(),
+      removeListener: vi.fn(),
       subscribe: vi.fn(async () => 1),
       on: vi.fn((_event: 'message', listener: (channel: string, message: string) => void) => {
         listeners.push(listener);
@@ -182,6 +186,28 @@ describe('OrganizationRoleCache', () => {
     listeners[0]!(ORGANIZATION_ROLES_CHANGED_CHANNEL, JSON.stringify({ organizationId: ORG_A }));
     await h.cache.get(ORG_A);
     expect(h.loads).toHaveLength(2);
+  });
+
+  it('subscribes only once the subscriber connection is ready (issue #1147)', async () => {
+    // ioredis caught between TCP connect and its ready check: a SUBSCRIBE sent
+    // now can put the socket into subscriber mode before the check's INFO.
+    const subscriber = Object.assign(new EventEmitter(), {
+      status: 'connect',
+      subscribed: [] as string[],
+      async subscribe(...channels: string[]) {
+        subscriber.subscribed.push(...channels);
+        return channels.length;
+      },
+    });
+    const h = harness();
+    const starting = h.cache.start(subscriber);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(subscriber.subscribed).toEqual([]);
+
+    subscriber.status = 'ready';
+    subscriber.emit('ready');
+    await starting;
+    expect(subscriber.subscribed).toEqual([ORGANIZATION_ROLES_CHANGED_CHANNEL]);
   });
 });
 
