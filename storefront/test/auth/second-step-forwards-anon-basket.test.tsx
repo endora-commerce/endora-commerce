@@ -56,6 +56,8 @@ const { default: SetupPage } = await import('../../app/(auth)/login/setup/page')
 
 const DEVICE = 'b2b_customer_device';
 const ANON = 'b2b_cart_anon';
+const COMPARE = 'compare_token';
+const COMPARE_TOKEN = 'Xk3_pQ9-aB7cD2eF4gH6iJ';
 const CHALLENGE = 'b2b_mfa_challenge';
 const SETUP_TICKET = 'b2b_mfa_setup_ticket';
 const SIGNED = 'v1.c-1.0a1b.2c3d.ab+cd/ef';
@@ -119,6 +121,31 @@ describe('the second-step calls carry the signed-out basket', () => {
   });
 });
 
+// Issue #1189 — the call that establishes the session carries the signed-out comparison too, so
+// the backend's post-sign-in step carries it over on both two-step paths.
+describe('the second-step calls carry the signed-out comparison', () => {
+  it('the code verify forwards compare_token beside the basket', async () => {
+    jar.set(ANON, ANON_TOKEN);
+    jar.set(COMPARE, COMPARE_TOKEN);
+    jar.set(CHALLENGE, 'ch-1');
+    const seen = stubFetch(AUTHENTICATED);
+
+    await verifyCustomerMfa({ challengeId: 'ch-1', code: '123456' });
+
+    expect(seen[0]!.cookie).toBe(`${ANON}=${ANON_TOKEN}; ${COMPARE}=${COMPARE_TOKEN}`);
+  });
+
+  it('the enforced-enrolment completion forwards compare_token', async () => {
+    jar.set(COMPARE, COMPARE_TOKEN);
+    jar.set(SETUP_TICKET, '{}');
+    const seen = stubFetch(AUTHENTICATED);
+
+    await completeMfaSetupTicket('ticket-1', '123456');
+
+    expect(seen[0]!.cookie).toBe(`${COMPARE}=${COMPARE_TOKEN}`);
+  });
+});
+
 function merged(outcome: 'adopted' | 'merged' | 'noop') {
   return {
     body: {
@@ -176,6 +203,30 @@ describe('the second-step pages, end to end over the real auth and session helpe
       expect(jar.get('b2b_cart_merge_flash')).toBe(outcome);
     },
   );
+
+  it('the code verify page sends the signed-out comparison and keeps its cookie', async () => {
+    jar.set(COMPARE, COMPARE_TOKEN);
+    jar.set(CHALLENGE, 'ch-1');
+    const seen = stubFetch(AUTHENTICATED);
+
+    expect(await verifyStep()).toBe('/cart');
+
+    expect(seen[0]!.url).toMatch(/\/api\/v1\/auth\/customer\/mfa\/verify$/);
+    expect(seen[0]!.cookie).toBe(`${COMPARE}=${COMPARE_TOKEN}`);
+    expect(jar.get(COMPARE)).toBe(COMPARE_TOKEN);
+  });
+
+  it('the enforced-enrolment page sends the signed-out comparison and keeps its cookie', async () => {
+    jar.set(COMPARE, COMPARE_TOKEN);
+    jar.set(SETUP_TICKET, JSON.stringify({ setupTicket: 'ticket-1', secret: 'S', otpauthUri: 'otpauth://x' }));
+    const seen = stubFetch(AUTHENTICATED);
+
+    expect(await setupStep()).toBe('/account/security');
+
+    expect(seen[0]!.url).toMatch(/\/api\/v1\/auth\/customer\/mfa\/setup-ticket\/complete$/);
+    expect(seen[0]!.cookie).toBe(`${COMPARE}=${COMPARE_TOKEN}`);
+    expect(jar.get(COMPARE)).toBe(COMPARE_TOKEN);
+  });
 
   it('a noop merge keeps the anonymous cookie and flashes nothing', async () => {
     jar.set(ANON, ANON_TOKEN);

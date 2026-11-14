@@ -13,9 +13,10 @@ import { knownDeviceCookieHeader, rememberKnownDevice, signInCookieHeader } from
  * backend sets on a completed sign-in (see `knownDeviceCookieHeader` in
  * `lib/session.ts`). Without it every shopper's attempt would be counted as
  * one from a device the account has never been used on. The sign-in and the
- * second step also carry the signed-out basket's cookie (`signInCookieHeader`),
- * so the backend can merge it into the customer's on whichever call
- * establishes the session (issues #358, #368).
+ * second step also carry the signed-out basket's cookie and the signed-out
+ * comparison's (`signInCookieHeader`), so the backend can carry both over to
+ * the customer on whichever call establishes the session (issues #358, #368,
+ * #1189).
  */
 
 export interface RegisterOrganizationPayload {
