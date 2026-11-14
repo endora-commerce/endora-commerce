@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, orgCartDetailViewResponseSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -11,6 +11,7 @@ import {
   type CartFixtureOrganization,
 } from '../../helpers/cart-approval-roles.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
 
 /**
  * Issue #619 — the cart-approval flow, end to end over HTTP.
@@ -37,6 +38,14 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
  */
 
 const CHANNEL = { 'x-sales-channel': 'pl_retail' };
+
+/**
+ * Issue #657 — `GET /api/v1/organization/carts/:id` is described by
+ * `orgCartDetailViewResponseSchema`, in every state the cart passes through
+ * here: a key the route answers that the contract does not declare, or one it
+ * declares that the route does not answer, reds the read.
+ */
+const strictDetail = deepStrict(orgCartDetailViewResponseSchema);
 
 interface CartRow {
   status: string;
@@ -127,6 +136,14 @@ describe('cart approval, end to end (issue #619)', () => {
     return rows[0]!;
   }
 
+  /** The administrator's detail of `cartId`, parsed against the published contract (issue #657). */
+  async function detailOf(actor: { cookie: string }, cartId: string): Promise<Record<string, unknown>> {
+    const res = await call(actor, 'GET', `/api/v1/organization/carts/${cartId}`);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(disagreements(strictDetail, res.json())).toEqual([]);
+    return (res.json() as { data: Record<string, unknown> }).data;
+  }
+
   async function auditActions(cartId: string): Promise<string[]> {
     const rows = (await h
       .em()
@@ -175,9 +192,7 @@ describe('cart approval, end to end (issue #619)', () => {
   it("the Organization administrator lists and reads the member's pending cart", async () => {
     expect(await listedIds(ADMIN_A, '?approvalStatus=pending')).toContain(memberCartId);
 
-    const detail = await call(ADMIN_A, 'GET', `/api/v1/organization/carts/${memberCartId}`);
-    expect(detail.statusCode, detail.body).toBe(200);
-    expect((detail.json() as { data: Record<string, unknown> }).data).toMatchObject({
+    expect(await detailOf(ADMIN_A, memberCartId)).toMatchObject({
       id: memberCartId,
       ownerCustomerAccountId: MEMBER.id,
       // Issue #751 — named as the members page names a member, the e-mail beside it.
@@ -232,6 +247,12 @@ describe('cart approval, end to end (issue #619)', () => {
     expect(row.approved_at).not.toBeNull();
     expect(row.approved_by_customer_account_id).toBe(ADMIN_A.id);
     expect(await auditActions(memberCartId)).toContain('approval_approved');
+    expect(await detailOf(ADMIN_A, memberCartId)).toMatchObject({
+      approvalStatus: 'approved',
+      approvedAt: expect.any(String),
+      rejectedAt: null,
+      rejectedReason: null,
+    });
 
     const read = (await call(MEMBER, 'GET', '/api/v1/cart')).json() as {
       data: { id: string; approvalStatus: string; primaryCta: string };
@@ -267,6 +288,12 @@ describe('cart approval, end to end (issue #619)', () => {
     expect(row.rejected_at).not.toBeNull();
     expect(row.rejected_reason).toBe('Over the quarterly budget');
     expect(await auditActions(memberCartId)).toContain('approval_rejected');
+    expect(await detailOf(ADMIN_A, memberCartId)).toMatchObject({
+      status: 'rejected',
+      approvalStatus: 'rejected_by_org_admin',
+      rejectedAt: expect.any(String),
+      rejectedReason: 'Over the quarterly budget',
+    });
 
     const again = await call(ADMIN_A, 'POST', `/api/v1/organization/carts/${memberCartId}/reject`, {
       reason: 'Still no',
@@ -291,8 +318,7 @@ describe('cart approval, end to end (issue #619)', () => {
       (await call(OTHER_MEMBER, 'GET', '/api/v1/cart')).json() as { data: { id: string } }
     ).data.id;
     expect(await listedIds(APPROVER, '?approvalStatus=pending')).toContain(cartId);
-    const detail = await call(APPROVER, 'GET', `/api/v1/organization/carts/${cartId}`);
-    expect(detail.statusCode, detail.body).toBe(200);
+    expect(await detailOf(APPROVER, cartId)).toMatchObject({ id: cartId, approvalStatus: 'pending' });
 
     const res = await call(APPROVER, 'POST', `/api/v1/organization/carts/${cartId}/approve`, {});
     expect(res.statusCode, res.body).toBe(200);
