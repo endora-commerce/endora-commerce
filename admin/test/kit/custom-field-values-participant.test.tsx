@@ -131,6 +131,7 @@ describe('CustomFieldValuesPanel with a save session', () => {
     const save = vi.fn(async () => undefined);
     render(wrap(<Host save={save} />));
     fireEvent.change(await screen.findByLabelText('Loyalty tier'), { target: { value: 'platinum' } });
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
 
     fireEvent.click(screen.getByRole('button', { name: 'page save' }));
 
