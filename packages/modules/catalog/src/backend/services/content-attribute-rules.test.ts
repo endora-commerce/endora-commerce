@@ -68,6 +68,19 @@ describe('assertContentAttributeShape', () => {
     ]);
   });
 
+  // Issue #1218 (#86) — on update the attribute's stored type refuses the flag,
+  // so the refusal has a code of its own; on create the request names the type
+  // and the rule stays `VALIDATION_FAILED`.
+  it('refuses a flag on a stored content attribute with CONTENT_ATTRIBUTE_CAPABILITY_LOCKED', () => {
+    const error = thrown(() =>
+      assertContentAttributeShape({ isSearchable: true, massEditable: true }, { attributeKey: 'buying_guide' }),
+    );
+    expect(error.statusCode).toBe(400);
+    expect(error.code).toBe('CONTENT_ATTRIBUTE_CAPABILITY_LOCKED');
+    expect(error.details).toEqual({ attributeKey: 'buying_guide', capabilities: 'isSearchable, massEditable' });
+    expect(error.message).toBe('Page Builder content attributes cannot have: isSearchable, massEditable.');
+  });
+
   it('accepts every flag off or omitted', () => {
     expect(() => assertContentAttributeShape({})).not.toThrow();
     const allOff = Object.fromEntries(FLAGS.map((flag) => [flag, false]));
@@ -77,19 +90,25 @@ describe('assertContentAttributeShape', () => {
 
 describe('assertTypeChangeAllowed', () => {
   it('refuses a change to page_builder', () => {
-    const error = thrown(() => assertTypeChangeAllowed('string', 'page_builder'));
+    // Issue #1218 (#86) — the stored type refuses a well-formed request: the
+    // value-type lock's code, with the token naming why.
+    const error = thrown(() => assertTypeChangeAllowed('string', 'page_builder', 'guide'));
     expect(error.statusCode).toBe(409);
-    expect(error.code).toBe('VALIDATION_FAILED');
+    expect(error.code).toBe('ATTRIBUTE_VALUE_TYPE_LOCKED');
+    expect(error.details).toEqual({ code: 'page_builder', attributeKey: 'guide' });
     expect(error.message).toBe('The value type of a Page Builder content attribute cannot be changed.');
   });
 
   it('refuses a change from page_builder', () => {
-    expect(thrown(() => assertTypeChangeAllowed('page_builder', 'select')).statusCode).toBe(409);
+    const error = thrown(() => assertTypeChangeAllowed('page_builder', 'select', 'guide'));
+    expect(error.statusCode).toBe(409);
+    expect(error.code).toBe('ATTRIBUTE_VALUE_TYPE_LOCKED');
+    expect(error.details).toEqual({ code: 'page_builder', attributeKey: 'guide' });
   });
 
   it('allows a page_builder attribute to keep its type, and any other change', () => {
-    expect(() => assertTypeChangeAllowed('page_builder', 'page_builder')).not.toThrow();
-    expect(() => assertTypeChangeAllowed('string', 'number')).not.toThrow();
-    expect(() => assertTypeChangeAllowed('enum', 'select')).not.toThrow();
+    expect(() => assertTypeChangeAllowed('page_builder', 'page_builder', 'guide')).not.toThrow();
+    expect(() => assertTypeChangeAllowed('string', 'number', 'guide')).not.toThrow();
+    expect(() => assertTypeChangeAllowed('enum', 'select', 'guide')).not.toThrow();
   });
 });
