@@ -66,7 +66,13 @@ export class NewsletterEmailBlockService {
   async create(input: CreateNewsletterEmailBlockRequest): Promise<NewsletterEmailBlockDetail> {
     const em = this.emFactory();
     const existing = await em.findOne(NewsletterEmailBlock, { code: input.code });
-    if (existing) throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'Block code already exists.');
+    // `blockCode`, not `code`: the error envelope reads `details.code` as the
+    // refusal token that picks the sentence.
+    if (existing) {
+      throw new HttpError(409, ERROR_CODES.NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN, 'Block code already exists.', {
+        blockCode: input.code,
+      });
+    }
     const block = em.create(NewsletterEmailBlock, {
       code: input.code,
       name: input.name,
@@ -99,7 +105,10 @@ export class NewsletterEmailBlockService {
     const em = this.emFactory();
     const block = await this.load(em, id);
     if (block.isSystem) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'System blocks cannot be deleted.');
+      throw new HttpError(422, ERROR_CODES.NEWSLETTER_EMAIL_BLOCK_SYSTEM, 'System blocks cannot be deleted.', {
+        blockId: block.id,
+        blockCode: block.code,
+      });
     }
     this.#audit(em, 'newsletter_email_block.delete', block.id, null);
     await em.removeAndFlush(block);

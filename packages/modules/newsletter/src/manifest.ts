@@ -167,7 +167,24 @@ export const manifest = defineModuleManifest({
    * No `tokens`, for the same reason and from the same direction: there is no
    * raise site to put a `details.code` on the wire.
    */
-  errorCodes: [{ code: 'ALREADY_SUBSCRIBED' }],
+  errorCodes: [
+    { code: 'ALREADY_SUBSCRIBED' },
+    /**
+     * Issue #626 (#86) — the admin services' business-rule refusals, which were
+     * `VALIDATION_FAILED` with an English literal the envelope never replaces.
+     * Each is one refusal, so none declares `tokens`; the values its sentence
+     * names (a status, a key, a code) travel as scalar `details`.
+     */
+    { code: 'NEWSLETTER_AUTOMATION_ACTIVE' },
+    { code: 'NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE' },
+    { code: 'NEWSLETTER_CAMPAIGN_NOT_EDITABLE' },
+    { code: 'NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN' },
+    { code: 'NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN' },
+    { code: 'NEWSLETTER_EMAIL_BLOCK_SYSTEM' },
+    { code: 'NEWSLETTER_PROVIDER_NOT_CONFIGURED' },
+    { code: 'NEWSLETTER_TAG_CODE_TAKEN' },
+    { code: 'NEWSLETTER_TAG_IN_USE' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   /**

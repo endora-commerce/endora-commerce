@@ -120,6 +120,32 @@ an open that may not be one.
 - `newsletter:write` — manage subscribers, campaigns, automations, blocks, and
   the sending provider.
 
+## Refusals
+
+The admin API refuses a write the current state does not allow with an error
+code of its own and a sentence in the operator's language. The values the
+sentence names travel in `details`:
+
+| Code | Status | When | `details` |
+| --- | --- | --- | --- |
+| `NEWSLETTER_CAMPAIGN_NOT_EDITABLE` | 422 | Editing a campaign that is not a draft or scheduled | `campaignId`, `status` |
+| `NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE` | 422 | Cancelling a campaign that is not a draft or scheduled | `campaignId`, `status` |
+| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Sending a campaign while no sending provider is configured | — |
+| `NEWSLETTER_AUTOMATION_ACTIVE` | 422 | Editing an active automation; pause it first | `automationId`, `status` |
+| `NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN` | 409 | Creating a custom field whose key exists | `key` |
+| `NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN` | 409 | Creating an email block whose code exists | `blockCode` |
+| `NEWSLETTER_EMAIL_BLOCK_SYSTEM` | 422 | Deleting a system email block | `blockId`, `blockCode` |
+| `NEWSLETTER_TAG_CODE_TAKEN` | 409 | Creating a tag whose code exists | `tagCode` |
+| `NEWSLETTER_TAG_IN_USE` | 409 | Deleting a tag a campaign targets or an automation is triggered by | `tagId`, `tagCode` |
+
+Until issue #626 each of these was `VALIDATION_FAILED` with an English
+sentence, and the sending-provider and tag-in-use refusals carried the
+`details.code` tokens `provider_not_configured` and `tag_in_use`, which are
+gone. An automation whose steps are invalid is still refused on activation with
+`422 VALIDATION_FAILED` (`details.code` `automation_invalid` and the list of
+`issues`), and a sign-up naming an unknown sales channel with
+`400 VALIDATION_FAILED`: both are about the request itself.
+
 ## Storefront
 
 A reusable signup component (server action, tag-attachable), a double-opt-in

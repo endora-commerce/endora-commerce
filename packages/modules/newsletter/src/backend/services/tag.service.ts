@@ -33,7 +33,13 @@ export class NewsletterTagService {
   async create(input: CreateNewsletterTagRequest): Promise<NewsletterTagDto> {
     const em = this.emFactory();
     const existing = await em.findOne(NewsletterTag, { code: input.code });
-    if (existing) throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'Tag code already exists.');
+    // `tagCode`, not `code`: the error envelope reads `details.code` as the
+    // refusal token that picks the sentence.
+    if (existing) {
+      throw new HttpError(409, ERROR_CODES.NEWSLETTER_TAG_CODE_TAKEN, 'Tag code already exists.', {
+        tagCode: input.code,
+      });
+    }
     const tag = em.create(NewsletterTag, {
       code: input.code,
       name: input.name,
@@ -72,8 +78,9 @@ export class NewsletterTagService {
       em.getTransactionContext(),
     )) as unknown[];
     if (refs.length > 0) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'Tag is used by a campaign or automation.', {
-        code: 'tag_in_use',
+      throw new HttpError(409, ERROR_CODES.NEWSLETTER_TAG_IN_USE, 'Tag is used by a campaign or automation.', {
+        tagId: tag.id,
+        tagCode: tag.code,
       });
     }
     // Subscriber-tag bridge rows cascade via FK.
