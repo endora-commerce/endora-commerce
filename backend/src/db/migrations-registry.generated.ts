@@ -50,6 +50,7 @@ import { Migration20260819T155150AdminUsersFoldEmailCase } from '@endora-commerc
 import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from '@endora-commerce/mod-admin-users/migrations';
 import { Migration20261027T160234AdminUsersAdminUserPreferences } from '@endora-commerce/mod-admin-users/migrations';
 import { Migration20261103T140300AdminUsersAuthorProfile } from '@endora-commerce/mod-admin-users/migrations';
+import { Migration20261114T002913AdminUsersPreferredLanguage } from '@endora-commerce/mod-admin-users/migrations';
 
 // ── analytics ───────────────────────────────────────────────────────────────
 import { Migration20260425T143139AnalyticsInit } from '@endora-commerce/mod-analytics/migrations';
@@ -126,6 +127,7 @@ import { Migration20261030T113908CatalogScopeModelMedia } from '@endora-commerce
 import { Migration20261104T121504CatalogProductContentValues } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261107T093126CatalogSkuUniqueAmongLive } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20261107T120008CatalogProductCreatedAtMilliseconds } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20261114T000706CatalogCategoryMainImage } from '@endora-commerce/mod-catalog/migrations';
 
 // ── cms ─────────────────────────────────────────────────────────────────────
 import { Migration20260425T162418CmsPagesInit } from '@endora-commerce/mod-cms/migrations';
@@ -265,6 +267,7 @@ import { Migration20261108T073244InvoicesInvoiceLineKind } from '@endora-commerc
 // ── languages ───────────────────────────────────────────────────────────────
 import { Migration20260425T161557LanguagesCurrenciesInit } from '@endora-commerce/mod-languages/migrations';
 import { Migration20261003T115043LanguagesRepairDefaultChannelLanguage } from '@endora-commerce/mod-languages/migrations';
+import { Migration20261114T003519LanguagesDictionaryColumns } from '@endora-commerce/mod-languages/migrations';
 
 // ── linkedin_ads ────────────────────────────────────────────────────────────
 import { Migration20260727T233211LinkedinAdsInit } from '@endora-commerce/mod-linkedin-ads/migrations';
@@ -340,6 +343,7 @@ import { Migration20260912T094631PaymentMethodsSalesChannelPaymentMethods } from
 
 // ── payments ────────────────────────────────────────────────────────────────
 import { Migration20260925T115728PaymentsRefundedAmount } from '@endora-commerce/mod-payments/migrations';
+import { Migration20261114T001851PaymentsProcessColumns } from '@endora-commerce/mod-payments/migrations';
 
 // ── pim_connector ───────────────────────────────────────────────────────────
 import { Migration20260826T153500PimConnectorInit } from '@endora-commerce/mod-pim-connector/migrations';
@@ -480,6 +484,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('admin_users', Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret),
   migration('admin_users', Migration20261027T160234AdminUsersAdminUserPreferences),
   migration('admin_users', Migration20261103T140300AdminUsersAuthorProfile),
+  migration('admin_users', Migration20261114T002913AdminUsersPreferredLanguage),
 
   // ── analytics ───────────────────────────────────────────────────────────────
   migration('analytics', Migration20260425T143139AnalyticsInit),
@@ -556,6 +561,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('catalog', Migration20261104T121504CatalogProductContentValues),
   migration('catalog', Migration20261107T093126CatalogSkuUniqueAmongLive),
   migration('catalog', Migration20261107T120008CatalogProductCreatedAtMilliseconds),
+  migration('catalog', Migration20261114T000706CatalogCategoryMainImage),
 
   // ── cms ─────────────────────────────────────────────────────────────────────
   migration('cms', Migration20260425T162418CmsPagesInit),
@@ -695,6 +701,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── languages ───────────────────────────────────────────────────────────────
   migration('languages', Migration20260425T161557LanguagesCurrenciesInit),
   migration('languages', Migration20261003T115043LanguagesRepairDefaultChannelLanguage),
+  migration('languages', Migration20261114T003519LanguagesDictionaryColumns),
 
   // ── linkedin_ads ────────────────────────────────────────────────────────────
   migration('linkedin_ads', Migration20260727T233211LinkedinAdsInit),
@@ -770,6 +777,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── payments ────────────────────────────────────────────────────────────────
   migration('payments', Migration20260925T115728PaymentsRefundedAmount),
+  migration('payments', Migration20261114T001851PaymentsProcessColumns),
 
   // ── pim_connector ───────────────────────────────────────────────────────────
   migration('pim_connector', Migration20260826T153500PimConnectorInit),

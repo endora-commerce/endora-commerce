@@ -23,11 +23,14 @@
  */
 
 import { Migration20260925T115728PaymentsRefundedAmount } from './20260925T115728_payments_refunded_amount.js';
+import { Migration20261114T001851PaymentsProcessColumns } from './20261114T001851_payments_process_columns.js';
 
 export const migrations = [
   Migration20260925T115728PaymentsRefundedAmount,
+  Migration20261114T001851PaymentsProcessColumns,
 ];
 
 export {
   Migration20260925T115728PaymentsRefundedAmount,
+  Migration20261114T001851PaymentsProcessColumns,
 };

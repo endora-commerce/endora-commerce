@@ -5,7 +5,6 @@ import { Migration } from '@mikro-orm/migrations';
  *
  * Schema changes (one atomic migration):
  *   - new tables: countries, dictionary_translations, language_countries.
- *   - ALTER `languages` ADD COLUMN native_label, is_rtl, fallback_code (self-FK).
  *   - ALTER `currencies` ADD COLUMN symbol_position, decimal_places (CHECKs).
  *   - partial unique index `uniq_countries_one_default` for the "exactly one
  *     default" invariant (mirrors the analogous indexes on languages and
@@ -18,6 +17,16 @@ import { Migration } from '@mikro-orm/migrations';
  *     SET NULL — added LAST (after seed inserts run via the runtime
  *     SeedReconciler) so the constraint is satisfied for every seeded row
  *     without the migration carrying ~250 inline INSERTs.
+ *
+ * Until issue #611 it also added `languages.native_label`, `is_rtl` and
+ * `fallback_code` with the `languages_fallback_fk` self-reference (step 2).
+ * Those are `languages`' — its `Language` entity maps them — so the
+ * statements and their inverses moved to
+ * `Migration20261114T003519LanguagesDictionaryColumns`, verbatim and
+ * `if not exists`, in the shape D-226 gave the `cms_pages` index
+ * `assets_library`'s frozen init carried. This class keeps its name, so a
+ * database that has applied it is not offered it again, and its schema is
+ * unchanged. The steps below keep their numbers.
  *
  * No seed rows in this migration. The countries seed, the Polish
  * translations seed, the en-US/pl-PL language↔country primary associations,
@@ -61,19 +70,6 @@ export class Migration20260506T112634DictionariesDictionaryInit extends Migratio
     );
     this.addSql(`create index "idx_countries_active" on "countries" ("is_active");`);
     this.addSql(`create index "idx_countries_sort" on "countries" ("sort_order", "label");`);
-
-    // ────────────────────────────────────────────────────────────────────
-    // 2) ALTER languages — extended fields (native_label, is_rtl, fallback_code)
-    // ────────────────────────────────────────────────────────────────────
-    this.addSql(`alter table "languages" add column "native_label" varchar(64) not null default '';`);
-    this.addSql(`alter table "languages" add column "is_rtl" boolean not null default false;`);
-    this.addSql(`alter table "languages" add column "fallback_code" varchar(12) null;`);
-    this.addSql(`
-      alter table "languages"
-        add constraint "languages_fallback_fk"
-        foreign key ("fallback_code") references "languages" ("code")
-        on delete set null;
-    `);
 
     // ────────────────────────────────────────────────────────────────────
     // 3) ALTER currencies — extended fields (symbol_position, decimal_places)
@@ -164,10 +160,6 @@ export class Migration20260506T112634DictionariesDictionaryInit extends Migratio
     this.addSql(`alter table "currencies" drop constraint if exists "currencies_symbol_position_check";`);
     this.addSql(`alter table "currencies" drop column if exists "decimal_places";`);
     this.addSql(`alter table "currencies" drop column if exists "symbol_position";`);
-    this.addSql(`alter table "languages" drop constraint if exists "languages_fallback_fk";`);
-    this.addSql(`alter table "languages" drop column if exists "fallback_code";`);
-    this.addSql(`alter table "languages" drop column if exists "is_rtl";`);
-    this.addSql(`alter table "languages" drop column if exists "native_label";`);
     this.addSql(`drop table if exists "countries" cascade;`);
   }
 }

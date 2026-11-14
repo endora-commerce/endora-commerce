@@ -8,7 +8,14 @@ import { Migration } from '@mikro-orm/migrations';
  *   - eight new columns on the existing `assets` table:
  *       folder_id, visibility, label, storage_backend, storage_locator,
  *       pending_cleanup, purge_after_at, mime_type_overridden.
- *   - new `categories.main_image_asset_id` FK column.
+ *
+ * It also added `categories.main_image_asset_id`, with its foreign key to
+ * `assets` and its index, until issue #611. The column is `catalog`'s —
+ * `Category.mainImageAssetId` maps it — and `catalog` declares this module, so
+ * the three moved to `Migration20261114T000706CatalogCategoryMainImage`,
+ * verbatim and `if not exists`, in the shape D-226 gave the `cms_pages` index
+ * below. This class keeps its name, so a database that has applied it is not
+ * offered it again, and its schema is unchanged.
  *
  * It also created a GIN index on `cms_pages.body`, so reference-protection's
  * JSONB-path scan stays fast (research R10), until
@@ -92,16 +99,6 @@ export class Migration20260505T102206AssetsLibraryInit extends Migration {
       'create index "assets_storage_backend_index" on "assets" ("storage_backend", "deleted_at");',
     );
 
-    // --- categories.main_image_asset_id ----------------------------------
-    this.addSql(`alter table "categories"
-      add column "main_image_asset_id" uuid null,
-      add constraint "categories_main_image_fk" foreign key ("main_image_asset_id")
-        references "assets" ("id") on delete set null;
-    `);
-    this.addSql(
-      'create index "categories_main_image_asset_id_index" on "categories" ("main_image_asset_id");',
-    );
-
     // --- backfill --------------------------------------------------------
     // Pass 1: copy storage_url into storage_locator for every row that
     // still has the column-default empty string.
@@ -121,14 +118,6 @@ export class Migration20260505T102206AssetsLibraryInit extends Migration {
   }
 
   override async down(): Promise<void> {
-    this.addSql(
-      'alter table "categories" drop constraint if exists "categories_main_image_fk";',
-    );
-    this.addSql(
-      'drop index if exists "categories_main_image_asset_id_index";',
-    );
-    this.addSql('alter table "categories" drop column if exists "main_image_asset_id";');
-
     this.addSql('drop index if exists "assets_storage_backend_index";');
     this.addSql('drop index if exists "assets_purge_due_index";');
     this.addSql('drop index if exists "assets_pending_cleanup_index";');

@@ -4,49 +4,39 @@
  *
  * Keyed `<file>:<table>`, with `sites` where the file writes one table more than
  * once. Two-way: an unrecorded write fails the build, and an entry describing no
- * write fails it too. Both entries are **DDL**, surfaced by issue #108, which
+ * write fails it too. The entry is **DDL**, surfaced by issue #108, which
  * taught the rule to read `alter table`, `create index`, `drop index` and their
- * kin.
+ * kin. Its `languages` twin was retired by issue #611, which moved those
+ * statements to `Migration20261114T003519LanguagesDictionaryColumns`.
  */
 import type { LedgerEntry } from '../../check-module-boundary.js';
 
-/** Why neither entry can be repaired where it stands, said once. */
-const FROZEN =
-  'Retired by: moving the statements, verbatim and guarded with `if [not] exists`, ' +
-  'into the owner\'s migration and deleting them from this file — the shape D-226 gave the ' +
-  '`cms_pages` index `assets_library`\'s frozen init carried ' +
-  '(`Migration20260912T125709CmsPageBodyAssetRefIndex`). `20260506T112634` is below ' +
-  '`BASELINE_THROUGH`, so that edits a frozen body every database has applied — an owner ' +
-  'ruling this entry holds open. Until then a new ' +
-  'migration in the owner cannot retire it — the historical statements still run on every ' +
-  'fresh database. `dictionaries` declares both owners, so R1 holds; R2 does not, and a ' +
-  'declaration cannot make it.';
-
 export const entries: Readonly<Record<string, LedgerEntry>> = {
-  'packages/modules/dictionaries/src/migrations/20260506T112634_dictionaries_dictionary_init.ts:languages':
-    {
-      sites: 8,
-      reason:
-        'Feature 017 extended `languages` from the dictionary module\'s migration: three ' +
-        '`alter table "languages" add column` statements (`native_label`, `is_rtl`, ' +
-        '`fallback_code`) and the `languages_fallback_fk` self-reference in `up()`, and the ' +
-        'four inverse statements in `down()`. The columns are `languages`\' own ' +
-        '(`Language.nativeLabel` / `isRtl` / `fallbackCode`).\n\n' +
-        '**Seam: `languages`\' own migration**, beside the entity properties that declare the ' +
-        'columns.\n\n' +
-        FROZEN,
-    },
   'packages/modules/dictionaries/src/migrations/20260506T112634_dictionaries_dictionary_init.ts:currencies':
     {
       sites: 8,
       reason:
-        'Feature 017 extended `currencies` from the same migration: two `alter table ' +
+        'Feature 017 extended `currencies` from the dictionary module\'s migration: two `alter table ' +
         '"currencies" add column` statements (`symbol_position`, `decimal_places`) and the two ' +
         '`check` constraints guarding them in `up()`, and the four inverse statements in ' +
         '`down()`. The columns are `currencies`\' own (`Currency.symbolPosition` / ' +
         '`decimalPlaces`).\n\n' +
         '**Seam: `currencies`\' own migration**, beside the entity properties that declare the ' +
-        'columns.\n\n' +
-        FROZEN,
+        'columns — **but not yet.** `currencies` does not create its own table: ' +
+        '`languages`\' frozen `Migration20260425T161557LanguagesCurrenciesInit` does, and ' +
+        '`languages` declares `currencies`, not the other way round. So a `currencies`-owned ' +
+        'migration altering the table runs, in an instance\'s module-by-module order, before ' +
+        'the table exists, and `test/unit/db/instance-migration-order.test.ts` G4 refuses it ' +
+        '(D-226: a migration names only what its own closure creates). Issue #611 moved the ' +
+        '`languages` half of this file and left this one for that reason.\n\n' +
+        'Retired by: `currencies` creating its own table first — the `create table ' +
+        '"currencies"` in that same `languages` init, whose seed is the `languages` → ' +
+        '`currencies` R2 entry in `scripts/ledgers/migration-foreign-writes/languages.ts`; it is ' +
+        'frozen and referenced by frozen migrations, so moving it is an owner ruling of its ' +
+        'own — and then moving these statements, verbatim and guarded with `if [not] ' +
+        'exists`, into that module\'s migration and deleting them from this file. ' +
+        '`20260506T112634` is below `BASELINE_THROUGH`, so that edits a frozen body every ' +
+        'database has applied. `dictionaries` declares `currencies`, so R1 holds; R2 does not, ' +
+        'and a declaration cannot make it.',
     },
 };
