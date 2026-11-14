@@ -368,6 +368,10 @@ export const manifest = defineModuleManifest({
     { code: 'CRM_STATUS_INITIAL_REQUIRED' },
     { code: 'CRM_ASSIGNEE_INVALID' },
     { code: 'CRM_ATTACHMENT_TOO_LARGE' },
+    // Issue #639 (#86) — a public file attached; it was `422 VALIDATION_FAILED`
+    // with an English literal the envelope never replaces. One refusal, so no
+    // `tokens`; the asset travels as scalar `details`.
+    { code: 'CRM_ATTACHMENT_NOT_PRIVATE' },
     { code: 'CRM_TAG_NAME_TAKEN' },
     { code: 'CRM_MESSAGE_IMMUTABLE' },
     // One sentence per broken rule: the raise carries the rule as its refusal

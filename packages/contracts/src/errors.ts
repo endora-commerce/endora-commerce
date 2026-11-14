@@ -1000,6 +1000,12 @@ export const ERROR_CODES = {
   CRM_ASSIGNEE_INVALID: 'CRM_ASSIGNEE_INVALID',
   /** The uploaded file is larger than an Opportunity attachment may be. */
   CRM_ATTACHMENT_TOO_LARGE: 'CRM_ATTACHMENT_TOO_LARGE',
+  /**
+   * 422 — an attachment must be a private file of the library (`details.assetId`, `visibility`).
+   * `VALIDATION_FAILED` until issue #639 (#86); the twin of `projects`'
+   * `PROJECT_ATTACHMENT_NOT_PRIVATE` (issue #634).
+   */
+  CRM_ATTACHMENT_NOT_PRIVATE: 'CRM_ATTACHMENT_NOT_PRIVATE',
   /** Another CRM tag already has this name, whatever its case. */
   CRM_TAG_NAME_TAKEN: 'CRM_TAG_NAME_TAKEN',
   /** A message on an Opportunity cannot be edited or deleted once sent. */

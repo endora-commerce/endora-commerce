@@ -47,6 +47,7 @@
   "errors.CRM_WORKFLOW_INVALID.mapping_duplicate_order_status": "Status zamówienia może przenosić szansę tylko do jednego statusu.",
   "errors.CRM_ASSIGNEE_INVALID": "Tej osoby nie można przypisać: nie jest aktywnym administratorem albo nie ma dostępu do organizacji tej szansy.",
   "errors.CRM_ATTACHMENT_TOO_LARGE": "Plik jest za duży: załącznik może mieć najwyżej {maxMb} MB.",
+  "errors.CRM_ATTACHMENT_NOT_PRIVATE": "Załącznik musi być plikiem prywatnym. Prześlij go do biblioteki mediów jako prywatny.",
   "errors.CRM_TAG_NAME_TAKEN": "Etykieta o nazwie „{name}” już istnieje.",
   "errors.CRM_MESSAGE_IMMUTABLE": "Wiadomości nie można zmienić ani usunąć po wysłaniu.",
   "auditLog.crm.opportunity.create": "Utworzono szansę sprzedażową",

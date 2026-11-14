@@ -117,10 +117,13 @@ export class OpportunityAttachmentService {
     if (!(await this.deps.assets.visibleToCaller([assetId])).has(assetId)) throw fileUnavailable();
     await this.#refuseAFileHeldOutOfReach(em, assetId);
     if (asset.visibility !== 'private') {
+      // The file's visibility refuses a well-formed request, so not
+      // `VALIDATION_FAILED` (issue #639).
       throw new HttpError(
         422,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.CRM_ATTACHMENT_NOT_PRIVATE,
         'An attachment must be a private file. Upload it to the media library as private.',
+        { assetId, visibility: asset.visibility },
       );
     }
     // The same refusal as the upload's: a file of the library is held to it too.

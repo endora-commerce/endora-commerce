@@ -841,7 +841,7 @@ Somebody who may only read sees the list and the download buttons.
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | The attachments, oldest first: file name, type, size, who attached it, and `url`. |
 | `POST /api/v1/admin/crm/opportunities/:id/attachments/upload` | `crm:write` | Upload a file and attach it: `multipart/form-data` with one `file` part. |
-| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` and `assets.read` | Attach a file that is already in the media library as a private file: `{ "assetId" }`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` and `assets.read` | Attach a file that is already in the media library as a private file: `{ "assetId" }`. A public file is `422` `CRM_ATTACHMENT_NOT_PRIVATE` (`details`: `assetId`, `visibility`; `VALIDATION_FAILED` until issue #639); a file that is not in the library, or that the caller may not see, is `422` `VALIDATION_FAILED`. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Remove the attachment. The file stays in the media library. |
 
 The upload answers the new attachment. It answers 413 `CRM_ATTACHMENT_TOO_LARGE`

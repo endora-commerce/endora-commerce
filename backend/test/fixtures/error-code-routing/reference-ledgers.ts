@@ -536,6 +536,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'The noun is the attachment and the one raise site is that route; the media library\'s ' +
       'own size limit keeps its own code.',
   },
+  CRM_ATTACHMENT_NOT_PRIVATE: {
+    to: 'crm',
+    reason:
+      'Minted by issue #639 (#86) for a library file attached to an Opportunity while it is not ' +
+      'private. It was `VALIDATION_FAILED`: the request is well formed, and the file\'s ' +
+      'visibility refuses it. Named in parallel with `projects`\' twin, ' +
+      '`PROJECT_ATTACHMENT_NOT_PRIVATE` (issue #634), as the two `*_ATTACHMENT_TOO_LARGE` codes are.',
+  },
   PRICE_BOOK_CHANNEL_CURRENCY: {
     to: 'price_lists',
     reason:
