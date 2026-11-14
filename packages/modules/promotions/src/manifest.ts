@@ -108,7 +108,18 @@ export const manifest = defineModuleManifest({
    * No `tokens`, for the same reason and from the same direction: there is no
    * raise site to put a `details.code` on the wire.
    */
-  errorCodes: [{ code: 'PROMOTION_INVALID' }],
+  errorCodes: [
+    { code: 'PROMOTION_INVALID' },
+    // Issue #628 (#86) — refusals that were `VALIDATION_FAILED` with a machine
+    // token glued to an English message. The usage limit is a buyer's: with a
+    // coupon applied, the token `with_coupon` picks the sentence naming it.
+    { code: 'PROMOTION_USAGE_LIMIT_REACHED', tokens: ['with_coupon'] },
+    { code: 'PROMOTION_COUPON_CODE_TAKEN' },
+    { code: 'PROMOTION_COUPON_SPACE_EXHAUSTED' },
+    { code: 'PROMOTION_RULE_NAME_TAKEN' },
+    { code: 'PROMOTION_RULE_IN_USE' },
+    { code: 'PROMOTION_ATTRIBUTE_NOT_ELIGIBLE' },
+  ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   permissions: [

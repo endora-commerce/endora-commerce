@@ -53,8 +53,11 @@ kolejności priorytetu i pokazuje wynik w koszyku oraz w złożonym zamówieniu.
 `finalizeUsage` działa w transakcji składania zamówienia. Każdy licznik w danym zakresie jest
 zwiększany przez `UPDATE promotion_usage_counters SET count = count + 1 WHERE (scope_type, scope_key) = … AND count < :limit`.
 Brak zmienionych wierszy oznacza, że limit został osiągnięty, więc rzucany jest
-`409 promotion_unavailable` i całe składanie zamówienia jest wycofywane. Dwa koszyki rywalizujące o
-ostatnie użycie nigdy nie wygrają obydwa.
+`409 PROMOTION_USAGE_LIMIT_REACHED` i całe składanie zamówienia jest wycofywane. Dwa koszyki
+rywalizujące o ostatnie użycie nigdy nie wygrają obydwa. Kupujący czyta zdanie, które wymienia
+zastosowany przez niego kupon (`details.code` `with_coupon`, `couponCode`), albo mówi o promocji bez
+jej nazwy, gdy kuponu nie było — nigdy identyfikator promocji, który trafia tylko do
+`details.promotionId`.
 
 ## API publiczne (panel administracyjny, chronione przez `promotions:read|write|delete`)
 
@@ -69,6 +72,24 @@ ostatnie użycie nigdy nie wygrają obydwa.
 | `GET .../coupon-batches/:batchId/export` | Eksport wygenerowanych kodów do CSV |
 | `GET /api/v1/admin/promotions/:id/stats` | Statystyki wykorzystania |
 | `GET/POST/PUT/DELETE /api/v1/admin/promotion-rules[/:id]` | Biblioteka nazwanych reguł |
+
+## Odmowy
+
+Każda odmowa ma własny kod i zdanie po angielsku i po polsku, które wymienia wartości z `details`.
+Do zgłoszenia #628 były to odpowiedzi `VALIDATION_FAILED` z tokenem maszynowym na początku
+komunikatu; status się nie zmienił.
+
+| Kod | Status | Kiedy | `details` |
+| --- | --- | --- | --- |
+| `PROMOTION_USAGE_LIMIT_REACHED` | `409` | `POST /api/v1/orders` — limit użyć promocji wyczerpał się między koszykiem a złożeniem zamówienia | `promotionId`; z kuponem także `code: 'with_coupon'` i `couponCode` |
+| `PROMOTION_COUPON_CODE_TAKEN` | `409` | `POST …/coupons` — inny kupon ma już ten kod | `couponCode` |
+| `PROMOTION_COUPON_SPACE_EXHAUSTED` | `400` | `POST …/coupon-batches` — długość i format mieszczą mniej unikalnych kodów, niż zamówiono | `requested`, `generated` |
+| `PROMOTION_RULE_NAME_TAKEN` | `409` | `POST`, `PUT /api/v1/admin/promotion-rules[/:id]` — inna reguła ma już tę nazwę | `name` |
+| `PROMOTION_RULE_IN_USE` | `409` | `DELETE /api/v1/admin/promotion-rules/:id` — z reguły korzystają promocje | `ruleId`, `promotionCount` |
+| `PROMOTION_ATTRIBUTE_NOT_ELIGIBLE` | `400` | `POST`, `PUT /api/v1/admin/promotions[/:id]` — kryterium wskazuje atrybut, którego nie można używać w regułach promocyjnych | `attributeKey` |
+
+Partia większa niż limit generatora, nieznany typ akcji, reguła lub atrybut, operator niedozwolony
+dla typu atrybutu i opcja, której atrybut nie ma, nadal dają `VALIDATION_FAILED`.
 
 Kupony w storefroncie realizuje się przez istniejące endpointy kuponu w koszyku
 (`POST /api/v1/cart/coupon`), które odnajdują kod w tabeli kuponów albo w dawnej kolumnie.

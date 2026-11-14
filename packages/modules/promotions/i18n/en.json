@@ -34,5 +34,12 @@
   "nav.promotions.label": "Promotions",
   "nav.promotionRules.label": "Promotion rules",
   "actions.openPromotionRules.keywords": "rules, rule, promotion",
-  "settingGroups.promotions.name": "Promotions"
+  "settingGroups.promotions.name": "Promotions",
+  "errors.PROMOTION_USAGE_LIMIT_REACHED": "A promotion in your cart has reached its usage limit, so the order was not placed. Go back to your cart to see the current price.",
+  "errors.PROMOTION_USAGE_LIMIT_REACHED.with_coupon": "The promotion of coupon {couponCode} has reached its usage limit, so the order was not placed. Remove the coupon or go back to your cart to see the current price.",
+  "errors.PROMOTION_COUPON_CODE_TAKEN": "The coupon code {couponCode} is already in use. Choose a different code.",
+  "errors.PROMOTION_COUPON_SPACE_EXHAUSTED": "Only {generated} of {requested} unique codes fit this length and format. Make the codes longer or widen the format.",
+  "errors.PROMOTION_RULE_NAME_TAKEN": "A rule named {name} already exists. Choose a different name.",
+  "errors.PROMOTION_RULE_IN_USE": "Promotions that use this rule: {promotionCount}. Remove the rule from them before you delete it.",
+  "errors.PROMOTION_ATTRIBUTE_NOT_ELIGIBLE": "The attribute {attributeKey} is not usable in promotion rules. Turn that on for the attribute in the catalogue, or choose another attribute."
 }

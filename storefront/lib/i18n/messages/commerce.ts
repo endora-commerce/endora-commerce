@@ -339,6 +339,8 @@ export const commerce = defineMessages({
       'Prices agreed on a quote cannot be confirmed at the moment, so the cart cannot be ordered at them. Remove the quoted items from your cart to order at current prices.',
     'commerce.error.ORGANIZATION_PERMISSION_REQUIRED':
       'Your role does not allow this. Ask an administrator of your organization for this permission.',
+    'commerce.error.PROMOTION_USAGE_LIMIT_REACHED':
+      'A promotion in your cart has reached its usage limit, so the order was not placed. Go back to your cart to see the current price.',
     'commerce.error.ONE_CLICK_UNAVAILABLE': 'One-click buy is not available for this product right now.',
     'commerce.error.ONE_CLICK_UNAVAILABLE.setting_disabled':
       'One-click buy is switched off in this store. Add the product to the cart and place the order from there.',
@@ -663,6 +665,8 @@ export const commerce = defineMessages({
       'Nie można teraz potwierdzić cen uzgodnionych w ofercie, więc nie można złożyć zamówienia z koszyka po tych cenach. Usuń z koszyka pozycje z oferty, aby zamówić po aktualnych cenach.',
     'commerce.error.ORGANIZATION_PERMISSION_REQUIRED':
       'Twoja rola na to nie pozwala. Poproś administratora swojej organizacji o to uprawnienie.',
+    'commerce.error.PROMOTION_USAGE_LIMIT_REACHED':
+      'Promocja w Twoim koszyku osiągnęła limit użyć, więc zamówienie nie zostało złożone. Wróć do koszyka, aby zobaczyć aktualną cenę.',
     'commerce.error.ONE_CLICK_UNAVAILABLE': 'Zakup jednym kliknięciem nie jest teraz dostępny dla tego produktu.',
     'commerce.error.ONE_CLICK_UNAVAILABLE.setting_disabled':
       'Zakup jednym kliknięciem jest wyłączony w tym sklepie. Dodaj produkt do koszyka i złóż zamówienie z koszyka.',

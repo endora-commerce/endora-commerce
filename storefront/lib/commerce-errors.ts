@@ -56,6 +56,9 @@ const COMMERCE_API_ERROR_KEYS = {
   'QUOTE_VALIDITY_ENDED.withdrawn': 'commerce.error.QUOTE_VALIDITY_ENDED.withdrawn',
   'QUOTE_VALIDITY_ENDED.unavailable': 'commerce.error.QUOTE_VALIDITY_ENDED.unavailable',
   ORGANIZATION_PERMISSION_REQUIRED: 'commerce.error.ORGANIZATION_PERMISSION_REQUIRED',
+  // Issue #628 — a promotion's last use went between the cart and placement. One sentence with
+  // or without a coupon: the backend's `with_coupon` names the code, which a URL never carries.
+  PROMOTION_USAGE_LIMIT_REACHED: 'commerce.error.PROMOTION_USAGE_LIMIT_REACHED',
   // Issue #641 — one-click buy refused by the setting or the buyer's defaults; the token is the reason.
   ONE_CLICK_UNAVAILABLE: 'commerce.error.ONE_CLICK_UNAVAILABLE',
   'ONE_CLICK_UNAVAILABLE.setting_disabled': 'commerce.error.ONE_CLICK_UNAVAILABLE.setting_disabled',

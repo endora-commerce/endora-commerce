@@ -15,7 +15,8 @@ import {
  *     options inline.
  *   - POST /api/v1/admin/promotions accepts the `'attribute'` criterion
  *     variant, with per-`valueType` validation:
- *       * `attribute_not_promo_eligible` when `isPromoRule = false`
+ *       * `PROMOTION_ATTRIBUTE_NOT_ELIGIBLE` when `isPromoRule = false` (its own
+ *         code since issue #628; the rest stay `VALIDATION_FAILED`)
  *       * `attribute_not_found`          when the key is unknown
  *       * `invalid_criterion_op`         when op is not in the valueType's
  *         allowed list
@@ -120,7 +121,9 @@ describe('Promotion attribute criterion (T055)', () => {
       cookies: adminCookie,
     });
     expect(res.statusCode).toBe(400);
-    expect(res.json().error.message).toMatch(/attribute_not_promo_eligible/);
+    // Its own code since issue #628: the attribute exists, its flag refuses it.
+    expect(res.json().error.code).toBe('PROMOTION_ATTRIBUTE_NOT_ELIGIBLE');
+    expect(res.json().error.details).toEqual({ attributeKey: 'material' });
   });
 
   it('rejects a criterion referencing an unknown attribute', async () => {

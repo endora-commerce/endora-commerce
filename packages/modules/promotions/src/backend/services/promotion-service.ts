@@ -588,10 +588,14 @@ export class PromotionService {
         );
       }
       if (!meta.isPromoRule) {
+        // The attribute exists and its own flag refuses it — catalogue
+        // configuration the operator can change, so a code of its own rather
+        // than `VALIDATION_FAILED` (issue #628).
         throw new HttpError(
           400,
-          ERROR_CODES.VALIDATION_FAILED,
-          `attribute_not_promo_eligible: ${c.attributeKey}`,
+          ERROR_CODES.PROMOTION_ATTRIBUTE_NOT_ELIGIBLE,
+          `The attribute ${c.attributeKey} is not usable in promotion rules.`,
+          { attributeKey: c.attributeKey },
         );
       }
       const allowed = allowedOpsFor(meta.valueType);
