@@ -344,6 +344,12 @@ export const manifest = defineModuleManifest({
     { code: 'PROJECT_NOTE_NOT_AUTHOR' },
     { code: 'PROJECT_MESSAGE_IMMUTABLE' },
     { code: 'PROJECT_ATTACHMENT_TOO_LARGE' },
+    // Issue #634 (#86) — three state refusals that were `422 VALIDATION_FAILED`
+    // with an English literal the envelope never replaces. Each is one refusal,
+    // so none declares `tokens`; the values travel as scalar `details`.
+    { code: 'PROJECT_STAGE_LIMIT' },
+    { code: 'PROJECT_ATTACHMENT_NOT_PRIVATE' },
+    { code: 'PROJECT_TEMPLATE_ROLE_ARCHIVED' },
   ],
   /**
    * The one e-mail this module sends: a Stage deadline alert, to every Member

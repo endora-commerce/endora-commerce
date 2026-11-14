@@ -383,7 +383,16 @@ export class TemplateService {
       const archived = new Map(rows.map((row) => [row.id, row.archived_at !== null]));
       for (const roleId of roleIds) {
         if (!archived.has(roleId)) throw invalid('A role of this template is not a project role.');
-        if (archived.get(roleId) && !held.has(roleId)) throw invalid('An archived project role is not added to a template.');
+        if (archived.get(roleId) && !held.has(roleId)) {
+          // The Role's state refuses a well-formed body, so not `invalid()`'s
+          // `VALIDATION_FAILED` (issue #634).
+          throw new HttpError(
+            422,
+            ERROR_CODES.PROJECT_TEMPLATE_ROLE_ARCHIVED,
+            'An archived project role is not added to a template.',
+            { roleId },
+          );
+        }
       }
     }
     await assertRolesExist(em, stageRolesNamedBy(body));
