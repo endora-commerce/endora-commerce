@@ -170,6 +170,11 @@ export const account = defineMessages({
       '{name} ({email}) will lose access to the organization straight away. This cannot be undone.',
     'account.members.remove.confirm': 'Remove member',
     'account.members.remove.pending': 'Removing…',
+    'account.members.revoke.title': 'Revoke this invitation?',
+    'account.members.revoke.body':
+      'The invitation sent to {email} will stop working straight away. You can send a new one later.',
+    'account.members.revoke.confirm': 'Revoke invitation',
+    'account.members.revoke.pending': 'Revoking…',
     'account.members.col.actions': 'Actions',
     'account.members.pending.heading': 'Pending invitations',
     'account.members.pending.sent': 'Sent',
@@ -708,6 +713,11 @@ export const account = defineMessages({
       'Osoba {name} ({email}) natychmiast straci dostęp do organizacji. Tej operacji nie można cofnąć.',
     'account.members.remove.confirm': 'Usuń członka',
     'account.members.remove.pending': 'Usuwanie…',
+    'account.members.revoke.title': 'Cofnąć to zaproszenie?',
+    'account.members.revoke.body':
+      'Zaproszenie wysłane na adres {email} natychmiast przestanie działać. Później możesz wysłać nowe.',
+    'account.members.revoke.confirm': 'Cofnij zaproszenie',
+    'account.members.revoke.pending': 'Cofanie…',
     'account.members.col.actions': 'Działania',
     'account.members.pending.heading': 'Oczekujące zaproszenia',
     'account.members.pending.sent': 'Wysłano',

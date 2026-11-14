@@ -40,7 +40,7 @@ export default async function ReturnsListPage(): Promise<ReactNode> {
       <h1>{t('account.returns.heading')}</h1>
       {mayStart ? (
         <p>
-          <LocalizedLink href="/returns/new">{t('account.returns.startNew')}</LocalizedLink>
+          <LocalizedLink href="/returns/new" className="b2b-account__link b2b-account__link--standalone">{t('account.returns.startNew')}</LocalizedLink>
         </p>
       ) : null}
       {cases.length === 0 ? (

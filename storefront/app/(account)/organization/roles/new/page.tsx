@@ -39,7 +39,7 @@ export default async function NewOrganizationRolePage(): Promise<ReactNode> {
   const t = tForLocale(locale);
   const back = (
     <p className="mb-3 mt-0 text-[13px]">
-      <LocalizedLink href="/organization/roles">← {t('account.roles.back')}</LocalizedLink>
+      <LocalizedLink href="/organization/roles" className="b2b-account__link b2b-account__link--standalone">← {t('account.roles.back')}</LocalizedLink>
     </p>
   );
   const heading = <h2>{t('account.roles.new')}</h2>;
@@ -62,7 +62,7 @@ export default async function NewOrganizationRolePage(): Promise<ReactNode> {
         {heading}
         <p className="b2b-auth__error" role="alert">
           {t('account.roles.editor.catalogueFailed')}{' '}
-          <LocalizedLink href="/organization/roles/new">{t('account.roles.retry')}</LocalizedLink>
+          <LocalizedLink href="/organization/roles/new" className="b2b-account__link">{t('account.roles.retry')}</LocalizedLink>
         </p>
       </>
     );

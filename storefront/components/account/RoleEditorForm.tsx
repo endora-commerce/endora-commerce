@@ -104,7 +104,7 @@ export function RoleEditorForm({
         <>
           {t('account.roles.form.stale')}{' '}
           {/* A full load on purpose: a soft navigation would keep this form, and its stale version, mounted. */}
-          <a href={localize(`/organization/roles/${encodeURIComponent(role.id)}`)}>{t('account.roles.form.reload')}</a>
+          <a className="b2b-account__link" href={localize(`/organization/roles/${encodeURIComponent(role.id)}`)}>{t('account.roles.form.reload')}</a>
         </>
       ) : (
         t(errorKey)

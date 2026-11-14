@@ -70,7 +70,7 @@ export default async function ReturnDetailPage({
   return (
     <div className="b2b-auth max-w-[720px]">
       <p>
-        <LocalizedLink href="/returns">{t('returns.new.backToReturns')}</LocalizedLink>
+        <LocalizedLink href="/returns" className="b2b-account__link b2b-account__link--standalone">{t('returns.new.backToReturns')}</LocalizedLink>
       </p>
       <h1>{detail.rmaNumber ?? t('account.return.fallbackTitle')}</h1>
       <p>

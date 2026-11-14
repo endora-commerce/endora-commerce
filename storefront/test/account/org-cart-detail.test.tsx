@@ -324,3 +324,26 @@ describe('organization cart detail — a completed cart links to its order (issu
     expect(await render()).not.toContain('/orders/');
   });
 });
+
+describe('organization cart detail — its links look like links (issue #1214)', () => {
+  it('gives the back link the shared link style at the 44px floor', async () => {
+    expect(await render()).toMatch(
+      /<a class="b2b-account__link b2b-account__link--standalone" href="\/organization\/carts">← All organization carts<\/a>/,
+    );
+  });
+
+  it('gives "View order" the shared link style at the 44px floor', async () => {
+    roleKind = 'administrator';
+    detail = pendingCart({
+      status: 'completed',
+      approvalStatus: 'approved',
+      itemCount: 0,
+      total: { amount: 0, currency: 'PLN' },
+      items: [],
+      orderId: '00000000-0000-4000-8000-000000000751',
+    });
+    expect(await render()).toMatch(
+      /<a class="b2b-account__link b2b-account__link--standalone" href="\/orders\/00000000-0000-4000-8000-000000000751">View order<\/a>/,
+    );
+  });
+});

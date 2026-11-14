@@ -915,6 +915,24 @@
   /* In a cell: the 44px touch floor, pulled into the cell's own 10px padding
      so the row does not grow (Fitts's Law, WCAG 2.5.8). */
   .b2b-account__table .b2b-account__link { @apply -my-[10px] inline-flex min-h-11 min-w-11 items-center; }
+  /* Issue #1214 — the same class outside the tables. In a sentence it stays
+     inline: WCAG 2.5.8 exempts an inline target, and growing it would break
+     the line spacing. A link on a line of its own (a back link, "View order")
+     takes `--standalone`, the 44px floor (Fitts's Law). */
+  .b2b-account__link--standalone { @apply inline-flex min-h-11 items-center; }
+  /* Inside a success or error notice the link takes the notice's own colour,
+     contrast-checked against that background; the accent, and in dark mode the
+     light brand tint, are not — the notice backgrounds stay light in dark
+     mode. The underline still marks it (never colour alone). (0,2,0) beats
+     the `dark:` rule above, whose `:where()` adds nothing. */
+  .b2b-auth__success .b2b-account__link, .b2b-auth__error .b2b-account__link { @apply text-inherit dark:text-inherit; }
+  /* A product link with its SKU line under it: the whole block is the target,
+     only the name — its first child — is underlined, so the SKU does not read
+     as a second link. After the table rule, whose `inline-flex items-center`
+     it overrides at the same specificity. */
+  .b2b-account__link.b2b-account__link--stacked { @apply flex min-h-11 flex-col items-start justify-center no-underline; }
+  .b2b-account__link--stacked > :first-child { @apply underline underline-offset-2; }
+  .b2b-account__link--stacked:hover > :first-child { @apply decoration-2; }
   .b2b-account__comments { @apply m-0 flex list-none flex-col gap-[10px] p-0; }
   .b2b-account__comments li { @apply rounded-md border border-line bg-surface-alt px-[14px] py-[10px]; }
   .b2b-account__comments li small { @apply block text-[11px] text-subtle; }
