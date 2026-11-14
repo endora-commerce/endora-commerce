@@ -139,6 +139,15 @@ export const ERROR_CODES = {
   // request resolved when none is named (owner decision 2026-10-29 "A") — is not
   // one of the Organization's active channels.
   RFQ_SALES_CHANNEL_NOT_ALLOWED: 'RFQ_SALES_CHANNEL_NOT_ALLOWED',
+
+  // Quick order — one-click buy (issue #641, #86). `422 VALIDATION_FAILED` with
+  // `details.code: 'one_click_unavailable'` until then.
+  /**
+   * 422 — one-click buy is not available to the buyer. `details.code` is the
+   * eligibility reason (`setting_disabled`, `missing_defaults`), repeated as
+   * `details.reason`.
+   */
+  ONE_CLICK_UNAVAILABLE: 'ONE_CLICK_UNAVAILABLE',
   QUOTE_INCOMPLETE: 'QUOTE_INCOMPLETE',
   QUOTE_VALIDITY_ENDED: 'QUOTE_VALIDITY_ENDED',
   // Quote PDF by e-mail (`specs/153-quote-request-pdf-template/`, owner answer

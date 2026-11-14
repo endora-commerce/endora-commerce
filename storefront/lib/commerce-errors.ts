@@ -56,7 +56,10 @@ const COMMERCE_API_ERROR_KEYS = {
   'QUOTE_VALIDITY_ENDED.withdrawn': 'commerce.error.QUOTE_VALIDITY_ENDED.withdrawn',
   'QUOTE_VALIDITY_ENDED.unavailable': 'commerce.error.QUOTE_VALIDITY_ENDED.unavailable',
   ORGANIZATION_PERMISSION_REQUIRED: 'commerce.error.ORGANIZATION_PERMISSION_REQUIRED',
-  'VALIDATION_FAILED.one_click_unavailable': 'commerce.error.VALIDATION_FAILED.one_click_unavailable',
+  // Issue #641 — one-click buy refused by the setting or the buyer's defaults; the token is the reason.
+  ONE_CLICK_UNAVAILABLE: 'commerce.error.ONE_CLICK_UNAVAILABLE',
+  'ONE_CLICK_UNAVAILABLE.setting_disabled': 'commerce.error.ONE_CLICK_UNAVAILABLE.setting_disabled',
+  'ONE_CLICK_UNAVAILABLE.missing_defaults': 'commerce.error.ONE_CLICK_UNAVAILABLE.missing_defaults',
   'VALIDATION_FAILED.too_many_items': 'commerce.error.VALIDATION_FAILED.too_many_items',
   // `specs/154-sales-channel-access/` — the store refused the shopper rather than the action.
   SALES_CHANNEL_NOT_PERMITTED: 'auth.login.channelNotPermitted',

@@ -1578,6 +1578,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       '`quote_requests`\' own column, and the one raise site is its admin create. ' +
       '`SALES_CHANNEL_NOT_PERMITTED` is not reused: its sentence speaks to a signed-in buyer.',
   },
+  ONE_CLICK_UNAVAILABLE: {
+    to: 'quick_order',
+    reason:
+      'Minted by issue #641 (#86) for one-click buy refused by the operator setting or the ' +
+      'buyer\'s defaults (tokens `setting_disabled`, `missing_defaults`, the eligibility reasons). ' +
+      'It was `422 VALIDATION_FAILED` with `details.code: "one_click_unavailable"` and an English ' +
+      'sentence the envelope never replaces. The one raise site is `quick_order`\'s ' +
+      '`one-click-service.ts`, and it is the module\'s first code.',
+  },
   FIELD_NOT_AT_SCOPE: {
     to: 'catalog',
     reason:

@@ -669,7 +669,9 @@ describe('order placement honours the Organization method allow-lists', () => {
         const res = await oneClick();
         expect(res.statusCode, res.body).toBe(422);
         const { error } = res.json() as ErrorBody;
-        expect(error.details?.code).toBe('one_click_unavailable');
+        // Issue #641 — `ONE_CLICK_UNAVAILABLE`, its token the eligibility reason.
+        expect(error.code).toBe('ONE_CLICK_UNAVAILABLE');
+        expect(error.details?.code).toBe('missing_defaults');
         expect(error.details?.reason).toBe('missing_defaults');
         expect(await snapshot(TEST_CUSTOMER_ID)).toEqual(before);
       });

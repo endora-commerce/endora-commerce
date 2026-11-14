@@ -33,6 +33,7 @@ import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Order, OrderItem } from '../../helpers/package-entities.js';
 import { addOrganizationChannels } from '../../helpers/sales-channel-access.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
+import { DECLARED_ERROR_TRANSLATION_TARGETS } from '../../helpers/error-code-targets.js';
 
 /**
  * Issue #64 — one-click buy places an order, and refuses a suspended
@@ -282,22 +283,89 @@ describe('POST /api/v1/quick-order/one-click — placement', () => {
     expect(orders).toEqual([]);
   });
 
-  it('stops placing once the operator switches the channel value back off', async () => {
-    await setOneClickEnabledForDefaultChannel(false);
-    try {
+  /**
+   * Issue #641 (#86) — the refusal has a code of its own, `ONE_CLICK_UNAVAILABLE`,
+   * instead of `422 VALIDATION_FAILED` with the English "One-click buy is not
+   * available." in every language. Its `details.code` is the eligibility
+   * `reason`, so each reason reads as its own sentence, and `reason` stays
+   * beside it for a client that branched on it. The sentences are written out
+   * here rather than read from the bundle — a test that loads the file it
+   * checks asserts only that JSON parses. A buyer is answered in the language
+   * of `Accept-Language`.
+   */
+  const ONE_CLICK_UNAVAILABLE = {
+    setting_disabled: {
+      en: 'One-click buy is switched off in this store. Add the product to the cart and place the order from there.',
+      pl: 'Zakup jednym kliknięciem jest wyłączony w tym sklepie. Dodaj produkt do koszyka i złóż zamówienie z koszyka.',
+    },
+    missing_defaults: {
+      en: 'One-click buy needs a default delivery address, billing address, delivery method and payment method that this store offers. Set them in your account, or add the product to the cart and place the order from there.',
+      pl: 'Zakup jednym kliknięciem wymaga domyślnego adresu dostawy, adresu rozliczeniowego, metody dostawy i metody płatności, które oferuje ten sklep. Ustaw je na swoim koncie albo dodaj produkt do koszyka i złóż zamówienie z koszyka.',
+    },
+  } as const;
+
+  function oneClick(language: string) {
+    return h.app.inject({
+      method: 'POST',
+      url: '/api/v1/quick-order/one-click',
+      cookies: COOKIE,
+      headers: { 'accept-language': language },
+      payload: { productId: SEED_PRODUCT_101_ID, quantity: 1 },
+    });
+  }
+
+  function expectUnavailable(
+    res: { statusCode: number; body: string; json: () => unknown },
+    reason: keyof typeof ONE_CLICK_UNAVAILABLE,
+    language: 'en' | 'pl',
+  ): void {
+    expect(res.statusCode, res.body).toBe(422);
+    const { error } = res.json() as {
+      error: { code: string; message: string; details?: Record<string, unknown> };
+    };
+    expect(error.code).toBe(ERROR_CODES.ONE_CLICK_UNAVAILABLE);
+    expect(error.details).toEqual({ code: reason, reason });
+    expect(error.message).toBe(ONE_CLICK_UNAVAILABLE[reason][language]);
+    if (language === 'pl') expect(error.message).not.toBe(ONE_CLICK_UNAVAILABLE[reason].en);
+  }
+
+  it.each(['en', 'pl'] as const)(
+    'stops placing once the operator switches the channel value back off (%s)',
+    async (language) => {
+      await setOneClickEnabledForDefaultChannel(false);
+      try {
+        expectUnavailable(await oneClick(language), 'setting_disabled', language);
+      } finally {
+        await setOneClickEnabledForDefaultChannel(true);
+      }
+    },
+  );
+
+  it.each(['en', 'pl'] as const)(
+    'refuses a buyer whose defaults are incomplete (%s)',
+    async (language) => {
       const res = await h.app.inject({
-        method: 'POST',
-        url: '/api/v1/quick-order/one-click',
+        method: 'PUT',
+        url: '/api/v1/quick-order/preferences',
         cookies: COOKIE,
-        payload: { productId: SEED_PRODUCT_101_ID, quantity: 1 },
+        payload: { scope: 'customer', scopeId: TEST_CUSTOMER_ID, defaultPaymentMethodId: null },
       });
-      expect(res.statusCode).toBe(422);
-      const body = res.json() as { error: { details?: { code?: string; reason?: string } } };
-      expect(body.error.details?.code).toBe('one_click_unavailable');
-      expect(body.error.details?.reason).toBe('setting_disabled');
-    } finally {
-      await setOneClickEnabledForDefaultChannel(true);
-    }
+      expect(res.statusCode, res.body).toBe(200);
+      try {
+        expectUnavailable(await oneClick(language), 'missing_defaults', language);
+      } finally {
+        await putPreferences(COOKIE, TEST_CUSTOMER_ID, {
+          paymentMethodId: SEED_PAYMENT_METHOD_ID,
+          deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+          billingAddressId: SEED_ADDRESS_BILLING_ID,
+          shippingAddressId: SEED_ADDRESS_DELIVERY_ID,
+        });
+      }
+    },
+  );
+
+  it('routes the code to quick_order, the module that raises it', () => {
+    expect(DECLARED_ERROR_TRANSLATION_TARGETS.ONE_CLICK_UNAVAILABLE?.moduleId).toBe('quick_order');
   });
 
   /**
