@@ -38,6 +38,11 @@ code they hold.
 | `customers` | ✓ | — | `customers:read` | — | Import is intentionally unsupported — bulk account provisioning needs a password story that doesn't fit a CSV upload |
 | `orders` | ✓ | — | `orders:read` | — | Orders are produced by the checkout flow; importing historical orders would bypass stock, payment, and credit-limit lifecycles |
 
+An import of an export-only entity is answered `405 IMPORT_NOT_SUPPORTED` with
+`details.entity`, and the operator reads the sentence in their own language. The permission is
+checked first, so a caller who may not use the entity at all is refused `403`. The code was
+`405 VALIDATION_FAILED` until issue #644.
+
 A sales representative restricted to assigned organizations exports only those
 organizations' customers and orders — the same rows the customers and orders lists show them.
 

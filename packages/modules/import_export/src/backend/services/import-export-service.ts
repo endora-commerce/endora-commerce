@@ -146,11 +146,15 @@ export class ImportExportService {
    */
   async importFromCsv(entity: string, csv: string, options: ImportRunOptions = {}): Promise<ImportReport> {
     const adapter = this.adapterFor(entity);
+    // Issue #644 — the entity exists and the caller may use it; the adapter's
+    // capability refuses the request, which is not validation of the body.
+    // The slug travels in `details` and the sentence does not name it.
     if (!adapter.importHeader || !adapter.importRows) {
       throw new HttpError(
         405,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.IMPORT_NOT_SUPPORTED,
         `Import is not supported for "${entity}".`,
+        { entity },
       );
     }
 

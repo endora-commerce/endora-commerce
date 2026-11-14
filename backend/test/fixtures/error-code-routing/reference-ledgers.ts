@@ -1852,6 +1852,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted by feature 174 (FR-048) for a profile id that names no import profile, on the profile ' +
       'routes and the products import. The noun is an `import_export` row.',
   },
+  IMPORT_NOT_SUPPORTED: {
+    to: 'import_export',
+    reason:
+      'Minted by issue #644 (#86) for an import of an entity whose adapter is export-only. It ' +
+      'was `405 VALIDATION_FAILED`, yet the entity exists, the caller holds its permission and ' +
+      'the body is not read: the adapter\'s capability refuses it. The noun is the import ' +
+      'centre, `import_export`\'s, and the one raise site is its service.',
+  },
   IMPORT_PROFILE_NAME_TAKEN: {
     to: 'import_export',
     reason:

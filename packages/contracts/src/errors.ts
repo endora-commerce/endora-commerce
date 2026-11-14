@@ -100,6 +100,11 @@ export const ERROR_CODES = {
   IMPORT_PROFILE_REQUIRED: 'IMPORT_PROFILE_REQUIRED',
   IMPORT_PROFILE_NOT_FOUND: 'IMPORT_PROFILE_NOT_FOUND',
   IMPORT_PROFILE_NAME_TAKEN: 'IMPORT_PROFILE_NAME_TAKEN',
+  /**
+   * 405 — the entity is export-only, so its adapter accepts no import
+   * (`details.entity`). Raised as `VALIDATION_FAILED` until issue #644 (#86).
+   */
+  IMPORT_NOT_SUPPORTED: 'IMPORT_NOT_SUPPORTED',
 
   // Catalog 002 — Product Links (US4)
   SELF_LINK_NOT_ALLOWED: 'SELF_LINK_NOT_ALLOWED',
