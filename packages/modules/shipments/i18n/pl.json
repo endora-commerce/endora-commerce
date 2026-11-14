@@ -1,5 +1,8 @@
 {
   "settingGroups.shipments.name": "Przesyłki",
   "settingLabels.shipments.enabled.name": "Przesyłki włączone",
-  "settingLabels.shipments.enabled.description": "Włącza lub wyłącza obsługę przesyłek: tworzenie przesyłki dla zamówienia (w ten sam sposób ponawia się nieudaną), przyjmowanie aktualizacji od przewoźnika (receive_shipment) oraz historię przesyłek zamówienia. Nic nie jest usuwane — każda przesyłka, jej zmiany statusu i numery przewoźnika pozostają w bazie danych, a zamówienie w trakcie realizacji wraca dokładnie do miejsca, w którym było."
+  "settingLabels.shipments.enabled.description": "Włącza lub wyłącza obsługę przesyłek: tworzenie przesyłki dla zamówienia (w ten sam sposób ponawia się nieudaną), przyjmowanie aktualizacji od przewoźnika (receive_shipment) oraz historię przesyłek zamówienia. Nic nie jest usuwane — każda przesyłka, jej zmiany statusu i numery przewoźnika pozostają w bazie danych, a zamówienie w trakcie realizacji wraca dokładnie do miejsca, w którym było.",
+  "errors.SHIPMENT_ALREADY_GENERATED": "Ta przesyłka została już pomyślnie wygenerowana.",
+  "errors.SHIPMENT_ALREADY_GENERATED.generate": "To zamówienie ma już pomyślnie wygenerowaną przesyłkę, więc nie ma czego generować.",
+  "errors.SHIPMENT_ALREADY_GENERATED.mark_failed": "Ta przesyłka została już pomyślnie wygenerowana, więc nie można oznaczyć jej jako nieudanej."
 }

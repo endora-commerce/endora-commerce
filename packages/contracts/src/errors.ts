@@ -327,6 +327,16 @@ export const ERROR_CODES = {
   // admin already holds a view on the return list whose name differs only by
   // case or surrounding spaces.
   RETURN_SAVED_VIEW_NAME_TAKEN: 'RETURN_SAVED_VIEW_NAME_TAKEN',
+  // Shipments (issue #637, #86) — the module's first code. Generating a shipment
+  // for an order that already has a successful one, and marking a successful
+  // shipment failed, were `409 VALIDATION_FAILED` with an English literal.
+  /**
+   * 409 — the shipment, or the order's latest one, was already generated
+   * successfully. `details.code` names the refused write: `generate`
+   * (`details.orderId`, `shipmentId`) or `mark_failed` (`details.shipmentId`,
+   * `orderId`, `status`).
+   */
+  SHIPMENT_ALREADY_GENERATED: 'SHIPMENT_ALREADY_GENERATED',
   // Issue #905 — a consumer withdrawal settled as a credit, a replacement or a
   // repair without the consumer's consent to that resolution on record.
   RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED: 'RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED',

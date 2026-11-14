@@ -107,6 +107,9 @@ describe('Shipment routes', () => {
       cookies: adminCookies,
     });
     expect(again.statusCode).toBe(409);
+    expect((again.json() as { error: { code: string } }).error.code).toBe(
+      'SHIPMENT_ALREADY_GENERATED',
+    );
   });
 
   it('serves no retry route — the only way to open an attempt asks the carrier (#257)', async () => {

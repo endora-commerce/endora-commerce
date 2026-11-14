@@ -1439,6 +1439,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'It was raised as `VALIDATION_FAILED` with an English sentence. The one raise site is ' +
       '`OrderCloneToQuoteService.clone`; the noun is the order.',
   },
+  SHIPMENT_ALREADY_GENERATED: {
+    to: 'shipments',
+    reason:
+      'Minted by issue #637 (#86), the module\'s first code, for a write refused because a ' +
+      'shipment was already generated successfully: generating again for its order (token ' +
+      '`generate`) and the `receive_shipment` ingress marking it failed (token `mark_failed`). ' +
+      'Both were `VALIDATION_FAILED` with an English literal. The noun is the shipment, and ' +
+      'both raise sites are in `shipments`.',
+  },
   ASSET_REPLACE_KIND_MISMATCH: {
     to: 'assets_library',
     reason:
