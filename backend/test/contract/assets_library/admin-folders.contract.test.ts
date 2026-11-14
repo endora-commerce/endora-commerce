@@ -18,16 +18,21 @@ import {
 
 describe('admin folder CRUD (T053)', () => {
   let h: BackendServerHandle;
+  /**
+   * When this file started. Every folder it creates is stamped after it, so the
+   * clean-up removes this file's folders and nobody else's (issue #607).
+   */
+  let startedAt: Date;
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    startedAt = new Date();
   });
 
   afterAll(async () => {
-    // Clean up any leaked rows.
     const em = h.em();
-    const all = await em.find(AssetFolder, {});
-    for (const f of all) em.remove(f);
+    const mine = await em.find(AssetFolder, { createdAt: { $gte: startedAt } });
+    for (const f of mine) em.remove(f);
     await em.flush();
     await teardownBackendServer(h);
   });

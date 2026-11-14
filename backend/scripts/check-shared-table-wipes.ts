@@ -164,8 +164,6 @@ const SQL_ENTRY: ReadonlySet<string> = new Set(['execute', 'query']);
  * It is meant to reach `{}`.
  */
 export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
-  // #115: `afterAll` removes every asset folder, one by one.
-  'contract/assets_library/admin-folders.contract.test.ts': 1,
   'contract/carts/cart-coupon-autodrop.contract.test.ts': 1,
   'contract/carts/cart-coupon.contract.test.ts': 1,
   // #115: demotes every currency before restoring the original default.
@@ -175,6 +173,7 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'contract/price_lists/display-modes.test.ts': 1,
   'contract/price_lists/pricing-resolution.test.ts': 1,
   // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
+  // #607: drains with the `sql-delete` debt — scope the delete to the file's own taxonomies, then the update to those ids.
   'contract/product_feeds/taxonomy-revisions.test.ts': 4,
   'contract/promotions/attribute-criterion.test.ts': 1,
   'contract/promotions/coupon-generator.test.ts': 1,
@@ -184,16 +183,13 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'contract/prompt_actions/boundaries.test.ts': 1,
   'contract/prompt_actions/requests.test.ts': 1,
   'contract/search/admin-llm-toggle.contract.test.ts': 1,
-  // #115: removes every phrase record before each case.
-  'contract/search/public-record.contract.test.ts': 1,
   'integration/_lifecycle/install-all.integration.test.ts': 1,
   'integration/addresses/dictionary-boundary.test.ts': 3,
   'integration/blog/asset-references.test.ts': 22,
   'integration/blog/dictionary-boundary.test.ts': 3,
   'integration/blog/seed-default-category.test.ts': 13,
   'integration/blog/slug-collision.test.ts': 11,
-  // #115: +1, clears every cart's applied promotion code.
-  'integration/carts/cart-customer-group-promotion.test.ts': 2,
+  'integration/carts/cart-customer-group-promotion.test.ts': 1,
   'integration/carts/cart-promotion-display.test.ts': 1,
   'integration/catalog/attributes-migration-parity.test.ts': 3,
   'integration/catalog/link-tile-price-source.test.ts': 1,
@@ -219,9 +215,11 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/product_feeds/schedule-lifecycle.test.ts': 1,
   'integration/product_feeds/taxonomy-bundled-data.test.ts': 4,
   // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
+  // #607: drains with the `sql-delete` debt — scope the delete to the file's own taxonomies, then the update to those ids.
   'integration/product_feeds/taxonomy-fetch-check.test.ts': 4,
   'integration/product_feeds/taxonomy-fetch-disabled.test.ts': 1,
   // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
+  // #607: drains with the `sql-delete` debt — scope the delete to the file's own taxonomies, then the update to those ids.
   'integration/product_feeds/taxonomy-promote.test.ts': 4,
   'integration/product_feeds/taxonomy-reconcile.test.ts': 4,
   'integration/promotions/attribute-criterion-resolution.test.ts': 1,
@@ -236,8 +234,6 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/prompt_actions/set-stock-flow.test.ts': 1,
   'integration/sales_channels/dictionary-boundary.test.ts': 3,
   'integration/search/embedder-reactor.test.ts': 1,
-  // #115: resets every digest subscription's last-sent day.
-  'integration/tasks/digest.test.ts': 1,
   'integration/taxes/absent-owner-versus-configured-zero.test.ts': 5,
   'integration/taxes/dictionary-boundary.test.ts': 3,
   'integration/taxes/tax-service.test.ts': 1,

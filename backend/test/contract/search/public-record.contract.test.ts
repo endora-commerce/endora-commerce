@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -19,7 +20,13 @@ import { SearchPhraseRecord } from '../../helpers/package-entities.js';
  *   - resultCount negative → 400 RESULT_COUNT_INVALID.
  *   - X-Sales-Channel header pins the row's sales_channel_id (cannot be
  *     spoofed via body).
+ *
+ * Every phrase a case commits carries this file's {@link RUN} token, and every
+ * assertion reads the rows of that phrase only — the table is append-only and
+ * other files record into it too, so nothing here empties it (issue #607).
  */
+const RUN = randomUUID().slice(0, 8);
+
 describe('POST /api/v1/search/record (T031)', () => {
   let h: BackendServerHandle;
 
@@ -37,32 +44,23 @@ describe('POST /api/v1/search/record (T031)', () => {
     await teardownBackendServer(h);
   });
 
-  beforeEach(async () => {
-    // Append-only table; clear between tests so per-case assertions are
-    // deterministic. SEEDED_TABLES already truncates on backend boot.
-    const em = h.em();
-    const all = await em.find(SearchPhraseRecord, {});
-    for (const r of all) em.remove(r);
-    await em.flush();
-  });
-
   it('writes one row on a valid commit and returns 202', async () => {
     const r = await h.app.inject({
       method: 'POST',
       url: '/api/v1/search/record',
-      payload: { phrase: 'Krzesło', resultCount: 12 },
+      payload: { phrase: `Krzesło ${RUN}`, resultCount: 12 },
     });
     expect(r.statusCode).toBe(202);
     expect(r.json()).toEqual({ ok: true });
 
     // Recorder is fire-and-forget; settle before reading.
-    await waitForRow(h);
+    await waitForRow(h, `Krzesło ${RUN}`);
 
     const em = h.em();
-    const rows = await em.find(SearchPhraseRecord, {}, { populate: ['salesChannel'] });
+    const rows = await em.find(SearchPhraseRecord, { phrase: `Krzesło ${RUN}` }, { populate: ['salesChannel'] });
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.phrase).toBe('Krzesło'); // verbatim casing preserved
-    expect(rows[0]!.phraseNormalized).toBe('krzesło');
+    expect(rows[0]!.phrase).toBe(`Krzesło ${RUN}`); // verbatim casing preserved
+    expect(rows[0]!.phraseNormalized).toBe(`krzesło ${RUN}`);
     expect(rows[0]!.resultCount).toBe(12);
     expect(rows[0]!.salesChannel.id).toBeTruthy();
     expect(rows[0]!.recordedAt).toBeInstanceOf(Date);
@@ -72,13 +70,13 @@ describe('POST /api/v1/search/record (T031)', () => {
     const r = await h.app.inject({
       method: 'POST',
       url: '/api/v1/search/record',
-      payload: { phrase: 'qwertyuiop' },
+      payload: { phrase: `qwertyuiop ${RUN}` },
     });
     expect(r.statusCode).toBe(202);
 
-    await waitForRow(h);
+    await waitForRow(h, `qwertyuiop ${RUN}`);
     const em = h.em();
-    const rows = await em.find(SearchPhraseRecord, {});
+    const rows = await em.find(SearchPhraseRecord, { phrase: `qwertyuiop ${RUN}` });
     expect(rows).toHaveLength(1);
     expect(rows[0]!.resultCount).toBe(0);
   });
@@ -94,12 +92,12 @@ describe('POST /api/v1/search/record (T031)', () => {
       url: '/api/v1/search/record',
       headers: { 'x-sales-channel': target.code },
       // Body intentionally lacks any channel field — schema doesn't accept it.
-      payload: { phrase: 'red chair', resultCount: 4 },
+      payload: { phrase: `red chair ${RUN}`, resultCount: 4 },
     });
     expect(r.statusCode).toBe(202);
 
-    await waitForRow(h);
-    const rows = await em.find(SearchPhraseRecord, {}, { populate: ['salesChannel'] });
+    await waitForRow(h, `red chair ${RUN}`);
+    const rows = await em.find(SearchPhraseRecord, { phrase: `red chair ${RUN}` }, { populate: ['salesChannel'] });
     expect(rows).toHaveLength(1);
     expect(rows[0]!.salesChannel.id).toBe(target.id);
   });
@@ -115,12 +113,12 @@ describe('POST /api/v1/search/record (T031)', () => {
     expect(body.error.code).toBe(ERROR_CODES.PHRASE_REQUIRED);
 
     const em = h.em();
-    const rows = await em.find(SearchPhraseRecord, {});
+    const rows = await em.find(SearchPhraseRecord, { phrase: '' });
     expect(rows).toHaveLength(0);
   });
 
   it('rejects phrase > 512 chars with 400 PHRASE_TOO_LONG', async () => {
-    const tooLong = 'a'.repeat(513);
+    const tooLong = `${RUN}${'a'.repeat(513 - RUN.length)}`;
     const r = await h.app.inject({
       method: 'POST',
       url: '/api/v1/search/record',
@@ -130,8 +128,9 @@ describe('POST /api/v1/search/record (T031)', () => {
     const body = r.json() as { error: { code: string } };
     expect(body.error.code).toBe(ERROR_CODES.PHRASE_TOO_LONG);
 
+    // Neither the phrase nor a truncation of it was stored.
     const em = h.em();
-    const rows = await em.find(SearchPhraseRecord, {});
+    const rows = await em.find(SearchPhraseRecord, { phrase: { $like: `${RUN}%` } });
     expect(rows).toHaveLength(0);
   });
 
@@ -139,7 +138,7 @@ describe('POST /api/v1/search/record (T031)', () => {
     const r = await h.app.inject({
       method: 'POST',
       url: '/api/v1/search/record',
-      payload: { phrase: 'red chair', resultCount: -1 },
+      payload: { phrase: `red chair ${RUN}-negative`, resultCount: -1 },
     });
     expect(r.statusCode).toBe(400);
     const body = r.json() as { error: { code: string } };
@@ -151,6 +150,9 @@ describe('POST /api/v1/search/record (T031)', () => {
     // route's shape validation (Zod min(1)) but the recorder skips
     // persistence so the analytics dataset is not flooded with stub
     // phrases (FR-002 / FR-013).
+    // Two characters leave no room for the run token, so the case reads the
+    // rows of its own phrase recorded after it started.
+    const startedAt = new Date();
     const r = await h.app.inject({
       method: 'POST',
       url: '/api/v1/search/record',
@@ -161,17 +163,17 @@ describe('POST /api/v1/search/record (T031)', () => {
     // Settle.
     await new Promise((resolve) => setTimeout(resolve, 200));
     const em = h.em();
-    const rows = await em.find(SearchPhraseRecord, {});
+    const rows = await em.find(SearchPhraseRecord, { phrase: 'ab', recordedAt: { $gte: startedAt } });
     expect(rows).toHaveLength(0);
   });
 });
 
-/** Poll the table for up to 5 s waiting for a row to land. */
-async function waitForRow(h: BackendServerHandle): Promise<void> {
+/** Poll the table for up to 5 s waiting for a row of `phrase` to land. */
+async function waitForRow(h: BackendServerHandle, phrase: string): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < 5000) {
     const em = h.em();
-    const count = await em.count(SearchPhraseRecord, {});
+    const count = await em.count(SearchPhraseRecord, { phrase });
     if (count > 0) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
