@@ -72,6 +72,13 @@ describe('promotions refusals carry their own code and sentence (issue #628)', (
   let languageBefore: string | null = null;
   const admin = { b2b_session: 'stub-admin-session' };
   const customer = { b2b_session: 'stub-customer-session' };
+  /**
+   * Only the rows this file creates are removed — never a table-wide wipe,
+   * which would take other files' rows with it. Every name and code carries a
+   * suffix unique to the case, so the cases need no reset between them.
+   */
+  const created = { promotions: [] as string[], rules: [] as string[], counterKeys: [] as string[] };
+  const unique = () => randomUUID().slice(0, 8).toUpperCase();
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -79,20 +86,22 @@ describe('promotions refusals carry their own code and sentence (issue #628)', (
       (await h.em().findOneOrFail(AdminUser, { id: TEST_ADMIN_ID })).preferredLanguage ?? null;
   }, 60_000);
 
-  beforeEach(async () => {
-    const connection = h.em().getConnection();
-    await connection.execute('truncate table promotions cascade');
-    await connection.execute('truncate table promotion_rules cascade');
-    await connection.execute('truncate table promotion_usage_counters cascade');
-  });
-
   afterAll(async () => {
     if (h) {
       await setAdminLanguage(languageBefore);
       const connection = h.em().getConnection();
-      await connection.execute('truncate table promotions cascade');
-      await connection.execute('truncate table promotion_rules cascade');
-      await connection.execute('truncate table promotion_usage_counters cascade');
+      // Coupons and batches go with their promotion (`on delete cascade`).
+      if (created.counterKeys.length > 0) {
+        await connection.execute(`delete from "promotion_usage_counters" where "scope_key" = any(?::text[])`, [
+          `{${created.counterKeys.join(',')}}`,
+        ]);
+      }
+      if (created.promotions.length > 0) {
+        await connection.execute(`delete from "promotions" where "id" = any(?::uuid[])`, [`{${created.promotions.join(',')}}`]);
+      }
+      if (created.rules.length > 0) {
+        await connection.execute(`delete from "promotion_rules" where "id" = any(?::uuid[])`, [`{${created.rules.join(',')}}`]);
+      }
     }
     await teardownBackendServer(h);
   });
@@ -122,13 +131,17 @@ describe('promotions refusals carry their own code and sentence (issue #628)', (
       ...payload,
     });
     expect(response.statusCode, response.body).toBe(201);
-    return (response.json() as { data: { id: string } }).data.id;
+    const id = (response.json() as { data: { id: string } }).data.id;
+    created.promotions.push(id);
+    return id;
   }
 
   async function createRule(name: string): Promise<string> {
     const response = await adminCall('POST', '/api/v1/admin/promotion-rules', { name, definition: RULE });
     expect(response.statusCode, response.body).toBe(201);
-    return (response.json() as { data: { id: string } }).data.id;
+    const id = (response.json() as { data: { id: string } }).data.id;
+    created.rules.push(id);
+    return id;
   }
 
   function expectTranslated(error: ErrorBody['error'], language: Language, sentence: Record<Language, string>): void {
@@ -144,12 +157,13 @@ describe('promotions refusals carry their own code and sentence (issue #628)', (
     it('PROMOTION_COUPON_CODE_TAKEN when a coupon code is taken', async () => {
       const promotionId = await createPromotion();
       const path = `/api/v1/admin/promotions/${promotionId}/coupons`;
-      expect((await adminCall('POST', path, { code: 'I628TAKEN' })).statusCode).toBe(201);
+      const code = `I628TAKEN${unique()}`;
+      expect((await adminCall('POST', path, { code })).statusCode).toBe(201);
 
-      const error = refusal(await adminCall('POST', path, { code: 'I628TAKEN' }), 409, 'PROMOTION_COUPON_CODE_TAKEN');
+      const error = refusal(await adminCall('POST', path, { code }), 409, 'PROMOTION_COUPON_CODE_TAKEN');
 
-      expect(error.details).toEqual({ couponCode: 'I628TAKEN' });
-      expectTranslated(error, language, { en: COUPON_CODE_TAKEN.en('I628TAKEN'), pl: COUPON_CODE_TAKEN.pl('I628TAKEN') });
+      expect(error.details).toEqual({ couponCode: code });
+      expectTranslated(error, language, { en: COUPON_CODE_TAKEN.en(code), pl: COUPON_CODE_TAKEN.pl(code) });
     });
 
     it('PROMOTION_COUPON_SPACE_EXHAUSTED when the format holds fewer codes than asked for', async () => {
@@ -175,29 +189,30 @@ describe('promotions refusals carry their own code and sentence (issue #628)', (
     });
 
     it('PROMOTION_RULE_NAME_TAKEN when a rule is created or renamed onto a taken name', async () => {
-      await createRule('VIP');
-      const otherId = await createRule('Wholesale');
-      const sentence = { en: RULE_NAME_TAKEN.en('VIP'), pl: RULE_NAME_TAKEN.pl('VIP') };
+      const name = `VIP ${unique()}`;
+      await createRule(name);
+      const otherId = await createRule(`Wholesale ${unique()}`);
+      const sentence = { en: RULE_NAME_TAKEN.en(name), pl: RULE_NAME_TAKEN.pl(name) };
 
-      const created = refusal(
-        await adminCall('POST', '/api/v1/admin/promotion-rules', { name: 'VIP', definition: RULE }),
+      const onCreate = refusal(
+        await adminCall('POST', '/api/v1/admin/promotion-rules', { name, definition: RULE }),
         409,
         'PROMOTION_RULE_NAME_TAKEN',
       );
-      expect(created.details).toEqual({ name: 'VIP' });
-      expectTranslated(created, language, sentence);
+      expect(onCreate.details).toEqual({ name });
+      expectTranslated(onCreate, language, sentence);
 
       const renamed = refusal(
-        await adminCall('PUT', `/api/v1/admin/promotion-rules/${otherId}`, { name: 'VIP', definition: RULE }),
+        await adminCall('PUT', `/api/v1/admin/promotion-rules/${otherId}`, { name, definition: RULE }),
         409,
         'PROMOTION_RULE_NAME_TAKEN',
       );
-      expect(renamed.details).toEqual({ name: 'VIP' });
+      expect(renamed.details).toEqual({ name });
       expectTranslated(renamed, language, sentence);
     });
 
     it('PROMOTION_RULE_IN_USE when a rule promotions use is deleted', async () => {
-      const ruleId = await createRule('In use');
+      const ruleId = await createRule(`In use ${unique()}`);
       await createPromotion({ name: 'First', rule: undefined, ruleId });
       await createPromotion({ name: 'Second', rule: undefined, ruleId });
 
@@ -251,10 +266,12 @@ describe('promotions refusals carry their own code and sentence (issue #628)', (
         rule: { kind: 'all' },
         usageLimitGlobal: 1,
       });
-      const code = `I628LAST${language.toUpperCase()}`;
+      created.promotions.push(promotion.id);
+      const code = `I628LAST${unique()}`;
       const coupon = await adminCall('POST', `/api/v1/admin/promotions/${promotion.id}/coupons`, { code });
       expect(coupon.statusCode, coupon.body).toBe(201);
       const couponId = (coupon.json() as { data: { id: string } }).data.id;
+      created.counterKeys.push(couponId);
       const applied = await h.app.inject({ method: 'POST', url: '/api/v1/cart/coupon', cookies: customer, payload: { code } });
       expect(applied.statusCode, applied.body).toBe(200);
       await h
