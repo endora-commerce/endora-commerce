@@ -381,6 +381,8 @@ describe('in-process ports (type level)', () => {
       listItems: async () => [legacy],
       findByBusinessId: async () => null,
       amountOf: async () => ({ amount: '0.00', currency: 'PLN', agreement: 'partial' }),
+      findByIds: async () => [],
+      amountsOf: async () => new Map(),
     };
     expect(await port.listItems(ID(10))).toEqual([legacy]);
   });

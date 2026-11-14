@@ -1,0 +1,26 @@
+# Specification Quality Checklist: One Save for every admin editor with zone panels
+
+**Purpose**: Validate specification completeness before planning
+**Created**: 2026-11-14
+**Feature**: `specs/180-one-save-zone-editors/spec.md`
+
+## Content Quality
+
+- [x] No implementation detail in user stories and FRs beyond names of existing surfaces
+- [x] Focused on operator value
+- [x] All mandatory sections completed
+
+## Requirement Completeness
+
+- [x] No open questions remain — OQ-1…OQ-11 ruled 2026-11-14
+- [x] Requirements are testable and unambiguous
+- [x] Success criteria are measurable
+- [x] Acceptance scenarios defined for every story
+- [x] Edge cases identified
+- [x] Scope bounded (every zone host classified: adopting editors and the hosts that do not change, with reasons)
+- [x] Dependencies and assumptions identified (#1217, unversioned base-price write)
+
+## Feature Readiness
+
+- [x] Every FR traces to a test in `plan.md`
+- [x] Off-module behaviour (Principle XVII) specified

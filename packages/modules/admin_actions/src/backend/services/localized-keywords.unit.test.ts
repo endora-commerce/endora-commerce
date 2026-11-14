@@ -80,6 +80,9 @@ const permissions: PermissionReadPort = {
   resolveRole: async () => {
     throw new Error('admin_actions reads permissions, never a role');
   },
+  resolveRoles: async () => {
+    throw new Error('admin_actions reads permissions, never a role');
+  },
 };
 
 async function keywordsFor(

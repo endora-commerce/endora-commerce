@@ -90,7 +90,11 @@ function build() {
       listByRoleId: async () => [],
       findByAvatarAssetIds: async () => [],
     },
-    permissions: { listPermissions, resolveRole: async () => ({ refusal: new Error('unused') }) },
+    permissions: {
+      listPermissions,
+      resolveRole: async () => ({ refusal: new Error('unused') }),
+      resolveRoles: async () => new Map(),
+    },
     notifier: { notify },
     canReach,
   });
