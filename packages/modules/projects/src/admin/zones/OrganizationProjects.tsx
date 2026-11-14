@@ -22,6 +22,9 @@ import { StateBadge } from '../components/StateBadge.js';
  * the person holds `projects:read` before this chunk is fetched, so nothing
  * here asks either question again. `projects:write` is asked, because the
  * create form is gated on it and a link to a refused screen is a dead end.
+ *
+ * *All projects* opens the Projects list narrowed to this Organization, which
+ * keeps its filters in the address (issue #454).
  */
 const PAGE = 10;
 
@@ -139,7 +142,7 @@ export function OrganizationProjects({ organizationId }: OrganizationProjectsPro
           {state.phase === 'ready' && state.total > state.rows.length ? (
             <p className="text-sm text-muted-foreground">
               {t('organizationPanel.more', { shown: state.rows.length, total: state.total })}{' '}
-              <Link to="/projects" className="text-primary underline underline-offset-4">
+              <Link to={`/projects?organizationId=${encodeURIComponent(organizationId)}`} className="text-primary underline underline-offset-4">
                 {t('organizationPanel.all')}
               </Link>
             </p>
