@@ -158,6 +158,9 @@ export const manifest = defineModuleManifest({
   docs: { dir: 'docs' },
   /** Feature 174 (`contracts/error-codes.md`) — the import profile refusals this module mints. */
   errorCodes: [
+    // Issue #644 — an import of an export-only entity. No token: one refusal,
+    // and the slug travels as `details.entity`, never in the sentence.
+    { code: 'IMPORT_NOT_SUPPORTED' },
     { code: 'IMPORT_PROFILE_NAME_TAKEN' },
     { code: 'IMPORT_PROFILE_NOT_FOUND' },
     { code: 'IMPORT_PROFILE_REQUIRED' },

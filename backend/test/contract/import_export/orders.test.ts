@@ -8,7 +8,7 @@ import {
 /**
  * T240 — orders export. Import is deliberately unsupported (orders are
  * produced by the checkout flow), so the import endpoint MUST refuse with
- * 405 + a clear reason.
+ * 405 IMPORT_NOT_SUPPORTED.
  */
 
 describe('Import/Export — orders', () => {
@@ -22,7 +22,7 @@ describe('Import/Export — orders', () => {
     await teardownBackendServer(h);
   });
 
-  it('refuses import with 405 + a guidance message', async () => {
+  it('refuses import with 405 IMPORT_NOT_SUPPORTED naming the entity in details', async () => {
     const res = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/import/orders',
@@ -30,7 +30,12 @@ describe('Import/Export — orders', () => {
       payload: 'id\n',
     });
     expect(res.statusCode).toBe(405);
-    expect((res.json() as { error: { message: string } }).error.message).toContain('orders');
+    // Issue #644 — the sentence no longer carries the slug; `details` does. The
+    // sentence itself, in English and Polish, is asserted in
+    // `test/integration/import_export/import-not-supported.test.ts`.
+    const { error } = res.json() as { error: { code: string; details?: unknown } };
+    expect(error.code).toBe('IMPORT_NOT_SUPPORTED');
+    expect(error.details).toEqual({ entity: 'orders' });
   });
 
   it('exports orders with the documented header', async () => {

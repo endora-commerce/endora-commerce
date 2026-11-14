@@ -38,6 +38,11 @@ do których ma uprawnienie.
 | `customers` | ✓ | — | `customers:read` | — | Import celowo nieobsługiwany — masowe tworzenie kont wymaga historii haseł, której nie da się przekazać w pliku CSV |
 | `orders` | ✓ | — | `orders:read` | — | Zamówienia powstają w procesie checkoutu; import historycznych zamówień ominąłby stany magazynowe, płatności i limity kredytowe |
 
+Import encji, którą można tylko eksportować, daje odpowiedź `405 IMPORT_NOT_SUPPORTED` z
+`details.entity`, a operator czyta komunikat we własnym języku. Uprawnienie jest sprawdzane
+najpierw, więc wywołujący, który w ogóle nie może korzystać z encji, dostaje odmowę `403`. Do
+zgłoszenia #644 kodem odpowiedzi był `405 VALIDATION_FAILED`.
+
 Przedstawiciel handlowy ograniczony do przypisanych organizacji eksportuje tylko klientów
 i zamówienia tych organizacji — te same wiersze, które widzi na listach klientów i zamówień.
 
