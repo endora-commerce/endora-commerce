@@ -225,6 +225,18 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
     return (res.json() as { data: { totalRefundAmount: number; correctiveInvoiceId?: string | null } }).data;
   }
 
+  /**
+   * A delivery refund above its cap: `RETURN_REFUND_EXCEEDS_PAID` with the token
+   * `delivery` since issue #625, where it was `VALIDATION_FAILED` with
+   * `details.code` `refund_exceeds_paid`.
+   */
+  function expectChargeRefusal(res: { statusCode: number; body: string; json: () => unknown }, requested: string): void {
+    expect(res.statusCode, res.body).toBe(422);
+    const error = (res.json() as { error: { code: string; details?: Record<string, unknown> } }).error;
+    expect(error.code).toBe('RETURN_REFUND_EXCEEDS_PAID');
+    expect(error.details).toEqual({ code: 'delivery', requested, maximum: '0.00', currency: 'PLN' });
+  }
+
   const refundOf = (caseId: string) =>
     withSystemScope('test: read the refund', () => h.em().fork().findOneOrFail(Refund, { returnCaseId: caseId }));
 
@@ -281,7 +293,7 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
     const first = await openCase(orderId, [{ orderItemId: item, quantity: 1 }]);
     const res = await settleRaw(first.id, { deliveryRefundAmount: 15.99 });
     expect(res.statusCode, res.body).toBe(422);
-    expect((res.json() as { error: { details?: { code?: string } } }).error.details?.code).toBe('refund_exceeds_paid');
+    expectChargeRefusal(res, '15.99');
   });
 
   it('art. 13(2) — a premium delivery of 29.99 reduced to 15.99: the kept-lines invoice prints the delivery 14.00 alone', async () => {
@@ -382,7 +394,7 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
     expect((await prefill(second.id)).charges).toBeUndefined();
     const refused = await settleRaw(second.id, { deliveryRefundAmount: 15.99 });
     expect(refused.statusCode, refused.body).toBe(422);
-    expect((refused.json() as { error: { details?: { code?: string } } }).error.details?.code).toBe('refund_exceeds_paid');
+    expectChargeRefusal(refused, '15.99');
     // Omitted, it settles at the recomputed default: no delivery.
     expect((await settle(second.id)).totalRefundAmount).toBe(61.5);
   });
@@ -415,7 +427,7 @@ describe('returns — a consumer withdrawal refunds the delivery and the surchar
     expect(consent.statusCode, consent.body).toBe(200);
     const refused = await settleRaw(rc.id, { deliveryRefundAmount: 15.99 }, 'replacement');
     expect(refused.statusCode, refused.body).toBe(422);
-    expect((refused.json() as { error: { details?: { code?: string } } }).error.details?.code).toBe('refund_exceeds_paid');
+    expectChargeRefusal(refused, '15.99');
 
     const res = await settleRaw(rc.id, {}, 'replacement');
     expect(res.statusCode, res.body).toBe(200);

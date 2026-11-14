@@ -81,8 +81,9 @@ describe('155 — per-line totals on a case request [integration]', () => {
   function expectQtyRefusal(res: { statusCode: number; body: string; json: () => unknown }): void {
     expect(res.statusCode, res.body).toBe(422);
     const error = (res.json() as ErrorBody).error;
-    expect(error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
-    expect(error.details).toMatchObject({ code: 'qty_exceeds_returnable' });
+    // Its own code since issue #625; `details` names the line and the quantities.
+    expect(error.code).toBe(ERROR_CODES.RETURN_QUANTITY_EXCEEDS_RETURNABLE);
+    expect(error.details).toMatchObject({ requested: expect.any(Number), remaining: expect.any(Number) });
   }
 
   it('refuses a return listing R × 4 as 3 + 3; no case is created', async () => {

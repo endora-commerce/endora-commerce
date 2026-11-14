@@ -176,12 +176,10 @@ export class ReturnCaseService {
       throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
     }
     if (ctx.completingStatusEnteredAt === null) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.VALIDATION_FAILED,
-        'This order is not yet eligible for returns.',
-        { code: 'order_not_completing' },
-      );
+      // One code, one reason: `details.code` would add nothing (issue #625).
+      throw new HttpError(422, ERROR_CODES.RETURN_ORDER_NOT_ELIGIBLE, 'This order is not yet eligible for returns.', {
+        orderId: input.orderId,
+      });
     }
 
     const byOrderItem = new Map(ctx.lines.map((l) => [l.orderItemId, l]));
@@ -209,13 +207,28 @@ export class ReturnCaseService {
       if (quantityRefusal?.code === 'qty_exceeds_returnable') {
         throw new HttpError(
           422,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.RETURN_QUANTITY_EXCEEDS_RETURNABLE,
           `Requested quantity (${quantityRefusal.requested}) exceeds the returnable quantity (${quantityRefusal.remaining}).`,
-          { code: 'qty_exceeds_returnable' },
+          {
+            orderItemId: quantityRefusal.orderItemId,
+            requested: quantityRefusal.requested,
+            remaining: quantityRefusal.remaining,
+          },
         );
       }
       for (const line of input.lines) {
         if (!reasons.has(line.reasonId)) {
+          // A reason that exists but was switched off is configuration the
+          // operator changed, so a refusal of its own; an id that names nothing
+          // is a malformed request (issue #625).
+          const inactive = isUuidShape(line.reasonId)
+            ? await this.deps.emFactory().findOne(ReturnReason, { id: line.reasonId, isActive: false })
+            : null;
+          if (inactive) {
+            throw new HttpError(422, ERROR_CODES.RETURN_REASON_INACTIVE, 'The chosen reason is no longer offered.', {
+              reasonId: line.reasonId,
+            });
+          }
           throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Unknown or inactive reason.', {
             code: 'unknown_reason',
           });

@@ -353,7 +353,10 @@ describe('returns — the default refund recomputed at settlement (#874, #875)',
       await receive(c1);
       const res = await settle(c1, { amounts: [12.33] });
       expect(res.statusCode, res.body).toBe(422);
-      expect((res.json() as { error: { details?: { code?: string } } }).error.details?.code).toBe('refund_exceeds_paid');
+      // Its own code since issue #625, with the amounts the sentence names.
+      const error = (res.json() as { error: { code: string; details?: Record<string, unknown> } }).error;
+      expect(error.code).toBe('RETURN_REFUND_EXCEEDS_PAID');
+      expect(error.details).toMatchObject({ requested: '12.33', maximum: '12.32', currency: 'PLN' });
       expect(await stored(c1)).toEqual([['12.32', '0.00', '12.32']]);
       const refunds = await withSystemScope('test: read the refunds', () => h.em().fork().find(Refund, { returnCaseId: c1.id }));
       expect(refunds).toHaveLength(0);

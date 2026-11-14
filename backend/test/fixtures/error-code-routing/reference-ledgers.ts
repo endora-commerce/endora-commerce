@@ -1056,6 +1056,92 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       '`VALIDATION_FAILED` is not reused: the request is well formed, and the sentence has to tell ' +
       'the operator to record the consumer\'s consent first.',
   },
+  RETURN_ORDER_NOT_ELIGIBLE: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for a return requested on an order not completed yet. It was ' +
+      '`422 VALIDATION_FAILED` with `details.code` `order_not_completing`, gone with it: one ' +
+      'code, one reason. The returnability read keeps its own `order_not_completing`.',
+  },
+  RETURN_QUANTITY_EXCEEDS_RETURNABLE: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for a return asking for more than a line can still return. It ' +
+      'was `422 VALIDATION_FAILED` with `details.code` `qty_exceeds_returnable`; `details` now ' +
+      'carries the line, the requested and the remaining quantity the sentences name.',
+  },
+  RETURN_REASON_INACTIVE: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86), the site the issue was unsure about: a reason that exists but ' +
+      'the operator switched off. An unknown reason id stays `VALIDATION_FAILED` ' +
+      '(`unknown_reason`); a switched-off one is configuration, so a refusal.',
+  },
+  RETURN_COMMENTS_CLOSED: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for a comment on a case in a terminal status, the twin of ' +
+      '`ORDER_COMMENTS_CLOSED`. It was `409 VALIDATION_FAILED` with `details.code` `case_terminal`.',
+  },
+  RETURN_CASE_CLOSED: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for choosing a return delivery method on a case in a terminal ' +
+      'status. It was `409 VALIDATION_FAILED` with `details.code` `case_terminal`.',
+  },
+  RETURN_DELIVERY_METHOD_UNAVAILABLE: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for a return delivery method not offered, the twin of ' +
+      '`ORDER_DELIVERY_METHOD_UNAVAILABLE`. It was `422 VALIDATION_FAILED` with `details.code` ' +
+      '`method_not_allowed`, at both raise sites of `ReturnDeliveryMethodService.select`.',
+  },
+  RETURN_SETTLEMENT_IN_PROGRESS: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for a settlement refused because another settlement of the same ' +
+      'order holds its lock; retryable. It was `409 VALIDATION_FAILED` with `details.code` ' +
+      '`settlement_in_progress`.',
+  },
+  RETURN_REFUND_EXCEEDS_PAID: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for a settlement refunding more than may be refunded, for a line ' +
+      'or for a charge (tokens `delivery`, `surcharge`). Both were `422 VALIDATION_FAILED` with ' +
+      '`details.code` `refund_exceeds_paid`; the amounts now travel as two-decimal strings.',
+  },
+  RETURN_REFUND_GATEWAY_FAILED: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for a refund the payment gateway refused. It was `502 ' +
+      'VALIDATION_FAILED` whose message was the gateway\'s own words; those travel as ' +
+      '`details.failureReason` now, never in the sentence.',
+  },
+  RETURN_STATUS_CODE_TAKEN: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for a return status created with a code another status has, the ' +
+      'twin of `ORDER_STATUS_CODE_TAKEN`. It was `409 VALIDATION_FAILED`.',
+  },
+  RETURN_STATUS_TERMINAL_HAS_TRANSITIONS: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for a terminal return status with outgoing transitions, the twin ' +
+      'of `ORDER_STATUS_TERMINAL_HAS_TRANSITIONS` with the same tokens (`mark_terminal`, ' +
+      '`add_transition`).',
+  },
+  RETURN_STATUS_NOT_DELETABLE: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for deleting the initial return status (token `initial`), the ' +
+      'twin of `ORDER_STATUS_NOT_DELETABLE`. It was `409 VALIDATION_FAILED`.',
+  },
+  RETURN_STATUS_IN_USE: {
+    to: 'returns',
+    reason:
+      'Minted by issue #625 (#86) for deleting a return status cases are in. It was `409 ' +
+      'VALIDATION_FAILED`; the count now travels as `details.caseCount`.',
+  },
   RFQ_SAVED_VIEW_NAME_TAKEN: {
     to: 'quote_requests',
     reason:

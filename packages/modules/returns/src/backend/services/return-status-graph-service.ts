@@ -115,7 +115,10 @@ export class ReturnStatusGraphService {
     const em = this.emFactory();
     const existing = await em.findOne(ReturnStatus, { code: input.code });
     if (existing) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, `Status "${input.code}" already exists.`);
+      // The status code is `statusCode`: `details.code` is the token slot (issue #625).
+      throw new HttpError(409, ERROR_CODES.RETURN_STATUS_CODE_TAKEN, `Status "${input.code}" already exists.`, {
+        statusCode: input.code,
+      });
     }
     const status = em.create(ReturnStatus, {
       code: input.code,
@@ -156,8 +159,9 @@ export class ReturnStatusGraphService {
         if (outgoing > 0) {
           throw new HttpError(
             409,
-            ERROR_CODES.VALIDATION_FAILED,
+            ERROR_CODES.RETURN_STATUS_TERMINAL_HAS_TRANSITIONS,
             `Cannot mark "${code}" terminal while it has outgoing transitions.`,
+            { code: 'mark_terminal', statusCode: code, outgoingCount: outgoing },
           );
         }
       }
@@ -178,14 +182,18 @@ export class ReturnStatusGraphService {
     const status = await em.findOne(ReturnStatus, { code });
     if (!status) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Status "${code}" not found.`);
     if (code === RETURN_STATUS_INITIAL || status.isInitial) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'The initial status cannot be deleted.');
+      throw new HttpError(409, ERROR_CODES.RETURN_STATUS_NOT_DELETABLE, 'The initial status cannot be deleted.', {
+        code: 'initial',
+        statusCode: code,
+      });
     }
     const inUse = await em.count(ReturnCase, { statusCode: code });
     if (inUse > 0) {
       throw new HttpError(
         409,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.RETURN_STATUS_IN_USE,
         `Cannot delete status "${code}" while ${inUse} case(s) use it.`,
+        { statusCode: code, caseCount: inUse },
       );
     }
     const edges = await em.find(ReturnStatusTransition, {
@@ -217,8 +225,9 @@ export class ReturnStatusGraphService {
       if (graph.isTerminal(edge.fromStatusCode)) {
         throw new HttpError(
           422,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.RETURN_STATUS_TERMINAL_HAS_TRANSITIONS,
           `Terminal status "${edge.fromStatusCode}" cannot have outgoing transitions.`,
+          { code: 'add_transition', statusCode: edge.fromStatusCode, toStatusCode: edge.toStatusCode },
         );
       }
     }

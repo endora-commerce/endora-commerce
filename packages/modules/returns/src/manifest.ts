@@ -314,5 +314,22 @@ export const manifest = defineModuleManifest({
     { code: 'RETURN_LINE_NOT_RETURNABLE' },
     { code: 'RETURN_SAVED_VIEW_NAME_TAKEN' },
     { code: 'RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED' },
+    // Issue #625 (#86) — business-state refusals that were `VALIDATION_FAILED`.
+    // A token picks the sentence where one code has several raise sites: a
+    // charge's refund (`delivery`, `surcharge`; a line's has none) and the two
+    // terminal-status sites. The status-graph family mirrors `ORDER_STATUS_*`.
+    { code: 'RETURN_ORDER_NOT_ELIGIBLE' },
+    { code: 'RETURN_QUANTITY_EXCEEDS_RETURNABLE' },
+    { code: 'RETURN_REASON_INACTIVE' },
+    { code: 'RETURN_COMMENTS_CLOSED' },
+    { code: 'RETURN_CASE_CLOSED' },
+    { code: 'RETURN_DELIVERY_METHOD_UNAVAILABLE' },
+    { code: 'RETURN_SETTLEMENT_IN_PROGRESS' },
+    { code: 'RETURN_REFUND_EXCEEDS_PAID', tokens: ['delivery', 'surcharge'] },
+    { code: 'RETURN_REFUND_GATEWAY_FAILED' },
+    { code: 'RETURN_STATUS_CODE_TAKEN' },
+    { code: 'RETURN_STATUS_TERMINAL_HAS_TRANSITIONS', tokens: ['mark_terminal', 'add_transition'] },
+    { code: 'RETURN_STATUS_NOT_DELETABLE', tokens: ['initial'] },
+    { code: 'RETURN_STATUS_IN_USE' },
   ],
 });

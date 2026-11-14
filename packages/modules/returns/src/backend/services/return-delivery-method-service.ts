@@ -116,17 +116,19 @@ export class ReturnDeliveryMethodService {
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const graph = await this.deps.graphService.loadGraph();
     if (graph.isTerminal(rc.statusCode)) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, 'The case is closed.', { code: 'case_terminal' });
-    }
-    if (!isUuidShape(returnDeliveryMethodId)) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Return delivery method is not available.', {
-        code: 'method_not_allowed',
+      throw new HttpError(409, ERROR_CODES.RETURN_CASE_CLOSED, 'The case is closed.', {
+        returnCaseId: rc.id,
+        statusCode: rc.statusCode,
       });
     }
-    const method = await em.findOne(ReturnDeliveryMethod, { id: returnDeliveryMethodId, isActive: true });
+    // An id of no method and an inactive method are one answer to the buyer:
+    // the method they chose is not offered (issue #625).
+    const method = isUuidShape(returnDeliveryMethodId)
+      ? await em.findOne(ReturnDeliveryMethod, { id: returnDeliveryMethodId, isActive: true })
+      : null;
     if (!method) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Return delivery method is not available.', {
-        code: 'method_not_allowed',
+      throw new HttpError(422, ERROR_CODES.RETURN_DELIVERY_METHOD_UNAVAILABLE, 'Return delivery method is not available.', {
+        returnDeliveryMethodId,
       });
     }
 

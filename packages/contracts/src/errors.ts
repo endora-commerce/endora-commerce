@@ -393,6 +393,44 @@ export const ERROR_CODES = {
   // Issue #905 — a consumer withdrawal settled as a credit, a replacement or a
   // repair without the consumer's consent to that resolution on record.
   RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED: 'RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED',
+  // Returns — business-state refusals raised as `VALIDATION_FAILED` until issue
+  // #625 (#86): the buyer's request, the closed case, settlement and the
+  // admin's return-status configuration. The status code travels as
+  // `details.statusCode`: `details.code` is the envelope's refusal-token slot.
+  /** 422 — the order is not completed yet, so it takes no return (`details.orderId`). */
+  RETURN_ORDER_NOT_ELIGIBLE: 'RETURN_ORDER_NOT_ELIGIBLE',
+  /** 422 — more is asked for than the line can still return (`details.orderItemId`, `requested`, `remaining`). */
+  RETURN_QUANTITY_EXCEEDS_RETURNABLE: 'RETURN_QUANTITY_EXCEEDS_RETURNABLE',
+  /** 422 — the chosen reason exists but is switched off (`details.reasonId`); an unknown one stays `VALIDATION_FAILED`. */
+  RETURN_REASON_INACTIVE: 'RETURN_REASON_INACTIVE',
+  /** 409 — the case is in a terminal status, so it takes no more comments (`details.returnCaseId`, `statusCode`). */
+  RETURN_COMMENTS_CLOSED: 'RETURN_COMMENTS_CLOSED',
+  /** 409 — the case is in a terminal status, so it takes no delivery method (`details.returnCaseId`, `statusCode`). */
+  RETURN_CASE_CLOSED: 'RETURN_CASE_CLOSED',
+  /** 422 — the return delivery method is not offered (`details.returnDeliveryMethodId`). */
+  RETURN_DELIVERY_METHOD_UNAVAILABLE: 'RETURN_DELIVERY_METHOD_UNAVAILABLE',
+  /** 409 — another return of the order is being settled; retryable (`details.orderId`). */
+  RETURN_SETTLEMENT_IN_PROGRESS: 'RETURN_SETTLEMENT_IN_PROGRESS',
+  /**
+   * 422 — a refund above what may be refunded, for a line (`details.returnCaseItemId`)
+   * or a charge (token `delivery` / `surcharge`); `requested`, `maximum` as
+   * two-decimal strings and `currency`.
+   */
+  RETURN_REFUND_EXCEEDS_PAID: 'RETURN_REFUND_EXCEEDS_PAID',
+  /** 502 — the payment gateway refused the refund (`details.settlementState`, `failureReason`, `providerDetails`). */
+  RETURN_REFUND_GATEWAY_FAILED: 'RETURN_REFUND_GATEWAY_FAILED',
+  /** 409 — another return status already has this code (`details.statusCode`). */
+  RETURN_STATUS_CODE_TAKEN: 'RETURN_STATUS_CODE_TAKEN',
+  /**
+   * 409 / 422 — a terminal status cannot have outgoing transitions: marking a
+   * status with them terminal (token `mark_terminal`, `details.outgoingCount`) or
+   * adding one from a terminal status (token `add_transition`, `details.toStatusCode`).
+   */
+  RETURN_STATUS_TERMINAL_HAS_TRANSITIONS: 'RETURN_STATUS_TERMINAL_HAS_TRANSITIONS',
+  /** 409 — the initial status (token `initial`) is not deleted (`details.statusCode`). */
+  RETURN_STATUS_NOT_DELETABLE: 'RETURN_STATUS_NOT_DELETABLE',
+  /** 409 — cases are in the status, so it is not deleted (`details.statusCode`, `caseCount`). */
+  RETURN_STATUS_IN_USE: 'RETURN_STATUS_IN_USE',
 
   // Credit Limit
   CREDIT_LIMIT_NOT_GRANTED: 'CREDIT_LIMIT_NOT_GRANTED',

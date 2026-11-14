@@ -151,7 +151,7 @@ trafia do dziennika audytu — z informacją, czy podano powód (`hasReason`), n
   sprawy są rozliczane w innej kolejności, niż je otwarto, albo po odrzuceniu wcześniejszej sprawy.
   Formularz rozliczenia pokazuje przeliczoną kwotę. Zatwierdzona kwota równa kwocie domyślnej, którą
   sprawa pokazywała, jest rozliczana według przeliczonej kwoty domyślnej, niższa kwota zostaje tak,
-  jak ją wpisano, a wyższa jest odrzucana z `422 VALIDATION_FAILED` (`code: refund_exceeds_paid`)
+  jak ją wpisano, a wyższa jest odrzucana z `422 RETURN_REFUND_EXCEEDS_PAID`
   i nic nie zostaje zapisane: odśwież formularz i potwierdź. Wpis `return.settled` w dzienniku
   audytu wymienia pozycje, których kwota domyślna się zmieniła (`recomputedDefaultItemIds`), bez kwot.
 - **Żadna pozycja nie zwraca więcej, niż za nią zapłacono** — zwrot pieniędzy z reklamacji pomniejsza
@@ -183,8 +183,8 @@ trafia do dziennika audytu — z informacją, czy podano powód (`hasReason`), n
   kanału, jeśli ten termin jest dłuższy. Kanał ustawiony na `0` nadal ma 14 dni. Po terminie wiersz
   zaczyna się od 0 i możesz podnieść kwotę do tego, co zapłacono. Jeśli klient wybrał droższą
   dostawę niż najtańszy zwykły sposób, obniż kwotę dostawy do ceny tego sposobu (art. 13 ust. 2).
-  Kwota wyższa niż zapłacona jest odrzucana z `422 VALIDATION_FAILED`
-  (`code: refund_exceeds_paid`). W API `deliveryRefundAmount` i `surchargeRefundAmount` działają
+  Kwota wyższa niż zapłacona jest odrzucana z `422 RETURN_REFUND_EXCEEDS_PAID`
+  (`details.code` `delivery` albo `surcharge`). W API `deliveryRefundAmount` i `surchargeRefundAmount` działają
   inaczej niż kwoty pozycji. Pole pominięte jest rozliczane według kwoty domyślnej przeliczonej przy
   rozliczeniu. Pole wysłane jest rozliczane dokładnie na tę kwotę, także `0`, o ile nie przekracza
   maksimum. Kwota, którą sprawa pokazywała przy otwarciu, może do tego czasu przekraczać maksimum
@@ -225,6 +225,33 @@ trafia do dziennika audytu — z informacją, czy podano powód (`hasReason`), n
   odpowiada `{ data: { deleted: <id> } }`. Widoki zapisane przed wprowadzeniem tych reguł zachowują
   nazwy w zapisanej postaci — także puste i zdublowane — dopóki właściciel ich nie zmieni lub nie
   usunie; zmiana, która nie dotyczy nazwy, nigdy nie jest z tego powodu odrzucana.
+
+## Odmowy
+
+Każda odmowa poniżej ma własny kod i zdanie po angielsku i po polsku, które wymienia wartości z
+`details`. Kupujący czyta je w języku, o który poprosił storefront, operator — w swoim. Do zgłoszenia
+#625 były to odpowiedzi `VALIDATION_FAILED`, zwykle z powodem w `details.code`; status się nie
+zmienił. Kod statusu trafia do `details.statusCode`, bo `details.code` jest miejscem na token odmowy.
+
+| Kod | Status | Kiedy | `details` |
+| --- | --- | --- | --- |
+| `RETURN_ORDER_NOT_ELIGIBLE` | `422` | `POST /api/v1/returns` — zamówienie nie jest jeszcze zrealizowane | `orderId` |
+| `RETURN_QUANTITY_EXCEEDS_RETURNABLE` | `422` | `POST /api/v1/returns` — pozycja żąda więcej, niż można jeszcze zwrócić | `orderItemId`, `requested`, `remaining` |
+| `RETURN_REASON_INACTIVE` | `422` | `POST /api/v1/returns` — powód został wyłączony | `reasonId` |
+| `RETURN_COMMENTS_CLOSED` | `409` | komentarz do sprawy w statusie końcowym | `returnCaseId`, `statusCode` |
+| `RETURN_CASE_CLOSED` | `409` | `POST /api/v1/returns/:id/select-delivery-method` dla sprawy w statusie końcowym | `returnCaseId`, `statusCode` |
+| `RETURN_DELIVERY_METHOD_UNAVAILABLE` | `422` | ta sama trasa — metoda dostawy zwrotu nie jest oferowana | `returnDeliveryMethodId` |
+| `RETURN_SETTLEMENT_IN_PROGRESS` | `409` | `POST /api/v1/admin/returns/:id/settlement` — trwa rozliczanie innego zwrotu z tego zamówienia; spróbuj ponownie | `orderId` |
+| `RETURN_REFUND_EXCEEDS_PAID` | `422` | ta sama trasa — zwrot wyższy niż dopuszczalny, dla pozycji albo, z `code` `delivery` / `surcharge`, dla opłaty | `returnCaseItemId` (pozycja), `requested`, `maximum`, `currency` |
+| `RETURN_REFUND_GATEWAY_FAILED` | `502` | ta sama trasa — bramka płatności odrzuciła zwrot; nic nie zostaje rozliczone | `settlementState`, `failureReason` (słowa bramki), `providerDetails` |
+| `RETURN_STATUS_CODE_TAKEN` | `409` | `POST /api/v1/admin/returns/statuses` — inny status ma już ten kod | `statusCode` |
+| `RETURN_STATUS_TERMINAL_HAS_TRANSITIONS` | `409` / `422` | oznaczenie statusu z przejściami wychodzącymi jako końcowego (`code` `mark_terminal`) albo przejście ze statusu końcowego w `PUT …/transitions` (`code` `add_transition`) | `statusCode` oraz `outgoingCount` albo `toStatusCode` |
+| `RETURN_STATUS_NOT_DELETABLE` | `409` | usunięcie statusu początkowego (`code` `initial`) | `statusCode` |
+| `RETURN_STATUS_IN_USE` | `409` | usunięcie statusu, w którym są sprawy | `statusCode`, `caseCount` |
+
+Kwoty są ciągami z dwoma miejscami po przecinku. Nieznana pozycja zamówienia lub zwrotu, nieznany
+identyfikator powodu, brak metody płatności zwrotu, pusty powód odrzucenia i przejście wskazujące
+nieistniejący status nadal dają `VALIDATION_FAILED`.
 
 ## Liczenie terminów
 
@@ -344,11 +371,11 @@ przez **Edycję masową**).
   zanim ta wartość była zapisywana).
 - **Powtórzone pozycje są sumowane.** Gdy żądanie wskazuje jedną pozycję zamówienia więcej niż raz,
   ilości są sumowane dla każdej pozycji zamówienia, a suma jest porównywana z ilością pozostałą do
-  zwrotu, dla obu rodzajów; suma powyżej niej jest odrzucana z kodem `422 VALIDATION_FAILED`,
-  `details.code: 'qty_exceeds_returnable'`. Wpisy są nadal zapisywane tak, jak je przesłano.
+  zwrotu, dla obu rodzajów; suma powyżej niej jest odrzucana z kodem
+  `422 RETURN_QUANTITY_EXCEEDS_RETURNABLE`. Wpisy są nadal zapisywane tak, jak je przesłano.
 - **Kolejność sprawdzeń.** Pozycja spoza zamówienia (`details.code: 'unknown_line'`) jest zgłaszana
   przed jakimkolwiek błędem ilości, sprawdzenie ilości poprzedza sprawdzenie powodu
-  (`unknown_reason`), a podleganie zwrotowi jest sprawdzane na końcu. Sprawy otwarte, zanim produkt
+  (`unknown_reason` albo `RETURN_REASON_INACTIVE` dla powodu, który wyłączono), a podleganie zwrotowi jest sprawdzane na końcu. Sprawy otwarte, zanim produkt
   oznaczono jako niepodlegający zwrotowi, nigdy nie są oceniane ponownie.
 
 **Po aktualizacji żaden istniejący produkt nie podlega zwrotowi.** Flaga jest domyślnie wyłączona,
