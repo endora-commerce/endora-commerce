@@ -131,23 +131,29 @@ export interface LookupPickerProps {
   selectedLabel?: string;
 }
 
+/** The name of one row by its id, or `null` when it cannot be read. */
+type NameOf = (id: string) => Promise<string | null>;
+
+const adminUserName: NameOf = (id) => projectsApi.adminUserName(id);
+const organizationName: NameOf = (id) => projectsApi.organizationOption(id).then((option) => option?.name ?? null);
+
 /**
  * The name of `id` when none of the options read so far names it — a value
  * given rather than chosen here (a restored filter, a stored Member) — asked of
  * the lookup by that one id. `''` while unknown, and when it cannot be read.
  */
-function useResolvedName(id: string | null, known: string): string {
+function useResolvedName(id: string | null, known: string, nameOf: NameOf): string {
   const [resolved, setResolved] = useState<{ id: string; name: string } | null>(null);
   useEffect(() => {
     if (!id || known) return undefined;
     let alive = true;
-    void projectsApi.adminUserName(id).then((name) => {
+    void nameOf(id).then((name) => {
       if (alive && name) setResolved({ id, name });
     });
     return (): void => {
       alive = false;
     };
-  }, [id, known]);
+  }, [id, known, nameOf]);
   return resolved && resolved.id === id ? resolved.name : '';
 }
 
@@ -157,7 +163,7 @@ export function AdminUserLookup(props: LookupPickerProps): ReactNode {
   const remote = useRemoteOptions(loadAdminUsers);
   const known = remote.labelOf(props.value) || (props.selectedLabel ?? '');
   // Only once the first read has answered: the value is usually among its options.
-  const resolved = useResolvedName(remote.settled ? props.value : null, known);
+  const resolved = useResolvedName(remote.settled ? props.value : null, known, adminUserName);
   return (
     <>
       <Combobox<string>
@@ -185,6 +191,9 @@ export function AdminUserLookup(props: LookupPickerProps): ReactNode {
 export function OrganizationLookup(props: LookupPickerProps): ReactNode {
   const t = useTranslation('projects');
   const remote = useRemoteOptions(loadOrganizations);
+  const known = remote.labelOf(props.value) || (props.selectedLabel ?? '');
+  // An Organization the address names (a shared link, the Organization screen's "All projects").
+  const resolved = useResolvedName(remote.settled ? props.value : null, known, organizationName);
   return (
     <>
       <Combobox<string>
@@ -201,7 +210,7 @@ export function OrganizationLookup(props: LookupPickerProps): ReactNode {
         disabled={props.disabled ?? false}
         placeholder={props.placeholder ?? ''}
         emptyMessage={t('picker.empty')}
-        selectedLabel={remote.labelOf(props.value) || (props.selectedLabel ?? '')}
+        selectedLabel={known || resolved}
       />
       <LoadError shown={remote.failed} />
     </>
