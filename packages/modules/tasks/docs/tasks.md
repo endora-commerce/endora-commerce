@@ -219,8 +219,8 @@ filter the list and the board when marked as list filters, and can be shown on
 a board card.
 
 **Attachments.** A file of up to 25 MB can be attached to a task — uploaded, or
-chosen from the media library by somebody who may read it. HTML, SVG, XML and
-JavaScript files are refused. Each attachment shows its name, size, who
+chosen from the media library by somebody who may read it; a file chosen from
+the library must be private. HTML, SVG, XML and JavaScript files are refused. Each attachment shows its name, size, who
 attached it and when, and can be downloaded by anybody who may see the task and
 removed by somebody who may change it. The file stays in the media library, and
 the library refuses to delete a file a task uses — also while Tasks is
@@ -432,7 +432,7 @@ does not exist.
 | `DELETE /:id` | `tasks:write`, or `tasks:read` with `tasks:see_private` for a private task | `200` `{ data: { subtasksDetached } }` — the former sub-tasks the caller may see. |
 | `GET /:id/history` | `tasks:read` | The task's audit trail, newest first (`RecordHistoryPage`). |
 | `GET`, `POST /:id/comments`; `PATCH`, `DELETE /:id/comments/:commentId` | `tasks:read` | Comments, oldest first, references resolved; somebody else's comment is `403` `FORBIDDEN`. |
-| `GET`, `POST /:id/attachments`; `POST /:id/attachments/upload`; `DELETE /:id/attachments/:attachmentId` | `tasks:read` to list, `tasks:write` to change | `{ assetId }` attaches a library file (with the library's read permission); `upload` takes a multipart file; `413` / `415` `TASK_ATTACHMENT_REFUSED`. |
+| `GET`, `POST /:id/attachments`; `POST /:id/attachments/upload`; `DELETE /:id/attachments/:attachmentId` | `tasks:read` to list, `tasks:write` to change | `{ assetId }` attaches a library file (with the library's read permission); `upload` takes a multipart file; `413` / `415` `TASK_ATTACHMENT_REFUSED`, and `422` `TASK_ATTACHMENT_REFUSED` with `details.code` `not_private` (and `assetId`, `visibility`) for a library file that is not private — `VALIDATION_FAILED` until issue #642. A file that is not in the library stays `422` `VALIDATION_FAILED`. |
 | `PUT`, `DELETE /:id/relations/:otherId` | `tasks:write` on both | `204`, idempotent both ways. |
 | `POST /:id/links`; `DELETE /:id/links/:linkId` | `tasks:write` | `{ kind, id }` → `201` a new link, `200` the existing one; `422` `TASK_LINK_INVALID`. |
 | `GET`, `POST /:id/reminders`; `DELETE /:id/reminders/:reminderId` | `tasks:read` to list, `tasks:write` to add | `{ remindAt }` or `{ offsetMinutes }`, and `recipientIds`; `422` `TASK_REMINDER_INVALID`. Its creator, or a holder of `tasks:write`, removes one. |

@@ -240,8 +240,8 @@ zadaniu tak jak na szansie sprzedażowej, mogą filtrować listę i tablicę, gd
 oznaczone jako filtry listy, i mogą być pokazywane na karcie tablicy.
 
 **Załączniki.** Do zadania można dołączyć plik do 25 MB — przesłany albo
-wybrany z biblioteki multimediów przez kogoś, kto może ją czytać. Pliki HTML,
-SVG, XML i JavaScript są odrzucane. Każdy załącznik pokazuje nazwę, rozmiar,
+wybrany z biblioteki multimediów przez kogoś, kto może ją czytać; plik wybrany
+z biblioteki musi być prywatny. Pliki HTML, SVG, XML i JavaScript są odrzucane. Każdy załącznik pokazuje nazwę, rozmiar,
 kto go dołączył i kiedy; może go pobrać każdy, kto widzi zadanie, a odłączyć —
 ktoś, kto może je zmieniać. Plik zostaje w bibliotece multimediów, a biblioteka
 odmawia usunięcia pliku używanego przez zadanie — także gdy moduł Zadania jest
@@ -473,7 +473,7 @@ dokładnie tak jak zadanie, które nie istnieje.
 | `DELETE /:id` | `tasks:write` albo `tasks:read` z `tasks:see_private` dla zadania prywatnego | `200` `{ data: { subtasksDetached } }` — dawne podzadania, które pytający może zobaczyć. |
 | `GET /:id/history` | `tasks:read` | Ślad audytowy zadania, od najnowszego (`RecordHistoryPage`). |
 | `GET`, `POST /:id/comments`; `PATCH`, `DELETE /:id/comments/:commentId` | `tasks:read` | Komentarze od najstarszego, z rozwiązanymi odwołaniami; cudzy komentarz daje `403` `FORBIDDEN`. |
-| `GET`, `POST /:id/attachments`; `POST /:id/attachments/upload`; `DELETE /:id/attachments/:attachmentId` | `tasks:read` do listy, `tasks:write` do zmian | `{ assetId }` dołącza plik z biblioteki (z uprawnieniem biblioteki do odczytu); `upload` przyjmuje plik multipart; `413` / `415` `TASK_ATTACHMENT_REFUSED`. |
+| `GET`, `POST /:id/attachments`; `POST /:id/attachments/upload`; `DELETE /:id/attachments/:attachmentId` | `tasks:read` do listy, `tasks:write` do zmian | `{ assetId }` dołącza plik z biblioteki (z uprawnieniem biblioteki do odczytu); `upload` przyjmuje plik multipart; `413` / `415` `TASK_ATTACHMENT_REFUSED` oraz `422` `TASK_ATTACHMENT_REFUSED` z `details.code` `not_private` (i `assetId`, `visibility`) dla pliku z biblioteki, który nie jest prywatny — do zgłoszenia #642 `VALIDATION_FAILED`. Plik, którego nie ma w bibliotece, nadal daje `422` `VALIDATION_FAILED`. |
 | `PUT`, `DELETE /:id/relations/:otherId` | `tasks:write` dla obu | `204`, idempotentne w obie strony. |
 | `POST /:id/links`; `DELETE /:id/links/:linkId` | `tasks:write` | `{ kind, id }` → `201` nowe powiązanie, `200` istniejące; `422` `TASK_LINK_INVALID`. |
 | `GET`, `POST /:id/reminders`; `DELETE /:id/reminders/:reminderId` | `tasks:read` do listy, `tasks:write` do dodania | `{ remindAt }` albo `{ offsetMinutes }` oraz `recipientIds`; `422` `TASK_REMINDER_INVALID`. Usuwa je jego autor albo posiadacz `tasks:write`. |

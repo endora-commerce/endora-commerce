@@ -718,7 +718,9 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
     to: 'tasks',
     reason:
       'Minted with the `tasks` module growing into Task management (`specs/165-task-management/`, ' +
-      'Phase 3): a file refused as a Task attachment — over the size limit, or a document a browser would run.',
+      'Phase 3): a file refused as a Task attachment — over the size limit, or a document a browser would run. ' +
+      'Issue #642 (#86) added the refusal token `not_private` for a library file that is not private, ' +
+      'which was `422 VALIDATION_FAILED` with an English literal; the code itself is unchanged.',
   },
   TASK_VIEW_NAME_TAKEN: {
     to: 'tasks',

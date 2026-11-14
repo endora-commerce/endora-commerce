@@ -270,7 +270,10 @@ export const manifest = defineModuleManifest({
     { code: 'TASK_PRIORITY_UNKNOWN' },
     { code: 'TASK_TAG_UNKNOWN' },
     { code: 'TASK_TAG_NAME_TAKEN' },
-    { code: 'TASK_ATTACHMENT_REFUSED' },
+    // Issue #642 (#86) — a public file is refused under the same code, with
+    // `not_private` as the refusal token choosing its own sentence; the size
+    // and active-content refusals carry none and keep the code's sentence.
+    { code: 'TASK_ATTACHMENT_REFUSED', tokens: ['not_private'] },
     { code: 'TASK_VIEW_NAME_TAKEN' },
     { code: 'TASK_PARENT_CYCLE' },
     { code: 'TASK_HIERARCHY_TOO_DEEP' },

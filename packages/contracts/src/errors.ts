@@ -1036,7 +1036,11 @@ export const ERROR_CODES = {
   TASK_TAG_UNKNOWN: 'TASK_TAG_UNKNOWN',
   /** A Task tag name already taken, case-insensitively (R-10). */
   TASK_TAG_NAME_TAKEN: 'TASK_TAG_NAME_TAKEN',
-  /** A Task attachment refused: too large, or a document a browser would run (R-7). */
+  /**
+   * A Task attachment refused: too large, or a document a browser would run (R-7) — or, since
+   * issue #642, a library file that is not private (422, refusal token `not_private`,
+   * `details.assetId`, `visibility`).
+   */
   TASK_ATTACHMENT_REFUSED: 'TASK_ATTACHMENT_REFUSED',
   /** A saved Tasks list view name its owner already uses, case-insensitively (R-13). */
   TASK_VIEW_NAME_TAKEN: 'TASK_VIEW_NAME_TAKEN',
