@@ -448,6 +448,8 @@ the version they were made against; without one they answer `400`, against an ol
 | `PRICE_BOOK_ROW_SHAPE` | 400 | any other refused row (the envelope code when the errors are mixed) |
 | `PRICE_BOOK_ROW_TARGET`, `PRICE_BOOK_ROW_LIMIT` | — | per-row codes inside `details.errors` (`PRICE_BOOK_ROW_LIMIT` is also the envelope code when every error is the limit) |
 | `PRECEDENCE_CHANGE_UNAVAILABLE` | 409 | any write under `…/precedence` |
+| `PRICE_BOOK_BASE_PRICE_REQUIRED` | 400 | a base-price write that keeps a variant's percentage or amount adjustment but leaves the product without its own base price in that currency (`details.productId`, `currency`, and the `issues` array) |
+| `PRICE_BOOK_BASE_HAS_NO_CHANNELS` | 400 | a channel set written to a base book, which applies in every channel (`details.priceBookId`, `currency`) |
 
 A refused batch lists **every** failing row in `details.errors: [{ index?, rowId?, field, code,
 reason, message }]` — `index` the row's position in `upsert`, `rowId` a stored row. `reason` is one
@@ -480,7 +482,7 @@ does not call `resolved-price` per card.
 | Container name | Contract (`@endora-commerce/contracts`) | What it is for |
 | --- | --- | --- |
 | `pricingService` | `ListingPricePort`, `ListingPriceDetailPort`, `LinePricesPort`, `ListingPriceOrderPort`, `OrgLinePricePort` | every price read (above) |
-| `buyerLinePricePort` | `BuyerLinePricePort.resolveForBuyer({ buyer, salesChannelId, currencyCode?, lines })` | the net unit price a named buyer pays per line now; no authority check — the caller passes a buyer it has authorised |
+| `buyerLinePricePort` | `BuyerLinePricePort.resolveForBuyer({ buyer, salesChannelId, currencyCode?, lines })` | the net unit price a named buyer pays per line now; no authority check — the caller passes a buyer it has authorised. A `null` channel prices on the system-default channel; with none, which a booted deployment never has, it throws the platform's `NoSystemDefaultChannel` (`500 INTERNAL`) |
 | `priceListReadPort` | `PriceListReadPort` — `findById`, `findByIds`, `listAll`, `listActive`, `listForOrganization({ organizationChain, customerGroupId })` | book headers; the books that apply to an organization through its own membership, an ancestor's or its group, each with its `reason` and chain `depth` |
 | `productDisplayModePort` | `ProductDisplayModePort.resolveDisplayMode` | the display mode of a product for a buyer |
 | `priceBookWritePort` | `PriceBookWritePort` | a product's **base prices**, for another module's price import |
@@ -508,7 +510,10 @@ interface PriceBookWritePort {
 - A base book is addressed by **currency**, never by id; a currency with no base book gets one
   inside the same command. Amounts are decimal strings.
 - Validation and refusals are the admin API's: `400 VALIDATION_FAILED` with `details`,
-  `404 NOT_FOUND` for an unknown product.
+  `404 NOT_FOUND` for an unknown product. `replaceProductBaseTiers` keeps the variants' rows, so a
+  write that would leave a variant's percentage or amount adjustment without the product's own base
+  price in that currency is `400 PRICE_BOOK_BASE_PRICE_REQUIRED` (`details.productId`, `currency`,
+  `issues`).
 - `booksPricingProduct` is the admin list filtered by `productId`, every page, every book visible.
 - It fails closed: resolving it while `price_lists` is absent throws `ModuleDisabledError`
   (`503 MODULE_DISABLED`). Resolve it per use with `lazyPort`, never hold an instance.

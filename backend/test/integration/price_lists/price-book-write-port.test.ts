@@ -102,10 +102,15 @@ describe('price_lists — priceBookWritePort (FR-049)', () => {
     expect(prices.byCurrency['PLN']!.variants[f.variants.P5r]).toEqual({ type: 'percent', percent: '10.00' });
     expect(await f.amount('guest', f.products.P5, { variantId: f.variants.P5r })).toBe('220.0000');
     expect(await f.amount('guest', f.products.P5, { variantId: f.variants.P5b })).toBe('200.0000');
-    // P5r's +10 % needs the product's own base price in PLN.
+    // P5r's +10 % needs the product's own base price in PLN — its own code
+    // since issue #636, naming the product and the currency.
     await expect(
       f.system(() => port.replaceProductBaseTiers(f.products.P5.id, { PLN: [] })),
-    ).rejects.toMatchObject({ statusCode: 400, code: ERROR_CODES.VALIDATION_FAILED });
+    ).rejects.toMatchObject({
+      statusCode: 400,
+      code: ERROR_CODES.PRICE_BOOK_BASE_PRICE_REQUIRED,
+      details: { productId: f.products.P5.id, currency: 'PLN' },
+    });
     expect((await port.basePrices(f.products.P5.id)).byCurrency['PLN']!.product).toEqual(tiers([1, null, '200.0000']));
   });
 

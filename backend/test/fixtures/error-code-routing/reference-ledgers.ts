@@ -629,6 +629,21 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'the refusal of a module row write naming an expired book. ' +
       'The noun is a price book, the module\'s own entity (D-121 T1).',
   },
+  PRICE_BOOK_BASE_PRICE_REQUIRED: {
+    to: 'price_lists',
+    reason:
+      'Minted by issue #636 (#86) for a base-price write that would leave a variant\'s percentage ' +
+      'or amount adjustment without the product\'s own base price in that currency. It was ' +
+      '`400 VALIDATION_FAILED` reading "The base prices were refused. …"; the product and the ' +
+      'currency now travel as scalar `details` beside the `issues` array.',
+  },
+  PRICE_BOOK_BASE_HAS_NO_CHANNELS: {
+    to: 'price_lists',
+    reason:
+      'Minted by issue #636 (#86) for a channel set written to a base book, which applies in ' +
+      'every channel. It was `400 VALIDATION_FAILED` reading "The channel set was refused. A base ' +
+      'book is channel-independent and has no channel set."',
+  },
   PRECEDENCE_CHANGE_UNAVAILABLE: {
     to: 'price_lists',
     reason:

@@ -821,6 +821,9 @@ export interface BuyerLinePriceAnswer {
  *
  * A product that does not exist answers `price: null` for its line rather than
  * throwing; an unknown `salesChannelId` throws `HttpError(400, VALIDATION_FAILED)`.
+ * A `null` channel prices on the system-default channel; with none, which a
+ * booted deployment never has, it throws the platform's `NoSystemDefaultChannel`
+ * (`500 INTERNAL`, issue #636).
  * The implementation resolves in bounded chunks, and callers send lines in
  * chunks.
  *

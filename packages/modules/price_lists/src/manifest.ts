@@ -269,6 +269,11 @@ export const manifest = defineModuleManifest({
     { code: 'PRICE_BOOK_BASE_BOOK' },
     { code: 'PRICE_BOOK_EXPIRED' },
     { code: 'PRECEDENCE_CHANGE_UNAVAILABLE' },
+    // Issue #636 (#86) — refusals the stored state makes, which fell through
+    // `validation()`'s default `VALIDATION_FAILED`. Their sentences name the
+    // scalar `details`.
+    { code: 'PRICE_BOOK_BASE_PRICE_REQUIRED' },
+    { code: 'PRICE_BOOK_BASE_HAS_NO_CHANNELS' },
   ],
 });
 

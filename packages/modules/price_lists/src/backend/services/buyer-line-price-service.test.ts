@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { BuyerLinePriceQuery } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { NoSystemDefaultChannel } from '@endora-commerce/platform/kernel';
 import {
   BUYER_LINE_PRICE_CHUNK_SIZE,
   BuyerLinePriceService,
@@ -194,6 +195,20 @@ describe('BuyerLinePriceService.resolveForBuyer (T019)', () => {
     expect((error as HttpError).statusCode).toBe(400);
     expect((error as HttpError).code).toBe('VALIDATION_FAILED');
     expect((error as HttpError).message).not.toContain(UNKNOWN_CHANNEL_ID);
+    expect(h.calls).toHaveLength(0);
+  });
+
+  it('answers no system-default channel as the platform invariant it is (500 INTERNAL), not a caller error', async () => {
+    // Issue #636 (#86): it was `400 VALIDATION_FAILED` "No default sales
+    // channel." No request causes it and no buyer can fix it — the boot
+    // reconciler guarantees a default — so it is the platform's one spelling
+    // of that state, `NoSystemDefaultChannel` (D-48).
+    const h = harness();
+    h.spies.findDefaultChannel.mockResolvedValueOnce(null);
+    const error = await h.service.resolveForBuyer(query({ salesChannelId: null })).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NoSystemDefaultChannel);
+    expect((error as HttpError).statusCode).toBe(500);
+    expect((error as HttpError).code).toBe('INTERNAL');
     expect(h.calls).toHaveLength(0);
   });
 
