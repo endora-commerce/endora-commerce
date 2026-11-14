@@ -13,6 +13,7 @@ import {
   restoreDefaultCrmWorkflow,
   whenCrmEventSettled,
 } from '../../helpers/seed-crm.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
 
 /**
  * QA finding for `specs/162-custom-fields-value-carry/` (US3-1, FR-013): the
@@ -102,7 +103,7 @@ describe('crm — the version a Quote Request created from an Opportunity report
   beforeAll(async () => {
     h = await setupBackendServer();
     await restoreDefaultCrmWorkflow(h.em());
-    await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
   });
 
   afterAll(async () => {

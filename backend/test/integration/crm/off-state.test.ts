@@ -25,6 +25,7 @@ import {
   SEED_ADDRESS_DELIVERY_ID,
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
+  topUpStock,
 } from '../../helpers/seed-commerce.js';
 import { TEST_ADMIN_ID, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { crmEventReminderRow, seedCrmEventRow } from '../../helpers/seed-crm-events.js';
@@ -531,7 +532,7 @@ describe('crm off-state (Constitution XVII)', () => {
 
     beforeAll(async () => {
       await restoreDefaultCrmWorkflow(h.em());
-      await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+      await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
       for (const code of SETTINGS) await setCrmSetting(h, code, true);
     });
 
@@ -653,7 +654,7 @@ describe('crm off-state (Constitution XVII)', () => {
 
     beforeAll(async () => {
       await restoreDefaultCrmWorkflow(h.em());
-      await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+      await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
     });
 
     it('links the Order while on — the positive control', async () => {
@@ -836,7 +837,7 @@ describe('crm off-state (Constitution XVII)', () => {
         stored.set(code, row.value);
       }
       await restoreDefaultCrmWorkflow(h.em());
-      await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+      await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
       // An Opportunity per placed Order; none for the request, which the Order would otherwise join.
       await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, true);
       await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS, false);

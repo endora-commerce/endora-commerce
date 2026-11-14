@@ -29,6 +29,8 @@ import {
   setCrmSetting,
   whenCrmEventSettled,
 } from '../../helpers/seed-crm.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
  * What no single story could see — the places where two stories, built on
@@ -194,7 +196,7 @@ describe('crm: stories that meet', () => {
       );
 
     beforeAll(async () => {
-      await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+      await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
       await defineCrmCustomField(h, {
         key: 'lead_source',
         valueType: 'select',

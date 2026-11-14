@@ -25,6 +25,8 @@ import {
   submitCrmQuoteRequest,
   whenCrmEventSettled,
 } from '../../helpers/seed-crm.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
  * User Story 9 — Opportunities created automatically from placed Orders and
@@ -90,7 +92,7 @@ describe('crm automatic creation (US9)', () => {
     await restoreDefaultCrmWorkflow(h.em());
     const systemDefault = await h.em().findOneOrFail(SalesChannel, { systemDefault: true });
     channel = { id: systemDefault.id, code: systemDefault.code };
-    await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID], 10_000);
     // The Organization's Sales Rep — whom the default-assignee rule picks for
     // an Opportunity nobody created by hand.
     rep = await seedCrmAdmin(h.em(), 'auto-rep', ['crm:read', 'crm:write', 'orders:read']);

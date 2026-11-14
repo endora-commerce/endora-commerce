@@ -14,6 +14,7 @@ import {
   SEED_ADDRESS_DELIVERY_ID,
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
+  topUpStock,
 } from '../../helpers/seed-commerce.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { seedOtherTestCustomer } from '../../helpers/seed-organizations.js';
@@ -117,7 +118,7 @@ describe('orders — an order placed from an accepted quote request', () => {
       reserved: 0,
     });
     await em.flush();
-    await em.execute(`update "stock_levels" set "on_hand" = 100000`);
+    await topUpStock(em, [SEED_PRODUCT_101_ID, SEED_PRODUCT_102_ID]);
     // The other Organization's buyer raises a request below, so it needs a real account.
     await seedOtherTestCustomer(em);
   });
