@@ -13,14 +13,17 @@ import {
  * - FR-001 / FR-004: `type: 'page_builder'` is created with every capability
  *   off, and reads back as `page_builder` in both the API and the legacy
  *   vocabulary.
- * - FR-003: create and PATCH refuse each locked capability by name
- *   (`details[].path`), and store nothing.
+ * - FR-003: create and PATCH refuse each locked capability by name, and store
+ *   nothing — create with `VALIDATION_FAILED` (`details[].path`), PATCH, where
+ *   the stored type refuses it, with `CONTENT_ATTRIBUTE_CAPABILITY_LOCKED`
+ *   (`details.capabilities`, issue #1218).
  * - FR-004 under feature 174 (`specs/174-product-editor-scope-switcher/`,
  *   FR-012): the channel and language scope flags became one `scopable` flag.
  *   A content attribute's languages are its document envelope's, never scoped
  *   values, so `scopable` is one of the locked capabilities (it carries FR-040)
  *   and there is no language flag left to switch off.
- * - FR-005: the type never changes to or from `page_builder` (409).
+ * - FR-005: the type never changes to or from `page_builder` (409
+ *   `ATTRIBUTE_VALUE_TYPE_LOCKED`, token `page_builder`, issue #1218).
  * - FR-006: the attribute joins a set and keeps its position like any member.
  */
 
@@ -43,6 +46,11 @@ const adminCookie = { b2b_session: 'stub-admin-session' };
 
 interface ErrorBody {
   error: { code: string; message: string; details?: Array<{ path: string; issue: string }> };
+}
+
+/** A refusal the stored state makes: `details` is the structured object (issue #1218). */
+interface PatchErrorBody {
+  error: { code: string; message: string; details?: Record<string, unknown> };
 }
 
 describe('Content attribute definition (feature 172, US1)', () => {
@@ -114,7 +122,11 @@ describe('Content attribute definition (feature 172, US1)', () => {
         cookies: adminCookie,
       });
       expect(patched.statusCode, patched.body).toBe(400);
-      expect((patched.json() as ErrorBody).error.details?.map((detail) => detail.path)).toContain(flag);
+      // Issue #1218 (#86) — on PATCH the stored type refuses the flag: a code of
+      // its own, the flag named in `details.capabilities`.
+      const patchedError = (patched.json() as PatchErrorBody).error;
+      expect(patchedError.code).toBe('CONTENT_ATTRIBUTE_CAPABILITY_LOCKED');
+      expect(patchedError.details).toEqual({ attributeKey: key, capabilities: flag });
       const after = (await read(key)).json() as { data: Record<string, unknown> };
       expect(after.data[flag]).toBe(false);
     });
@@ -150,9 +162,11 @@ describe('Content attribute definition (feature 172, US1)', () => {
       cookies: adminCookie,
     });
     expect(fromContent.statusCode, fromContent.body).toBe(409);
-    expect((fromContent.json() as ErrorBody).error.message).toBe(
-      'The value type of a Page Builder content attribute cannot be changed.',
-    );
+    // Issue #1218 (#86) — the value-type lock's code, the token naming why.
+    expect((fromContent.json() as PatchErrorBody).error).toMatchObject({
+      code: 'ATTRIBUTE_VALUE_TYPE_LOCKED',
+      details: { code: 'page_builder', attributeKey: 'pb_type_from' },
+    });
 
     const plain = await create({
       key: 'pb_type_to',
@@ -170,6 +184,10 @@ describe('Content attribute definition (feature 172, US1)', () => {
       cookies: adminCookie,
     });
     expect(toContent.statusCode, toContent.body).toBe(409);
+    expect((toContent.json() as PatchErrorBody).error).toMatchObject({
+      code: 'ATTRIBUTE_VALUE_TYPE_LOCKED',
+      details: { code: 'page_builder', attributeKey: 'pb_type_to' },
+    });
     expect(((await read('pb_type_to')).json() as { data: { type: string } }).data.type).toBe('input');
     expect(((await read('pb_type_from')).json() as { data: { type: string } }).data.type).toBe('page_builder');
   });

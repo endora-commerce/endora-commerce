@@ -194,7 +194,7 @@ export default async function QuickOrderPage({
         <section
           role="status"
           aria-labelledby="quick-order-not-added"
-          className="my-[12px] rounded-md border border-warn bg-warn-soft px-[16px] py-[12px] text-fg"
+          className="b2b-auth__warning my-[12px] rounded-md px-[16px] py-[12px] text-[14px]"
         >
           <p className="m-0 mb-1 font-semibold">{quickOrderBuildOutcome(sentCount, notAddedCount, locale)}</p>
           <h3 id="quick-order-not-added" className="m-0 mb-1 text-[14px] font-semibold">

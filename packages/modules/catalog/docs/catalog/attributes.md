@@ -71,10 +71,12 @@ tab ([Product content](./product-content.md)). Its settings are fixed:
 - `isSearchable`, `isFilterable`, `isVariantAxis`, `displayAsSlider`,
   `isComparable`, `quickSearchable`, `isPromoRule`, `isPriceRule`,
   `massEditable`, `isRequired`, `isVisibleOnProductPage` and `scopable`
-  stay `false`. Setting any of them on create or update is refused with
-  `400 VALIDATION_FAILED`, one detail per setting, and nothing is stored;
+  stay `false`. Setting any of them is refused and nothing is stored: on
+  create with `400 VALIDATION_FAILED`, one detail per setting; on update, where
+  the stored type refuses it, with `400 CONTENT_ATTRIBUTE_CAPABILITY_LOCKED`;
 - it has no options;
-- its type cannot be changed, and no attribute can be changed into it (`409`).
+- its type cannot be changed, and no attribute can be changed into it
+  (`409 ATTRIBUTE_VALUE_TYPE_LOCKED`, token `page_builder`).
 
 The attribute editor hides those settings for this type, and the list shows the
 row's flags locked. The type is admissible for products only.
@@ -160,21 +162,24 @@ deleted product no longer does; and the delete now emits
 
 Each refusal the stored attribute or its options make has its own code and a
 sentence in English and Polish that names the values in `details`. Until issue
-#624 they were `VALIDATION_FAILED` with an English message or a machine token
+#624 (and issue #1218 for Page Builder content attributes) they were
+`VALIDATION_FAILED` with an English message or a machine token
 (`option_in_use: …`). A malformed request — a key that does not match
-`^[a-z][a-z0-9_]*$`, an option value that does not match its pattern, options
-or a slider on a type the same request names — stays `400 VALIDATION_FAILED`.
+`^[a-z][a-z0-9_]*$`, an option value that does not match its pattern, options,
+a slider or a content attribute's locked setting on a type the same request
+names — stays `400 VALIDATION_FAILED`.
 
 | Code | Status | When | `details` |
 | --- | --- | --- | --- |
 | `ATTRIBUTE_KEY_TAKEN` | 409 | Another attribute already has the key | `attributeKey` |
-| `ATTRIBUTE_VALUE_TYPE_LOCKED` | 409 | The value type is changed while products hold values for the attribute | `attributeKey` |
+| `ATTRIBUTE_VALUE_TYPE_LOCKED` | 409 | The value type is changed while products hold values for the attribute; token `page_builder`: changed to or from Page Builder content | `attributeKey` |
 | `ATTRIBUTE_IN_USE` | 409 | Delete blocked: an attribute set contains the attribute (token `attribute_sets`), or products hold its values (token `products`) | `attributeKey`, `attributeSetCount` or `productCount` |
 | `ATTRIBUTE_OPTION_VALUE_TAKEN` | 409 | The attribute already has an option with the value | `attributeKey`, `value` |
 | `ATTRIBUTE_DEFAULT_OPTION_TAKEN` | 409 | A second default option on a single-choice attribute, on create or when an option is made the default | `attributeKey`, `value` |
 | `ATTRIBUTE_OPTIONS_NOT_SUPPORTED` | 400 | An option is written to an attribute whose type takes none | `attributeKey`, `valueType` |
 | `ATTRIBUTE_OPTION_IN_USE` | 409 | Delete blocked: products carry the option (token `products` with the count) | `attributeKey`, `value`, `productCount` |
 | `ATTRIBUTE_SLIDER_NOT_SUPPORTED` | 400 | `displayAsSlider` is turned on for an attribute whose stored type is not a number or a price | `attributeKey`, `valueType` |
+| `CONTENT_ATTRIBUTE_CAPABILITY_LOCKED` | 400 | An update switches on a setting a Page Builder content attribute holds off | `attributeKey`, `capabilities` (joined) |
 | `NOT_FOUND` | 404 | `:idOrKey` or `:optionId` missing | — |
 
 ## Storefront integration

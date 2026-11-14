@@ -863,6 +863,15 @@
   .b2b-auth__social-btn:focus-visible { @apply outline-2 outline-offset-2 outline-[color:var(--brand-600)]; }
   .b2b-auth__error { @apply rounded-sm border border-bad-soft bg-bad-soft px-[12px] py-[10px] text-[13px] text-bad; }
   .b2b-auth__success { @apply rounded-sm border border-ok-soft bg-ok-soft px-[12px] py-[10px] text-[13px] text-ok; }
+  /* Issue #1220 — the third status notice: a partial result the buyer has to
+     act on (lines left out of a cart build, a quote that no longer binds). The
+     status tokens are not re-pointed by `:root.is-dark`, so the pale amber stays
+     light in dark mode, and the ink has to be a status ink too: `text-fg` turns
+     near-white there (about 1:1). `--warn-700` on `--warn-100` is 4.5:1 in every
+     theme and mode; the full border keeps it apart from a success notice
+     without colour alone, and each box leads with a heading saying what it is.
+     Descendant text inherits the ink — do not give it `text-fg-soft`/`text-muted`. */
+  .b2b-auth__warning { @apply rounded-sm border border-warn bg-warn-soft px-[12px] py-[10px] text-[13px] text-warn; }
   /* Why the visitor is on the sign-in page — information, not an error. */
   .b2b-auth__notice { @apply m-0 rounded-sm border border-line bg-surface-alt px-[12px] py-[10px] text-[13px] text-fg-soft; }
   .b2b-auth__hint { @apply mt-4 text-[12px] text-muted; }
@@ -958,6 +967,12 @@
      touch floor, pulled into the table cell's own padding so the row does not
      grow (Fitts). */
   .b2b-dialog__trigger { @apply -my-[10px] inline-flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0 font-sans text-[13px]; }
+  /* Issue #1220 — a shared link inside `.b2b-auth__warning` takes the warning
+     ink, not the accent: in dark mode the accent is the light brand tint,
+     unreadable on the pale amber. The underline still marks it as a link (never
+     colour alone). (0,2,0) beats the link's own `dark:` rule, whose `:where()`
+     adds nothing. */
+  .b2b-auth__warning .b2b-account__link { @apply text-inherit dark:text-inherit; }
 }
 /* The dim behind the dialog: the bottom sheet's (`.m-sheet-dim`) value. */
 .b2b-dialog::backdrop { background: rgba(10, 13, 18, 0.45); }

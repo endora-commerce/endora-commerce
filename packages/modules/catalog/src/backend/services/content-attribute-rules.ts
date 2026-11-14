@@ -47,36 +47,53 @@ export type ContentAttributeFlags = Partial<Record<ContentAttributeLockedFlag, b
 const ISSUE = 'not available for Page Builder content';
 
 /**
- * Refuse every locked capability switched on (FR-003, FR-040), one `details`
- * entry per offending field.
+ * Refuse every locked capability switched on (FR-003, FR-040).
+ *
+ * On create the request names the type itself, so the rule judges the request
+ * alone: `400 VALIDATION_FAILED`, one `details` entry per offending field. On
+ * update the caller passes the stored attribute — its stored type is what
+ * refuses the flag — and the refusal is `400 CONTENT_ATTRIBUTE_CAPABILITY_LOCKED`
+ * with the flags joined in `details.capabilities` (issue #1218, #86; the same
+ * split #624 made for the slider).
  */
-export function assertContentAttributeShape(flags: ContentAttributeFlags): void {
-  const details: Array<{ path: string; issue: string }> = [];
-  for (const flag of CONTENT_ATTRIBUTE_LOCKED_FLAGS) {
-    if (flags[flag] === true) details.push({ path: flag, issue: ISSUE });
+export function assertContentAttributeShape(
+  flags: ContentAttributeFlags,
+  stored?: { readonly attributeKey: string },
+): void {
+  const refused = CONTENT_ATTRIBUTE_LOCKED_FLAGS.filter((flag) => flags[flag] === true);
+  if (refused.length === 0) return;
+  const message = `Page Builder content attributes cannot have: ${refused.join(', ')}.`;
+  if (stored) {
+    throw new HttpError(400, ERROR_CODES.CONTENT_ATTRIBUTE_CAPABILITY_LOCKED, message, {
+      attributeKey: stored.attributeKey,
+      capabilities: refused.join(', '),
+    });
   }
-  if (details.length > 0) {
-    throw new HttpError(
-      400,
-      ERROR_CODES.VALIDATION_FAILED,
-      `Page Builder content attributes cannot have: ${details.map((detail) => detail.path).join(', ')}.`,
-      details,
-    );
-  }
+  throw new HttpError(
+    400,
+    ERROR_CODES.VALIDATION_FAILED,
+    message,
+    refused.map((flag) => ({ path: flag, issue: ISSUE })),
+  );
 }
 
 /**
  * The value type of an attribute never moves to or from `page_builder`
  * (FR-005): a document and a scalar value are not convertible into each other.
  * Takes the legacy (DB) form of both sides.
+ *
+ * Issue #1218 (#86) — the stored type refuses a well-formed request, so the
+ * refusal is the value-type lock's code with the token `page_builder`, whose
+ * sentence names the attribute.
  */
-export function assertTypeChangeAllowed(from: string, to: string): void {
+export function assertTypeChangeAllowed(from: string, to: string, attributeKey: string): void {
   if (from === to) return;
   if (from === 'page_builder' || to === 'page_builder') {
     throw new HttpError(
       409,
-      ERROR_CODES.VALIDATION_FAILED,
+      ERROR_CODES.ATTRIBUTE_VALUE_TYPE_LOCKED,
       'The value type of a Page Builder content attribute cannot be changed.',
+      { code: 'page_builder', attributeKey },
     );
   }
 }

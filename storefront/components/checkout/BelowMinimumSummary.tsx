@@ -29,7 +29,7 @@ export function BelowMinimumSummary({
     <section
       id={id}
       aria-labelledby={headingId}
-      className="my-[16px] rounded-md border border-warn bg-warn-soft px-[16px] py-[14px] text-fg"
+      className="b2b-auth__warning my-[16px] rounded-md px-[16px] py-[14px] text-[14px]"
     >
       <h3 id={headingId} className="m-0 mb-1 flex items-center gap-2 text-[15px] font-semibold">
         <svg
@@ -51,10 +51,10 @@ export function BelowMinimumSummary({
         </svg>
         {t('checkout.belowMinimum.heading')}
       </h3>
-      <p className="m-0 mb-2 text-[13px] text-fg-soft">{t('checkout.belowMinimum.intro')}</p>
+      <p className="m-0 mb-2 text-[13px]">{t('checkout.belowMinimum.intro')}</p>
       <ul className="m-0 mb-3 list-none p-0">
         {rows.map((row) => (
-          <li key={row.cartItemId} className="border-t border-line py-[6px] text-[13px] first:border-t-0">
+          <li key={row.cartItemId} className="border-t border-warn/25 py-[6px] text-[13px] first:border-t-0">
             <strong className="font-semibold">{row.name}</strong>
             {' — '}
             <span>{row.reasons.join(' · ')}</span>
