@@ -99,6 +99,9 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       resolveRole: async () => {
         throw new Error('admin_actions reads permissions, never a role');
       },
+      resolveRoles: async () => {
+        throw new Error('admin_actions reads permissions, never a role');
+      },
     };
 
     const service = new AdminActionsService({
@@ -147,6 +150,9 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
     const permissions: PermissionReadPort = {
       listPermissions: async () => ['*'],
       resolveRole: async () => {
+        throw new Error('admin_actions reads permissions, never a role');
+      },
+      resolveRoles: async () => {
         throw new Error('admin_actions reads permissions, never a role');
       },
     };
@@ -220,6 +226,9 @@ describe('admin_actions — the cross-module demand is two ports and a registry 
       permissionService: {
         listPermissions: async () => [],
         resolveRole: async () => {
+          throw new Error('admin_actions reads permissions, never a role');
+        },
+        resolveRoles: async () => {
           throw new Error('admin_actions reads permissions, never a role');
         },
       },

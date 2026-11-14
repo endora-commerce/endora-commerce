@@ -103,6 +103,7 @@ async function appWith(options: AppOptions = {}): Promise<FastifyInstance> {
           organizationSubtree: () => undefined,
           adminTenantScope: () => ({
             resolveForAdmin: options.adminScope ?? (async () => ({ allowAll: true })),
+            resolveForAdmins: async () => new Map(),
           }),
         }),
       ),
