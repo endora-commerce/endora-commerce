@@ -2,8 +2,10 @@ import type { ReactNode } from 'react';
 import { completeMfaSetupTicket } from '../../../../lib/api/mfa';
 import { MFA_SETUP_ERRORS } from '../../../../lib/auth/sign-in-errors';
 import {
+  clearAnonCartCookie,
   clearMfaSetupTicketCookie,
   getMfaSetupTicketCookie,
+  setCartMergeFlash,
   setMfaRecoveryFlash,
   setSessionCookie,
 } from '../../../../lib/session';
@@ -100,6 +102,12 @@ async function completeAction(formData: FormData): Promise<void> {
   }
   await setSessionCookie(result.sessionCookieValue);
   await clearMfaSetupTicketCookie();
+  // Issue #368 — the backend merged the signed-out basket on this call; as on
+  // the password step, drop the drained anonymous cookie and flash the notice.
+  if (result.cartMerge?.outcome === 'adopted' || result.cartMerge?.outcome === 'merged') {
+    await clearAnonCartCookie();
+    await setCartMergeFlash(result.cartMerge.outcome);
+  }
   // Surface the recovery codes once on the security page.
   await setMfaRecoveryFlash(result.recoveryCodes);
   return await localeRedirect('/account/security');

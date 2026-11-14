@@ -98,6 +98,9 @@ async function buildApp(): Promise<{ app: FastifyInstance; created: AuthCreateSe
     adminAuthenticationThrottle: { issueKnownDevice: async () => null },
     customerAuthenticationThrottle: { issueKnownDevice: async () => null },
     customerChannelAccess: { assertAccountMayUse: async () => undefined },
+    customerSignInCompletion: {
+      complete: async () => ({ cartMerge: null, clearAnonymousCartCookie: false }),
+    },
   });
   await app.ready();
   return { app, created };

@@ -9,6 +9,7 @@ import type {
   CustomerAuthenticationThrottlePort,
   AuthSessionPort,
   CustomerPasswordStatePort,
+  CustomerSignInCompletionPort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -147,6 +148,12 @@ export interface MfaModuleOptions {
    * are: a composition without it would issue sessions the rule refuses.
    */
   customerChannelAccess: CustomerChannelAccess;
+  /**
+   * Issue #368 — `organizations`' post-sign-in step, run by the two customer
+   * routes here that establish the session (second-step verify, enforced
+   * enrolment), so a two-step sign-in carries the signed-out basket over.
+   */
+  customerSignInCompletion: CustomerSignInCompletionPort;
   /** Feature 167 — the channel's URL-language facts for the storefront pages sign-in returns to. */
   channelUrlFactsFor?: (salesChannelId: string | null) => Promise<ChannelUrlFacts | null>;
 }
@@ -257,6 +264,7 @@ export function mfaModule(options: MfaModuleOptions): {
       adminAuthenticationThrottle: options.adminAuthenticationThrottle,
       customerAuthenticationThrottle: options.customerAuthenticationThrottle,
       customerChannelAccess: options.customerChannelAccess,
+      customerSignInCompletion: options.customerSignInCompletion,
     });
     // Storefront customer self-service (US1).
     await registerMfaSelfServiceRoutes(app, {

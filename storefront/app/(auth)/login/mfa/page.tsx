@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { verifyCustomerMfa } from '../../../../lib/api/auth';
 import {
+  clearAnonCartCookie,
   clearMfaChallengeCookie,
   getMfaChallengeCookie,
+  setCartMergeFlash,
   setSessionCookie,
 } from '../../../../lib/session';
 import { Hook } from '../../../../components/Hook';
@@ -85,6 +87,12 @@ async function verifyAction(formData: FormData): Promise<void> {
   }
   await setSessionCookie(result.sessionCookieValue);
   await clearMfaChallengeCookie();
+  // Issue #368 — the backend merged the signed-out basket on this call; as on
+  // the password step, drop the drained anonymous cookie and flash the notice.
+  if (result.cartMerge?.outcome === 'adopted' || result.cartMerge?.outcome === 'merged') {
+    await clearAnonCartCookie();
+    await setCartMergeFlash(result.cartMerge.outcome);
+  }
   return await localeRedirect(next);
 }
 

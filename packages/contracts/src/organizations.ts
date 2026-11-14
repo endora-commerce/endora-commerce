@@ -355,6 +355,49 @@ export const customerLoginResponseSchema = z.object({
 });
 export type CustomerLoginResponse = z.infer<typeof customerLoginResponseSchema>;
 
+/**
+ * Issue #368 — what a completed customer sign-in does beyond issuing the
+ * session: the anonymous basket (`b2b_cart_anon`) is merged into the
+ * customer's and the anonymous comparison (`compare_token`) is adopted.
+ *
+ * `organizations` owns the step and runs it from its password sign-in; a route
+ * that establishes the session itself — `mfa`'s second-step verify and its
+ * enforced-enrolment completion — calls it through
+ * {@link CustomerSignInCompletionPort} once the session cookie is set.
+ */
+export interface CustomerSignInCompletionInput {
+  customerAccountId: string;
+  /** The sign-in request's cookies, as `@fastify/cookie` parsed them. */
+  cookies: Readonly<Record<string, string | undefined>>;
+  /**
+   * Where a failed step is reported. The step is best-effort — a failed merge
+   * never breaks the sign-in (feature 037 FR-007/FR-008) — so a failure is
+   * logged here and answered as "nothing merged".
+   */
+  log: { error(details: object, message: string): void };
+}
+
+export interface CustomerSignInCompletion {
+  /** The merge as the storefront reads it; `null` when no basket was carried or the merge failed. */
+  cartMerge: CartMergeOutcomePublic | null;
+  /**
+   * Whether the response should clear `b2b_cart_anon`: the basket it pointed at
+   * was consumed or empty. A failure, no basket, and a skipped merge keep it.
+   */
+  clearAnonymousCartCookie: boolean;
+}
+
+/**
+ * Container name: `customerSignInCompletionPort`. Owner: `organizations`.
+ *
+ * Reached with `lazyPort<CustomerSignInCompletionPort>(ctx, 'customerSignInCompletionPort')`
+ * and never captured into a singleton (issue #368). `complete` does not throw
+ * for a failed merge: it logs the failure and answers "nothing merged".
+ */
+export interface CustomerSignInCompletionPort {
+  complete(input: CustomerSignInCompletionInput): Promise<CustomerSignInCompletion>;
+}
+
 export const changePasswordRequestSchema = z.object({
   currentPassword: z.string(),
   newPassword: z.string().min(12).max(256),

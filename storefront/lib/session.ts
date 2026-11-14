@@ -264,8 +264,10 @@ export async function knownDeviceCookieHeader(): Promise<string | null> {
 }
 
 /**
- * The `Cookie` header value for the password sign-in, or `null`: the
- * known-device cookie and the signed-out basket's `b2b_cart_anon` (issue #358).
+ * The `Cookie` header value for the calls that can establish a customer
+ * session — the password sign-in (issue #358), the second-step verify and the
+ * enforced-enrolment completion (issue #368) — or `null`: the known-device
+ * cookie and the signed-out basket's `b2b_cart_anon`.
  * The backend's sign-in hands the anonymous basket to its merge at sign-in
  * (`specs/154-sales-channel-access/contracts/basket-attribution.md` §3), which
  * sees it only if it is forwarded from here. Nothing else the browser holds is

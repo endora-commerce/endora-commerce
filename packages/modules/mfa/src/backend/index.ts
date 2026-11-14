@@ -11,6 +11,7 @@ import type {
   CustomerAccountReadPort,
   CustomerPasswordStatePort,
   CustomerPasswordVerificationPort,
+  CustomerSignInCompletionPort,
   MfaAdminEnforcementPort,
   MfaDeactivationGuardPort,
   MfaEnrolmentCountPort,
@@ -346,6 +347,13 @@ export function registerModule(ctx: ModuleContext): void {
             // "absent" and "present as undefined" different types, and these
             // two are genuinely absent on a deployment without social sign-in.
             customerChannelAccess,
+            // Issue #368 — `organizations`' post-sign-in step, a proxy like
+            // every port here; `organizations` is in this module's
+            // `dependencies` and `nonDeactivatable`.
+            customerSignInCompletion: lazyPort<CustomerSignInCompletionPort>(
+              ctx,
+              'customerSignInCompletionPort',
+            ),
             // Feature 167 — the started-on channel, else the system default.
             channelUrlFactsFor: async (salesChannelId) => {
               const resolution = lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort');

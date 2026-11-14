@@ -20,6 +20,8 @@ import {
   type CartMergeOutcomePublic,
   type CustomerAccountRecord,
   type CustomerAuthPort,
+  type CustomerSignInCompletion,
+  type CustomerSignInCompletionInput,
   type CustomerPasswordResetPort,
   type EmailMailerPort,
   type OrganizationPermissionPort,
@@ -209,49 +211,23 @@ export async function registerOrganizationsPublicRoutes(
       }
       setSessionCookie(reply, result.sessionCookieValue, result.sessionExpiresAt);
       rememberCustomerKnownDevice(reply, result.knownDevice ?? null);
-      // Merge any anonymous cart the caller was carrying into the authenticated
-      // cart (feature 027 R-09 / feature 037-cart-merge-on-login). The hook is
-      // best-effort: a thrown error MUST NOT break login (037 FR-007/FR-008).
-      let cartMerge: CartMergeOutcome | undefined;
-      if (deps.onLogin) {
-        const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
-        const anon = cookies?.['b2b_cart_anon'];
-        const compareAnon = cookies?.['compare_token'];
-        try {
-          const hookResult = await deps.onLogin({
-            customerAccountId: result.customerAccount.id,
-            organizationId: result.customerAccount.organizationId ?? null,
-            ...(anon ? { anonymousCartToken: anon } : {}),
-            ...(compareAnon ? { anonymousCompareToken: compareAnon } : {}),
-          });
-          cartMerge = hookResult.cartMerge;
-        } catch (err) {
-          request.log.error(
-            {
-              err,
-              customerAccountId: result.customerAccount.id,
-              hadAnonToken: Boolean(anon),
-            },
-            'cart_merge_on_login_failed',
-          );
-        }
-      }
-      // Clear the stale anon-cart cookie when the source token has been
-      // consumed (adopted/merged) or pointed at an empty cart (noop_empty).
-      // Failure and noop_no_anon both leave the cookie alone — failure so the
-      // buyer can retry on the next login, noop_no_anon because there was
-      // nothing to clear in the first place. See spec R-06. So does
-      // skipped_permission (`specs/170-organization-roles/` owner ruling PR-12,
-      // FR-030a): the member's role lacks `carts.create`, the guest basket was
-      // left unmerged and unchanged, and its cookie still points at it.
-      if (cartMerge && !ANON_CART_COOKIE_KEPT.has(cartMerge.outcome)) {
+      // Issue #368 — the step every route that establishes a customer session
+      // runs; `mfa`'s second-step routes reach the same function through
+      // `customerSignInCompletionPort`.
+      const completion = await completeCustomerSignIn(deps.onLogin, {
+        customerAccountId: result.customerAccount.id,
+        organizationId: result.customerAccount.organizationId ?? null,
+        cookies: (request as { cookies?: Record<string, string | undefined> }).cookies ?? {},
+        log: request.log,
+      });
+      if (completion.clearAnonymousCartCookie) {
         reply.clearCookie('b2b_cart_anon', { path: '/' });
       }
       return {
         data: {
           status: 'authenticated',
           customerAccount: await accountView(result.customerAccount, await request.responseLanguage()),
-          ...(cartMerge ? { cartMerge: narrowCartMergeForHttp(cartMerge) } : {}),
+          ...(completion.cartMerge ? { cartMerge: completion.cartMerge } : {}),
         },
       };
     },
@@ -362,6 +338,65 @@ function serializeOrganization(o: {
 }
 
 /** The merge outcomes after which the guest basket still exists, so its cookie is kept. */
+/**
+ * What a completed customer sign-in does beyond issuing the session (issue
+ * #368): hand the anonymous basket and comparison the request carried to the
+ * post-sign-in hook — the composition's `organizationsLoginHook`, where
+ * `carts` merges the basket (feature 027 R-09 / feature 037) and `comparisons`
+ * adopts the comparison — and say what the response does with the basket's
+ * cookie. The password sign-in calls it directly; a route that establishes the
+ * session itself calls it through `customerSignInCompletionPort`.
+ *
+ * The hook is best-effort: a thrown error MUST NOT break the sign-in (037
+ * FR-007/FR-008), so it is logged and answered as "nothing merged".
+ *
+ * The cookie is cleared when the source token has been consumed (adopted /
+ * merged) or pointed at an empty basket (noop_empty). A failure and
+ * noop_no_anon both leave it alone — failure so the buyer can retry on the next
+ * sign-in, noop_no_anon because there was nothing to clear in the first place
+ * (spec R-06). So does skipped_permission (`specs/170-organization-roles/`
+ * owner ruling PR-12, FR-030a): the member's role lacks `carts.create`, the
+ * guest basket was left unmerged and unchanged, and its cookie still points at
+ * it.
+ */
+export async function completeCustomerSignIn(
+  onLogin: OrganizationsPublicDeps['onLogin'],
+  input: {
+    customerAccountId: string;
+    organizationId: string | null;
+    cookies: Readonly<Record<string, string | undefined>>;
+    log: CustomerSignInCompletionInput['log'];
+  },
+): Promise<CustomerSignInCompletion> {
+  if (!onLogin) return { cartMerge: null, clearAnonymousCartCookie: false };
+  const anon = input.cookies['b2b_cart_anon'];
+  const compareAnon = input.cookies['compare_token'];
+  let cartMerge: CartMergeOutcome | undefined;
+  try {
+    const hookResult = await onLogin({
+      customerAccountId: input.customerAccountId,
+      organizationId: input.organizationId,
+      ...(anon ? { anonymousCartToken: anon } : {}),
+      ...(compareAnon ? { anonymousCompareToken: compareAnon } : {}),
+    });
+    cartMerge = hookResult.cartMerge;
+  } catch (err) {
+    input.log.error(
+      {
+        err,
+        customerAccountId: input.customerAccountId,
+        hadAnonToken: Boolean(anon),
+      },
+      'cart_merge_on_login_failed',
+    );
+  }
+  if (!cartMerge) return { cartMerge: null, clearAnonymousCartCookie: false };
+  return {
+    cartMerge: narrowCartMergeForHttp(cartMerge),
+    clearAnonymousCartCookie: !ANON_CART_COOKIE_KEPT.has(cartMerge.outcome),
+  };
+}
+
 const ANON_CART_COOKIE_KEPT: ReadonlySet<CartMergeOutcome['outcome']> = new Set(['noop_no_anon', 'skipped_permission']);
 
 function serializeCustomerAccount(c: CustomerAccountRecord) {

@@ -27,6 +27,9 @@ Koszyk należy do kanału sprzedaży — sklepu — w którym jest używany:
   ustalane dla kanału koszyka — cena widoczna w koszyku sklepu to cena tego sklepu.
 - Łączenie przy logowaniu łączy tylko koszyk anonimowy ze sklepu, w którym klient się loguje; koszyk
   napełniony w innym sklepie pozostaje bez zmian.
+- Łączenie następuje w chwili utworzenia sesji klienta, więc logowanie dokończone weryfikacją
+  dwuetapową również łączy koszyk — po przyjęciu kodu albo po zakończeniu wymaganej konfiguracji
+  weryfikacji dwuetapowej.
 - Złożenie zamówienia korzysta z koszyka kanału zamówienia. Koszyk innego kanału jest odrzucany z
   `422 ORDER_SALES_CHANNEL_MISMATCH` — *„Twój koszyk należy do innego sklepu. Otwórz koszyk w tym
   sklepie i złóż zamówienie ponownie.”* — zanim cokolwiek zostanie zarezerwowane lub zapisane;
