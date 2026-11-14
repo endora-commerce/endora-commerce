@@ -475,6 +475,24 @@ packages/modules/product_feeds/src/backend/
 Kontrakty znajdują się w `packages/contracts/src/product-feeds.ts`; warstwa panelu
 administracyjnego — w `packages/modules/product_feeds/src/admin/`.
 
+### Odmowy formularza feedu
+
+Pole, które nie wskazuje niczego — szablon, kanał sprzedaży, cennik albo kod języka, za którym nie
+stoi żaden wiersz — oraz harmonogram, którego nie da się odczytać, dostają odpowiedź
+`400 VALIDATION_FAILED` z `details.field`. Trzy odmowy dotyczą stanu instalacji, a nie samego
+żądania, i mają własne kody. Każda z nich również niesie `details.field`, więc formularz może
+umieścić komunikat pod polem, a operator czyta go we własnym języku:
+
+| Ścieżka | Kod | Kiedy | `details` |
+| --- | --- | --- | --- |
+| `POST /api/v1/admin/product-feeds`, `PATCH …/:id` | `400 PRODUCT_FEED_LANGUAGE_INACTIVE` | Język istnieje, ale jest wyłączony | `field: "languageCode"`, `languageCode` |
+| `POST /api/v1/admin/product-feeds`, `PATCH …/:id` | `400 PRODUCT_FEED_CURRENCY_NOT_OFFERED` | Kanał sprzedaży feedu nie oferuje tej waluty | `field: "currencyCode"`, `currencyCode`, `salesChannelId`, `allowed` (rozdzielone przecinkami) |
+| `POST /api/v1/admin/product-feeds`, `PATCH …/:id`, `POST …/:id/duplicate` | `400 PRODUCT_FEED_SLUG_TAKEN` | Inny feed używa już tego adresu (slug) | `field: "slug"`, `slug` |
+
+Do zgłoszenia #631 wszystkie trzy były odpowiedzią `400 VALIDATION_FAILED` z angielskim tekstem
+`pole: komunikat`. Moduł sam deklaruje te trzy kody. Jego starsze kody `PRODUCT_FEED_*` deklaruje
+moduł `catalog`.
+
 ### Potok generowania
 
 ```

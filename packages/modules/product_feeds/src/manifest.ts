@@ -264,6 +264,19 @@ export const manifest = defineModuleManifest({
   activation: { settingCode: PRODUCT_FEED_SETTING_CODES.ACTIVATION, default: true },
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
+  /**
+   * Issue #631 (#86) — the feed form's three state refusals, which were `400
+   * VALIDATION_FAILED` with an English `field: message` literal the envelope
+   * never replaces. They are this module's first declared codes: the five older
+   * `PRODUCT_FEED_*` codes stay with `catalog`, where the deleted prefix chain
+   * routed them, and this module raises them with no sentence. No tokens: each
+   * code is one refusal, and its values travel as scalar `details`.
+   */
+  errorCodes: [
+    { code: 'PRODUCT_FEED_CURRENCY_NOT_OFFERED' },
+    { code: 'PRODUCT_FEED_LANGUAGE_INACTIVE' },
+    { code: 'PRODUCT_FEED_SLUG_TAKEN' },
+  ],
   permissions: [
     {
       code: PRODUCT_FEEDS_READ_PERMISSION,

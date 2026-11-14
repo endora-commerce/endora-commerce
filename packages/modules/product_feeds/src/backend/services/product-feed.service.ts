@@ -91,6 +91,18 @@ function fieldError(field: string, message: string): HttpError {
   });
 }
 
+/**
+ * Thrown as `400 PRODUCT_FEED_SLUG_TAKEN` (issue #631): the slug is well-formed
+ * and another feed holds it. `details.field` stays, so the form can place the
+ * sentence under the slug.
+ */
+function slugTaken(slug: string): HttpError {
+  return new HttpError(400, ERROR_CODES.PRODUCT_FEED_SLUG_TAKEN, 'slug: is already used by another feed', {
+    field: 'slug',
+    slug,
+  });
+}
+
 export class ProductFeedService {
   constructor(private readonly deps: ProductFeedServiceDeps) {}
 
@@ -151,8 +163,17 @@ export class ProductFeedService {
 
     if (values.languageCode !== undefined) {
       const language = await this.deps.languages.findByCode(values.languageCode);
-      if (!language || !language.isActive) {
-        throw fieldError('languageCode', 'is not an active language on this installation');
+      // A code that names no language is validation; one that names a language
+      // the installation has switched off is the installation's state refusing
+      // a well-formed request (issue #631), and gets its own code.
+      if (!language) throw fieldError('languageCode', 'no such language');
+      if (!language.isActive) {
+        throw new HttpError(
+          400,
+          ERROR_CODES.PRODUCT_FEED_LANGUAGE_INACTIVE,
+          'languageCode: is not an active language on this installation',
+          { field: 'languageCode', languageCode: values.languageCode },
+        );
       }
     }
 
@@ -163,7 +184,20 @@ export class ProductFeedService {
       const currencies = channel.currencies ?? [];
       const allowed = currencies.length > 0 ? currencies : [channel.defaultCurrency];
       if (!allowed.includes(String(currencyCode))) {
-        throw fieldError('currencyCode', `is not offered by this sales channel (${allowed.join(', ')})`);
+        // `allowed` travels joined: only a scalar member of `details` fills a
+        // `{placeholder}` in the sentence, so an array would be carried and
+        // never shown (issue #631).
+        throw new HttpError(
+          400,
+          ERROR_CODES.PRODUCT_FEED_CURRENCY_NOT_OFFERED,
+          `currencyCode: is not offered by this sales channel (${allowed.join(', ')})`,
+          {
+            field: 'currencyCode',
+            currencyCode: String(currencyCode),
+            salesChannelId: channel.id,
+            allowed: allowed.join(', '),
+          },
+        );
       }
     }
 
@@ -199,9 +233,7 @@ export class ProductFeedService {
 
     if (values.slug !== undefined) {
       const clash = await em.findOne(ProductFeed, { slug: values.slug });
-      if (clash && clash.id !== current?.id) {
-        throw fieldError('slug', 'is already used by another feed');
-      }
+      if (clash && clash.id !== current?.id) throw slugTaken(values.slug);
     }
   }
 
@@ -230,9 +262,7 @@ export class ProductFeedService {
   ): Promise<CreatedFeed> {
     await this.getOrFail(feedId);
     const em = this.deps.emFactory();
-    if (await em.findOne(ProductFeed, { slug: request.slug })) {
-      throw fieldError('slug', 'is already used by another feed');
-    }
+    if (await em.findOne(ProductFeed, { slug: request.slug })) throw slugTaken(request.slug);
     return this.deps.commandBus.run(
       makeDuplicateFeedCommand(feedId, {
         name: request.name,

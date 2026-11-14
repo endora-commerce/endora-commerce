@@ -980,6 +980,29 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'reused: the request is well formed, and the sentence has to tell the admin to pick ' +
       'another name.',
   },
+  PRODUCT_FEED_LANGUAGE_INACTIVE: {
+    to: 'product_feeds',
+    reason:
+      'Minted by issue #631 (#86) for a feed saved in a language the installation has but has ' +
+      'switched off. It was `400 VALIDATION_FAILED` with an English literal the envelope never ' +
+      'replaces. The noun is the feed, and the one raise site is `product-feed.service.ts`. The ' +
+      'older `PRODUCT_FEED_*` codes are `catalog`\'s by the frozen capture; these are minted to ' +
+      'the module whose bundle holds their sentences.',
+  },
+  PRODUCT_FEED_CURRENCY_NOT_OFFERED: {
+    to: 'product_feeds',
+    reason:
+      'Minted by issue #631 (#86) for a feed whose currency its sales channel does not offer. It ' +
+      'was `VALIDATION_FAILED`, with the allowed currencies baked into the English text; they ' +
+      'now travel as `details.allowed`.',
+  },
+  PRODUCT_FEED_SLUG_TAKEN: {
+    to: 'product_feeds',
+    reason:
+      'Minted by issue #631 (#86) for a feed slug another feed holds, on create, update and ' +
+      'duplicate. It was `VALIDATION_FAILED`: the request is well formed, and the sentence has ' +
+      'to tell the operator to choose another slug.',
+  },
   RETURN_SAVED_VIEW_NAME_TAKEN: {
     to: 'returns',
     reason:
