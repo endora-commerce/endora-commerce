@@ -56,6 +56,23 @@ Beyond the routes, orders consume the drivers via
 The buyer's own retry (`POST /api/v1/orders/:orderId/payments/retry`) is a
 customer route and authorises through `requireCustomer`, not a permission.
 
+## Refusals
+
+A retry or a settlement the payment's own state refuses has its own code and a
+sentence in English and Polish, read in the operator's language (the buyer's,
+on the buyer's retry). Until issue #630 these were `409 VALIDATION_FAILED`; the
+status is unchanged.
+
+| Code | Status | When | `details` |
+| --- | --- | --- | --- |
+| `PAYMENT_ALREADY_PAID` | `409` | a retry of a paid order (`code` `retry`), or `POST /api/v1/payments/receive` with `outcome: "failure"` for a paid payment (`code` `mark_failed`; nothing is downgraded) | `orderId`, `paymentId`, `status` |
+| `PAYMENT_REFUNDED` | `409` | a retry of a refunded or partially refunded payment | `orderId`, `paymentId`, `status` |
+| `PAYMENT_SETTLED_OUT_OF_BAND` | `409` | a retry of an order settled out of band (`deferred`) | `orderId`, `paymentId` |
+
+The buyer's retry answers `PAYMENT_NOT_DUE`, `PAYMENT_ORDER_CLOSED` or
+`PAYMENT_ADAPTER_UNAVAILABLE` from its own gates first; it reaches the three
+above only when the latest attempt changed after those gates read the order.
+
 ## Gateway refunds
 
 A gateway reports each refund — made from its dashboard or by a return

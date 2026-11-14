@@ -107,6 +107,22 @@ describe('each known code reads in English and Polish', () => {
   it.each([
     ['ORDER_NOT_CANCELLABLE', 'This order can no longer be cancelled.', 'Tego zamówienia nie można już anulować.'],
     ['PAYMENT_NOT_DUE', 'This order is not awaiting payment.', 'To zamówienie nie oczekuje na płatność.'],
+    // Issue #630 — the payment's own state, reached past the retry's order-level gates.
+    [
+      'PAYMENT_ALREADY_PAID',
+      'This order is already paid, so there is nothing to retry.',
+      'To zamówienie jest już opłacone, więc nie ma czego ponawiać.',
+    ],
+    [
+      'PAYMENT_REFUNDED',
+      'This payment has been refunded, so it cannot be retried.',
+      'Ta płatność została zwrócona, więc nie można jej ponowić.',
+    ],
+    [
+      'PAYMENT_SETTLED_OUT_OF_BAND',
+      'This order is settled outside the payment gateway, so there is nothing to retry.',
+      'To zamówienie jest rozliczane poza bramką płatności, więc nie ma czego ponawiać.',
+    ],
     [
       'PAYMENT_RETRY_FAILED',
       'We could not start the payment. Please try again in a moment.',
@@ -129,6 +145,17 @@ describe('the order page’s actions redirect with a code, never a sentence', ()
   it('cancel carries the API code it names', async () => {
     failure = new StorefrontApiError(409, 'ORDER_NOT_CANCELLABLE', 'Tego zamówienia nie można już anulować.');
     expect(await run('cancelOrderAction')).toBe(`/orders/${order.id}?error=ORDER_NOT_CANCELLABLE`);
+  });
+
+  it('pay again carries the payment-state code it names (issue #630)', async () => {
+    failure = new StorefrontApiError(
+      409,
+      'PAYMENT_ALREADY_PAID',
+      'This order is already paid, so there is nothing to retry.',
+      undefined,
+      { code: 'retry', orderId: order.id, paymentId: 'p1', status: 'paid' },
+    );
+    expect(await run('retryPaymentAction')).toBe(`/orders/${order.id}?error=PAYMENT_ALREADY_PAID`);
   });
 
   it.each([

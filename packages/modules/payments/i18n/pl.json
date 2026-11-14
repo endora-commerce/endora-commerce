@@ -2,5 +2,10 @@
   "errors.PAYMENT_NOT_DUE": "To zamówienie nie oczekuje na płatność.",
   "errors.PAYMENT_ORDER_CLOSED": "To zamówienie zostało zamknięte i nie można go już opłacić.",
   "errors.PAYMENT_ADAPTER_UNAVAILABLE": "Metoda płatności wybrana przy składaniu tego zamówienia nie jest już dostępna.",
+  "errors.PAYMENT_ALREADY_PAID": "Ta płatność jest już opłacona.",
+  "errors.PAYMENT_ALREADY_PAID.retry": "To zamówienie jest już opłacone, więc nie ma czego ponawiać.",
+  "errors.PAYMENT_ALREADY_PAID.mark_failed": "Płatność {paymentId} jest już opłacona, więc nie można oznaczyć jej jako nieudanej.",
+  "errors.PAYMENT_REFUNDED": "Ta płatność została zwrócona, więc nie można jej ponowić.",
+  "errors.PAYMENT_SETTLED_OUT_OF_BAND": "To zamówienie jest rozliczane poza bramką płatności, więc nie ma czego ponawiać.",
   "settingGroups.payments.name": "Płatności"
 }

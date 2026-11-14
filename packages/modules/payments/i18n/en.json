@@ -2,5 +2,10 @@
   "errors.PAYMENT_NOT_DUE": "This order is not awaiting payment.",
   "errors.PAYMENT_ORDER_CLOSED": "This order is closed and can no longer be paid.",
   "errors.PAYMENT_ADAPTER_UNAVAILABLE": "The payment method this order was placed with is no longer available.",
+  "errors.PAYMENT_ALREADY_PAID": "This payment has already been paid.",
+  "errors.PAYMENT_ALREADY_PAID.retry": "This order is already paid, so there is nothing to retry.",
+  "errors.PAYMENT_ALREADY_PAID.mark_failed": "Payment {paymentId} is already paid, so it cannot be marked as failed.",
+  "errors.PAYMENT_REFUNDED": "This payment has been refunded, so it cannot be retried.",
+  "errors.PAYMENT_SETTLED_OUT_OF_BAND": "This order is settled outside the payment gateway, so there is nothing to retry.",
   "settingGroups.payments.name": "Payments"
 }
