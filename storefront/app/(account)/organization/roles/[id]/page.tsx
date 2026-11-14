@@ -63,7 +63,7 @@ export default async function OrganizationRolePage({
   const t = tForLocale(locale);
   const back = (
     <p className="mb-3 mt-0 text-[13px]">
-      <LocalizedLink href="/organization/roles">← {t('account.roles.back')}</LocalizedLink>
+      <LocalizedLink href="/organization/roles" className="b2b-account__link b2b-account__link--standalone">← {t('account.roles.back')}</LocalizedLink>
     </p>
   );
   if (access === 'refused') {
@@ -86,7 +86,7 @@ export default async function OrganizationRolePage({
         <h2>{t('account.roles.heading')}</h2>
         <p className="b2b-auth__error" role="alert">
           {t('account.roles.loadFailed')}{' '}
-          <LocalizedLink href={`/organization/roles/${encodeURIComponent(id)}`}>{t('account.roles.retry')}</LocalizedLink>
+          <LocalizedLink href={`/organization/roles/${encodeURIComponent(id)}`} className="b2b-account__link">{t('account.roles.retry')}</LocalizedLink>
         </p>
       </>
     );

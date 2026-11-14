@@ -610,7 +610,8 @@ export const manifest = defineModuleManifest({
     // Issue #624 (#86).
     { code: 'ATTRIBUTE_SLIDER_NOT_SUPPORTED' },
     { code: 'ATTRIBUTE_VALUE_REJECTED' },
-    { code: 'ATTRIBUTE_VALUE_TYPE_LOCKED' },
+    // Issue #1218 (#86) — `page_builder`: a type change to or from Page Builder content.
+    { code: 'ATTRIBUTE_VALUE_TYPE_LOCKED', tokens: ['page_builder'] },
     { code: 'ATTRIBUTE_VALUES_REQUIRED' },
     // Issue #501 — the three reasons an undo of a bulk operation is refused.
     { code: 'BULK_OPERATION_ALREADY_REVERTED' },
@@ -623,6 +624,8 @@ export const manifest = defineModuleManifest({
     { code: 'CATEGORY_HAS_CHILDREN' },
     { code: 'CATEGORY_MOVE_CYCLE' },
     { code: 'CATEGORY_SLUG_TAKEN' },
+    // Issue #1218 (#86) — a capability a stored content attribute holds off.
+    { code: 'CONTENT_ATTRIBUTE_CAPABILITY_LOCKED' },
     { code: 'FIELD_IMMUTABLE' },
     { code: 'FIELD_NOT_AT_SCOPE' },
     { code: 'FILTER_NOT_ALLOWED' },

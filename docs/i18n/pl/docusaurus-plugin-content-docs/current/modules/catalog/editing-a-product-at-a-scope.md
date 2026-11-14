@@ -23,7 +23,10 @@ kanał lub język, który nie jest już poprawny, edytor otwiera się w najbliż
 („Otwarto w zakresie …”). Poza zakresem Global widać baner „Zmiany dotyczą tylko zakresu: …”, a edytor mówi słowami,
 gdzie jesteś („Edytujesz”). Obok jest link do karty **Mapa zakresów**.
 
-Zapis dotyczy tylko bieżącego zakresu. Nigdy nie zmienia wartości w żadnym innym zakresie.
+Zapis dotyczy tylko bieżącego zakresu. Nigdy nie zmienia wartości w żadnym innym zakresie. Przycisk **Zapisz** jest
+na pasku zakresu, obok zakresu, który zapisuje, i pokazuje, ile zmian czeka na zapis („Zapisz 2 zmiany”). Na szerokim
+ekranie pasek zakresu zostaje u góry okna podczas przewijania, więc Zapisz jest zawsze pod ręką; na wąskim ekranie
+Zapisz jest na pasku przypiętym do dołu ekranu.
 
 ## Zmiana zakresu z niezapisanymi zmianami
 

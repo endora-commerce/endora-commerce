@@ -103,7 +103,9 @@ Contract and integration files do not run on merge requests (D-198): run them lo
     or a role `orgWideViewerRoleIds` names), not only deleted/blocked/anonymised. The operator
     e-mail is sent with `salesChannelId: null` (platform-wide content, the `tasks` precedent) and
     declares no `quote.url`: it carries no link until #185 (OQ-1 = A), so the variable would always
-    be empty. `customer.name` is the recipient on both sides, as matrix §3 says. A send error is
+    be empty. (#1204 added the link afterwards: `quote.adminUrl`, the bell's admin path on
+    `configuredAdminBaseUrl()`, sent only when `ADMIN_BASE_URL` is set — the #1091 shape.)
+    `customer.name` is the recipient on both sides, as matrix §3 says. A send error is
     stored with the recipient's address replaced by `<recipient>`. The storefront link reads
     `sales_channels.storefront_url`; blank counts as none. The defaults ship as `en-US` / `pl-PL`.
     T044's "off → no processing" is held by `src/backend/expiry-sweep-is-scheduled.test.ts`
@@ -249,12 +251,41 @@ Contract and integration files do not run on merge requests (D-198): run them lo
     e-mail carries no link. T101 also documents the storefront surfaces of WP-09 (indicator, page,
     open route, nav, overview line) and the module's settings; the Polish pages and pins of both
     pages are updated in the same MR.
+  - *Done in #1204:* both RFQ operator e-mails send `quote.adminUrl`
+    (`<ADMIN_BASE_URL>/quote-requests/<id>`) and their defaults show a button to it; without
+    `ADMIN_BASE_URL` the variable is not sent and the button is left out. The module pages (en + pl)
+    say so in *What each channel carries* and the variables paragraph.
 
 ### WP-12 Off-state and end-to-end
 
-- [ ] T110 [WP-12] Integration: walk the full matrix (every change × side × channel) against a seeded Organization with requester, *Administrator* member, *Member*, assigned rep, admin without `rfqs:handle` — `backend/test/integration/quote_requests/notification-matrix-e2e.test.ts`
-- [ ] T111 [WP-12] Integration: each receiving module off in turn (`admin_notifications`, `customer_notifications`, `pwa`) → its channel `skipped_module_off`, the others `sent`, no transition fails (SC-007); `quote_requests` off → worker idle, records stay pending, resume on, stale after 24 h
-- [ ] T112 [WP-12] Walk `quickstart.md` on `pnpm run dev` and record the result in the MR
+- [x] T110 [WP-12] Integration: walk the full matrix (every change × side × channel) against a seeded Organization with requester, *Administrator* member, *Member*, assigned rep, admin without `rfqs:handle` — `backend/test/integration/quote_requests/notification-matrix-e2e.test.ts`
+- [x] T111 [WP-12] Integration: each receiving module off in turn (`admin_notifications`, `customer_notifications`, `pwa`) → its channel `skipped_module_off`, the others `sent`, no transition fails (SC-007); `quote_requests` off → worker idle, records stay pending, resume on, stale after 24 h
+- [x] T112 [WP-12] Walk `quickstart.md` on `pnpm run dev` and record the result in the MR
+  - *WP-12 as built:* T110 and T111 share one fixture,
+    `backend/test/helpers/rfq-notification-organization.ts`: a fresh Organization per file (requester
+    and plain *Member* on the *Member* role, an *Administrator* member, an assigned representative
+    holding only `rfqs:handle`, and a second assigned administrator holding only `orders:read`), its
+    own stub cookies, and a scoped retirement in `afterAll` (accounts marked deleted, administrators
+    inactive) instead of a wipe. Push is on and the customer-side people have a device, so
+    `customer_push` is asserted `sent`, not skipped. T110
+    (`notification-matrix-e2e.test.ts`) copies the contract's matrix by hand rather than importing
+    `notification-matrix.ts`, drives every change through its real writer (the buyer's and the
+    representative's routes, the expiry sweep, the order completion reactor), and asserts per channel
+    the exact recipients, `sent` on the first attempt, and one bell entry, centre entry, push message or
+    e-mail per record; `offer_rejected` is acted by the *Administrator* member, so FR-007 is held for an
+    actor who is not the requester. T111 is `notification-off-state.test.ts`: each receiving module
+    deactivated with `withModuleOff` while a submission and a revision run, and `quote_requests` off
+    against the consumer `startRfqNotificationDelivery` builds, attached through `defineModuleWorker`
+    on a real Redis under the file's own key prefix (the `expiry-schedule.test.ts` pattern); the stale
+    case moves `source_occurred_at` back 25 hours while the module is off. Both files were checked
+    against mutants (a wrong matrix cell, an ungated worker) and fail on them. T112 was walked on an
+    isolated stack (its own database on the test Postgres, Redis index 15, a private Meilisearch,
+    backend on 3101, storefront on 3100) through the HTTP API and the storefront's SSR HTML; every
+    step behaved as written except three prerequisites the quickstart did not state, now added to it:
+    the demo seed assigns no sales representative, the customer e-mail link needs
+    `sales_channels.storefront_url` (no `STOREFRONT_BASE_URL` fallback, unlike `seo` and
+    `product_feeds`), and the History label is *Skipped — switched off*. Step 6 stops at the queued
+    push message: its arrival on a device needs a browser.
 
 ## Dependencies
 

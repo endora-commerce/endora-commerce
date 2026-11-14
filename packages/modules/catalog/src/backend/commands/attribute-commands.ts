@@ -399,22 +399,26 @@ export function updateAttributeCommand(
       // Feature 172 (research R-6) — the type never moves to or from
       // `page_builder` (FR-005), and a content attribute is judged on its
       // **effective** flags: the stored ones with this patch applied.
-      assertTypeChangeAllowed(currentLegacyType, newLegacyType);
+      assertTypeChangeAllowed(currentLegacyType, newLegacyType, def.key);
       if (newLegacyType === 'page_builder') {
-        assertContentAttributeShape({
-          isSearchable: ext.isSearchable,
-          isFilterable: ext.isFilterable,
-          isVariantAxis: ext.isVariantAxis,
-          displayAsSlider: req.displayAsSlider ?? ext.displayAsSlider,
-          isComparable: ext.isComparable,
-          quickSearchable: ext.quickSearchable,
-          isPromoRule: ext.isPromoRule,
-          isPriceRule: ext.isPriceRule,
-          massEditable: ext.massEditable,
-          isRequired: req.isRequired ?? def.required,
-          isVisibleOnProductPage: ext.isVisibleOnProductPage,
-          scopable: ext.scopable,
-        });
+        assertContentAttributeShape(
+          {
+            isSearchable: ext.isSearchable,
+            isFilterable: ext.isFilterable,
+            isVariantAxis: ext.isVariantAxis,
+            displayAsSlider: req.displayAsSlider ?? ext.displayAsSlider,
+            isComparable: ext.isComparable,
+            quickSearchable: ext.quickSearchable,
+            isPromoRule: ext.isPromoRule,
+            isPriceRule: ext.isPriceRule,
+            massEditable: ext.massEditable,
+            isRequired: req.isRequired ?? def.required,
+            isVisibleOnProductPage: ext.isVisibleOnProductPage,
+            scopable: ext.scopable,
+          },
+          // Issue #1218 (#86) — the stored type refuses the flag: a code of its own.
+          { attributeKey: def.key },
+        );
       }
       const triple = legacyToCfType(newLegacyType);
       ext.selectDisplay = triple.selectDisplay;

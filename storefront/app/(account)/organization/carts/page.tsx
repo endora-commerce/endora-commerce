@@ -82,7 +82,7 @@ export default async function OrganizationCartsPage({
         <h2>{t('account.orgCarts.heading')}</h2>
         <p className="b2b-auth__error" role="alert">
           {t('account.orgCarts.loadFailed')}{' '}
-          <LocalizedLink href={retryHref}>{t('account.orgCarts.retry')}</LocalizedLink>
+          <LocalizedLink href={retryHref} className="b2b-account__link">{t('account.orgCarts.retry')}</LocalizedLink>
         </p>
       </>
     );

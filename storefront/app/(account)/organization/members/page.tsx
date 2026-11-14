@@ -11,6 +11,7 @@ import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 import { organizationAreaAccess } from '../../../../lib/account/organization-area';
 import { memberErrorKey, memberStatusKey } from '../../../../lib/account/organization-members';
 import { RemoveMemberButton } from '../../../../components/account/RemoveMemberButton';
+import { RevokeInvitationButton } from '../../../../components/account/RevokeInvitationButton';
 import { changeRoleAction, inviteAction, removeAction, revokeAction } from './actions';
 
 /**
@@ -47,6 +48,8 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * Issue #1178 — Remove ends a colleague's access at once, so it opens a
  * confirmation (`RemoveMemberButton`, the shopping lists' `ModalDialog`
  * alertdialog) naming the member rather than posting the removal from the row.
+ * Issue #1214 — revoking a pending invitation is the same kind of step and
+ * takes the same confirmation (`RevokeInvitationButton`), naming the address.
  */
 const ROW_SELECT_CLASS = 'industria-select h-11 text-[13px]';
 const ROW_ACTION_CLASS = 'btn btn--outline btn--sm min-h-11';
@@ -172,12 +175,13 @@ export default async function MembersPage({
                   <td>{new Date(inv.createdAt).toLocaleDateString(locale)}</td>
                   <td>{new Date(inv.expiresAt).toLocaleDateString(locale)}</td>
                   <td>
-                    <form action={revokeAction} className="inline">
-                      <input type="hidden" name="invitationId" value={inv.id} />
-                      <button type="submit" className={ROW_DESTRUCTIVE_CLASS}>
-                        {t('account.members.pending.revoke')}
-                      </button>
-                    </form>
+                    <RevokeInvitationButton
+                      invitationId={inv.id}
+                      email={inv.email}
+                      locale={locale}
+                      triggerClassName={ROW_DESTRUCTIVE_CLASS}
+                      revokeAction={revokeAction}
+                    />
                   </td>
                 </tr>
               ))}

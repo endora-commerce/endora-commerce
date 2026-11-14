@@ -60,7 +60,7 @@ export default async function OrganizationRolesPage({
         {heading}
         <p className="b2b-auth__error" role="alert">
           {t('account.roles.loadFailed')}{' '}
-          <LocalizedLink href="/organization/roles">{t('account.roles.retry')}</LocalizedLink>
+          <LocalizedLink href="/organization/roles" className="b2b-account__link">{t('account.roles.retry')}</LocalizedLink>
         </p>
       </>
     );

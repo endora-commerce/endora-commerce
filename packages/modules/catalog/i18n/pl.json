@@ -759,6 +759,8 @@
   "errors.CATEGORY_MOVE_CYCLE": "Nie można przenieść kategorii do jednej z jej własnych podkategorii. Wybierz inną kategorię nadrzędną.",
   "errors.SELF_LINK_NOT_ALLOWED.grouped": "Produkt grupowy nie może zawierać samego siebie.",
   "errors.GROUPED_ITEM_ALREADY_EXISTS": "Produkt {childSku} jest już w tej grupie.",
+  "errors.ATTRIBUTE_VALUE_TYPE_LOCKED.page_builder": "Typu wartości atrybutu {attributeKey} nie można zmienić na treść Page Builder ani z niej: dokumentu i pojedynczej wartości nie da się przekształcić jedno w drugie. Zamiast tego utwórz nowy atrybut.",
+  "errors.CONTENT_ATTRIBUTE_CAPABILITY_LOCKED": "Atrybut {attributeKey} przechowuje treść Page Builder, więc nie może mieć: {capabilities}.",
   "blocks.productGrid.fields.source.label": "Źródło",
   "blocks.productGrid.fields.source.options.manual": "Wybór ręczny",
   "blocks.productGrid.fields.source.options.category": "Kategoria",

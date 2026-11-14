@@ -173,7 +173,7 @@ export default async function QuickOrderPage({
         {t('quickOrder.page.introPrefix')}
         <code>sku,quantity</code>
         {t('quickOrder.page.introSuffix')}{' '}
-        <LocalizedAnchor href="/quick-order-template.csv" download>
+        <LocalizedAnchor href="/quick-order-template.csv" download className="b2b-account__link">
           {t('quickOrder.page.template')}
         </LocalizedAnchor>
         .
@@ -182,8 +182,8 @@ export default async function QuickOrderPage({
       {problemText ? <p className="b2b-auth__error">{problemText}</p> : null}
       {sp.built === 'cart' && notAddedCount === 0 ? (
         <p className="b2b-auth__success">
-          {t('quickOrder.built.cart')} <LocalizedLink href="/cart">{t('quickOrder.build.openCart')}</LocalizedLink> ·{' '}
-          <LocalizedLink href="/checkout">{t('quickOrder.built.goToCheckout')}</LocalizedLink>.
+          {t('quickOrder.built.cart')} <LocalizedLink href="/cart" className="b2b-account__link">{t('quickOrder.build.openCart')}</LocalizedLink> ·{' '}
+          <LocalizedLink href="/checkout" className="b2b-account__link">{t('quickOrder.built.goToCheckout')}</LocalizedLink>.
         </p>
       ) : null}
       {notAddedCount > 0 ? (
@@ -194,7 +194,7 @@ export default async function QuickOrderPage({
         <section
           role="status"
           aria-labelledby="quick-order-not-added"
-          className="my-[12px] rounded-md border border-warn bg-warn-soft px-[16px] py-[12px] text-fg"
+          className="b2b-auth__warning my-[12px] rounded-md px-[16px] py-[12px] text-[14px]"
         >
           <p className="m-0 mb-1 font-semibold">{quickOrderBuildOutcome(sentCount, notAddedCount, locale)}</p>
           <h3 id="quick-order-not-added" className="m-0 mb-1 text-[14px] font-semibold">
@@ -208,14 +208,14 @@ export default async function QuickOrderPage({
             ))}
             {notAddedMore > 0 ? <li>{reportMoreText(notAddedMore, locale)}</li> : null}
           </ul>
-          {sentCount > notAddedCount ? <LocalizedLink href="/cart">{t('quickOrder.build.openCart')}</LocalizedLink> : null}
+          {sentCount > notAddedCount ? <LocalizedLink href="/cart" className="b2b-account__link b2b-account__link--standalone">{t('quickOrder.build.openCart')}</LocalizedLink> : null}
         </section>
       ) : null}
       {sp.built === 'quote' ? (
         <p className="b2b-auth__success">
           {t('quickOrder.built.quote')}
           {rfqRef ? ` (#${rfqRef})` : ''}.{' '}
-          <LocalizedLink href="/quote-requests">{t('quickOrder.built.viewQuotes')}</LocalizedLink>.
+          <LocalizedLink href="/quote-requests" className="b2b-account__link">{t('quickOrder.built.viewQuotes')}</LocalizedLink>.
         </p>
       ) : null}
 

@@ -36,7 +36,7 @@ export default async function OrdersListPage(): Promise<ReactNode> {
         <h1>{t('account.orders.heading')}</h1>
         <p>{t('returns.new.noOrders')}</p>
         <p>
-          <LocalizedLink href="/catalog">{t('account.common.browseCatalog')}</LocalizedLink>
+          <LocalizedLink href="/catalog" className="b2b-account__link b2b-account__link--standalone">{t('account.common.browseCatalog')}</LocalizedLink>
         </p>
       </div>
     );
