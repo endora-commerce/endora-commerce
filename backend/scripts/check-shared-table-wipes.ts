@@ -176,7 +176,9 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'contract/orders/carry-system-note-visibility.test.ts': 1,
   'contract/price_lists/display-modes.test.ts': 1,
   'contract/price_lists/pricing-resolution.test.ts': 1,
-  'contract/product_feeds/taxonomy-revisions.test.ts': 3,
+  // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
+  // #607: drains with the `sql-delete` debt — scope the delete to the file's own taxonomies, then the update to those ids.
+  'contract/product_feeds/taxonomy-revisions.test.ts': 4,
   'contract/promotions/attribute-criterion.test.ts': 1,
   'contract/promotions/coupon-generator.test.ts': 1,
   'contract/promotions/coupons.test.ts': 1,
@@ -248,9 +250,13 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/price_lists/display-mode-chain.test.ts': 2,
   'integration/product_feeds/schedule-lifecycle.test.ts': 1,
   'integration/product_feeds/taxonomy-bundled-data.test.ts': 4,
-  'integration/product_feeds/taxonomy-fetch-check.test.ts': 3,
+  // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
+  // #607: drains with the `sql-delete` debt — scope the delete to the file's own taxonomies, then the update to those ids.
+  'integration/product_feeds/taxonomy-fetch-check.test.ts': 4,
   'integration/product_feeds/taxonomy-fetch-disabled.test.ts': 1,
-  'integration/product_feeds/taxonomy-promote.test.ts': 3,
+  // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
+  // #607: drains with the `sql-delete` debt — scope the delete to the file's own taxonomies, then the update to those ids.
+  'integration/product_feeds/taxonomy-promote.test.ts': 4,
   'integration/product_feeds/taxonomy-reconcile.test.ts': 4,
   'integration/promotions/attribute-criterion-resolution.test.ts': 1,
   'integration/promotions/channel-binding.test.ts': 1,
