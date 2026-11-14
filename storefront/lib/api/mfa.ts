@@ -1,6 +1,7 @@
+import type { CartMergeOutcomePublic } from '@endora-commerce/contracts';
 import { apiMutate, apiGetAuthed } from './mutations';
 import type { RequestContext } from './client';
-import { rememberKnownDevice } from '../session';
+import { rememberKnownDevice, signInCookieHeader } from '../session';
 
 function pickSessionCookie(setCookie: string[]): string | null {
   for (const header of setCookie) {
@@ -32,11 +33,22 @@ export async function completeMfaSetupTicket(
   setupTicket: string,
   code: string,
   ctx?: RequestContext,
-): Promise<{ recoveryCodes: string[]; sessionCookieValue: string | null }> {
-  const res = await apiMutate<{ status: 'authenticated'; recoveryCodes: string[] }>({
+): Promise<{
+  recoveryCodes: string[];
+  sessionCookieValue: string | null;
+  cartMerge: CartMergeOutcomePublic | null;
+}> {
+  const res = await apiMutate<{
+    status: 'authenticated';
+    recoveryCodes: string[];
+    cartMerge?: CartMergeOutcomePublic | null;
+  }>({
     method: 'POST',
     path: '/api/v1/auth/customer/mfa/setup-ticket/complete',
     body: { setupTicket, code },
+    // Issue #368 — the session is established here, so the signed-out basket
+    // travels with this call and the backend merges it.
+    rawCookieHeader: await signInCookieHeader(),
     ...(ctx ? { ctx } : {}),
   });
   // A completed sign-in: keep the known-device cookie the backend set with it.
@@ -44,6 +56,7 @@ export async function completeMfaSetupTicket(
   return {
     recoveryCodes: res.data!.recoveryCodes,
     sessionCookieValue: pickSessionCookie(res.setCookie),
+    cartMerge: res.data!.cartMerge ?? null,
   };
 }
 

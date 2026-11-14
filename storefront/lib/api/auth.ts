@@ -12,9 +12,10 @@ import { knownDeviceCookieHeader, rememberKnownDevice, signInCookieHeader } from
  * known-device cookie to the backend, and the first two store the one the
  * backend sets on a completed sign-in (see `knownDeviceCookieHeader` in
  * `lib/session.ts`). Without it every shopper's attempt would be counted as
- * one from a device the account has never been used on. The sign-in also
- * carries the signed-out basket's cookie (`signInCookieHeader`), so the backend
- * can merge it into the customer's.
+ * one from a device the account has never been used on. The sign-in and the
+ * second step also carry the signed-out basket's cookie (`signInCookieHeader`),
+ * so the backend can merge it into the customer's on whichever call
+ * establishes the session (issues #358, #368).
  */
 
 export interface RegisterOrganizationPayload {
@@ -139,20 +140,29 @@ export async function loginCustomer(
   };
 }
 
-/** Feature 042 — complete the second step; returns the new session cookie. */
+/**
+ * Feature 042 — complete the second step; returns the new session cookie.
+ *
+ * Issue #368 — this call, not the password one, establishes the session of an
+ * account with two-step verification, so it carries the signed-out basket's
+ * cookie as well and returns the merge the backend ran.
+ */
 export async function verifyCustomerMfa(
   payload: { challengeId: string; code: string },
   ctx?: RequestContext,
-): Promise<{ sessionCookieValue: string | null }> {
-  const result = await apiMutate<{ status: 'authenticated' }>({
+): Promise<{ sessionCookieValue: string | null; cartMerge: CartMergeOutcomePublic | null }> {
+  const result = await apiMutate<{ status: 'authenticated'; cartMerge?: CartMergeOutcomePublic | null }>({
     method: 'POST',
     path: '/api/v1/auth/customer/mfa/verify',
     body: payload,
-    rawCookieHeader: await knownDeviceCookieHeader(),
+    rawCookieHeader: await signInCookieHeader(),
     ...(ctx ? { ctx } : {}),
   });
   await rememberKnownDevice(result.setCookie);
-  return { sessionCookieValue: pickSessionCookie(result.setCookie) };
+  return {
+    sessionCookieValue: pickSessionCookie(result.setCookie),
+    cartMerge: result.data?.cartMerge ?? null,
+  };
 }
 
 export interface RegisterStandaloneCustomerPayload {

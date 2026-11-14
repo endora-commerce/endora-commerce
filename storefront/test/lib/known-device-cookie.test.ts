@@ -127,6 +127,8 @@ describe('second step', () => {
 
     await expect(verifyCustomerMfa({ challengeId: 'ch-1', code: '123456' })).resolves.toEqual({
       sessionCookieValue: 's.tok',
+      // Issue #368 — no basket was carried, so the backend answered no merge.
+      cartMerge: null,
     });
 
     expect(seen[0]!.cookie).toBe(`${DEVICE}=${encodeURIComponent('v1.c-1.old.stamp')}`);

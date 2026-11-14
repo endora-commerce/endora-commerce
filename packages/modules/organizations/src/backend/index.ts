@@ -19,6 +19,7 @@ import type {
   CustomerAuthPort,
   CustomerPasswordResetPort,
   CustomerRolePort,
+  CustomerSignInCompletionPort,
   DictionaryValidator,
   EmailDefaultsRegistryPort,
   EmailMailerPort,
@@ -64,6 +65,7 @@ import {
   registryLookupPlSourcesSchema,
 } from './schemas/settings.js';
 import { createAdminTenantScopePort } from './services/admin-tenant-scope.js';
+import { completeCustomerSignIn } from './routes.public.js';
 import { createOrganizationAdminSearchProvider } from './admin-search-provider.js';
 import { OrganizationAdminSearchService } from './services/organization-admin-search.service.js';
 import { assignedOrganizationIdsForRanking, withSystemScope } from '@endora-commerce/platform/tenancy';
@@ -572,6 +574,35 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.providePort<OrganizationRoleReadPort>(
     'organizationRoleReadPort',
     ctx.asFunction(permissionService).singleton(),
+  );
+  /**
+   * Issue #368 — the post-sign-in step for a route that establishes a customer
+   * session itself: `mfa`'s second-step verify and enforced-enrolment
+   * completion. The same function the password sign-in runs, over the same
+   * contributed hook, read at call time; the account's organization is looked
+   * up here because those routes know only the account.
+   */
+  ctx.di.providePort<CustomerSignInCompletionPort>(
+    'customerSignInCompletionPort',
+    ctx
+      .asFunction(
+        (): CustomerSignInCompletionPort => ({
+          complete: async ({ customerAccountId, cookies, log }) => {
+            const account = await lazyPort<CustomerAccountReadPort>(
+              ctx,
+              'customerAccountReadPort',
+            ).findById(customerAccountId);
+            if (!account) return { cartMerge: null, clearAnonymousCartCookie: false };
+            return completeCustomerSignIn((input) => cradle().organizationsLoginHook(input), {
+              customerAccountId,
+              organizationId: account.organizationId ?? null,
+              cookies,
+              log,
+            });
+          },
+        }),
+      )
+      .singleton(),
   );
 
   /**

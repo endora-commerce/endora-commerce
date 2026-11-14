@@ -7,7 +7,7 @@
 // the declarations and emits nothing: registering the plugin stays the host's
 // job, exactly as before.
 import type {} from '@fastify/cookie';
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   mfaVerifyRequestSchema,
   mfaSetupTicketBeginSchema,
@@ -18,7 +18,9 @@ import {
 import type {
   AdminAuthenticationThrottlePort,
   AuthSessionPort,
+  CartMergeOutcomePublic,
   CustomerAuthenticationThrottlePort,
+  CustomerSignInCompletionPort,
 } from '@endora-commerce/contracts';
 import { readKnownDevice, rememberKnownDevice } from './known-device-cookie.js';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -54,6 +56,13 @@ export interface MfaPublicDeps {
    * removed between the password and the code issues no session.
    */
   customerChannelAccess: Pick<CustomerChannelAccess, 'assertAccountMayUse'>;
+  /**
+   * Issue #368 — `organizations`' post-sign-in step (the signed-out basket
+   * merged, the anonymous comparison adopted). The password sign-in runs it
+   * itself, but returns before it whenever a second step is required, so the
+   * two customer routes here that establish the session run it instead.
+   */
+  customerSignInCompletion: Pick<CustomerSignInCompletionPort, 'complete'>;
 }
 
 interface SurfaceCfg {
@@ -134,7 +143,8 @@ function registerSetupTicketRoutes(
       );
       setSessionCookie(reply, cfg.cookieName, session.cookieValue, session.expiresAt);
       await rememberDevice(deps, reply, cfg.subjectType, ticket.subjectId);
-      return { data: { status: 'authenticated', recoveryCodes } };
+      const cartMerge = await completeSignIn(deps, request, reply, cfg.subjectType, ticket.subjectId);
+      return { data: { status: 'authenticated', recoveryCodes, ...(cartMerge ? { cartMerge } : {}) } };
     },
   );
 }
@@ -214,7 +224,8 @@ function registerVerifyRoute(
     );
     setSessionCookie(reply, cfg.cookieName, session.cookieValue, session.expiresAt);
     await rememberDevice(deps, reply, cfg.subjectType, result.subject.subjectId);
-    return { data: { status: 'authenticated' } };
+    const cartMerge = await completeSignIn(deps, request, reply, cfg.subjectType, result.subject.subjectId);
+    return { data: { status: 'authenticated', ...(cartMerge ? { cartMerge } : {}) } };
   });
 }
 
@@ -234,6 +245,36 @@ async function rememberDevice(
       : await deps.customerAuthenticationThrottle.issueKnownDevice(subjectId);
   rememberKnownDevice(reply, value, subjectType);
 }
+
+/**
+ * A customer session has been established on this response: run the
+ * post-sign-in step `organizations` owns (issue #368) and drop the anonymous
+ * basket's cookie when the step consumed it. Answers the merge the storefront
+ * reads, or `null`. An administrator has no basket, so the admin surface skips
+ * it. The step is best-effort inside its owner and does not throw for a failed
+ * merge, so nothing here catches.
+ */
+async function completeSignIn(
+  deps: MfaPublicDeps,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  subjectType: 'customer' | 'admin',
+  subjectId: string,
+): Promise<CartMergeOutcomePublic | null> {
+  if (subjectType !== 'customer') return null;
+  const completion = await deps.customerSignInCompletion.complete({
+    customerAccountId: subjectId,
+    cookies: request.cookies ?? {},
+    log: request.log,
+  });
+  if (completion.clearAnonymousCartCookie) {
+    reply.clearCookie(ANON_CART_COOKIE_NAME, { path: '/' });
+  }
+  return completion.cartMerge;
+}
+
+/** The signed-out basket's cookie, as `carts` sets it and the storefront forwards it. */
+const ANON_CART_COOKIE_NAME = 'b2b_cart_anon';
 
 function ipUa(request: {
   ip?: string;
