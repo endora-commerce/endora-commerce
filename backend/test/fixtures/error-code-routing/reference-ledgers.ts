@@ -1239,6 +1239,26 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted by !1159 for a retry whose gateway adapter is absent. The noun is the payment ' +
       'adapter, which `payments` owns along with the adapter registry (D-121 T1).',
   },
+  PAYMENT_ALREADY_PAID: {
+    to: 'payments',
+    reason:
+      'Minted by issue #630 (#86) for a paid payment refused a retry (token `retry`) or marked ' +
+      'failed by the `receive_payment` ingress (token `mark_failed`). Both were `409 ' +
+      'VALIDATION_FAILED` with an English literal; one state seen from two callers, so one code.',
+  },
+  PAYMENT_REFUNDED: {
+    to: 'payments',
+    reason:
+      'Minted by issue #630 (#86) for a retry of a refunded or partially refunded payment. It was ' +
+      '`409 VALIDATION_FAILED` reading `This payment has been refunded; it cannot be retried.`',
+  },
+  PAYMENT_SETTLED_OUT_OF_BAND: {
+    to: 'payments',
+    reason:
+      'Minted by issue #630 (#86) for a retry of an order settled out of band (`deferred`). It ' +
+      'was `409 VALIDATION_FAILED` reading `This order is settled out of band; there is nothing ' +
+      'to retry.`',
+  },
   PAYMENT_METHOD_IN_USE: {
     to: 'payment_methods',
     reason:

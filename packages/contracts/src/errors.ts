@@ -974,6 +974,18 @@ export const ERROR_CODES = {
    * neither claimant.
    */
   PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
+  // Payments — the payment's own state refuses an admin retry or the
+  // `receive_payment` ingress (issue #630, #86). Raised as `VALIDATION_FAILED`
+  // with an English literal until then.
+  /**
+   * 409 — the payment is already paid: a retry (token `retry`) or the ingress
+   * marking it failed (token `mark_failed`); `details.orderId`, `paymentId`, `status`.
+   */
+  PAYMENT_ALREADY_PAID: 'PAYMENT_ALREADY_PAID',
+  /** 409 — the payment was refunded, so it cannot be retried (`details.orderId`, `paymentId`, `status`). */
+  PAYMENT_REFUNDED: 'PAYMENT_REFUNDED',
+  /** 409 — the order is settled out of band, so there is nothing to retry (`details.orderId`, `paymentId`). */
+  PAYMENT_SETTLED_OUT_OF_BAND: 'PAYMENT_SETTLED_OUT_OF_BAND',
 
   // Payment methods — a method payments reference (issue #635, #86). Raised as
   // `VALIDATION_FAILED` with an English sentence until then; issue #632 gives

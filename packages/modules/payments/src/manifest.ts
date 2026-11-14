@@ -22,6 +22,11 @@ export const paymentsErrorCodes = defineModuleErrorCodes([
   'PAYMENT_NOT_DUE',
   'PAYMENT_ORDER_CLOSED',
   'PAYMENT_ADAPTER_UNAVAILABLE',
+  // Issue #630 (#86) — a payment whose own state refuses the request, at the
+  // admin retry (`PaymentService.openRetry`) and the `receive_payment` ingress.
+  'PAYMENT_ALREADY_PAID',
+  'PAYMENT_REFUNDED',
+  'PAYMENT_SETTLED_OUT_OF_BAND',
 ]);
 
 export const paymentsSettingsManifest = defineModuleSettingsManifest({
@@ -162,12 +167,21 @@ export const manifest = defineModuleManifest({
   // the family `payment_methods` would reach for, and two modules declaring one
   // code routes it to neither of them (D-182's collision rule).
   //
-  // No `tokens`: none of the three raise sites passes a fourth argument, so
-  // `refusalToken` has nothing to read, and the bundle keys are flat.
+  // No `tokens` on those three: none of their raise sites passes a fourth
+  // argument, so `refusalToken` has nothing to read, and the bundle keys are
+  // flat.
   errorCodes: [
     { code: paymentsErrorCodes.PAYMENT_NOT_DUE },
     { code: paymentsErrorCodes.PAYMENT_ORDER_CLOSED },
     { code: paymentsErrorCodes.PAYMENT_ADAPTER_UNAVAILABLE },
+    // Issue #630 (#86) — the payment's own state refuses the request; they were
+    // `409 VALIDATION_FAILED` with an English literal. A retry of a paid order
+    // and the ingress marking a paid payment failed are one state seen from two
+    // callers, so they share a code and the token picks the sentence (the shape
+    // of `SHIPMENT_ALREADY_GENERATED`, issue #637).
+    { code: paymentsErrorCodes.PAYMENT_ALREADY_PAID, tokens: ['retry', 'mark_failed'] },
+    { code: paymentsErrorCodes.PAYMENT_REFUNDED },
+    { code: paymentsErrorCodes.PAYMENT_SETTLED_OUT_OF_BAND },
   ],
   // The bundle those sentences live in. This module shipped none until now —
   // it has no admin screen of its own — so the directory and this declaration

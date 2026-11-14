@@ -14,6 +14,11 @@ export const ORDER_ERRORS = defineUrlErrors({
     PAYMENT_NOT_DUE: 'account.order.error.PAYMENT_NOT_DUE',
     PAYMENT_ORDER_CLOSED: 'account.order.error.PAYMENT_ORDER_CLOSED',
     PAYMENT_ADAPTER_UNAVAILABLE: 'account.order.error.PAYMENT_ADAPTER_UNAVAILABLE',
+    // Issue #630 — the payment's own state, which pay-again reaches past its order-level gates
+    // when the latest attempt changed after they read the order.
+    PAYMENT_ALREADY_PAID: 'account.order.error.PAYMENT_ALREADY_PAID',
+    PAYMENT_REFUNDED: 'account.order.error.PAYMENT_REFUNDED',
+    PAYMENT_SETTLED_OUT_OF_BAND: 'account.order.error.PAYMENT_SETTLED_OUT_OF_BAND',
     ORGANIZATION_PERMISSION_REQUIRED: 'commerce.error.ORGANIZATION_PERMISSION_REQUIRED',
   },
   own: {

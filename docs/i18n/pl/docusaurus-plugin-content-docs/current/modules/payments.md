@@ -54,6 +54,22 @@ zmiany statusu płatności w panelu administracyjnym przechodzą przez
 Ponowienie płatności przez kupującego (`POST /api/v1/orders/:orderId/payments/retry`) to trasa
 klienta i jest autoryzowane przez `requireCustomer`, a nie przez uprawnienie.
 
+## Odmowy
+
+Ponowienie albo rozliczenie, którego nie pozwala stan samej płatności, ma własny kod i zdanie po
+angielsku i po polsku, czytane w języku operatora (przy ponowieniu przez kupującego — w języku
+kupującego). Do zgłoszenia #630 były to odpowiedzi `409 VALIDATION_FAILED`; status się nie zmienił.
+
+| Kod | Status | Kiedy | `details` |
+| --- | --- | --- | --- |
+| `PAYMENT_ALREADY_PAID` | `409` | ponowienie płatności opłaconego zamówienia (`code` `retry`) albo `POST /api/v1/payments/receive` z `outcome: "failure"` dla opłaconej płatności (`code` `mark_failed`; status nie jest obniżany) | `orderId`, `paymentId`, `status` |
+| `PAYMENT_REFUNDED` | `409` | ponowienie płatności zwróconej w całości lub w części | `orderId`, `paymentId`, `status` |
+| `PAYMENT_SETTLED_OUT_OF_BAND` | `409` | ponowienie płatności zamówienia rozliczanego poza bramką (`deferred`) | `orderId`, `paymentId` |
+
+Ponowienie przez kupującego najpierw odpowiada z własnych sprawdzeń kodem `PAYMENT_NOT_DUE`,
+`PAYMENT_ORDER_CLOSED` albo `PAYMENT_ADAPTER_UNAVAILABLE`; do trzech powyższych dochodzi tylko wtedy,
+gdy ostatnia próba zmieniła się po tym, jak te sprawdzenia odczytały zamówienie.
+
 ## Zwroty przez bramkę płatności
 
 Bramka zgłasza każdy zwrot — wykonany w jej panelu albo przy rozliczeniu zwrotu towaru — przez swój

@@ -16,6 +16,7 @@ import type {
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Payment } from '../entities/payment.entity.js';
+import { paymentsErrorCodes } from '../../manifest.js';
 /**
  * The one cross-module type this handler names, and the seam feature 075 kept
  * here **permanently** (D-78 point 2) — now expressed as the owner's own
@@ -218,10 +219,12 @@ export class ReceivePaymentHandler {
       // Idempotency / terminal-state guards (FR-025).
       if (payment.status === 'paid') {
         if (input.outcome === 'failure') {
+          // The retry's code for the same state, from the other caller (issue #630).
           throw new HttpError(
             409,
-            ERROR_CODES.VALIDATION_FAILED,
+            paymentsErrorCodes.PAYMENT_ALREADY_PAID,
             'Payment is already settled; it cannot be marked failed.',
+            { code: 'mark_failed', orderId: payment.orderId, paymentId: payment.id, status: payment.status },
           );
         }
         return {
