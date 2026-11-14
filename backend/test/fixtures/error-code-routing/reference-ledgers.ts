@@ -1456,6 +1456,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'the refusal of a permalink that breaks the shared permalink rule, the broken rule named by the `details.code` token. ' +
       'The noun is the asset, its file and its permalink — `assets_library`\' own row — and every raise site is in that module.',
   },
+  MEGAMENU_ASSET_URL_UNSUPPORTED: {
+    to: 'megamenu',
+    reason:
+      'Minted by issue #640 (#86) for the megamenu save\'s refusal of a free-URL asset item: ' +
+      'importing an asset from a URL is not supported yet, so the item is well-formed and the ' +
+      'capability is missing. It was `400 VALIDATION_FAILED` with an English sentence the envelope ' +
+      'never replaces. The one raise site is `megamenu`\'s `target-validator.ts`, and the noun is ' +
+      'the menu item, so the code is `megamenu`\'s, not `assets_library`\'s.',
+  },
   PRICE_SET_IN_PRICE_BOOKS: {
     to: 'catalog',
     reason:

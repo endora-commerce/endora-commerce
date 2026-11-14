@@ -118,6 +118,7 @@
   "errors.MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE": "Ten język nie jest skonfigurowany w wybranym kanale sprzedaży.",
   "errors.MEGAMENU_TARGET_OUT_OF_SCOPE": "Kategoria lub strona wskazana w pozycji megamenu nie należy do zakresu jego powiązań.",
   "errors.MEGAMENU_ASSET_KIND_MISMATCH": "Wybrany zasób ma niewłaściwy typ dla tej pozycji megamenu.",
+  "errors.MEGAMENU_ASSET_URL_UNSUPPORTED": "Nie można jeszcze dodać zasobu do pozycji megamenu przez jego adres URL. Najpierw prześlij plik do biblioteki zasobów i wybierz go stamtąd.",
   "errors.MEGAMENU_REFERENCED": "To megamenu jest nadal używane, więc nie można go usunąć.",
   "errors.MEGAMENU_DEPTH_EXCEEDED": "Drzewo megamenu ma zbyt wiele poziomów zagnieżdżenia.",
   "errors.MEGAMENU_KIND_NOT_ALLOWED_AS_TAB": "Obraz, osadzony blok ani drzewo kategorii nie mogą być zakładką paska nawigacji. Umieść je pod zakładką.",

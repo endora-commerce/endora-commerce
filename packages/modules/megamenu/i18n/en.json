@@ -118,6 +118,7 @@
   "errors.MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE": "This language is not configured in the selected sales channel.",
   "errors.MEGAMENU_TARGET_OUT_OF_SCOPE": "The category or page this megamenu item points to is outside the scope of the megamenu's bindings.",
   "errors.MEGAMENU_ASSET_KIND_MISMATCH": "The selected asset is the wrong type for this megamenu item.",
+  "errors.MEGAMENU_ASSET_URL_UNSUPPORTED": "An asset cannot be added to a megamenu item by its URL yet. Upload the file to the Assets Library first and choose it there.",
   "errors.MEGAMENU_REFERENCED": "This megamenu is still in use, so it cannot be deleted.",
   "errors.MEGAMENU_DEPTH_EXCEEDED": "The megamenu tree is nested too deeply.",
   "errors.MEGAMENU_KIND_NOT_ALLOWED_AS_TAB": "An image, an embedded block or a category tree cannot be a tab of the navigation bar. Place it under a tab.",

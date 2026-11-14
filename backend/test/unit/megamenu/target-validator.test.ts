@@ -169,11 +169,15 @@ describe('target-validator (T011)', () => {
   it('refuses a free-URL asset target until Assets Library importFromUrl lands', async () => {
     const item = {
       ...baseItem,
+      id: 'item-free-url',
       kind: 'asset' as const,
       target: { url: 'https://cdn.example.com/hero.jpg', kind: 'image' as const },
     } as unknown as MegamenuItem;
+    // Issue #640 — a missing capability, not a malformed item: a code of its own.
     await expect(validateTarget(item, [], stubPorts())).rejects.toMatchObject({
-      code: ERROR_CODES.VALIDATION_FAILED,
+      statusCode: 400,
+      code: ERROR_CODES.MEGAMENU_ASSET_URL_UNSUPPORTED,
+      details: { itemId: 'item-free-url' },
     });
   });
 

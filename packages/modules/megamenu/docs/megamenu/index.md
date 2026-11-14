@@ -207,7 +207,7 @@ Mounted in the storefront's root layout between `<Header>` and the existing `hea
 
 ## Error codes
 
-`MEGAMENU_NOT_FOUND`, `MEGAMENU_HAS_ACTIVE_BINDINGS`, `MEGAMENU_EMPTY_TREE`, `MEGAMENU_BINDING_NOT_FOUND`, `MEGAMENU_BINDING_ALREADY_EXISTS`, `MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE`, `MEGAMENU_TARGET_OUT_OF_SCOPE`, `MEGAMENU_ASSET_KIND_MISMATCH`, `MEGAMENU_REFERENCED`, `MEGAMENU_DEPTH_EXCEEDED`, `MEGAMENU_KIND_NOT_ALLOWED_AS_TAB`, `MEGAMENU_LINK_TAB_INVALID`, `MEGAMENU_LABEL_REQUIRED`.
+`MEGAMENU_NOT_FOUND`, `MEGAMENU_HAS_ACTIVE_BINDINGS`, `MEGAMENU_EMPTY_TREE`, `MEGAMENU_BINDING_NOT_FOUND`, `MEGAMENU_BINDING_ALREADY_EXISTS`, `MEGAMENU_LANGUAGE_NOT_IN_CHANNEL_SCOPE`, `MEGAMENU_TARGET_OUT_OF_SCOPE`, `MEGAMENU_ASSET_KIND_MISMATCH`, `MEGAMENU_ASSET_URL_UNSUPPORTED`, `MEGAMENU_REFERENCED`, `MEGAMENU_DEPTH_EXCEEDED`, `MEGAMENU_KIND_NOT_ALLOWED_AS_TAB`, `MEGAMENU_LINK_TAB_INVALID`, `MEGAMENU_LABEL_REQUIRED`.
 
 A tree save also answers non-blocking warnings in `meta.warnings`: `MEGAMENU_DEPTH_EXCEEDED`, `MEGAMENU_DROPDOWN_DEPTH_IGNORED` (a `dropdown` tab shows one level) and `MEGAMENU_PROMO_SLOT_TAKEN` (two embeds of one panel on the same side; the first is shown).
 
@@ -220,5 +220,5 @@ All envelopes follow the platform-wide error contract in `packages/contracts/src
 - A/B testing of menu variants.
 - An admin "preview without publishing" surface.
 - Item URL targets that point directly at product PDPs (use a Category link or an External link).
-- Free-URL asset items: a server-side `importFromUrl` on the Assets Library is the natural home for fetching, validating, and storing externally-sourced bytes; the Megamenu module's validator refuses free-URL asset items until that surface lands. Admins upload the asset via the Library first and reference it by id.
+- Free-URL asset items: a server-side `importFromUrl` on the Assets Library is the natural home for fetching, validating, and storing externally-sourced bytes; the Megamenu module's validator refuses free-URL asset items until that surface lands, with `400 MEGAMENU_ASSET_URL_UNSUPPORTED` and the item's `itemId` in `details` (`400 VALIDATION_FAILED` until issue #640). Admins upload the asset via the Library first and reference it by id.
 - Drag-and-drop tree authoring in the admin: the v1 editor uses up/down/delete/add-child arrow controls. `@dnd-kit` is not bundled in the admin app and the brief's emphasis is on tree editing, not gesture sophistication.
