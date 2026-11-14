@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
-import { useLocation } from 'react-router-dom';
+import { Route, useLocation } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import type { ProjectTemplateDetail } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../../setup';
@@ -131,7 +131,7 @@ function AddressProbe(): ReactElement {
   return <output data-testid="address">{location.pathname}</output>;
 }
 
-async function open(options: { id?: string; present?: readonly string[] } = {}): Promise<void> {
+async function open(options: { id?: string; present?: readonly string[]; listRoute?: boolean } = {}): Promise<void> {
   const id = options.id ?? TEMPLATE_ID;
   renderProjects(
     <>
@@ -144,6 +144,8 @@ async function open(options: { id?: string; present?: readonly string[] } = {}):
       // A new Template is at an address with no id; the catch-all keeps the probe mounted after it is saved.
       ...(id === 'new' ? {} : { pattern: '/projects/templates/:id' }),
       present: options.present ?? ['projects', 'tasks'],
+      // The list the editor leaves for, so the address can still be read once it has.
+      ...(options.listRoute ? { routes: <Route path="/projects/templates" element={<AddressProbe />} /> } : {}),
     },
   );
   if (id === 'new') await screen.findByRole('heading', { name: en('templates.editor.titleNew') });
@@ -288,6 +290,89 @@ describe('TemplateEditor', () => {
       expect(postSpy.mock.calls.map(([path]) => path)).toEqual([`${TEMPLATES}/${TEMPLATE_ID}/duplicate`]),
     );
     await waitFor(() => expect(screen.getByTestId('address').textContent).toBe(`/projects/templates/${COPY_ID}`));
+  });
+
+  describe('unsaved edits (issue #452)', () => {
+    const rename = async (to: string): Promise<void> => {
+      const name = screen.getByLabelText(new RegExp(en('templates.editor.name')));
+      await userEvent.clear(name);
+      await userEvent.type(name, to);
+    };
+    const backLink = (): HTMLElement => screen.getByRole('link', { name: new RegExp(en('templates.editor.back')) });
+
+    it('leaving through a link asks first, and staying keeps the edits', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      try {
+        await open();
+        await rename('Showroom fit-out v2');
+        await userEvent.click(backLink());
+        expect(confirm).toHaveBeenCalledTimes(1);
+        expect(screen.getByTestId('address').textContent).toBe(`/projects/templates/${TEMPLATE_ID}`);
+        expect(screen.getByDisplayValue('Showroom fit-out v2')).toBeTruthy();
+      } finally {
+        confirm.mockRestore();
+      }
+    });
+
+    it('asks nothing with no edits, nor once the edits are saved', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      try {
+        await open();
+        await rename('Showroom fit-out v2');
+        current = template({ name: 'Showroom fit-out v2' });
+        await userEvent.click(saveButton());
+        await screen.findByText(en('templates.editor.saved'));
+        await userEvent.click(backLink());
+        expect(confirm).not.toHaveBeenCalled();
+      } finally {
+        confirm.mockRestore();
+      }
+    });
+
+    it('Cancel with unsaved edits asks in the kit dialog before discarding them', async () => {
+      await open({ listRoute: true });
+      await rename('Showroom fit-out v2');
+      await userEvent.click(screen.getByRole('button', { name: core('common.action.cancel') }));
+      const dialog = await screen.findByRole('dialog', { name: en('templates.editor.unsaved.title') });
+      await userEvent.click(within(dialog).getByRole('button', { name: en('templates.editor.unsaved.stay') }));
+      expect(screen.getByTestId('address').textContent).toBe(`/projects/templates/${TEMPLATE_ID}`);
+      expect(screen.getByDisplayValue('Showroom fit-out v2')).toBeTruthy();
+
+      await userEvent.click(screen.getByRole('button', { name: core('common.action.cancel') }));
+      const again = await screen.findByRole('dialog', { name: en('templates.editor.unsaved.title') });
+      await userEvent.click(within(again).getByRole('button', { name: en('templates.editor.unsaved.discard') }));
+      await waitFor(() => expect(screen.getByTestId('address').textContent).toBe('/projects/templates'));
+    });
+
+    it('Duplicate with unsaved edits says it copies the saved version, and copies nothing until told to', async () => {
+      postSpy.mockResolvedValue({ data: template({ id: COPY_ID, name: 'Showroom fit-out (copy)' }) });
+      await open();
+      await rename('Showroom fit-out v2');
+      await userEvent.click(screen.getByRole('button', { name: en('templates.editor.duplicate') }));
+      const dialog = await screen.findByRole('dialog', { name: en('templates.editor.duplicateUnsaved.title') });
+      expect(within(dialog).getByText(en('templates.editor.duplicateUnsaved.message'))).toBeTruthy();
+      await userEvent.click(within(dialog).getByRole('button', { name: en('templates.editor.unsaved.stay') }));
+      expect(postSpy).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole('button', { name: en('templates.editor.duplicate') }));
+      const again = await screen.findByRole('dialog', { name: en('templates.editor.duplicateUnsaved.title') });
+      await userEvent.click(within(again).getByRole('button', { name: en('templates.editor.duplicateUnsaved.confirm') }));
+      await waitFor(() =>
+        expect(postSpy.mock.calls.map(([path]) => path)).toEqual([`${TEMPLATES}/${TEMPLATE_ID}/duplicate`]),
+      );
+      await waitFor(() => expect(screen.getByTestId('address').textContent).toBe(`/projects/templates/${COPY_ID}`));
+    });
+
+    it('a new Template with nothing typed is not unsaved; one with a name is', async () => {
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      try {
+        await open({ id: 'new' });
+        await userEvent.click(backLink());
+        expect(confirm).not.toHaveBeenCalled();
+      } finally {
+        confirm.mockRestore();
+      }
+    });
   });
 
   it('with the Tasks module off, shows no Stage Task section but keeps the definitions on save', async () => {

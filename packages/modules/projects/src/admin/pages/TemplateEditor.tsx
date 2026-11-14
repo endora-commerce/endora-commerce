@@ -10,7 +10,7 @@ import {
   type ProjectTemplateDetail,
   type StageTaskDefinition,
 } from '@endora-commerce/contracts';
-import { useModulePresence } from '@endora-commerce/admin-kit/lib';
+import { useModulePresence, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -24,7 +24,7 @@ import {
   PageHeader,
   Textarea,
 } from '@endora-commerce/admin-kit/ui';
-import { StickyFormActions } from '@endora-commerce/admin-kit/components';
+import { StickyFormActions, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../api.js';
 import {
@@ -116,6 +116,21 @@ function graphOf(template: ProjectTemplateDetail): Graph {
   };
 }
 
+/**
+ * What a save would send, as one string — the editor's own keys and drafts,
+ * not the archive flag, which is its own request. Equal fingerprints are an
+ * editor with nothing unsaved.
+ */
+function fingerprintOf(graph: Graph): string {
+  return JSON.stringify({
+    name: graph.name,
+    description: graph.description,
+    roleIds: graph.roleIds,
+    stages: graph.stages.map((row) => ({ key: row.key, draft: row.draft, tasks: row.tasks })),
+    moves: graph.moves,
+  });
+}
+
 const NEW_GRAPH = (): Graph => ({
   name: '',
   description: '',
@@ -141,6 +156,12 @@ const NEW_GRAPH = (): Graph => ({
  * they are kept as loaded and saved back unchanged. Archiving takes the
  * Template out of the create screen's picker and changes no Project; a
  * duplicate is a new, independent Template.
+ *
+ * **Unsaved edits are not lost without a question** (issue #452). The editor
+ * holds the Template as last loaded or saved beside the one on screen; while
+ * they differ, the kit's unsaved-changes prompt guards leaving through a link
+ * or the browser, *Cancel* asks in the kit's dialog, and *Duplicate* — which
+ * copies the saved Template, never the screen — says so and asks first.
  */
 export function TemplateEditor(): ReactNode {
   const { id } = useParams<{ id?: string }>();
@@ -152,6 +173,9 @@ export function TemplateEditor(): ReactNode {
   const nameRef = useRef<HTMLInputElement>(null);
 
   const [graph, setGraph] = useState<Graph | null>(isNew ? NEW_GRAPH() : null);
+  /** The Template as last loaded or saved — what "unsaved" is measured against. */
+  const [saved, setSaved] = useState<Graph | null>(graph);
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [roles, setRoles] = useState<ProjectRole[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showErrors, setShowErrors] = useState(false);
@@ -175,20 +199,32 @@ export function TemplateEditor(): ReactNode {
     };
   }, []);
 
+  /** Show `next` as the Template's saved state: nothing on screen is unsaved. */
+  const reset = useCallback((next: Graph): void => {
+    setGraph(next);
+    setSaved(next);
+  }, []);
+
   const load = useCallback(async (): Promise<void> => {
     if (isNew || id === undefined) return;
     setLoadError(null);
     try {
-      setGraph(graphOf(await projectsApi.getTemplate(id)));
+      reset(graphOf(await projectsApi.getTemplate(id)));
     } catch (failure) {
       setLoadError(errorMessage(failure, t('templates.editor.loadError')));
     }
-  }, [id, isNew, t]);
+  }, [id, isNew, reset, t]);
 
   useEffect(() => {
-    if (isNew) setGraph(NEW_GRAPH());
+    if (isNew) reset(NEW_GRAPH());
     else void load();
-  }, [isNew, load]);
+  }, [isNew, load, reset]);
+
+  const dirty = useMemo(
+    () => graph !== null && saved !== null && fingerprintOf(graph) !== fingerprintOf(saved),
+    [graph, saved],
+  );
+  useUnsavedChangesPrompt(dirty);
 
   const update = (patch: Partial<Graph>): void => setGraph((previous) => (previous ? { ...previous, ...patch } : previous));
 
@@ -296,7 +332,7 @@ export function TemplateEditor(): ReactNode {
         void navigate(`${LIST_PATH}/${created.id}`);
         return;
       }
-      setGraph(graphOf(await projectsApi.saveTemplate(id as string, body)));
+      reset(graphOf(await projectsApi.saveTemplate(id as string, body)));
       setNotice(t('templates.editor.saved'));
     } catch (failure) {
       setError(errorMessage(failure, t('templates.editor.error.generic')));
@@ -305,9 +341,25 @@ export function TemplateEditor(): ReactNode {
     }
   };
 
-  /** Archive, restore or duplicate — each its own request; unsaved edits stay on screen. */
+  /**
+   * Archive, restore or duplicate — each its own request; unsaved edits stay on
+   * screen. A duplicate is made from the saved Template and opens in place of
+   * this one, so with unsaved edits it asks first.
+   */
   const act = async (action: 'archive' | 'restore' | 'duplicate'): Promise<void> => {
     if (isNew || id === undefined) return;
+    if (
+      action === 'duplicate' &&
+      dirty &&
+      !(await confirm({
+        title: t('templates.editor.duplicateUnsaved.title'),
+        message: t('templates.editor.duplicateUnsaved.message'),
+        confirmLabel: t('templates.editor.duplicateUnsaved.confirm'),
+        cancelLabel: t('templates.editor.unsaved.stay'),
+      }))
+    ) {
+      return;
+    }
     setBusy(true);
     setError(null);
     setNotice('');
@@ -319,12 +371,30 @@ export function TemplateEditor(): ReactNode {
       }
       const answered = action === 'archive' ? await projectsApi.archiveTemplate(id) : await projectsApi.restoreTemplate(id);
       update({ archivedAt: answered.archivedAt });
+      setSaved((previous) => (previous ? { ...previous, archivedAt: answered.archivedAt } : previous));
       setNotice(t(action === 'archive' ? 'templates.editor.archived' : 'templates.editor.restored'));
     } catch (failure) {
       setError(errorMessage(failure, t('templates.editor.error.action')));
     } finally {
       setBusy(false);
     }
+  };
+
+  /** *Cancel*: back to the list — after a question when something is unsaved. */
+  const cancel = async (): Promise<void> => {
+    if (
+      dirty &&
+      !(await confirm({
+        title: t('templates.editor.unsaved.title'),
+        message: t('templates.editor.unsaved.message'),
+        confirmLabel: t('templates.editor.unsaved.discard'),
+        cancelLabel: t('templates.editor.unsaved.stay'),
+        destructive: true,
+      }))
+    ) {
+      return;
+    }
+    void navigate(LIST_PATH);
   };
 
   if (loadError) {
@@ -614,7 +684,7 @@ export function TemplateEditor(): ReactNode {
             type="button"
             variant="outline"
             disabled={busy}
-            onClick={(): void => void navigate(LIST_PATH)}
+            onClick={(): void => void cancel()}
           >
             {tCore('common.action.cancel')}
           </Button>
@@ -623,6 +693,7 @@ export function TemplateEditor(): ReactNode {
           </Button>
         </StickyFormActions>
       </form>
+      {confirmDialog}
     </>
   );
 }
