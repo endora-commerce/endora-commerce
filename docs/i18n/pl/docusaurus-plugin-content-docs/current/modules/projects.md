@@ -128,7 +128,12 @@ Jego zakładki:
   jest prowadzony osobno dla każdej organizacji, wymienia tylko, *które* pola
   się zmieniły. Wpisy zapisane, zanim tytuł zaczął być przechowywany w ten
   sposób, nadal pokazują go tak, jak został zapisany. Organizacja spoza Twojego zasięgu, do której projekt kiedyś
-  należał, nie jest w niej wymieniana.
+  należał, nie jest w niej wymieniana. Osoby, organizacje, etapy i role są
+  podawane z nazwy, nigdy jako identyfikatory: zmiana członków wymienia, kogo
+  dodano, kogo usunięto i komu zmieniono role; zmiana przebiegu wymienia
+  przejścia, które dopuściła i wycofała; zmiana zadań etapu wymienia zadania
+  dodane, zmienione i usunięte. Osoba, której nie ma już w projekcie, albo etap,
+  którego projekt już nie ma, są opisane właśnie tak.
 
 **Na ekranach dokumentów należących do projektu** — zamówienia, zapytania
 ofertowego, szansy sprzedażowej, zadania — panel **Projekt** wskazuje projekt,

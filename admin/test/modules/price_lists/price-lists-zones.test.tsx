@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import type { AdminZoneName } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
@@ -107,7 +108,7 @@ function renderZone(options: {
             the cast is the harness's and not a host's. */}
         <AdminZone
           name={options.name as 'category.editor.after'}
-          props={options.props as { categoryId: string }}
+          props={{ ...(options.props as { categoryId: string }), saveSession: INERT_SAVE_SESSION }}
         />
       </MemoryRouter>,
       {

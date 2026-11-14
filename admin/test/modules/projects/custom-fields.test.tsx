@@ -269,7 +269,7 @@ describe('custom fields on the create form', () => {
 
 describe('custom fields in the change history', () => {
   it('draws a row per changed field, by its name and its option labels', async () => {
-    renderProjects(<ProjectHistory projectId={PROJECT_ID} />, { permissions: WITH_FIELDS });
+    renderProjects(<ProjectHistory project={detail()} />, { permissions: WITH_FIELDS });
     expect(await screen.findByText(en('auditLog.projects.project.custom_fields_update'))).toBeTruthy();
     expect(await screen.findByText('Site region')).toBeTruthy();
     expect(screen.getByText('North')).toBeTruthy();
@@ -298,7 +298,7 @@ describe('custom fields in the change history', () => {
       }
       return Promise.reject(new Error(`unexpected GET ${path}`));
     });
-    renderProjects(<ProjectHistory projectId={PROJECT_ID} />, { permissions: WITH_FIELDS });
+    renderProjects(<ProjectHistory project={detail()} />, { permissions: WITH_FIELDS });
     expect(await screen.findByText(en('history.field.changedCustomFields'))).toBeTruthy();
     expect(await screen.findByText('Site region, Contractor')).toBeTruthy();
     expect(screen.getByText(en('history.field.changedFields'))).toBeTruthy();
@@ -323,7 +323,7 @@ describe('custom fields in the change history', () => {
       }
       return Promise.reject(new Error(`unexpected GET ${path}`));
     });
-    renderProjects(<ProjectHistory projectId={PROJECT_ID} />, { permissions: WITH_FIELDS });
+    renderProjects(<ProjectHistory project={detail()} />, { permissions: WITH_FIELDS });
     // One *Value* row, each side in its currency's conventions, as the Project screen shows it.
     expect(await screen.findByText(en('history.field.value'))).toBeTruthy();
     expect(screen.getByText(money(formatMoney(1234.56, 'PLN')))).toBeTruthy();
@@ -351,7 +351,7 @@ describe('custom fields in the change history', () => {
       }
       return Promise.reject(new Error(`unexpected GET ${path}`));
     });
-    renderProjects(<ProjectHistory projectId={PROJECT_ID} />, { permissions: WITH_FIELDS });
+    renderProjects(<ProjectHistory project={detail()} />, { permissions: WITH_FIELDS });
     expect(await screen.findByText(money(formatMoney(100, 'EUR')))).toBeTruthy();
     expect(screen.getByText(money(formatMoney(100, 'PLN')))).toBeTruthy();
   });

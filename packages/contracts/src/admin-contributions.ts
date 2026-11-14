@@ -232,7 +232,12 @@ export const AdminZoneNameSchema = z.enum([
    */
   'invoice.detail.after',
   /**
-   * The end of the category editor's form, after its save/cancel row.
+   * The end of the category editor's form, before its save row.
+   *
+   * Feature 180 (FR-052) places the mount above the Save / Cancel row, so what
+   * the Save covers sits above it; the name is kept. Until the category editor
+   * adopts the one Save (WP-6), `CategoriesTree.tsx` still renders it after the
+   * row.
    *
    * Mounted **once** per open category, and named from the host's own word for
    * the place (Z14): `catalog`'s `CategoriesTree.tsx` is the editor, and the
@@ -588,9 +593,31 @@ export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
 // Zone props
 // ---------------------------------------------------------------------------
 
+/**
+ * The host editor's save session, as a zone contribution sees it (feature 180,
+ * `specs/180-one-save-zone-editors/contracts/save-participation.md` §1, FR-002).
+ *
+ * **Opaque, and carrying no function, on purpose.** The host's
+ * `SaveSessionProvider` (`@endora-commerce/admin-kit/lib`) creates it, keeps it
+ * stable for the session's life — so `AdminZone`'s per-factory lazy components
+ * do not remount — and resolves it back to the live session when a
+ * contribution calls `useSaveParticipant(handle, …)`. A function-typed member
+ * here would pull React's types into this package.
+ *
+ * It is a prop of exactly the zones whose host editor has one Save covering its
+ * panels (`spec.md` § *Editors that adopt the one Save*). A zone without it
+ * offers no session, so a contribution there that tries to take part is a
+ * `tsc` error rather than a draft nothing ever saves.
+ */
+export interface EditorSaveSessionHandle {
+  readonly sessionId: string;
+}
+
 /** A zone mounted once per product editor. */
 export interface ProductEditorZoneProps {
   readonly productId: string;
+  /** Feature 180 — the product editor's one Save (FR-002). */
+  readonly saveSession: EditorSaveSessionHandle;
 }
 
 /**
@@ -661,6 +688,8 @@ export interface InvoiceDetailZoneProps {
  */
 export interface CategoryEditorZoneProps {
   readonly categoryId: string;
+  /** Feature 180 — the category editor's Save (FR-002, FR-050). */
+  readonly saveSession: EditorSaveSessionHandle;
 }
 
 /**
@@ -713,6 +742,8 @@ export interface ProductContentEditorZoneProps {
  */
 export interface SalesChannelEditorZoneProps {
   readonly channelId: string;
+  /** Feature 180 — the identity form's Save (FR-002, FR-070). */
+  readonly saveSession: EditorSaveSessionHandle;
 }
 
 /**
@@ -727,6 +758,8 @@ export interface SalesChannelEditorZoneProps {
  */
 export interface OrganizationDetailZoneProps {
   readonly organizationId: string;
+  /** Feature 180 — the organization screen's one Save (FR-002, FR-060). */
+  readonly saveSession: EditorSaveSessionHandle;
 }
 
 /**
@@ -739,6 +772,8 @@ export interface OrganizationDetailZoneProps {
  */
 export interface CustomerDetailZoneProps {
   readonly customerId: string;
+  /** Feature 180 — the customer screen's one Save (FR-002, FR-060). */
+  readonly saveSession: EditorSaveSessionHandle;
 }
 
 /**
@@ -902,6 +937,8 @@ export interface ProductEditorFieldZoneProps {
    * {@link AdminZoneNameSchema}'s contract.
    */
   readonly languageCodes: readonly string[] | null;
+  /** Feature 180 — the product editor's one Save (FR-002). */
+  readonly saveSession: EditorSaveSessionHandle;
 }
 
 /**

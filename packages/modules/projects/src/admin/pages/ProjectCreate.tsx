@@ -22,7 +22,7 @@ import {
   PageHeader,
   Select,
 } from '@endora-commerce/admin-kit/ui';
-import { ReferenceField, StickyFormActions } from '@endora-commerce/admin-kit/components';
+import { ReferenceField, StickyFormActions, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../api.js';
 import { errorMessage, normaliseAmount, parseDuration } from '../lib/labels.js';
@@ -61,6 +61,13 @@ type FieldErrors = Partial<Record<'title' | 'stageName' | 'stageDuration' | 'val
  * are changed on the Project's *Stages* tab afterwards, so the request names
  * the Template and sends no Stages. Everything typed stays editable; "no
  * Template" brings the Stage list back. Archived Templates are not offered.
+ *
+ * **Nothing typed is set aside without a question** (issue #452). Choosing a
+ * Template while Stages are typed by hand, or while the description is one the
+ * operator wrote, asks first in the kit's dialog; *Cancel* leaves the form as
+ * it was. The hand-typed Stages and description are kept as a draft, and "no
+ * Template" brings both back — the description only while it is still the
+ * Template's, so an edit made to it afterwards is never undone.
  *
  * Without a Template a title and at least one Stage are required. The Stages
  * are written here in order — name, colour, planned duration — because
@@ -120,6 +127,9 @@ export function ProjectCreate(): ReactNode {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown> | null>(null);
   const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const { confirm, confirmDialog } = useConfirmDialog();
+  /** The description typed before a Template filled it in — brought back by "no Template". */
+  const handDescription = useRef<string | null>(null);
 
   // The Organization screen's "New project" names its Organization in the
   // address: it starts chosen when the reader reaches it, and is otherwise left
@@ -174,10 +184,37 @@ export function ProjectCreate(): ReactNode {
   }, [roles, template]);
 
   const chooseTemplate = async (id: string): Promise<void> => {
+    if (id !== '') {
+      // Hidden while a Template is chosen, and not sent: set aside, not lost.
+      const setsStagesAside = templateId === '' && stages.some((row) => row.name.trim() !== '');
+      const replacesDescription = description.trim() !== '' && description !== (template?.description ?? '');
+      if (setsStagesAside || replacesDescription) {
+        const name = templates.find((option) => option.id === id)?.name ?? '';
+        const agreed = await confirm({
+          title: t('create.template.replace.title'),
+          message: (
+            <div className="space-y-2">
+              {setsStagesAside ? <p>{t('create.template.replace.stages', { name })}</p> : null}
+              {replacesDescription ? <p>{t('create.template.replace.description', { name })}</p> : null}
+              <p>{t('create.template.replace.restore')}</p>
+            </div>
+          ),
+          confirmLabel: t('create.template.replace.confirm'),
+        });
+        if (!agreed) return;
+      }
+      if (templateId === '') handDescription.current = description;
+    }
+    const previous = template;
     setTemplateId(id);
     setTemplate(null);
     if (id === '') {
       setTemplateState('idle');
+      // What the Template filled in and nobody changed since goes back to what was typed.
+      if (previous && handDescription.current !== null && description === previous.description) {
+        setDescription(handDescription.current);
+      }
+      handDescription.current = null;
       return;
     }
     setTemplateState('loading');
@@ -672,6 +709,7 @@ export function ProjectCreate(): ReactNode {
           </Button>
         </StickyFormActions>
       </form>
+      {confirmDialog}
     </>
   );
 }

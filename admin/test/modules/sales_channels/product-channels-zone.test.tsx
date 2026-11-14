@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
@@ -69,7 +70,7 @@ function renderZone(options: { readonly permissions?: readonly string[] }): HTML
   const { container } = renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={['/catalog/products/x']}>
-        <AdminZone name="product.editor.channels" props={{ productId: PRODUCT_ID }} />
+        <AdminZone name="product.editor.channels" props={{ productId: PRODUCT_ID, saveSession: INERT_SAVE_SESSION }} />
       </MemoryRouter>,
       {
         session: adminSession({

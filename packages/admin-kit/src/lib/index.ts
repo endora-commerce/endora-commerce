@@ -47,6 +47,30 @@ export type { GatedSurface, PermissionRequirement } from './surface-visibility.j
 export { normalize } from './text-normalization.js';
 export { usePageSizePreference } from './use-page-size-preference.js';
 export { useUnsavedChangesPrompt } from './use-unsaved-changes-prompt.js';
+// Feature 180 — the save session (`specs/180-one-save-zone-editors/contracts/save-participation.md`).
+export {
+  INERT_SAVE_SESSION,
+  SaveSessionProvider,
+  useSaveParticipant,
+  useSaveSession,
+} from '../save-session/SaveSessionProvider.js';
+export type {
+  SaveParticipant,
+  SaveParticipantSpec,
+  SaveSessionProviderProps,
+  SaveSessionValue,
+} from '../save-session/SaveSessionProvider.js';
+export { hasIssues, runSave } from '../save-session/run-save.js';
+export type {
+  ParticipantIssues,
+  RunSaveOptions,
+  SaveContext,
+  SaveOutcome,
+  SaveOutcomePart,
+  SavePart,
+  SavePartResult,
+} from '../save-session/run-save.js';
+export type { ParticipantStatus, SaveParticipantHandlers } from '../save-session/session-store.js';
 export type { UnsavedChangesPromptOptions } from './use-unsaved-changes-prompt.js';
 export { cn } from './utils.js';
 export { randomUUID } from './uuid.js';

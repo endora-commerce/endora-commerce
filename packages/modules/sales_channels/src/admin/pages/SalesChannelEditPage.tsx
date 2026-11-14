@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SalesChannelDetail } from '@endora-commerce/contracts';
-import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, useAuth, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { salesChannelsClient } from '../api/sales-channels-client.js';
 import {
@@ -270,7 +270,8 @@ export function SalesChannelEditPage(): ReactNode {
           no chrome of this screen's to hide. */}
       {channel && !isCreate ? (
         <div style={{ marginTop: 24 }}>
-          <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id }} />
+          {/* Feature 180 — the inert handle until this editor runs its save session (WP-9). */}
+          <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id, saveSession: INERT_SAVE_SESSION }} />
         </div>
       ) : null}
       {confirmDialog}

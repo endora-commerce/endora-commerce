@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ProjectRole, ProjectTemplateDetail } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../../setup';
-import { ADMIN_ID, ROLES, ROLE_MANAGER, detail, en, renderProjects } from './projects-fixtures';
+import { ADMIN_ID, ROLES, ROLE_MANAGER, core, detail, en, renderProjects } from './projects-fixtures';
 
 /**
  * Creating a Project from a Template (`specs/163-projects-and-tasks/`, User
@@ -204,6 +204,60 @@ describe('ProjectCreate from a Template', () => {
     const body = postSpy.mock.calls[0]![1] as Record<string, unknown>;
     expect(body).not.toHaveProperty('templateId');
     expect((body['stages'] as Array<Record<string, unknown>>).map((stage) => stage['name'])).toEqual(['Design']);
+  });
+
+  describe('what was typed before a Template is chosen (issue #452)', () => {
+    const handStages = async (): Promise<void> => {
+      const stages = await screen.findByRole('group', { name: en('create.stages.section') });
+      await userEvent.type(within(stages).getByLabelText(en('stage.name', { position: 1 })), 'Design');
+    };
+    const pick = async (): Promise<void> => {
+      const picker = await templatePicker();
+      await within(picker).findByRole('option', { name: 'Showroom fit-out' });
+      await userEvent.selectOptions(picker, TEMPLATE_ID);
+    };
+    const replaceDialog = (): Promise<HTMLElement> =>
+      screen.findByRole('dialog', { name: en('create.template.replace.title') });
+
+    it('asks before a Template sets aside the Stages typed by hand; Cancel keeps them and no Template', async () => {
+      await renderForm();
+      await handStages();
+      await pick();
+      const dialog = await replaceDialog();
+      expect(within(dialog).getByText(en('create.template.replace.stages', { name: 'Showroom fit-out' }))).toBeTruthy();
+      await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.cancel') }));
+
+      expect((await templatePicker()).value).toBe('');
+      const stages = screen.getByRole('group', { name: en('create.stages.section') });
+      expect((within(stages).getByLabelText(en('stage.name', { position: 1 })) as HTMLInputElement).value).toBe('Design');
+      expect(getSpy).not.toHaveBeenCalledWith(`/api/v1/admin/projects/templates/${TEMPLATE_ID}`);
+    });
+
+    it('asks before a Template replaces a description typed by hand, and "No template" brings both back', async () => {
+      await renderForm();
+      await handStages();
+      const description = screen.getByLabelText(en('field.description'));
+      await userEvent.type(description, 'Our own words.');
+      await pick();
+      const dialog = await replaceDialog();
+      expect(within(dialog).getByText(en('create.template.replace.description', { name: 'Showroom fit-out' }))).toBeTruthy();
+      await userEvent.click(within(dialog).getByRole('button', { name: en('create.template.replace.confirm') }));
+      await screen.findByText(en('create.template.stagesHint'));
+      await waitFor(() =>
+        expect(screen.getByLabelText(en('field.description')).textContent).toBe('Fit out a showroom for the client.'),
+      );
+
+      await userEvent.selectOptions(await templatePicker(), '');
+      const stages = await screen.findByRole('group', { name: en('create.stages.section') });
+      expect((within(stages).getByLabelText(en('stage.name', { position: 1 })) as HTMLInputElement).value).toBe('Design');
+      await waitFor(() => expect(screen.getByLabelText(en('field.description')).textContent).toBe('Our own words.'));
+    });
+
+    it('asks nothing when nothing was typed', async () => {
+      await renderForm();
+      await chooseTemplate();
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   });
 
   it('a Template list that cannot be loaded leaves the form usable without one', async () => {
