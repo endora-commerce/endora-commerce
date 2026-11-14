@@ -151,8 +151,9 @@ describe('account orders — the shop language (issue #85)', () => {
     const cells = row.match(/<td[^>]*>[\s\S]*?<\/td>/g) ?? [];
     expect(cells[0]).toContain(`href="/orders/${order.id}"`);
     expect(cells[0]).toContain('ORD-2001-2026');
-    // A storefront link inherits the text colour; the underline marks it as one.
-    expect(cells[0]).toMatch(/<a[^>]*class="underline"/);
+    // A storefront link inherits the text colour; the account tables' shared
+    // link class marks it as one (issue #1178).
+    expect(cells[0]).toMatch(/<a[^>]*class="b2b-account__link"/);
     // One link per row: the number replaces the separate "Open" column.
     expect(row.match(/<a /g)).toHaveLength(1);
     expect(visibleText(row)).not.toContain('Open');
@@ -217,6 +218,14 @@ describe('account returns — the shop language (issue #85)', () => {
     expect(pl).toContain('Zwroty i reklamacje');
     expect(pl).toContain('Data zgłoszenia Numer RMA Rodzaj Status Kwota zwrotu');
     expect(pl).toContain('Reklamacja');
+  });
+
+  it('marks the "Open" link of a return as a link (issue #1178)', async () => {
+    const { default: Page } = await import('../../../app/(account)/returns/page');
+    locale = 'en-US';
+    returns = [returnCase];
+    const html = renderToString((await Page()) as React.ReactElement);
+    expect(html).toMatch(/<a[^>]*class="b2b-account__link"[^>]*href="\/returns\/r1"[^>]*>Open<\/a>|<a[^>]*href="\/returns\/r1"[^>]*class="b2b-account__link"[^>]*>Open<\/a>/);
   });
 
   it('renders the case in both languages', async () => {

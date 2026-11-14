@@ -10,6 +10,7 @@ import { format } from '../../../../lib/i18n/format';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 import { organizationAreaAccess } from '../../../../lib/account/organization-area';
 import { memberErrorKey, memberStatusKey } from '../../../../lib/account/organization-members';
+import { RemoveMemberButton } from '../../../../components/account/RemoveMemberButton';
 import { changeRoleAction, inviteAction, removeAction, revokeAction } from './actions';
 
 /**
@@ -42,6 +43,10 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * Remove look alike in size but not in tone: the destructive one takes the
  * role-deletion button's `border-bad text-bad`, its label still naming it, and
  * sits in its own column, away from Save.
+ *
+ * Issue #1178 — Remove ends a colleague's access at once, so it opens a
+ * confirmation (`RemoveMemberButton`, the shopping lists' `ModalDialog`
+ * alertdialog) naming the member rather than posting the removal from the row.
  */
 const ROW_SELECT_CLASS = 'industria-select h-11 text-[13px]';
 const ROW_ACTION_CLASS = 'btn btn--outline btn--sm min-h-11';
@@ -131,12 +136,14 @@ export default async function MembersPage({
               </td>
               <td>
                 {m.id === me.customerAccount.id ? null : (
-                  <form action={removeAction} className="inline">
-                    <input type="hidden" name="memberId" value={m.id} />
-                    <button type="submit" className={ROW_DESTRUCTIVE_CLASS}>
-                      {t('account.common.remove')}
-                    </button>
-                  </form>
+                  <RemoveMemberButton
+                    memberId={m.id}
+                    memberName={`${m.firstName} ${m.lastName}`.trim() || m.email}
+                    memberEmail={m.email}
+                    locale={locale}
+                    triggerClassName={ROW_DESTRUCTIVE_CLASS}
+                    removeAction={removeAction}
+                  />
                 )}
               </td>
             </tr>

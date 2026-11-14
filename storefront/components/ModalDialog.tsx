@@ -95,7 +95,7 @@ export function ModalDialog(props: {
         type="button"
         aria-haspopup="dialog"
         aria-controls={dialogId}
-        className={props.triggerClassName ?? 'b2b-dialog__trigger'}
+        className={props.triggerClassName ?? 'b2b-dialog__trigger b2b-account__link'}
         onClick={open}
       >
         {props.triggerLabel}

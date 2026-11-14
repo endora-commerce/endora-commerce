@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import type { ShoppingList } from '../../../lib/api/shopping-lists';
 import { POLISH_DIACRITIC, visibleText } from './text';
+import { encodeConversionSkips } from '../../../lib/batchReport';
 
 /**
  * Issue #85 — the shopping-list pages and their controls render the shop's
@@ -134,6 +135,15 @@ describe('shopping-list overview — the shop language (issue #85)', () => {
     expect(pl).toContain('Ustaw jako domyślną');
     expect(pl).toContain('Usuń');
   });
+
+  it('marks each list’s name as a link (issue #1178)', async () => {
+    const { default: Page } = await import('../../../app/(account)/shopping-lists/page');
+    lists = [{ ...list, id: 'l2', name: 'Site B' }];
+    locale = 'en-US';
+    const html = renderToString(<>{await Page({ searchParams: Promise.resolve({}) })}</>);
+    const anchor = /<a[^>]*href="\/shopping-lists\/l2"[^>]*>/.exec(html)?.[0] ?? '';
+    expect(anchor).toMatch(/class="b2b-account__link"/);
+  });
 });
 
 describe('shopping-list detail — the shop language (issue #85)', () => {
@@ -188,19 +198,19 @@ describe('shopping-list detail — the shop language (issue #85)', () => {
   it('words the quote-request conversion in both languages', async () => {
     locale = 'en-US';
     expect(await renderDetail({ rfqId: 'r1', rfqAdded: '2', rfqSkipped: '1' })).toContain(
-      'Added 2 items to your draft quote request. Skipped 1 archived row. Open the quote request',
+      'Added 2 items to your draft quote request. Skipped 1 row. Open the quote request',
     );
     locale = 'pl-PL';
     expect(await renderDetail({ rfqId: 'r1', rfqAdded: '2', rfqSkipped: '5' })).toContain(
-      'Dodano 2 pozycje do szkicu zapytania ofertowego. Pominięto 5 zarchiwizowanych wierszy. Otwórz zapytanie ofertowe',
+      'Dodano 2 pozycje do szkicu zapytania ofertowego. Pominięto 5 wierszy. Otwórz zapytanie ofertowe',
     );
   });
 
   // Issue #1159 (architect ruling A) — a conversion that added nothing created no quote request:
   // the page says so, neutrally, and links to none.
   it.each([
-    ['en-US', 'No items were added to a quote request. Skipped 2 archived rows.'],
-    ['pl-PL', 'Nie dodano żadnej pozycji do zapytania ofertowego. Pominięto 2 zarchiwizowane wiersze.'],
+    ['en-US', 'No items were added to a quote request. Skipped 2 rows.'],
+    ['pl-PL', 'Nie dodano żadnej pozycji do zapytania ofertowego. Pominięto 2 wiersze.'],
   ])('says nothing was added to a quote request, and links to none (%s)', async (l, sentence) => {
     locale = l;
     const { default: Page } = await import('../../../app/(account)/shopping-lists/[id]/page');
@@ -214,6 +224,48 @@ describe('shopping-list detail — the shop language (issue #85)', () => {
     expect(html).not.toContain('/quote-requests/');
     expect(html).toMatch(/<p[^>]*role="status"[^>]*>No items|<p[^>]*role="status"[^>]*>Nie dodano/);
     expect(html).not.toMatch(/b2b-auth__success[^>]*>(No items|Nie dodano)/);
+  });
+});
+
+// Issue #1161 — the quote-request conversion skips rows for more than one reason; each skipped row
+// is named with its own reason, the cart conversion's wording, and none is called archived.
+describe('shopping-list detail — why a quote-request conversion skipped a row (issue #1161)', () => {
+  const rfqSkips = encodeConversionSkips([
+    { itemId: 'i1', productId: 'p1', reason: 'product_not_found' },
+    { itemId: 'i2', productId: 'p1', reason: 'variant_unavailable' },
+  ]);
+
+  it.each([
+    ['en-US', 'Not added to the quote request', ['Bolt — Product no longer available', 'Bolt — Variant no longer available'], /archived/i],
+    ['pl-PL', 'Nie dodano do zapytania ofertowego', ['Bolt — Produkt nie jest już dostępny', 'Bolt — Wariant nie jest już dostępny'], /zarchiwizowan/i],
+  ])('names each skipped row with its reason (%s)', async (l, heading, rows, archived) => {
+    locale = l;
+    for (const sp of [
+      { rfqId: 'r1', rfqAdded: '1', rfqSkipped: '2', rfqSkips },
+      { rfqAdded: '0', rfqSkipped: '2', rfqSkips },
+    ]) {
+      const text = await renderDetail(sp);
+      expect(text).toContain(heading);
+      for (const row of rows) expect(text).toContain(row);
+      expect(text).not.toMatch(archived);
+    }
+  });
+
+  it('names an archived row as archived', async () => {
+    locale = 'en-US';
+    const text = await renderDetail({
+      rfqAdded: '0',
+      rfqSkipped: '1',
+      rfqSkips: encodeConversionSkips([{ itemId: 'i1', productId: 'p1', reason: 'product_archived' }]),
+    });
+    expect(text).toContain('Bolt — Product archived');
+  });
+
+  it('drops a hand-made skip list rather than rendering it', async () => {
+    locale = 'en-US';
+    const text = await renderDetail({ rfqAdded: '0', rfqSkipped: '1', rfqSkips: 'not-a-report' });
+    expect(text).toContain('No items were added to a quote request. Skipped 1 row.');
+    expect(text).not.toContain('Not added to the quote request');
   });
 });
 

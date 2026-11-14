@@ -104,6 +104,21 @@ export async function registerCreditLimitsRoutes(
   };
 
   /**
+   * Each order's customer-facing number (`businessId`), for every reservation
+   * of `reservations`, in **one** batched read of `orders` — however many
+   * limits the reservations come from (issue #1178: the admin list asks once
+   * per page, never once per limit). An order the read does not return is
+   * absent, and answers `null` in the view. No reservation, no read.
+   */
+  const orderNumbersOf = async (
+    reservations: readonly CreditLimitReservation[],
+  ): Promise<ReadonlyMap<string, string>> => {
+    if (reservations.length === 0) return new Map();
+    const orders = await orderReadPort.findByIds([...new Set(reservations.map((r) => r.orderId))]);
+    return new Map(orders.map((o) => [o.id, o.businessId]));
+  };
+
+  /**
    * The reservations of `reservations` whose order this buyer may read
    * (issue #748), under the rule `GET /api/v1/orders/:id` applies
    * (`specs/170-organization-roles/` FR-049): a member whose organization role
@@ -163,12 +178,14 @@ export async function registerCreditLimitsRoutes(
     async (): Promise<CreditLimitListResponse> => {
       const rows = await creditLimitService.listAll();
       const names = await loadOrgNames(rows.map((l) => l.organizationId));
-      const data = await Promise.all(
-        rows.map(async (l) => {
-          const reservations = await creditLimitService.listActiveReservations(l.id);
-          return serializeView(l, reservations, names.get(l.organizationId) ?? null);
-        }),
+      const reservationsByLimit = await Promise.all(
+        rows.map((l) => creditLimitService.listActiveReservations(l.id)),
       );
+      const orderNumbers = await orderNumbersOf(reservationsByLimit.flat());
+      const data = rows.map((l, i) => {
+        const reservations = reservationsByLimit[i] ?? [];
+        return serializeView(l, reservations, names.get(l.organizationId) ?? null, reservations, orderNumbers);
+      });
       return { data };
     },
   );
@@ -224,7 +241,10 @@ export async function registerCreditLimitsRoutes(
       }
       const reservations = await creditLimitService.listActiveReservations(limit.id);
       const names = await loadOrgNames([request.params.id]);
-      return { data: serializeView(limit, reservations, names.get(request.params.id) ?? null) };
+      const orderNumbers = await orderNumbersOf(reservations);
+      return {
+        data: serializeView(limit, reservations, names.get(request.params.id) ?? null, reservations, orderNumbers),
+      };
     },
   );
 
@@ -261,7 +281,16 @@ export async function registerCreditLimitsRoutes(
         }
         const reservations = await creditLimitService.listActiveReservations(result.limit.id);
         const names = await loadOrgNames([request.params.id]);
-        return { data: serializeView(result.limit, reservations, names.get(request.params.id) ?? null) };
+        const orderNumbers = await orderNumbersOf(reservations);
+        return {
+          data: serializeView(
+            result.limit,
+            reservations,
+            names.get(request.params.id) ?? null,
+            reservations,
+            orderNumbers,
+          ),
+        };
       } catch (err) {
         if (err instanceof Error && err.message === 'CREDIT_LIMIT_NOT_GRANTED') {
           throw new HttpError(
@@ -287,9 +316,10 @@ const ORDERS_VIEW_ORGANIZATION = 'orders.view_organization';
  * `reservations` is every active reservation of the limit and drives the
  * totals; `listed` is the subset the caller may read, defaulting to all of
  * them (the admin views). `orderNumbers` maps an order id to its
- * customer-facing number; only the customer view passes it (issue #661), and
- * an order it lacks answers `null`. The published `creditLimitViewSchema`
- * (issue #599).
+ * customer-facing number — the customer view since issue #661, the admin views
+ * since issue #1178 — and an order it lacks answers `null`; a caller that passes
+ * none (the fresh grant, which holds no reservation) omits the field. The
+ * published `creditLimitViewSchema` (issue #599).
  */
 function serializeView(
   limit: CreditLimit,

@@ -17,6 +17,8 @@ import { getServerContext } from '../../../../lib/server-context';
 import { getProductBySlug } from '../../../../lib/api/catalog';
 import { ClearListButton } from '../../../../components/shopping-lists/ClearListButton';
 import {
+  type CarriedConversionSkip,
+  type CarriedReport,
   decodeConversionSkips,
   encodeConversionSkips,
   reportMoreText,
@@ -75,6 +77,8 @@ export default async function ShoppingListDetailPage({
     rfqId?: string;
     rfqAdded?: string;
     rfqSkipped?: string;
+    /** Issue #1161 — the quote-request conversion's `skipped[]`, carried as `cartSkips` is. */
+    rfqSkips?: string;
     /** U4 — the row whose quantity edit was refused; the page words why beside its input. */
     qtyError?: string;
   }>;
@@ -117,7 +121,8 @@ export default async function ShoppingListDetailPage({
   // Feature 155 (FR-011) — which rows the conversion left out, and why (a minimum included).
   // Carried capped (the first rows plus a count), so the URL stays bounded.
   const cartSkipReport = sp.cartAdded !== undefined ? decodeConversionSkips(sp.cartSkips) : { lines: [], more: 0 };
-  const cartSkips = cartSkipReport.lines;
+  // Issue #1161 — the quote-request conversion names its skipped rows the same way, each with its reason.
+  const rfqSkipReport = sp.rfqAdded !== undefined ? decodeConversionSkips(sp.rfqSkips) : { lines: [], more: 0 };
   const uniqueProductIds = [...new Set(list.items.map((it) => it.productId))];
   const resolvedEntries = await Promise.all(
     uniqueProductIds.map(async (pid): Promise<[string, ResolvedProduct | null]> => {
@@ -147,26 +152,13 @@ export default async function ShoppingListDetailPage({
             : ''}
         </p>
       ) : null}
-      {cartSkips.length > 0 ? (
-        <section
-          aria-labelledby="list-cart-skips"
-          className="my-[12px] rounded-md border border-warn bg-warn-soft px-[16px] py-[12px] text-fg"
-        >
-          <h3 id="list-cart-skips" className="m-0 mb-1 text-[14px] font-semibold">
-            {t('shoppingList.skip.heading')}
-          </h3>
-          <ul className="m-0 pl-5 text-[13px]">
-            {cartSkips.map((skip) => (
-              <li key={skip.itemId}>
-                <strong>{productsById.get(skip.productId)?.name ?? t('cart.line.unknownProduct')}</strong>
-                {' — '}
-                {shoppingListSkipLabel(skip, locale)}
-              </li>
-            ))}
-            {cartSkipReport.more > 0 ? <li>{reportMoreText(cartSkipReport.more, locale)}</li> : null}
-          </ul>
-        </section>
-      ) : null}
+      <ConversionSkipReport
+        id="list-cart-skips"
+        heading={t('shoppingList.skip.heading')}
+        report={cartSkipReport}
+        productName={(productId) => productsById.get(productId)?.name ?? t('cart.line.unknownProduct')}
+        locale={locale}
+      />
       {sp.rfqAdded !== undefined && Number(sp.rfqAdded) > 0 ? (
         <p className="b2b-auth__success">
           {counted('account.shoppingList.rfqAdded', sp.rfqAdded)}
@@ -190,6 +182,13 @@ export default async function ShoppingListDetailPage({
             : ''}
         </p>
       ) : null}
+      <ConversionSkipReport
+        id="list-rfq-skips"
+        heading={t('shoppingList.skip.rfqHeading')}
+        report={rfqSkipReport}
+        productName={(productId) => productsById.get(productId)?.name ?? t('cart.line.unknownProduct')}
+        locale={locale}
+      />
 
       {!canEdit ? (
         <p className="b2b-auth__hint" role="note">
@@ -356,6 +355,48 @@ export default async function ShoppingListDetailPage({
         </>
       )}
     </>
+  );
+}
+
+/**
+ * Feature 155 (FR-011) / issue #1161 — the rows a conversion left out, each with its product and
+ * the reason it was skipped, below the conversion's counted sentence. Renders nothing for an
+ * empty report, which is also what a hand-made or malformed carried value decodes to.
+ */
+function ConversionSkipReport({
+  id,
+  heading,
+  report,
+  productName,
+  locale,
+}: {
+  id: string;
+  /** The section's heading, in the page's language. */
+  heading: string;
+  report: CarriedReport<CarriedConversionSkip>;
+  productName: (productId: string) => string;
+  locale: string;
+}): ReactNode {
+  if (report.lines.length === 0) return null;
+  return (
+    <section
+      aria-labelledby={id}
+      className="my-[12px] rounded-md border border-warn bg-warn-soft px-[16px] py-[12px] text-fg"
+    >
+      <h3 id={id} className="m-0 mb-1 text-[14px] font-semibold">
+        {heading}
+      </h3>
+      <ul className="m-0 pl-5 text-[13px]">
+        {report.lines.map((skip) => (
+          <li key={skip.itemId}>
+            <strong>{productName(skip.productId)}</strong>
+            {' — '}
+            {shoppingListSkipLabel(skip, locale)}
+          </li>
+        ))}
+        {report.more > 0 ? <li>{reportMoreText(report.more, locale)}</li> : null}
+      </ul>
+    </section>
   );
 }
 

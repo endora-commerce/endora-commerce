@@ -97,7 +97,7 @@ export default async function ShoppingListsPage({
             {lists.map((l) => (
               <tr key={l.id}>
                 <td>
-                  <LocalizedLink href={`/shopping-lists/${l.id}`}>{shoppingListDisplayName(l, t)}</LocalizedLink>
+                  <LocalizedLink href={`/shopping-lists/${l.id}`} className="b2b-account__link">{shoppingListDisplayName(l, t)}</LocalizedLink>
                 </td>
                 <td>{l.items.length}</td>
                 <td>{new Date(l.updatedAt).toLocaleString(locale)}</td>

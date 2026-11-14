@@ -109,6 +109,11 @@ describe('organization carts list — issue #650', () => {
     expect(html).toContain('href="/organization/carts/c1"');
     expect(html).toContain('href="/organization/carts/c2"');
     expect(html).toContain('Review');
+    // Issue #1178 — the row link reads as a link, not as the cell's text.
+    for (const id of ['c1', 'c2']) {
+      const anchor = new RegExp(`<a[^>]*href="/organization/carts/${id}"[^>]*>`).exec(html)?.[0] ?? '';
+      expect(anchor).toMatch(/class="b2b-account__link"/);
+    }
   });
 
   it('lists every cart unfiltered by default and marks that view current', async () => {
@@ -199,7 +204,11 @@ describe('organization carts list — a completed cart links to its order (issue
     orderId: '00000000-0000-4000-8000-000000000751',
   });
   const link = (text: string): RegExp =>
-    new RegExp(`<td colSpan="2"><a[^>]*href="/orders/00000000-0000-4000-8000-000000000751"[^>]*>${text}</a></td>`, 'i');
+    // Issue #1178 — marked as a link by the account tables' shared class.
+    new RegExp(
+      `<td colSpan="2"><a[^>]*class="b2b-account__link"[^>]*href="/orders/00000000-0000-4000-8000-000000000751"[^>]*>${text}</a></td>`,
+      'i',
+    );
 
   it.each([
     ['en-US', 'View order'],

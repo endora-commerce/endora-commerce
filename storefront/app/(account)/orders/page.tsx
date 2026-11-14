@@ -63,7 +63,7 @@ export default async function OrdersListPage(): Promise<ReactNode> {
           {orders.map((o) => (
             <tr key={o.id}>
               <td>
-                <LocalizedLink href={`/orders/${o.id}`} className="underline">
+                <LocalizedLink href={`/orders/${o.id}`} className="b2b-account__link">
                   {o.businessId}
                 </LocalizedLink>
               </td>

@@ -73,7 +73,7 @@ export default async function ReturnsListPage(): Promise<ReactNode> {
                   {formatMoney(c.totalRefundAmount, c.currency)}
                 </td>
                 <td>
-                  <LocalizedLink href={`/returns/${c.id}`}>{t('account.common.open')}</LocalizedLink>
+                  <LocalizedLink href={`/returns/${c.id}`} className="b2b-account__link">{t('account.common.open')}</LocalizedLink>
                 </td>
               </tr>
             ))}
