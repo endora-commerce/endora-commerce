@@ -48,26 +48,30 @@ export default async function OrdersListPage(): Promise<ReactNode> {
       <table className="b2b-account__table">
         <thead>
           <tr>
-            <th>{t('account.orders.col.placed')}</th>
+            {/* Issue #662 — the number first: it is what the buyer scans for and
+                quotes to support, and it is the row's one link to the detail, as
+                the name is on the shopping-lists table. Underlined, because a
+                storefront link inherits the text colour. */}
             <th>{t('account.orders.col.order')}</th>
+            <th>{t('account.orders.col.placed')}</th>
             <th>{t('account.common.status')}</th>
             <th>{t('account.orders.col.payment')}</th>
             <th className="text-right">{t('account.common.total')}</th>
-            <th></th>
           </tr>
         </thead>
         <tbody>
           {orders.map((o) => (
             <tr key={o.id}>
+              <td>
+                <LocalizedLink href={`/orders/${o.id}`} className="underline">
+                  {o.businessId}
+                </LocalizedLink>
+              </td>
               <td>{new Date(o.placedAt).toLocaleDateString(locale)}</td>
-              <td>{o.businessId}</td>
               <td>{resolveOrderStatusLabel(o, locale)}</td>
               <td>{codeLabel(t, 'account.paymentStatus', o.paymentStatus)}</td>
               <td className="text-right">
                 {formatMoney(o.total, o.currency, locale)}
-              </td>
-              <td>
-                <LocalizedLink href={`/orders/${o.id}`}>{t('account.common.open')}</LocalizedLink>
               </td>
             </tr>
           ))}
