@@ -54,6 +54,7 @@ import { NegotiationPolicyService } from './services/negotiation-policy-service.
 import { startRfqExpirySweep } from './workers/rfq-expiry-sweep-worker.js';
 import { startRfqNotificationDelivery } from './workers/rfq-notification-delivery-worker.js';
 import { createNotificationKickProducer } from './services/notifications/kick.js';
+import { resolveCustomerStorefrontUrl } from './services/notifications/storefront-url.js';
 import { registerQuoteRequestSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import {
   effectiveState,
@@ -605,17 +606,16 @@ export function registerModule(ctx: ModuleContext): void {
               getById: (id) => ctx.cradle<QuoteRequestsCradle>().salesChannelResolutionPort.getById(id),
               getSystemDefault: () => ctx.cradle<QuoteRequestsCradle>().salesChannelResolutionPort.getSystemDefault(),
             },
-            storefrontUrl: async (salesChannelId) => {
-              try {
-                return await ctx
-                  .cradle<QuoteRequestsCradle>()
-                  .settingsReadPort.get('sales_channels.storefront_url', salesChannelId, z.string());
-              } catch (error) {
-                // The two conditions that mean "not configured here", and no others.
-                if (error instanceof SettingNotRegistered || error instanceof SettingOutOfScopeForChannel) return null;
-                throw error;
-              }
-            },
+            // The setting, then `STOREFRONT_BASE_URL` — as the setting defines
+            // itself — and no third rung.
+            storefrontUrl: (salesChannelId) =>
+              resolveCustomerStorefrontUrl(
+                (id) =>
+                  ctx
+                    .cradle<QuoteRequestsCradle>()
+                    .settingsReadPort.get('sales_channels.storefront_url', id, z.string()),
+                salesChannelId,
+              ),
             isPresent: (moduleId) => effectiveState.isPresent(moduleId),
           },
         });

@@ -215,7 +215,11 @@ export interface ChannelAdapterDeps {
    * default channel's language for a push about a request raised with none.
    */
   channels: Pick<SalesChannelResolutionPort, 'getById' | 'getSystemDefault'>;
-  /** `sales_channels.storefront_url` of a channel, `null` when not configured. */
+  /**
+   * A channel's storefront address: `sales_channels.storefront_url`, then
+   * `STOREFRONT_BASE_URL` (`resolveCustomerStorefrontUrl`); `null` when neither
+   * is configured, and the customer e-mail then carries no link.
+   */
   storefrontUrl: (salesChannelId: string) => Promise<string | null>;
 }
 
