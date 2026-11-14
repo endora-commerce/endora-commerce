@@ -101,6 +101,8 @@
   "errors.PRECEDENCE_CHANGE_UNAVAILABLE": "Changing the price precedence is not available yet.",
   "errors.PRICE_BOOK_AUDIENCE_KIND": "A price book's audience is everyone, a set of customer groups or a set of organizations, never a mix, and every member must exist.",
   "errors.PRICE_BOOK_BASE_BOOK": "This is a base book: its rows are base prices, set in the product's base prices.",
+  "errors.PRICE_BOOK_BASE_HAS_NO_CHANNELS": "The {currency} base book applies in every sales channel and has no channel set. Bind a regular price book to the channels instead.",
+  "errors.PRICE_BOOK_BASE_PRICE_REQUIRED": "A variant of this product has a percentage or amount adjustment, which needs the product's own base price in {currency}. Keep a base price for the product in {currency}, or remove the variant's adjustment first.",
   "errors.PRICE_BOOK_CHANNEL_CURRENCY": "A sales channel in this price book does not offer the book's currency.",
   "errors.PRICE_BOOK_EXPIRED": "This price book has expired and takes no price rows.",
   "errors.PRICE_BOOK_IMMUTABLE_FIELD": "This field of the price book cannot change: the currency never changes, and the audience kind is fixed once the book has been active.",

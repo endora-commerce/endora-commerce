@@ -466,6 +466,8 @@ wskazać wersję, względem której powstały; bez niej odpowiadają `400`, a wz
 | `PRICE_BOOK_ROW_SHAPE` | 400 | każdy inny odrzucony wiersz (kod koperty, gdy błędy są mieszane) |
 | `PRICE_BOOK_ROW_TARGET`, `PRICE_BOOK_ROW_LIMIT` | — | kody poszczególnych wierszy w `details.errors` (`PRICE_BOOK_ROW_LIMIT` jest też kodem koperty, gdy każdy błąd dotyczy limitu) |
 | `PRECEDENCE_CHANGE_UNAVAILABLE` | 409 | każdy zapis pod `…/precedence` |
+| `PRICE_BOOK_BASE_PRICE_REQUIRED` | 400 | zapis cen bazowych, który zachowuje procentową lub kwotową korektę wariantu, ale zostawia produkt bez własnej ceny bazowej w tej walucie (`details.productId`, `currency` i tablica `issues`) |
+| `PRICE_BOOK_BASE_HAS_NO_CHANNELS` | 400 | zbiór kanałów zapisywany dla cennika cen bazowych, który obowiązuje we wszystkich kanałach (`details.priceBookId`, `currency`) |
 
 Odrzucona partia wymienia **każdy** błędny wiersz w `details.errors: [{ index?, rowId?, field, code,
 reason, message }]` — `index` to pozycja wiersza w `upsert`, `rowId` — zapisany wiersz. `reason` to
@@ -499,7 +501,7 @@ wywołuje `resolved-price` dla każdej karty.
 | Nazwa w kontenerze | Kontrakt (`@endora-commerce/contracts`) | Do czego służy |
 | --- | --- | --- |
 | `pricingService` | `ListingPricePort`, `ListingPriceDetailPort`, `LinePricesPort`, `ListingPriceOrderPort`, `OrgLinePricePort` | każdy odczyt ceny (wyżej) |
-| `buyerLinePricePort` | `BuyerLinePricePort.resolveForBuyer({ buyer, salesChannelId, currencyCode?, lines })` | cena jednostkowa netto, którą wskazany kupujący płaci teraz za każdą pozycję; bez sprawdzania uprawnień — wywołujący przekazuje kupującego, którego autoryzował |
+| `buyerLinePricePort` | `BuyerLinePricePort.resolveForBuyer({ buyer, salesChannelId, currencyCode?, lines })` | cena jednostkowa netto, którą wskazany kupujący płaci teraz za każdą pozycję; bez sprawdzania uprawnień — wywołujący przekazuje kupującego, którego autoryzował. Kanał `null` wycenia w domyślnym kanale systemowym; gdy go brak, czego uruchomione wdrożenie nigdy nie ma, rzuca platformowy `NoSystemDefaultChannel` (`500 INTERNAL`) |
 | `priceListReadPort` | `PriceListReadPort` — `findById`, `findByIds`, `listAll`, `listActive`, `listForOrganization({ organizationChain, customerGroupId })` | nagłówki cenników; cenniki obowiązujące organizację przez jej własne członkostwo, członkostwo przodka albo jej grupę, każdy z `reason` i `depth` w łańcuchu |
 | `productDisplayModePort` | `ProductDisplayModePort.resolveDisplayMode` | tryb prezentacji produktu dla kupującego |
 | `priceBookWritePort` | `PriceBookWritePort` | **ceny bazowe** produktu, dla importu cen z innego modułu |
@@ -528,7 +530,10 @@ interface PriceBookWritePort {
 - Cennik cen bazowych jest wskazywany przez **walutę**, nigdy przez id; waluta bez cennika cen
   bazowych dostaje go w tym samym poleceniu. Kwoty są ciągami dziesiętnymi.
 - Walidacja i odmowy są takie jak w API administracyjnym: `400 VALIDATION_FAILED` z `details`,
-  `404 NOT_FOUND` dla nieznanego produktu.
+  `404 NOT_FOUND` dla nieznanego produktu. `replaceProductBaseTiers` zachowuje wiersze wariantów,
+  więc zapis, który zostawiłby procentową lub kwotową korektę wariantu bez własnej ceny bazowej
+  produktu w tej walucie, daje `400 PRICE_BOOK_BASE_PRICE_REQUIRED` (`details.productId`,
+  `currency`, `issues`).
 - `booksPricingProduct` to lista z panelu przefiltrowana po `productId`, wszystkie strony, każdy
   cennik widoczny.
 - Odmawia w razie wątpliwości: rozwiązanie go, gdy modułu `price_lists` nie ma, rzuca

@@ -9,6 +9,7 @@ import {
   isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { NoSystemDefaultChannel } from '@endora-commerce/platform/kernel';
 import type { PriceSource } from '@endora-commerce/contracts';
 import type { PricingServiceContract } from './pricing-service.interface.js';
 import type { BookExplanation } from './book-resolver.js';
@@ -194,9 +195,10 @@ export class BuyerLinePriceService implements BuyerLinePricePort {
   async #channel(salesChannelId: string | null): Promise<BuyerPriceChannel> {
     if (salesChannelId === null) {
       const fallback = await this.deps.salesChannels.findSystemDefault();
-      if (!fallback) {
-        throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'No default sales channel.');
-      }
+      // Issue #636 (#86): not the caller's error and nothing a buyer can fix —
+      // the boot reconciler guarantees a default channel — so the platform's
+      // one spelling of that state (D-48), a 500 like the resolver's own.
+      if (!fallback) throw new NoSystemDefaultChannel();
       return fallback;
     }
     // Shape first: a malformed id would reach Postgres as a failed `uuid` cast.

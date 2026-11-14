@@ -919,6 +919,15 @@ export const ERROR_CODES = {
   PRICE_BOOK_BASE_BOOK: 'PRICE_BOOK_BASE_BOOK',
   /** Issue #1028 — an expired book prices nothing and takes no row write from another module. */
   PRICE_BOOK_EXPIRED: 'PRICE_BOOK_EXPIRED',
+  // Two `price_lists` refusals raised as `VALIDATION_FAILED` until issue #636
+  // (#86). Declared by the `price_lists` manifest.
+  /**
+   * 400 — a variant's percentage or amount adjustment would lose the product's own
+   * base price in that currency (`details.productId`, `currency`, `issues`).
+   */
+  PRICE_BOOK_BASE_PRICE_REQUIRED: 'PRICE_BOOK_BASE_PRICE_REQUIRED',
+  /** 400 — a base book is channel-independent and takes no channel set (`details.priceBookId`, `currency`). */
+  PRICE_BOOK_BASE_HAS_NO_CHANNELS: 'PRICE_BOOK_BASE_HAS_NO_CHANNELS',
   /** Feature 160 — the precedence is read-only until the change flow ships (FR-023). */
   PRECEDENCE_CHANGE_UNAVAILABLE: 'PRECEDENCE_CHANGE_UNAVAILABLE',
 

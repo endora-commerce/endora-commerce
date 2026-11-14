@@ -101,6 +101,8 @@
   "errors.PRECEDENCE_CHANGE_UNAVAILABLE": "Zmiana kolejności pierwszeństwa cen nie jest jeszcze dostępna.",
   "errors.PRICE_BOOK_AUDIENCE_KIND": "Odbiorcy cennika to wszyscy, zbiór grup klientów albo zbiór organizacji, nigdy mieszanka, a każdy członek musi istnieć.",
   "errors.PRICE_BOOK_BASE_BOOK": "To jest cennik bazowy: jego wiersze to ceny bazowe, ustawiane w cenach bazowych produktu.",
+  "errors.PRICE_BOOK_BASE_HAS_NO_CHANNELS": "Cennik bazowy {currency} obowiązuje we wszystkich kanałach sprzedaży i nie ma zestawu kanałów. Przypisz do kanałów zwykły cennik.",
+  "errors.PRICE_BOOK_BASE_PRICE_REQUIRED": "Wariant tego produktu ma korektę procentową lub kwotową, która wymaga własnej ceny bazowej produktu w {currency}. Zostaw produktowi cenę bazową w {currency} albo najpierw usuń korektę wariantu.",
   "errors.PRICE_BOOK_CHANNEL_CURRENCY": "Kanał sprzedaży w tym cenniku nie oferuje waluty cennika.",
   "errors.PRICE_BOOK_EXPIRED": "Ten cennik wygasł i nie przyjmuje wierszy cen.",
   "errors.PRICE_BOOK_IMMUTABLE_FIELD": "Tego pola cennika nie można zmienić: waluta nie zmienia się nigdy, a rodzaj odbiorców jest stały, odkąd cennik był aktywny.",

@@ -382,15 +382,15 @@ export class PriceBookService {
             priceType: { $in: ['percent', 'amount'] },
           });
           if (adjusted > 0) {
-            validation(
-              [
-                {
-                  path: ['byCurrency', code, 'product'],
-                  message: "A variant's percentage or amount adjustment needs the product's own base price in this currency.",
-                },
-              ],
-              'The base prices were refused.',
-            );
+            // Issue #636 (#86): the stored variant rows refuse it, not the
+            // request, so a code of its own; the sentence names the currency,
+            // which only a scalar `details` member can fill.
+            const issue = "A variant's percentage or amount adjustment needs the product's own base price in this currency.";
+            throw new HttpError(400, ERROR_CODES.PRICE_BOOK_BASE_PRICE_REQUIRED, `The base prices were refused. ${issue}`, {
+              productId,
+              currency: code,
+              issues: [{ path: `byCurrency.${code}.product`, issue }],
+            });
           }
         }
         // 161 (Checkpoint 6 review): a row the write leaves as it was keeps its
@@ -701,7 +701,13 @@ export class PriceBookService {
     const em = this.deps.emFactory();
     const book = await this.#book(em, bookId);
     if (book.isSystem) {
-      validation([{ path: ['channelIds'], message: 'A base book is channel-independent and has no channel set.' }], 'The channel set was refused.');
+      // Issue #636 (#86): the book's own kind refuses it, so a code of its own.
+      throw new HttpError(
+        400,
+        ERROR_CODES.PRICE_BOOK_BASE_HAS_NO_CHANNELS,
+        'The channel set was refused. A base book is channel-independent and has no channel set.',
+        { priceBookId: book.id, currency: book.currency },
+      );
     }
     if (channelIds.length === 0) {
       validation([{ path: ['channelIds'], message: 'A price book needs at least one sales channel.' }], 'The channel set was refused.');
