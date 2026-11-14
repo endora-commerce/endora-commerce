@@ -34,10 +34,14 @@ export class PwaConfigResolver {
     private readonly settings: SettingsReadPort,
     private readonly emFactory: () => EntityManager,
     /**
-     * Whether `quote_requests` is effectively present — the `degrades-without`
-     * edge's presence decision (`specs/149-pwa-order-status-push/`). Passed
-     * rather than read here, so the resolver can be tested with no lifecycle
-     * composed; `plugin.ts` supplies `effectiveState.isPresent`.
+     * Whether `quote_requests` is effectively present
+     * (`specs/149-pwa-order-status-push/`): without it no quote push is ever
+     * produced, so the storefront offers no quote choice. A presence read, not
+     * a port call — since `specs/179-rfq-and-customer-notifications/` WP-10
+     * this module reads nothing of that owner, and it is `quote_requests` that
+     * declares `degrades-without pwa`. Passed rather than read here, so the
+     * resolver can be tested with no lifecycle composed; `plugin.ts` supplies
+     * `effectiveState.isPresent`.
      */
     private readonly isQuoteRequestsPresent: () => boolean,
   ) {}

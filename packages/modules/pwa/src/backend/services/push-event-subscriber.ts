@@ -3,7 +3,6 @@ import {
   type PlatformLogger,
 } from '@endora-commerce/platform/kernel';
 import type { StatusPushComposer } from './status-push-composer.js';
-import type { QuoteStatusPushKind } from './status-push-copy.js';
 
 /**
  * Where a skipped or failed auto-trigger push is written down.
@@ -36,7 +35,7 @@ export interface PushEventSubscriberDeps {
   log: () => PushEventLogger;
 }
 
-type PushTriggerName = 'order_status' | 'quote_request';
+type PushTriggerName = 'order_status';
 
 /** A non-empty string field of an untyped payload, or `null`. */
 function stringField(payload: unknown, field: string): string | null {
@@ -46,9 +45,12 @@ function stringField(payload: unknown, field: string): string | null {
 }
 
 /**
- * The automatic status-push handlers (FR-024 of feature 046, reshaped by
- * `specs/149-pwa-order-status-push/`): one for `order.status_changed.v1` and
- * one per consumed `rfq.*` event. Each reads its payload defensively — the bus
+ * The automatic status-push handler (FR-024 of feature 046, reshaped by
+ * `specs/149-pwa-order-status-push/`): one for `order.status_changed.v1`. The
+ * quote half — one handler per consumed `rfq.*` event — is gone since
+ * `specs/179-rfq-and-customer-notifications/` WP-10 (FR-061): `quote_requests`
+ * pushes through `customerPushPort`, after its own delivery records, so a
+ * change is never pushed twice. It reads its payload defensively — the bus
  * hands it over untyped, and a payload missing what the composer needs is
  * dropped — and hands the rest to the {@link StatusPushComposer}, which owns
  * the gates. One push message per event, idempotent on the event id; producer
@@ -56,8 +58,8 @@ function stringField(payload: unknown, field: string): string | null {
  * own failure so a push problem never breaks the business transaction that
  * announced itself.
  *
- * The subscriptions live in this module's `backend/index.ts` and go through
- * `ctx.subscribe` (issue #107). They were bare `eventBus.on` calls here, so
+ * The subscription lives in this module's `backend/index.ts` and goes through
+ * `ctx.subscribe` (issue #107). It was a bare `eventBus.on` calls here, so
  * a switched-off `pwa` still wrote a `push_messages` row and still delivered a
  * notification to a customer's device — the most visible of the writes that
  * survived their module.
@@ -85,7 +87,6 @@ function stringField(payload: unknown, field: string): string | null {
  */
 export function createPushEventHandlers(deps: PushEventSubscriberDeps): {
   onOrderStatusChanged: (payload: unknown) => Promise<void>;
-  onQuoteStatusEvent: (what: QuoteStatusPushKind) => (payload: unknown) => Promise<void>;
 } {
   async function absorb(
     trigger: PushTriggerName,
@@ -117,16 +118,6 @@ export function createPushEventHandlers(deps: PushEventSubscriberDeps): {
       const to = stringField(raw, 'to');
       if (!eventId || !orderId || !to) return;
       await absorb('order_status', eventId, () => deps.composer.order({ eventId, orderId, to }));
-    },
-
-    // rfq.created_by_admin / modified / approved / canceled / expired (quote_requests)
-    onQuoteStatusEvent(what: QuoteStatusPushKind) {
-      return async (raw: unknown): Promise<void> => {
-        const eventId = stringField(raw, 'eventId');
-        const rfqId = stringField(raw, 'rfqId');
-        if (!eventId || !rfqId) return;
-        await absorb('quote_request', eventId, () => deps.composer.quote({ eventId, rfqId, what }));
-      };
     },
   };
 }

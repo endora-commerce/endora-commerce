@@ -6,7 +6,6 @@ import {
 } from '../../../../packages/modules/pwa/src/backend/services/push-event-subscriber.js';
 import type {
   OrderStatusPushEvent,
-  QuoteStatusPushEvent,
   StatusPushComposer,
 } from '../../../../packages/modules/pwa/src/backend/services/status-push-composer.js';
 
@@ -21,8 +20,10 @@ import type {
  *
  * "No push" is the right outcome for both. Sharing one silent no-op is not:
  * one is an operator's own switch doing what it says, the other is an incident.
- * These cases pin the two apart for both triggers, and pin what a malformed
- * payload does: nothing, and no error line.
+ * These cases pin the two apart, and pin what a malformed payload does:
+ * nothing, and no error line. The quote trigger is gone since
+ * `specs/179-rfq-and-customer-notifications/` WP-10 (FR-061); quote pushes go
+ * through `customerPushPort`, whose caller keeps the outcome on a record.
  */
 
 interface Recorded {
@@ -51,21 +52,16 @@ function recordingLogger(): { logger: PushEventLogger; lines: Recorded[] } {
 
 interface Calls {
   orders: OrderStatusPushEvent[];
-  quotes: QuoteStatusPushEvent[];
 }
 
 function handlersWith(
   fail: () => Promise<never>,
   logger: PushEventLogger,
-  calls: Calls = { orders: [], quotes: [] },
+  calls: Calls = { orders: [] },
 ): ReturnType<typeof createPushEventHandlers> {
   const composer: StatusPushComposer = {
     order: async (event) => {
       calls.orders.push(event);
-      return fail();
-    },
-    quote: async (event) => {
-      calls.quotes.push(event);
       return fail();
     },
   };
@@ -79,8 +75,6 @@ const ORDER_EVENT = {
   from: 'paid',
   to: 'shipment_sent',
 };
-
-const QUOTE_EVENT = { eventId: 'evt-2', rfqId: 'qr-1', organizationId: 'org-1' };
 
 describe('pwa status pushes — a switched-off owner is not a failure', () => {
   it('records an order-status push skipped by a disabled module, naming the module', async () => {
@@ -101,23 +95,6 @@ describe('pwa status pushes — a switched-off owner is not a failure', () => {
     });
   });
 
-  it('records a quote push skipped by a disabled module, naming the module', async () => {
-    const { logger, lines } = recordingLogger();
-    const handlers = handlersWith(async () => {
-      throw new ModuleDisabledError('quote_requests');
-    }, logger);
-
-    await expect(handlers.onQuoteStatusEvent('approved')(QUOTE_EVENT)).resolves.toBeUndefined();
-
-    expect(lines).toHaveLength(1);
-    expect(lines[0]?.event).toBe('pwa.push_skipped_module_disabled');
-    expect(lines[0]?.fields).toMatchObject({
-      module: 'quote_requests',
-      trigger: 'quote_request',
-      eventId: 'evt-2',
-    });
-  });
-
   it('keeps a transient failure separate — a different event name, at error level', async () => {
     const { logger, lines } = recordingLogger();
     const handlers = handlersWith(async () => {
@@ -125,42 +102,34 @@ describe('pwa status pushes — a switched-off owner is not a failure', () => {
     }, logger);
 
     await expect(handlers.onOrderStatusChanged(ORDER_EVENT)).resolves.toBeUndefined();
-    await expect(handlers.onQuoteStatusEvent('expired')(QUOTE_EVENT)).resolves.toBeUndefined();
 
-    expect(lines.map((l) => [l.level, l.event])).toEqual([
-      ['error', 'pwa.push_enqueue_failed'],
-      ['error', 'pwa.push_enqueue_failed'],
-    ]);
+    expect(lines.map((l) => [l.level, l.event])).toEqual([['error', 'pwa.push_enqueue_failed']]);
     expect(lines[0]?.fields).not.toHaveProperty('module');
-    expect(lines[1]?.fields).toMatchObject({ trigger: 'quote_request', eventId: 'evt-2' });
+    expect(lines[0]?.fields).toMatchObject({ trigger: 'order_status', eventId: 'evt-1' });
   });
 
-  it('hands the composer what it needs, and the kind of quote event', async () => {
+  it('hands the composer what it needs', async () => {
     const { logger } = recordingLogger();
-    const calls: Calls = { orders: [], quotes: [] };
+    const calls: Calls = { orders: [] };
     const handlers = handlersWith(async () => 'enqueued' as never, logger, calls);
 
     await handlers.onOrderStatusChanged(ORDER_EVENT);
-    await handlers.onQuoteStatusEvent('revised')(QUOTE_EVENT);
 
     expect(calls.orders).toEqual([{ eventId: 'evt-1', orderId: 'ord-1', to: 'shipment_sent' }]);
-    expect(calls.quotes).toEqual([{ eventId: 'evt-2', rfqId: 'qr-1', what: 'revised' }]);
   });
 
   it('drops a payload missing what it needs, without an error line', async () => {
     const { logger, lines } = recordingLogger();
-    const calls: Calls = { orders: [], quotes: [] };
+    const calls: Calls = { orders: [] };
     const handlers = handlersWith(async () => 'enqueued' as never, logger, calls);
 
     await handlers.onOrderStatusChanged({ ...ORDER_EVENT, eventId: undefined });
     await handlers.onOrderStatusChanged({ ...ORDER_EVENT, orderId: 42 });
     await handlers.onOrderStatusChanged({ ...ORDER_EVENT, to: '' });
     await handlers.onOrderStatusChanged(null);
-    await handlers.onQuoteStatusEvent('approved')({ eventId: 'evt-3' });
-    await handlers.onQuoteStatusEvent('approved')({ rfqId: 'qr-1' });
-    await handlers.onQuoteStatusEvent('approved')('not an object');
+    await handlers.onOrderStatusChanged('not an object');
 
-    expect(calls).toEqual({ orders: [], quotes: [] });
+    expect(calls).toEqual({ orders: [] });
     expect(lines.filter((l) => l.level === 'error')).toEqual([]);
   });
 });

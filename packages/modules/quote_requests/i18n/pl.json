@@ -197,5 +197,6 @@
   "customerNotifications.prepared.title": "Przygotowaliśmy dla Ciebie zapytanie ofertowe {number}",
   "customerNotifications.revised.title": "Oferta do zapytania {number} jest gotowa",
   "customerNotifications.approved.title": "Zapytanie ofertowe {number} zostało zatwierdzone",
-  "customerNotifications.canceled.title": "Zapytanie ofertowe {number} zostało anulowane"
+  "customerNotifications.canceled.title": "Zapytanie ofertowe {number} zostało anulowane",
+  "customerPush.title": "Aktualizacja zapytania ofertowego"
 }

@@ -29,14 +29,18 @@ workera oraz opcjonalne powiadomienia push za warstwą niezależną od dostawcy.
   - **Zmiany statusu zamówienia** — za każdym razem, gdy zamówienie klienta przechodzi do nowego
     statusu. Powiadomienie podaje numer zamówienia i status w brzmieniu nadanym przez sklep, a po
     kliknięciu otwiera to zamówienie.
-  - **Zmiany statusu zapytania ofertowego** — gdy pracownik przygotuje ofertę dla klienta, gdy
-    oferta zostanie zaktualizowana, zatwierdzona lub anulowana oraz gdy wygaśnie. Powiadomienie
-    podaje numer zapytania i po kliknięciu otwiera to zapytanie. Złożenie zapytania przez samego
-    klienta nie wysyła mu powiadomienia.
+  - **Zmiany w zapytaniach ofertowych** — moduł zapytań ofertowych wysyła push o tych samych
+    zmianach, o których informuje kupujących e-mailem i w centrum powiadomień sklepu: złożenie lub
+    ponowne złożenie zapytania, przyjęcie lub odrzucenie oferty, przygotowanie, aktualizacja,
+    zatwierdzenie lub anulowanie zapytania przez pracownika oraz wygaśnięcie zapytania.
+    Powiadomienie podaje numer zapytania i po kliknięciu otwiera to zapytanie. Nikt nie dostaje
+    powiadomienia o zmianie, którą sam wprowadził.
 
-  Powiadamiany jest wyłącznie klient, który złożył zamówienie lub zapytanie, na urządzeniach
-  zasubskrybowanych w danym kanale sprzedaży. Powiadomienia są pisane w języku kanału sprzedaży
-  (po polsku albo po angielsku; dla każdego innego języka — po angielsku).
+  Powiadomienie o zamówieniu trafia do klienta, który złożył zamówienie. Powiadomienie o zapytaniu
+  ofertowym trafia do osoby, która je złożyła, i do członków jej organizacji, którzy mogą to
+  zapytanie otworzyć — tych samych osób, do których moduł zapytań ofertowych wysyła e-maile. Każde
+  jest wysyłane na urządzenia zasubskrybowane w danym kanale sprzedaży i pisane w języku kanału
+  sprzedaży (po polsku albo po angielsku; dla każdego innego języka — po angielsku).
 - **Wybór zmian statusu, o których wysyłamy powiadomienia** — w **Settings → PWA**, pod
   przełącznikiem powiadomień push, opcje *Powiadamiaj o zmianach statusu zamówienia* i
   *Powiadamiaj o zmianach statusu zapytań ofertowych* włączają lub wyłączają każdą kategorię,
@@ -72,34 +76,39 @@ każdego kanału sprzedaży przez standardowy łańcuch: wartość globalna, pot
 | `pwa.vapid_private_key` | secret | podpis Web Push (szyfrowany AES-256-GCM w bazie) |
 | `pwa.fcm_service_account` | secret | zarezerwowane dla dostawcy FCM opartego na tokenach |
 
-### Automatyczne powiadomienia o zmianie statusu
+### Automatyczne powiadomienia o zmianie statusu zamówienia
 
-Oba wyzwalacze obsługuje jeden wewnętrzny moduł składający (`status-push-composer.ts`), który
-sprawdza warunki w stałej kolejności: obiekt (zamówienie złożone przez konto klienta albo zapytanie
-ofertowe) → jego kanał (zapytanie utworzone poza kanałem używa domyślnego kanału systemu) →
-`pwa.push_enabled` i ustawienie kategorii dla tego kanału → konto (konta nieistniejące, usunięte
-lub zanonimizowane są pomijane) → wybór klienta. Treść `notification.*` z pakietu tłumaczeń
-modułu jest renderowana przez `_i18n` w domyślnym języku kanału, a dla każdego zdarzenia trafia do
-kolejki jedna wiadomość z `audience.customers = [konto]` i `sourceEventId = eventId`, więc
-ponownie dostarczone zdarzenie nie tworzy drugiej wiadomości. Cała sekwencja działa w zakresie
-systemowym: proces wygaszania zapytań emituje zdarzenie bez żadnego kontekstu dzierżawy.
+Wewnętrzny moduł składający (`status-push-composer.ts`) obsługuje `order.status_changed.v1`
+(`orders`) i sprawdza warunki w stałej kolejności: zamówienie (złożone przez konto klienta) → jego
+kanał (domyślny kanał systemu dla zamówienia bez kanału) → `pwa.push_enabled` i
+`pwa.push_order_status_enabled` dla tego kanału → konto (konta nieistniejące, usunięte lub
+zanonimizowane są pomijane) → wybór klienta. Treść `notification.orderStatus.*` z pakietu
+tłumaczeń modułu jest renderowana przez `_i18n` w domyślnym języku kanału — numer zamówienia i
+nazwa statusu z `orderReadPort.findStatusDefinition(to)` (nazwa w języku → nazwa domyślna → kod),
+z otwarciem `/orders/<id>` — a dla każdego zdarzenia trafia do kolejki jedna wiadomość z
+`audience.customers = [konto]` i `sourceEventId = eventId`, więc ponownie dostarczone zdarzenie
+nie tworzy drugiej wiadomości. Cała sekwencja działa w zakresie systemowym. Błąd podczas tworzenia
+powiadomienia jest zapisywany w logu (`pwa.push_enqueue_failed`), odmowa wyłączonego
+modułu-właściciela — osobnym wpisem (`pwa.push_skipped_module_disabled`); żadne z nich nie wpływa
+na zmianę statusu, która je wywołała.
 
-| Zdarzenie (właściciel) | Powiadomienie |
-|---------------|--------------|
-| `order.status_changed.v1` (`orders`) | numer zamówienia i nazwa statusu z `orderReadPort.findStatusDefinition(to)` (nazwa w języku → nazwa domyślna → kod); otwiera `/orders/<id>` |
-| `rfq.created_by_admin.v1` (`quote_requests`) | *przygotowano dla Ciebie*; otwiera `/quote-requests/<id>` |
-| `rfq.modified.v1` | *czeka zaktualizowana oferta* |
-| `rfq.approved.v1` | *zatwierdzone* |
-| `rfq.canceled.v1` | *anulowane* |
-| `rfq.expired.v1` | *wygasło* |
+### `customerPushPort` — powiadomienia push zlecane przez inne moduły
 
-`rfq.created.v1` (złożenie zapytania przez samego klienta) nie jest obsługiwane. Część dotycząca
-zapytań odczytuje `quoteRequestReadPort` przez niewiążącą zależność **`degrades-without`** od
-`quote_requests`: przed wywołaniem portu sprawdza, czy ten moduł jest obecny, więc przy wyłączonych
-zapytaniach ofertowych powiadomienia o zamówieniach działają dalej, a przełącznik i wybór dla
-zapytań po prostu nie są oferowane. Błąd podczas tworzenia powiadomienia jest zapisywany w logu
-(`pwa.push_enqueue_failed`), odmowa wyłączonego modułu-właściciela — osobnym wpisem
-(`pwa.push_skipped_module_disabled`); żadne z nich nie wpływa na zmianę statusu, która je wywołała.
+Powiadomienia o zapytaniach ofertowych nie są tu wyzwalane zdarzeniami: moduł nie subskrybuje
+żadnego zdarzenia `rfq.*`. `quote_requests` decyduje, kogo i kiedy powiadomić, sam renderuje zdanie
+i wywołuje publikowany port `customerPushPort`
+(`push({ organizationId, customerAccountId, salesChannelId, category: 'quote', title, body, url, sourceKey })`),
+deklarując `degrades-without pwa`. Port sprawdza warunki modułu składającego — kanał (domyślny
+kanał systemu dla `null`) → `pwa.push_enabled` i `pwa.push_quote_status_enabled` → konto
+(nieistniejące, usunięte, zanonimizowane lub spoza wskazanej organizacji) → wybór klienta dla
+zapytań — oraz jeden dodatkowy: aktywną subskrypcję urządzenia w kanale, a potem zapisuje jedną
+wiadomość z wyzwalaczem `quote_request` i `sourceEventId = sourceKey`. Odpowiada `enqueued` albo
+warunkiem, który ją zatrzymał (`skipped:switched_off`, `skipped:no_account`,
+`skipped:customer_preference`, `skipped:no_subscription`), a wywołujący zapisuje tę odpowiedź w
+swoim rekordzie dostarczenia; powtórzony `sourceKey` niczego nie zapisuje i odpowiada `enqueued`.
+Jak każdy publikowany port odmawia z `MODULE_DISABLED`, gdy moduł jest wyłączony. Przy wyłączonych
+zapytaniach ofertowych nie powstaje żadne powiadomienie o zapytaniu, więc przełącznik i wybór dla
+zapytań nie są oferowane.
 
 ### Wybór klienta
 

@@ -98,10 +98,10 @@ describe('the quote request notification matrix (contracts/notification-matrix.m
     }
   });
 
-  it('records only the channels a delivery adapter exists for', () => {
+  it('records every channel: each has a delivery adapter', () => {
     // `customer_in_app` joined with the customer notification centre (`specs/179-…`
-    // WP-08); `customer_push` joins with WP-10. A record nobody can deliver would
-    // only ever close as stale.
-    expect([...RECORDED_CHANNELS].sort()).toEqual(['admin_email', 'admin_in_app', 'customer_email', 'customer_in_app']);
+    // WP-08), `customer_push` with `pwa`'s `customerPushPort` (WP-10). A record
+    // nobody can deliver would only ever close as stale.
+    expect([...RECORDED_CHANNELS].sort()).toEqual([...NOTIFICATION_CHANNELS].sort());
   });
 });

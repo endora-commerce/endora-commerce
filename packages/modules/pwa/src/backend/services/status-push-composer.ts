@@ -4,7 +4,6 @@ import {
   type CustomerAccountReadPort,
   type OrderReadPort,
   type PushPreferences,
-  type QuoteRequestReadPort,
 } from '@endora-commerce/contracts';
 import type { SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import type { CreateMessageInput, CreateMessageResult } from './push-message-service.js';
@@ -13,8 +12,6 @@ import {
   notificationLanguage,
   orderStatusCopy,
   orderStatusLabel,
-  quoteStatusCopy,
-  type QuoteStatusPushKind,
   type StatusPushCopy,
 } from './status-push-copy.js';
 
@@ -27,7 +24,6 @@ import {
 export type StatusPushOutcome =
   | 'enqueued'
   | 'skipped:no_subject'
-  | 'skipped:quote_requests_absent'
   | 'skipped:switched_off'
   | 'skipped:no_account'
   | 'skipped:customer_preference';
@@ -39,12 +35,6 @@ export interface OrderStatusPushEvent {
   to: string;
 }
 
-export interface QuoteStatusPushEvent {
-  eventId: string;
-  rfqId: string;
-  what: QuoteStatusPushKind;
-}
-
 /** The customer preference read; absent row ⇒ both on. */
 export interface PushPreferenceReader {
   read(customerAccountId: string): Promise<PushPreferences>;
@@ -52,10 +42,6 @@ export interface PushPreferenceReader {
 
 export interface StatusPushComposerDeps {
   orders: Pick<OrderReadPort, 'findById' | 'findStatusDefinition'>;
-  /** Only called after {@link StatusPushComposerDeps.isQuoteRequestsPresent} answered `true`. */
-  quotes: Pick<QuoteRequestReadPort, 'findById'>;
-  /** The `degrades-without` edge's presence decision, asked in front of the port. */
-  isQuoteRequestsPresent: () => boolean;
   customerAccounts: Pick<CustomerAccountReadPort, 'findById'>;
   channels: Pick<SalesChannelResolutionPort, 'getById' | 'getSystemDefault'>;
   /** A boolean `pwa.*` setting for a channel; a read that fails answers `false`. */
@@ -67,7 +53,7 @@ export interface StatusPushComposerDeps {
   };
   /**
    * `enterSystemScope` in production. The handler inherits whatever tenant
-   * context the emitter had — or none, for the expiry sweep — and a
+   * context the emitter had — or none — and a
    * `@CustomerScoped` read with no context throws, so the whole sequence runs
    * in one system scope and constrains by `customerAccountId` explicitly.
    */
@@ -75,23 +61,20 @@ export interface StatusPushComposerDeps {
   log: () => PushEventLogger;
 }
 
+/**
+ * Orders only. Quote request pushes left this composer with
+ * `specs/179-rfq-and-customer-notifications/` WP-10 (FR-061): `quote_requests`
+ * decides who is told and pushes through `customerPushPort`
+ * (`customer-push-port.ts`), which applies the same gates.
+ */
 export interface StatusPushComposer {
   order(event: OrderStatusPushEvent): Promise<StatusPushOutcome>;
-  quote(event: QuoteStatusPushEvent): Promise<StatusPushOutcome>;
 }
 
 const SCOPE_REASON = 'pwa: a status push names one account and is constrained by it';
 
-type Category = 'order' | 'quote';
-
-const CATEGORY_SETTING: Record<Category, string> = {
-  order: PWA_SETTING_CODES.PUSH_ORDER_STATUS_ENABLED,
-  quote: PWA_SETTING_CODES.PUSH_QUOTE_STATUS_ENABLED,
-};
-
 /** The subject of a status push once its owner has answered. */
 interface Subject {
-  category: Category;
   eventId: string;
   customerAccountId: string;
   salesChannelId: string | null;
@@ -100,14 +83,14 @@ interface Subject {
 }
 
 /**
- * The one place the gate order is written down for both automatic triggers
- * (`specs/149-pwa-order-status-push/` research R-11):
+ * The gate order of the order status push (`specs/149-pwa-order-status-push/`
+ * research R-11), which `customerPushPort` applies to quote pushes too:
  *
  *   1. resolve the subject — `null` (unknown id, guest order) ⇒ skip;
  *   2. resolve the channel — the subject's, or the system default;
- *   3. `pwa.push_enabled` **and** the category switch for that channel;
+ *   3. `pwa.push_enabled` **and** the order category's switch for that channel;
  *   4. the account — missing, deleted or anonymised ⇒ skip (FR-016);
- *   5. the account's preference for the category (FR-019);
+ *   5. the account's order preference (FR-019);
  *   6. render in the channel's language and enqueue for that one account.
  *
  * Cheapest checks first, and nothing is written for a skipped push (SC-006).
@@ -122,7 +105,7 @@ export function createStatusPushComposer(deps: StatusPushComposerDeps): StatusPu
       const subject = await resolve();
       if (typeof subject === 'string') return subject;
 
-      // The subject's own channel, or the system default for a quote raised
+      // The subject's own channel, or the system default for a subject raised
       // outside a channel. A channel id the resolver no longer knows is still
       // the channel the devices subscribed on, so it is kept — only its
       // language is unknown, and that falls back to English.
@@ -134,7 +117,7 @@ export function createStatusPushComposer(deps: StatusPushComposerDeps): StatusPu
 
       const [pushOn, categoryOn] = await Promise.all([
         deps.isSettingOn(PWA_SETTING_CODES.PUSH_ENABLED, channelId),
-        deps.isSettingOn(CATEGORY_SETTING[subject.category], channelId),
+        deps.isSettingOn(PWA_SETTING_CODES.PUSH_ORDER_STATUS_ENABLED, channelId),
       ]);
       if (!pushOn || !categoryOn) return 'skipped:switched_off';
 
@@ -142,10 +125,9 @@ export function createStatusPushComposer(deps: StatusPushComposerDeps): StatusPu
       if (!account || account.deletedAt || account.anonymizedAt) return 'skipped:no_account';
 
       const preference = await deps.preferences.read(account.id);
-      const wanted = subject.category === 'order' ? preference.orderStatus : preference.quoteStatus;
-      if (!wanted) {
+      if (!preference.orderStatus) {
         deps.log().debug?.(
-          { trigger: subject.category === 'order' ? 'order_status' : 'quote_request', eventId: subject.eventId },
+          { trigger: 'order_status', eventId: subject.eventId },
           'pwa.push_skipped_customer_preference',
         );
         return 'skipped:customer_preference';
@@ -164,7 +146,7 @@ export function createStatusPushComposer(deps: StatusPushComposerDeps): StatusPu
         body,
         url: copy.url,
         audience: { kind: 'customers', customerAccountIds: [account.id] },
-        trigger: subject.category === 'order' ? 'order_status' : 'quote_request',
+        trigger: 'order_status',
         sourceEventId: subject.eventId,
       });
       return 'enqueued';
@@ -177,7 +159,6 @@ export function createStatusPushComposer(deps: StatusPushComposerDeps): StatusPu
         const order = await deps.orders.findById(event.orderId);
         if (!order || !order.placedByCustomerAccountId) return 'skipped:no_subject';
         return {
-          category: 'order',
           eventId: event.eventId,
           customerAccountId: order.placedByCustomerAccountId,
           salesChannelId: order.salesChannelId,
@@ -191,23 +172,6 @@ export function createStatusPushComposer(deps: StatusPushComposerDeps): StatusPu
                 language,
               ),
             }),
-        };
-      }),
-
-    quote: (event) =>
-      run(async () => {
-        // Presence decided in front of the port (`degrades-without`): with the
-        // owner off the port's gate would throw, and nothing here catches it.
-        if (!deps.isQuoteRequestsPresent()) return 'skipped:quote_requests_absent';
-        const quote = await deps.quotes.findById(event.rfqId);
-        if (!quote) return 'skipped:no_subject';
-        return {
-          category: 'quote',
-          eventId: event.eventId,
-          customerAccountId: quote.customerAccountId,
-          salesChannelId: quote.salesChannelId,
-          copy: async () =>
-            quoteStatusCopy({ quoteId: quote.id, businessId: quote.businessId, what: event.what }),
         };
       }),
   };

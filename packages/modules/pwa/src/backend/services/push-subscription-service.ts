@@ -272,6 +272,21 @@ export class PushSubscriptionService {
   }
 
   /**
+   * Whether the account has an active device on the channel — the last gate of
+   * `customerPushPort` before it writes a message
+   * (`specs/179-rfq-and-customer-notifications/` FR-060). The same predicate
+   * the message service expands a `customers` audience with.
+   */
+  async hasActive(customerAccountId: string, salesChannelId: string): Promise<boolean> {
+    const count = await this.emFactory().count(PushSubscription, {
+      salesChannelId,
+      status: 'active',
+      customerAccountId,
+    });
+    return count > 0;
+  }
+
+  /**
    * `null` = the admin asked for a scope this deployment has no channel for, so
    * there is nothing subscribed to count. The column is `NOT NULL`, so the
    * query matches no row and the honest answer is zero — where the `'default'`

@@ -3,8 +3,6 @@ import {
   notificationLanguage,
   orderStatusLabel,
   orderStatusCopy,
-  quoteStatusCopy,
-  QUOTE_STATUS_EVENTS,
 } from './status-push-copy.js';
 
 /**
@@ -70,30 +68,4 @@ describe('status push copy — order sentence and link', () => {
       url: '/orders/o-1',
     });
   });
-});
-
-describe('status push copy — quote sentence and link', () => {
-  it('maps each consumed quote event to what happened', () => {
-    expect(QUOTE_STATUS_EVENTS).toEqual({
-      'rfq.created_by_admin.v1': 'prepared',
-      'rfq.modified.v1': 'revised',
-      'rfq.approved.v1': 'approved',
-      'rfq.canceled.v1': 'canceled',
-      'rfq.expired.v1': 'expired',
-    });
-    // The customer's own submission is not a status push (FR-008).
-    expect(Object.keys(QUOTE_STATUS_EVENTS)).not.toContain('rfq.created.v1');
-  });
-
-  it.each(['prepared', 'revised', 'approved', 'canceled', 'expired'] as const)(
-    'keys the %s body and opens the quote itself',
-    (what) => {
-      expect(quoteStatusCopy({ quoteId: 'q-1', businessId: 'QR-77', what })).toEqual({
-        titleKey: 'notification.quote.title',
-        bodyKey: `notification.quote.body.${what}`,
-        params: { quoteNumber: 'QR-77' },
-        url: '/quote-requests/q-1',
-      });
-    },
-  );
 });

@@ -49,6 +49,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `customer_notifications` | no | degrades-without `customerNotificationRecordPort` — Buyers get no entry about their quote requests in the storefront notification centre; each delivery record closes as skipped (module off). |
 | `document_templates` | no | refuses-without `documentRenderPort` — quote requests cannot be exported to PDF and no PDF template can be chosen |
 | `document_templates` | no | contributes-to `documentTypeRegistry` |
+| `pwa` | no | degrades-without `customerPushPort` — Buyers get no push notification about their quote requests on their devices; each delivery record closes as skipped (module off). |
 | `webhooks` | no | contributes-to `webhookEventRegistry` |
 
 ## Permissions

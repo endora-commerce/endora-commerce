@@ -8,11 +8,14 @@ import type {
   CustomerAccountRecord,
   CustomerNotificationMessage,
   CustomerNotificationRecordPort,
+  CustomerPushOutcome,
+  CustomerPushPort,
   OrganizationDetailsPort,
   PermissionReadPort,
   TransactionalEmailSender,
   TransactionalSendOutcome,
 } from '@endora-commerce/contracts';
+import { LANGUAGE_FALLBACK, SUPPORTED_LANGUAGES, type SupportedLanguage } from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled, type SalesChannelResolutionPort } from '@endora-commerce/platform/kernel';
 import { formatQuoteDate } from '../../document/blocks/types.js';
 import { QuoteRequest } from '../../entities/quote-request.entity.js';
@@ -24,10 +27,10 @@ import { RFQ_HANDLE_PERMISSION, type OrgWideViewerRoleIds } from './recipients.j
 
 /**
  * The delivered channels of `specs/179-rfq-and-customer-notifications/` — the
- * admin bell, the operator e-mail and the customer e-mail (Phase 1), and the
- * customer notification centre (WP-08)
- * (`contracts/notification-matrix.md` §2 – §4, `contracts/delivery-and-ports.md` §3).
- * Push (`customer_push`) joins with WP-10.
+ * admin bell, the operator e-mail and the customer e-mail (Phase 1), the
+ * customer notification centre (WP-08) and the push to the buyer's devices
+ * (WP-10) (`contracts/notification-matrix.md` §2 – §4,
+ * `contracts/delivery-and-ports.md` §3).
  *
  * Each adapter re-checks its recipient at delivery (matrix rule 4): an
  * administrator still active and holding `rfqs:handle`; a customer account
@@ -124,6 +127,9 @@ export function quoteRequestStorefrontLinkPath(rfqId: string): string {
   return `/quote-requests/${rfqId}`;
 }
 
+/** The push's title key in this module's bundle; the sentence is the body. */
+export const PUSH_TITLE_KEY = 'customerPush.title';
+
 /** Where a bell entry about a request leads: its admin screen. */
 export function quoteRequestAdminLinkPath(rfqId: string): string {
   return `/quote-requests/${rfqId}`;
@@ -137,6 +143,37 @@ export function customerEmailCode(change: QuoteRequestNotificationChange): strin
 /** The e-mail an operator is sent for `change` (matrix §3). */
 export function operatorEmailCode(change: QuoteRequestNotificationChange): string {
   return `quote_request_operator_${change}`;
+}
+
+/**
+ * `customerPushPort`'s answer as a closing status (`contracts/delivery-and-ports.md`
+ * §3). A shop or channel with push or quote pushes switched off is the
+ * operator's own switch, as a deactivated e-mail is: `skipped_deactivated`.
+ */
+export function pushOutcomeStatus(outcome: CustomerPushOutcome): DeliveryOutcome {
+  switch (outcome) {
+    case 'enqueued':
+      return { status: 'sent' };
+    case 'skipped:customer_preference':
+      return { status: 'skipped_preference' };
+    case 'skipped:no_account':
+      return { status: 'skipped_no_recipient' };
+    case 'skipped:no_subscription':
+      return { status: 'skipped_no_subscription' };
+    case 'skipped:switched_off':
+      return { status: 'skipped_deactivated' };
+  }
+}
+
+/**
+ * The bundle a push is rendered from: the channel's default language reduced
+ * to its primary subtag, bounded to the bundles the platform ships, English
+ * otherwise. A push is rendered once, on the device, so it is sent as a
+ * sentence (`specs/conventions/module-i18n.md`, translation-boundary case 1).
+ */
+export function pushLanguage(channelLanguage: string | null | undefined): SupportedLanguage {
+  const primary = (channelLanguage ?? '').trim().toLowerCase().split(/[-_]/)[0] ?? '';
+  return (SUPPORTED_LANGUAGES as readonly string[]).includes(primary) ? (primary as SupportedLanguage) : LANGUAGE_FALLBACK;
 }
 
 /** The sender's answer as a closing status (matrix §4). A thrown send is a failed attempt, not an answer. */
@@ -167,21 +204,25 @@ export interface ChannelAdapterDeps {
   bell: AdminNotificationRecordPort<EntityManager>;
   /** `customer_notifications`' record port; the centre entry is written on the record's transaction. */
   centre: CustomerNotificationRecordPort<EntityManager>;
+  /** `pwa`'s push port; it writes and enqueues the push itself, outside the record's transaction. */
+  push: CustomerPushPort;
+  /** This module's bundle, rendered in `language` — the push's title and sentence. */
+  translate: (key: string, language: SupportedLanguage, params?: Record<string, string | number>) => Promise<string>;
   /** `transactional_emails`' late-bound sender, read per send; `undefined` until announced. */
   sender: () => TransactionalEmailSender | undefined;
-  /** The request's sales channel: its default language and its name. */
-  channels: Pick<SalesChannelResolutionPort, 'getById'>;
+  /**
+   * The request's sales channel: its default language and its name; the system
+   * default channel's language for a push about a request raised with none.
+   */
+  channels: Pick<SalesChannelResolutionPort, 'getById' | 'getSystemDefault'>;
   /** `sales_channels.storefront_url` of a channel, `null` when not configured. */
   storefrontUrl: (salesChannelId: string) => Promise<string | null>;
 }
 
 type SalesChannel = NonNullable<Awaited<ReturnType<SalesChannelResolutionPort['getById']>>>;
 
-/** The channels delivered today; `customer_push` joins with WP-10. */
-export type DeliveredChannel = Extract<
-  QuoteRequestNotificationChannel,
-  'admin_in_app' | 'admin_email' | 'customer_email' | 'customer_in_app'
->;
+/** The channels delivered — every channel of the matrix. */
+export type DeliveredChannel = QuoteRequestNotificationChannel;
 
 function adminName(admin: AdminUserRecord): string {
   return `${admin.firstName} ${admin.lastName}`.trim() || admin.email;
@@ -409,6 +450,43 @@ export function createChannelAdapters(deps: ChannelAdapterDeps): Record<Delivere
           linkPath: quoteRequestStorefrontLinkPath(rfq.id),
         });
         return { status: 'sent' };
+      },
+    },
+
+    customer_push: {
+      owner: 'pwa',
+      async deliver({ record, rfq }) {
+        // The centre's re-check: a push needs no e-mail address either.
+        const account = await viewer(rfq, record.recipientId);
+        if (!account) return { status: 'skipped_no_recipient' };
+        // The centre's sentence, rendered once in the channel's default language
+        // (matrix §2): the device shows it as it is. A request raised with no
+        // channel is pushed on the system default channel, so in its language.
+        const channel = rfq.salesChannelId
+          ? await deps.channels.getById(rfq.salesChannelId)
+          : await deps.channels.getSystemDefault();
+        const language = pushLanguage(channel?.defaultLanguage);
+        const text = quoteRequestCentreText(record.change, quoteRequestNumber(rfq));
+        const [title, body] = await Promise.all([
+          deps.translate(PUSH_TITLE_KEY, language),
+          deps.translate(text.titleMessage.key, language, text.titleMessage.params),
+        ]);
+        // Not on the record's transaction: `pwa` writes and enqueues on its own.
+        // The record id is the push's idempotency key, so a retry after a crash
+        // between the two commits writes no second push (FR-014). Gates `pwa`
+        // owns — push and quote pushes on for the channel, the account's quote
+        // preference, a subscribed device — come back as the outcome.
+        const outcome = await deps.push.push({
+          organizationId: rfq.organizationId,
+          customerAccountId: account.id,
+          salesChannelId: rfq.salesChannelId ?? null,
+          category: 'quote',
+          title,
+          body,
+          url: quoteRequestStorefrontLinkPath(rfq.id),
+          sourceKey: record.id,
+        });
+        return pushOutcomeStatus(outcome);
       },
     },
   };

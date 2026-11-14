@@ -101,7 +101,7 @@ const pwaSettingEntries: SettingManifestEntry[] = [
       code: PWA_SETTING_CODES.PUSH_QUOTE_STATUS_ENABLED,
       name: 'Push on quote status changes',
       description:
-        'When on (and push is enabled), the customer who requested a quote is notified when it is prepared for them, revised, approved, cancelled or expires.',
+        'When on (and push is enabled), the people told about a quote request are notified on their subscribed devices when it changes, unless they turned quote updates off.',
       groupCode: 'pwa',
       valueType: 'boolean',
       defaultValue: true,
@@ -225,25 +225,12 @@ export const manifest = defineModuleManifest({
     'customer_accounts',
     'organizations',
   ],
-  // `specs/149-pwa-order-status-push/` — the quote half of the status pushes
-  // reads the quote request it announces. A **degrading** edge, not a binding
-  // one: a shop without quotes still wants order pushes, and a binding edge
-  // would turn the quote desk's switch into a switch for push
-  // (`module-composition.md` item 4a, the `crm` precedent).
-  nonBindingDependencies: [
-    {
-      moduleId: 'quote_requests',
-      name: 'quoteRequestReadPort',
-      kind: 'degrades-without',
-      whenAbsent:
-        'Customers stop receiving push notifications about their quote requests, and the quote ' +
-        'switch and choice are not offered; order notifications keep working',
-      reason:
-        'The one call into this owner is the quote branch of the status-push composer, which asks ' +
-        '`isPresent()` in front of the gate and skips; while the owner is off it emits none of the ' +
-        "events that reach that branch. No table of that owner is referenced from this module's schema.",
-    },
-  ],
+  // No `nonBindingDependencies`: the `degrades-without quote_requests` edge
+  // (`quoteRequestReadPort`, `specs/149-pwa-order-status-push/`) went with the
+  // quote half of the status pushes in `specs/179-rfq-and-customer-notifications/`
+  // WP-10. This module reads nothing of `quote_requests` any more; the edge now
+  // runs the other way — `quote_requests` declares `degrades-without pwa` for
+  // `customerPushPort`, which this module publishes.
   settings,
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },

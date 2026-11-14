@@ -15,7 +15,9 @@ import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
  * for this feature: `orders` publishes `findStatusDefinition` so a push can name
  * the status the way the shop labels it, and `quote_requests` publishes
  * `salesChannelId` so a quote push is sent on — and in the language of — the
- * channel the request was raised on.
+ * channel the request was raised on. Since `specs/179-rfq-and-customer-notifications/`
+ * WP-10 the quote push is `quote_requests`' own (through `customerPushPort`);
+ * the field stays published and these cases still hold it.
  */
 describe('149 — owner read models consumed by the status push [integration]', () => {
   let h: BackendServerHandle;

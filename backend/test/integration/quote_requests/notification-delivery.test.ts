@@ -1,5 +1,11 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { EmailMailerPort, EmailMailerSendInput, EmailMailerSendOutcome } from '@endora-commerce/contracts';
+import {
+  PWA_SETTING_CODES,
+  type EmailMailerPort,
+  type EmailMailerSendInput,
+  type EmailMailerSendOutcome,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -7,8 +13,9 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { TransactionalEmail } from '../../helpers/package-entities.js';
-import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
+import { CustomerAccount, TransactionalEmail } from '../../helpers/package-entities.js';
+import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { runRfqNotificationDeliveryTick } from '../../../../packages/modules/quote_requests/src/backend/workers/rfq-notification-delivery-worker.js';
 
@@ -47,6 +54,15 @@ class OnceMailer implements EmailMailerPort {
  * which the buyer then reads on the storefront in their own language; with the
  * centre switched off the record closes `skipped_module_off` and no entry is
  * ever written, not even once the centre is back.
+ *
+ * WP-10 (T092) adds the push to the buyer's devices through `pwa`'s
+ * `customerPushPort`: with push on, an operator's change writes one push
+ * message per customer recipient who has a device and wants quote updates,
+ * keyed by the record id; a recipient who turned quote updates off closes
+ * `skipped_preference`; a crash after the push was enqueued costs a retry,
+ * never a second push; `pwa` switched off closes `skipped_module_off`. With
+ * push off — the shipped default, and this file's baseline — every push
+ * record closes `skipped_deactivated`, which is what the other cases see.
  */
 describe('Quote request notification delivery (WP-05)', () => {
   let h: BackendServerHandle;
@@ -136,6 +152,78 @@ describe('Quote request notification delivery (WP-05)', () => {
     });
     expect(res.statusCode, res.body).toBe(200);
   };
+  /** A push record's closing is the push cases' business; the other cases only see it closed. */
+  const notPush = (record: RecordRow): boolean => record.channel !== 'customer_push';
+  const expectPushClosedOff = (records: RecordRow[]): void => {
+    for (const record of records.filter((record) => !notPush(record))) {
+      expect(record, `customer_push → ${record.recipient_id}`).toMatchObject({ status: 'skipped_deactivated', attempts: 1 });
+    }
+  };
+  interface PushRow {
+    source_event_id: string;
+    title: string;
+    body: string;
+    url: string | null;
+    sales_channel_id: string;
+    audience: { kind: string; customerAccountIds?: string[] };
+  }
+  const pushMessagesFor = (records: RecordRow[]) =>
+    records.length === 0
+      ? Promise.resolve([] as PushRow[])
+      : h
+          .em()
+          .fork()
+          .execute<PushRow[]>(
+            `select "source_event_id", "title", "body", "url", "sales_channel_id", "audience" from "push_messages"
+              where "trigger" = 'quote_request' and "source_event_id" in (${records.map(() => '?').join(', ')})`,
+            records.map((record) => record.id),
+          );
+  const setPushSetting = (code: string, value: boolean) =>
+    h.settings.adminService.setValueForAllChannels(code, value, null, { actorAdminUserId: null });
+  const subscribedEndpoints: string[] = [];
+  const subscribe = async (customerAccountId: string, salesChannelId: string): Promise<void> => {
+    const endpoint = `https://fcm.googleapis.com/fcm/send/${randomUUID()}`;
+    subscribedEndpoints.push(endpoint);
+    await h.pwa.subscriptionService.register({
+      endpoint,
+      keys: { p256dh: 'p', auth: 'a' },
+      salesChannelId,
+      customerAccountId,
+    });
+  };
+  /** The channel a request's push goes out on: its own, or the system default. */
+  const pushChannelOf = async (rfqId: string): Promise<string> =>
+    (await requestRow(rfqId)).sales_channel_id ?? (await h.salesChannels.resolver.getSystemDefault()).id;
+  /**
+   * An *Administrator* member of the stub buyer's Organization — one who may
+   * open every request there (`specs/170-organization-roles/` R-30), so the
+   * customer side of a change names them beside the requester.
+   */
+  const colleagues: string[] = [];
+  const administratorColleague = (): Promise<string> =>
+    withSystemScope('notification-delivery test: an Administrator beside the stub buyer', async () => {
+      const em = h.orm.em.fork();
+      const account = em.create(CustomerAccount, {
+        organizationId: TEST_ORGANIZATION_ID,
+        email: `179-push-colleague-${randomUUID()}@h.local`,
+        passwordHash: 'x'.repeat(60),
+        firstName: 'Paula',
+        lastName: 'Colleague',
+        organizationRoleId: await predefinedRoleIdOf(em, TEST_ORGANIZATION_ID, 'administrator'),
+      });
+      await em.persistAndFlush(account);
+      colleagues.push(account.id);
+      return account.id;
+    });
+  /** Push on for every channel, for the length of `run`. */
+  const withPushOn = async (run: () => Promise<void>): Promise<void> => {
+    await setPushSetting(PWA_SETTING_CODES.PUSH_ENABLED, true);
+    try {
+      await run();
+    } finally {
+      await setPushSetting(PWA_SETTING_CODES.PUSH_ENABLED, false);
+    }
+  };
   const mailFor = (rfqId: string) =>
     mailer.accepted.filter((message) => (message.meta as Record<string, unknown> | undefined)?.['quoteRequestId'] === rfqId);
 
@@ -159,9 +247,27 @@ describe('Quote request notification delivery (WP-05)', () => {
 
   beforeAll(async () => {
     h = await setupBackendServer({ organizationsMailer: mailer });
+    // The baseline the other cases assert against: push off, quote pushes on (the shipped defaults).
+    await setPushSetting(PWA_SETTING_CODES.PUSH_ENABLED, false);
+    await setPushSetting(PWA_SETTING_CODES.PUSH_QUOTE_STATUS_ENABLED, true);
   });
 
   afterAll(async () => {
+    const sql = h.em().getConnection();
+    if (subscribedEndpoints.length > 0) {
+      await sql.execute(
+        `delete from "push_subscriptions" where "endpoint" in (${subscribedEndpoints.map(() => '?').join(', ')})`,
+        subscribedEndpoints,
+      );
+    }
+    await sql.execute(`delete from "push_notification_preferences" where "organization_id" = ?`, [TEST_ORGANIZATION_ID]);
+    // The colleague stays a row (other tables name it) but stops being anybody's recipient.
+    if (colleagues.length > 0) {
+      await sql.execute(
+        `update "customer_accounts" set "deleted_at" = now() where "id" in (${colleagues.map(() => '?').join(', ')})`,
+        colleagues,
+      );
+    }
     await teardownBackendServer(h);
   });
 
@@ -178,7 +284,12 @@ describe('Quote request notification delivery (WP-05)', () => {
         'admin_email',
         'customer_email',
         ...(before.some((record) => record.channel === 'customer_in_app') ? ['customer_in_app'] : []),
+        ...(before.some((record) => record.channel === 'customer_push') ? ['customer_push'] : []),
       ]),
+    );
+    // The colleagues it tells in the centre are the ones it pushes to (WP-10).
+    expect(before.filter((record) => record.channel === 'customer_push').map((record) => record.recipient_id).sort()).toEqual(
+      before.filter((record) => record.channel === 'customer_in_app').map((record) => record.recipient_id).sort(),
     );
     expect(await delivery().hasDeliverable()).toBe(true);
 
@@ -189,10 +300,11 @@ describe('Quote request notification delivery (WP-05)', () => {
     });
 
     const after = await recordsOf(id);
-    for (const record of after) {
+    for (const record of after) expect(record.closed_at).not.toBeNull();
+    for (const record of after.filter(notPush)) {
       expect(record, `${record.channel} → ${record.recipient_id}`).toMatchObject({ status: 'sent', attempts: 1 });
-      expect(record.closed_at).not.toBeNull();
     }
+    expectPushClosedOff(after);
     const bells = await bellEntriesOf(id);
     const operators = after.filter((record) => record.channel === 'admin_in_app').map((record) => record.recipient_id);
     expect(bells.map((bell) => bell.target_admin_user_id).sort()).toEqual([...operators].sort());
@@ -215,7 +327,8 @@ describe('Quote request notification delivery (WP-05)', () => {
     const id = await submitted();
     await Promise.all([pass(), pass()]);
     const records = await recordsOf(id);
-    for (const record of records) expect(record).toMatchObject({ status: 'sent', attempts: 1 });
+    for (const record of records.filter(notPush)) expect(record).toMatchObject({ status: 'sent', attempts: 1 });
+    expectPushClosedOff(records);
     const operators = records.filter((record) => record.channel === 'admin_in_app');
     expect(await bellEntriesOf(id)).toHaveLength(operators.length);
     const handedForRequest = mailer.handed.filter(
@@ -233,7 +346,7 @@ describe('Quote request notification delivery (WP-05)', () => {
       expect(records.filter((record) => record.channel === 'customer_email').map((record) => record.status)).toEqual([
         'skipped_deactivated',
       ]);
-      for (const record of records.filter((record) => record.channel !== 'customer_email')) {
+      for (const record of records.filter((record) => record.channel !== 'customer_email').filter(notPush)) {
         expect(record.status).toBe('sent');
       }
     } finally {
@@ -250,7 +363,7 @@ describe('Quote request notification delivery (WP-05)', () => {
     for (const record of records.filter((record) => record.channel === 'admin_in_app')) {
       expect(record).toMatchObject({ status: 'skipped_module_off', attempts: 0 });
     }
-    for (const record of records.filter((record) => record.channel !== 'admin_in_app')) {
+    for (const record of records.filter((record) => record.channel !== 'admin_in_app').filter(notPush)) {
       expect(record.status).toBe('sent');
     }
     expect(await bellEntriesOf(id)).toHaveLength(0);
@@ -334,7 +447,7 @@ describe('Quote request notification delivery (WP-05)', () => {
     const centre = records.filter((record) => record.channel === 'customer_in_app');
     expect(centre.length).toBeGreaterThan(0);
     for (const record of centre) expect(record).toMatchObject({ status: 'skipped_module_off', attempts: 0 });
-    for (const record of records.filter((record) => record.channel !== 'customer_in_app')) {
+    for (const record of records.filter((record) => record.channel !== 'customer_in_app').filter(notPush)) {
       expect(record.status).toBe('sent');
     }
     expect(await centreEntriesOf(id)).toHaveLength(0);
@@ -342,5 +455,100 @@ describe('Quote request notification delivery (WP-05)', () => {
     // Closed is closed: switching the centre back on delivers nothing late.
     await pass();
     expect(await centreEntriesOf(id)).toHaveLength(0);
+  });
+
+  it('push on: a revision pushes to each recipient who has a device and wants quote updates, once, in the channel’s language (T092, US4)', async () => {
+    const colleague = await administratorColleague();
+    const id = await submitted();
+    const channelId = await pushChannelOf(id);
+    // The buyer submitted it: the colleague has a push record about it, the buyer none (FR-007).
+    const submission = (await recordsOf(id)).filter((record) => record.channel === 'customer_push');
+    expect(submission.map((record) => record.recipient_id)).toContain(colleague);
+    expect(submission.map((record) => record.recipient_id)).not.toContain(TEST_CUSTOMER_ID);
+    await subscribe(TEST_CUSTOMER_ID, channelId);
+    await subscribe(colleague, channelId);
+    await withSystemScope('notification-delivery test: a colleague turns quote updates off', () =>
+      h.pwa.preferenceService.update(colleague, { quoteStatus: false }),
+    );
+    // The submission's own records close first, so the revision's are the only ones left.
+    await pass();
+
+    await withPushOn(async () => {
+      await revised(id);
+      await pass();
+    });
+    const revisionPushes = (await recordsOf(id)).filter(
+      (record) => record.channel === 'customer_push' && record.status !== 'skipped_deactivated',
+    );
+    const own = revisionPushes.find((record) => record.recipient_id === TEST_CUSTOMER_ID)!;
+    const theirs = revisionPushes.find((record) => record.recipient_id === colleague)!;
+    expect(own).toMatchObject({ status: 'sent', attempts: 1 });
+    expect(theirs).toMatchObject({ status: 'skipped_preference', attempts: 1 });
+    for (const record of revisionPushes.filter((record) => record !== own && record !== theirs)) {
+      expect(record.status, `${record.recipient_id} has no device`).toBe('skipped_no_subscription');
+    }
+
+    const messages = await pushMessagesFor(revisionPushes);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({
+      source_event_id: own.id,
+      title: 'Quote request update',
+      url: `/quote-requests/${id}`,
+      sales_channel_id: channelId,
+      audience: { kind: 'customers', customerAccountIds: [TEST_CUSTOMER_ID] },
+    });
+    expect(messages[0]!.body).toMatch(/^Your offer for quote request \S+ is ready$/);
+  });
+
+  it('a crash after the push was enqueued and before the commit: the retry writes nothing, one push in total (FR-014)', async () => {
+    const id = await submitted();
+    await subscribe(TEST_CUSTOMER_ID, await pushChannelOf(id));
+    await pass();
+    const adapters = delivery().deps.adapters;
+    const original = adapters['customer_push']!;
+    adapters['customer_push'] = {
+      owner: original.owner,
+      deliver: async (context: never) => {
+        await original.deliver(context);
+        throw new Error('the process died before the commit');
+      },
+    };
+    await withPushOn(async () => {
+      await revised(id);
+      const now = new Date();
+      try {
+        await pass(now);
+      } finally {
+        adapters['customer_push'] = original;
+      }
+      const [crashed] = (await recordsOf(id)).filter(
+        (record) => record.channel === 'customer_push' && record.recipient_id === TEST_CUSTOMER_ID && record.status === 'pending',
+      );
+      expect(crashed).toMatchObject({ attempts: 1, last_error: 'the process died before the commit' });
+      expect(await pushMessagesFor([crashed!])).toHaveLength(1);
+
+      await pass(new Date(now.getTime() + 2 * MINUTE));
+      const retried = (await recordsOf(id)).find((record) => record.id === crashed!.id)!;
+      expect(retried).toMatchObject({ status: 'sent', attempts: 2 });
+      expect(await pushMessagesFor([retried])).toHaveLength(1);
+    });
+  });
+
+  it('pwa switched off: skipped_module_off, no push message; the other channels deliver (FR-012)', async () => {
+    const id = await submitted();
+    await subscribe(TEST_CUSTOMER_ID, await pushChannelOf(id));
+    await pass();
+    await withPushOn(async () => {
+      await revised(id);
+      await withModuleOff('pwa', 'deactivated', async () => {
+        await pass();
+      });
+    });
+    const records = await recordsOf(id);
+    const pushes = records.filter((record) => record.channel === 'customer_push' && record.status !== 'skipped_deactivated');
+    expect(pushes.length).toBeGreaterThan(0);
+    for (const record of pushes) expect(record).toMatchObject({ status: 'skipped_module_off', attempts: 0 });
+    for (const record of records.filter(notPush)) expect(record.status).toBe('sent');
+    expect(await pushMessagesFor(pushes)).toHaveLength(0);
   });
 });

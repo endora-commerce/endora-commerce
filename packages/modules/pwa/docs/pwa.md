@@ -25,19 +25,23 @@ abstraction.
   Prices, stock and cart are never cached — they always reflect live data.
 - **Push notifications** — when enabled, buyers can opt in to notifications.
   You can send a broadcast or targeted message from the admin. On top of that,
-  customers are notified automatically about their own orders and quotes:
+  customers are notified automatically about their orders and quote requests:
   - **Order status changes** — whenever one of the customer's orders moves to
     a new status. The notification names the order number and the status the
     way your shop labels it, and opens that order.
-  - **Quote status changes** — when a quote is prepared for the customer by
-    your staff, when its offer is revised, approved or cancelled, and when it
-    expires. The notification names the quote number and opens that quote. A
-    customer's own submission does not notify them.
+  - **Quote request changes** — the Quote Requests module pushes the same
+    changes it tells buyers about by e-mail and in the storefront notification
+    centre: a request submitted or re-submitted, an offer accepted or rejected,
+    a request prepared, revised, approved or cancelled by your staff, and a
+    request that expired. The notification names the request number and opens
+    that request. Nobody is notified about a change they made themselves.
 
-  Only the customer who placed the order or requested the quote is notified,
-  on the devices they subscribed on that sales channel. Notifications are
-  written in the sales channel's language (Polish or English; English for any
-  other language).
+  An order notification goes to the customer who placed the order. A quote
+  request notification goes to the requester and to the members of their
+  organization who may open the request — the same people the Quote Requests
+  module e-mails. Each is sent to the devices they subscribed on that sales
+  channel, and is written in the sales channel's language (Polish or English;
+  English for any other language).
 - **Choosing which status changes notify** — in **Settings → PWA**, under the
   push switch, *Notify on order status changes* and *Notify on quote status
   changes* each turn one category on or off, globally or per Sales Channel.
@@ -73,37 +77,43 @@ Sales Channel via the standard global + override chain:
 | `pwa.vapid_private_key` | secret | signs Web-Push (AES-256-GCM at rest) |
 | `pwa.fcm_service_account` | secret | reserved for the token-based FCM provider |
 
-### Automatic status pushes
+### Automatic order status pushes
 
-One module-private composer (`status-push-composer.ts`) serves both triggers
-and applies its gates in a fixed order: the subject (an order placed by a
-customer account, or a quote request) → its channel (a quote raised outside a
-channel uses the system default) → `pwa.push_enabled` and the category setting
+A module-private composer (`status-push-composer.ts`) handles
+`order.status_changed.v1` (`orders`) and applies its gates in a fixed order:
+the order (placed by a customer account) → its channel (the system default for
+an order with none) → `pwa.push_enabled` and `pwa.push_order_status_enabled`
 for that channel → the account (missing, deleted or anonymised accounts are
-skipped) → the customer's preference. It renders `notification.*` from this
-module's own bundle through `_i18n`, in the channel's default language, and
-enqueues one message per event with `audience.customers = [account]` and
-`sourceEventId = eventId`, so a redelivered event produces no second message.
-The whole sequence runs in a system scope: the expiry sweep emits with no
-tenant context at all.
+skipped) → the customer's preference. It renders `notification.orderStatus.*`
+from this module's own bundle through `_i18n`, in the channel's default
+language — the order number and the status label from
+`orderReadPort.findStatusDefinition(to)` (language name → default name → code),
+opening `/orders/<id>` — and enqueues one message per event with
+`audience.customers = [account]` and `sourceEventId = eventId`, so a
+redelivered event produces no second message. The whole sequence runs in a
+system scope. A failure while producing a push is logged
+(`pwa.push_enqueue_failed`), a refusal by a switched-off owner is logged
+distinctly (`pwa.push_skipped_module_disabled`), and neither ever affects the
+status change that announced it.
 
-| Event (owner) | Notification |
-|---------------|--------------|
-| `order.status_changed.v1` (`orders`) | order number + the status label from `orderReadPort.findStatusDefinition(to)` (language name → default name → code); opens `/orders/<id>` |
-| `rfq.created_by_admin.v1` (`quote_requests`) | *prepared for you*; opens `/quote-requests/<id>` |
-| `rfq.modified.v1` | *revised offer waiting* |
-| `rfq.approved.v1` | *approved* |
-| `rfq.canceled.v1` | *cancelled* |
-| `rfq.expired.v1` | *expired* |
+### `customerPushPort` — pushes another module asks for
 
-`rfq.created.v1` (the customer's own submission) is not consumed. The quote
-half reads `quoteRequestReadPort` through a **`degrades-without`** non-binding
-dependency on `quote_requests`: it asks whether that module is present before
-calling the port, so with Quote Requests off order pushes keep working and the
-quote switch and choice are simply not offered. A failure while producing a
-push is logged (`pwa.push_enqueue_failed`), a refusal by a switched-off owner
-is logged distinctly (`pwa.push_skipped_module_disabled`), and neither ever
-affects the status change that announced it.
+Quote request pushes are not driven by events here: this module subscribes to
+no `rfq.*` event. `quote_requests` decides who is told and when, renders the
+sentence itself and calls the published `customerPushPort`
+(`push({ organizationId, customerAccountId, salesChannelId, category: 'quote', title, body, url, sourceKey })`),
+declaring `degrades-without pwa`. The port applies the composer's gates —
+channel (the system default for `null`) → `pwa.push_enabled` and
+`pwa.push_quote_status_enabled` → the account (missing, deleted, anonymised or
+not in the named organization) → the account's quote preference — and one more,
+an active device subscription on the channel, then writes one message under
+trigger `quote_request` with `sourceEventId = sourceKey`. It answers
+`enqueued` or the gate that stopped it (`skipped:switched_off`,
+`skipped:no_account`, `skipped:customer_preference`, `skipped:no_subscription`),
+which the caller keeps on its own delivery record; a repeated `sourceKey`
+writes nothing and answers `enqueued`. Like every published port it refuses
+with `MODULE_DISABLED` while this module is off. With Quote Requests off no
+quote push is produced, so the quote switch and choice are not offered.
 
 ### Customer preferences
 

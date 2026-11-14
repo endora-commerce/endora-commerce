@@ -19,6 +19,7 @@ import type {
   CatalogProductReadPort,
   CustomerAccountReadPort,
   CustomerNotificationRecordPort,
+  CustomerPushPort,
   CustomFieldCarryPort,
   CustomFieldCarryReceiverPort,
   CustomFieldListFilterPort,
@@ -584,20 +585,25 @@ export function registerModule(ctx: ModuleContext): void {
           // Feature 153 — the quote PDF routes' service, resolved when the
           // routes are mounted.
           documentService: () => ctx.cradle<QuoteRequestsCradle>().quoteRequestDocumentService,
-          // `specs/179-rfq-and-customer-notifications/` WP-05, WP-08 — what the
-          // delivery worker delivers through. The bell's and the customer
-          // centre's owners are switchable and only degrade this module (the
-          // manifest's `degrades-without` edges): their presence is asked in
-          // front of each port by the delivery service, never caught behind
-          // it. The sender is read off the cradle per send — a function
-          // announced late, which `lazyPort` cannot forward (the PDF e-mail's
-          // precedent).
+          // `specs/179-rfq-and-customer-notifications/` WP-05, WP-08, WP-10 —
+          // what the delivery worker delivers through. The bell's, the
+          // customer centre's and the push's owners are switchable and only
+          // degrade this module (the manifest's `degrades-without` edges):
+          // their presence is asked in front of each port by the delivery
+          // service, never caught behind it. The sender is read off the cradle
+          // per send — a function announced late, which `lazyPort` cannot
+          // forward (the PDF e-mail's precedent). A push is rendered from this
+          // module's own bundle through `_i18n`, a binding dependency.
           delivery: {
             bell: lazyPort<AdminNotificationRecordPort<EntityManager>>(ctx, 'adminNotificationRecordPort'),
             centre: lazyPort<CustomerNotificationRecordPort<EntityManager>>(ctx, 'customerNotificationRecordPort'),
+            push: lazyPort<CustomerPushPort>(ctx, 'customerPushPort'),
+            translate: (key, language, params) =>
+              lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate('quote_requests', key, language, params),
             sender: () => ctx.cradle<QuoteRequestsCradle>().transactionalEmailSenderAccessor(),
             salesChannels: {
               getById: (id) => ctx.cradle<QuoteRequestsCradle>().salesChannelResolutionPort.getById(id),
+              getSystemDefault: () => ctx.cradle<QuoteRequestsCradle>().salesChannelResolutionPort.getSystemDefault(),
             },
             storefrontUrl: async (salesChannelId) => {
               try {

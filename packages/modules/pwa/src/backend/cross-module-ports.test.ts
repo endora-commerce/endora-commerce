@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Queue } from 'bullmq';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { describe, expect, it } from 'vitest';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type {
   CustomerAccountReadPort,
   CustomerAccountRecord,
@@ -15,6 +16,8 @@ import {
   type PwaAdminRoutesDeps,
 } from './routes.admin.js';
 import { PushMessageService } from './services/push-message-service.js';
+import { registerModule } from './index.js';
+import { manifest } from '../manifest.js';
 
 /**
  * Feature 075, Phase C — `pwa` asks `customer_accounts`, `organizations` and
@@ -364,5 +367,61 @@ describe('pwa — rule-audience targeting resolves customer context over ports',
     ).rejects.toThrow('MODULE_DISABLED');
 
     expect(persisted).toEqual([]);
+  });
+});
+
+/**
+ * `specs/179-rfq-and-customer-notifications/` T091 (FR-061) — quote request
+ * pushes follow `quote_requests`' delivery records through `customerPushPort`,
+ * so this module no longer listens to quote events of its own: a change pushed
+ * by both paths would reach a device twice. What is left of the coupling runs
+ * the other way — `quote_requests` declares `degrades-without pwa` — so the
+ * `quoteRequestReadPort` edge goes with the subscriptions.
+ */
+describe('pwa — quote pushes arrive through customerPushPort, not through quote events', () => {
+  /** `registerModule` against a recording context; nothing is built. */
+  function compose(): { subscribed: string[]; ports: string[] } {
+    const subscribed: string[] = [];
+    const ports: string[] = [];
+    const registration = (): Record<string, unknown> => {
+      const self: Record<string, unknown> = {};
+      for (const option of ['singleton', 'scoped', 'transient', 'disposer']) self[option] = () => self;
+      return self;
+    };
+    const ctx = {
+      di: {
+        register: () => undefined,
+        providePort: (name: string) => {
+          ports.push(name);
+        },
+      },
+      asFunction: registration,
+      asValue: registration,
+      subscribe: (name: string) => {
+        subscribed.push(name);
+      },
+      routes: () => undefined,
+      worker: () => undefined,
+      log: { info: () => undefined, warn: () => undefined, error: () => undefined },
+    } as unknown as ModuleContext;
+    registerModule(ctx);
+    return { subscribed, ports };
+  }
+
+  it('subscribes to no rfq.* event — the order status event is its only subscription', () => {
+    const { subscribed } = compose();
+    expect(subscribed.filter((name) => name.startsWith('rfq.'))).toEqual([]);
+    expect(subscribed).toEqual(['order.status_changed.v1']);
+  });
+
+  it('publishes customerPushPort', () => {
+    expect(compose().ports).toContain('customerPushPort');
+  });
+
+  it('declares no edge on quote_requests any more', () => {
+    const edges = manifest.nonBindingDependencies ?? [];
+    expect(edges.filter((edge) => edge.moduleId === 'quote_requests')).toEqual([]);
+    expect(edges.filter((edge) => edge.name === 'quoteRequestReadPort')).toEqual([]);
+    expect(manifest.dependencies).not.toContain('quote_requests');
   });
 });

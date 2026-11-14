@@ -11,6 +11,8 @@ import type {
   CatalogProductReadPort,
   CustomerAccountReadPort,
   CustomerNotificationRecordPort,
+  CustomerPushPort,
+  SupportedLanguage,
   CustomFieldListFilterPort,
   CustomFieldValuePort,
   OrderReadPort,
@@ -202,17 +204,20 @@ export interface QuoteRequestsModuleOptions {
   notificationKick?: NotificationKick;
   /**
    * What the notification delivery worker delivers through
-   * (`specs/179-rfq-and-customer-notifications/` WP-05, WP-08):
+   * (`specs/179-rfq-and-customer-notifications/` WP-05, WP-08, WP-10):
    * `admin_notifications`' record port for the bell, `customer_notifications`'
-   * record port for the buyer's centre, `transactional_emails`' late-bound sender, the
-   * request's sales channel and its storefront address, and the presence
-   * question asked in front of each channel's owner (FR-012).
+   * record port for the buyer's centre, `pwa`'s push port and this module's
+   * bundle the push is rendered from, `transactional_emails`' late-bound
+   * sender, the request's sales channel and its storefront address, and the
+   * presence question asked in front of each channel's owner (FR-012).
    */
   delivery: {
     bell: AdminNotificationRecordPort<EntityManager>;
     centre: CustomerNotificationRecordPort<EntityManager>;
+    push: CustomerPushPort;
+    translate: (key: string, language: SupportedLanguage, params?: Record<string, string | number>) => Promise<string>;
     sender: () => TransactionalEmailSender | undefined;
-    salesChannels: Pick<SalesChannelResolutionPort, 'getById'>;
+    salesChannels: Pick<SalesChannelResolutionPort, 'getById' | 'getSystemDefault'>;
     storefrontUrl: (salesChannelId: string) => Promise<string | null>;
     isPresent: (moduleId: string) => boolean;
   };
@@ -316,9 +321,9 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     resolveExpiryRule: options.resolveExpiryRule,
   });
 
-  // `specs/179-rfq-and-customer-notifications/` WP-05, WP-08 — delivery of
-  // the records the writers above commit: the bell, the two e-mails and the
-  // customer centre. Push (WP-10) adds its adapter here.
+  // `specs/179-rfq-and-customer-notifications/` WP-05, WP-08, WP-10 — delivery
+  // of the records the writers above commit: the bell, the two e-mails, the
+  // customer centre and the push to the buyer's devices.
   const deliveryService = new RfqNotificationDeliveryService({
     emFactory: options.emFactory,
     adapters: createChannelAdapters({
@@ -329,6 +334,8 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
       organizations: options.organizations,
       bell: options.delivery.bell,
       centre: options.delivery.centre,
+      push: options.delivery.push,
+      translate: options.delivery.translate,
       sender: options.delivery.sender,
       channels: options.delivery.salesChannels,
       storefrontUrl: options.delivery.storefrontUrl,
