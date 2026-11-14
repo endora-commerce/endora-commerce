@@ -222,6 +222,10 @@ const MIGRATED_MODULES: readonly string[] = [
   'price_lists',
   'promotions',
   'prompt_actions',
+  // Minted (issue #641): `ONE_CLICK_UNAVAILABLE` is this module's first code and
+  // was created after the chain was deleted, so `MINTED_ERROR_CODES` accounts
+  // for it.
+  'quick_order',
   'quote_requests',
   // Minted (`specs/155-catalog-order-constraints/`): `RETURN_LINE_NOT_RETURNABLE`
   // is this module's first code and was created after the chain was deleted, so

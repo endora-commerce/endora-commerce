@@ -149,8 +149,12 @@ export class OneClickService {
 
     const eligibility = await this.#availability(ctx.customerAccountId, salesChannelId);
     if (!eligibility.enabled) {
-      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'One-click buy is not available.', {
-        code: 'one_click_unavailable',
+      // Issue #641 (#86) — a code of its own, since `VALIDATION_FAILED` is never
+      // translated. The reason is the `details.code` token, so each one reads as
+      // its own sentence (`errors.ONE_CLICK_UNAVAILABLE.<reason>`), and stays as
+      // `reason` for a client that branched on it.
+      throw new HttpError(422, ERROR_CODES.ONE_CLICK_UNAVAILABLE, 'One-click buy is not available.', {
+        code: eligibility.reason,
         reason: eligibility.reason,
       });
     }

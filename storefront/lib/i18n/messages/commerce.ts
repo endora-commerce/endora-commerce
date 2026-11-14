@@ -339,7 +339,11 @@ export const commerce = defineMessages({
       'Prices agreed on a quote cannot be confirmed at the moment, so the cart cannot be ordered at them. Remove the quoted items from your cart to order at current prices.',
     'commerce.error.ORGANIZATION_PERMISSION_REQUIRED':
       'Your role does not allow this. Ask an administrator of your organization for this permission.',
-    'commerce.error.VALIDATION_FAILED.one_click_unavailable': 'One-click buy is not available for this product right now.',
+    'commerce.error.ONE_CLICK_UNAVAILABLE': 'One-click buy is not available for this product right now.',
+    'commerce.error.ONE_CLICK_UNAVAILABLE.setting_disabled':
+      'One-click buy is switched off in this store. Add the product to the cart and place the order from there.',
+    'commerce.error.ONE_CLICK_UNAVAILABLE.missing_defaults':
+      'One-click buy needs your default addresses, delivery method and payment method. Set them in your account, or add the product to the cart and place the order from there.',
     'commerce.error.VALIDATION_FAILED.too_many_items': 'Too many lines to build at once. Split the list and build it in parts.',
     'commerce.cart.error.FAILED': 'Something went wrong with your cart. Please try again.',
   },
@@ -659,7 +663,11 @@ export const commerce = defineMessages({
       'Nie można teraz potwierdzić cen uzgodnionych w ofercie, więc nie można złożyć zamówienia z koszyka po tych cenach. Usuń z koszyka pozycje z oferty, aby zamówić po aktualnych cenach.',
     'commerce.error.ORGANIZATION_PERMISSION_REQUIRED':
       'Twoja rola na to nie pozwala. Poproś administratora swojej organizacji o to uprawnienie.',
-    'commerce.error.VALIDATION_FAILED.one_click_unavailable': 'Zakup jednym kliknięciem nie jest teraz dostępny dla tego produktu.',
+    'commerce.error.ONE_CLICK_UNAVAILABLE': 'Zakup jednym kliknięciem nie jest teraz dostępny dla tego produktu.',
+    'commerce.error.ONE_CLICK_UNAVAILABLE.setting_disabled':
+      'Zakup jednym kliknięciem jest wyłączony w tym sklepie. Dodaj produkt do koszyka i złóż zamówienie z koszyka.',
+    'commerce.error.ONE_CLICK_UNAVAILABLE.missing_defaults':
+      'Zakup jednym kliknięciem wymaga domyślnych adresów, metody dostawy i metody płatności. Ustaw je na swoim koncie albo dodaj produkt do koszyka i złóż zamówienie z koszyka.',
     'commerce.error.VALIDATION_FAILED.too_many_items': 'Za dużo pozycji naraz. Podziel listę i utwórz ją w częściach.',
     'commerce.cart.error.FAILED': 'Coś poszło nie tak z koszykiem. Spróbuj ponownie.',
   },

@@ -56,5 +56,8 @@
   "actions.openQuickOrder.keywords": "szybkie zamówienie, import csv",
   "organizationPermissions.quick_order.one_click.label": "Zakup jednym kliknięciem",
   "organizationPermissions.quick_order.one_click.description": "Kupowanie produktu jednym kliknięciem na jego stronie, z domyślnymi metodami płatności i dostawy oraz adresami; wymaga też uprawnienia do składania zamówień bez akceptacji.",
-  "settingGroups.quick_order.name": "Szybkie zamówienie"
+  "settingGroups.quick_order.name": "Szybkie zamówienie",
+  "errors.ONE_CLICK_UNAVAILABLE": "Zakup jednym kliknięciem nie jest teraz dostępny. Dodaj produkt do koszyka i złóż zamówienie z koszyka.",
+  "errors.ONE_CLICK_UNAVAILABLE.setting_disabled": "Zakup jednym kliknięciem jest wyłączony w tym sklepie. Dodaj produkt do koszyka i złóż zamówienie z koszyka.",
+  "errors.ONE_CLICK_UNAVAILABLE.missing_defaults": "Zakup jednym kliknięciem wymaga domyślnego adresu dostawy, adresu rozliczeniowego, metody dostawy i metody płatności, które oferuje ten sklep. Ustaw je na swoim koncie albo dodaj produkt do koszyka i złóż zamówienie z koszyka."
 }

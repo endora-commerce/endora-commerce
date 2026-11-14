@@ -210,7 +210,12 @@ first, in this order:
 `POST /api/v1/quick-order/one-click` is refused on the same rule, before the
 working basket is written: `403 ORGANIZATION_PERMISSION_REQUIRED` naming
 `quick_order.one_click`, or `carts.order_without_approval` when only that one is
-missing. The storefront hides the button whenever eligibility is disabled. When
+missing. A buyer the setting or the defaults refuse is answered
+`422 ONE_CLICK_UNAVAILABLE`, with the eligibility reason as `details.code`
+(`setting_disabled` or `missing_defaults`) and again as `details.reason`, in the
+buyer's language. Until issue #641 this was `422 VALIDATION_FAILED` with
+`details.code: 'one_click_unavailable'` and an English sentence. The storefront
+hides the button whenever eligibility is disabled. When
 the module is switched off, its permission leaves the role editor and every
 member's effective permissions; the grants stay stored and apply again once it
 is switched back on.

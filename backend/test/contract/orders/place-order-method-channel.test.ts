@@ -527,8 +527,10 @@ describe('order placement — methods must be offered in the order’s sales cha
         });
 
         expect(res.statusCode).toBe(422);
+        // Issue #641 — `ONE_CLICK_UNAVAILABLE`, its token the eligibility reason.
+        expect((res.json() as { error: { code: string } }).error.code).toBe('ONE_CLICK_UNAVAILABLE');
         expect((res.json() as { error: { details: unknown } }).error.details).toMatchObject({
-          code: 'one_click_unavailable',
+          code: 'missing_defaults',
           reason: 'missing_defaults',
         });
         expect(await basketSnapshot()).toBe(before);

@@ -56,5 +56,8 @@
   "actions.openQuickOrder.keywords": "quick order, csv import",
   "organizationPermissions.quick_order.one_click.label": "One-click purchase",
   "organizationPermissions.quick_order.one_click.description": "Buy a product from its page in one click with the default payment and delivery methods and addresses; also needs the permission to place orders without approval.",
-  "settingGroups.quick_order.name": "Quick order"
+  "settingGroups.quick_order.name": "Quick order",
+  "errors.ONE_CLICK_UNAVAILABLE": "One-click buy is not available right now. Add the product to the cart and place the order from there.",
+  "errors.ONE_CLICK_UNAVAILABLE.setting_disabled": "One-click buy is switched off in this store. Add the product to the cart and place the order from there.",
+  "errors.ONE_CLICK_UNAVAILABLE.missing_defaults": "One-click buy needs a default delivery address, billing address, delivery method and payment method that this store offers. Set them in your account, or add the product to the cart and place the order from there."
 }

@@ -115,6 +115,13 @@ export const manifest = defineModuleManifest({
       memberDefault: true,
     },
   ],
+  /**
+   * Issue #641 (#86) — one-click buy refused by the setting or the buyer's
+   * defaults, `422 VALIDATION_FAILED` with an English sentence until then. Its
+   * `details.code` token is the eligibility reason `#availability` answers;
+   * the role's reasons are refused earlier, as `ORGANIZATION_PERMISSION_REQUIRED`.
+   */
+  errorCodes: [{ code: 'ONE_CLICK_UNAVAILABLE', tokens: ['setting_disabled', 'missing_defaults'] }],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   actions: [

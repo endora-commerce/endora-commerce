@@ -190,9 +190,13 @@ kolejności:
 
 `POST /api/v1/quick-order/one-click` jest odrzucane według tej samej zasady, zanim koszyk roboczy
 zostanie zapisany: `403 ORGANIZATION_PERMISSION_REQUIRED` z kodem `quick_order.one_click` albo
-`carts.order_without_approval`, gdy brakuje tylko tego drugiego. Storefront ukrywa przycisk, gdy
-tylko odpowiedź jest negatywna. Po wyłączeniu modułu jego uprawnienie znika z edytora ról i
-z efektywnych uprawnień każdego członka; przyznane uprawnienia pozostają zapisane i obowiązują
+`carts.order_without_approval`, gdy brakuje tylko tego drugiego. Kupujący odrzucony z powodu
+ustawienia lub wartości domyślnych otrzymuje odpowiedź `422 ONE_CLICK_UNAVAILABLE` z powodem z
+oceny dostępności jako `details.code` (`setting_disabled` albo `missing_defaults`) i ponownie jako
+`details.reason`, w języku kupującego. Do zgłoszenia #641 była to odpowiedź
+`422 VALIDATION_FAILED` z `details.code: 'one_click_unavailable'` i angielskim zdaniem. Storefront
+ukrywa przycisk, gdy tylko odpowiedź jest negatywna. Po wyłączeniu modułu jego uprawnienie znika
+z edytora ról i z efektywnych uprawnień każdego członka; przyznane uprawnienia pozostają zapisane i obowiązują
 ponownie po włączeniu modułu.
 
 Przy aktualizacji rola *Członek* organizacji otrzymuje `quick_order.one_click` tylko tam, gdzie
