@@ -19,5 +19,11 @@
   "methods.availability.moduleOff": "The \"{module}\" module that provides this adapter is switched off. This method is not offered at checkout until the module is switched on again or the method gets another registered adapter.",
   "methods.availability.moduleUnavailable": "The \"{module}\" module that provides this adapter is not available in this installation. This method is not offered at checkout until the module is available again or the method gets another registered adapter.",
   "actions.openDeliveryMethods.keywords": "delivery methods, shipping, courier",
-  "settingGroups.delivery_methods.name": "Delivery methods"
+  "settingGroups.delivery_methods.name": "Delivery methods",
+  "errors.DELIVERY_METHOD_IN_USE": "Delivery method \"{deliveryMethodCode}\" is used by {shipmentCount} shipment(s).",
+  "errors.DELIVERY_METHOD_IN_USE.delete": "Delivery method \"{deliveryMethodCode}\" cannot be deleted: {shipmentCount} shipment(s) reference it. Set its status to \"inactive\" instead.",
+  "errors.DELIVERY_METHOD_IN_USE.change_adapter": "The adapter of delivery method \"{deliveryMethodCode}\" cannot be changed: {shipmentCount} shipment(s) were created against it through \"{adapter}\". Set its status to \"inactive\" and create a new method for the other adapter instead.",
+  "errors.DELIVERY_METHOD_USAGE_UNKNOWN": "The \"{module}\" module is switched off, so the platform cannot tell whether any shipment was created against this delivery method. Switch the module on and try again.",
+  "errors.DELIVERY_METHOD_USAGE_UNKNOWN.delete": "This delivery method cannot be deleted: the \"{module}\" module is switched off, so the platform cannot tell whether any shipment was created against it. Switch the module on and try again, or set the method's status to \"inactive\".",
+  "errors.DELIVERY_METHOD_USAGE_UNKNOWN.change_adapter": "The adapter of this delivery method cannot be changed: the \"{module}\" module is switched off, so the platform cannot tell whether any shipment was created against it. Switch the module on and try again, or create a new method for the other adapter."
 }

@@ -19,5 +19,11 @@
   "methods.availability.moduleOff": "Moduł „{module}”, który dostarcza ten adapter, jest wyłączony. Ta metoda nie będzie oferowana przy składaniu zamówienia, dopóki moduł nie zostanie ponownie włączony albo metoda nie otrzyma innego zarejestrowanego adaptera.",
   "methods.availability.moduleUnavailable": "Moduł „{module}”, który dostarcza ten adapter, nie jest dostępny w tej instalacji. Ta metoda nie będzie oferowana przy składaniu zamówienia, dopóki moduł nie będzie ponownie dostępny albo metoda nie otrzyma innego zarejestrowanego adaptera.",
   "actions.openDeliveryMethods.keywords": "metody dostawy, wysyłka, kurier",
-  "settingGroups.delivery_methods.name": "Metody dostawy"
+  "settingGroups.delivery_methods.name": "Metody dostawy",
+  "errors.DELIVERY_METHOD_IN_USE": "Metoda dostawy „{deliveryMethodCode}” jest używana przez przesyłki (liczba: {shipmentCount}).",
+  "errors.DELIVERY_METHOD_IN_USE.delete": "Nie można usunąć metody dostawy „{deliveryMethodCode}”: odwołują się do niej przesyłki (liczba: {shipmentCount}). Zamiast tego ustaw jej status na „nieaktywna”.",
+  "errors.DELIVERY_METHOD_IN_USE.change_adapter": "Nie można zmienić adaptera metody dostawy „{deliveryMethodCode}”: utworzono dla niej przesyłki przez adapter „{adapter}” (liczba: {shipmentCount}). Ustaw jej status na „nieaktywna” i utwórz nową metodę dla innego adaptera.",
+  "errors.DELIVERY_METHOD_USAGE_UNKNOWN": "Moduł „{module}” jest wyłączony, więc platforma nie może ustalić, czy dla tej metody dostawy utworzono jakąkolwiek przesyłkę. Włącz ten moduł i spróbuj ponownie.",
+  "errors.DELIVERY_METHOD_USAGE_UNKNOWN.delete": "Nie można usunąć tej metody dostawy: moduł „{module}” jest wyłączony, więc platforma nie może ustalić, czy utworzono dla niej jakąkolwiek przesyłkę. Włącz ten moduł i spróbuj ponownie albo ustaw status metody na „nieaktywna”.",
+  "errors.DELIVERY_METHOD_USAGE_UNKNOWN.change_adapter": "Nie można zmienić adaptera tej metody dostawy: moduł „{module}” jest wyłączony, więc platforma nie może ustalić, czy utworzono dla niej jakąkolwiek przesyłkę. Włącz ten moduł i spróbuj ponownie albo utwórz nową metodę dla innego adaptera."
 }

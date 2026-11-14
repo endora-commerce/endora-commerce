@@ -1384,6 +1384,23 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'The payment twin of `ORDER_DELIVERY_METHOD_UNAVAILABLE` (issue #86), on the same ' +
       'reasoning; `PAYMENT_METHOD_*` is the family `payment_methods` would reach for.',
   },
+  DELIVERY_METHOD_IN_USE: {
+    to: 'delivery_methods',
+    reason:
+      'Minted by issue #632 (#86) for the FR-003 guard: a delivery method that shipments ' +
+      'reference cannot be deleted (token `delete`) or rebound to another adapter (token ' +
+      '`change_adapter`). It was raised as `VALIDATION_FAILED` with an English sentence the ' +
+      'envelope never replaces. The noun is the delivery method, and both raise sites are in ' +
+      '`delivery_methods`\' own Commands.',
+  },
+  DELIVERY_METHOD_USAGE_UNKNOWN: {
+    to: 'delivery_methods',
+    reason:
+      'Minted by issue #632 (#86) for the same guard when `shipments` is switched off and the ' +
+      'shipments that may reference the method cannot be counted, with the same two tokens. ' +
+      'It was `VALIDATION_FAILED`. The one raise site is `delivery_methods`\' ' +
+      '`shipment-usage-guard.ts`; the code names the method, not the absent module.',
+  },
   ORDER_BELOW_MINIMUM_VALUE: {
     to: 'orders',
     reason:

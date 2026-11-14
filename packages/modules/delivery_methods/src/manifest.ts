@@ -187,6 +187,18 @@ export const manifest = defineModuleManifest({
       weight: 300,
     },
   ],
+  /**
+   * Issue #632 (#86) — the two refusals of the FR-003 shipment guard, which were
+   * `409 VALIDATION_FAILED` with an English sentence the envelope never
+   * replaces. Each carries a `details.code` token naming the write that was
+   * refused, and each token has its own sentence. Both are this module's: the
+   * noun is the delivery method, and every raise site is here
+   * (`delivery-method.commands.ts`, `services/shipment-usage-guard.ts`).
+   */
+  errorCodes: [
+    { code: 'DELIVERY_METHOD_IN_USE', tokens: ['delete', 'change_adapter'] },
+    { code: 'DELIVERY_METHOD_USAGE_UNKNOWN', tokens: ['delete', 'change_adapter'] },
+  ],
   demo,
   activation: { settingCode: 'delivery_methods.enabled', default: true },
 });
