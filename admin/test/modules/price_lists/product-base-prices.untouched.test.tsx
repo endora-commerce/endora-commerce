@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PLATFORM_ADMIN } from '../../helpers/price-book-fixtures';
 
@@ -41,7 +41,8 @@ beforeEach(() => {
       },
     }),
   );
-  api.put.mockImplementation(async () => ({ data: basePrices() }));
+  // The dry run answers `valid`, the write the stored prices (feature 180, FR-021).
+  api.put.mockImplementation(async (url: string) => (url.endsWith('?dryRun=true') ? { data: { valid: true } } : { data: basePrices() }));
 });
 
 const pln = (): HTMLElement => screen.getByRole('group', { name: 'PLN' });
@@ -66,9 +67,10 @@ describe('base-price panel — tiers nobody edited', () => {
     const value = within(p5r).getByLabelText('Percentage for P5R');
     await user.clear(value);
     await user.type(value, '12');
-    await user.click(screen.getByRole('button', { name: 'Save prices' }));
-    expect(api.put).toHaveBeenCalledTimes(1);
-    expect(api.put.mock.calls[0]).toEqual([
+    await user.click(screen.getByRole('button', { name: /^Save \d+ changes?$/ }));
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2));
+    expect(api.put.mock.calls[0]![0]).toBe(`${B}/base-prices/${P5}?dryRun=true`);
+    expect(api.put.mock.calls[1]).toEqual([
       `${B}/base-prices/${P5}`,
       {
         byCurrency: {
@@ -97,14 +99,16 @@ describe('base-price panel — tiers nobody edited', () => {
     const price = within(pln()).getByLabelText('Price from 10, PLN');
     await user.clear(price);
     await user.type(price, '79');
-    await user.click(screen.getByRole('button', { name: 'Save prices' }));
-    const body = api.put.mock.calls[0]![1] as { byCurrency: { PLN: { variants: Record<string, unknown> } } };
+    await user.click(screen.getByRole('button', { name: /^Save \d+ changes?$/ }));
+    await waitFor(() => expect(api.put).toHaveBeenCalledTimes(2));
+    const body = api.put.mock.calls[1]![1] as { byCurrency: { PLN: { variants: Record<string, unknown> } } };
     expect(body.byCurrency.PLN.variants[P5B]).toEqual({ type: 'fixed', tiers: P5B_TIERS });
   });
 
   it('sends nothing when nothing changed', async () => {
     await open();
-    expect(screen.getByRole('button', { name: 'Save prices' })).toBeDisabled();
+    // The page Save reads "Save" and is inert: the panel counts no change.
+    expect(await screen.findByRole('button', { name: 'Save' })).toHaveAttribute('aria-disabled', 'true');
     expect(api.put).not.toHaveBeenCalled();
   });
 });

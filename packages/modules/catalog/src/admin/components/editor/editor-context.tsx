@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef, useState, type Dispatch, type ReactNode } from 'react';
 import { MoreHorizontal } from 'lucide-react';
-import type { ScopeRef, ScopedFieldView, ScopedWriteOp } from '@endora-commerce/contracts';
+import type { EditorSaveSessionHandle, ScopeRef, ScopedFieldView, ScopedWriteOp } from '@endora-commerce/contracts';
 import { ScopedField, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@endora-commerce/admin-kit/ui';
@@ -29,6 +29,8 @@ export interface ProductEditorContextValue {
   afterCopy(version: string, fieldLabel: string, count: number): void;
   /** Discards the staged changes and reads the product again (the answer to a version conflict). */
   reloadDiscarding(): void;
+  /** Feature 180 — the editor's save session, handed to every product-editor zone but SEO. */
+  saveSession: EditorSaveSessionHandle;
 }
 
 const Context = createContext<ProductEditorContextValue | null>(null);

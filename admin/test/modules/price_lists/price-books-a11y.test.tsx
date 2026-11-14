@@ -177,7 +177,9 @@ const SCREENS: Screen[] = [
       await screen.findByRole('group', { name: 'PLN' });
       return container;
     },
-    primary: 'Save prices',
+    // Feature 180: the panel has no Save of its own; the view's one primary is the editor's
+    // Save, which the harness renders as the editor does.
+    primary: 'Save',
   },
 ];
 
@@ -280,7 +282,11 @@ describe('keyboard only (FR-031)', () => {
     const pln = await screen.findByRole('group', { name: 'PLN' });
     await tabTo(u, () => within(pln).getByLabelText('Price from 1, PLN'));
     await u.keyboard('{Control>}a{/Control}82,50');
-    await tabTo(u, () => screen.getByRole('button', { name: 'Save prices' }), 120);
+    // Feature 180: the base prices are saved by the editor's one Save.
+    api.put.mockImplementation(async (url: string) =>
+      url.endsWith('?dryRun=true') ? { data: { valid: true } } : { data: basePrices() },
+    );
+    await tabTo(u, () => screen.getByRole('button', { name: 'Save 1 change' }), 120);
     await u.keyboard('{Enter}');
     await waitFor(() => expect(api.put).toHaveBeenCalledWith(`${B}/base-prices/${P5}`, expect.anything()));
   });

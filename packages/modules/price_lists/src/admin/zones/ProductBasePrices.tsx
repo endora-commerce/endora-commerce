@@ -1,18 +1,19 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Plus, Save, Trash2 } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import {
   applyAmountAdjustment,
   applySignedPercent,
   type AdminZoneProps,
   type BasePriceTier,
   type BasePricesForCurrency,
+  type BasePricesWrite,
   type PriceBookSummary,
   type ProductBasePrices as ProductBasePricesAnswer,
   type VariantBaseRow,
 } from '@endora-commerce/contracts';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
-import { useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
+import { ApiError, useAuth, useSaveParticipant, type ParticipantIssues, type SaveParticipantHandlers } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Input, Section, Select } from '@endora-commerce/admin-kit/ui';
 import { errorMessage } from '../lib/api-errors.js';
 import { audienceLabel } from '../lib/book-labels.js';
@@ -32,12 +33,17 @@ import { usePriceBooksApi } from '../lib/use-price-books-api.js';
  * the resulting price shown as a **preview** computed by the contracts'
  * decimal helpers, so it rounds as the server does (G17).
  *
- * **Its own *Save prices*** (OQ-1 = B; one Save for the whole product page is
- * issue #407): one `PUT …/base-prices/:productId` of the currencies changed,
- * guarded by the unsaved-changes prompt on leaving the page *and* on the
- * host's tabs, since a tab switch unmounts this panel. A base price is
- * everyone's, so a caller the server marks not `writable` (G11) sees the
- * prices and no control (FR-028).
+ * **It saves with the product editor's one Save** (feature 180, FR-020 — 161
+ * FR-020's original wording restored; issue #407). The panel is a save
+ * participant (`useSaveParticipant`, key `base-prices`): its drafts live in the
+ * editor's save session, so a tab switch keeps them, the editor's Save counts
+ * them, and the editor's one guard asks about them. The Save first runs the
+ * panel's own checks and the server's pre-check (`?dryRun=true`, FR-021), then
+ * writes one `PUT …/base-prices/:productId` of the currencies changed, after
+ * the editor's own write (OQ-2 = A). It has no Save, no prompt and no
+ * "Applies immediately" badge of its own any more. A base price is everyone's,
+ * so a caller the server marks not `writable` (G11) sees the prices and no
+ * control (FR-028) and never has unsaved changes.
  *
  * Below it, read-only, the books that price the product directly (G1, FR-021).
  *
@@ -131,27 +137,130 @@ interface Planned {
   readonly errors: Record<string, string>;
 }
 
-export function ProductBasePrices({ productId }: ProductBasePricesProps): ReactNode {
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+/** One currency's body, or the errors that stop it (keys `code:…`). */
+function planCurrency(
+  code: string,
+  draft: CurrencyDraft,
+  productId: string,
+  t: Translate,
+  language: PriceCellLanguage,
+): Planned {
+  const found: Record<string, string> = {};
+  const amountOf = (text: string, key: string): string | null => {
+    const parsed = parsePriceCell(text, { selection: { productId } });
+    if (parsed.kind === 'empty') return null;
+    if (parsed.kind === 'invalid') {
+      found[key] = refusalText(t, parsed);
+      return null;
+    }
+    if (parsed.price.type !== 'fixed') {
+      found[key] = t('basePrices.error.fixedOnly');
+      return null;
+    }
+    return parsed.price.amount;
+  };
+  const tiers: { min: number; amount: string }[] = [];
+  const first = amountOf(draft.first, `${code}:first`);
+  if (first !== null) tiers.push({ min: draft.firstStart, amount: first });
+  let previous = draft.firstStart;
+  for (const tier of draft.more) {
+    const start = Number(tier.start.trim());
+    const startOk = tier.start.trim() !== '' && Number.isInteger(start) && start > previous;
+    if (!startOk) found[`${code}:start:${tier.key}`] = t('basePrices.error.ascending');
+    else previous = start;
+    const priceKey = `${code}:price:${tier.key}`;
+    const amount = amountOf(tier.price, priceKey);
+    if (amount === null && !found[priceKey]) found[priceKey] = t('basePrices.error.priceRequired');
+    if (amount !== null && startOk) tiers.push({ min: start, amount });
+  }
+  if (first === null && draft.more.length > 0 && !found[`${code}:first`]) found[`${code}:first`] = t('basePrices.error.priceRequired');
+  const variants: Record<string, VariantBaseRow | null> = {};
+  for (const [vid, variant] of Object.entries(draft.variants)) {
+    if (variant.mode === 'inherit') {
+      variants[vid] = null;
+      continue;
+    }
+    if (variant.mode === 'tiers') {
+      // Sent back exactly as stored.
+      variants[vid] = { type: 'fixed', tiers: [...variant.stored!] };
+      continue;
+    }
+    const key = `${code}:variant:${vid}`;
+    const parsed = parsePriceCell(variantText(variant.mode, variant.value), { selection: { variantId: vid } });
+    if (parsed.kind !== 'price' || parsed.price.type !== variant.mode) {
+      found[key] = parsed.kind === 'invalid' ? refusalText(t, parsed) : t('basePrices.error.variantValue');
+      continue;
+    }
+    const price = parsed.price;
+    if (price.type === 'fixed') {
+      const unchanged = variant.stored !== null && formatPriceCell({ type: 'fixed', amount: variant.stored[0]!.amount }, language) === variant.value;
+      variants[vid] = {
+        type: 'fixed',
+        tiers: unchanged ? [...variant.stored!] : [{ minQuantity: 1, maxQuantity: null, amount: price.amount }],
+      };
+    } else if (price.type === 'percent') {
+      variants[vid] = { type: 'percent', percent: price.percent };
+    } else {
+      variants[vid] = { type: 'amount', amount: price.amount };
+    }
+  }
+  if (Object.keys(found).length > 0) return { body: null, errors: found };
+  const product = tiers.map((tier, index) => ({
+    minQuantity: tier.min,
+    maxQuantity: tiers[index + 1] ? tiers[index + 1]!.min - 1 : null,
+    amount: tier.amount,
+  }));
+  return { body: { product, variants }, errors: {} };
+}
+
+/** The currencies whose draft differs from what is saved. */
+function changedCurrencies(drafts: Drafts, baseline: Drafts): string[] {
+  return Object.keys(drafts).filter((code) => contentOf(drafts[code]) !== contentOf(baseline[code]));
+}
+
+/** The write of every changed currency, or the errors that stop it. */
+function planWrite(
+  drafts: Drafts,
+  baseline: Drafts,
+  productId: string,
+  t: Translate,
+  language: PriceCellLanguage,
+): { readonly write: BasePricesWrite; readonly errors: Record<string, string> } {
+  const byCurrency: Record<string, BasePricesForCurrency> = {};
+  const errors: Record<string, string> = {};
+  for (const code of changedCurrencies(drafts, baseline)) {
+    const planned = planCurrency(code, drafts[code]!, productId, t, language);
+    Object.assign(errors, planned.errors);
+    if (planned.body) byCurrency[code] = planned.body;
+  }
+  return { write: { byCurrency }, errors };
+}
+
+/** The variant ids a read names, in any currency. */
+function variantIdsOf(prices: ProductBasePricesAnswer): string[] {
+  const ids = new Set<string>();
+  for (const entry of Object.values(prices.byCurrency)) for (const vid of Object.keys(entry.variants)) ids.add(vid);
+  return [...ids];
+}
+
+export function ProductBasePrices({ productId, saveSession }: ProductBasePricesProps): ReactNode {
   const t = useTranslation('price_lists');
   const api = usePriceBooksApi();
   const { language: adminLanguage } = useTranslationContext();
   const language: PriceCellLanguage = adminLanguage === 'pl' ? 'pl' : 'en';
   const { hasPermission } = useAuth();
   const id = useId();
-  const panelRef = useRef<HTMLDivElement | null>(null);
   const mayReadCatalog = hasPermission('catalog:read');
 
   const [answer, setAnswer] = useState<ProductBasePricesAnswer | null>(null);
   const [currencies, setCurrencies] = useState<string[]>([]);
   const [skus, setSkus] = useState<Record<string, string>>({});
   const [books, setBooks] = useState<PriceBookSummary[] | null>(null);
-  const [baseline, setBaseline] = useState<Drafts>({});
-  const [drafts, setDrafts] = useState<Drafts>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  /** The drafts of the last read: the participant's baseline (state, so its identity is stable). */
+  const [loaded, setLoaded] = useState<Drafts | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [refusal, setRefusal] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState('');
   const [attempt, setAttempt] = useState(0);
 
   const variantIds = useMemo(() => {
@@ -162,12 +271,7 @@ export function ProductBasePrices({ productId }: ProductBasePricesProps): ReactN
 
   const reset = useCallback(
     (prices: ProductBasePricesAnswer, codes: readonly string[]): void => {
-      const ids = new Set<string>();
-      for (const entry of Object.values(prices.byCurrency)) for (const vid of Object.keys(entry.variants)) ids.add(vid);
-      const next = draftOf(prices, codes, [...ids], language);
-      setBaseline(next);
-      setDrafts(next);
-      setErrors({});
+      setLoaded(draftOf(prices, codes, variantIdsOf(prices), language));
     },
     [language],
   );
@@ -208,114 +312,54 @@ export function ProductBasePrices({ productId }: ProductBasePricesProps): ReactN
     };
   }, [api, productId, attempt, reset, mayReadCatalog]);
 
-  const dirtyCurrencies = currencies.filter((code) => contentOf(drafts[code]) !== contentOf(baseline[code]));
-  const dirty = dirtyCurrencies.length > 0;
-  useUnsavedChangesPrompt(dirty, undefined, { guardTabsOutside: panelRef });
   const writable = answer?.writable === true;
 
-  /** One currency's body, or the errors that stop it (keys `code:…`). */
-  const plan = (code: string): Planned => {
-    const draft = drafts[code]!;
-    const found: Record<string, string> = {};
-    const amountOf = (text: string, key: string): string | null => {
-      const parsed = parsePriceCell(text, { selection: { productId } });
-      if (parsed.kind === 'empty') return null;
-      if (parsed.kind === 'invalid') {
-        found[key] = refusalText(t, parsed);
-        return null;
-      }
-      if (parsed.price.type !== 'fixed') {
-        found[key] = t('basePrices.error.fixedOnly');
-        return null;
-      }
-      return parsed.price.amount;
-    };
-    const tiers: { min: number; amount: string }[] = [];
-    const first = amountOf(draft.first, `${code}:first`);
-    if (first !== null) tiers.push({ min: draft.firstStart, amount: first });
-    let previous = draft.firstStart;
-    for (const tier of draft.more) {
-      const start = Number(tier.start.trim());
-      const startOk = tier.start.trim() !== '' && Number.isInteger(start) && start > previous;
-      if (!startOk) found[`${code}:start:${tier.key}`] = t('basePrices.error.ascending');
-      else previous = start;
-      const priceKey = `${code}:price:${tier.key}`;
-      const amount = amountOf(tier.price, priceKey);
-      if (amount === null && !found[priceKey]) found[priceKey] = t('basePrices.error.priceRequired');
-      if (amount !== null && startOk) tiers.push({ min: start, amount });
-    }
-    if (first === null && draft.more.length > 0 && !found[`${code}:first`]) found[`${code}:first`] = t('basePrices.error.priceRequired');
-    const variants: Record<string, VariantBaseRow | null> = {};
-    for (const [vid, variant] of Object.entries(draft.variants)) {
-      if (variant.mode === 'inherit') {
-        variants[vid] = null;
-        continue;
-      }
-      if (variant.mode === 'tiers') {
-        // Sent back exactly as stored.
-        variants[vid] = { type: 'fixed', tiers: [...variant.stored!] };
-        continue;
-      }
-      const key = `${code}:variant:${vid}`;
-      const parsed = parsePriceCell(variantText(variant.mode, variant.value), { selection: { variantId: vid } });
-      if (parsed.kind !== 'price' || parsed.price.type !== variant.mode) {
-        found[key] = parsed.kind === 'invalid' ? refusalText(t, parsed) : t('basePrices.error.variantValue');
-        continue;
-      }
-      const price = parsed.price;
-      if (price.type === 'fixed') {
-        const unchanged = variant.stored !== null && formatPriceCell({ type: 'fixed', amount: variant.stored[0]!.amount }, language) === variant.value;
-        variants[vid] = {
-          type: 'fixed',
-          tiers: unchanged ? [...variant.stored!] : [{ minQuantity: 1, maxQuantity: null, amount: price.amount }],
-        };
-      } else if (price.type === 'percent') {
-        variants[vid] = { type: 'percent', percent: price.percent };
-      } else {
-        variants[vid] = { type: 'amount', amount: price.amount };
-      }
-    }
-    if (Object.keys(found).length > 0) return { body: null, errors: found };
-    const product = tiers.map((tier, index) => ({
-      minQuantity: tier.min,
-      maxQuantity: tiers[index + 1] ? tiers[index + 1]!.min - 1 : null,
-      amount: tier.amount,
-    }));
-    return { body: { product, variants }, errors: {} };
-  };
-
-  const save = async (): Promise<void> => {
-    if (saving) return;
-    const byCurrency: Record<string, BasePricesForCurrency> = {};
-    const found: Record<string, string> = {};
-    for (const code of dirtyCurrencies) {
-      const planned = plan(code);
-      Object.assign(found, planned.errors);
-      if (planned.body) byCurrency[code] = planned.body;
-    }
-    setErrors(found);
-    if (Object.keys(found).length > 0) return;
-    setSaving(true);
-    setRefusal(null);
-    setStatus(t('basePrices.status.saving'));
-    try {
-      const saved = await api.writeBasePrices(productId, { byCurrency });
-      setAnswer(saved);
-      reset(saved, currencies);
-      setStatus(t('basePrices.status.saved'));
-    } catch (err) {
-      setStatus('');
-      setRefusal(errorMessage(err, t('basePrices.error.save')));
-    } finally {
-      setSaving(false);
-    }
-  };
+  // Feature 180 — the part this panel plays in the editor's one Save. Pure of component state
+  // but for the read it refreshes after a write: the session may run it from another tab.
+  const handlers = useMemo<SaveParticipantHandlers<Drafts>>(
+    () => ({
+      changeCount: (drafts, baseline) => changedCurrencies(drafts, baseline).length,
+      validate: async (drafts, _ctx, baseline): Promise<ParticipantIssues> => {
+        const { write, errors } = planWrite(drafts, baseline, productId, t, language);
+        if (Object.keys(errors).length > 0) return { fields: errors };
+        try {
+          await api.checkBasePrices(productId, write);
+          return { fields: {} };
+        } catch (err) {
+          // A refusal of the rules is this part's problem; anything else (the module switched
+          // off, the network) is the session's to describe.
+          if (err instanceof ApiError && err.status >= 400 && err.status < 500 && err.envelope.error.code !== 'MODULE_DISABLED') {
+            return { fields: {}, message: errorMessage(err, t('basePrices.error.save')) };
+          }
+          throw err;
+        }
+      },
+      save: async (drafts, _ctx, baseline): Promise<Drafts> => {
+        const { write } = planWrite(drafts, baseline, productId, t, language);
+        const saved = await api.writeBasePrices(productId, write);
+        const next = draftOf(saved, Object.keys(drafts), variantIdsOf(saved), language);
+        setAnswer(saved);
+        setLoaded(next);
+        return next;
+      },
+    }),
+    [api, productId, t, language],
+  );
+  const participant = useSaveParticipant<Drafts>(
+    saveSession,
+    { key: 'base-prices', label: t('basePrices.partLabel'), writable, loaded },
+    handlers,
+  );
+  const drafts: Drafts = participant.draft ?? loaded ?? {};
+  const errors: Readonly<Record<string, string>> = participant.issues?.fields ?? {};
+  const refusal = participant.error ?? participant.issues?.message ?? null;
+  const dirty = participant.status !== 'clean';
 
   const anyPrice = Object.values(answer?.byCurrency ?? {}).some((entry) => entry.product.length > 0);
   const label = (vid: string): string => skus[vid] ?? vid.slice(0, 8);
 
   return (
-    <div ref={panelRef}>
+    <div>
       <Section title={t('basePrices.title')}>
         <p className="text-sm text-muted-foreground">{t('basePrices.description')}</p>
         {loadError !== null ? (
@@ -349,7 +393,7 @@ export function ProductBasePrices({ productId }: ProductBasePricesProps): ReactN
                 <AlertDescription>{refusal}</AlertDescription>
               </Alert>
             ) : null}
-            {currencies.map((code) => (
+            {currencies.filter((code) => drafts[code] !== undefined).map((code) => (
               <CurrencyLine
                 key={code}
                 id={`${id}-${code}`}
@@ -361,19 +405,12 @@ export function ProductBasePrices({ productId }: ProductBasePricesProps): ReactN
                 language={language}
                 variantIds={variantIds}
                 variantLabel={label}
-                onChange={(next): void => setDrafts((current) => ({ ...current, [code]: next }))}
+                onChange={(next): void => participant.setDraft((current) => ({ ...current, [code]: next }))}
               />
             ))}
-            <p role="status" className="sr-only">
-              {status}
-            </p>
-            {writable ? (
+            {writable && loaded !== null ? (
               <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" onClick={(): void => void save()} disabled={!dirty || saving} aria-busy={saving}>
-                  <Save aria-hidden="true" />
-                  {saving ? t('basePrices.saving') : t('basePrices.save')}
-                </Button>
-                <Button type="button" variant="ghost" disabled={!dirty || saving} onClick={(): void => setDrafts(baseline)}>
+                <Button type="button" variant="ghost" disabled={!dirty} onClick={(): void => participant.setDraft(loaded)}>
                   {t('basePrices.discard')}
                 </Button>
               </div>
@@ -392,7 +429,7 @@ function CurrencyLine(props: {
   readonly draft: CurrencyDraft;
   readonly stored: ProductBasePricesAnswer['byCurrency'][string] | undefined;
   readonly writable: boolean;
-  readonly errors: Record<string, string>;
+  readonly errors: Readonly<Record<string, string>>;
   readonly language: PriceCellLanguage;
   readonly variantIds: readonly string[];
   readonly variantLabel: (id: string) => string;

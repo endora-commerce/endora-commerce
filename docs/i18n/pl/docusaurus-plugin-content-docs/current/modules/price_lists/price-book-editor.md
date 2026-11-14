@@ -249,9 +249,13 @@ moduł. Jest dostępny, gdy produkt już istnieje.
   serwerze. Wariant, którego własna cena ma progi ilościowe, edytuje się w siatce cennika cen bazowych.
 - Panel informuje, gdy produkt nie ma ceny bazowej w danej walucie — kupujący płacący w niej nie mogą
   go zamówić — albo nie ma jej wcale.
-- **Zapisz ceny** zapisuje panel; to własny przycisk panelu, oddzielny od zapisu produktu, a
-  opuszczenie zakładki albo strony z niezapisanymi cenami wymaga potwierdzenia (jeden zapis dla całej
-  strony to zgłoszenie #407). Błędna wartość jest zgłaszana przy jej polu.
+- Ceny zapisuje **przycisk Zapisz edytora produktu**, razem z własnymi zmianami produktu: jego
+  licznik obejmuje zmienione waluty, a edytor prosi o potwierdzenie przed opuszczeniem strony lub
+  zmianą zakresu z niezapisanymi cenami. Przełączanie zakładek ich nie traci. Najpierw zapisywane są
+  własne zmiany produktu, potem ceny bazowe; zanim cokolwiek zostanie zapisane, serwer sprawdza ceny,
+  więc cena, której by odmówił, zatrzymuje cały zapis i jest zgłaszana w panelu. Jeśli produkt
+  zostanie zapisany, a ceny bazowe nie, edytor o tym informuje, a kolejny zapis zapisuje już tylko
+  ceny bazowe. Błędna wartość jest zgłaszana przy jej polu.
 - **Otwórz ceny bazowe** otwiera siatkę cennika cen bazowych; **Skąd ta cena?** otwiera wyjaśnienie
   ceny dla tego produktu.
 

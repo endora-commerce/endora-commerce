@@ -238,9 +238,13 @@ module. It is available once the product has been created.
   book's grid.
 - The panel says when the product has no base price in a currency — buyers paying in it cannot
   order it — or none at all.
-- **Save prices** saves the panel; it is the panel's own button, separate from the product's save,
-  and leaving the tab or the page with unsaved prices asks first (one save for the whole page is
-  issue #407). An invalid value is reported on its field.
+- The prices are saved by the **product editor's Save**, together with the product's own changes:
+  its count includes the currencies you changed, and the editor asks before you leave the page or
+  switch scope with unsaved prices. Switching tabs keeps them. The product's own changes are written
+  first, then the base prices; before anything is written the server checks the prices, so a price
+  it would refuse stops the whole Save and is reported on the panel. If the product is saved but the
+  base prices are not, the editor says so and the next Save writes only the base prices. An invalid
+  value is reported on its field.
 - **Open the base prices** opens the base book's grid; **Why this price?** opens the explainer for
   this product.
 

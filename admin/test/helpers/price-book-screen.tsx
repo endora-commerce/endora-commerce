@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { render, screen, type RenderResult } from '@testing-library/react';
-import type { ComponentType, ReactElement, ReactNode } from 'react';
+import { useState, type ComponentType, type ReactElement, type ReactNode } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import type { AdminMe } from '@endora-commerce/admin-kit/lib';
+import { SaveSessionProvider, useModulePresence, useSaveSession, type AdminMe, type SaveOutcome } from '@endora-commerce/admin-kit/lib';
+import { SaveSessionActions, SaveSessionSummary } from '@endora-commerce/admin-kit/components';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { modulePresence, withSession } from './render-with-session';
@@ -108,38 +110,95 @@ export async function apiError(status: number, code: string, message: string, de
 }
 
 const BASE_PANEL = (contributions.zones ?? []).find((zone) => zone.zone === 'product.editor.pricing.after')!;
-const BasePanel = ((await BASE_PANEL.component()) as { default: ComponentType<{ productId: string }> }).default;
+
+/** The outcome of the last page Save the harness ran. */
+export const pageSaves: { last: SaveOutcome | null } = { last: null };
+
+/**
+ * Feature 180 — the product editor's one Save as the panel meets it, without the editor: the
+ * session, the generic Save and summary, and the panel rendered through the real zone, so its
+ * module is `price_lists` as in the editor.
+ */
+function PageSaveHarness({ productId, showPanel }: { productId: string; showPanel: boolean }): ReactNode {
+  const session = useSaveSession();
+  const { refresh } = useModulePresence();
+  return (
+    <>
+      {/* Re-reads the module projection, so a case can switch a module off under the page. */}
+      <button type="button" onClick={(): void => void refresh()}>
+        Refresh presence
+      </button>
+      <SaveSessionActions
+        hostCount={0}
+        canSave={false}
+        saving={session.saving}
+        onSave={(): void => {
+          void session.run(null).then((outcome) => {
+            pageSaves.last = outcome;
+          });
+        }}
+      />
+      <SaveSessionSummary outcome={session.lastOutcome} notices={session.notices} onShow={(): void => undefined} />
+      {showPanel ? <AdminZone name="product.editor.pricing.after" props={{ productId, saveSession: session.handle }} /> : null}
+    </>
+  );
+}
 
 /**
  * The product editor's Pricing tab as the base-price panel meets it: the
  * host's tab strip (a *Details* tab, the *Pricing* tab selected) and the
- * panel mounted in the tab body, as `ProductEditor.tsx` mounts the zone.
+ * panel mounted in the tab body under the editor's save session. *Details*
+ * unmounts the panel, as the editor does (FR-003).
  */
 export function mountBasePricePanel(options: {
   readonly productId: string;
   readonly session: AdminMe;
   readonly language?: 'en' | 'pl';
   readonly onHostTab?: () => void;
+  /** Modules present beside `price_lists` (feature 180 off-state cases). */
+  readonly present?: readonly string[];
+  readonly absent?: readonly string[];
 }): RenderResult {
   const language = options.language ?? 'en';
   const wrapper = ({ children }: { children: ReactNode }): ReactElement => (
     <TranslationProvider language={language} initialBundle={bundles(language)}>
-      {withSession(<>{children}</>, { session: options.session, presence: modulePresence({ present: ['price_lists'] }) })}
+      {withSession(<>{children}</>, {
+        session: options.session,
+        presence: modulePresence({ present: ['price_lists', ...(options.present ?? [])], absent: options.absent ?? [] }),
+        contributions: [{ moduleId: 'price_lists', contributions: { zones: [BASE_PANEL] } }],
+      })}
     </TranslationProvider>
   );
+  pageSaves.last = null;
+  function Tabs(): ReactNode {
+    const [tab, setTab] = useState<'details' | 'pricing'>('pricing');
+    return (
+      <SaveSessionProvider resetKey={options.productId} hostModule="catalog">
+        <div role="tablist" aria-label="Product">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'details'}
+            onClick={(): void => {
+              options.onHostTab?.();
+              setTab('details');
+            }}
+          >
+            Details
+          </button>
+          <button type="button" role="tab" aria-selected={tab === 'pricing'} onClick={(): void => setTab('pricing')}>
+            Pricing
+          </button>
+        </div>
+        <div role="tabpanel" aria-label={tab === 'pricing' ? 'Pricing' : 'Details'}>
+          <PageSaveHarness productId={options.productId} showPanel={tab === 'pricing'} />
+        </div>
+      </SaveSessionProvider>
+    );
+  }
   return render(
     <MemoryRouter initialEntries={[`/catalog/products/${options.productId}`]}>
-      <div role="tablist" aria-label="Product">
-        <button type="button" role="tab" aria-selected="false" onClick={options.onHostTab}>
-          Details
-        </button>
-        <button type="button" role="tab" aria-selected="true">
-          Pricing
-        </button>
-      </div>
-      <div role="tabpanel" aria-label="Pricing">
-        <BasePanel productId={options.productId} />
-      </div>
+      <Tabs />
       <LocationProbe />
     </MemoryRouter>,
     { wrapper },

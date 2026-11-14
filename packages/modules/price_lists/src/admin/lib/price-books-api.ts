@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   adminProductVariantsResponseSchema,
+  basePricesDryRunResponseSchema,
   precedenceViewSchema,
   priceBookLinesResponseSchema,
   priceBookListResponseSchema,
@@ -148,6 +149,11 @@ export interface PriceBooksApi {
    */
   productVariants(productId: string): Promise<Array<{ id: string; sku: string }>>;
   writeBasePrices(productId: string, body: BasePricesWrite): Promise<ProductBasePrices>;
+  /**
+   * Feature 180 (FR-021) — the write's every rule, nothing written
+   * (`PUT …/base-prices/:productId?dryRun=true`); throws the write's refusal.
+   */
+  checkBasePrices(productId: string, body: BasePricesWrite): Promise<void>;
   resolve(body: PriceBookResolveRequest): Promise<PriceBookResolvedLine[]>;
   precedence(): Promise<PrecedenceView>;
   showListPrice(): Promise<boolean>;
@@ -268,6 +274,9 @@ export function createPriceBooksApi(client: PriceBooksTransport): PriceBooksApi 
       get(`${BASE}/base-prices${query([['productId', productId]])}`, dataOf(productBasePricesSchema)),
     writeBasePrices: (productId, body) =>
       send('PUT', `${BASE}/base-prices/${encodeURIComponent(productId)}`, body, dataOf(productBasePricesSchema)),
+    checkBasePrices: async (productId, body) => {
+      await send('PUT', `${BASE}/base-prices/${encodeURIComponent(productId)}?dryRun=true`, body, basePricesDryRunResponseSchema);
+    },
     resolve: (body) => send('POST', `${BASE}/resolve`, body, dataOf(priceBookResolvedLineSchema.array())),
     precedence: () => get(`${BASE}/precedence`, dataOf(precedenceViewSchema)),
     showListPrice: async () =>

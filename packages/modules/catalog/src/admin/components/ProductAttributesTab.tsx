@@ -1,6 +1,6 @@
 import { useContext, useEffect, useState, type ReactNode } from 'react';
 import type { AdminProductContentList } from '@endora-commerce/contracts';
-import { apiClient, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
+import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { MultiSelect } from '@endora-commerce/admin-kit/ui';
 import { ScopedFieldGrid, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -225,7 +225,7 @@ export function ProductAttributesTab(): ReactNode {
                 note={
                   <AdminZone
                     name="product.editor.field.after"
-                    props={{ productId: ctx.productId, fieldPath: `attributeValues.${attr.key}`, scope: ctx.state.scope, languageCodes: null, saveSession: INERT_SAVE_SESSION }}
+                    props={{ productId: ctx.productId, fieldPath: `attributeValues.${attr.key}`, scope: ctx.state.scope, languageCodes: null, saveSession: ctx.saveSession }}
                   />
                 }
                 render={render}
