@@ -48,7 +48,7 @@ const storeByHandle = new WeakMap<EditorSaveSessionHandle, SaveSessionStore>();
  * placeholder props, or a host whose editor does not run a session yet. A participant handed it
  * keeps a local draft and takes part in nothing.
  */
-export const INERT_SAVE_SESSION: EditorSaveSessionHandle = Object.freeze({ sessionId: 'inert' });
+export const INERT_SAVE_SESSION: EditorSaveSessionHandle = { sessionId: 'inert' };
 
 const SaveSessionContext = createContext<SaveSessionStore | null>(null);
 
@@ -62,8 +62,6 @@ export interface SaveSessionProviderProps {
   readonly hostModule?: string;
   readonly children: ReactNode;
 }
-
-const EMPTY_FIELDS: Readonly<Record<string, string>> = Object.freeze({});
 
 function fieldsOf(details: unknown): Record<string, string> {
   const fields: Record<string, string> = {};
@@ -103,11 +101,11 @@ export function SaveSessionProvider({ resetKey, hostModule, children }: SaveSess
     describeError: (error): ParticipantIssues => {
       if (error instanceof ApiError) {
         if (error.envelope.error.code === 'MODULE_DISABLED') {
-          return { fields: EMPTY_FIELDS, message: t('saveSession.error.moduleOff') };
+          return { fields: {}, message: t('saveSession.error.moduleOff') };
         }
         return { fields: fieldsOf(error.envelope.error.details), message: error.envelope.error.message };
       }
-      return { fields: EMPTY_FIELDS, message: error instanceof Error ? error.message : String(error) };
+      return { fields: {}, message: error instanceof Error ? error.message : String(error) };
     },
   });
 
