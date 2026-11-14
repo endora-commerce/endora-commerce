@@ -18,6 +18,7 @@ import type {
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  CustomerNotificationRecordPort,
   CustomFieldCarryPort,
   CustomFieldCarryReceiverPort,
   CustomFieldListFilterPort,
@@ -583,15 +584,17 @@ export function registerModule(ctx: ModuleContext): void {
           // Feature 153 — the quote PDF routes' service, resolved when the
           // routes are mounted.
           documentService: () => ctx.cradle<QuoteRequestsCradle>().quoteRequestDocumentService,
-          // `specs/179-rfq-and-customer-notifications/` WP-05 — what the
-          // delivery worker delivers through. The bell's owner is switchable
-          // and only degrades this module (the manifest's `degrades-without`
-          // edge): its presence is asked in front of the port by the delivery
-          // service, never caught behind it. The sender is read off the cradle
-          // per send — a function announced late, which `lazyPort` cannot
-          // forward (the PDF e-mail's precedent).
+          // `specs/179-rfq-and-customer-notifications/` WP-05, WP-08 — what the
+          // delivery worker delivers through. The bell's and the customer
+          // centre's owners are switchable and only degrade this module (the
+          // manifest's `degrades-without` edges): their presence is asked in
+          // front of each port by the delivery service, never caught behind
+          // it. The sender is read off the cradle per send — a function
+          // announced late, which `lazyPort` cannot forward (the PDF e-mail's
+          // precedent).
           delivery: {
             bell: lazyPort<AdminNotificationRecordPort<EntityManager>>(ctx, 'adminNotificationRecordPort'),
+            centre: lazyPort<CustomerNotificationRecordPort<EntityManager>>(ctx, 'customerNotificationRecordPort'),
             sender: () => ctx.cradle<QuoteRequestsCradle>().transactionalEmailSenderAccessor(),
             salesChannels: {
               getById: (id) => ctx.cradle<QuoteRequestsCradle>().salesChannelResolutionPort.getById(id),

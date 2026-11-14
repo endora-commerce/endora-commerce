@@ -168,10 +168,6 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'contract/assets_library/admin-folders.contract.test.ts': 1,
   'contract/carts/cart-coupon-autodrop.contract.test.ts': 1,
   'contract/carts/cart-coupon.contract.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'contract/orders/admin-create-groups.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'contract/orders/carry-system-note-visibility.test.ts': 1,
   'contract/price_lists/display-modes.test.ts': 1,
   'contract/price_lists/pricing-resolution.test.ts': 1,
   // #115: +1, the same helper detaches every feed template from its taxonomy (`update … set "taxonomy_id" = null`).
@@ -200,26 +196,6 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/catalog/listing-price-source.test.ts': 1,
   'integration/cms/legacy-migration.test.ts': 1,
   'integration/comparisons/comparison-price-source.integration.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/crm/auto-create.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/crm/create-from-opportunity.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/crm/custom-field-carry-from-opportunity.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/crm/custom-field-carry-quote-version.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/crm/merged-stories.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability, in three `beforeAll`s.
-  'integration/crm/off-state.test.ts': 3,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/crm/quote-conversion.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/crm/review-extensions.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/crm/webhooks.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/custom_fields/carry-audience.test.ts': 1,
   'integration/dictionaries/country-service.test.ts': 3,
   'integration/dictionaries/currency-service.test.ts': 3,
   'integration/dictionaries/language-country-service.test.ts': 3,
@@ -231,18 +207,6 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/inventory/availability-worker.test.ts': 1,
   'integration/inventory/dictionary-boundary.test.ts': 3,
   'integration/megamenu/dictionary-boundary.test.ts': 3,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/orders/admin-create-origin.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/orders/order-created-after-commit.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/orders/place-order-custom-field-carry.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/orders/place-order-from-quote-request.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/orders/place-order-quote-groups.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/orders/quote-request-source-review.test.ts': 1,
   'integration/organizations/dictionary-boundary.test.ts': 3,
   'integration/organizations/flat-behavior-preserved.test.ts': 1,
   'integration/price_lists/display-mode-chain.test.ts': 2,
@@ -264,8 +228,6 @@ export const UNSCOPED_WIPES_BASELINE: Readonly<Record<string, number>> = {
   'integration/promotions/usage-limits.test.ts': 3,
   'integration/prompt_actions/bulk-category-flow.test.ts': 1,
   'integration/prompt_actions/set-stock-flow.test.ts': 1,
-  // #115: `update "stock_levels" set "on_hand" = …` tops every stock level up so no placement fails on availability.
-  'integration/quote_requests/conversion.test.ts': 1,
   'integration/sales_channels/dictionary-boundary.test.ts': 3,
   'integration/search/embedder-reactor.test.ts': 1,
   // #115: resets every digest subscription's last-sent day.

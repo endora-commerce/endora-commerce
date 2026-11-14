@@ -190,6 +190,43 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'invoiced: there is no sale left to document. The noun is the invoice, which `invoices` ' +
       'owns, and `invoices` raises it; the automatic issuance skips the order and logs the code.',
   },
+  INVOICE_SELLER_DATA_MISSING: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for invoice issuance before the seller\'s VAT number and ' +
+      'company data are configured. It was `VALIDATION_FAILED` with an English sentence the ' +
+      'envelope never replaces. The one raise site is `invoices`\' `SellerSettingsResolver`',
+  },
+  INVOICE_CORRECTION_CURRENCY_MISMATCH: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for a correction asked for in another currency than the ' +
+      'invoice it corrects, formerly `VALIDATION_FAILED` with `details.code = ' +
+      '\'correction_currency_mismatch\'`. The noun is the corrective invoice; `invoices` raises it',
+  },
+  INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for a correction total its lines and charges do not add up ' +
+      'to, formerly `400 VALIDATION_FAILED` with `details.code = ' +
+      '\'correction_total_exceeds_lines\'`; the token `below_charges` marks the total below the ' +
+      'charges alone. The noun is the corrective invoice; `invoices` raises it',
+  },
+  INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for a correction crediting more goods at one VAT rate than ' +
+      'the invoice still charges there (#885), formerly `VALIDATION_FAILED` with `details.code ' +
+      '= \'correction_exceeds_rate_remaining\'`. The noun is the corrective invoice',
+  },
+  INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING: {
+    to: 'invoices',
+    reason:
+      'Minted by issue #633 (#86) for a correction crediting more of the delivery or the ' +
+      'payment surcharge than the invoice still charges for it (#876), formerly ' +
+      '`VALIDATION_FAILED` with `details.code = \'correction_exceeds_charge_remaining\'`; the ' +
+      'token is now the charge. The noun is the corrective invoice',
+  },
   AMOUNT_PRECISION_EXCEEDED: {
     to: '_i18n',
     reason:
@@ -1146,6 +1183,21 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted by !1159 for a retry whose gateway adapter is absent. The noun is the payment ' +
       'adapter, which `payments` owns along with the adapter registry (D-121 T1).',
   },
+  PAYMENT_METHOD_IN_USE: {
+    to: 'payment_methods',
+    reason:
+      'Minted by issue #635 (#86) for the FR-003 delete guard: a payment method that payments ' +
+      'reference cannot be deleted. It was raised as `VALIDATION_FAILED` with an English ' +
+      'sentence the envelope never replaces. The noun is the payment method, and the one raise ' +
+      'site is `payment_methods`\' delete Command. Issue #632 mints the delivery twin.',
+  },
+  PAYMENT_METHOD_USAGE_UNKNOWN: {
+    to: 'payment_methods',
+    reason:
+      'Minted by issue #635 (#86) for the same guard when `payments` is switched off and the ' +
+      'payments that may reference the method cannot be counted. It was `VALIDATION_FAILED`. ' +
+      'The code names the method, not the absent module.',
+  },
 
   // The shared PIM connector layer, minted together with the UnoPim connector by
   // !1282 (feature 089). Neither module existed when the prefix chain was
@@ -1384,6 +1436,23 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'The payment twin of `ORDER_DELIVERY_METHOD_UNAVAILABLE` (issue #86), on the same ' +
       'reasoning; `PAYMENT_METHOD_*` is the family `payment_methods` would reach for.',
   },
+  DELIVERY_METHOD_IN_USE: {
+    to: 'delivery_methods',
+    reason:
+      'Minted by issue #632 (#86) for the FR-003 guard: a delivery method that shipments ' +
+      'reference cannot be deleted (token `delete`) or rebound to another adapter (token ' +
+      '`change_adapter`). It was raised as `VALIDATION_FAILED` with an English sentence the ' +
+      'envelope never replaces. The noun is the delivery method, and both raise sites are in ' +
+      '`delivery_methods`\' own Commands.',
+  },
+  DELIVERY_METHOD_USAGE_UNKNOWN: {
+    to: 'delivery_methods',
+    reason:
+      'Minted by issue #632 (#86) for the same guard when `shipments` is switched off and the ' +
+      'shipments that may reference the method cannot be counted, with the same two tokens. ' +
+      'It was `VALIDATION_FAILED`. The one raise site is `delivery_methods`\' ' +
+      '`shipment-usage-guard.ts`; the code names the method, not the absent module.',
+  },
   ORDER_BELOW_MINIMUM_VALUE: {
     to: 'orders',
     reason:
@@ -1406,6 +1475,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted for the refusal to copy an order with no lines into a quote request (issue #86). ' +
       'It was raised as `VALIDATION_FAILED` with an English sentence. The one raise site is ' +
       '`OrderCloneToQuoteService.clone`; the noun is the order.',
+  },
+  SHIPMENT_ALREADY_GENERATED: {
+    to: 'shipments',
+    reason:
+      'Minted by issue #637 (#86), the module\'s first code, for a write refused because a ' +
+      'shipment was already generated successfully: generating again for its order (token ' +
+      '`generate`) and the `receive_shipment` ingress marking it failed (token `mark_failed`). ' +
+      'Both were `VALIDATION_FAILED` with an English literal. The noun is the shipment, and ' +
+      'both raise sites are in `shipments`.',
   },
   ASSET_REPLACE_KIND_MISMATCH: {
     to: 'assets_library',

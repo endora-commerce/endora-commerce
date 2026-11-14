@@ -1,4 +1,5 @@
 import type { OrganizationRoleKind } from '@endora-commerce/contracts';
+import { subscribeWhenReady, type HandshakeAwareSubscriber } from '@endora-commerce/platform/kernel';
 
 /**
  * `OrganizationRoleCache` — an Organization's roles and their grants, per
@@ -60,9 +61,12 @@ export interface OrganizationRolePublisher {
   publish(channel: string, message: string): Promise<unknown>;
 }
 
-/** The subscribing half of a Redis client (a connection in subscriber mode). */
-export interface OrganizationRoleSubscriber {
-  subscribe(channel: string): Promise<unknown>;
+/**
+ * The subscribing half of a Redis client (a connection in subscriber mode):
+ * `on`, and the status and handshake events `subscribeWhenReady` waits on
+ * (issue #1147).
+ */
+export interface OrganizationRoleSubscriber extends HandshakeAwareSubscriber {
   on(event: 'message', listener: (channel: string, message: string) => void): unknown;
 }
 
@@ -140,7 +144,8 @@ export class OrganizationRoleCache {
   async start(subscriber: OrganizationRoleSubscriber): Promise<void> {
     if (this.subscribed) return;
     this.subscribed = true;
-    await subscriber.subscribe(ORGANIZATION_ROLES_CHANGED_CHANNEL);
+    // Issue #1147 — never SUBSCRIBE mid-handshake.
+    await subscribeWhenReady(subscriber, ORGANIZATION_ROLES_CHANGED_CHANNEL);
     subscriber.on('message', (channel, message) => {
       if (channel !== ORGANIZATION_ROLES_CHANGED_CHANNEL) return;
       this.handleMessage(message);

@@ -33,9 +33,10 @@ import type { QuoteRequestNotificationChannel } from './notification-matrix.js';
  *     by catching behind it (D-60): an owner that is off closes the record
  *     `skipped_module_off` without an attempt (FR-012).
  *  3. **Deliver** through the channel's adapter, inside the record's
- *     transaction — so the bell entry an adapter writes with `recordWithin`
- *     commits with the record's closing, exactly once (FR-013), and an e-mail
- *     is handed over with the record's id as its message id (FR-014).
+ *     transaction — so the bell or centre entry an adapter writes with
+ *     `recordWithin` commits with the record's closing, exactly once
+ *     (FR-013), and an e-mail is handed over with the record's id as its
+ *     message id (FR-014).
  *
  * **A failed attempt rolls its transaction back** — whatever the adapter had
  * written goes with it — and is then counted in a transaction of its own: the
@@ -52,8 +53,8 @@ import type { QuoteRequestNotificationChannel } from './notification-matrix.js';
  * which the worker gate then holds (module-composition item 7).
  *
  * **Only channels with an adapter are claimed.** A record of a channel whose
- * delivery is not built yet (`customer_in_app`, WP-08; `customer_push`,
- * WP-10) is not read, not counted and not closed by this pass.
+ * delivery is not built yet (`customer_push`, WP-10) is not read, not counted
+ * and not closed by this pass.
  *
  * The pass runs in the system scope the worker opens; the probe
  * ({@link RfqNotificationDeliveryService.hasDeliverable}) runs outside it and

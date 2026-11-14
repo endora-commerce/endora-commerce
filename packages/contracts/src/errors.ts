@@ -317,6 +317,32 @@ export const ERROR_CODES = {
   // invoiced has no sale left to document (issue #417, owner ruling of
   // 2026-10-24), so issuance refuses it.
   INVOICE_ORDER_REFUNDED: 'INVOICE_ORDER_REFUNDED',
+  // Invoices — business refusals of issuance and correction (issue #633, #86),
+  // `VALIDATION_FAILED` with an English sentence until then.
+  /** 422 — the seller's VAT number and company data are not configured (`details.setting`). */
+  INVOICE_SELLER_DATA_MISSING: 'INVOICE_SELLER_DATA_MISSING',
+  /**
+   * 422 — a correction asked for in another currency than the corrected
+   * invoice's (`details.requestedCurrency`, `invoiceCurrency`, `originalInvoiceId`).
+   */
+  INVOICE_CORRECTION_CURRENCY_MISMATCH: 'INVOICE_CORRECTION_CURRENCY_MISMATCH',
+  /**
+   * 400 — the correction total is more than its lines add up to, or (token
+   * `below_charges`) less than the charges it credits (`details.total`,
+   * `linesTotal`, `currency`).
+   */
+  INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES: 'INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES',
+  /**
+   * 422 — the correction credits more goods at one VAT rate than the invoice
+   * still charges there (`details.taxRate`, `vatRatePercent`, `remaining`, `currency`).
+   */
+  INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING: 'INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING',
+  /**
+   * 422 — the correction credits more of an order charge than the invoice still
+   * charges for it; the token is the charge, `delivery` or `payment_surcharge`
+   * (`details.chargeKind`, `remaining`, `currency`).
+   */
+  INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING: 'INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING',
   INVALID_TRANSITION: 'INVALID_TRANSITION',
 
   // Returns 155 — a `return`-kind case naming an order line recorded as not
@@ -327,6 +353,16 @@ export const ERROR_CODES = {
   // admin already holds a view on the return list whose name differs only by
   // case or surrounding spaces.
   RETURN_SAVED_VIEW_NAME_TAKEN: 'RETURN_SAVED_VIEW_NAME_TAKEN',
+  // Shipments (issue #637, #86) — the module's first code. Generating a shipment
+  // for an order that already has a successful one, and marking a successful
+  // shipment failed, were `409 VALIDATION_FAILED` with an English literal.
+  /**
+   * 409 — the shipment, or the order's latest one, was already generated
+   * successfully. `details.code` names the refused write: `generate`
+   * (`details.orderId`, `shipmentId`) or `mark_failed` (`details.shipmentId`,
+   * `orderId`, `status`).
+   */
+  SHIPMENT_ALREADY_GENERATED: 'SHIPMENT_ALREADY_GENERATED',
   // Issue #905 — a consumer withdrawal settled as a credit, a replacement or a
   // repair without the consumer's consent to that resolution on record.
   RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED: 'RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED',
@@ -814,6 +850,23 @@ export const ERROR_CODES = {
   // `INFAKT_CONNECTION_FAILED` and `INFAKT_WEBHOOK_UNAUTHORIZED` left with the
   // `infakt` module (feature 134, T069), which declares them as `infaktErrorCodes`.
 
+  // Delivery methods — a method shipments were created against (issue #632, #86).
+  // Raised as `VALIDATION_FAILED` with an English sentence until then. The
+  // `details.code` token names the write that was refused: `delete` or
+  // `change_adapter`.
+  /**
+   * 409 — shipments reference the method, so it cannot be deleted or rebound to
+   * another adapter (`details.deliveryMethodId`, `deliveryMethodCode`,
+   * `shipmentCount`; `adapter` for `change_adapter`).
+   */
+  DELIVERY_METHOD_IN_USE: 'DELIVERY_METHOD_IN_USE',
+  /**
+   * 409 — the `shipments` module is off, so nobody can count the shipments that
+   * may reference the method, and the delete or the adapter change is refused
+   * (`details.deliveryMethodId`, `module`).
+   */
+  DELIVERY_METHOD_USAGE_UNKNOWN: 'DELIVERY_METHOD_USAGE_UNKNOWN',
+
   // Shared ERP connector layer (feature 119).
   /** Another ERP connector is operator-active; activation refused (FR-006). */
   ERP_CONNECTOR_ALREADY_ACTIVE: 'ERP_CONNECTOR_ALREADY_ACTIVE',
@@ -835,6 +888,21 @@ export const ERROR_CODES = {
    * neither claimant.
    */
   PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
+
+  // Payment methods — a method payments reference (issue #635, #86). Raised as
+  // `VALIDATION_FAILED` with an English sentence until then; issue #632 gives
+  // the delivery-method guard the same pair.
+  /**
+   * 409 — payments reference the method, so it cannot be deleted
+   * (`details.paymentMethodId`, `paymentMethodCode`, `paymentCount`).
+   */
+  PAYMENT_METHOD_IN_USE: 'PAYMENT_METHOD_IN_USE',
+  /**
+   * 409 — the `payments` module is off, so nobody can count the payments that
+   * may reference the method, and the delete is refused
+   * (`details.paymentMethodId`, `module`).
+   */
+  PAYMENT_METHOD_USAGE_UNKNOWN: 'PAYMENT_METHOD_USAGE_UNKNOWN',
 
   // CRM — Sales Opportunities (`specs/143-crm-sales-opportunities/`,
   // `contracts/admin-api.md` §13). Each is declared by the `crm` module's

@@ -94,6 +94,30 @@ export async function seedUs2Commerce(em: EntityManager): Promise<void> {
 }
 
 /**
+ * Tops up the stock of exactly the products a file places orders for, so no
+ * placement in it is refused on availability (issue #607).
+ *
+ * The statement it replaces, `update "stock_levels" set "on_hand" = 100000`,
+ * rewrote every stock level in the database — rows other files had seeded and
+ * were about to assert over. Naming the products is the scope: a file passes
+ * the ones it orders, and nobody else's stock moves. An empty list is refused
+ * rather than read as "every product", which is the shape this exists to end.
+ */
+export async function topUpStock(
+  em: EntityManager,
+  productIds: readonly string[],
+  onHand = 100_000,
+): Promise<void> {
+  if (productIds.length === 0) {
+    throw new Error('topUpStock: name the products this file places orders for');
+  }
+  const placeholders = productIds.map(() => '?').join(', ');
+  await em
+    .getConnection()
+    .execute(`update "stock_levels" set "on_hand" = ? where "product_id" in (${placeholders})`, [onHand, ...productIds]);
+}
+
+/**
  * T099 fixture — a second Organization in status=suspended plus a customer
  * account tied to the `stub-customer-session-suspended` cookie (added below to
  * the stub map). Placing an order must return 423.

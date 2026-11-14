@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { PaymentReadPort } from '@endora-commerce/contracts';
+import { ERROR_CODES, type PaymentReadPort } from '@endora-commerce/contracts';
 import { makeDeletePaymentMethodCommand } from '../../../../packages/modules/payment_methods/src/backend/commands/payment-method.commands.js';
 // The class from the package's **source**: the `EntityManager` here is a stub
 // (`as unknown as EntityManager`), so nothing registers metadata and there is no
@@ -78,7 +78,11 @@ describe('payment-method delete-guard (feature 075)', () => {
 
     const command = makeDeletePaymentMethodCommand(METHOD_ID, { paymentRead: () => port });
 
-    await expect(command.run({ em, actor })).rejects.toMatchObject({ statusCode: 409 });
+    await expect(command.run({ em, actor })).rejects.toMatchObject({
+      statusCode: 409,
+      code: ERROR_CODES.PAYMENT_METHOD_IN_USE,
+      details: { paymentMethodId: METHOD_ID, paymentMethodCode: 'bank_transfer', paymentCount: 3 },
+    });
     expect(removed()).toBe(0);
   });
 
@@ -96,6 +100,11 @@ describe('payment-method delete-guard (feature 075)', () => {
     const error = await command.run({ em, actor }).catch((err: unknown) => err);
     expect(error).toBeInstanceOf(HttpError);
     expect((error as HttpError).statusCode).toBe(409);
+    expect((error as HttpError).code).toBe(ERROR_CODES.PAYMENT_METHOD_USAGE_UNKNOWN);
+    expect((error as HttpError).details).toEqual({
+      paymentMethodId: METHOD_ID,
+      module: 'payments',
+    });
     expect((error as HttpError).message).toMatch(/payments module is switched off/i);
     expect((error as HttpError).message).toMatch(/inactive/i);
     expect(removed()).toBe(0);

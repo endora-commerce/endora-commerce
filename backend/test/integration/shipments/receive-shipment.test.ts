@@ -254,7 +254,11 @@ describe('Shipment lifecycle: createShipment (generate and retry) + receive_ship
 
     await expect(
       handler.receive({ shipmentId: shipment.id, outcome: 'failure', failureReason: 'late' }),
-    ).rejects.toMatchObject({ statusCode: 409 });
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'SHIPMENT_ALREADY_GENERATED',
+      details: { code: 'mark_failed', shipmentId: shipment.id, orderId: order.id, status: 'success' },
+    });
   });
 
   /**

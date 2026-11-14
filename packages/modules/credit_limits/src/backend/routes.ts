@@ -110,19 +110,22 @@ export async function registerCreditLimitsRoutes(
    * holds `orders.view_organization` — the *Administrator* implicitly — reads
    * every order of the Organization, anyone else only the orders they placed.
    *
-   * The reservation does not record who placed its order, so the placer is
-   * asked of `orders` in one batched read, and only when the permission is
-   * missing. The totals are computed from the full set by the caller: the
+   * The reservation records neither who placed its order nor the order's
+   * customer-facing number, so both are asked of `orders` in one batched read.
+   * The number is what the buyer's widget shows instead of the database id
+   * (issue #661). The totals are computed from the full set by the caller: the
    * limit is shared, and a member needs them to know what they can spend.
    */
   const readableReservations = async (
     ctx: { customerAccountId: string; organizationId: string },
     reservations: CreditLimitReservation[],
-  ): Promise<CreditLimitReservation[]> => {
-    if (reservations.length === 0) return reservations;
+  ): Promise<{ listed: CreditLimitReservation[]; orderNumbers: ReadonlyMap<string, string> }> => {
+    if (reservations.length === 0) return { listed: reservations, orderNumbers: new Map() };
     const subject = { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId };
-    if (await organizationPermissionPort.can(subject, ORDERS_VIEW_ORGANIZATION)) return reservations;
+    const holds = await organizationPermissionPort.can(subject, ORDERS_VIEW_ORGANIZATION);
     const orders = await orderReadPort.findByIds(reservations.map((r) => r.orderId));
+    const orderNumbers = new Map(orders.map((o) => [o.id, o.businessId]));
+    if (holds) return { listed: reservations, orderNumbers };
     const own = new Set(
       orders
         .filter(
@@ -132,7 +135,7 @@ export async function registerCreditLimitsRoutes(
         )
         .map((o) => o.id),
     );
-    return reservations.filter((r) => own.has(r.orderId));
+    return { listed: reservations.filter((r) => own.has(r.orderId)), orderNumbers };
   };
 
   app.get(
@@ -149,8 +152,8 @@ export async function registerCreditLimitsRoutes(
         );
       }
       const reservations = await creditLimitService.listActiveReservations(limit.id);
-      const listed = await readableReservations(ctx, reservations);
-      return { data: serializeView(limit, reservations, null, listed) };
+      const { listed, orderNumbers } = await readableReservations(ctx, reservations);
+      return { data: serializeView(limit, reservations, null, listed, orderNumbers) };
     },
   );
 
@@ -283,13 +286,17 @@ const ORDERS_VIEW_ORGANIZATION = 'orders.view_organization';
 /**
  * `reservations` is every active reservation of the limit and drives the
  * totals; `listed` is the subset the caller may read, defaulting to all of
- * them (the admin views). The published `creditLimitViewSchema` (issue #599).
+ * them (the admin views). `orderNumbers` maps an order id to its
+ * customer-facing number; only the customer view passes it (issue #661), and
+ * an order it lacks answers `null`. The published `creditLimitViewSchema`
+ * (issue #599).
  */
 function serializeView(
   limit: CreditLimit,
   reservations: CreditLimitReservation[],
   organizationName?: string | null,
   listed: CreditLimitReservation[] = reservations,
+  orderNumbers?: ReadonlyMap<string, string>,
 ): CreditLimitView {
   // Exact decimal arithmetic (issue #417); each figure a two-place decimal read as a number.
   const reservedSum = moneySum(reservations.map((r) => r.amount));
@@ -302,6 +309,7 @@ function serializeView(
     activeReservationCount: reservations.length,
     activeReservations: listed.map((r) => ({
       orderId: r.orderId,
+      ...(orderNumbers ? { orderBusinessId: orderNumbers.get(r.orderId) ?? null } : {}),
       amount: Number(r.amount),
       createdAt: r.createdAt.toISOString(),
     })),

@@ -13,6 +13,7 @@ import {
   SEED_ADDRESS_DELIVERY_ID,
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
+  topUpStock,
 } from '../../helpers/seed-commerce.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
@@ -159,7 +160,7 @@ describe('orders — custom-field values carried from the quote request at place
 
   beforeAll(async () => {
     h = await setupBackendServer({ organizationsMailer: mailer });
-    await h.em().execute(`update "stock_levels" set "on_hand" = 100000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID]);
     await seedOtherTestCustomer(h.em());
   });
 

@@ -1661,21 +1661,24 @@ describe('findPortCatches — a holder built from a deps bag carries per method 
 });
 
 /**
- * Issue #459 — a **known false positive**, pinned so that it stays written down.
+ * Issue #459 — a door method is attributed **per receiver**, not by its name.
  *
  * A key of an object literal whose closure reaches a gate is a property entry
- * of the module that wrote it (#100), and a call `x.<key>(…)` whose receiver
- * the analysis cannot place is attributed to that key **by its name alone** —
- * the last clause of `propertyCallReach`. `crm`'s door onto `quote_requests`
- * named a method `find`, so `em.find(…)` inside two unrelated `commandBus.run`
- * callbacks read as reaching `quoteRequestReadPort`, and their `catch` blocks
- * were reported. The workaround the header names is a distinctive method name
- * (`findRecord`); a fix would attribute the call per receiver.
+ * of the module that wrote it (#100). Until #459 a call `x.<key>(…)` whose
+ * receiver the analysis could not place was attributed to that key by its name
+ * alone, so `crm`'s door onto `quote_requests`, which named a method `find`,
+ * made `em.find(…)` inside two unrelated `commandBus.run` callbacks read as
+ * reaching `quoteRequestReadPort` — and the closure holding that `em.find` then
+ * made the Command's own `run` read as the door too. `specs/163-projects-and-tasks/`
+ * Phase 9B worked around it by naming the method `findRecord`.
  *
- * When this test goes red because the first expectation changed, the
- * heuristic was replaced: delete the pin and the header's paragraph with it.
+ * A key that only ever holds such a closure is now a **door's method**: a call
+ * through it reaches the port only through the holder its receiver resolves to
+ * (issue #576), or through a receiver that itself reads as the port. Both real
+ * shapes are held below beside the false positive, so the fix cannot have been
+ * bought by going blind to the door.
  */
-describe('findPortCatches — a door method is attributed by its name, not its receiver (#459)', () => {
+describe('findPortCatches — a door method is attributed per receiver, not by its name (#459)', () => {
   const door = (method: string): Map<string, string> =>
     new Map([
       [
@@ -1688,10 +1691,13 @@ describe('findPortCatches — a door method is attributed by its name, not its r
         "import { lazyPort } from '../../kernel/index.js';\n" +
           "import { createCrmQuoteRequests } from './services/crm-quote-requests.js';\n" +
           "import { AttachmentService } from './services/attachments.js';\n" +
+          "import { QuoteLinker } from './services/quote-linker.js';\n" +
           'export function registerModule(ctx: ModuleContext): void {\n' +
+          "  const quotes = createCrmQuoteRequests(lazyPort<Q>(ctx, 'quoteRequestReadPort'));\n" +
           '  ctx.di.register({\n' +
           "    crmQuoteRequests: ctx.asFunction(() => createCrmQuoteRequests(lazyPort<Q>(ctx, 'quoteRequestReadPort'))).singleton(),\n" +
           '    crmAttachments: ctx.asFunction(({ commandBus }: Cradle) => new AttachmentService({ commandBus })).singleton(),\n' +
+          '    crmQuoteLinker: ctx.asFunction(() => new QuoteLinker(quotes)).singleton(),\n' +
           '  });\n}',
       ],
       [
@@ -1710,19 +1716,86 @@ describe('findPortCatches — a door method is attributed by its name, not its r
           '    } catch { return null; }\n' +
           '  }\n}',
       ],
+      [
+        // Does reach it: the door, held by the class it was handed to.
+        'modules/crm/services/quote-linker.ts',
+        'export class QuoteLinker {\n' +
+          '  constructor(private readonly quotes: Quotes) {}\n' +
+          '  async link(id: string): Promise<unknown> {\n' +
+          `    try { return await this.quotes.${method}(id); } catch { return null; }\n` +
+          '  }\n}',
+      ],
     ]);
 
-  const attachmentSites = (method: string): string[] =>
+  const sitesIn = (method: string, file: string): string[] =>
     findPortCatches({ sources: door(method) })
-      .filter((entry) => entry.file === 'modules/crm/services/attachments.ts')
+      .filter((entry) => entry.file === file)
       .map((entry) => `${entry.port}:${entry.gates.join(',')}`);
 
-  it('reads an unrelated `em.find(…)` as the door`s `find` — the documented false positive', () => {
-    expect(attachmentSites('find')).toEqual(['run:quoteRequestReadPort', 'find:quoteRequestReadPort']);
+  it('does not read an unrelated `em.find(…)` as the door`s `find`', () => {
+    expect(sitesIn('find', 'modules/crm/services/attachments.ts')).toEqual([]);
   });
 
-  it('reads nothing there once the door names its method distinctively — the workaround', () => {
-    expect(attachmentSites('findRecord')).toEqual([]);
+  it('still reports the door called through the holder that holds it, whatever the method is named', () => {
+    for (const method of ['find', 'findRecord']) {
+      expect(sitesIn(method, 'modules/crm/services/quote-linker.ts')).toEqual([
+        'quotes:quoteRequestReadPort',
+      ]);
+    }
+  });
+
+  it('follows a Command passed by value into the `run` the bus runs', () => {
+    // Before #459 this was seen only because the bus and the Command share the
+    // spelling `run`; it is now the Command's own closure, resolved by value.
+    const sources = new Map([
+      [
+        'modules/quote_requests/backend.ts',
+        'export function registerModule(ctx: ModuleContext): void {\n' +
+          "  ctx.di.providePort('quoteRequestReadPort', ctx.asFunction(() => x).singleton());\n}",
+      ],
+      [
+        'modules/crm/backend.ts',
+        "import { lazyPort } from '../../kernel/index.js';\n" +
+          'export async function registerModule(ctx: ModuleContext, bus: Bus): Promise<unknown> {\n' +
+          "  const quotes = lazyPort<Q>(ctx, 'quoteRequestReadPort');\n" +
+          "  const command = { action: 'crm.x', run: async () => quotes.findById(1) };\n" +
+          "  const local = { action: 'crm.y', run: async ({ em }: Ctx) => em.find(Row, {}) };\n" +
+          '  try { await bus.run(local); } catch { return null; }\n' +
+          '  try { return await bus.run(command); } catch { return null; }\n}',
+      ],
+    ]);
+    expect(
+      findPortCatches({ sources })
+        .filter((entry) => entry.file === 'modules/crm/backend.ts')
+        .map((entry) => `${entry.port}:${entry.gates.join(',')}:${entry.line}`),
+    ).toEqual(['run:quoteRequestReadPort:7']);
+  });
+
+  it('still attributes an accessor key by its name — calling it hands on the port', () => {
+    const sources = new Map([
+      [
+        'modules/quote_requests/backend.ts',
+        'export function registerModule(ctx: ModuleContext): void {\n' +
+          "  ctx.di.providePort('quoteRequestReadPort', ctx.asFunction(() => x).singleton());\n}",
+      ],
+      [
+        'modules/crm/backend.ts',
+        'export function registerModule(ctx: ModuleContext): void {\n' +
+          '  ctx.di.register({\n' +
+          "    crmBag: ctx.asValue({ quotes: () => cradle().quoteRequestReadPort }),\n" +
+          '  });\n}',
+      ],
+      [
+        'modules/crm/services/reader.ts',
+        'export async function read(deps: Deps): Promise<unknown> {\n' +
+          '  try { return await deps.quotes().findById(1); } catch { return null; }\n}',
+      ],
+    ]);
+    expect(
+      findPortCatches({ sources })
+        .filter((entry) => entry.file === 'modules/crm/services/reader.ts')
+        .map((entry) => `${entry.port}:${entry.gates.join(',')}`),
+    ).toEqual(['quotes:quoteRequestReadPort']);
   });
 });
 

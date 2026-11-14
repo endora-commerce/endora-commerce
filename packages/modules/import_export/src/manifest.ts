@@ -170,6 +170,9 @@ export const manifest = defineModuleManifest({
       icon: 'Upload',
       targetRoute: '/import-export',
       requiredPermission: 'catalog:write',
+      // Issue #1088 — the screen opens on the entity list; `profiles` sits beside
+      // it at the same depth behind another gate, so the walk cannot pick alone.
+      entryApiRoute: '/api/v1/admin/import-export/entities',
       keywords: ['import', 'csv', 'excel', 'upload'],
       keywordsKey: 'actions.importProducts.keywords',
       weight: 110,
@@ -181,6 +184,7 @@ export const manifest = defineModuleManifest({
       icon: 'FileUp',
       targetRoute: '/import-export',
       requiredPermission: 'catalog:write',
+      entryApiRoute: '/api/v1/admin/import-export/entities',
       // Feature 174 — the Import profiles section lives on this screen (no route of its own).
       keywords: ['import', 'export', 'center', 'profile', 'mapping'],
       keywordsKey: 'actions.openCenter.keywords',

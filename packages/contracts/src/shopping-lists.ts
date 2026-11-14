@@ -42,6 +42,12 @@ export const shoppingListSchema = z.object({
 });
 export type ShoppingList = z.infer<typeof shoppingListSchema>;
 
+/** `GET /api/v1/shopping-lists` — the signed-in customer's lists, each with its items (issue #599). */
+export const shoppingListListResponseSchema = z.object({
+  data: z.array(shoppingListSchema),
+});
+export type ShoppingListListResponse = z.infer<typeof shoppingListListResponseSchema>;
+
 /**
  * The name `shopping_lists` stores on the default list it creates for every
  * customer (at registration, or on the first default-list read). It is data,
@@ -165,7 +171,8 @@ export type ConvertToCartResponse = z.infer<typeof convertToCartResponseSchema>;
 
 export const convertToRfqResponseSchema = z.object({
   shoppingListId: uuidSchema,
-  rfqId: uuidSchema,
+  /** `null` when no item converted — every selected item was skipped, or none was selected; no quote request was created or changed. */
+  rfqId: uuidSchema.nullable(),
   added: z.number().int().nonnegative(),
   skipped: z.array(conversionSkipSchema),
 });

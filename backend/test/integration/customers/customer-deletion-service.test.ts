@@ -90,6 +90,12 @@ describe('CustomerDeletionService', () => {
   let sessions: SessionService;
   /** `customer_account.anonymized.v1`, as `customer_accounts` announces it. */
   let anonymizedEvents: string[];
+  /**
+   * Issue #978 — every account a service built by {@link buildService} finished,
+   * in order: `sweep()` counts an account once its last step, `anonymize`,
+   * resolves, and this records exactly that.
+   */
+  let finished: string[];
 
   /** `organizations`' port over a given service, the shape `index.ts` publishes. */
   function personalOrganizationPortOver(orgs: PersonalOrganizationService): PersonalOrganizationPort {
@@ -119,9 +125,16 @@ describe('CustomerDeletionService', () => {
     addresses?: Pick<AddressServicePort, 'anonymizeForOrganization'>;
     history?: AnonymizedHistoryDeps;
   } = {}): CustomerDeletionService {
+    const writes = overrides.accountWrites ?? accountWrites;
     return new CustomerDeletionService(
       accounts,
-      overrides.accountWrites ?? accountWrites,
+      overriding(writes, {
+        anonymize: async (id: string) => {
+          const record = await writes.anonymize(id);
+          finished.push(id);
+          return record;
+        },
+      }),
       overrides.personalOrganizations ?? personalOrganizationPortOver(personalOrgs),
       new CustomerAuthorityService({ canSeeOrganization: async () => true }),
       { destroyAllForCustomer: (id: string) => sessions.destroyAllForCustomer(id) },
@@ -169,6 +182,7 @@ describe('CustomerDeletionService', () => {
     organizationRoles = { predefinedRoleId: (organizationId: string, kind: 'administrator' | 'member') => predefinedRoleIdOf(em, organizationId, kind) };
     accounts = new CustomerAccountReadService(() => em, twoFactorEnrolmentsFor(() => em, 'customer'), organizationRoles);
     anonymizedEvents = [];
+    finished = [];
     accountWrites = new CustomerAccountLifecycleWriteService(
       () => em,
       audit,
@@ -190,6 +204,39 @@ describe('CustomerDeletionService', () => {
     await redis.quit();
     await db.close();
   });
+
+  /**
+   * Issue #978 — which of `subjects` one run of `service` finished, in the
+   * order it finished them. The sweep's work list is the whole database, so a
+   * due account another file committed to a shared one is swept here too;
+   * `sweep()`'s total would count it, and this does not.
+   */
+  async function sweepFor(
+    subjects: readonly string[],
+    now: Date,
+    { retentionDays = 0, service = svc }: { retentionDays?: number; service?: CustomerDeletionService } = {},
+  ): Promise<string[]> {
+    const from = finished.length;
+    await service.sweep(retentionDays, now);
+    return finished.slice(from).filter((id) => subjects.includes(id));
+  }
+  /** `anonymizedEvents`, narrowed to `subjects` (issue #978, as #960 did elsewhere). */
+  const announcedFor = (...subjects: string[]): string[] => anonymizedEvents.filter((id) => subjects.includes(id));
+
+  /**
+   * `target` with some methods replaced. A Proxy rather than a spread: the
+   * port is a class instance, whose methods live on its prototype and use
+   * private fields, so a spread copies none of them.
+   */
+  function overriding<T extends object>(target: T, replaced: Partial<T>): T {
+    return new Proxy(target, {
+      get(t, key) {
+        if (key in replaced) return replaced[key as keyof T];
+        const value: unknown = Reflect.get(t, key, t);
+        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(t) : value;
+      },
+    });
+  }
 
   async function makeCustomer(): Promise<CustomerAccount> {
     // D-178 — `customer_accounts.organization_id` is NOT NULL.
@@ -298,8 +345,7 @@ describe('CustomerDeletionService', () => {
   it('sweep does not anonymize within the retention window', async () => {
     const c = await makeCustomer();
     await svc.softDelete(c.id, actor);
-    const count = await svc.sweep(365, new Date());
-    expect(count).toBe(0);
+    expect(await sweepFor([c.id], new Date(), { retentionDays: 365 })).toEqual([]);
     const reloaded = await em.findOne(CustomerAccount, { id: c.id });
     expect(reloaded!.anonymizedAt ?? null).toBeNull();
   });
@@ -310,8 +356,7 @@ describe('CustomerDeletionService', () => {
     await svc.softDelete(c.id, actor);
 
     // retentionDays 0 with a future "now" puts the cutoff after deletedAt.
-    const count = await svc.sweep(0, new Date(Date.now() + 60_000));
-    expect(count).toBe(1);
+    expect(await sweepFor([c.id], new Date(Date.now() + 60_000))).toEqual([c.id]);
 
     const reloaded = await em.findOne(CustomerAccount, { id: c.id });
     expect(reloaded!.anonymizedAt).not.toBeNull();
@@ -336,8 +381,7 @@ describe('CustomerDeletionService', () => {
     expect(org.isPersonal).toBe(true);
 
     await svc.softDelete(c.id, actor);
-    const count = await svc.sweep(0, new Date(Date.now() + 60_000));
-    expect(count).toBe(1);
+    expect(await sweepFor([c.id], new Date(Date.now() + 60_000))).toEqual([c.id]);
 
     const reloadedOrg = await em.findOne(Organization, { id: org.id });
     expect(reloadedOrg!.deletedAt).not.toBeNull();
@@ -392,7 +436,7 @@ describe('CustomerDeletionService', () => {
     const before = { delivery: structuredClone(order.deliveryAddress), billing: structuredClone(order.billingAddress) };
 
     await svc.softDelete(c.id, actor);
-    expect(await svc.sweep(0, new Date(Date.now() + 60_000))).toBe(1);
+    expect(await sweepFor([c.id], new Date(Date.now() + 60_000))).toEqual([c.id]);
 
     em.clear();
     for (const id of [delivery.id, billing.id]) {
@@ -462,7 +506,10 @@ describe('CustomerDeletionService', () => {
     const reloadedCompany = await em.findOne(Organization, { id: company.id });
     expect(reloadedCompany!.deletedAt ?? null).toBeNull();
     expect(reloadedCompany!.name).toBe('ACME Sp. z o.o.');
-    expect(await em.find(AuditLogEntry, { action: 'address.anonymized' })).toEqual([]);
+    // Scoped to the company: another file's due account in a shared database
+    // is swept by the same run and may well have addresses (issue #978).
+    const scrubbedAddresses = await em.find(AuditLogEntry, { action: 'address.anonymized' });
+    expect(scrubbedAddresses.filter((e) => (e.stateBefore as { organizationId?: string } | null)?.organizationId === company.id)).toEqual([]);
   });
 
   // --- issue #800: the cascade is restartable ---------------------------------
@@ -474,31 +521,21 @@ describe('CustomerDeletionService', () => {
 
   const after = (ms: number) => new Date(Date.now() + ms);
 
-  /** `fn` throws on its first call and delegates from then on. */
-  function crashOnce<A extends unknown[], R>(fn: (...args: A) => Promise<R>): (...args: A) => Promise<R> {
+  /**
+   * `fn` throws on its first call for `subject` (its first argument) and
+   * delegates otherwise. Aimed at the subject, not at the first call: the run
+   * may reach a due account another file left in a shared database first
+   * (issue #978).
+   */
+  function crashOnce<R>(subject: string, fn: (id: string) => Promise<R>): (id: string) => Promise<R> {
     let crashed = false;
-    return async (...args: A) => {
-      if (!crashed) {
+    return async (id: string) => {
+      if (!crashed && id === subject) {
         crashed = true;
         throw new Error('simulated crash');
       }
-      return fn(...args);
+      return fn(id);
     };
-  }
-
-  /**
-   * `target` with some methods replaced. A Proxy rather than a spread: the
-   * port is a class instance, whose methods live on its prototype and use
-   * private fields, so a spread copies none of them.
-   */
-  function overriding<T extends object>(target: T, replaced: Partial<T>): T {
-    return new Proxy(target, {
-      get(t, key) {
-        if (key in replaced) return replaced[key as keyof T];
-        const value: unknown = Reflect.get(t, key, t);
-        return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(t) : value;
-      },
-    });
   }
 
   async function makePersonalCustomerWithAddresses(): Promise<{ customer: CustomerAccount; addressIds: string[] }> {
@@ -543,7 +580,7 @@ describe('CustomerDeletionService', () => {
     await svc.softDelete(customer.id, actor);
 
     const crashing = buildService({
-      addresses: { anonymizeForOrganization: crashOnce((id: string) => addresses.anonymizeForOrganization(id)) },
+      addresses: { anonymizeForOrganization: crashOnce(customer.organizationId, (id) => addresses.anonymizeForOrganization(id)) },
     });
     await expect(crashing.sweep(0, after(60_000))).rejects.toThrow();
 
@@ -555,7 +592,7 @@ describe('CustomerDeletionService', () => {
       expect((await em.findOneOrFail(Address, { id })).deletedAt ?? null).toBeNull();
     }
 
-    expect(await svc.sweep(0, after(120_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(120_000))).toEqual([customer.id]);
     await expectFullyAnonymized(customer, addressIds);
   });
 
@@ -565,11 +602,11 @@ describe('CustomerDeletionService', () => {
 
     const real = personalOrganizationPortOver(personalOrgs);
     const crashing = buildService({
-      personalOrganizations: { ...real, anonymizeIfOrphaned: crashOnce(real.anonymizeIfOrphaned) },
+      personalOrganizations: { ...real, anonymizeIfOrphaned: crashOnce(customer.id, real.anonymizeIfOrphaned) },
     });
     await expect(crashing.sweep(0, after(60_000))).rejects.toThrow();
 
-    expect(await svc.sweep(0, after(120_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(120_000))).toEqual([customer.id]);
     await expectFullyAnonymized(customer, addressIds);
   });
 
@@ -579,14 +616,14 @@ describe('CustomerDeletionService', () => {
 
     const crashing = buildService({
       accountWrites: overriding(accountWrites, {
-        anonymize: crashOnce((id: string) => accountWrites.anonymize(id)),
+        anonymize: crashOnce(customer.id, (id) => accountWrites.anonymize(id)),
       }),
     });
     await expect(crashing.sweep(0, after(60_000))).rejects.toThrow();
 
-    expect(await svc.sweep(0, after(120_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(120_000))).toEqual([customer.id]);
     await expectFullyAnonymized(customer, addressIds);
-    expect(anonymizedEvents).toEqual([customer.id]);
+    expect(announcedFor(customer.id)).toEqual([customer.id]);
   });
 
   it('I-4 — a personal organization an operator already soft-deleted is still scrubbed', async () => {
@@ -598,7 +635,7 @@ describe('CustomerDeletionService', () => {
     await em.flush();
     await svc.softDelete(customer.id, actor);
 
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
     await expectFullyAnonymized(customer, addressIds);
     const reloaded = await em.findOneOrFail(Organization, { id: customer.organizationId });
     expect(reloaded.deletedAt!.toISOString()).toBe(operatorDeletedAt.toISOString());
@@ -700,7 +737,7 @@ describe('CustomerDeletionService', () => {
     const customer = await makeFullyPopulatedPersonalCustomer();
     await svc.softDelete(customer.id, actor);
 
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
 
     em.clear();
     const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
@@ -715,7 +752,7 @@ describe('CustomerDeletionService', () => {
     const customer = await makeFullyPopulatedPersonalCustomer();
     await svc.softDelete(customer.id, actor);
 
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
 
     em.clear();
     const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
@@ -792,7 +829,7 @@ describe('CustomerDeletionService', () => {
     expect(await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id })).toHaveLength(1);
     // Nor does the sweep, which now reaches the organisation as well (#923):
     // it anonymises the account and finds nothing left on the organisation.
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
     expect(await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id })).toHaveLength(1);
   });
 
@@ -915,7 +952,7 @@ describe('CustomerDeletionService', () => {
     const { blockedAt, rejectedAt } = await withOperatorReasons(customer);
     await svc.softDelete(customer.id, actor);
 
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
 
     em.clear();
     const org = await em.findOneOrFail(Organization, { id: customer.organizationId });
@@ -934,7 +971,7 @@ describe('CustomerDeletionService', () => {
     const { blockedAt } = await withOperatorReasons(customer);
     await svc.softDelete(customer.id, actor);
 
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
 
     em.clear();
     const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
@@ -964,7 +1001,7 @@ describe('CustomerDeletionService', () => {
     await em.flush();
 
     // The next run reaches the subject and finishes it.
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
 
     em.clear();
     const reloadedOrg = await em.findOneOrFail(Organization, { id: org.id });
@@ -982,10 +1019,10 @@ describe('CustomerDeletionService', () => {
     expectNoReasonText(accountRow);
     // Finishing is not the transition: the account was announced when it was
     // first anonymised.
-    expect(anonymizedEvents).toEqual([]);
+    expect(announcedFor(customer.id)).toEqual([]);
 
     // And converged: a third run finds nothing to do and records nothing.
-    expect(await svc.sweep(0, after(60_000))).toBe(0);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([]);
     expect(await em.find(AuditLogEntry, { action: 'organization.anonymized', objectId: org.id })).toHaveLength(1);
     expect(await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id })).toHaveLength(1);
   });
@@ -1017,7 +1054,7 @@ describe('CustomerDeletionService', () => {
       customFieldValues: { birthday: '1990-01-01', shoe_size: 44 },
     });
 
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
 
     em.clear();
     const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
@@ -1030,9 +1067,9 @@ describe('CustomerDeletionService', () => {
       hadBlockReason: false,
     });
     expect(JSON.stringify([row.stateBefore, row.stateAfter])).not.toContain('1990-01-01');
-    expect(anonymizedEvents).toEqual([]);
+    expect(announcedFor(customer.id)).toEqual([]);
 
-    expect(await svc.sweep(0, after(60_000))).toBe(0);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([]);
     expect(await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id })).toHaveLength(1);
   });
 
@@ -1045,7 +1082,7 @@ describe('CustomerDeletionService', () => {
       customFieldValues: { nickname: 'Solo' },
     });
 
-    expect(await svc.sweep(365, new Date())).toBe(1);
+    expect(await sweepFor([customer.id], new Date(), { retentionDays: 365 })).toEqual([customer.id]);
 
     em.clear();
     const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
@@ -1109,7 +1146,7 @@ describe('CustomerDeletionService', () => {
       rejectedAt,
     });
 
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
 
     em.clear();
     const reloaded = await em.findOneOrFail(Organization, { id: org.id });
@@ -1143,10 +1180,10 @@ describe('CustomerDeletionService', () => {
     expect(await accountAuditRows(customer.id)).toEqual([]);
     const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
     expect(account.anonymizedAt!.toISOString()).toBe(scrubbedAt.toISOString());
-    expect(anonymizedEvents).toEqual([]);
+    expect(announcedFor(customer.id)).toEqual([]);
 
     // And converged: the next tick has nothing to do.
-    expect(await svc.sweep(0, after(60_000))).toBe(0);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([]);
     expect(await orgAuditRows(org.id)).toHaveLength(1);
     expect(await accountAuditRows(customer.id)).toEqual([]);
   });
@@ -1167,7 +1204,7 @@ describe('CustomerDeletionService', () => {
       { customFieldValues: { birthday: '1990-01-01' } },
     );
 
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
 
     em.clear();
     const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
@@ -1184,9 +1221,9 @@ describe('CustomerDeletionService', () => {
     expect(reloaded.legalName ?? null).toBeNull();
     expect(reloaded.customFieldValues).toEqual({});
     expect(await orgAuditRows(org.id)).toHaveLength(1);
-    expect(anonymizedEvents).toEqual([]);
+    expect(announcedFor(customer.id)).toEqual([]);
 
-    expect(await svc.sweep(0, after(60_000))).toBe(0);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([]);
   });
 
   /**
@@ -1210,26 +1247,26 @@ describe('CustomerDeletionService', () => {
     'I-21 — an organization dirty only on %s is listed and finished by the sweep; once finished it is not listed (#923)',
     async (_field, residue) => {
       const scrubbedAt = new Date('2026-04-05T06:07:08.000Z');
-      const { org } = await makeEarlierScrubbedSubject(scrubbedAt, {});
+      const { customer, org } = await makeEarlierScrubbedSubject(scrubbedAt, {});
       if (typeof residue === 'function') residue(org);
       else Object.assign(org, residue);
       await em.flush();
 
       expect(await personalOrgs.listIncompletelyScrubbed()).toContain(org.id);
-      expect(await svc.sweep(0, after(60_000))).toBe(1);
+      expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
       // `isFullyScrubbed` agreed the organisation was unfinished: it wrote.
       expect(await orgAuditRows(org.id)).toHaveLength(1);
 
       em.clear();
       expect(await personalOrgs.listIncompletelyScrubbed()).not.toContain(org.id);
-      expect(await svc.sweep(0, after(60_000))).toBe(0);
+      expect(await sweepFor([customer.id], after(60_000))).toEqual([]);
     },
   );
 
   it('I-21 — a fully scrubbed personal organization is not listed, and the sweep leaves it alone (#923)', async () => {
-    const { org } = await makeEarlierScrubbedSubject(new Date('2026-04-05T06:07:08.000Z'), {});
+    const { customer, org } = await makeEarlierScrubbedSubject(new Date('2026-04-05T06:07:08.000Z'), {});
     expect(await personalOrgs.listIncompletelyScrubbed()).not.toContain(org.id);
-    expect(await svc.sweep(0, after(60_000))).toBe(0);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([]);
     expect(await orgAuditRows(org.id)).toEqual([]);
   });
 
@@ -1260,7 +1297,7 @@ describe('CustomerDeletionService', () => {
     await svc.softDelete(pending.id, actor);
 
     expect(await personalOrgs.listIncompletelyScrubbed()).not.toContain(company.id);
-    expect(await svc.sweep(365, new Date())).toBe(0);
+    expect(await sweepFor([live.id, pending.id], new Date(), { retentionDays: 365 })).toEqual([]);
 
     em.clear();
     const reloadedLive = await em.findOneOrFail(Organization, { id: liveOrg.id });
@@ -1275,7 +1312,7 @@ describe('CustomerDeletionService', () => {
       expect(await orgAuditRows(id)).toEqual([]);
     }
     expect((await em.findOneOrFail(CustomerAccount, { id: pending.id })).anonymizedAt ?? null).toBeNull();
-    expect(anonymizedEvents).toEqual([]);
+    expect(announcedFor(live.id, pending.id)).toEqual([]);
   });
 
   it('I-23 — both owners’ residue is finished even after the retention window is raised past the deletion (#923)', async () => {
@@ -1291,7 +1328,8 @@ describe('CustomerDeletionService', () => {
     // can bring it onto the work list.
     const orgOnly = await makeEarlierScrubbedSubject(deletedAt, { legalName: ORG_LEGAL_NAME });
 
-    expect(await svc.sweep(365, new Date())).toBe(2);
+    const subjects = [customer.id, orgOnly.customer.id];
+    expect((await sweepFor(subjects, new Date(), { retentionDays: 365 })).sort()).toEqual([...subjects].sort());
 
     em.clear();
     const reloaded = await em.findOneOrFail(Organization, { id: org.id });
@@ -1306,7 +1344,7 @@ describe('CustomerDeletionService', () => {
     expect(reloadedOrgOnly.legalName ?? null).toBeNull();
     expect(await orgAuditRows(orgOnly.org.id)).toHaveLength(1);
     expect(await accountAuditRows(orgOnly.customer.id)).toEqual([]);
-    expect(anonymizedEvents).toEqual([]);
+    expect(announcedFor(...subjects)).toEqual([]);
   });
 
   it('I-18 — a company organization keeps its reasons when a member is anonymized (#843)', async () => {
@@ -1335,7 +1373,7 @@ describe('CustomerDeletionService', () => {
     await em.flush();
 
     await svc.softDelete(member.id, actor);
-    expect(await svc.sweep(0, after(60_000))).toBe(1);
+    expect(await sweepFor([member.id], after(60_000))).toEqual([member.id]);
 
     em.clear();
     const reloadedCompany = await em.findOneOrFail(Organization, { id: company.id });
@@ -1588,7 +1626,7 @@ describe('CustomerDeletionService', () => {
       const before = await rowsAbout(objectIds);
       expect(textOf(before)).toContain(PERSONAL.deletedStreet);
 
-      expect(await svc.sweep(0, new Date(Date.now() + 60_000))).toBe(1);
+      expect(await sweepFor([c.id], new Date(Date.now() + 60_000), { service: svc })).toEqual([c.id]);
 
       em.clear();
       const after = (await rowsAbout(objectIds)).filter((r) => r.action !== 'audit.redacted');
@@ -1733,7 +1771,7 @@ describe('CustomerDeletionService', () => {
       em.clear();
       expect((await em.findOneOrFail(CustomerAccount, { id: c.id })).anonymizedAt ?? null).toBeNull();
 
-      expect(await redactingService().sweep(0, new Date(Date.now() + 60_000))).toBe(1);
+      expect(await sweepFor([c.id], new Date(Date.now() + 60_000), { service: redactingService() })).toEqual([c.id]);
       em.clear();
       expect((await em.findOneOrFail(CustomerAccount, { id: c.id })).anonymizedAt).toBeInstanceOf(Date);
       expect(textOf(await rowsAbout(objectIds))).not.toContain(PERSONAL.email);

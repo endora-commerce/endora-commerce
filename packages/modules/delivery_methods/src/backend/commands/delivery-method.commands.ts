@@ -95,10 +95,17 @@ export function makeUpsertDeliveryMethodCommand(
         if (referencing > 0) {
           throw new HttpError(
             409,
-            ERROR_CODES.VALIDATION_FAILED,
+            ERROR_CODES.DELIVERY_METHOD_IN_USE,
             `Cannot change the adapter of delivery method "${row.code}": ${referencing} ` +
               `shipment(s) were created against it through "${row.adapter}". Set its status to ` +
               '"inactive" and create a new method for the other adapter instead.',
+            {
+              code: 'change_adapter',
+              deliveryMethodId: row.id,
+              deliveryMethodCode: row.code,
+              adapter: row.adapter,
+              shipmentCount: referencing,
+            },
           );
         }
       }
@@ -160,7 +167,10 @@ export function makeUpsertDeliveryMethodCommand(
  */
 export type ShipmentUsageCounter = (
   deliveryMethodId: string,
-  /** Which write is asking — it only selects the refusal's wording. Defaults to `'delete'`. */
+  /**
+   * Which write is asking — it selects the refusal's wording and its
+   * `details.code` token. Defaults to `'delete'`.
+   */
   intent?: ShipmentUsageIntent,
 ) => Promise<number>;
 
@@ -187,8 +197,14 @@ export function makeDeleteDeliveryMethodCommand(
       if (referencing > 0) {
         throw new HttpError(
           409,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.DELIVERY_METHOD_IN_USE,
           `Cannot delete delivery method: ${referencing} shipment(s) reference it. Set status to "inactive" instead.`,
+          {
+            code: 'delete',
+            deliveryMethodId: row.id,
+            deliveryMethodCode: row.code,
+            shipmentCount: referencing,
+          },
         );
       }
       const before = deliveryMethodAuditState(row);

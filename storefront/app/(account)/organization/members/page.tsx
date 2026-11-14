@@ -34,6 +34,19 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * the page shows only a sentence of its own for it — never text from the URL.
  */
 
+/**
+ * Issue #663 — the row controls in the storefront's own classes, the ones the
+ * roles screen and the shopping lists already use: `industria-select` (the
+ * catalogue toolbar's select) and `btn btn--outline btn--sm`, each grown to a
+ * 44px target with `h-11` / `min-h-11` (Fitts's Law, WCAG 2.5.8). Save and
+ * Remove look alike in size but not in tone: the destructive one takes the
+ * role-deletion button's `border-bad text-bad`, its label still naming it, and
+ * sits in its own column, away from Save.
+ */
+const ROW_SELECT_CLASS = 'industria-select h-11 text-[13px]';
+const ROW_ACTION_CLASS = 'btn btn--outline btn--sm min-h-11';
+const ROW_DESTRUCTIVE_CLASS = `${ROW_ACTION_CLASS} border-bad text-bad`;
+
 export default async function MembersPage({
   searchParams,
 }: {
@@ -101,23 +114,28 @@ export default async function MembersPage({
               </td>
               <td>{m.email}</td>
               <td>
-                <form action={changeRoleAction} className="inline-flex gap-[0.25rem]">
+                <form action={changeRoleAction} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="memberId" value={m.id} />
                   <select
                     name="roleId"
+                    className={ROW_SELECT_CLASS}
                     defaultValue={m.organizationRole.id}
                     aria-label={format(t('account.members.roleOf'), { name: `${m.firstName} ${m.lastName}` })}
                   >
                     {roleOptions}
                   </select>
-                  <button type="submit">{t('account.common.save')}</button>
+                  <button type="submit" className={ROW_ACTION_CLASS}>
+                    {t('account.common.save')}
+                  </button>
                 </form>
               </td>
               <td>
                 {m.id === me.customerAccount.id ? null : (
                   <form action={removeAction} className="inline">
                     <input type="hidden" name="memberId" value={m.id} />
-                    <button type="submit">{t('account.common.remove')}</button>
+                    <button type="submit" className={ROW_DESTRUCTIVE_CLASS}>
+                      {t('account.common.remove')}
+                    </button>
                   </form>
                 )}
               </td>
@@ -149,7 +167,9 @@ export default async function MembersPage({
                   <td>
                     <form action={revokeAction} className="inline">
                       <input type="hidden" name="invitationId" value={inv.id} />
-                      <button type="submit">{t('account.members.pending.revoke')}</button>
+                      <button type="submit" className={ROW_DESTRUCTIVE_CLASS}>
+                        {t('account.members.pending.revoke')}
+                      </button>
                     </form>
                   </td>
                 </tr>

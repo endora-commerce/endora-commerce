@@ -43,7 +43,7 @@ holder reaches the shared list any more.
 | `GET /api/v1/admin/order-statuses` | admin | `payment_methods:read` **or** `delivery_methods:read` | Order-status options for the `statusOn*` selectors, here and on the delivery-method screen |
 | `PUT /api/v1/admin/payment-methods/:code` | admin | `payment_methods:write` | Upsert by code; `adapter` defaults to `kind`, `statusOn*` validated against the order-status registry |
 | `PATCH /api/v1/admin/payment-methods/:id/status` | admin | `payment_methods:write` | Availability alone — the one write the four gateway screens link to |
-| `DELETE /api/v1/admin/payment-methods/:id` | admin | `payment_methods:write` | Delete — blocked (409) when a `Payment` references the method; set it `inactive` instead |
+| `DELETE /api/v1/admin/payment-methods/:id` | admin | `payment_methods:write` | Delete — blocked with `409 PAYMENT_METHOD_IN_USE` (`details`: `paymentMethodId`, `paymentMethodCode`, `paymentCount`) when a `Payment` references the method, and with `409 PAYMENT_METHOD_USAGE_UNKNOWN` (`details`: `paymentMethodId`, `module: "payments"`) while the `payments` module is off; set it `inactive` instead. Both were `409 VALIDATION_FAILED` until issue #635 |
 
 ## Entities
 

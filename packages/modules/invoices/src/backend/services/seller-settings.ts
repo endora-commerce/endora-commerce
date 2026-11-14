@@ -46,7 +46,7 @@ export class SellerSettingsResolver {
     if (!parsed.success || !parsed.data.legalName || !parsed.data.taxId) {
       throw new HttpError(
         422,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.INVOICE_SELLER_DATA_MISSING,
         'Seller VAT/NIP and company data must be configured before issuing invoices.',
         { setting: 'invoices.seller.company_data' },
       );

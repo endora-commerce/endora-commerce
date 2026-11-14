@@ -16,6 +16,8 @@ import {
   whenOrderCreatedSettled,
 } from '../../helpers/quote-conversion.js';
 import { submitCrmQuoteRequest } from '../../helpers/seed-crm.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
  * Carry-over never widens who reads a value (`specs/162-custom-fields-value-carry/`
@@ -130,7 +132,7 @@ describe('custom_fields — a carried value is read by nobody its target hides i
 
   beforeAll(async () => {
     h = await setupBackendServer();
-    await h.em().execute(`update "stock_levels" set "on_hand" = 100000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID]);
     const minted = await h.app.inject({
       method: 'POST',
       url: '/api/v1/admin/api-keys',

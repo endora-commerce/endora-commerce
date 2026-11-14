@@ -8,10 +8,12 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import { TransactionalEmail } from '../../helpers/package-entities.js';
+import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { runRfqNotificationDeliveryTick } from '../../../../packages/modules/quote_requests/src/backend/workers/rfq-notification-delivery-worker.js';
 
 const CUSTOMER = { b2b_session: 'stub-customer-session' };
+const ADMIN = { b2b_session: 'stub-admin-session' };
 const MINUTE = 60_000;
 
 /**
@@ -39,6 +41,12 @@ class OnceMailer implements EmailMailerPort {
  * off and a bell switched off close their records without failing the others;
  * and a crash after the transport accepted an e-mail but before the record
  * committed costs a retry, never a second message.
+ *
+ * WP-08 (T070) adds the customer notification centre: an operator's change
+ * writes one centre entry per customer recipient, in the record's transaction,
+ * which the buyer then reads on the storefront in their own language; with the
+ * centre switched off the record closes `skipped_module_off` and no entry is
+ * ever written, not even once the centre is back.
  */
 describe('Quote request notification delivery (WP-05)', () => {
   let h: BackendServerHandle;
@@ -85,6 +93,49 @@ describe('Quote request notification delivery (WP-05)', () => {
           where "subject_type" = 'quote_request' and "subject_id" = ?`,
         [rfqId],
       );
+  interface CentreRow {
+    organization_id: string;
+    customer_account_id: string;
+    sales_channel_id: string | null;
+    source_key: string;
+    kind: string;
+    title: string;
+    title_message: { scope: string; key: string; params: Record<string, string | number> };
+    link_path: string | null;
+  }
+  const centreEntriesOf = (rfqId: string) =>
+    h
+      .em()
+      .fork()
+      .execute<CentreRow[]>(
+        `select "organization_id", "customer_account_id", "sales_channel_id", "source_key", "kind", "title",
+                "title_message", "link_path"
+           from "customer_notifications"
+          where "source_module" = 'quote_requests' and "subject_type" = 'quote_request' and "subject_id" = ?`,
+        [rfqId],
+      );
+  const requestRow = async (rfqId: string) =>
+    (
+      await h
+        .em()
+        .fork()
+        .execute<Array<{ organization_id: string; sales_channel_id: string | null; version: number }>>(
+          `select "organization_id", "sales_channel_id", "version" from "quote_requests" where "id" = ?`,
+          [rfqId],
+        )
+    )[0]!;
+  /** An operator's revision of a submitted request: the `revised` change, which tells the whole customer side. */
+  const revised = async (rfqId: string): Promise<void> => {
+    const { version } = await requestRow(rfqId);
+    const res = await h.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/admin/quote-requests/${rfqId}`,
+      cookies: ADMIN,
+      headers: { 'if-match': `"${version}"` },
+      payload: { items: [{ productId: SEED_PRODUCT_101_ID, quantity: 2, agreedUnitPrice: 8.5 }] },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+  };
   const mailFor = (rfqId: string) =>
     mailer.accepted.filter((message) => (message.meta as Record<string, unknown> | undefined)?.['quoteRequestId'] === rfqId);
 
@@ -117,8 +168,17 @@ describe('Quote request notification delivery (WP-05)', () => {
   it('the worker’s tick delivers a submitted request: a bell entry per operator, the customer and operator e-mails', async () => {
     const id = await submitted();
     const before = await recordsOf(id);
+    // The buyer submitted it: they get the e-mail and no centre entry about their own act (FR-007).
+    expect(new Set(before.filter((record) => record.recipient_id === TEST_CUSTOMER_ID).map((record) => record.channel))).toEqual(
+      new Set(['customer_email']),
+    );
     expect(new Set(before.map((record) => record.channel))).toEqual(
-      new Set(['admin_in_app', 'admin_email', 'customer_email']),
+      new Set([
+        'admin_in_app',
+        'admin_email',
+        'customer_email',
+        ...(before.some((record) => record.channel === 'customer_in_app') ? ['customer_in_app'] : []),
+      ]),
     );
     expect(await delivery().hasDeliverable()).toBe(true);
 
@@ -224,5 +284,63 @@ describe('Quote request notification delivery (WP-05)', () => {
     const messageId = `quote_request_notification:${crashed!.id}`;
     expect(mailer.handed.filter((message) => message.messageId === messageId)).toHaveLength(2);
     expect(mailer.accepted.filter((message) => message.messageId === messageId)).toHaveLength(1);
+  });
+
+  it('an operator’s revision writes one centre entry per customer recipient, read on the storefront in the buyer’s language (T070)', async () => {
+    const id = await submitted();
+    await revised(id);
+    await pass();
+    const rfq = await requestRow(id);
+    const centreRecords = (await recordsOf(id)).filter((record) => record.channel === 'customer_in_app');
+    const forRevision = centreRecords.filter((record) => record.recipient_id === TEST_CUSTOMER_ID);
+    expect(forRevision).toHaveLength(1);
+    for (const record of centreRecords) expect(record).toMatchObject({ status: 'sent', attempts: 1 });
+
+    const entries = await centreEntriesOf(id);
+    expect(entries.map((entry) => entry.source_key).sort()).toEqual(centreRecords.map((record) => record.id).sort());
+    const own = entries.find((entry) => entry.source_key === forRevision[0]!.id)!;
+    expect(own).toMatchObject({
+      organization_id: rfq.organization_id,
+      customer_account_id: TEST_CUSTOMER_ID,
+      sales_channel_id: rfq.sales_channel_id,
+      kind: 'quote_requests.revised',
+      link_path: `/quote-requests/${id}`,
+    });
+    expect(own.title).toMatch(/^Your offer for quote request \S+ is ready$/);
+    expect(own.title_message).toMatchObject({ scope: 'quote_requests', key: 'customerNotifications.revised.title' });
+
+    // The buyer's centre, on the request's channel, in Polish.
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/storefront/notifications',
+      cookies: CUSTOMER,
+      headers: { 'x-sales-channel': 'default', 'accept-language': 'pl-PL' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const items = (res.json() as { data: { items: Array<{ kind: string; title: string; linkPath: string | null }> } })
+      .data.items;
+    const shown = items.find((item) => item.linkPath === `/quote-requests/${id}` && item.kind === 'quote_requests.revised');
+    expect(shown, JSON.stringify(items)).toBeDefined();
+    expect(shown!.title).toMatch(/^Oferta do zapytania \S+ jest gotowa$/);
+  });
+
+  it('the centre switched off: skipped_module_off, no entry — and none once it is back (FR-012, FR-048)', async () => {
+    const id = await submitted();
+    await revised(id);
+    await withModuleOff('customer_notifications', 'deactivated', async () => {
+      await pass();
+    });
+    const records = await recordsOf(id);
+    const centre = records.filter((record) => record.channel === 'customer_in_app');
+    expect(centre.length).toBeGreaterThan(0);
+    for (const record of centre) expect(record).toMatchObject({ status: 'skipped_module_off', attempts: 0 });
+    for (const record of records.filter((record) => record.channel !== 'customer_in_app')) {
+      expect(record.status).toBe('sent');
+    }
+    expect(await centreEntriesOf(id)).toHaveLength(0);
+
+    // Closed is closed: switching the centre back on delivers nothing late.
+    await pass();
+    expect(await centreEntriesOf(id)).toHaveLength(0);
   });
 });

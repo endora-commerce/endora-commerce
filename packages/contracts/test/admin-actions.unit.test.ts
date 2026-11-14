@@ -109,6 +109,31 @@ describe('ModuleActionSchema', () => {
       expect(() => ModuleActionSchema.parse({ ...validAction, keywordsKey })).toThrow();
     }
   });
+
+  // Issue #1088 — the admin API route the target screen opens on, for a screen
+  // whose SPA placement does not name it. Optional; absent on most actions.
+  it('accepts an entryApiRoute under the admin API and leaves it undefined when absent', () => {
+    const parsed = ModuleActionSchema.parse({
+      ...validAction,
+      entryApiRoute: '/api/v1/admin/command-outbox',
+    });
+    expect(parsed.entryApiRoute).toBe('/api/v1/admin/command-outbox');
+    expect(ModuleActionSchema.parse(validAction).entryApiRoute).toBeUndefined();
+  });
+
+  it('rejects an entryApiRoute that is not an admin API path', () => {
+    for (const entryApiRoute of [
+      '/command-outbox',
+      'api/v1/admin/x',
+      '/api/v1/admin',
+      '/api/v1/admin/',
+      '/api/v1/store/x',
+      '/api/v1/admin/x?y=1',
+      '',
+    ]) {
+      expect(() => ModuleActionSchema.parse({ ...validAction, entryApiRoute })).toThrow();
+    }
+  });
 });
 
 describe('parseBundleKeywords', () => {

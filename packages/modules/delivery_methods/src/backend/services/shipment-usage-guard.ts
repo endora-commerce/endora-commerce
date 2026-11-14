@@ -36,11 +36,27 @@ export interface ShipmentUsageCounterDeps {
 export function makeShipmentUsageCounter(deps: ShipmentUsageCounterDeps): ShipmentUsageCounter {
   return async (deliveryMethodId, intent = 'delete'): Promise<number> => {
     if (!deps.isShipmentsPresent()) {
-      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, SHIPMENTS_OFF_REFUSAL[intent]);
+      throw new HttpError(
+        409,
+        ERROR_CODES.DELIVERY_METHOD_USAGE_UNKNOWN,
+        SHIPMENTS_OFF_REFUSAL[intent],
+        { code: REFUSAL_TOKEN[intent], deliveryMethodId, module: 'shipments' },
+      );
     }
     return deps.shipmentUsage().countForDeliveryMethod(deliveryMethodId);
   };
 }
+
+/**
+ * The `details.code` token per question asked, which picks the sentence the
+ * envelope renders (`errors.DELIVERY_METHOD_USAGE_UNKNOWN.<token>`). Spelled
+ * with an underscore, as every token is, and shared with
+ * `DELIVERY_METHOD_IN_USE`.
+ */
+const REFUSAL_TOKEN: Record<ShipmentUsageIntent, 'delete' | 'change_adapter'> = {
+  delete: 'delete',
+  'change-adapter': 'change_adapter',
+};
 
 /**
  * The refusal per question asked. Changing a method's adapter is refused blind

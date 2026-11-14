@@ -15,6 +15,8 @@ import {
   convertQuoteRequestToCart,
   whenOrderCreatedSettled,
 } from '../../helpers/quote-conversion.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
  * The Order system note is the administrators' alone
@@ -76,7 +78,7 @@ describe('orders — the carry system note is shown to administrators only (SC-0
 
   beforeAll(async () => {
     h = await setupBackendServer({ organizationsMailer: mailer });
-    await h.em().execute(`update "stock_levels" set "on_hand" = 100000`);
+    await topUpStock(h.em(), [SEED_PRODUCT_101_ID]);
     await h
       .em()
       .getConnection()

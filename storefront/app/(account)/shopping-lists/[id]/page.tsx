@@ -31,6 +31,7 @@ import { LIST_QUANTITY_MAX, parseListQuantity } from '../../../../lib/shoppingLi
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { SHOPPING_LIST_ERRORS } from '../../../../lib/account/shopping-list-errors';
+import { rfqConversionRedirect } from '../../../../lib/account/shopping-list-conversion';
 import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 
 /**
@@ -166,13 +167,27 @@ export default async function ShoppingListDetailPage({
           </ul>
         </section>
       ) : null}
-      {sp.rfqAdded ? (
+      {sp.rfqAdded !== undefined && Number(sp.rfqAdded) > 0 ? (
         <p className="b2b-auth__success">
           {counted('account.shoppingList.rfqAdded', sp.rfqAdded)}
           {sp.rfqSkipped && Number(sp.rfqSkipped) > 0
             ? ` ${counted('account.shoppingList.rfqSkipped', sp.rfqSkipped)}`
-            : ''}{' '}
-          <LocalizedLink href={`/quote-requests/${sp.rfqId}`}>{t('account.shoppingList.openRfq')}</LocalizedLink>
+            : ''}
+          {/* Issue #1159 — a link only to a quote request that exists and received something. */}
+          {sp.rfqId ? (
+            <>
+              {' '}
+              <LocalizedLink href={`/quote-requests/${sp.rfqId}`}>{t('account.shoppingList.openRfq')}</LocalizedLink>
+            </>
+          ) : null}
+        </p>
+      ) : sp.rfqAdded !== undefined ? (
+        // Issue #1159 — nothing converted, so no quote request was created: said neutrally, not as a success.
+        <p className="b2b-auth__hint" role="status">
+          {t('account.shoppingList.rfqNothingAdded')}
+          {sp.rfqSkipped && Number(sp.rfqSkipped) > 0
+            ? ` ${counted('account.shoppingList.rfqSkipped', sp.rfqSkipped)}`
+            : ''}
         </p>
       ) : null}
 
@@ -517,9 +532,7 @@ async function convertAllToRfqAction(formData: FormData): Promise<void> {
   // (often empty) quote-requests list, so the freshly created RFQ looks like
   // it was never created even though the API persisted it.
   revalidatePath('/quote-requests');
-  return await localeRedirect(
-    `/shopping-lists/${listId}?rfqId=${result.rfqId}&rfqAdded=${result.added}&rfqSkipped=${result.skipped.length}`,
-  );
+  return await localeRedirect(rfqConversionRedirect(listId, result));
 }
 
 async function convertSelectedToRfqAction(formData: FormData): Promise<void> {
@@ -538,9 +551,7 @@ async function convertSelectedToRfqAction(formData: FormData): Promise<void> {
     return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'CONVERT_FAILED')}`);
   }
   revalidatePath('/quote-requests');
-  return await localeRedirect(
-    `/shopping-lists/${listId}?rfqId=${result.rfqId}&rfqAdded=${result.added}&rfqSkipped=${result.skipped.length}`,
-  );
+  return await localeRedirect(rfqConversionRedirect(listId, result));
 }
 
 /**

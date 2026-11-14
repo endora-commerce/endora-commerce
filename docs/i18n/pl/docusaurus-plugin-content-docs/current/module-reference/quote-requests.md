@@ -46,6 +46,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `orders` | tylko bramkowanie | rozwiązuje `orderReadPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `admin_notifications` | nie | degrades-without `adminNotificationRecordPort` — operatorzy nie dostają wpisów w dzwonku o zapytaniach ofertowych; każdy rekord dostarczenia zamyka się jako pominięty (moduł wyłączony). |
 | `admin_search` | nie | contributes-to `adminSearchProviderRegistry` |
+| `customer_notifications` | nie | degrades-without `customerNotificationRecordPort` — kupujący nie dostają wpisów o swoich zapytaniach ofertowych w centrum powiadomień sklepu; każdy rekord dostarczenia zamyka się jako pominięty (moduł wyłączony). |
 | `document_templates` | nie | refuses-without `documentRenderPort` — zapytań ofertowych nie można eksportować do PDF ani wybrać dla nich szablonu PDF |
 | `document_templates` | nie | contributes-to `documentTypeRegistry` |
 | `webhooks` | nie | contributes-to `webhookEventRegistry` |

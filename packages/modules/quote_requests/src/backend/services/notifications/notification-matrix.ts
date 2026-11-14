@@ -91,12 +91,19 @@ export const NOTIFICATION_MATRIX: Readonly<Record<QuoteRequestNotificationChange
 
 /**
  * The channels the recording step writes today. A record is only worth writing
- * for a channel something will deliver: `customer_in_app` joins with the
- * customer notification centre (`specs/179-…` WP-08) and `customer_push` with
- * the PWA port (WP-10). Until then their matrix cells stand and write nothing.
+ * for a channel something will deliver: `customer_in_app` joined with the
+ * customer notification centre (`specs/179-…` WP-08); `customer_push` joins
+ * with the PWA port (WP-10), and until then its matrix cells stand and write
+ * nothing.
+ *
+ * A channel is recorded whether or not its owner is on when the change
+ * commits: presence is the delivery's question, asked when the worker reaches
+ * the record, which closes `skipped_module_off` if the owner is off then
+ * (FR-012). The record is what the History shows the operator.
  */
 export const RECORDED_CHANNELS: readonly QuoteRequestNotificationChannel[] = [
   'customer_email',
+  'customer_in_app',
   'admin_in_app',
   'admin_email',
 ];

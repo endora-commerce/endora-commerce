@@ -62,7 +62,13 @@ describe('payment-method delete while payments is off [integration]', () => {
       const refused = await withModuleOff('payments', axis, () => del(id));
 
       expect(refused.statusCode).toBe(409);
-      expect(refused.body).toMatch(/payments module is switched off/i);
+      // Its own code since issue #635, naming the module to switch back on.
+      expect(JSON.parse(refused.body)).toMatchObject({
+        error: {
+          code: 'PAYMENT_METHOD_USAGE_UNKNOWN',
+          details: { paymentMethodId: id, module: 'payments' },
+        },
+      });
       // The method is still there: a refusal that deleted anyway would be the
       // orphan FR-003 exists to prevent, arriving with a 409 on top of it.
       expect(await h.em().findOne(PaymentMethod, { id })).not.toBeNull();

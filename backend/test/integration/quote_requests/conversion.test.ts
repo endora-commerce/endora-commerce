@@ -16,6 +16,7 @@ import {
   convertQuoteRequestToCart,
   whenOrderCreatedSettled,
 } from '../../helpers/quote-conversion.js';
+import { topUpStock } from '../../helpers/seed-commerce.js';
 
 
 /**
@@ -180,7 +181,7 @@ describe('Convert RFQ to order — integration (US5)', () => {
     });
 
     it('checked out, the request is Completed and points at its order — and cannot be converted again', async () => {
-      await h.em().execute(`update "stock_levels" set "on_hand" = 100000`);
+      await topUpStock(h.em(), [SEED_PRODUCT_101_ID]);
       const rfq = await acceptedQuoteRequest(h);
       await convertQuoteRequestToCart(h, rfq.id);
       const placed = await whenOrderCreatedSettled(h, () => checkOutBasket(h));

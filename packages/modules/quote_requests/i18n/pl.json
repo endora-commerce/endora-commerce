@@ -188,5 +188,14 @@
   "notifications.resubmitted.title": "Ponownie wysłano zapytanie ofertowe {number}",
   "notifications.offer_accepted.title": "Zaakceptowano ofertę do zapytania {number}",
   "notifications.offer_rejected.title": "Odrzucono ofertę do zapytania {number}",
-  "notifications.expired.title": "Zapytanie ofertowe {number} wygasło"
+  "notifications.expired.title": "Zapytanie ofertowe {number} wygasło",
+  "customerNotifications.submitted.title": "Wysłano zapytanie ofertowe {number}",
+  "customerNotifications.resubmitted.title": "Ponownie wysłano zapytanie ofertowe {number}",
+  "customerNotifications.offer_accepted.title": "Oferta do zapytania {number} została zaakceptowana",
+  "customerNotifications.offer_rejected.title": "Oferta do zapytania {number} została odrzucona",
+  "customerNotifications.expired.title": "Zapytanie ofertowe {number} wygasło",
+  "customerNotifications.prepared.title": "Przygotowaliśmy dla Ciebie zapytanie ofertowe {number}",
+  "customerNotifications.revised.title": "Oferta do zapytania {number} jest gotowa",
+  "customerNotifications.approved.title": "Zapytanie ofertowe {number} zostało zatwierdzone",
+  "customerNotifications.canceled.title": "Zapytanie ofertowe {number} zostało anulowane"
 }
