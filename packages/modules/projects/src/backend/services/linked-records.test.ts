@@ -69,6 +69,7 @@ function owners(
     findByDocument: vi.fn(async () => null),
     listOpenForOrganization: vi.fn(async () => []),
     search: vi.fn(async () => []),
+    statusName: vi.fn(async (code: string) => code),
   } satisfies OpportunityReadPort;
   const subject = createLinkedRecordOwners({
     quoteRequests,
