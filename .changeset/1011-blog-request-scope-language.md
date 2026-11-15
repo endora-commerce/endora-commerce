@@ -1,0 +1,5 @@
+---
+'@endora-commerce/mod-blog': patch
+---
+
+**The storefront blog reads `Accept-Language` as a q-weighted list matched against the sales channel's languages** (issue #1011). `GET /api/v1/blog/by-channel`, `/blog/posts`, `/blog/by-slug` and `/blog/tag-by-code` used to take the header's first entry, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` was read in English and a post written only in Polish answered `404`. Without `x-blog-language`, they now resolve the language through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language, so `pl` reaches a `pl-PL` channel language), the first one the channel offers winning, else the channel's default language. `x-blog-language` still wins, and a request with neither header behaves as before.
