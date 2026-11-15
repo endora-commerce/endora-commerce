@@ -13,10 +13,14 @@ import { expectNoAxeViolations } from '../../helpers/axe';
  *
  * The stores an Organization's members may sign in and shop on, edited on the
  * Organization's own page with the customer permissions: every channel offered,
- * an inactive one suffixed and the system default badged; *Save* only once the
- * selection differs from what is stored, and never for an empty selection —
- * which says why; and a read-only list for an operator without
- * `customers:manage`.
+ * an inactive one suffixed and the system default badged; and a read-only list
+ * for an operator without `customers:manage`.
+ *
+ * Issue #1305 (spec 180 FR-061, SC-001; `module-admin-surfaces.md` FR-083 §4):
+ * the panel is an immediate action, so a tick writes the whole set at once — no
+ * draft and no Save of its own beside the page's one Save. A failed write puts
+ * the tick back; the last channel cannot be unticked, and says why; and no
+ * second write starts while one is in flight.
  */
 
 const getSpy = vi.fn();
@@ -48,7 +52,10 @@ const pl = JSON.parse(readFileSync(enPath.replace('en.json', 'pl.json'), 'utf8')
   string,
   string
 >;
-const bundle = { organizations: en };
+const coreEn = JSON.parse(
+  readFileSync(resolve(process.cwd(), '../packages/modules/_i18n/i18n/en.json'), 'utf8'),
+) as Record<string, string>;
+const bundle = { core: coreEn, organizations: en };
 
 const ORG = '00000000-0000-4000-8000-0000000000aa';
 const RETAIL = '00000000-0000-4000-8000-00000000c001';
@@ -82,9 +89,24 @@ function box(name: RegExp): HTMLInputElement {
   return screen.getByRole('checkbox', { name });
 }
 
-function saveButton(): HTMLButtonElement {
-  return screen.getByRole('button', { name: en['salesChannels.save']! });
+/** Resolves the next `PUT` when called; the panel is held mid-write until then. */
+function deferredPut(): { resolve: (value: unknown) => void; reject: (reason: unknown) => void } {
+  let resolve!: (value: unknown) => void;
+  let reject!: (reason: unknown) => void;
+  putSpy.mockImplementationOnce(
+    () =>
+      new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+      }),
+  );
+  return {
+    resolve: (value) => resolve(value),
+    reject: (reason) => reject(reason),
+  };
 }
+
+const URL = `/api/v1/admin/organizations/${ORG}/sales-channels`;
 
 beforeEach(() => {
   getSpy.mockReset();
@@ -100,7 +122,11 @@ describe('bundle', () => {
       'salesChannels.atLeastOne',
       'salesChannels.inactiveSuffix',
       'salesChannels.systemDefault',
-      'salesChannels.save',
+      'salesChannels.adding',
+      'salesChannels.removing',
+      'salesChannels.added',
+      'salesChannels.removed',
+      'salesChannels.toggleError',
     ]) {
       expect(en[key], key).toBeTruthy();
       expect(pl[key], key).toBeTruthy();
@@ -124,37 +150,96 @@ describe('SalesChannelsPanel — with customers:manage', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('keeps Save disabled until the selection changes', async () => {
+  it('offers no Save of its own and keeps the Applies immediately badge', async () => {
     renderPanel(['customers:manage']);
     await waitFor(() => expect(box(/Retail/).checked).toBe(true));
-    expect(saveButton().disabled).toBe(true);
-    fireEvent.click(box(/Trade/));
-    expect(saveButton().disabled).toBe(false);
-    fireEvent.click(box(/Trade/));
-    expect(saveButton().disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: /save/i })).toBeNull();
+    expect(screen.getByText(en['salesChannels.title']!).textContent).toContain(coreEn['saveSession.immediateBadge']);
   });
 
-  it('refuses an empty selection and says why', async () => {
-    renderPanel(['customers:manage']);
-    await waitFor(() => expect(box(/Retail/).checked).toBe(true));
-    expect(screen.queryByText(en['salesChannels.atLeastOne']!)).toBeNull();
-    fireEvent.click(box(/Retail/));
-    expect(saveButton().disabled).toBe(true);
-    expect(screen.getByRole('alert').textContent).toBe(en['salesChannels.atLeastOne']);
-  });
-
-  it('saves the whole set and shows what the server stored', async () => {
+  it('writes the whole set once, on the tick, and shows what the server stored', async () => {
     putSpy.mockResolvedValue(response([RETAIL, TRADE]));
     renderPanel(['customers:manage']);
     await waitFor(() => expect(box(/Retail/).checked).toBe(true));
     fireEvent.click(box(/Trade/));
-    fireEvent.click(saveButton());
     await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
-    expect(putSpy).toHaveBeenCalledWith(`/api/v1/admin/organizations/${ORG}/sales-channels`, {
-      salesChannelIds: [RETAIL, TRADE],
-    });
-    await waitFor(() => expect(saveButton().disabled).toBe(true));
+    expect(putSpy).toHaveBeenCalledWith(URL, { salesChannelIds: [RETAIL, TRADE] });
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        en['salesChannels.added']!.replace('{channel}', 'Trade (trade)'),
+      ),
+    );
     expect(box(/Trade/).checked).toBe(true);
+    expect(putSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes a channel on the untick', async () => {
+    getSpy.mockResolvedValue(response([RETAIL, TRADE]));
+    putSpy.mockResolvedValue(response([TRADE]));
+    renderPanel(['customers:manage']);
+    await waitFor(() => expect(box(/Retail/).checked).toBe(true));
+    fireEvent.click(box(/Retail/));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledWith(URL, { salesChannelIds: [TRADE] }));
+    await waitFor(() =>
+      expect(screen.getByRole('status').textContent).toBe(
+        en['salesChannels.removed']!.replace('{channel}', 'Retail (retail)'),
+      ),
+    );
+    expect(box(/Retail/).checked).toBe(false);
+  });
+
+  it('shows the write in flight on its channel and starts no second write meanwhile', async () => {
+    const put = deferredPut();
+    renderPanel(['customers:manage']);
+    await waitFor(() => expect(box(/Retail/).checked).toBe(true));
+    fireEvent.click(box(/Trade/));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
+    expect(box(/Trade/).checked).toBe(true);
+    expect(box(/Trade/).getAttribute('aria-busy')).toBe('true');
+    expect(screen.getByRole('status').textContent).toBe(
+      en['salesChannels.adding']!.replace('{channel}', 'Trade (trade)'),
+    );
+    // Every box waits for the write in flight, so no two writes race. They stay focusable
+    // (aria-disabled, not disabled), so the focus is not thrown off the box just ticked.
+    expect(box(/Archive/).getAttribute('aria-disabled')).toBe('true');
+    expect(box(/Archive/).disabled).toBe(false);
+    fireEvent.click(box(/Archive/));
+    expect(box(/Archive/).checked).toBe(false);
+    fireEvent.click(box(/Trade/));
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    put.resolve(response([RETAIL, TRADE]));
+    await waitFor(() => expect(box(/Archive/).getAttribute('aria-disabled')).toBeNull());
+    expect(box(/Trade/).getAttribute('aria-busy')).toBeNull();
+  });
+
+  it('puts the tick back and says why when the write fails', async () => {
+    const put = deferredPut();
+    renderPanel(['customers:manage']);
+    await waitFor(() => expect(box(/Retail/).checked).toBe(true));
+    fireEvent.click(box(/Trade/));
+    await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
+    const { ApiError } = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
+      '@endora-commerce/admin-kit/lib',
+    );
+    put.reject(
+      new ApiError(422, { error: { code: 'VALIDATION_FAILED', message: 'Unknown sales channel.', requestId: 'req_1305' } }),
+    );
+    await waitFor(() => expect(box(/Trade/).checked).toBe(false));
+    expect(box(/Retail/).checked).toBe(true);
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain(en['salesChannels.toggleError']!.replace('{channel}', 'Trade (trade)'));
+    expect(alert.textContent).toContain('Unknown sales channel.');
+    expect(screen.getByRole('status').textContent).toBe('');
+  });
+
+  it('refuses to untick the last channel, says why, and writes nothing', async () => {
+    renderPanel(['customers:manage']);
+    await waitFor(() => expect(box(/Retail/).checked).toBe(true));
+    expect(screen.queryByText(en['salesChannels.atLeastOne']!)).toBeNull();
+    fireEvent.click(box(/Retail/));
+    expect(box(/Retail/).checked).toBe(true);
+    expect(screen.getByRole('alert').textContent).toBe(en['salesChannels.atLeastOne']);
+    expect(putSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -164,7 +249,7 @@ describe('SalesChannelsPanel — read only', () => {
     const { container } = renderPanel(['customers:read']);
     await waitFor(() => expect(screen.getByText(/Retail/)).toBeTruthy());
     expect(screen.queryByRole('checkbox')).toBeNull();
-    expect(screen.queryByRole('button', { name: en['salesChannels.save']! })).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
     expect(screen.getByText(/Archive/).textContent).toContain(en['salesChannels.inactiveSuffix']);
     expect(screen.queryByText(/Trade/)).toBeNull();
     await expectNoAxeViolations(container);
