@@ -413,7 +413,7 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
   it('keeps the immediate sections immediate, each labelled so', async () => {
     renderDetail();
     await ready();
-    const badge = orgEn['detail.immediate.badge']!;
+    const badge = coreEn['saveSession.immediateBadge']!;
     for (const title of [
       coreEn['organizations.detail.inviteCard']!,
       coreEn['organizations.detail.directAddCard']!,

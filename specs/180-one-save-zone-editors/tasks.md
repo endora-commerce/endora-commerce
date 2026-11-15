@@ -66,6 +66,8 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 - [x] T071 [US10] `SalesChannelEditPage.tsx` provider + submit through `session.run`; badge in `packages/modules/inventory/src/admin/zones/ChannelWarehouses.tsx`; `channelEditor.save.hostPartLabel`
 - [x] T072 Changesets: mod-sales-channels, mod-inventory
 
+After WP-9 (clean-up): the header's Deactivate / Re-activate no longer re-seed the identity form over unsaved edits — a field the operator changed and the toggle did not is kept (`ChannelIdentityForm` `reseedKeepsEdits`); participants keep their drafts. One `ImmediateBadge` in `@endora-commerce/admin-kit` replaces the copies in catalog, customers, organizations and inventory (`core` string `saveSession.immediateBadge`).
+
 ## Phase 7: Organization detail — WP-7 (US9, OQ-9 = A, OQ-11 = A)
 
 - [x] T080 [P] [US9] Failing tests `admin/test/modules/organizations/organization-detail-one-save.test.tsx`: one Save; host part gathers status, VAT status, e-mails, fulfilment strategy, restrictions, custom fields into one `PATCH` with `expectedUpdatedAt`; `VERSION_CONFLICT` writes no panel; panels in zone order; immediate sections keep working with badges; no other Save, no save-on-change / on-blur
@@ -80,6 +82,8 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 - [x] T086 [P] [US9] Failing tests `admin/test/modules/customers/customer-detail-one-save.test.tsx`: one Save; custom-fields host part; two participants; immediate actions unchanged with badges
 - [x] T087 [US9] `CustomerDetail.tsx`: provider, `SaveSessionActions`, `SaveSessionSummary`, `CustomFieldValuesPanel saveSession`; `detail.save.hostPartLabel`
 - [x] T088 Changeset: mod-customers
+
+After WP-9 (clean-up): `quote_requests`' `CustomerPriceNegotiation` is the part `price-negotiation` of this screen's session too (`useNegotiationParticipant`); the panels' on-change write and their "Saved." are gone (`negotiation.participant.test.tsx`).
 
 ## Phase 9: Docs and records — WP-10
 

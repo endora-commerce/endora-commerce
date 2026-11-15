@@ -5,7 +5,7 @@ import { Alert, AlertDescription, Button, Input, Label, Select } from '@endora-c
 import { AssetPicker, ModalDialog, ScopedFieldGrid } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { EditorField, useProductEditor } from './editor/editor-context.js';
-import { SectionHeading } from './editor/ImmediateBadge.js';
+import { SectionHeading } from './editor/SectionHeading.js';
 import { BooleanControl, TextControl, TextareaControl } from './editor/scoped-controls.js';
 
 /**

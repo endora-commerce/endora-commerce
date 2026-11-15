@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { ScopeRef } from '@endora-commerce/contracts';
 import {
+  IMMEDIATE_BADGE,
   BASE,
   PRODUCT_ID,
   VALID_SCOPES,
@@ -157,7 +158,7 @@ describe('the Inventory tab saves with the product (feature 180, WP-4)', () => {
     await openInventory();
     const table = screen.getByRole('table');
     const heading = screen.getByRole('heading', { name: new RegExp(en['inventoryTab.table.title']!) });
-    expect(heading).toHaveTextContent(en['productEditor.immediate.badge']!);
+    expect(heading).toHaveTextContent(IMMEDIATE_BADGE);
     const warsaw = within(table).getByText('Warsaw').closest('tr')!;
     fireEvent.change(within(warsaw).getByRole('spinbutton'), { target: { value: '7' } });
     fireEvent.click(within(warsaw).getByRole('button', { name: /^Save/ }));
@@ -167,7 +168,7 @@ describe('the Inventory tab saves with the product (feature 180, WP-4)', () => {
     expect(scopedPuts()).toHaveLength(0);
     // The stock heading of the editor no longer claims the whole tab applies immediately.
     expect(document.getElementById('product-stock-heading')).not.toHaveTextContent(
-      en['productEditor.immediate.badge']!,
+      IMMEDIATE_BADGE,
     );
   });
 });

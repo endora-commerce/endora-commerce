@@ -1469,7 +1469,6 @@
   "productEditor.guard.bodyLeave.few": "Masz {count} niezapisane zmiany w tym zakresie. Zdecyduj, co z nimi zrobić, zanim opuścisz produkt.",
   "productEditor.guard.bodyLeave.many": "Masz {count} niezapisanych zmian w tym zakresie. Zdecyduj, co z nimi zrobić, zanim opuścisz produkt.",
   "productEditor.guard.bodyLeave.other": "Masz {count} niezapisanej zmiany w tym zakresie. Zdecyduj, co z nimi zrobić, zanim opuścisz produkt.",
-  "productEditor.immediate.badge": "Działa od razu",
   "productEditor.immediate.droppedImage": "Niezapisana zmiana usuniętego obrazu została odrzucona.",
   "productEditor.immediate.droppedAttachment": "Niezapisana zmiana usuniętego załącznika została odrzucona.",
   "productEditor.immediate.droppedPackagingUnit": "Niezapisana zmiana usuniętej jednostki opakowania została odrzucona.",

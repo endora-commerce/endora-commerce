@@ -319,7 +319,7 @@ describe('customer detail — immediate actions stay immediate (feature 180, FR-
   it('labels each immediate section "Applies immediately"', async () => {
     renderDetail();
     await screen.findByLabelText('Loyalty tier');
-    const badge = en['detail.immediate.badge']!;
+    const badge = coreEn['saveSession.immediateBadge']!;
     // Each badge sits in its section's heading: the heading's text is the title, then the badge.
     const headings = screen.getAllByText(badge).map((node) => node.parentElement?.textContent ?? '');
     expect(headings.sort()).toEqual(
@@ -344,7 +344,7 @@ describe('customer detail — immediate actions stay immediate (feature 180, FR-
 
 describe('customer detail — strings (feature 180, FR-080)', () => {
   it('ships the new strings in English and Polish', () => {
-    for (const key of ['detail.save.hostPartLabel', 'detail.immediate.badge']) {
+    for (const key of ['detail.save.hostPartLabel']) {
       expect(en[key]).toBeTruthy();
       expect(pl[key]).toBeTruthy();
     }
