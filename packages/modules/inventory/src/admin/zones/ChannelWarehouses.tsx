@@ -196,7 +196,9 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
           <h2 className="flex flex-wrap items-center gap-2">
             {t('warehouses.channel.title')}
             {canWrite ? (
-              <span className="b2b-badge b2b-badge--info inline-flex items-center gap-1">
+              // The product editor's "Applies immediately" badge, drawn the same way: one look for
+              // one meaning on every editor (feature 174 FR-070, feature 180).
+              <span className="inline-flex items-center gap-1 rounded-md border border-[var(--info)]/40 bg-[var(--info-soft)] px-2 py-0.5 text-xs font-medium text-[var(--info-soft-fg)]">
                 <Zap className="size-3" aria-hidden="true" />
                 {ti('warehouses.channel.immediateBadge')}
               </span>
