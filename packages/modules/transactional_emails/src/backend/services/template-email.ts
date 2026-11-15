@@ -11,14 +11,23 @@
 // both modules composed themselves.
 //
 // Emails that are not naturally sales-channel-scoped resolve against the
-// system-default channel; global template editing still applies.
+// system-default channel; global template editing still applies. A caller that
+// knows its recipient's channel and language passes them (issue #1256) and the
+// message renders there instead — `TemplateEmailPort`'s doc block in
+// `@endora-commerce/contracts` carries the fallback order.
 
-import type { TransactionalEmailSender } from '@endora-commerce/contracts';
+import type { TemplateEmailSendInput, TransactionalEmailSender } from '@endora-commerce/contracts';
 
 export interface TemplateEmailDeps {
   getSender?: () => TransactionalEmailSender | undefined;
+  /** The system-default channel — the scope of a message whose caller names none. */
   resolveScopeSalesChannelId?: () => Promise<string | null>;
-  resolveLanguage?: (salesChannelId: string) => Promise<string>;
+  /**
+   * A channel's default language, or `null` when no such channel resolves
+   * (issue #1256): a caller-named channel that answers `null` is treated as no
+   * channel at all, and the message renders on the system-default one.
+   */
+  resolveLanguage?: (salesChannelId: string) => Promise<string | null>;
 }
 
 export interface TemplateEmail {
@@ -30,13 +39,7 @@ export interface TemplateEmail {
    * would either send mail the operator switched off or end the same way. Only
    * a code with no definition at all answers `false`.
    */
-  trySend(input: {
-    code: string;
-    to: string;
-    messageId: string;
-    variables: Record<string, unknown>;
-    meta?: Record<string, unknown> | undefined;
-  }): Promise<boolean>;
+  trySend(input: TemplateEmailSendInput): Promise<boolean>;
 }
 
 export function makeTemplateEmail(deps: TemplateEmailDeps): TemplateEmail {
@@ -44,6 +47,22 @@ export function makeTemplateEmail(deps: TemplateEmailDeps): TemplateEmail {
     async trySend(input): Promise<boolean> {
       const sender = deps.getSender?.();
       if (!sender) return false;
+      // Issue #1256 — the caller's channel, when it names one that still
+      // resolves; its default language is the language fallback.
+      const channelLanguageOf = async (id: string): Promise<string | null> => {
+        if (!deps.resolveLanguage) return null;
+        try {
+          return await deps.resolveLanguage(id);
+        } catch {
+          return null;
+        }
+      };
+      if (input.salesChannelId) {
+        const channelLanguage = await channelLanguageOf(input.salesChannelId);
+        if (channelLanguage !== null) {
+          return deliver(sender, input, input.salesChannelId, input.language || channelLanguage);
+        }
+      }
       const salesChannelId = (await deps.resolveScopeSalesChannelId?.()) ?? null;
       // **Not the seventh site of the `''`-sentinel family (issue #103) — do
       // not "fix" this line to pass `null` through.**
@@ -63,26 +82,29 @@ export function makeTemplateEmail(deps: TemplateEmailDeps): TemplateEmail {
       // template where it sends its own builder's output today. That is a
       // product decision about what mail goes out, not a sentinel repair.
       if (!salesChannelId) return false;
-      let language = 'en-US';
-      if (deps.resolveLanguage) {
-        try {
-          language = await deps.resolveLanguage(salesChannelId);
-        } catch {
-          language = 'en-US';
-        }
-      }
-      const outcome = await sender.send({
-        code: input.code,
-        salesChannelId,
-        language,
-        to: input.to,
-        messageId: input.messageId,
-        variables: input.variables,
-        ...(input.meta ? { meta: input.meta } : {}),
-      });
-      return outcome.status !== 'no_definition';
+      const language =
+        input.language || (await channelLanguageOf(salesChannelId)) || 'en-US';
+      return deliver(sender, input, salesChannelId, language);
     },
   };
+}
+
+async function deliver(
+  sender: TransactionalEmailSender,
+  input: TemplateEmailSendInput,
+  salesChannelId: string,
+  language: string,
+): Promise<boolean> {
+  const outcome = await sender.send({
+    code: input.code,
+    salesChannelId,
+    language,
+    to: input.to,
+    messageId: input.messageId,
+    variables: input.variables,
+    ...(input.meta ? { meta: input.meta } : {}),
+  });
+  return outcome.status !== 'no_definition';
 }
 
 /** No-op helper (sender not wired) — always falls back to the legacy builder. */

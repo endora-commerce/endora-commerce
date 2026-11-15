@@ -4,14 +4,21 @@ import type {
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  TemplateEmailPort,
 } from '@endora-commerce/contracts';
+import { manifest as transactionalEmailsManifest } from '@endora-commerce/mod-transactional-emails';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 import { createMinimumProduct, minimumFixtureRun, type MinimumProductFixture } from '../../helpers/order-minimum-fixture.js';
 import { clearValueOverrides } from '../../helpers/product-scope-fixture.js';
 import { seedScopedValues } from '../../helpers/scoped-values.js';
 import { withModuleOff } from '../../helpers/off-state.js';
-import { AvailabilityNotification, CustomerAccount } from '../../helpers/package-entities.js';
+import {
+  AvailabilityNotification,
+  CustomerAccount,
+  TransactionalEmail,
+  TransactionalEmailContent,
+} from '../../helpers/package-entities.js';
 import type { AvailabilityWorker } from '../../../../packages/modules/inventory/src/backend/services/availability-worker.js';
 import { AvailabilityNotificationService } from '../../../../packages/modules/inventory/src/backend/services/availability-notification-service.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
@@ -28,6 +35,13 @@ import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/s
  *
  * Both senders are held to it: the composed `AvailabilityWorker` (the one `inventory.adjusted.v1`
  * reaches) and `AvailabilityNotificationService.processRestockedFanOut`.
+ *
+ * Issue #1256 — and the rest of the message follows the subscription too: both senders render the
+ * operator-editable `availability_back_in_stock` template in the subscription's channel and
+ * language through `templateEmailPort`, so a subscriber on a Polish channel reads the Polish
+ * default (`Ponownie dostępny: …`), an operator's per-channel edit is what goes out on that
+ * channel, a subscription with no scope renders on the system-default channel, and an operator
+ * who switched the e-mail off gets nothing — never the fixed English text.
  *
  * Every write here is scoped to this file's own products and subscriber e-mail addresses.
  */
@@ -87,16 +101,19 @@ describe('#696 — the back-in-stock e-mail names the product at the subscriptio
     catalogProducts: CatalogProductReadPort;
     customerAccounts: CustomerAccountReadPort;
     catalogAvailability: CatalogProductAvailabilityPort;
+    templateEmail: TemplateEmailPort;
   } {
     const cradle = h.container.cradle as never as {
       catalogProductReadPort: CatalogProductReadPort;
       customerAccountReadPort: CustomerAccountReadPort;
       catalogProductAvailabilityPort: CatalogProductAvailabilityPort;
+      templateEmailPort: TemplateEmailPort;
     };
     return {
       catalogProducts: cradle.catalogProductReadPort,
       customerAccounts: cradle.customerAccountReadPort,
       catalogAvailability: cradle.catalogProductAvailabilityPort,
+      templateEmail: cradle.templateEmailPort,
     };
   }
 
@@ -112,10 +129,15 @@ describe('#696 — the back-in-stock e-mail names the product at the subscriptio
     [
       'the restock fan-out',
       (productId, mail) => {
-        const { catalogProducts, customerAccounts, catalogAvailability } = ports();
-        return new AvailabilityNotificationService(h.em, catalogProducts, customerAccounts, catalogAvailability, mail).processRestockedFanOut({
-          productId,
-        });
+        const { catalogProducts, customerAccounts, catalogAvailability, templateEmail } = ports();
+        return new AvailabilityNotificationService(
+          h.em,
+          catalogProducts,
+          customerAccounts,
+          catalogAvailability,
+          mail,
+          templateEmail,
+        ).processRestockedFanOut({ productId });
       },
     ],
   ];
@@ -174,15 +196,17 @@ describe('#696 — the back-in-stock e-mail names the product at the subscriptio
       expect((await subscribeOnStorefront(drill.id, `s696-cl-${RUN}@example.test`, 'pl-PL')).statusCode).toBe(202);
       expect((await send(drill.id, mailer)).notified).toBe(1);
       expect(mailer.sent).toHaveLength(1);
-      expect(mailer.sent[0]?.subject).toBe(`Back in stock: ${DRILL_CL}`);
-      expect(mailer.sent[0]?.text).toContain(`"${DRILL_CL}"`);
+      expect(mailer.sent[0]?.subject).toBe(`Ponownie dostępny: ${DRILL_CL}`);
+      expect(mailer.sent[0]?.text).toContain(`${DRILL_CL}`);
+      expect(mailer.sent[0]?.text).toContain('jest ponownie dostępny');
+      expect(mailer.sent[0]?.html).toContain('Ponownie dostępny');
     });
 
     it('names the product at Channel when no Channel × language override exists', async () => {
       await reset(sander.id);
       expect((await subscribeOnStorefront(sander.id, `s696-c-${RUN}@example.test`, 'pl-PL')).statusCode).toBe(202);
       expect((await send(sander.id, mailer)).notified).toBe(1);
-      expect(mailer.sent[0]?.subject).toBe(`Back in stock: ${SANDER_C}`);
+      expect(mailer.sent[0]?.subject).toBe(`Ponownie dostępny: ${SANDER_C}`);
     });
 
     it('falls back to the Global name for a subscription without a scope (pre-#696 rows)', async () => {
@@ -198,8 +222,55 @@ describe('#696 — the back-in-stock e-mail names the product at the subscriptio
       expect((await subscribeOnStorefront(drill.id, `s696-mix-${RUN}@example.test`, 'pl-PL')).statusCode).toBe(202);
       expect((await send(drill.id, mailer)).notified).toBe(2);
       const subjects = mailer.sent.map((m) => m.subject).sort();
-      expect(subjects).toEqual([`Back in stock: ${DRILL_GLOBAL}`, `Back in stock: ${DRILL_CL}`].sort());
+      expect(subjects).toEqual([`Back in stock: ${DRILL_GLOBAL}`, `Ponownie dostępny: ${DRILL_CL}`].sort());
     });
+
+    it('renders the operator\'s edit for the subscription\'s channel and language (#1256)', async () => {
+      await reset(drill.id);
+      const em = h.em();
+      const email = await em.findOneOrFail(TransactionalEmail, { code: 'availability_back_in_stock' });
+      const override = em.create(TransactionalEmailContent, {
+        emailId: email.id,
+        salesChannelId: vipId,
+        language: 'pl-PL',
+        subject: `VIP ${RUN}: {{var product.name}} wrócił`,
+        content: { root: { props: {} }, content: [] },
+      });
+      await em.flush();
+      try {
+        expect((await subscribeOnStorefront(drill.id, `s1256-ed-${RUN}@example.test`, 'pl-PL')).statusCode).toBe(202);
+        await seedUnscoped(drill.id);
+        expect((await send(drill.id, mailer)).notified).toBe(2);
+        const subjects = mailer.sent.map((m) => m.subject).sort();
+        // The unscoped subscription renders on the system-default channel, which the VIP edit
+        // does not reach.
+        expect(subjects).toEqual([`Back in stock: ${DRILL_GLOBAL}`, `VIP ${RUN}: ${DRILL_CL} wrócił`].sort());
+      } finally {
+        await sql(`delete from transactional_email_contents where id = ?`, [override.id]);
+      }
+    });
+
+    it('sends nothing — not the English text — while the operator has the e-mail switched off (#1256)', async () => {
+      await reset(drill.id);
+      expect((await subscribeOnStorefront(drill.id, `s1256-off-${RUN}@example.test`, 'pl-PL')).statusCode).toBe(202);
+      await seedUnscoped(drill.id);
+      await sql(`update transactional_emails set active = false where code = 'availability_back_in_stock'`);
+      try {
+        // Consumed, as the port's `true` says: the platform decided to send nothing.
+        expect((await send(drill.id, mailer)).notified).toBe(2);
+        expect(mailer.sent).toEqual([]);
+      } finally {
+        await sql(`update transactional_emails set active = true where code = 'availability_back_in_stock'`);
+      }
+    });
+  });
+
+  it('relies on a template sender that has no absent state: transactional_emails is non-deactivatable (#1256)', () => {
+    // Neither sender probes `transactional_emails`' presence: the composition refuses to start
+    // without a non-deactivatable module, and an operator switches the one e-mail off instead —
+    // the case above. Should the lock ever be withdrawn, this fails and the senders need a gate.
+    const activation = transactionalEmailsManifest.activation;
+    expect(activation !== undefined && 'nonDeactivatable' in activation && activation.nonDeactivatable).toBe(true);
   });
 
   it.each(['deactivated', 'platform-unavailable'] as const)(
@@ -223,9 +294,9 @@ describe('#696 — the back-in-stock e-mail names the product at the subscriptio
         { email: `s696-off-${RUN}@example.test`, status: 'queued', sales_channel_id: vipId, language_code: 'pl-PL' },
       ]);
 
-      // Restored, the composed worker names the product at that scope.
+      // Restored, the composed worker renders the template at that scope.
       expect((await composedWorker().dispatchForStockIncrease({ productId: drill.id })).notified).toBe(1);
-      expect(mailer.sent[0]?.subject).toBe(`Back in stock: ${DRILL_CL}`);
+      expect(mailer.sent[0]?.subject).toBe(`Ponownie dostępny: ${DRILL_CL}`);
     },
   );
 });

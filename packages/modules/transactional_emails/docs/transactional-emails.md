@@ -132,6 +132,14 @@ await sender.send({
 When the sender is not wired, modules fall back to their legacy in-code builders,
 so behavior is unchanged in environments without the module.
 
+A module that also keeps an in-code fallback resolves `templateEmailPort` instead, whose
+`trySend` answers `false` only when no definition exists for the code. It takes the same
+`code`, `to`, `messageId` and `variables`, and optionally the recipient's `salesChannelId` and
+`language`: the message is rendered from that channel's content in that language. A missing or
+deleted channel renders on the system-default channel, and a missing language in the channel's
+default language, so a caller that names neither gets the system-default channel in its default
+language. The back-in-stock e-mail passes the channel and language the subscription recorded.
+
 ## Preview
 
 `POST /api/v1/admin/transactional-emails/{code}/preview` renders an email with
