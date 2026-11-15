@@ -283,3 +283,32 @@ describe('the price-change history lines of one write (#470, D-288)', () => {
     ]);
   });
 });
+
+describe('the price-change history lines of an admin batch (#470, D-288, Stage 2)', () => {
+  it('a row moved to another start by its id is a removed and an added line, not a changed one', () => {
+    // The admin batch replaces a stored row by id, so the row can keep its id
+    // and move its window's start: its coordinate moved.
+    const lines = rowValueLines({
+      added: [],
+      changed: [{ before: stored({ id: id(1), minQuantity: 1, amount: '0.0125' }), after: stored({ id: id(1), minQuantity: 5, amount: '0.0125' }) }],
+      removed: [],
+    });
+    expect(lines.map((l) => [l.kind, l.minQuantity, l.beforeAmount, l.afterAmount])).toEqual([
+      ['removed', 1, '0.0125', null],
+      ['added', 5, null, '0.0125'],
+    ]);
+  });
+
+  it('keeps a sub-cent amount and a percent as the row held them', () => {
+    const lines = rowValueLines({
+      added: [stored({ id: id(4), variantId: VR, priceType: 'percent', amount: null, percent: '12.50' })],
+      changed: [{ before: stored({ id: id(1), amount: '0.0125' }), after: stored({ id: id(1), amount: '0.0130' }) }],
+      removed: [],
+    });
+    expect(lines).toHaveLength(2);
+    expect(lines).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'changed', productId: P, variantId: null, beforePriceType: 'fixed', beforeAmount: '0.0125', afterAmount: '0.0130' }),
+      expect.objectContaining({ kind: 'added', variantId: VR, beforePriceType: null, afterPriceType: 'percent', afterAmount: null, afterPercent: '12.50' }),
+    ]));
+  });
+});
