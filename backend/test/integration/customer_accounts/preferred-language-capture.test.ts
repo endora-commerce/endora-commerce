@@ -6,7 +6,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { oauthBinding } from '../../helpers/oauth-binding.js';
+import { customerOAuthStartUrl, oauthBinding, storefrontBinding } from '../../helpers/oauth-binding.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 
 /**
@@ -97,7 +97,7 @@ describe('customer preferred language — capture (#652)', () => {
   async function federatedSignIn(email: string, acceptLanguage: string) {
     const started = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(storefrontBinding()),
       headers: on(acceptLanguage),
     });
     expect(started.statusCode, started.body).toBe(302);

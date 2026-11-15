@@ -949,9 +949,8 @@ describe('federated sign-in — the account language (#652)', () => {
   });
 
   it('offers the starting page’s language, as the channel spells it, to a new and an existing account', async () => {
-    const { state, binding } = await start(h, 'customer', '/en/account');
-    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
-    expect(res.headers['location']).toBe(`${STOREFRONT}/en/account`);
+    const { exchange: res } = await signIn(h, '/en/account');
+    expect(res.json().data.redirectPath).toBe('/en/account');
     expect(h.signInCustomer.mock.calls[0]?.[1]).toMatchObject({ preferredLanguage: 'en-US' });
     expect(h.captured).toEqual([['c1', 'en-US']]);
   });
@@ -984,9 +983,8 @@ describe('federated sign-in — the account language (#652)', () => {
 
   it('signs the customer in even when the capture fails', async () => {
     h.setCaptureFails(true);
-    const { state, binding } = await start(h, 'customer', '/en/account');
-    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
-    expect(res.headers['location']).toBe(`${STOREFRONT}/en/account`);
+    const { exchange: res } = await signIn(h, '/en/account');
+    expect(res.json().data.redirectPath).toBe('/en/account');
     expect(sessionCookie(res, 'b2b_session')).toBeDefined();
   });
 });
