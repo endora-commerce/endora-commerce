@@ -16,6 +16,7 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { QuickOrderDefaultPreference } from '../entities/quick-order-default-preference.entity.js';
 import type { PreferenceAuditContext } from '@endora-commerce/contracts';
 import { canManagePreference, type PreferenceActor } from './default-preference-authz.js';
+import { preferenceAuditState, preferenceUpdatedAuditState } from './default-preference-audit-state.js';
 import {
   resolvePreferenceFields,
   type PreferenceRow,
@@ -141,8 +142,9 @@ export class DefaultPreferenceService {
       action: 'quick_order.default_preference.update',
       objectType: 'QuickOrderDefaultPreference',
       objectId: row.id,
-      stateBefore: before as Record<string, unknown> | null,
-      stateAfter: after as Record<string, unknown>,
+      // Issue #470 (D-288): the scope and the chosen ids, never `scopeId` — the tenant anchor.
+      stateBefore: before ? preferenceAuditState(before) : null,
+      stateAfter: preferenceUpdatedAuditState(before, after),
       ipAddress: audit.ipAddress ?? null,
       userAgent: audit.userAgent ?? null,
       requestId: audit.requestId ?? null,
