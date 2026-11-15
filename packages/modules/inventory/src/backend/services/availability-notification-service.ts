@@ -18,6 +18,13 @@ import { AvailabilityNotification } from '../entities/availability-notification.
 import { StockLevel } from '../entities/stock-level.entity.js';
 import type { InventoryTemplateEmailPort } from './low-stock-alert-service.js';
 import { restockDisposition } from './restock-product-state.js';
+import { backInStockNames } from './back-in-stock-names.js';
+
+/** The (channel, scope language) a subscription is asked and stamped in (issue #696). */
+interface SubscriptionScope {
+  channelId: string;
+  languageCode: string;
+}
 
 export interface SubscribeInput {
   productId: string;
@@ -219,17 +226,28 @@ export class AvailabilityNotificationService {
   async #mayAcquire(
     product: Pick<CatalogProductRecord, 'id' | 'visibility' | 'allowedOrganizationIds'>,
     audience: ProductAudience | undefined,
-    languageTag: string | undefined,
+    scope: SubscriptionScope | null,
   ): Promise<boolean> {
     const who = audience ?? ANONYMOUS_PRODUCT_AUDIENCE;
-    const channel = currentSalesChannel();
-    if (channel === null) return isProductVisibleTo(product, who);
+    if (scope === null) return isProductVisibleTo(product, who);
     const available = await this.catalogAvailability.filterAvailable([product.id], {
-      channelId: channel.id,
-      languageCode: scopeLanguageOf(channel, languageTag),
+      channelId: scope.channelId,
+      languageCode: scope.languageCode,
       audience: who,
     });
     return available.has(product.id);
+  }
+
+  /**
+   * The request's (channel, scope language), or `null` outside a request — read off the
+   * resolved request channel (Constitution XII), never re-resolved. The one answer both the
+   * availability gate above and the stamped subscription (issue #696) take, so the e-mail names
+   * the product in exactly the scope its availability was judged in.
+   */
+  #requestScope(languageTag: string | undefined): SubscriptionScope | null {
+    const channel = currentSalesChannel();
+    if (channel === null) return null;
+    return { channelId: channel.id, languageCode: scopeLanguageOf(channel, languageTag) };
   }
 
   /**
@@ -246,13 +264,14 @@ export class AvailabilityNotificationService {
     // self-service subscription record, not an audited domain-state mutation.
     const em = this.emFactory();
     const product = await this.catalogProducts.findById(input.productId, { liveOnly: true });
+    const scope = this.#requestScope(input.languageTag);
     // Asking to be told when a product returns is an **acquisition**: the
     // caller names a product id they chose, the platform stores a row against
     // it, and answers later with an e-mail naming it. So the two gates every
     // other acquisition seam applies are applied here, and all three states —
     // absent, restricted, sold on another channel — leave through the one
     // refusal below.
-    if (!product || !(await this.#mayAcquire(product, input.audience, input.languageTag))) {
+    if (!product || !(await this.#mayAcquire(product, input.audience, scope))) {
       throw new HttpError(404, ERROR_CODES.PRODUCT_NOT_FOUND, 'Product not found.');
     }
     if (!product.manageStock) {
@@ -309,6 +328,11 @@ export class AvailabilityNotificationService {
       ...ownerColumns(owner),
       email: input.email,
       status: 'queued',
+      // Issue #696 — the scope the buyer subscribed in, so the back-in-stock e-mail names the
+      // product as they saw it. Outside a request there is none, and the e-mail says the Global
+      // name.
+      salesChannelId: scope?.channelId ?? null,
+      languageCode: scope?.languageCode ?? null,
     });
     await em.persistAndFlush(subscription);
     return subscription;
@@ -438,10 +462,11 @@ export class AvailabilityNotificationService {
       await em.flush();
       return { notified: 0 };
     }
-    // Feature 174 (owner decision after C1, 2026-11-03) — the Global name. A subscription stores
-    // no channel and no language, so there is no (C, L) to resolve; storing them on
-    // `availability_notifications` is the named follow-up of spec 174 (*Out of scope*).
-    const productName = product ? product.name || product.sku : 'product';
+    // Issue #696 — each subscriber is told the product's effective name at the scope they
+    // subscribed in; a subscription with none (written before #696) keeps the Global name.
+    const productNames = product
+      ? await backInStockNames(rows, product, this.catalogAvailability)
+      : new Map<string, string>();
     const customerIds = Array.from(
       new Set(rows.map((r) => r.customerAccountId).filter((id): id is string => typeof id === 'string')),
     );
@@ -458,6 +483,7 @@ export class AvailabilityNotificationService {
         row.notifiedAt = now;
         continue;
       }
+      const productName = productNames.get(row.id) ?? 'product';
       const messageId = `availability:${row.id}`;
       const meta = {
         productId: input.productId,

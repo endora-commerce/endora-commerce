@@ -212,8 +212,15 @@ Zanim cokolwiek zostanie wysłane, rozsyłka raz odczytuje produkt i sprawdza je
   oznaczony jako powiadomiony.
 
 Sprawdzany jest wyłącznie stan globalny produktu. Nadpisania statusu, okna publikacji czy grupy
-odbiorców dla kanału sprzedaży albo języka nie są brane pod uwagę, bo zapis nie przechowuje kanału
-ani języka, w którym powstał. Z tego samego powodu e-mail podaje globalną nazwę produktu.
+odbiorców dla kanału sprzedaży albo języka nie są brane pod uwagę.
+
+Zapis przechowuje kanał sprzedaży i język, w którym powstał: kanał, na który zostało rozwiązane
+żądanie, oraz język wyznaczony z nagłówka `Accept-Language` spośród języków tego kanału (domyślny
+język kanału, gdy kanał nie obsługuje żadnego z nich). E-mail podaje nazwę produktu taką, jaką
+widział subskrybent — nazwę dla kanału i języka, a gdy jej nie ma, nazwę dla kanału, a w ostateczności
+nazwę globalną. Zapis utworzony, zanim kanał i język były przechowywane, albo zapis, którego kanał
+został później usunięty, dostaje nazwę globalną. Za zapisem podąża tylko nazwa produktu: reszta
+wiadomości jest sformułowana tak jak wcześniej, a nie w języku zapisu.
 
 **Znane ograniczenie.** Rozsyłka uruchamia się tylko wtedy, gdy stan rośnie od zera. Jeśli produkt
 zostanie przywrócony albo ponownie włączony, gdy ma już stan, oczekujący subskrybenci dostaną

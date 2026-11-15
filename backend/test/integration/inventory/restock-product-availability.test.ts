@@ -84,6 +84,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
         mailer,
         cradle.catalogProductReadPort,
         cradle.customerAccountReadPort,
+        cradle.catalogProductAvailabilityPort,
       );
       return (await worker.dispatchForStockIncrease({ productId: product.id })).notified;
     }
