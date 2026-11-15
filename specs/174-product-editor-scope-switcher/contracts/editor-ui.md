@@ -32,6 +32,15 @@ earlier section differ, §11 wins.
 
 ## 3. Staged changes, Save, switch guard (FR-070…FR-076, FR-083)
 
+> *Amended 2026-11-14 by `specs/180-one-save-zone-editors/` (`contracts/product-editor-save-ui.md`,
+> `contracts/save-participation.md`):* the Save, its staged count and the switch guard below also cover the
+> editor's **save-session participants** — today the `price_lists` base-price panel on the Pricing tab. The
+> count adds each participant's changes; a Save writes the catalog part first (blocking), then each
+> participant through its own module's write, in zone order; a participant that fails stays staged, and the
+> next Save writes only it. The guard (scope switch, scope-map link, browser Back, `beforeunload`) counts
+> participant changes. "Price-book rows" in the immediate-action list below means the price-book grid; the
+> Inventory tab's product-row settings are staged cells of this Save (spec 180 FR-025, OQ-7 = B).
+
 - `scoped-editor-store.ts`: `{ scope, view, staged: Map<FieldPath, ScopedWriteOp> }`, reducer + context; staged
   changes belong to the current scope and survive tab switches.
 - One **Save** in the scope bar's action slot (`StickyFormActions`; issue #717 moved it there from the page head, so at ≥ 1024 px it is sticky with the scope bar), enabled when `staged.size > 0` and `catalog:write`. It sends

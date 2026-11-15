@@ -256,6 +256,7 @@ moduł. Jest dostępny, gdy produkt już istnieje.
   więc cena, której by odmówił, zatrzymuje cały zapis i jest zgłaszana w panelu. Jeśli produkt
   zostanie zapisany, a ceny bazowe nie, edytor o tym informuje, a kolejny zapis zapisuje już tylko
   ceny bazowe. Błędna wartość jest zgłaszana przy jej polu.
+  **Odrzuć zmiany** w panelu przywraca zapisane ceny bazowe i nie rusza pozostałych zmian produktu.
 - **Otwórz ceny bazowe** otwiera siatkę cennika cen bazowych; **Skąd ta cena?** otwiera wyjaśnienie
   ceny dla tego produktu.
 
@@ -304,6 +305,14 @@ z tego miejsca.
 - **Kolejność cen** (`#precedence`) — obowiązujące ustawienie, jego wersję, dwanaście komórek w
   kolejności z przykładem każdej, informację, czy linia kategorii wygrywa z linią wartości atrybutu, i
   uwagę, że zmiana kolejności będzie możliwa w jednym z kolejnych wydań. Niczego tu nie można zmienić.
+
+Nadpisanie organizacji lub kategorii można też ustawić tam, gdzie edytuje się ten rekord — w wierszu
+*Tryb prezentacji ceny*, który ten moduł dodaje do ekranu organizacji i do edytora kategorii. Wiersz
+nie ma tam własnego zapisu: wybór trybu czeka na zapis, jeden przycisk Zapisz edytora go liczy i
+zapisuje po własnych zmianach organizacji lub kategorii, a opuszczenie strony z niezapisanym trybem
+wymaga potwierdzenia. Jeśli organizacja lub kategoria zostanie odrzucona, tryb nie jest zapisywany;
+jeśli nie powiedzie się tylko zapis trybu, edytor o tym informuje, a kolejne Zapisz zapisuje tylko
+tryb.
 
 ## Handlowcy
 

@@ -257,6 +257,8 @@ visitors too**: a product overridden to *Gross only* shows its price to guests e
 whose anonymous mode is *None*, which makes it the one way to show a guest a price there. An
 organization override applies to that organization's signed-in buyers only. Display modes are set on
 *Pricing settings* and in the organization and category editors.
+In the organization and category editors the override is part of the editor's one Save: choosing a mode
+stages it, and the editor's Save writes it after the organization's or the category's own changes.
 
 A gross price on a product card, a list row or the product page is the net price at **that
 product's own VAT rate** for the viewer — the rate the cart and the order apply, from the tax rules

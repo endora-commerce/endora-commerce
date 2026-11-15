@@ -243,6 +243,27 @@ Tworzenie i aktualizacja produktu i wariantu oraz import produktów odrzucają t
 w `@endora-commerce/contracts`), informując, że ceny ustawia się w cennikach. Migracja katalogu
 `20261022T111811_catalog_price_fields_removed.ts` usunęła kolumnę i klucze.
 
+## Edycja kategorii
+
+*Katalog → Kategorie* pokazuje drzewo kategorii; **Edytuj** przy kategorii otwiera jej edytor obok drzewa. Edytor
+zawiera własne pola kategorii — nazwy, slug, rodzica i pola niestandardowe — a gdy moduł Cenniki jest włączony,
+także **tryb prezentacji ceny** kategorii, dostarczany przez ten moduł i pokazywany nad przyciskami Zapisz i Anuluj.
+
+Edytor ma **jeden przycisk Zapisz** dla wszystkiego. Zmiana trybu prezentacji ceny tylko czeka na zapis: nie jest
+już zapisywana w chwili wyboru. Zapisz pokazuje „Zapisz”, gdy nie ma nic do zapisania, i „Zapisz 2 zmiany”, gdy jest,
+licząc razem własne zmiany kategorii i tryb prezentacji.
+
+- Zapisz najpierw wszystko sprawdza; jeśli cokolwiek zostanie odrzucone, nic nie jest zapisywane.
+- Najpierw zapisywana jest kategoria, potem tryb prezentacji. Jeśli kategoria zostanie odrzucona — slug jest już
+  zajęty, pole niestandardowe jest niepoprawne — tryb prezentacji też nie jest zapisywany.
+- Jeśli kategoria zostanie zapisana, a tryb prezentacji nie, edytor zostaje otwarty, a podsumowanie mówi, co
+  zapisano, a czego nie. Kolejne Zapisz zapisuje tylko tryb prezentacji.
+- **Anuluj** odrzuca wszystkie niezapisane zmiany bez pytania.
+- **Edytuj** przy innej kategorii, gdy są niezapisane zmiany, najpierw pyta: **Zapisz i kontynuuj**, **Odrzuć zmiany**
+  albo **Zostań tutaj**. Przejście linkiem w inne miejsce panelu albo zamknięcie lub odświeżenie karty przeglądarki
+  też pyta. Otwarta kategoria nie jest częścią adresu strony, więc przycisk „Wstecz” przeglądarki opuszcza stronę bez
+  pytania.
+
 ## Encje
 
 `Product`, `ProductVariant`, `Category`, `ProductAttribute`, `SalesChannel`, tabele łączące
