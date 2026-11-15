@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Zap } from 'lucide-react';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   AdminZoneProps,
@@ -56,11 +57,18 @@ interface WarehouseListResponse {
  * again here would be the same question twice — and the second answer would be
  * the one nobody maintains. `canWrite` stays: a contribution declares one code,
  * and this panel offers a read view and write actions behind two.
+ *
+ * ## Not a part of the editor's Save (feature 180, OQ-10 = A)
+ *
+ * The editor hands this zone its save session; this panel does not join it. Assigning,
+ * unassigning and promoting a warehouse are immediate actions, as they have always been, and
+ * the heading says so with an "Applies immediately" badge while those actions are offered.
  */
 export type ChannelWarehousesProps = AdminZoneProps<'sales_channel.editor.after'>;
 
 export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactNode {
   const t = useTranslation('core');
+  const ti = useTranslation('inventory');
   const { confirm, confirmDialog } = useConfirmDialog();
   const isVisible = useSurfaceVisibility();
   const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
@@ -184,7 +192,17 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
       ) : null}
 
       <div className="b2b-card">
-        <div className="b2b-card__head"><h2>{t('warehouses.channel.title')}</h2></div>
+        <div className="b2b-card__head">
+          <h2 className="flex flex-wrap items-center gap-2">
+            {t('warehouses.channel.title')}
+            {canWrite ? (
+              <span className="b2b-badge b2b-badge--info inline-flex items-center gap-1">
+                <Zap className="size-3" aria-hidden="true" />
+                {ti('warehouses.channel.immediateBadge')}
+              </span>
+            ) : null}
+          </h2>
+        </div>
         <table className="b2b-tbl">
           <thead>
             <tr>
