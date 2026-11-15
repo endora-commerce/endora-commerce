@@ -232,25 +232,15 @@ describe('quote_requests contributes the price-negotiation lock to two detail zo
       expect(label?.textContent).toContain('Members may propose prices');
     });
 
-    it('writes through PUT and confirms the save', async () => {
+    it('writes nothing on change: the organization detail\'s one Save writes it (feature 180, WP-7)', async () => {
+      // The write itself, through the host's session, is
+      // `negotiation.participant.test.tsx`'s subject; this harness hands the inert handle.
       const container = renderOrganization();
       await waitFor(() => expect(organizationToggle(container).disabled).toBe(false));
       fireEvent.click(organizationToggle(container));
-      await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
-      expect(putSpy).toHaveBeenCalledWith(ORG_ROUTE, { priceProposalsAllowed: true });
-      await waitFor(() => expect(container.textContent).toContain('Saved.'));
-      expect(organizationToggle(container).checked).toBe(true);
-    });
-
-    it('rolls the control back and says so when the write fails', async () => {
-      putSpy.mockRejectedValueOnce(new Error('boom'));
-      const container = renderOrganization();
-      await waitFor(() => expect(organizationToggle(container).disabled).toBe(false));
-      fireEvent.click(organizationToggle(container));
-      await waitFor(() =>
-        expect(container.querySelector('[role="alert"]')?.textContent).toBeTruthy(),
-      );
-      expect(organizationToggle(container).checked).toBe(false);
+      await waitFor(() => expect(organizationToggle(container).checked).toBe(true));
+      expect(putSpy).not.toHaveBeenCalled();
+      expect(container.textContent).not.toContain('Saved.');
     });
 
     it('is visible but disabled, with a hint, without customers:manage', async () => {
@@ -296,14 +286,13 @@ describe('quote_requests contributes the price-negotiation lock to two detail zo
         view.container.querySelector<HTMLInputElement>(`#quote-price-negotiation-org-${id}`);
       await waitFor(() => expect(toggleOf(ORG_ID)?.disabled).toBe(false));
       fireEvent.click(toggleOf(ORG_ID)!);
-      await waitFor(() => expect(view.container.textContent).toContain('Saved.'));
+      await waitFor(() => expect(toggleOf(ORG_ID)?.checked).toBe(false));
 
       view.rerender(zoneTree({ name: 'organization.detail.after', props: { organizationId: OTHER_ORG_ID } }));
       await waitFor(() => expect(getSpy).toHaveBeenCalledWith(OTHER_ORG_ROUTE));
       const pending = toggleOf(OTHER_ORG_ID);
       expect(pending?.checked).toBe(false);
       expect(pending?.disabled).toBe(true);
-      expect(view.container.textContent).not.toContain('Saved.');
 
       releaseOther?.();
       await waitFor(() => expect(toggleOf(OTHER_ORG_ID)?.disabled).toBe(false));

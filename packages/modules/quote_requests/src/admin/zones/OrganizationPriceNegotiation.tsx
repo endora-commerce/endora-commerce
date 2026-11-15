@@ -1,9 +1,18 @@
 import { type ReactNode } from 'react';
-import type { AdminZoneProps, QuoteRequestOrgNegotiation } from '@endora-commerce/contracts';
+import {
+  setQuoteRequestOrgNegotiationSchema,
+  type AdminZoneProps,
+  type QuoteRequestOrgNegotiation,
+} from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { Checkbox } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { NegotiationCard, useNegotiationResource } from '../negotiation-panel.js';
+import {
+  NegotiationCard,
+  useNegotiationParticipant,
+  useNegotiationResource,
+  type NegotiationWrite,
+} from '../negotiation-panel.js';
 
 /**
  * The organization's price-negotiation value (feature 146, US4; FR-020 (a)).
@@ -20,24 +29,37 @@ import { NegotiationCard, useNegotiationResource } from '../negotiation-panel.js
  *
  * It reads its own state (Z3: the zone's props carry the id and nothing else),
  * out of this module's own bundle (`negotiation.*`), as `carts`' panel does.
+ *
+ * **Written by the organization detail's one Save** (feature 180, WP-7; FR-060): the
+ * checkbox stages the value as the part `price-negotiation` of the host's session, and
+ * the host's Save writes it. It used to write on change.
  */
 export type OrganizationPriceNegotiationProps = AdminZoneProps<'organization.detail.after'>;
 
 const routeFor = (organizationId: string): string =>
   `/api/v1/admin/organizations/${encodeURIComponent(organizationId)}/quote-price-negotiation`;
 
+const WRITE: NegotiationWrite<QuoteRequestOrgNegotiation> = {
+  bodyOf: (value) => ({ priceProposalsAllowed: value.priceProposalsAllowed }),
+  validBody: (body) => setQuoteRequestOrgNegotiationSchema.safeParse(body).success,
+};
+
 export function OrganizationPriceNegotiation({
   organizationId,
+  saveSession,
 }: OrganizationPriceNegotiationProps): ReactNode {
   const t = useTranslation('quote_requests');
   const { hasPermission } = useAuth();
   const canManage = hasPermission('customers:manage');
-  const resource = useNegotiationResource<QuoteRequestOrgNegotiation>(routeFor(organizationId));
-  const { state, loading, saving } = resource;
+  const route = routeFor(organizationId);
+  const resource = useNegotiationResource<QuoteRequestOrgNegotiation>(route);
+  const part = useNegotiationParticipant(route, resource, saveSession, canManage, WRITE);
+  const state = part.value;
+  const { loading, saving } = part.card;
 
   const handleChange = (next: boolean): void => {
     if (!canManage || state === null) return;
-    void resource.save({ ...state, priceProposalsAllowed: next }, { priceProposalsAllowed: next });
+    part.setValue({ ...state, priceProposalsAllowed: next });
   };
 
   const controlId = `quote-price-negotiation-org-${organizationId}`;
@@ -46,7 +68,7 @@ export function OrganizationPriceNegotiation({
 
   return (
     <NegotiationCard
-      resource={resource}
+      resource={part.card}
       canManage={canManage}
       hintId={hintId}
       before={

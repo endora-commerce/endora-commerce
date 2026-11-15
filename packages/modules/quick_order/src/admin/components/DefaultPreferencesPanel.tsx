@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { quickOrderPreferenceUpsertSchema, type EditorSaveSessionHandle } from '@endora-commerce/contracts';
+import {
+  ApiError,
+  INERT_SAVE_SESSION,
+  apiClient,
+  useSaveParticipant,
+  type ParticipantIssues,
+  type SaveParticipantHandlers,
+} from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -47,6 +55,19 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  * own, on P7a's reading of `contracts/admin-component-contribution.md` §9.2:
  * that population is 62 files wide and no P7 row is the merge request that
  * answers it.
+ *
+ * ## Under a page Save (feature 180, WP-7)
+ *
+ * Handed a host's `saveSession`, the panel is the part `ordering-defaults` of that host's one
+ * Save (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §2, FR-060): the
+ * selects stage the four values, one change per changed value, and the host's Save writes them
+ * through the same `PUT …/quick-order/preferences`. The panel's own Save button and its "Saved"
+ * line are not rendered — the host's Save reports the outcome. Validation is the contracts
+ * request schema; the server adds no rule beyond it (research R20). The write stays unversioned,
+ * last write wins, as before (research R11).
+ *
+ * Without a session — the customer detail, until its own work package (WP-8) hands one — the
+ * panel keeps its own Save. That branch goes when the last host adopts.
  */
 
 /** Which entity the defaults belong to. */
@@ -105,6 +126,29 @@ interface AdminAddressRow {
 export interface DefaultPreferencesPanelProps {
   scope: PreferenceScope;
   scopeId: string;
+  /** The host editor's save session (feature 180); without one the panel keeps its own Save. */
+  saveSession?: EditorSaveSessionHandle;
+}
+
+/** The four values as the selects hold them: `''` is "no default" / "inherit". */
+interface PreferenceDraft {
+  payment: string;
+  delivery: string;
+  billing: string;
+  shipping: string;
+}
+
+const DRAFT_FIELDS = ['payment', 'delivery', 'billing', 'shipping'] as const;
+
+function upsertOf(scope: PreferenceScope, scopeId: string, draft: PreferenceDraft): QuickOrderPreferenceUpsert {
+  return {
+    scope,
+    scopeId,
+    defaultPaymentMethodId: draft.payment || null,
+    defaultDeliveryMethodId: draft.delivery || null,
+    defaultBillingAddressId: draft.billing || null,
+    defaultShippingAddressId: draft.shipping || null,
+  };
 }
 
 function pickLabel(name: Record<string, string> | undefined, fallback: string): string {
@@ -117,17 +161,19 @@ function addressLabel(a: AdminAddressRow): string {
 }
 
 export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): ReactNode {
-  const { scope, scopeId } = props;
+  const { scope, scopeId, saveSession } = props;
   const t = useTranslation('core');
+  const own = useTranslation('quick_order');
 
   const [paymentMethods, setPaymentMethods] = useState<Option[]>([]);
   const [deliveryMethods, setDeliveryMethods] = useState<Option[]>([]);
   const [addresses, setAddresses] = useState<AddressOption[]>([]);
 
-  const [payment, setPayment] = useState('');
-  const [delivery, setDelivery] = useState('');
-  const [billing, setBilling] = useState('');
-  const [shipping, setShipping] = useState('');
+  // The stored values; `null` while the read is in flight or after it failed, so a panel that
+  // could not load takes no part in its host's Save.
+  const [stored, setStored] = useState<PreferenceDraft | null>(null);
+  // Standalone (no session): the values the operator picked.
+  const [local, setLocal] = useState<PreferenceDraft | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -167,10 +213,14 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
         (addrRows ?? []).map((a) => ({ id: a.id, kind: a.kind, label: addressLabel(a) })),
       );
 
-      setPayment(current?.defaultPaymentMethodId ?? '');
-      setDelivery(current?.defaultDeliveryMethodId ?? '');
-      setBilling(current?.defaultBillingAddressId ?? '');
-      setShipping(current?.defaultShippingAddressId ?? '');
+      const values: PreferenceDraft = {
+        payment: current?.defaultPaymentMethodId ?? '',
+        delivery: current?.defaultDeliveryMethodId ?? '',
+        billing: current?.defaultBillingAddressId ?? '',
+        shipping: current?.defaultShippingAddressId ?? '',
+      };
+      setStored(values);
+      setLocal(values);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('defaultPreferences.loadError'));
     } finally {
@@ -182,27 +232,57 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
     void loadAll();
   }, [loadAll]);
 
+  // Feature 180 — the part this panel plays in its host's Save. Pure of component state: the
+  // session may run it after the panel has unmounted.
+  const inSession = saveSession !== undefined;
+  const handlers = useMemo<SaveParticipantHandlers<PreferenceDraft>>(
+    () => ({
+      changeCount: (draft, baseline) => DRAFT_FIELDS.filter((field) => draft[field] !== baseline[field]).length,
+      validate: async (draft): Promise<ParticipantIssues> =>
+        quickOrderPreferenceUpsertSchema.safeParse(upsertOf(scope, scopeId, draft)).success
+          ? { fields: {} }
+          : { fields: {}, message: t('defaultPreferences.saveError') },
+      save: async (draft): Promise<PreferenceDraft> => {
+        await writePreference(upsertOf(scope, scopeId, draft));
+        return draft;
+      },
+    }),
+    [scope, scopeId, t],
+  );
+  const participant = useSaveParticipant<PreferenceDraft>(
+    saveSession ?? INERT_SAVE_SESSION,
+    { key: 'ordering-defaults', label: own('defaultPreferences.partLabel'), writable: inSession, loaded: stored },
+    handlers,
+  );
+  const values: PreferenceDraft = (inSession ? participant.draft : local) ?? stored ?? {
+    payment: '',
+    delivery: '',
+    billing: '',
+    shipping: '',
+  };
+  const change = (field: (typeof DRAFT_FIELDS)[number], value: string): void => {
+    if (inSession) {
+      participant.setDraft((previous) => ({ ...previous, [field]: value }));
+      return;
+    }
+    setLocal((previous) => (previous === null ? previous : { ...previous, [field]: value }));
+  };
+  const shownError = inSession ? (participant.error ?? participant.issues?.message ?? error) : error;
+
   const save = useCallback(async (): Promise<void> => {
-    if (busy) return;
+    if (busy || local === null) return;
     setBusy(true);
     setError(null);
     setInfo(null);
     try {
-      await writePreference({
-        scope,
-        scopeId,
-        defaultPaymentMethodId: payment || null,
-        defaultDeliveryMethodId: delivery || null,
-        defaultBillingAddressId: billing || null,
-        defaultShippingAddressId: shipping || null,
-      });
+      await writePreference(upsertOf(scope, scopeId, local));
       setInfo(t('defaultPreferences.saved'));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('defaultPreferences.saveError'));
     } finally {
       setBusy(false);
     }
-  }, [busy, scope, scopeId, payment, delivery, billing, shipping, t]);
+  }, [busy, scope, scopeId, local, t]);
 
   const emptyLabel = scope === 'customer' ? t('defaultPreferences.inherit') : t('defaultPreferences.none');
   const billingAddresses = addresses.filter((a) => a.kind === 'billing');
@@ -216,12 +296,12 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
       <CardContent className="space-y-4">
         <p className="text-xs text-muted-foreground">{t('defaultPreferences.description')}</p>
 
-        {error ? (
+        {shownError ? (
           <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{shownError}</AlertDescription>
           </Alert>
         ) : null}
-        {info ? (
+        {info && !inSession ? (
           <Alert variant="success">
             <AlertDescription>{info}</AlertDescription>
           </Alert>
@@ -236,40 +316,46 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
                 id="pref-payment"
                 label={t('defaultPreferences.paymentMethod')}
                 emptyLabel={emptyLabel}
-                value={payment}
+                value={values.payment}
                 options={paymentMethods}
-                onChange={setPayment}
+                onChange={(value): void => change('payment', value)}
+                disabled={participant.status === 'saving'}
               />
               <PrefSelect
                 id="pref-delivery"
                 label={t('defaultPreferences.deliveryMethod')}
                 emptyLabel={emptyLabel}
-                value={delivery}
+                value={values.delivery}
                 options={deliveryMethods}
-                onChange={setDelivery}
+                onChange={(value): void => change('delivery', value)}
+                disabled={participant.status === 'saving'}
               />
               <PrefSelect
                 id="pref-billing"
                 label={t('defaultPreferences.billingAddress')}
                 emptyLabel={emptyLabel}
-                value={billing}
+                value={values.billing}
                 options={billingAddresses}
-                onChange={setBilling}
+                onChange={(value): void => change('billing', value)}
+                disabled={participant.status === 'saving'}
               />
               <PrefSelect
                 id="pref-shipping"
                 label={t('defaultPreferences.shippingAddress')}
                 emptyLabel={emptyLabel}
-                value={shipping}
+                value={values.shipping}
                 options={shippingAddresses}
-                onChange={setShipping}
+                onChange={(value): void => change('shipping', value)}
+                disabled={participant.status === 'saving'}
               />
             </div>
-            <div className="flex justify-end">
-              <Button onClick={(): void => void save()} disabled={busy}>
-                {t('defaultPreferences.save')}
-              </Button>
-            </div>
+            {inSession ? null : (
+              <div className="flex justify-end">
+                <Button onClick={(): void => void save()} disabled={busy}>
+                  {t('defaultPreferences.save')}
+                </Button>
+              </div>
+            )}
           </>
         )}
       </CardContent>
@@ -284,6 +370,7 @@ interface PrefSelectProps {
   value: string;
   options: Option[];
   onChange: (value: string) => void;
+  disabled?: boolean;
 }
 
 function PrefSelect(props: PrefSelectProps): ReactNode {
@@ -294,7 +381,12 @@ function PrefSelect(props: PrefSelectProps): ReactNode {
   return (
     <div className="space-y-2">
       <Label htmlFor={props.id}>{props.label}</Label>
-      <Select id={props.id} value={props.value} onChange={(e): void => props.onChange(e.target.value)}>
+      <Select
+        id={props.id}
+        value={props.value}
+        disabled={props.disabled}
+        onChange={(e): void => props.onChange(e.target.value)}
+      >
         <option value="">{props.emptyLabel}</option>
         {props.options.map((o) => (
           <option key={o.id} value={o.id}>

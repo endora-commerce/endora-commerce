@@ -3,6 +3,7 @@ import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, Label } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ImmediateBadge } from '../components/ImmediateBadge.js';
 
 interface TreeNode {
   id: string;
@@ -85,7 +86,10 @@ export function HierarchyPanel(props: HierarchyPanelProps): ReactNode {
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>{t('organizations.detail.hierarchyCard')}</CardTitle>
+        <CardTitle>
+          {t('organizations.detail.hierarchyCard')}
+          <ImmediateBadge />
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (

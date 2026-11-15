@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 interface MethodOption {
@@ -22,12 +22,34 @@ interface RestrictionsRead {
   version: number;
 }
 
+/** The three allow-lists, as the restrictions `PUT` takes them. */
+export interface RestrictionsSelection {
+  readonly paymentMethodIds: readonly string[];
+  readonly deliveryMethodIds: readonly string[];
+  readonly warehouseIds: readonly string[];
+}
+
+const LISTS = ['paymentMethodIds', 'deliveryMethodIds', 'warehouseIds'] as const;
+
+/** How many of the three lists differ — order within a list does not count. */
+export function changedRestrictionLists(draft: RestrictionsSelection, stored: RestrictionsSelection): number {
+  return LISTS.filter((list) => {
+    const before = new Set(stored[list]);
+    return draft[list].length !== before.size || draft[list].some((id) => !before.has(id));
+  }).length;
+}
+
 export interface RestrictionsPanelProps {
   organizationId: string;
-  /** Current Organization version — required for optimistic-lock writes. */
-  version: number;
-  /** Called after a successful save so the parent can re-fetch (version bumped). */
-  onChanged: () => void | Promise<void>;
+  /** The host's draft of the lists; `null` shows what is stored. */
+  value: RestrictionsSelection | null;
+  onChange: (next: RestrictionsSelection) => void;
+  /** Told the stored lists each time they are read. */
+  onLoaded: (stored: RestrictionsSelection) => void;
+  /** A new value re-reads the stored lists (after a save, after a reload). */
+  reloadKey: number;
+  /** While the page's Save runs. */
+  disabled?: boolean;
 }
 
 /**
@@ -35,31 +57,30 @@ export interface RestrictionsPanelProps {
  * methods, and assigned warehouses (feature 026 US4).
  *
  * Empty list = "platform defaults apply" — the panel makes this
- * explicit via an inline hint underneath each section. A single
- * "Save restrictions" action atomically PUTs all three lists; the
- * server returns the new version which the parent picks up on its
- * next refresh.
+ * explicit via an inline hint underneath each section.
  *
- * The current Organization version is gated by an optimistic-lock
- * check; on 409 the panel surfaces a friendly "refresh and retry"
- * alert instead of silently overwriting.
+ * **A section of the organization detail's one Save** (feature 180, WP-7;
+ * `specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §2). The
+ * panel reads the options and the stored lists and shows the host's draft; it
+ * has no Save or Cancel of its own any more. The page's Save writes the lists
+ * in its host part, after the organization `PATCH`, through the same
+ * `PUT …/restrictions` gated by the Organization's `version` — the version that
+ * `PATCH` answered, so the two writes of one Save do not race each other.
  */
 export function RestrictionsPanel(props: RestrictionsPanelProps): ReactNode {
   const t = useTranslation('core');
+  const { organizationId, value, onChange, onLoaded, reloadKey, disabled = false } = props;
 
   const [paymentMethods, setPaymentMethods] = useState<MethodOption[]>([]);
   const [deliveryMethods, setDeliveryMethods] = useState<MethodOption[]>([]);
   const [warehouses, setWarehouses] = useState<WarehouseOption[]>([]);
-
-  const [selectedPayment, setSelectedPayment] = useState<Set<string>>(new Set());
-  const [selectedDelivery, setSelectedDelivery] = useState<Set<string>>(new Set());
-  const [selectedWarehouses, setSelectedWarehouses] = useState<Set<string>>(new Set());
+  const [stored, setStored] = useState<RestrictionsSelection | null>(null);
 
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
+  // The host's callback, read when a load answers rather than re-running the load.
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
 
   const loadAll = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -76,7 +97,7 @@ export function RestrictionsPanel(props: RestrictionsPanelProps): ReactNode {
           '/api/v1/admin/warehouses?pageSize=200&activeOnly=true',
         ),
         apiClient.get<{ data: RestrictionsRead }>(
-          `/api/v1/admin/organizations/${props.organizationId}/restrictions`,
+          `/api/v1/admin/organizations/${organizationId}/restrictions`,
         ),
       ]);
       setPaymentMethods(
@@ -88,10 +109,13 @@ export function RestrictionsPanel(props: RestrictionsPanelProps): ReactNode {
       setWarehouses(
         (whs.items ?? []).map((w) => ({ id: w.id, label: w.name || w.code })),
       );
-      setSelectedPayment(new Set(current.data.paymentMethodIds));
-      setSelectedDelivery(new Set(current.data.deliveryMethodIds));
-      setSelectedWarehouses(new Set(current.data.warehouseIds));
-      setDirty(false);
+      const lists: RestrictionsSelection = {
+        paymentMethodIds: current.data.paymentMethodIds,
+        deliveryMethodIds: current.data.deliveryMethodIds,
+        warehouseIds: current.data.warehouseIds,
+      };
+      setStored(lists);
+      onLoadedRef.current(lists);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -101,47 +125,20 @@ export function RestrictionsPanel(props: RestrictionsPanelProps): ReactNode {
     } finally {
       setLoading(false);
     }
-  }, [props.organizationId, t]);
+  }, [organizationId, t]);
 
   useEffect((): void => {
     void loadAll();
-  }, [loadAll]);
+  }, [loadAll, reloadKey]);
 
-  const toggle = (set: Set<string>, id: string): Set<string> => {
-    const next = new Set(set);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    return next;
-  };
-
-  const save = async (): Promise<void> => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    setInfo(null);
-    try {
-      await apiClient.put(`/api/v1/admin/organizations/${props.organizationId}/restrictions`, {
-        expectedVersion: props.version,
-        paymentMethodIds: [...selectedPayment],
-        deliveryMethodIds: [...selectedDelivery],
-        warehouseIds: [...selectedWarehouses],
-      });
-      setInfo(t('organizations.restrictions.success.save'));
-      setDirty(false);
-      await props.onChanged();
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        setError(t('organizations.restrictions.error.conflict'));
-      } else {
-        setError(
-          err instanceof ApiError
-            ? err.envelope.error.message
-            : t('organizations.restrictions.error.save'),
-        );
-      }
-    } finally {
-      setBusy(false);
-    }
+  const shown = value ?? stored;
+  const toggle = (list: (typeof LISTS)[number], id: string): void => {
+    if (shown === null || disabled) return;
+    const current = shown[list];
+    onChange({
+      ...shown,
+      [list]: current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id],
+    });
   };
 
   return (
@@ -155,54 +152,35 @@ export function RestrictionsPanel(props: RestrictionsPanelProps): ReactNode {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        {info ? (
-          <Alert variant="success">
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
 
-        {loading ? (
+        {loading && shown === null ? (
           <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
-        ) : (
+        ) : shown === null ? null : (
           <>
             <Section
               title={t('organizations.restrictions.paymentMethods.title')}
               emptyHint={t('organizations.restrictions.emptyHint')}
               options={paymentMethods}
-              selected={selectedPayment}
-              onToggle={(id): void => {
-                setSelectedPayment((s) => toggle(s, id));
-                setDirty(true);
-              }}
+              selected={shown.paymentMethodIds}
+              disabled={disabled}
+              onToggle={(id): void => toggle('paymentMethodIds', id)}
             />
             <Section
               title={t('organizations.restrictions.deliveryMethods.title')}
               emptyHint={t('organizations.restrictions.emptyHint')}
               options={deliveryMethods}
-              selected={selectedDelivery}
-              onToggle={(id): void => {
-                setSelectedDelivery((s) => toggle(s, id));
-                setDirty(true);
-              }}
+              selected={shown.deliveryMethodIds}
+              disabled={disabled}
+              onToggle={(id): void => toggle('deliveryMethodIds', id)}
             />
             <Section
               title={t('organizations.restrictions.warehouses.title')}
               emptyHint={t('organizations.restrictions.warehousesEmptyHint')}
               options={warehouses}
-              selected={selectedWarehouses}
-              onToggle={(id): void => {
-                setSelectedWarehouses((s) => toggle(s, id));
-                setDirty(true);
-              }}
+              selected={shown.warehouseIds}
+              disabled={disabled}
+              onToggle={(id): void => toggle('warehouseIds', id)}
             />
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={(): void => void loadAll()} disabled={busy}>
-                {t('common.action.cancel')}
-              </Button>
-              <Button onClick={(): void => void save()} disabled={busy || !dirty}>
-                {t('organizations.restrictions.action.save')}
-              </Button>
-            </div>
           </>
         )}
       </CardContent>
@@ -214,7 +192,8 @@ interface SectionProps {
   title: string;
   emptyHint: string;
   options: Array<{ id: string; label: string }>;
-  selected: Set<string>;
+  selected: readonly string[];
+  disabled: boolean;
   onToggle: (id: string) => void;
 }
 
@@ -230,7 +209,8 @@ function Section(props: SectionProps): ReactNode {
             <label key={opt.id} className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={props.selected.has(opt.id)}
+                checked={props.selected.includes(opt.id)}
+                disabled={props.disabled}
                 onChange={(): void => props.onToggle(opt.id)}
               />
               <span>{opt.label}</span>
@@ -238,7 +218,7 @@ function Section(props: SectionProps): ReactNode {
           ))}
         </div>
       )}
-      {props.selected.size === 0 ? (
+      {props.selected.length === 0 ? (
         <p className="mt-1 text-xs text-muted-foreground">{props.emptyHint}</p>
       ) : null}
     </div>

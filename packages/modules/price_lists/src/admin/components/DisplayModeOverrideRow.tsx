@@ -3,7 +3,6 @@ import { Eye } from 'lucide-react';
 import { upsertDisplayModeOverrideRequestSchema, type DisplayMode, type EditorSaveSessionHandle } from '@endora-commerce/contracts';
 import {
   ApiError,
-  INERT_SAVE_SESSION,
   apiClient,
   useAuth,
   useSaveParticipant,
@@ -54,24 +53,26 @@ const overrideUrl = (scope: Scope, targetId: string): string =>
  * the shorter that state lasts the better — which is why the retiring condition
  * was written into this block rather than left to be remembered.
  *
- * ## Under a page Save (feature 180, WP-6)
+ * ## Under a page Save (feature 180, WP-6 and WP-7)
  *
- * Handed a host's `saveSession`, the row is the part `display-mode` of that host's one Save
- * (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §1, FR-050): the select
- * stages the mode, the host's Save writes it through the same `PUT`, and the "saved" suffix is
- * gone — the host's Save reports the outcome. Validation is the contracts request schema; the server adds
- * no rule beyond it (research R20). An operator without `price_lists:write` never stages.
+ * The row is the part `display-mode` of its host's one Save
+ * (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §1–§2, FR-050, FR-060):
+ * the select stages the mode, the host's Save writes it through the same `PUT`, and the host's
+ * Save reports the outcome. Validation is the contracts request schema; the server adds no rule
+ * beyond it (research R20). An operator without `price_lists:write` never stages.
  *
- * Without a session — the organization detail, until its own work package (WP-7) hands one —
- * the row saves on change as before. That branch goes when the last host adopts.
+ * Both hosts — the category editor and the organization detail — hand it their session, so the
+ * save-on-change branch it kept for the organization detail until WP-7 is gone, and with it the
+ * "saved" suffix. A host that mounts it outside a session hands it `INERT_SAVE_SESSION`, and the
+ * row then keeps a local choice that is written nowhere.
  */
 export function DisplayModeOverrideRow(props: {
   scope: Scope;
   targetId: string;
   /** Hide the icon when embedding inside an existing labelled row. */
   withoutIcon?: boolean;
-  /** The host editor's save session (feature 180); without one the row saves on change. */
-  saveSession?: EditorSaveSessionHandle;
+  /** The host editor's save session (feature 180): the host's Save writes the mode. */
+  saveSession: EditorSaveSessionHandle;
 }): ReactNode {
   const t = useTranslation('core');
   const tl = useTranslation('price_lists');
@@ -90,11 +91,7 @@ export function DisplayModeOverrideRow(props: {
   // not load takes no part in its host's Save.
   const [loaded, setLoaded] = useState<Mode | null>(null);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-  // Standalone (no session): the mode the operator last chose.
-  const [chosen, setChosen] = useState<Mode | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,7 +118,6 @@ export function DisplayModeOverrideRow(props: {
 
   // Feature 180 — the part this row plays in its host's Save. Pure of component state: the
   // session may run it after the row has unmounted.
-  const inSession = saveSession !== undefined;
   const handlers = useMemo<SaveParticipantHandlers<Mode>>(
     () => ({
       changeCount: (draft, baseline) => (draft === baseline ? 0 : 1),
@@ -137,28 +133,12 @@ export function DisplayModeOverrideRow(props: {
     [scope, targetId, tl],
   );
   const participant = useSaveParticipant<Mode>(
-    saveSession ?? INERT_SAVE_SESSION,
-    { key: 'display-mode', label: tl('displayModeRow.partLabel'), writable: inSession && mayWrite, loaded },
+    saveSession,
+    { key: 'display-mode', label: tl('displayModeRow.partLabel'), writable: mayWrite, loaded },
     handlers,
   );
-  const mode: Mode = (inSession ? participant.draft : chosen) ?? loaded ?? 'inherit';
-  const shownError = inSession ? (participant.error ?? participant.issues?.message ?? error) : error;
-
-  const saveNow = async (next: Mode): Promise<void> => {
-    setChosen(next);
-    setSubmitting(true);
-    setError(null);
-    setSaved(false);
-    try {
-      await apiClient.put(overrideUrl(scope, targetId), { mode: next });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : tl('displayModeRow.error.save'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const mode: Mode = participant.draft ?? loaded ?? 'inherit';
+  const shownError = participant.error ?? participant.issues?.message ?? error;
 
   const selectId = `dm-${scope}-${targetId}`;
   return (
@@ -170,25 +150,16 @@ export function DisplayModeOverrideRow(props: {
       >
         {!withoutIcon ? <Eye size={12} /> : null}
         {t('priceLists.displayMode.rowLabel')}
-        {saved && !inSession ? (
-          <span style={{ color: 'var(--success-soft-fg)', fontSize: 11 }}>
-            {t('priceLists.displayMode.savedSuffix')}
-          </span>
-        ) : null}
       </label>
       {mayWrite ? (
         <select
           id={selectId}
           className="b2b-field"
           value={mode}
-          disabled={loading || submitting || loaded === null || participant.status === 'saving'}
-          aria-invalid={shownError !== null && inSession ? true : undefined}
+          disabled={loading || loaded === null || participant.status === 'saving'}
+          aria-invalid={shownError !== null ? true : undefined}
           {...(shownError !== null ? { 'aria-describedby': `${selectId}-error` } : {})}
-          onChange={(e): void => {
-            const next = e.target.value as Mode;
-            if (inSession) participant.setDraft(next);
-            else void saveNow(next);
-          }}
+          onChange={(e): void => participant.setDraft(e.target.value as Mode)}
         >
           {(Object.keys(MODE_LABEL) as Mode[]).map((m) => (
             <option key={m} value={m}>
