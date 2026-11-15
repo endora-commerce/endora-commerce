@@ -1,11 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   EmailMailerPort,
 } from '@endora-commerce/contracts';
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
 import { restockDisposition } from './restock-product-state.js';
+import { backInStockNames } from './back-in-stock-names.js';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
 export interface AdjustedPayload {
@@ -42,6 +44,13 @@ export class AvailabilityWorker {
     private readonly catalogProducts: CatalogProductReadPort,
     /** `customerAccountReadPort`, owned by `customer_accounts` (feature 075). */
     private readonly customerAccounts: CustomerAccountReadPort,
+    /**
+     * `catalogProductAvailabilityPort`, owned by `catalog` — the effective product name at each
+     * subscription's (channel, language) (issue #696). Required: `catalog` is non-deactivatable
+     * and a declared dependency, and an optional reader is a composition that silently falls
+     * back to the Global name.
+     */
+    private readonly catalogTexts: Pick<CatalogProductAvailabilityPort, 'effectiveTexts'>,
   ) {}
 
   async dispatchForStockIncrease(input: {
@@ -100,11 +109,12 @@ export class AvailabilityWorker {
       customerIds.length > 0 ? await this.customerAccounts.findByIds(customerIds) : [];
     const emailById = new Map(customers.map((c) => [c.id, c.email]));
 
-    // Feature 174 (owner decision after C1, 2026-11-03) — the Global name: a subscription stores no
-    // channel and no language. Storing them is the named follow-up of spec 174 (*Out of scope*).
-    const productName = product.name || product.sku;
+    // Issue #696 — each subscriber is told the product's effective name at the scope they
+    // subscribed in; a subscription with none (written before #696) keeps the Global name.
+    const productNames = await backInStockNames(subscriptions, product, this.catalogTexts);
 
     for (const sub of subscriptions) {
+      const productName = productNames.get(sub.id) ?? (product.name || product.sku);
       // Feature 010: subscriptions can carry an `email` directly
       // (anonymous path). Prefer that; otherwise fall back to the
       // customer-account email.

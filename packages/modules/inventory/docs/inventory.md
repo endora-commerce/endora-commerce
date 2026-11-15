@@ -177,7 +177,9 @@ Before anything is sent, the fan-out reads the product once and checks its globa
 - **Archived, switched off (`inactive`), or outside its publication window** — nothing is sent and the subscriptions stay queued. Each of these can be reversed (a restore, switching the product back on, the window opening), and the subscriber asked to be told when they can buy the product.
 - **Otherwise** — every queued subscriber is e-mailed and the subscription is marked notified.
 
-The check reads the product's global state only. Status, window or audience overrides for a sales channel or a language are not consulted, because a subscription does not record the channel or the language it was made in. The e-mail names the product by its global name for the same reason.
+The check reads the product's global state only. Status, window or audience overrides for a sales channel or a language are not consulted.
+
+A subscription records the sales channel and the language it was made in: the channel the request resolved to, and the language resolved from the request's `Accept-Language` against that channel's languages (the channel's default language when it serves none of them). The e-mail names the product as the subscriber saw it — its channel × language name, else its channel name, else its global name. A subscription made before the channel and language were recorded, or whose channel has since been deleted, gets the global name. Only the product name follows the subscription: the rest of the message is worded as before, not in the subscription's language.
 
 **Known limitation.** The fan-out runs only when stock rises from zero. If a product is restored or switched back on while it already has stock, its queued subscribers are not notified until the next time its stock rises from zero.
 
