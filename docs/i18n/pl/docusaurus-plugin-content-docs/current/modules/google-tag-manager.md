@@ -172,6 +172,15 @@ tylko proces `worker`) wysyła każde zdarzenie do kontenera i ponawia próbę p
 wykładniczo rosnącym odstępem, zaczynając od sekundy. Wysyłki, którym zabrakło prób, pozostają jako
 nieudane zadania, więc można je zobaczyć, a nie są po cichu porzucane.
 
+Zadanie przekazania zawiera identyfikator klienta odwiedzającego, parametry zdarzenia, kontekst
+strony oraz — po wyrażeniu zgody — adres IP i user agent, więc zakończone zadania nie zostają długo
+w Redis: wysłane zadanie jest przechowywane najwyżej godzinę, a nieudane najwyżej trzy dni, co
+wystarcza, by zdiagnozować niedziałający kontener. Poza tym kolejka przechowuje nie więcej niż 500
+ostatnich wysłanych i 5 000 ostatnich nieudanych zadań. Cogodzinne sprawdzenie w procesie workera
+usuwa przeterminowane zadania nawet wtedy, gdy nie przychodzi żadne nowe zdarzenie. Działa tylko
+wtedy, gdy moduł jest włączony, a pierwszy przebieg po ponownym włączeniu usuwa to, co w tym czasie
+się przeterminowało.
+
 ### Żądanie, które dostaje kontener
 
 ```

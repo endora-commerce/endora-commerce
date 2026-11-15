@@ -167,6 +167,14 @@ A separable worker (co-located in the API process unless `BACKEND_ROLE=api`, in 
 with exponential backoff from one second. Exhausted deliveries are retained as failed jobs so they
 are observable rather than silently dropped.
 
+A relay job carries the visitor's client id, the event's parameters, the page context and, with
+consent, the IP address and user agent, so finished jobs do not stay in Redis for long: a delivered
+job is kept for at most one hour, and a failed one for at most three days, which is long enough to
+diagnose a failing container. Beyond that the queue keeps no more than the latest 500 delivered and
+5 000 failed jobs. An hourly check in the worker process removes the expired jobs even when no new
+event arrives. It runs only while this module is on, and the first run after the module is switched
+back on removes what expired in the meantime.
+
 ### The request your container receives
 
 ```

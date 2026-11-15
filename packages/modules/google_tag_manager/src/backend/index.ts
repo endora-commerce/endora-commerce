@@ -1,10 +1,12 @@
+import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import { GtmConfigService } from './services/gtm-config.service.js';
-import { createGtmRelayQueue, createGtmRelayWorker } from './services/ss-relay-queue.js';
+import { createGtmRelayQueue, createGtmRelayWorker, type GtmRelayJobData } from './services/ss-relay-queue.js';
+import { startGtmRelaySweep } from './services/ss-relay-sweep.js';
 import { makeEnqueuer, makeProcessor } from './services/ss-relay.service.js';
 import { SgtmClient } from './services/sgtm-client.js';
 import { registerGoogleTagManagerStorefrontRoutes } from './routes.storefront.js';
@@ -40,6 +42,8 @@ interface GtmServices {
   readonly configService: GtmConfigService;
   readonly invalidateConfig: () => void;
   readonly enqueueRelay: ReturnType<typeof makeEnqueuer> | undefined;
+  /** The producer's queue, for the finished-job sweep (issue #1248); absent without Redis. */
+  readonly relayQueue: Queue<GtmRelayJobData> | undefined;
 }
 
 export interface GoogleTagManagerCradle {
@@ -75,6 +79,7 @@ export function registerModule(ctx: ModuleContext): void {
             revalidator,
             configService,
             invalidateConfig,
+            relayQueue,
             enqueueRelay: relayQueue
               ? makeEnqueuer(
                   relayQueue,
@@ -110,6 +115,22 @@ export function registerModule(ctx: ModuleContext): void {
         ),
         { logger: app.log },
       );
+    }
+
+    // Issue #1248 — the hourly sweep of finished relay jobs, which carry the
+    // visitor's data, attached and gated exactly as the relay consumer:
+    // through `ctx.worker`, so no tick runs while this module is off, and only
+    // where this process runs the consumer.
+    if (process.env['BACKEND_ROLE'] !== 'api' && moduleQueueRedis && googleTagManagerServices.relayQueue) {
+      await startGtmRelaySweep({
+        redis: moduleQueueRedis,
+        relayQueue: googleTagManagerServices.relayQueue,
+        log: ctx.log,
+        attach: (worker) => ctx.worker(worker, { logger: app.log }),
+        onClose: (close) => {
+          app.addHook('onClose', close);
+        },
+      });
     }
 
     await registerGoogleTagManagerStorefrontRoutes(app, {
