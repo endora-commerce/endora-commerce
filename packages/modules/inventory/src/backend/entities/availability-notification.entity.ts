@@ -25,7 +25,9 @@ export class AvailabilityNotification {
     | 'customerAccountId'
     | 'organizationId'
     | 'email'
-    | 'status';
+    | 'status'
+    | 'salesChannelId'
+    | 'languageCode';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -80,4 +82,20 @@ export class AvailabilityNotification {
 
   @Property({ type: 'datetime', nullable: true })
   notifiedAt?: Date | null;
+
+  /**
+   * The resolved request channel the subscription was taken on (issue #696), stamped by
+   * `subscribe` and never moved after. `null` on a row written before the column existed, on
+   * one written outside a request, or once the channel is deleted (`on delete set null`): the
+   * back-in-stock e-mail then names the product by its Global name.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  salesChannelId?: string | null;
+
+  /**
+   * The scope language resolved at subscribe time from the request's `Accept-Language` against
+   * {@link salesChannelId}'s languages (issue #696). Read only together with the channel.
+   */
+  @Property({ type: 'string', length: 16, nullable: true })
+  languageCode?: string | null;
 }

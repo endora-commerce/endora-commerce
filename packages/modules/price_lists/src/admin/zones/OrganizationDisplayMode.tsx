@@ -35,11 +35,13 @@ export type OrganizationDisplayModeProps = AdminZoneProps<'organization.detail.a
 
 export function OrganizationDisplayMode({
   organizationId,
+  saveSession,
 }: OrganizationDisplayModeProps): ReactNode {
   return (
     <Card className="mb-4">
       <CardContent>
-        <DisplayModeOverrideRow scope="organization" targetId={organizationId} />
+        {/* Feature 180, WP-7 — the organization detail's Save writes the mode (FR-060). */}
+        <DisplayModeOverrideRow scope="organization" targetId={organizationId} saveSession={saveSession} />
         {/* Feature 161 (FR-024): what this organization pays, and why. */}
         <ExplainLink organizationId={organizationId} />
       </CardContent>

@@ -20,9 +20,11 @@ import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/s
  * stock alert has no channel, so it names the product by its **Global** name, never by a channel
  * or channel × language translation (`contracts/readers.md` §1, inventory = G for operator alerts).
  *
- * Owner decision after C1 (2026-11-03, tasks.md): the buyer's back-in-stock e-mail names the
- * product by its **Global** name in 174 too — `availability_notifications` stores no channel and
- * no language. Storing them is a follow-up (spec *Out of scope / follow-ups*), not 174.
+ * The buyer's back-in-stock e-mail named the product by its Global name in 174 (owner decision
+ * after C1, 2026-11-03). Issue #696 stores the subscription's channel and language and names it at
+ * that scope (`back-in-stock-scoped-name.test.ts`); the two back-in-stock cases below now hold the
+ * other half — a subscription **without** a scope, as every row written before #696 is, keeps the
+ * Global name.
  */
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
@@ -100,17 +102,17 @@ describe('174 — inventory alerts name products by their Global name [integrati
     await em.flush();
   }
 
-  it('the back-in-stock e-mail of the stock worker names the product by its Global name', async () => {
+  it('the back-in-stock e-mail of the stock worker names an unscoped subscription\'s product by its Global name', async () => {
     await subscribe();
     const mailer = new InMemoryMailer();
-    const { catalogProducts, customerAccounts } = ports();
-    const worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts);
+    const { catalogProducts, customerAccounts, catalogAvailability } = ports();
+    const worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts, catalogAvailability);
     expect((await worker.dispatchForStockIncrease({ productId: drill.id })).notified).toBe(1);
     expect(mailer.sent[0]?.subject).toBe(`Back in stock: ${GLOBAL}`);
     expect(mailer.sent[0]?.text).toContain(`"${GLOBAL}"`);
   });
 
-  it('the back-in-stock e-mail of the restock fan-out names the product by its Global name', async () => {
+  it('the back-in-stock e-mail of the restock fan-out names an unscoped subscription\'s product by its Global name', async () => {
     await subscribe();
     const mailer = new InMemoryMailer();
     const { catalogProducts, customerAccounts, catalogAvailability } = ports();

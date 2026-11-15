@@ -53,12 +53,16 @@ const TOP_ID = '00000000-0000-4000-8000-0000000000f9';
 const FIGURES = ['summary', 'durations', 'time-in-stage', 'losses', 'value', 'top-open', 'managers'] as const;
 type Figure = (typeof FIGURES)[number];
 
-/** The envelope every figure answers in (FR-038). */
+/** The zone the server says it counted in (issue #475); a test may move it. */
+let reportingZone = 'UTC';
+
+/** The envelope every figure answers in (FR-038), with the zone it was counted in (#475). */
 const envelope = (data: unknown, projectCount: number, noValue = 0) => ({
   from: '2026-03-01',
   to: '2026-03-31',
   projectCount,
   excluded: { noValue },
+  timeZone: reportingZone,
   data,
 });
 
@@ -142,6 +146,7 @@ const money = (amount: number, currency: string): string => formatMoney(amount, 
 
 beforeEach(() => {
   getSpy.mockReset();
+  reportingZone = 'UTC';
   vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-03-15T12:00:00.000Z') });
   answers = Object.fromEntries(FIGURES.map((figure) => [figure, () => Promise.resolve(DATA[figure]())])) as Record<
     Figure,
@@ -373,6 +378,35 @@ describe('the Project analytics screen', () => {
       expect(within(card('analytics.lossReasons.title')).getByText(en('analytics.losses.empty'))).toBeInTheDocument();
       expect(within(card('analytics.lostValue.title')).getByText(en('analytics.lostValue.empty'))).toBeInTheDocument();
       expect(within(card('analytics.top.title')).getByText(en('analytics.top.empty'))).toBeInTheDocument();
+    });
+  });
+
+  describe('the reporting time zone (#475)', () => {
+    it('names the zone the figures are counted in', async () => {
+      reportingZone = 'Europe/Warsaw';
+      open();
+      await loaded();
+      expect(screen.getByText(en('analytics.timeZone', { zone: 'Europe/Warsaw' }))).toBeInTheDocument();
+    });
+
+    it('takes a preset’s days from that zone, not from the computer', async () => {
+      // 12:00 UTC on 31 March is already 1 April in Kiritimati (UTC+14) — on no computer this runs on.
+      vi.setSystemTime(new Date('2026-03-31T12:00:00.000Z'));
+      reportingZone = 'Pacific/Kiritimati';
+      open();
+      await waitFor(() => expect(last('summary').get('from')).toBe('2026-04-01'));
+      await waitFor(() => {
+        for (const figure of FIGURES) {
+          expect(last(figure).get('from'), figure).toBe('2026-04-01');
+          expect(last(figure).get('to'), figure).toBe('2026-04-30');
+        }
+      });
+      await userEvent.selectOptions(
+        screen.getByLabelText(en('analytics.filter.range')),
+        en('analytics.filter.range.lastMonth'),
+      );
+      await waitFor(() => expect(last('summary').get('from')).toBe('2026-03-01'));
+      expect(last('summary').get('to')).toBe('2026-03-31');
     });
   });
 });

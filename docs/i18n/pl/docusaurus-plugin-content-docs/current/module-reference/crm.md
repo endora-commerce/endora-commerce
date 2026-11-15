@@ -43,6 +43,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `transactional_emails` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `admin_notifications` | nie | degrades-without `adminNotificationRecordPort` — CRM przestaje powiadamiać o przypisaniach i wiadomościach; wszystko inne w CRM działa dalej |
 | `admin_search` | nie | contributes-to `adminSearchProviderRegistry` |
+| `analytics` | nie | degrades-without `reportingTimeZonePort` — analityka CRM liczy dni w UTC zamiast w strefie czasowej raportów. |
 | `projects` | nie | degrades-without `projectReadPort` — odwołania do projektów są pokazywane jako niedostępne, a po @@ nie są proponowane projekty. |
 | `quote_requests` | nie | degrades-without `quoteRequestCustomFieldCarryPort` — wartości szans sprzedażowych nie są przenoszone do zapytań ofertowych utworzonych z tych szans |
 | `quote_requests` | nie | degrades-without `quoteRequestReadPort` — zapytania ofertowe powiązane z szansami sprzedażowymi są pokazywane jako niedostępne, przestają liczyć się do wartości wyliczanych i nie można ich już wiązać ani tworzyć z szansy. Szanse i ich zamówienia działają dalej |

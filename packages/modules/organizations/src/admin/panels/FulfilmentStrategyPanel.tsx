@@ -1,5 +1,5 @@
-import { useCallback, useState, type ReactNode } from 'react';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
+import type { ReactNode } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   FulfilmentStrategyPicker,
@@ -9,42 +9,29 @@ import {
 
 /**
  * Organization-level fulfilment-strategy override (precedence: Product →
- * Organization → Sales Channel → platform default). Self-contained draft +
- * Save; persistence is delegated to `onSave` so the parent owns the PATCH and
- * its optimistic-lock token. Remount (via `key`) to reset the draft after a
- * successful refresh.
+ * Organization → Sales Channel → platform default).
+ *
+ * **A section of the organization detail's one Save** (feature 180, WP-7;
+ * `specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §2). It
+ * has no Save of its own any more: the value is the host's draft, and the
+ * page's Save writes it in the host part's one `PATCH …/organizations/:id`,
+ * under the organization's `expectedUpdatedAt`.
  */
 export interface FulfilmentStrategyPanelProps {
-  initial: FulfilmentStrategyValue;
+  value: FulfilmentStrategyValue;
+  onChange: (value: FulfilmentStrategyValue) => void;
   warehouses: FulfilmentWarehouseOption[];
-  onSave: (value: FulfilmentStrategyValue) => Promise<void>;
+  /** While the page's Save runs. */
+  disabled?: boolean;
 }
 
 export function FulfilmentStrategyPanel({
-  initial,
+  value,
+  onChange,
   warehouses,
-  onSave,
+  disabled = false,
 }: FulfilmentStrategyPanelProps): ReactNode {
   const t = useTranslation('core');
-  const [value, setValue] = useState<FulfilmentStrategyValue>(initial);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSave = useCallback(async (): Promise<void> => {
-    setBusy(true);
-    setError(null);
-    try {
-      await onSave({
-        strategy: value.strategy,
-        warehouseOrder: value.strategy === 'defined_order' ? value.warehouseOrder : [],
-      });
-    } catch {
-      setError(t('fulfilment.saveError'));
-    } finally {
-      setBusy(false);
-    }
-  }, [onSave, value, t]);
-
   return (
     <Card className="mb-4">
       <CardHeader>
@@ -53,20 +40,12 @@ export function FulfilmentStrategyPanel({
       <CardContent className="space-y-3">
         <FulfilmentStrategyPicker
           value={value}
-          onChange={setValue}
+          onChange={onChange}
           warehouses={warehouses}
           allowInherit
-          disabled={busy}
+          disabled={disabled}
           idPrefix="org-fulfilment"
         />
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        <Button size="sm" disabled={busy} onClick={(): void => void handleSave()}>
-          {busy ? t('fulfilment.saving') : t('fulfilment.save')}
-        </Button>
       </CardContent>
     </Card>
   );

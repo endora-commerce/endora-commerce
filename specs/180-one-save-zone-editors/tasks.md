@@ -62,24 +62,24 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 
 ## Phase 6: Sales-channel editor — WP-9 (US10, OQ-10 = A)
 
-- [ ] T070 [P] [US10] Failing test `admin/test/modules/sales_channels/sales-channel-editor-one-save.test.tsx`: test-only participant joins the identity Save; leave guard; `ChannelWarehouses` immediate with badge
-- [ ] T071 [US10] `SalesChannelEditPage.tsx` provider + submit through `session.run`; badge in `packages/modules/inventory/src/admin/zones/ChannelWarehouses.tsx`; `channelEditor.save.hostPartLabel`
-- [ ] T072 Changesets: mod-sales-channels, mod-inventory
+- [x] T070 [P] [US10] Failing test `admin/test/modules/sales_channels/sales-channel-editor-one-save.test.tsx`: test-only participant joins the identity Save; leave guard; `ChannelWarehouses` immediate with badge
+- [x] T071 [US10] `SalesChannelEditPage.tsx` provider + submit through `session.run`; badge in `packages/modules/inventory/src/admin/zones/ChannelWarehouses.tsx`; `channelEditor.save.hostPartLabel`
+- [x] T072 Changesets: mod-sales-channels, mod-inventory
 
 ## Phase 7: Organization detail — WP-7 (US9, OQ-9 = A, OQ-11 = A)
 
-- [ ] T080 [P] [US9] Failing tests `admin/test/modules/organizations/organization-detail-one-save.test.tsx`: one Save; host part gathers status, VAT status, e-mails, fulfilment strategy, restrictions, custom fields into one `PATCH` with `expectedUpdatedAt`; `VERSION_CONFLICT` writes no panel; panels in zone order; immediate sections keep working with badges; no other Save, no save-on-change / on-blur
-- [ ] T081 [US9] `OrganizationDetail.tsx` and `panels/FulfilmentStrategyPanel.tsx`, `panels/RestrictionsPanel.tsx`: drafts into the host part; `SaveSessionActions`, `SaveSessionSummary`; badges; `organizations.detail.save.hostPartLabel`
-- [ ] T082 [P] [US9] Failing tests `admin/test/modules/quick_order/default-preferences.participant.test.tsx`, `admin/test/modules/quote_requests/negotiation.participant.test.tsx`
-- [ ] T083 [US9] `DefaultPreferencesPanel.tsx` (Save button removed) and `negotiation-panel.tsx` (on-change write removed) as participants; part labels (en, pl)
-- [ ] T084 [P] [US5] Off-state tests for `quick_order`, `quote_requests`, `price_lists` on the organization screen
-- [ ] T085 Changesets: mod-organizations, mod-quick-order, mod-quote-requests
+- [x] T080 [P] [US9] Failing tests `admin/test/modules/organizations/organization-detail-one-save.test.tsx`: one Save; host part gathers status, VAT status, e-mails, fulfilment strategy, restrictions, custom fields into one `PATCH` with `expectedUpdatedAt`; `VERSION_CONFLICT` writes no panel; panels in zone order; immediate sections keep working with badges; no other Save, no save-on-change / on-blur
+- [x] T081 [US9] `OrganizationDetail.tsx` and `panels/FulfilmentStrategyPanel.tsx`, `panels/RestrictionsPanel.tsx`: drafts into the host part; `SaveSessionActions`, `SaveSessionSummary`; badges; `organizations.detail.save.hostPartLabel`
+- [x] T082 [P] [US9] Failing tests `admin/test/modules/quick_order/default-preferences.participant.test.tsx`, `admin/test/modules/quote_requests/negotiation.participant.test.tsx`
+- [x] T083 [US9] `DefaultPreferencesPanel.tsx` (Save button removed) and `negotiation-panel.tsx` (on-change write removed) as participants; part labels (en, pl)
+- [x] T084 [P] [US5] Off-state tests for `quick_order`, `quote_requests`, `price_lists` on the organization screen
+- [x] T085 Changesets: mod-organizations, mod-quick-order, mod-quote-requests
 
 ## Phase 8: Customer detail — WP-8 (US9, OQ-9 = A)
 
-- [ ] T086 [P] [US9] Failing tests `admin/test/modules/customers/customer-detail-one-save.test.tsx`: one Save; custom-fields host part; two participants; immediate actions unchanged with badges
-- [ ] T087 [US9] `CustomerDetail.tsx`: provider, `SaveSessionActions`, `SaveSessionSummary`, `CustomFieldValuesPanel saveSession`; `detail.save.hostPartLabel`
-- [ ] T088 Changeset: mod-customers
+- [x] T086 [P] [US9] Failing tests `admin/test/modules/customers/customer-detail-one-save.test.tsx`: one Save; custom-fields host part; two participants; immediate actions unchanged with badges
+- [x] T087 [US9] `CustomerDetail.tsx`: provider, `SaveSessionActions`, `SaveSessionSummary`, `CustomFieldValuesPanel saveSession`; `detail.save.hostPartLabel`
+- [x] T088 Changeset: mod-customers
 
 ## Phase 9: Docs and records — WP-10
 

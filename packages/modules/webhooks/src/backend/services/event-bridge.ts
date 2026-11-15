@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import type { Queue } from 'bullmq';
 import type { EventBase } from '@endora-commerce/platform/events';
-import type { WebhookJobData } from './webhook-queue.js';
+import { WEBHOOK_DELIVERY_RETENTION_DEFAULT_DAYS } from './delivery-retention.js';
+import { webhookJobRetention, type WebhookJobData } from './webhook-queue.js';
 
 /**
  * Bridges the in-process event bus (R-17) to the durable webhook queue (R-13).
@@ -52,6 +53,12 @@ function extractOrganizationId(payload: unknown): string | null {
 export interface EventBridgeOptions {
   queue: Pick<Queue<WebhookJobData>, 'add'>;
   subscriptionLookup: SubscriptionLookup;
+  /**
+   * The delivery-history retention window in days, read per event so an
+   * operator's change applies to the next job (issue #1003). Absent, the
+   * default window applies.
+   */
+  retentionDays?: () => Promise<number>;
 }
 
 export interface BridgedEventPayload extends EventBase {
@@ -79,6 +86,10 @@ export function bridgeEventHandler(
       eventType,
       extractOrganizationId(payload),
     );
+    if (subs.length === 0) return;
+    const jobOptions = webhookJobRetention(
+      deps.retentionDays !== undefined ? await deps.retentionDays() : WEBHOOK_DELIVERY_RETENTION_DEFAULT_DAYS,
+    );
     for (const sub of subs) {
       const jobData: WebhookJobData = {
         webhookId: sub.webhookId,
@@ -88,7 +99,7 @@ export function bridgeEventHandler(
         url: sub.url,
         secret: sub.secret,
       };
-      await deps.queue.add(`${eventType}.${jobData.eventId}`, jobData);
+      await deps.queue.add(`${eventType}.${jobData.eventId}`, jobData, jobOptions);
     }
   };
 }

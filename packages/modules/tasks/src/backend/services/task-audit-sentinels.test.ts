@@ -20,6 +20,7 @@ import {
   changeTaskCustomFieldsCommand,
   createTaskCommand,
   deleteTaskCommand,
+  rederiveTaskDueCommand,
   updateTaskCommand,
 } from './task-commands.js';
 
@@ -253,6 +254,52 @@ describe('tasks audit state carries names, never values (#470)', () => {
     expectNoAuditValues(h.entries, SENTINELS);
     expect(h.entries[0]?.stateAfter).toMatchObject({ attachmentId: expect.any(String), changedFields: ['fileName'] });
     expect(storedFor(h, h.entries[0]!)).toMatchObject({ before: null, after: { fileName: S.file } });
+  });
+
+  it('tasks.task.update for a changed time zone (#505) — the dates and a count, never a value', async () => {
+    const h = harness();
+    const task = seedTask(h.em);
+    task.dueAt = new Date('2032-03-12T03:30:00.000Z');
+    task.dueOn = '2032-03-12';
+    await asAdmin(() =>
+      h.commandBus.run(
+        rederiveTaskDueCommand(
+          task.id,
+          { seen: { dueOn: '2032-03-12', dueAt: '2032-03-12T03:30:00.000Z' }, dueOn: '2032-03-11', moment: null },
+          h.auditLog as never,
+        ),
+      ),
+    );
+    expectNoAuditValues(h.entries, SENTINELS);
+    expect(task.dueOn).toBe('2032-03-11');
+    expect(h.entries).toHaveLength(1);
+    expect(h.entries[0]).toMatchObject({
+      action: 'tasks.task.update',
+      objectId: task.id,
+      stateBefore: { dueOn: '2032-03-12' },
+      stateAfter: { dueOn: '2032-03-11', remindersMoved: 0, reason: 'time_zone_changed' },
+    });
+    const { TASKS_AUDIT_KEYS } = await import('./task-audit-state.js');
+    const keys = [...Object.keys(h.entries[0]!.stateBefore ?? {}), ...Object.keys(h.entries[0]!.stateAfter ?? {})];
+    expect(keys.filter((key) => !TASKS_AUDIT_KEYS.has(key))).toEqual([]);
+  });
+
+  it('tasks.task.update for a changed time zone leaves a Task whose due moment moved meanwhile, and records nothing', async () => {
+    const h = harness();
+    const task = seedTask(h.em);
+    task.dueAt = new Date('2032-03-12T03:30:00.000Z');
+    task.dueOn = '2032-03-12';
+    await asAdmin(() =>
+      h.commandBus.run(
+        rederiveTaskDueCommand(
+          task.id,
+          { seen: { dueOn: '2032-03-12', dueAt: '2032-03-12T09:00:00.000Z' }, dueOn: '2032-03-11', moment: null },
+          h.auditLog as never,
+        ),
+      ),
+    );
+    expect(task.dueOn).toBe('2032-03-12');
+    expect(h.entries).toEqual([]);
   });
 
   it('holds the snapshot to TASKS_AUDIT_KEYS', async () => {

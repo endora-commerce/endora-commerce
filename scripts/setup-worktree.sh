@@ -141,4 +141,12 @@ if ! (cd "$HERE" && pnpm --filter '@endora-commerce/cli...' run build); then
 fi
 
 # Not "it probably worked": the same analysis the test suite refuses on.
-"$HERE/backend/node_modules/.bin/tsx" "$HERE/scripts/workspace-resolution.ts"
+#
+# Run from `$HERE`, not from the caller's directory (issue #1205). The guard answers about the
+# checkout `process.cwd()` belongs to, and the documented invocation —
+# `bash ../wt-<slug>/scripts/setup-worktree.sh` — runs from the **main** checkout. Without the `cd`
+# the worktree just installed was never inspected: the main tree was, and whenever its
+# `node_modules` lagged its own lockfile the script exited 1 over a correct worktree, listing links
+# (`mod-forms`, the day it was found) that were present here. `tsx` also reads `tsconfig.json`
+# from its working directory, so `$HERE` is the right one for that too.
+(cd "$HERE" && "$HERE/backend/node_modules/.bin/tsx" "$HERE/scripts/workspace-resolution.ts")

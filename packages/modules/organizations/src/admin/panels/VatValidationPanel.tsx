@@ -10,6 +10,7 @@ import {
   registryComparisonRows,
   vatStatusKey,
 } from './vat-validation-view.js';
+import { ImmediateBadge } from '../components/ImmediateBadge.js';
 
 type Outcome = 'validated' | 'failed' | 'deferred' | 'unverified';
 type Provider = OrganizationTaxIdValidationRecord['provider'];
@@ -124,6 +125,7 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
       <CardHeader>
         <CardTitle id={props.headingId} className="scroll-mt-4">
           {t('organizations.vatValidation.title')}
+          <ImmediateBadge />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">

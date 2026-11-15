@@ -196,5 +196,6 @@
   "customerNotifications.revised.title": "Your offer for quote request {number} is ready",
   "customerNotifications.approved.title": "Quote request {number} was approved",
   "customerNotifications.canceled.title": "Quote request {number} was canceled",
-  "customerPush.title": "Quote request update"
+  "customerPush.title": "Quote request update",
+  "negotiation.partLabel": "Price negotiation"
 }

@@ -28,6 +28,7 @@ import { Migration20260611T140348InventoryPerWarehouseLowStockThresholds } from 
 import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from './20260818T081243_inventory_stock_allocation_order_item_fk.js';
 import { Migration20260830T182139InventoryOrganizationAttribution } from './20260830T182139_inventory_organization_attribution.js';
 import { Migration20260912T125716InventoryOrganizationWarehouses } from './20260912T125716_inventory_organization_warehouses.js';
+import { Migration20261115T065605InventoryAvailabilityNotificationScope } from './20261115T065605_inventory_availability_notification_scope.js';
 
 export const migrations = [
   Migration20260503T182812InventoryWorkflow,
@@ -36,6 +37,7 @@ export const migrations = [
   Migration20260818T081243InventoryStockAllocationOrderItemFk,
   Migration20260830T182139InventoryOrganizationAttribution,
   Migration20260912T125716InventoryOrganizationWarehouses,
+  Migration20261115T065605InventoryAvailabilityNotificationScope,
 ];
 
 export {
@@ -45,4 +47,5 @@ export {
   Migration20260818T081243InventoryStockAllocationOrderItemFk,
   Migration20260830T182139InventoryOrganizationAttribution,
   Migration20260912T125716InventoryOrganizationWarehouses,
+  Migration20261115T065605InventoryAvailabilityNotificationScope,
 };

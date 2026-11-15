@@ -19,9 +19,8 @@ import { bundles } from '../../helpers/price-book-screen';
  *
  * Under a live session (the category editor) a change of the select is a staged change of the
  * part `display-mode`: no `PUT` on change, no "saved" suffix, written by the session's run. A
- * reader of `price_lists` never stages anything. Where the host hands no session yet — the
- * organization detail until its own work package adopts one — the row saves on change, as it
- * did before.
+ * reader of `price_lists` never stages anything. Since WP-7 the organization detail hands its
+ * session too, so no host is left for the save-on-change branch and it is gone.
  */
 
 const getSpy = vi.fn();
@@ -120,14 +119,34 @@ describe('display-mode row under a save session (feature 180, WP-6)', () => {
     expect(session?.dirtyCount).toBe(0);
   });
 
-  it('still saves on change where the host offers no session yet (organization detail)', async () => {
+  it('stages on the organization detail too, under that screen\'s session (WP-7)', async () => {
+    function OrganizationHost(): ReactElement {
+      const live = useSaveSession();
+      session = live;
+      return <AdminZone name="organization.detail.after" props={{ organizationId: ORGANIZATION_ID, saveSession: live.handle }} />;
+    }
+    await renderWith(
+      <SaveSessionProvider resetKey={ORGANIZATION_ID} hostModule="organizations">
+        <OrganizationHost />
+      </SaveSessionProvider>,
+    );
+    await choose('net_only');
+    expect(putSpy).not.toHaveBeenCalled();
+    expect(session?.dirtyParticipants().map((part) => part.id)).toEqual(['price_lists:display-mode']);
+    await act(async () => {
+      await session!.run(null);
+    });
+    expect(putSpy).toHaveBeenCalledWith(`/api/v1/admin/pricing/display-mode-overrides/organization/${ORGANIZATION_ID}`, { mode: 'net_only' });
+  });
+
+  it('writes nothing on change with no live session: the save-on-change branch is gone', async () => {
     await renderWith(
       <AdminZone name="organization.detail.after" props={{ organizationId: ORGANIZATION_ID, saveSession: INERT_SAVE_SESSION }} />,
     );
     await choose('net_only');
-    await waitFor(() =>
-      expect(putSpy).toHaveBeenCalledWith(`/api/v1/admin/pricing/display-mode-overrides/organization/${ORGANIZATION_ID}`, { mode: 'net_only' }),
-    );
+    await new Promise((settle) => setTimeout(settle, 20));
+    expect(putSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText(CORE['priceLists.displayMode.savedSuffix']!)).toBeNull();
   });
 });
 

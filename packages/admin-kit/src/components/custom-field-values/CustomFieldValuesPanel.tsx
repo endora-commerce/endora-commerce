@@ -57,6 +57,12 @@ export interface CustomFieldValuesPanelProps {
    * after the host's own write. Without one, the panel is unchanged.
    */
   saveSession?: EditorSaveSessionHandle;
+  /**
+   * Show every field as a value with no input, as an `edit`-level definition is shown at `read`
+   * — for an operator who may not write the host record (feature 180, WP-7: a page Save that
+   * would never write the bag must not offer to edit it). `false` when omitted, as before.
+   */
+  readOnly?: boolean;
 }
 
 type Bag = Record<string, unknown>;
@@ -140,6 +146,7 @@ export function CustomFieldValuesPanel({
   fieldErrors,
   language = 'en',
   saveSession,
+  readOnly = false,
 }: CustomFieldValuesPanelProps): ReactNode {
   const t = useTranslation('core');
   const [defs, setDefs] = useState<CustomFieldDefinitionDto[]>([]);
@@ -151,9 +158,17 @@ export function CustomFieldValuesPanel({
   // field's refusal is the host's to place through `fieldErrors`.
   const [saveRefusals, setSaveRefusals] = useState<Record<string, string>>({});
 
+  // `readOnly` lowers every `edit` definition to `read`: shown, not editable, never in the bag.
+  const levelOf = useCallback(
+    (def: CustomFieldDefinitionDto): CustomFieldAdminAccess => {
+      const level = accessOf(def);
+      return readOnly && level === 'edit' ? 'read' : level;
+    },
+    [readOnly],
+  );
   const editKeys = useMemo(
-    () => new Set(defs.filter((d) => accessOf(d) === 'edit').map((d) => d.key)),
-    [defs],
+    () => new Set(defs.filter((d) => levelOf(d) === 'edit').map((d) => d.key)),
+    [defs, levelOf],
   );
   const project = useCallback(
     (bag: Record<string, unknown>): Record<string, unknown> =>
@@ -239,9 +254,9 @@ export function CustomFieldValuesPanel({
     }
   }, [draft, project, save]);
 
-  const shown = defs.filter((d) => accessOf(d) !== 'hidden');
+  const shown = defs.filter((d) => levelOf(d) !== 'hidden');
   const nonEditRefusals = defs.flatMap((d) => {
-    const level = accessOf(d);
+    const level = levelOf(d);
     if (level === 'edit') return [];
     const message = refusals[d.key] ?? saveRefusals[d.key];
     if (!message) return [];
@@ -280,7 +295,7 @@ export function CustomFieldValuesPanel({
           </Alert>
         ))}
         {shown.map((d) => {
-          if (accessOf(d) === 'read') {
+          if (levelOf(d) === 'read') {
             return (
               <div key={d.id} className="space-y-1">
                 <Label>{d.label[language] ?? d.labelDefault}</Label>

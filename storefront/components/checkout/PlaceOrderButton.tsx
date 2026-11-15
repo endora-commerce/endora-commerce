@@ -83,7 +83,8 @@ export function PlaceOrderButton({
   );
 }
 
-function Spinner(): ReactNode {
+/** The inline in-flight spinner; the coupon control (issue #1250) shows it too. */
+export function Spinner(): ReactNode {
   return (
     <svg
       className="b2b-spin"

@@ -45,6 +45,15 @@ describe('projects — analytics in the reporting time zone (T146)', () => {
     return ProjectAnalyticsSummaryResponseSchema.parse(response.json()).data.opened;
   };
 
+  /** The zone a figure says it was counted in (issue #475). */
+  const countedIn = async (): Promise<string | undefined> => {
+    const response = await callProjects(h, 'GET', '/analytics/summary?from=2003-01-01&to=2003-01-31', {
+      cookies: PROJECTS_ADMIN,
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    return ProjectAnalyticsSummaryResponseSchema.parse(response.json()).timeZone;
+  };
+
   beforeAll(async () => {
     h = await setupBackendServer();
     for (const [title, createdAt] of [
@@ -71,6 +80,7 @@ describe('projects — analytics in the reporting time zone (T146)', () => {
     const setting = await h.app.inject({ method: 'GET', url: '/api/v1/admin/settings/analytics.reporting_time_zone', cookies: admin });
     expect(setting.statusCode, setting.body).toBe(200);
     expect(setting.body).toContain('"UTC"');
+    expect(await countedIn()).toBe('UTC');
     expect(await opened('2003-01-01', '2003-01-01')).toBe(0);
     expect(await opened('2003-01-01', '2003-01-31')).toBe(2);
     expect(await opened('2003-01-31', '2003-01-31')).toBe(1);
@@ -80,6 +90,7 @@ describe('projects — analytics in the reporting time zone (T146)', () => {
   it('in Europe/Warsaw counts a Project made just after its midnight in that day, across a month boundary', async () => {
     const accepted = await setZone('Europe/Warsaw');
     expect(accepted.statusCode, accepted.body).toBeLessThan(400);
+    expect(await countedIn()).toBe('Europe/Warsaw');
     expect(await opened('2003-01-01', '2003-01-01')).toBe(1);
     expect(await opened('2003-01-01', '2003-01-31')).toBe(2);
     expect(await opened('2003-01-31', '2003-01-31')).toBe(0);
@@ -90,6 +101,7 @@ describe('projects — analytics in the reporting time zone (T146)', () => {
     const accepted = await setZone('Europe/Warsaw');
     expect(accepted.statusCode, accepted.body).toBeLessThan(400);
     await withModulesDeactivated(['analytics'], async () => {
+      expect(await countedIn()).toBe('UTC');
       expect(await opened('2003-01-01', '2003-01-01')).toBe(0);
       expect(await opened('2003-01-31', '2003-01-31')).toBe(1);
       expect(await opened('2003-02-01', '2003-02-28')).toBe(0);

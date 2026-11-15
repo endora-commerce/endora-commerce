@@ -285,6 +285,19 @@ export const manifest = defineModuleManifest({
         'none. A reference holds its Project by value, so no table of that owner is referenced from ' +
         "this module's schema.",
     },
+    // Issue #474 (owner ruling of 2026-10-27) — the reporting time zone CRM
+    // analytics count days in, owned by `analytics` so no single reporting
+    // module owns it. `analytics` is operator-switchable and must stay so.
+    {
+      moduleId: 'analytics',
+      name: 'reportingTimeZonePort',
+      kind: 'degrades-without',
+      whenAbsent: 'CRM analytics count days in UTC instead of the reporting time zone.',
+      reason:
+        'The one call into this owner is `reporting-time-zone.ts`, which asks `analytics`’ presence in front ' +
+        'of the gate and answers `UTC` without it; the figures are counted either way, and no table of that ' +
+        "owner is referenced from this module's schema.",
+    },
     // Feature 162 — an Opportunity's custom-field values pushed into a Quote
     // Request created from it (`specs/162-custom-fields-value-carry/`, R-16).
     {

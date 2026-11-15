@@ -3,10 +3,11 @@ import type { OpportunityCurrencyTotal, OpportunityRepEffectivenessRow } from '@
 import { EChart, type EChartProps } from '@endora-commerce/admin-kit/components';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { crmAnalyticsApi, type AnalyticsFilters } from '../../analytics-api.js';
+import { crmAnalyticsApi, type AnalyticsAnswer, type AnalyticsFilters } from '../../analytics-api.js';
 import { monthLabel } from '../../lib/analytics-format.js';
 import { NO_VALUE, moneyLabel } from '../../lib/labels.js';
 import { prefersReducedMotion, useChartColors } from '../../lib/use-chart-colors.js';
+import { useReportedTimeZone } from '../../lib/reporting-time-zone.js';
 import { useFigure } from '../../lib/use-figure.js';
 import { FigureCard } from './FigureCard.js';
 
@@ -76,10 +77,10 @@ export function RepEffectivenessCard({ filters }: { filters: AnalyticsFilters | 
   const colors = useChartColors();
   const load = useMemo(
     () =>
-      filters ? (): Promise<OpportunityRepEffectivenessRow[]> => crmAnalyticsApi.repEffectiveness(filters) : null,
+      filters ? (): Promise<AnalyticsAnswer<OpportunityRepEffectivenessRow[]>> => crmAnalyticsApi.repEffectiveness(filters) : null,
     [filters],
   );
-  const figure = useFigure(load);
+  const figure = useFigure(useReportedTimeZone(load));
   const repName = (name: string): string => name || t('analytics.reps.unknown');
 
   const chart = (ranking: readonly RepRanking[]): EChartProps['option'] => {

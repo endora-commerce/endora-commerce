@@ -14,6 +14,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { orgConstraintFor, orgScopeSql, reachesNoOrganization, type OrgConstraint } from '@endora-commerce/platform/tenancy';
+import { analyticsRange as rangeInZone } from '../domain/analytics-range.js';
 import { effectiveOpportunityValueSql } from '../domain/effective-value.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
@@ -28,6 +29,21 @@ export interface AnalyticsServiceDeps {
    * EntityManager, so a row of "most valuable" is the card the list shows.
    */
   summarize: (rows: readonly CrmOpportunity[]) => Promise<OpportunitySummary[]>;
+  /**
+   * The calendar every range is counted in (`reporting-time-zone.ts`): the
+   * `analytics` module's reporting time zone, `UTC` without it (issue #474).
+   */
+  reportingTimeZone: () => Promise<string>;
+}
+
+/**
+ * Every figure's answer: the figure, and the time zone its days and months
+ * were counted in (issue #475), so the screen can say which and take its
+ * presets from that zone's calendar.
+ */
+export interface AnalyticsAnswer<T> {
+  data: T;
+  timeZone: string;
 }
 
 /** One SQL fragment and the values of its placeholders, in order. */
@@ -62,21 +78,21 @@ export function analyticsScopePredicate(scope: OrgConstraint): SqlFragment | nul
 }
 
 /**
- * A range of whole days, UTC, `to` included: `[from 00:00, the day after to 00:00)`.
+ * A range of whole days in `timeZone`, `to` included: `[from 00:00, the day
+ * after to 00:00)`, both midnights in that zone (`domain/analytics-range.ts`).
  * 422 for a range that ends before it begins.
  */
-export function analyticsRange(query: { from: string; to: string }): { start: Date; end: Date } {
-  const start = new Date(`${query.from}T00:00:00.000Z`);
-  const end = new Date(`${query.to}T00:00:00.000Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+export function analyticsRange(query: { from: string; to: string }, timeZone: string): { start: Date; end: Date } {
+  const first = new Date(`${query.from}T00:00:00.000Z`);
+  const last = new Date(`${query.to}T00:00:00.000Z`);
+  if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime()) || last < first) {
     throw new HttpError(
       422,
       ERROR_CODES.VALIDATION_FAILED,
       'The range must be two calendar dates, the first not after the second.',
     );
   }
-  end.setUTCDate(end.getUTCDate() + 1);
-  return { start, end };
+  return rangeInZone(query, timeZone);
 }
 
 interface Selection {
@@ -111,7 +127,10 @@ const average = (totalSeconds: number, count: number): number | null => (count >
  * Sales Reps, created in it for the average value, either for the most
  * valuable, and — for time in a status — the stays that began in it.
  *
- * Days and months are UTC, as the list's `createdFrom` / `createdTo` are.
+ * **Days and months are the reporting time zone's** — the `analytics`
+ * module's setting `analytics.reporting_time_zone`, `UTC` by default and `UTC`
+ * while `analytics` is off (issue #474) — and every answer names the zone it
+ * was counted in (issue #475). The list's `createdFrom` / `createdTo` stay UTC.
  */
 export class AnalyticsService {
   constructor(private readonly deps: AnalyticsServiceDeps) {}
@@ -121,8 +140,9 @@ export class AnalyticsService {
    * range** — and still closed: reopening clears the closing date, so a
    * reopened Opportunity is not counted until it closes again.
    */
-  async handlingTime(query: OpportunityAnalyticsQuery): Promise<OpportunityHandlingTime> {
-    const selection = this.#selection(query);
+  async handlingTime(query: OpportunityAnalyticsQuery): Promise<AnalyticsAnswer<OpportunityHandlingTime>> {
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = this.#selection(query, timeZone);
     const outcome = { won: { total: 0, count: 0 }, lost: { total: 0, count: 0 } };
     if (selection) {
       const rows = await this.#rows<{ closed_kind: 'won' | 'lost'; closed_count: number; total_seconds: number }>(
@@ -144,11 +164,14 @@ export class AnalyticsService {
     }
     const closedCount = outcome.won.count + outcome.lost.count;
     return {
-      averageSeconds: average(outcome.won.total + outcome.lost.total, closedCount),
-      closedCount,
-      byOutcome: {
-        won: { averageSeconds: average(outcome.won.total, outcome.won.count), closedCount: outcome.won.count },
-        lost: { averageSeconds: average(outcome.lost.total, outcome.lost.count), closedCount: outcome.lost.count },
+      timeZone,
+      data: {
+        averageSeconds: average(outcome.won.total + outcome.lost.total, closedCount),
+        closedCount,
+        byOutcome: {
+          won: { averageSeconds: average(outcome.won.total, outcome.won.count), closedCount: outcome.won.count },
+          lost: { averageSeconds: average(outcome.lost.total, outcome.lost.count), closedCount: outcome.lost.count },
+        },
       },
     };
   }
@@ -163,8 +186,9 @@ export class AnalyticsService {
    * answers `null` over zero stays. With none selected: every status of the
    * workflow, in the workflow's order.
    */
-  async timeInStatus(query: OpportunityTimeInStatusQuery): Promise<OpportunityTimeInStatusRow[]> {
-    const selection = this.#selection(query);
+  async timeInStatus(query: OpportunityTimeInStatusQuery): Promise<AnalyticsAnswer<OpportunityTimeInStatusRow[]>> {
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = this.#selection(query, timeZone);
     const em = this.deps.emFactory();
     const selected =
       query.statusCode && query.statusCode.length > 0
@@ -172,7 +196,7 @@ export class AnalyticsService {
         : [...(await this.deps.workflowRead.loadGraph(em)).statuses]
             .sort((a, b) => a.weight - b.weight || a.code.localeCompare(b.code))
             .map((status) => status.code);
-    if (selected.length === 0) return [];
+    if (selected.length === 0) return { timeZone, data: [] };
 
     const measured = new Map<string, { averageSeconds: number; sampleCount: number }>();
     if (selection) {
@@ -209,11 +233,14 @@ export class AnalyticsService {
         });
       }
     }
-    return selected.map((statusCode) => ({
-      statusCode,
-      averageSeconds: measured.get(statusCode)?.averageSeconds ?? null,
-      sampleCount: measured.get(statusCode)?.sampleCount ?? 0,
-    }));
+    return {
+      timeZone,
+      data: selected.map((statusCode) => ({
+        statusCode,
+        averageSeconds: measured.get(statusCode)?.averageSeconds ?? null,
+        sampleCount: measured.get(statusCode)?.sampleCount ?? 0,
+      })),
+    };
   }
 
   /**
@@ -222,9 +249,10 @@ export class AnalyticsService {
    * Month by month, most wins first. An Opportunity won while assigned to
    * nobody is in no row.
    */
-  async repEffectiveness(query: OpportunityAnalyticsQuery): Promise<OpportunityRepEffectivenessRow[]> {
-    const selection = this.#selection(query);
-    if (!selection) return [];
+  async repEffectiveness(query: OpportunityAnalyticsQuery): Promise<AnalyticsAnswer<OpportunityRepEffectivenessRow[]>> {
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = this.#selection(query, timeZone);
+    if (!selection) return { timeZone, data: [] };
     const rows = await this.#rows<{
       month: string;
       admin_user_id: string;
@@ -232,7 +260,8 @@ export class AnalyticsService {
       won_count: number;
       total: string;
     }>(
-      `select to_char(o."closed_at" at time zone 'UTC', 'YYYY-MM') as month,
+      // The month in the reporting time zone, as the range is (issue #474).
+      `select to_char(o."closed_at" at time zone ?, 'YYYY-MM') as month,
               o."assigned_admin_user_id" as admin_user_id,
               o."currency" as currency,
               count(*)::int as won_count,
@@ -243,9 +272,9 @@ export class AnalyticsService {
           and o."closed_at" >= ? and o."closed_at" < ?${selection.where.sql}
         group by 1, 2, 3
         order by 1, 2, 3`,
-      [selection.start, selection.end, ...selection.where.params],
+      [timeZone, selection.start, selection.end, ...selection.where.params],
     );
-    if (rows.length === 0) return [];
+    if (rows.length === 0) return { timeZone, data: [] };
 
     const admins = await this.deps.adminUsers.findByIds([...new Set(rows.map((row) => row.admin_user_id))]);
     const names = new Map(
@@ -265,13 +294,16 @@ export class AnalyticsService {
       if (Number(row.total) !== 0) entry.wonValue.push({ currency: row.currency, total: row.total });
       byRep.set(key, entry);
     }
-    return [...byRep.values()].sort(
-      (a, b) =>
-        a.month.localeCompare(b.month) ||
-        b.wonCount - a.wonCount ||
-        a.adminUser.name.localeCompare(b.adminUser.name) ||
-        a.adminUser.id.localeCompare(b.adminUser.id),
-    );
+    return {
+      timeZone,
+      data: [...byRep.values()].sort(
+        (a, b) =>
+          a.month.localeCompare(b.month) ||
+          b.wonCount - a.wonCount ||
+          a.adminUser.name.localeCompare(b.adminUser.name) ||
+          a.adminUser.id.localeCompare(b.adminUser.id),
+      ),
+    };
   }
 
   /**
@@ -280,9 +312,10 @@ export class AnalyticsService {
    * `limit` is how many per currency, and the answer is ordered by currency,
    * then highest first. An Opportunity nobody has valued is not ranked.
    */
-  async topOpportunities(query: TopOpportunitiesQuery): Promise<OpportunitySummary[]> {
-    const selection = this.#selection(query);
-    if (!selection) return [];
+  async topOpportunities(query: TopOpportunitiesQuery): Promise<AnalyticsAnswer<OpportunitySummary[]>> {
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = this.#selection(query, timeZone);
+    if (!selection) return { timeZone, data: [] };
     const dated = query.basis === 'closed' ? 'o."closed_at"' : 'o."created_at"';
     const ranked = await this.#rows<{ id: string }>(
       `select ranked.id as id
@@ -300,22 +333,23 @@ export class AnalyticsService {
         order by ranked.currency asc, ranked.position asc`,
       [selection.start, selection.end, ...selection.where.params, query.limit],
     );
-    if (ranked.length === 0) return [];
+    if (ranked.length === 0) return { timeZone, data: [] };
     const ids = ranked.map((row) => row.id);
     // Read again through the scoped EntityManager: the ranking chose the ids,
     // the entity filter decides what the caller is shown.
     const rows = await this.deps.emFactory().find(CrmOpportunity, { id: { $in: ids } });
     const summaries = new Map((await this.deps.summarize(rows)).map((summary) => [summary.id, summary]));
-    return ids.flatMap((id) => summaries.get(id) ?? []);
+    return { timeZone, data: ids.flatMap((id) => summaries.get(id) ?? []) };
   }
 
   /**
    * The average effective value of the Opportunities **created in the range**,
    * per currency. An Opportunity nobody has valued is not averaged in.
    */
-  async averageValue(query: OpportunityAnalyticsQuery): Promise<OpportunityAverageValueRow[]> {
-    const selection = this.#selection(query);
-    if (!selection) return [];
+  async averageValue(query: OpportunityAnalyticsQuery): Promise<AnalyticsAnswer<OpportunityAverageValueRow[]>> {
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = this.#selection(query, timeZone);
+    if (!selection) return { timeZone, data: [] };
     const rows = await this.#rows<{ currency: string; count: number; average: string }>(
       `select o."currency" as currency,
               count(*)::int as count,
@@ -327,12 +361,15 @@ export class AnalyticsService {
         order by o."currency"`,
       [selection.start, selection.end, ...selection.where.params],
     );
-    return rows.map((row) => ({ currency: row.currency, average: row.average, count: Number(row.count) }));
+    return {
+      timeZone,
+      data: rows.map((row) => ({ currency: row.currency, average: row.average, count: Number(row.count) })),
+    };
   }
 
   /** The range, the tenant predicate and the two filters — or `null` for a reader who reaches nothing. */
-  #selection(query: OpportunityAnalyticsQuery): Selection | null {
-    const { start, end } = analyticsRange(query);
+  #selection(query: OpportunityAnalyticsQuery, timeZone: string): Selection | null {
+    const { start, end } = analyticsRange(query, timeZone);
     const scope = analyticsScopePredicate(orgConstraintFor());
     if (scope === null) return null;
     const where: SqlFragment = { sql: scope.sql, params: [...scope.params] };

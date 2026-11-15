@@ -32,15 +32,19 @@ export interface WebhookDeliveryRetentionDeps {
 }
 
 /**
- * One tick: one purge. A failed purge is logged and re-thrown, so the job is
+ * One tick: one purge — the delivery rows, then the finished queue jobs past
+ * the window (issue #1003). A failed purge is logged and re-thrown, so the job is
  * recorded as failed; the next tick is the retry. A module switched off
  * underneath the tick is re-thrown as it is (module-composition item 7).
  */
 export async function runWebhookDeliveryRetentionTick(deps: WebhookDeliveryRetentionDeps): Promise<void> {
   try {
-    const { retentionDays, deleted } = await deps.retention.purge();
-    if (deleted > 0) {
-      deps.log.info({ retentionDays, deleted }, 'webhooks: delivery history past the retention window deleted');
+    const { retentionDays, deleted, jobsRemoved } = await deps.retention.purge();
+    if (deleted > 0 || jobsRemoved > 0) {
+      deps.log.info(
+        { retentionDays, deleted, jobsRemoved },
+        'webhooks: delivery history past the retention window deleted',
+      );
     }
   } catch (error) {
     rethrowIfModuleDisabled(error);

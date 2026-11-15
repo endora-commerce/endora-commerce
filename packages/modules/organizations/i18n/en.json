@@ -295,5 +295,8 @@
   "changeTaxId.page.pickerPlaceholder": "Search by name",
   "changeTaxId.page.empty": "No company organizations match.",
   "changeTaxId.page.next": "Next",
-  "changeTaxId.page.loadError": "The organization could not be loaded."
+  "changeTaxId.page.loadError": "The organization could not be loaded.",
+  "detail.save.hostPartLabel": "Organization",
+  "detail.save.conflict": "This organization was changed elsewhere. Nothing was saved: the page was reloaded with the latest values and your unsaved changes on it were discarded.",
+  "detail.immediate.badge": "Applies immediately"
 }

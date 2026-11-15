@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Zap } from 'lucide-react';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   AdminZoneProps,
@@ -56,11 +57,18 @@ interface WarehouseListResponse {
  * again here would be the same question twice — and the second answer would be
  * the one nobody maintains. `canWrite` stays: a contribution declares one code,
  * and this panel offers a read view and write actions behind two.
+ *
+ * ## Not a part of the editor's Save (feature 180, OQ-10 = A)
+ *
+ * The editor hands this zone its save session; this panel does not join it. Assigning,
+ * unassigning and promoting a warehouse are immediate actions, as they have always been, and
+ * the heading says so with an "Applies immediately" badge while those actions are offered.
  */
 export type ChannelWarehousesProps = AdminZoneProps<'sales_channel.editor.after'>;
 
 export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactNode {
   const t = useTranslation('core');
+  const ti = useTranslation('inventory');
   const { confirm, confirmDialog } = useConfirmDialog();
   const isVisible = useSurfaceVisibility();
   const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
@@ -184,7 +192,19 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
       ) : null}
 
       <div className="b2b-card">
-        <div className="b2b-card__head"><h2>{t('warehouses.channel.title')}</h2></div>
+        <div className="b2b-card__head">
+          <h2 className="flex flex-wrap items-center gap-2">
+            {t('warehouses.channel.title')}
+            {canWrite ? (
+              // The product editor's "Applies immediately" badge, drawn the same way: one look for
+              // one meaning on every editor (feature 174 FR-070, feature 180).
+              <span className="inline-flex items-center gap-1 rounded-md border border-[var(--info)]/40 bg-[var(--info-soft)] px-2 py-0.5 text-xs font-medium text-[var(--info-soft-fg)]">
+                <Zap className="size-3" aria-hidden="true" />
+                {ti('warehouses.channel.immediateBadge')}
+              </span>
+            ) : null}
+          </h2>
+        </div>
         <table className="b2b-tbl">
           <thead>
             <tr>

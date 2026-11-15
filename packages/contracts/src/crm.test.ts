@@ -413,6 +413,21 @@ describe('§12 analytics', () => {
     expect(parsed.basis).toBe('created');
     rejects(crm.TopOpportunitiesQuerySchema, { from: '2026-09-01', to: '2026-09-30', basis: 'won' });
   });
+
+  it('every figure names the time zone it was counted in — additively (#474, #475)', () => {
+    const handling = {
+      averageSeconds: null,
+      closedCount: 0,
+      byOutcome: { won: { averageSeconds: null, closedCount: 0 }, lost: { averageSeconds: null, closedCount: 0 } },
+    };
+    expect(crm.OpportunityHandlingTimeResponseSchema.parse({ data: handling, timeZone: 'Europe/Warsaw' }).timeZone).toBe(
+      'Europe/Warsaw',
+    );
+    accepts(crm.OpportunityAverageValueResponseSchema, { data: [], timeZone: 'UTC' });
+    // A reply from before the field parses as it did.
+    accepts(crm.OpportunityRepEffectivenessResponseSchema, { data: [] });
+    rejects(crm.OpportunityTimeInStatusResponseSchema, { data: [], timeZone: '' });
+  });
 });
 
 describe('opportunityStatusEventName', () => {

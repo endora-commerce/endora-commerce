@@ -450,6 +450,22 @@ describe('§2.6 analytics', () => {
     rejects(projects.ProjectAnalyticsQuerySchema, { from: '2026-02-01', to: '2026-01-01' });
   });
 
+  it('every figure names the time zone its days were counted in — additively (#475)', () => {
+    const figure = {
+      from: '2026-01-01',
+      to: '2026-12-31',
+      projectCount: 0,
+      excluded: { noValue: 0 },
+      data: { opened: 0, completed: 0, lost: 0, completionRate: null },
+    };
+    expect(projects.ProjectAnalyticsSummaryResponseSchema.parse({ ...figure, timeZone: 'Europe/Warsaw' }).timeZone).toBe(
+      'Europe/Warsaw',
+    );
+    // A reply from before the field parses as it did.
+    accepts(projects.ProjectAnalyticsSummaryResponseSchema, figure);
+    rejects(projects.ProjectAnalyticsSummaryResponseSchema, { ...figure, timeZone: '' });
+  });
+
   it('every figure states its period, its population and what it excluded (FR-038)', () => {
     accepts(projects.ProjectAnalyticsSummaryResponseSchema, {
       from: '2026-01-01',

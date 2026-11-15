@@ -138,6 +138,7 @@ export function inventoryModule(options: InventoryModuleOptions): InventoryModul
     mailer,
     options.catalogProducts,
     options.customerAccounts,
+    options.catalogAvailability,
   );
   const lowStockAlertService = new LowStockAlertService(
     options.emFactory,

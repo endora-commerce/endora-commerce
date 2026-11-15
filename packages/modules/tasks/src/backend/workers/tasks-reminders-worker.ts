@@ -14,11 +14,13 @@ import { enterSystemScope, rethrowIfModuleDisabled } from '@endora-commerce/plat
  * reminder, and a moved due date has no queue to keep in step. A reminder goes
  * out within a minute or two of its moment (SC-004).
  *
- * **One tick, up to three passes.** The reminders on every tick; the digest
- * and the maintenance pass (`#450`, User Story 10 — Tasks whose context's
- * record is gone) each when fifteen minutes have passed since its last run in
- * this process — an in-memory stamp per pass, so a restart only makes it run
- * sooner, and a clock that went back runs it at once.
+ * **One tick, up to four passes.** The time-zone pass (`#505` — due dates and
+ * relative reminders re-derived once `tasks.time_zone` has changed) and then
+ * the reminders on every tick; the digest and the maintenance pass (`#450`,
+ * User Story 10 — Tasks whose context's record is gone) each when fifteen
+ * minutes have passed since its last run in this process — an in-memory stamp
+ * per pass, so a restart only makes it run sooner, and a clock that went back
+ * runs it at once.
  *
  * **More than one consumer is fine.** A reminder is claimed per recipient by
  * its delivery row, a digest per person and day by its subscription row, so
@@ -37,6 +39,7 @@ export const TASKS_MAINTENANCE_EVERY_MS = 15 * 60_000;
 export const TASKS_REMINDERS_SCOPE_REASON = 'tasks: deliver due reminders';
 export const TASKS_DIGEST_SCOPE_REASON = 'tasks: send the daily digests';
 export const TASKS_MAINTENANCE_SCOPE_REASON = 'tasks: clean up Tasks whose context is gone';
+export const TASKS_REDERIVE_SCOPE_REASON = 'tasks: re-derive due dates and reminders in the Tasks time zone';
 
 export type TasksRemindersJobData = Record<string, never>;
 
@@ -54,6 +57,8 @@ export interface TasksRemindersJobDeps {
   readonly reminders: TaskSweepPass;
   readonly digest: TaskSweepPass;
   readonly maintenance: TaskSweepPass;
+  /** Issue #505 — what was counted in an earlier `tasks.time_zone`, re-derived in the current one. */
+  readonly rederive: TaskSweepPass;
   readonly log: { warn(context: Record<string, unknown>, message: string): void };
 }
 
@@ -78,7 +83,8 @@ export function createTasksRemindersJob(deps: TasksRemindersJobDeps): TasksRemin
  * whose entry writes the `tenant.escape_hatch` audit row (issue #120): 1 440
  * idle ticks a day write none.
  *
- * The reminders run every tick; the digest when {@link TASKS_DIGEST_EVERY_MS}
+ * The time-zone pass and then the reminders run every tick — in that order, so
+ * a reminder the zone moved is not sent at its old moment; the digest when {@link TASKS_DIGEST_EVERY_MS}
  * and the maintenance pass when {@link TASKS_MAINTENANCE_EVERY_MS} have passed
  * since each last ran (a clock that went back runs it at once). A
  * failed pass is logged and not re-thrown: the next tick is the retry. A
@@ -110,6 +116,8 @@ export async function runTasksRemindersJob(job: TasksRemindersJob, now: Date = n
   const at = now.getTime();
   const due = (last: number | null, every: number): boolean => last === null || at < last || at - last >= every;
 
+  if (!deps.isPresent()) return;
+  await run(deps.rederive);
   if (!deps.isPresent()) return;
   await run(deps.reminders);
   if (due(cadence.digestRanAt, TASKS_DIGEST_EVERY_MS)) {

@@ -14,6 +14,7 @@ import {
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { organizationSalesChannelsClient } from '../api/sales-channels.js';
 import { SalesChannelChecklist } from '../components/SalesChannelChecklist.js';
+import { ImmediateBadge } from '../components/ImmediateBadge.js';
 
 /**
  * The stores an Organization's members may sign in and shop on (feature 154,
@@ -104,6 +105,7 @@ export function SalesChannelsPanel({ organizationId }: SalesChannelsPanelProps):
       <CardHeader>
         <CardTitle id={titleId} className="text-base">
           {t('salesChannels.title')}
+          <ImmediateBadge />
         </CardTitle>
         <CardDescription id={descriptionId}>{t('salesChannels.description')}</CardDescription>
       </CardHeader>

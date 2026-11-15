@@ -9,6 +9,7 @@ import {
   TASKS_DIGEST_SCOPE_REASON,
   TASKS_MAINTENANCE_EVERY_MS,
   TASKS_MAINTENANCE_SCOPE_REASON,
+  TASKS_REDERIVE_SCOPE_REASON,
   TASKS_REMINDERS_EVERY_MS,
   TASKS_REMINDERS_QUEUE,
   TASKS_REMINDERS_SCHEDULER_ID,
@@ -52,8 +53,10 @@ function pass(scopeReason: string, hasWork: () => Promise<boolean> = async () =>
   return { value, run, probe, scopes };
 }
 
-/** A maintenance pass with nothing to do — for the cases about the other two. */
+/** A maintenance pass with nothing to do — for the cases about the other passes. */
 const idle = (): TaskSweepPass => pass(TASKS_MAINTENANCE_SCOPE_REASON, async () => false).value;
+/** A time-zone pass with nothing to do — for the cases about the other passes. */
+const settled = (): TaskSweepPass => pass(TASKS_REDERIVE_SCOPE_REASON, async () => false).value;
 
 describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
   it('names a queue BullMQ accepts, ticks every minute and runs the digest at most every fifteen', () => {
@@ -72,6 +75,7 @@ describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
       reminders: pass(TASKS_REMINDERS_SCOPE_REASON, async () => false).value,
       digest: pass(TASKS_DIGEST_SCOPE_REASON, async () => false).value,
       maintenance: maintenance.value,
+      rederive: settled(),
       log: log(),
     });
     const start = Date.parse('2032-01-01T08:00:00Z');
@@ -94,7 +98,7 @@ describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
   it('asks nothing, opens nothing and runs nothing while Tasks is off', async () => {
     const reminders = pass(TASKS_REMINDERS_SCOPE_REASON);
     const digest = pass(TASKS_DIGEST_SCOPE_REASON);
-    const job = createTasksRemindersJob({ isPresent: () => false, reminders: reminders.value, digest: digest.value, maintenance: idle(), log: log() });
+    const job = createTasksRemindersJob({ isPresent: () => false, reminders: reminders.value, digest: digest.value, maintenance: idle(), rederive: settled(), log: log() });
 
     await runTasksRemindersJob(job, new Date('2032-01-01T08:00:00Z'));
 
@@ -107,7 +111,7 @@ describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
   it('runs a pass inside the system scope only when its probe says there is work', async () => {
     const reminders = pass(TASKS_REMINDERS_SCOPE_REASON, async () => false);
     const digest = pass(TASKS_DIGEST_SCOPE_REASON, async () => true);
-    const job = createTasksRemindersJob({ isPresent: () => true, reminders: reminders.value, digest: digest.value, maintenance: idle(), log: log() });
+    const job = createTasksRemindersJob({ isPresent: () => true, reminders: reminders.value, digest: digest.value, maintenance: idle(), rederive: settled(), log: log() });
 
     await runTasksRemindersJob(job, new Date('2032-01-01T08:00:00Z'));
 
@@ -126,6 +130,7 @@ describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
       reminders: reminders.value,
       digest: pass(TASKS_DIGEST_SCOPE_REASON, async () => false).value,
       maintenance: idle(),
+      rederive: settled(),
       log: log(),
     });
     await runTasksRemindersJob(job, new Date('2032-01-01T08:00:00Z'));
@@ -135,7 +140,7 @@ describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
   it('runs the reminders every tick and the digest when fifteen minutes have passed since its last pass', async () => {
     const reminders = pass(TASKS_REMINDERS_SCOPE_REASON);
     const digest = pass(TASKS_DIGEST_SCOPE_REASON);
-    const job = createTasksRemindersJob({ isPresent: () => true, reminders: reminders.value, digest: digest.value, maintenance: idle(), log: log() });
+    const job = createTasksRemindersJob({ isPresent: () => true, reminders: reminders.value, digest: digest.value, maintenance: idle(), rederive: settled(), log: log() });
     const start = Date.parse('2032-01-01T08:00:00Z');
 
     for (let minute = 0; minute <= 30; minute += 1) await runTasksRemindersJob(job, new Date(start + minute * 60_000));
@@ -149,7 +154,7 @@ describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
     failing.run.mockRejectedValueOnce(new Error('boom'));
     const digest = pass(TASKS_DIGEST_SCOPE_REASON);
     const logger = log();
-    const job = createTasksRemindersJob({ isPresent: () => true, reminders: failing.value, digest: digest.value, maintenance: idle(), log: logger });
+    const job = createTasksRemindersJob({ isPresent: () => true, reminders: failing.value, digest: digest.value, maintenance: idle(), rederive: settled(), log: logger });
 
     await runTasksRemindersJob(job, new Date('2032-01-01T08:00:00Z'));
     expect(logger.warn).toHaveBeenCalledTimes(1);
@@ -157,6 +162,52 @@ describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
 
     failing.run.mockRejectedValueOnce(new ModuleDisabledError('tasks'));
     await expect(runTasksRemindersJob(job, new Date('2032-01-01T08:01:00Z'))).rejects.toBeInstanceOf(ModuleDisabledError);
+  });
+
+  it('re-derives in the Tasks time zone first on every tick, in the system scope, and not at all while Tasks is off (#505)', async () => {
+    const order: string[] = [];
+    const tracked = (reason: string, hasWork: () => Promise<boolean> = async () => true) => {
+      const p = pass(reason, hasWork);
+      p.run.mockImplementation(async () => {
+        order.push(reason);
+        p.scopes.push(getTenantContext()?.actor.kind);
+      });
+      return p;
+    };
+    const rederive = tracked(TASKS_REDERIVE_SCOPE_REASON);
+    const reminders = tracked(TASKS_REMINDERS_SCOPE_REASON);
+    let present = true;
+    const job = createTasksRemindersJob({
+      isPresent: () => present,
+      reminders: reminders.value,
+      digest: pass(TASKS_DIGEST_SCOPE_REASON, async () => false).value,
+      maintenance: idle(),
+      rederive: rederive.value,
+      log: log(),
+    });
+    const start = Date.parse('2032-01-01T08:00:00Z');
+
+    for (let minute = 0; minute < 3; minute += 1) await runTasksRemindersJob(job, new Date(start + minute * 60_000));
+    // Before the reminders, so a reminder the zone moved is not sent at its old moment.
+    expect(order).toEqual([
+      TASKS_REDERIVE_SCOPE_REASON,
+      TASKS_REMINDERS_SCOPE_REASON,
+      TASKS_REDERIVE_SCOPE_REASON,
+      TASKS_REMINDERS_SCOPE_REASON,
+      TASKS_REDERIVE_SCOPE_REASON,
+      TASKS_REMINDERS_SCOPE_REASON,
+    ]);
+    expect(rederive.scopes).toEqual(['system', 'system', 'system']);
+
+    present = false;
+    await runTasksRemindersJob(job, new Date(start + 3 * 60_000));
+    expect(rederive.probe).toHaveBeenCalledTimes(3);
+
+    // Nothing drifted: no scope opened.
+    present = true;
+    rederive.probe.mockResolvedValueOnce(false);
+    await runTasksRemindersJob(job, new Date(start + 4 * 60_000));
+    expect(rederive.run).toHaveBeenCalledTimes(3);
   });
 
   it.each([
@@ -170,6 +221,7 @@ describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
       reminders: pass(TASKS_REMINDERS_SCOPE_REASON).value,
       digest: pass(TASKS_DIGEST_SCOPE_REASON).value,
       maintenance: idle(),
+      rederive: settled(),
       log: log(),
     });
     expect(await startTasksReminders({ job, attach, onClose, ...host })).toBe(false);
@@ -188,6 +240,7 @@ describe('the tasks-reminders worker (R-17, R-18, R-19)', () => {
       reminders: reminders.value,
       digest: pass(TASKS_DIGEST_SCOPE_REASON).value,
       maintenance: idle(),
+      rederive: settled(),
       log: log(),
     });
 

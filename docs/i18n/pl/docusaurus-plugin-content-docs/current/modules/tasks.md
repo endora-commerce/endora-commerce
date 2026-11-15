@@ -384,6 +384,13 @@ zadań, które ją miały.
 moduł Zadania liczy „dziś”: kiedy zadanie z samą datą terminu staje się
 zadaniem po terminie, kiedy jest wysyłane przypomnienie przed taką datą oraz
 o której godzinie przychodzi dzienne podsumowanie.
+Jej zmiana w ciągu minuty lub dwóch przelicza to, co było liczone w starej
+strefie: przypomnienie przed samą datą terminu liczy się odtąd od 09:00 tego
+dnia w nowej strefie i zostanie wysłane ponownie, nawet jeśli już wyszło;
+zadanie z godziną terminu dostaje jako datę terminu dzień tej godziny w nowej
+strefie. Każde zmienione zadanie ma ten wpis w swojej historii. Przypomnienia
+na wybrany moment i przypomnienia przed godziną terminu nie zależą od strefy
+i pozostają bez zmian.
 
 ## Ustawienia
 

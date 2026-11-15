@@ -32,6 +32,7 @@ import { makeConvertToCompanyCommand } from '../commands/convert-to-company.comm
 import { makeCreateOrganizationCommand } from '../commands/create-organization.command.js';
 import { makeCreateOrganizationInvitationCommand } from '../commands/organization-invitation-create.command.js';
 import { makeRevokeOrganizationInvitationCommand } from '../commands/organization-invitation-revoke.command.js';
+import { makeUpdateOrganizationCommand } from '../commands/update-organization.command.js';
 import { makeCreateOrganizationRoleCommand } from '../commands/organization-role-create.command.js';
 import { makeDeleteOrganizationRoleCommand } from '../commands/organization-role-delete.command.js';
 import { makeUpdateOrganizationRoleCommand } from '../commands/organization-role-update.command.js';
@@ -266,6 +267,47 @@ describe('organization.create — audit state (D-288, O-2)', () => {
 
 // `organization.register` is a Command since `specs/176-command-hooks-outbox/`
 // P1: its sentinel case is `commands/register-organization.audit.test.ts`.
+
+describe('organization.update — audit state (issue #1029, D-288)', () => {
+  it('records the VAT status code and the names of what changed, and no value', async () => {
+    const { audits, audit } = recordingAudit();
+    const org = sentinelOrganization();
+    const em: Record<string, unknown> = {
+      findOne: async (_entity: unknown, where: { id: string }) => (where.id === ORG ? org : null),
+      flush: async () => {},
+    };
+    const bus = busOver(em, audit);
+
+    await asSystem(() =>
+      bus.run(
+        makeUpdateOrganizationCommand(
+          { validateCountry: async () => {} },
+          {
+            organizationId: ORG,
+            patch: {
+              name: S.newName,
+              legalName: `${S.legalName}-NEW`,
+              vatStatus: 'vat_exempt',
+              registeredAddress: { street: `${S.street}-NEW`, city: S.city, postalCode: '47-047', country: 'PL' },
+              orderConfirmationEmails: [S.newEmail],
+            },
+          },
+        ),
+      ),
+    );
+
+    expectNoAuditValues(audits, SENTINELS);
+    expectClassifiedKeys(audits);
+    expect(audits[0]).toMatchObject({
+      action: 'organization.update',
+      stateBefore: { vatStatus: 'vat_payer' },
+      stateAfter: {
+        vatStatus: 'vat_exempt',
+        changedFields: ['legalName', 'name', 'orderConfirmationEmails', 'registeredAddress', 'vatStatus'],
+      },
+    });
+  });
+});
 
 describe('organization.delete — audit state (D-288, O-2)', () => {
   it('records codes, the parent id and the version, and no value', () => {

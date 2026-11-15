@@ -34,6 +34,9 @@ export const TASKS_AUDIT_KEYS: ReadonlySet<string> = new Set([
   'changedFields',
   'changedCustomFields',
   'valueChangeId',
+  // Issue #505 — a code and a count on the entry of a changed time zone.
+  'reason',
+  'remindersMoved',
 ]);
 
 /** What an audit entry says of a value change: the names, and the store row. */

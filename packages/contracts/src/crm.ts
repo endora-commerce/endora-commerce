@@ -1085,15 +1085,26 @@ export const OpportunityAverageValueRowSchema = z.object({
 });
 export type OpportunityAverageValueRow = z.infer<typeof OpportunityAverageValueRowSchema>;
 
-export const OpportunityHandlingTimeResponseSchema = dataEnvelope(OpportunityHandlingTimeSchema);
-export const OpportunityTimeInStatusResponseSchema = dataEnvelope(
+/**
+ * Every analytics figure answers in this envelope: the figure, and the time
+ * zone its days and months were counted in (issues #474, #475) — the
+ * `analytics` module's reporting time zone, or `UTC` while that module is off.
+ * An IANA name. Additive: `data` is where it always was, and a reply without
+ * the zone parses as before.
+ */
+export function opportunityAnalyticsEnvelope<T extends z.ZodTypeAny>(data: T) {
+  return z.object({ data, timeZone: z.string().min(1).optional() });
+}
+
+export const OpportunityHandlingTimeResponseSchema = opportunityAnalyticsEnvelope(OpportunityHandlingTimeSchema);
+export const OpportunityTimeInStatusResponseSchema = opportunityAnalyticsEnvelope(
   z.array(OpportunityTimeInStatusRowSchema),
 );
-export const OpportunityRepEffectivenessResponseSchema = dataEnvelope(
+export const OpportunityRepEffectivenessResponseSchema = opportunityAnalyticsEnvelope(
   z.array(OpportunityRepEffectivenessRowSchema),
 );
-export const TopOpportunitiesResponseSchema = dataEnvelope(z.array(OpportunitySummarySchema));
-export const OpportunityAverageValueResponseSchema = dataEnvelope(
+export const TopOpportunitiesResponseSchema = opportunityAnalyticsEnvelope(z.array(OpportunitySummarySchema));
+export const OpportunityAverageValueResponseSchema = opportunityAnalyticsEnvelope(
   z.array(OpportunityAverageValueRowSchema),
 );
 

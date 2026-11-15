@@ -4,7 +4,11 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import type { CatalogProductReadPort, CustomerAccountReadPort } from '@endora-commerce/contracts';
+import type {
+  CatalogProductAvailabilityPort,
+  CatalogProductReadPort,
+  CustomerAccountReadPort,
+} from '@endora-commerce/contracts';
 import { AvailabilityWorker } from '../../../../packages/modules/inventory/src/backend/services/availability-worker.js';
 import { AvailabilityNotification, type ProductRow } from '../../helpers/package-entities.js';
 import { Product } from '../../helpers/package-entities.js';
@@ -21,14 +25,17 @@ import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 function ports(handle: BackendServerHandle): {
   catalogProducts: CatalogProductReadPort;
   customerAccounts: CustomerAccountReadPort;
+  catalogAvailability: CatalogProductAvailabilityPort;
 } {
   const cradle = handle.container.cradle as never as {
     catalogProductReadPort: CatalogProductReadPort;
     customerAccountReadPort: CustomerAccountReadPort;
+    catalogProductAvailabilityPort: CatalogProductAvailabilityPort;
   };
   return {
     catalogProducts: cradle.catalogProductReadPort,
     customerAccounts: cradle.customerAccountReadPort,
+    catalogAvailability: cradle.catalogProductAvailabilityPort,
   };
 }
 
@@ -65,8 +72,8 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
 
   beforeEach(async () => {
     mailer = new InMemoryMailer();
-    const { catalogProducts, customerAccounts } = ports(h);
-    worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts);
+    const { catalogProducts, customerAccounts, catalogAvailability } = ports(h);
+    worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts, catalogAvailability);
     await h
       .em()
       .getConnection()

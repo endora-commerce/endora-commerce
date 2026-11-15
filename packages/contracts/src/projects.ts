@@ -927,7 +927,10 @@ export type ProjectCurrencyAmount = z.infer<typeof ProjectCurrencyAmountSchema>;
 
 /**
  * Every figure states the period it covers, how many Projects it was computed
- * from and how many it left out for a missing value (FR-038).
+ * from and how many it left out for a missing value (FR-038) — and the time
+ * zone its days were counted in (issue #475): the `analytics` module's
+ * reporting time zone, or `UTC` while that module is off. An IANA name;
+ * additive, so a reply without it parses as before.
  */
 export function projectAnalyticsEnvelope<T extends z.ZodTypeAny>(data: T) {
   return z.object({
@@ -935,6 +938,7 @@ export function projectAnalyticsEnvelope<T extends z.ZodTypeAny>(data: T) {
     to: z.string(),
     projectCount: z.number().int().nonnegative(),
     excluded: z.object({ noValue: z.number().int().nonnegative() }),
+    timeZone: z.string().min(1).optional(),
     data,
   });
 }

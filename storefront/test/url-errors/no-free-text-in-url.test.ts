@@ -229,7 +229,6 @@ const CODE_IN_TEMPLATE = new Map<string, string>([
   ['app/account/organization-security/actions.ts:error=code', "`'FORBIDDEN' | 'FAILED'`"],
   ['app/(auth)/invitations/[token]/accept/page.tsx:error=code', 'an `InvitationAcceptCode`, the closed return of `INVITATION_ACCEPT_ERRORS.failureCode` (#808)'],
   ['app/(account)/organization/carts/[id]/actions.ts:error=parsed.code', 'the refusal half of `parseRejectReason`, `\'REASON_REQUIRED\' | \'REASON_TOO_LONG\'` — read off a variable, so no call is visible'],
-  ['app/(commerce)/checkout/page.tsx:couponError=reason', '`result.reason` held to `^[a-z_]{1,64}$`, else `generic`'],
   ['app/(account)/quick-order/page.tsx:problem=overflow', "`'preview_too_large' | 'preview_full'`"],
   ['components/newsletter/NewsletterSignup.tsx:status=status', "`'pending' | 'active'`"],
   ['lib/payments/post-payment-landing.ts:outcome=reason', 'a `PaymentFailureReason`'],

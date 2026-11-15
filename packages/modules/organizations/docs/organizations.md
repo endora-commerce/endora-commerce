@@ -102,6 +102,9 @@ correction to the value already stored).
 - **Command hooks** — six Organization writes are declared hookable, so another
   module can take part in them inside their transaction (see *Hookable actions*
   below).
+- **Finding, creating and updating Organizations from another module** — the
+  published `organizationWritePort` (see *Writing Organizations from another
+  module* below).
 
 ### Hookable actions
 
@@ -116,7 +119,7 @@ page.
 
 | Action | Ref | Written by | Hook data |
 | --- | --- | --- | --- |
-| `organization.create` | `ORGANIZATION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/organizations` | `organization`, `salesChannelIds` |
+| `organization.create` | `ORGANIZATION_HOOKABLE_ACTIONS.create` | `POST /api/v1/admin/organizations`, `organizationWritePort.create` | `organization`, `salesChannelIds` |
 | `organization.register` | `ORGANIZATION_HOOKABLE_ACTIONS.register` | `POST /api/v1/organizations/register` | `organization`, `customerAccountId`, `salesChannelId`, `registryLookupOutcome` |
 | `organization.admin_patch` | `ORGANIZATION_HOOKABLE_ACTIONS.adminPatch` | `PATCH /api/v1/admin/organizations/:id` | `organization`, `changedFields`, `changedCustomFields` |
 | `organization.set_custom_field_values` | `ORGANIZATION_HOOKABLE_ACTIONS.setCustomFieldValues` | `organizationCustomFieldWritePort` | `organization`, `changedFields`, `changedCustomFields` |
@@ -142,6 +145,78 @@ write, and then the one entry names only the hook's fields. Extension input
 `changeTaxId` as a third argument `{ extensions }` — and no HTTP body carries it
 yet. Moving an Organization in the hierarchy is not declared hookable.
 
+## Writing Organizations from another module
+
+A module that synchronises customers from an external system — an ERP or a CRM
+connector — finds, creates and updates Organizations through the port this
+module publishes, `organizationWritePort` (contract `OrganizationWritePort` in
+`@endora-commerce/contracts`, container name `ORGANIZATION_WRITE_PORT`). Resolve
+it per use with `lazyPort<OrganizationWritePort>(ctx, 'organizationWritePort')`,
+with `organizations` in the calling module's manifest `dependencies`. It needs
+no admin session, permission or HTTP call, and it checks none: the calling
+module is the gate.
+
+```ts
+findByTaxId(taxId: string): Promise<OrganizationRecord[]>;
+create(input: OrganizationWriteCreateInput): Promise<OrganizationRecord>;
+update(
+  id: string,
+  patch: OrganizationWriteUpdatePatch,
+  options?: { expectedVersion?: number },
+): Promise<OrganizationRecord>;
+```
+
+- **`findByTaxId`** answers exactly what `organizationDetailsPort.findByTaxId`
+  answers (see *Looking up an organization by tax ID* below): the input is
+  normalised, and the result is every live organization holding the tax ID, the
+  tree's root first, or `[]`. It is a list because in the `per-tree-root`
+  scope a head office and its branches share one tax ID. When you need the one
+  organization to link to, use `organizationDetailsPort.resolveByTaxId`.
+- **`create`** runs the `organization.create` command, the same one as
+  *New organization* in the admin, with the same checks: the name, tax ID and
+  registered address within the form's limits, a country an operator has made
+  available, at least one sales channel, bound in the same transaction, and
+  the tax ID allowed in the active tax-ID scope. The tax ID is normalised before
+  it is checked and stored. It also accepts a `legalName`, `customFieldValues`
+  (validated with the administrator's rules) and a `parentId`, which creates the
+  organization as a branch of that tree — in `per-tree-root` the branch may
+  carry its head office's tax ID. The status is `active` or
+  `pending_verification`.
+- **`update`** runs a new `organization.update` command over the name, legal
+  name (`null` clears it), VAT status, registered address and
+  order-confirmation e-mails. A key you leave out stays as it is, and any other
+  key is refused — the tax ID in particular: a correction is
+  `organizationCommandPort.changeTaxId` (see *Correcting a tax ID* below). An
+  update that changes nothing writes nothing and records nothing, so sending the
+  same record again is safe. Pass the `version` you read as `expectedVersion` to
+  be refused when someone else changed the Organization in the meantime.
+- **Out of scope:** moderation (approve, reject, block), re-parenting, roles,
+  members, credit, custom-field values after creation
+  (`organizationCustomFieldWritePort` covers them), delivery and billing
+  addresses (`addressServicePort`) and sales channels after creation.
+- **Each write is one audit entry with the caller's actor**, recording names,
+  not values (see *Audit entries* below). The command records whoever the
+  caller's tenant context says: a worker in `withSystemScope` records no
+  administrator, and one in `withSystemScopeActingFor(adminUserId, …)` records
+  the administrator who asked for the work. With no tenant context the write is
+  refused before anything is stored.
+- **Refusals** are the platform's HTTP errors, so a caller can record an issue
+  for one record and go on with the next:
+
+| Code | When |
+| --- | --- |
+| `422 VALIDATION_FAILED` | An input outside the limits above (an empty name, a tax ID that is not 8 to 32 characters once normalised, a country code that is not two letters, an empty or repeated channel list, an invalid e-mail), or an `update` key the port does not write |
+| `409 DICTIONARY_ENTRY_NOT_FOUND` / `DICTIONARY_ENTRY_INACTIVE` | A country that is not available. On `update` it is checked only when the country changes |
+| `409 ORGANIZATION_TAX_ID_EXISTS` | `create` with a tax ID the active scope does not allow. Deleted organizations count, so `findByTaxId` can answer `[]` and `create` still refuse |
+| `422 UNKNOWN_SALES_CHANNEL` | `create` naming a channel that does not exist |
+| `422 CUSTOM_FIELD_VALUE_INVALID` | `create` with custom-field values the administrator's rules refuse |
+| `422 ORGANIZATION_TREE_INVALID` | `create` under a parent at the maximum tree depth |
+| `404 NOT_FOUND` | `create` under a parent that does not exist or was deleted; `update` of an Organization that does not exist or was deleted |
+| `409 VERSION_CONFLICT` | `update` with an `expectedVersion` the Organization has moved past |
+| `409 ORGANIZATION_WRITE_CONTENDED` | A concurrent change to organizations held a lock; retry |
+
+`organizations` cannot be switched off, so the port is always available.
+
 ## Sales channels
 
 An Organization's members may sign in to and shop in exactly the stores whose sales channels are assigned to the Organization. No assignment means no access; an Organization always keeps at least one.
@@ -156,6 +231,7 @@ An Organization's members may sign in to and shop in exactly the stores whose sa
 | Business registration on a storefront (`POST /api/v1/organizations/register`) | exactly the channel of the store it registered on — also on a store closed to anonymous visitors, where moderation decides whether the business gets in |
 | Individual (B2C) self-registration (personal organization) | exactly the channel of the store it registered on; refused on a store closed to anonymous visitors |
 | *New organization* in the admin | the channels chosen on the form |
+| Another module, through `organizationWritePort.create` | the channels it names |
 | Anything else — sign-in with an external identity provider that provisions a new account, imports, demo data | the system-default channel |
 
 Accepting an invitation adds a member to an existing Organization and changes none of its channels.
@@ -1328,6 +1404,8 @@ never a custom role's name or description.
 - **`organization.admin_patch`**, **`organization.set_custom_field_values`**,
   **`organization.convert_to_company`** — the codes before and after and the
   names of what changed.
+- **`organization.update`** (`organizationWritePort.update`) — the VAT status
+  before and after and the names of the fields that changed.
 - **`organization.delete`** — the status, VAT status, whether it is personal,
   its parent by id and its version.
 - **`organization.approved`**, **`.rejected`**, **`.blocked`**, **`.unblocked`**

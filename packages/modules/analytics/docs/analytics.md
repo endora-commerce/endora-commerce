@@ -65,7 +65,7 @@ The setting **Reporting time zone** (`analytics.reporting_time_zone`, in the
 in: a report over a range of days takes each day from midnight to midnight in
 this zone. It is an IANA time-zone name such as `Europe/Warsaw`, or `UTC`, the
 default; a zone the runtime does not know is refused with `422`
-`VALIDATION_FAILED`. Projects analytics count in it today, and CRM is to follow.
+`VALIDATION_FAILED`. Projects analytics and CRM analytics count in it.
 
 Other modules read it through the gated port `reportingTimeZonePort`
 (`ReportingTimeZonePort` in `@endora-commerce/contracts`, `timeZone()`), never by

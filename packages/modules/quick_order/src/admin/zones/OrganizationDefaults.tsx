@@ -24,8 +24,9 @@ import { DefaultPreferencesPanel } from '../components/DefaultPreferencesPanel.j
  */
 export type OrganizationDefaultsProps = AdminZoneProps<'organization.detail.after'>;
 
-export function OrganizationDefaults({ organizationId }: OrganizationDefaultsProps): ReactNode {
-  return <DefaultPreferencesPanel scope="organization" scopeId={organizationId} />;
+export function OrganizationDefaults({ organizationId, saveSession }: OrganizationDefaultsProps): ReactNode {
+  // Feature 180, WP-7 — the organization detail's Save writes the defaults (FR-060).
+  return <DefaultPreferencesPanel scope="organization" scopeId={organizationId} saveSession={saveSession} />;
 }
 
 /**

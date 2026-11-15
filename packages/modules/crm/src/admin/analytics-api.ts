@@ -36,13 +36,23 @@ function query(filters: AnalyticsFilters, extra: ReadonlyArray<readonly [string,
   return params.toString();
 }
 
-async function read<T>(path: string): Promise<T> {
-  return (await apiClient.get<{ data: T }>(path)).data;
+/**
+ * A figure, and the time zone the server counted its days and months in
+ * (issues #474, #475) — `null` from a server older than the field.
+ */
+export interface AnalyticsAnswer<T> {
+  data: T;
+  timeZone: string | null;
+}
+
+async function read<T>(path: string): Promise<AnalyticsAnswer<T>> {
+  const answer = await apiClient.get<{ data: T; timeZone?: string }>(path);
+  return { data: answer.data, timeZone: answer.timeZone ?? null };
 }
 
 export const crmAnalyticsApi = {
   /** Creation to closing, over the Opportunities closed in the range. */
-  handlingTime(filters: AnalyticsFilters): Promise<OpportunityHandlingTime> {
+  handlingTime(filters: AnalyticsFilters): Promise<AnalyticsAnswer<OpportunityHandlingTime>> {
     return read(`${BASE}/handling-time?${query(filters)}`);
   },
 
@@ -50,7 +60,7 @@ export const crmAnalyticsApi = {
   timeInStatus(
     filters: AnalyticsFilters,
     statusCodes: readonly string[],
-  ): Promise<OpportunityTimeInStatusRow[]> {
+  ): Promise<AnalyticsAnswer<OpportunityTimeInStatusRow[]>> {
     return read(
       `${BASE}/time-in-status?${query(
         filters,
@@ -60,7 +70,7 @@ export const crmAnalyticsApi = {
   },
 
   /** Won Opportunities per calendar month and assignee. */
-  repEffectiveness(filters: AnalyticsFilters): Promise<OpportunityRepEffectivenessRow[]> {
+  repEffectiveness(filters: AnalyticsFilters): Promise<AnalyticsAnswer<OpportunityRepEffectivenessRow[]>> {
     return read(`${BASE}/rep-effectiveness?${query(filters)}`);
   },
 
@@ -69,7 +79,7 @@ export const crmAnalyticsApi = {
     filters: AnalyticsFilters,
     basis: TopOpportunitiesBasis,
     limit: number,
-  ): Promise<OpportunitySummary[]> {
+  ): Promise<AnalyticsAnswer<OpportunitySummary[]>> {
     return read(
       `${BASE}/top-opportunities?${query(filters, [
         ['basis', basis],
@@ -79,7 +89,7 @@ export const crmAnalyticsApi = {
   },
 
   /** Per currency, over the Opportunities created in the range. */
-  averageValue(filters: AnalyticsFilters): Promise<OpportunityAverageValueRow[]> {
+  averageValue(filters: AnalyticsFilters): Promise<AnalyticsAnswer<OpportunityAverageValueRow[]>> {
     return read(`${BASE}/average-value?${query(filters)}`);
   },
 };
