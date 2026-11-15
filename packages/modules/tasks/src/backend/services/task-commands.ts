@@ -36,7 +36,7 @@ import { recordTaskValueChange } from './task-audit-state.js';
  * | Action | Event |
  * | --- | --- |
  * | `tasks.task.create` | `tasks.task.created.v1` |
- * | `tasks.task.update` (title, description, due date and time, start date, context) | — |
+ * | `tasks.task.update` (title, description, due date and time, start date, context; a changed time zone) | — |
  * | `tasks.task.priority_change` | — |
  * | `tasks.task.tags_change` | — |
  * | `tasks.task.custom_fields_change` | — |
@@ -449,6 +449,60 @@ export function ungroupTaskCommand(
         result: true,
         before: { contextGroupId: from.contextGroupId },
         after: { contextGroupId: null, reason: 'context_group_gone' },
+      };
+    },
+  };
+}
+
+/** What the time-zone pass derived for one Task, from the due moment it read (issue #505). */
+export interface TaskDueRederivation {
+  /** The Task's `due_on` and `due_at` (ISO) when the pass read them; a Task that moved since is left. */
+  seen: { dueOn: string | null; dueAt: string | null };
+  /** With a due time: that time's date in the zone. */
+  dueOn: string | null;
+  /** Date only: 09:00 of the due date in the zone, the moment its relative reminders count from. */
+  moment: Date | null;
+}
+
+/**
+ * `tasks.task.update`, `reason: 'time_zone_changed'` — what was counted in the
+ * old `tasks.time_zone` re-derived in the new one (issue #505; data-model §5,
+ * research R-17), one Command per Task, run as the system by the time-zone pass
+ * (`time-zone-rederive-service.ts`):
+ *
+ * - a Task with a due time gets that time's date in the zone as `due_on`;
+ * - a date-only Task's relative reminders follow 09:00 of its due date in the
+ *   zone, as {@link followDueMoment} moves them for a changed due date — a
+ *   reminder whose moment moved fires again.
+ *
+ * The Task is re-read under its lock and left as it is when its due moment is
+ * not the one the pass read: a write meanwhile derived its own. `false`, and
+ * nothing recorded, when nothing moved.
+ */
+export function rederiveTaskDueCommand(
+  id: string,
+  derived: TaskDueRederivation,
+  auditLog: AuditPort,
+): Command<boolean> {
+  return {
+    action: 'tasks.task.update',
+    objectType: 'task',
+    objectId: id,
+    run: async ({ em }) => {
+      const scoped = em as EntityManager;
+      const task = await scoped.findOne(Task, { id }, { lockMode: LockMode.PESSIMISTIC_WRITE });
+      if (!task || (task.dueOn ?? null) !== derived.seen.dueOn || isoOrNull(task.dueAt) !== derived.seen.dueAt) {
+        return { result: false, skipAudit: true };
+      }
+      const dueOn = task.dueOn ?? null;
+      if (task.dueAt && derived.dueOn !== null) task.dueOn = derived.dueOn;
+      const remindersMoved =
+        !task.dueAt && task.dueOn && derived.moment ? await followDueMoment(scoped, auditLog, task.id, derived.moment) : 0;
+      if ((task.dueOn ?? null) === dueOn && remindersMoved === 0) return { result: false, skipAudit: true };
+      return {
+        result: true,
+        before: { dueOn },
+        after: { dueOn: task.dueOn ?? null, remindersMoved, reason: 'time_zone_changed' },
       };
     },
   };

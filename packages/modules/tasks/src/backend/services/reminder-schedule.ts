@@ -28,13 +28,14 @@ export function dueMomentOf(due: { dueOn: string | null; dueAt: Date | null }, t
  *   that is how the reminder's creator is told on the Task.
  *
  * Absolute reminders are the caller's chosen moments and are never touched.
+ * Answers how many relative reminders moved (none when they were removed).
  */
 export async function followDueMoment(
   em: EntityManager,
   auditLog: AuditPort,
   taskId: string,
   moment: Date | null,
-): Promise<void> {
+): Promise<number> {
   if (moment === null) {
     const removed = (await em.execute(
       `delete from "task_reminders" where "task_id" = ? and "mode" = 'relative'
@@ -63,17 +64,20 @@ export async function followDueMoment(
         stateAfter: null,
       });
     }
-    return;
+    return 0;
   }
-  await em.execute(
+  const moved = (await em.execute(
     `with "moved" as (
        update "task_reminders"
           set "remind_at" = ?::timestamptz - make_interval(mins => "offset_minutes")
         where "task_id" = ? and "mode" = 'relative'
           and "remind_at" <> ?::timestamptz - make_interval(mins => "offset_minutes")
        returning "id"
+     ), "rearmed" as (
+       delete from "task_reminder_deliveries" d using "moved" m where d."reminder_id" = m."id"
      )
-     delete from "task_reminder_deliveries" d using "moved" m where d."reminder_id" = m."id"`,
+     select count(*)::int as "moved" from "moved"`,
     [moment, taskId, moment],
-  );
+  )) as Array<{ moved?: number | string }>;
+  return Number(moved[0]?.moved ?? 0);
 }

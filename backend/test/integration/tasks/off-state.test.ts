@@ -219,7 +219,7 @@ describe('tasks off-state (Constitution XVII)', () => {
       await removeCrmAssets(h.em(), assets);
     });
 
-    it.each(AXES)('the scheduled tick asks no probe while %s, and all three once back', async (axis) => {
+    it.each(AXES)('the scheduled tick asks no probe while %s, and all four once back', async (axis) => {
       const composed = h.container.resolve('tasksRemindersJob') as TasksRemindersJob;
       const asked: string[] = [];
       const counted = (pass: TaskSweepPass): TaskSweepPass => ({
@@ -238,6 +238,7 @@ describe('tasks off-state (Constitution XVII)', () => {
               reminders: counted(composed.deps.reminders),
               digest: counted(composed.deps.digest),
               maintenance: counted(composed.deps.maintenance),
+              rederive: counted(composed.deps.rederive),
             }),
             new Date(),
           ),
@@ -245,7 +246,7 @@ describe('tasks off-state (Constitution XVII)', () => {
       await withModuleOff('tasks', axis, tick);
       expect(asked).toEqual([]);
       await tick();
-      expect(asked).toHaveLength(3);
+      expect(asked).toHaveLength(4);
     });
 
     it.each(AXES)('a file a Task uses stays protected from deletion while %s, and hidden from a restricted reader until Tasks is back', async (axis) => {
