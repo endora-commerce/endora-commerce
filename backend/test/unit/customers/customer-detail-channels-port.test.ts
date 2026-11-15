@@ -56,6 +56,7 @@ function customerRecord(over: Partial<CustomerAccountRecord> = {}): CustomerAcco
     blockedByCustomerAccountId: null,
     deletionRequestedByAdminUserId: null,
     anonymizedAt: null,
+    preferredLanguage: null,
     ...over,
   };
 }

@@ -12,6 +12,7 @@ import type {
   CustomerAccountReadPort,
   CustomerAccountRoleCommandPort,
   CustomerAccountMemberCommandPort,
+  CustomerAccountPreferencePort,
   CustomerAuthPort,
   CustomerAuthenticationThrottlePort,
   CustomerGroupReadPort,
@@ -62,6 +63,7 @@ import {
   CustomerAccountLifecycleWriteService,
 } from './services/customer-account-lifecycle-ports.js';
 import { CustomerAuthService } from './services/customer-auth-service.js';
+import { CustomerAccountPreferenceService } from './services/customer-account-preference-port.js';
 import { CustomerAuthenticationThrottle } from './services/customer-authentication-throttle.js';
 import { CustomerGroupReadService } from './services/customer-group-read-port.js';
 import { CustomerGroupService } from './services/customer-group-service.js';
@@ -158,7 +160,7 @@ export interface CustomerAccountsCradle {
     resolveByEmail(email: string): Promise<{ id: string } | null>;
     autoCreate(
       email: string,
-      context: { salesChannelId: string | null },
+      context: { salesChannelId: string | null; preferredLanguage?: string | null },
     ): Promise<{ id: string } | null>;
   };
   readonly customerAuthService: CustomerAuthService;
@@ -317,6 +319,21 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   );
 
+  /**
+   * Issue #652 (D-292) — the account's preferred language: the owner's choice
+   * (`customers`' self-service route) and a federated sign-in's capture
+   * (`mfa`). Both run `customer_account.set_preferred_language` on the bus.
+   */
+  ctx.di.providePort<CustomerAccountPreferencePort>(
+    'customerAccountPreferencePort',
+    ctx
+      .asFunction(
+        ({ commandBus }: CustomerAccountsCradle) =>
+          new CustomerAccountPreferenceService(twoFactorEnrolments, commandBus),
+      )
+      .singleton(),
+  );
+
   ctx.di.providePort<CustomerAccountAdminSearchPort>(
     'customerAccountAdminSearchPort',
     ctx
@@ -469,7 +486,7 @@ export function registerModule(ctx: ModuleContext): void {
     'customerAuthService',
     ctx
       .asFunction(
-        ({ emFactory, auditLogService, customerAuthenticationThrottle }: CustomerAccountsCradle) =>
+        ({ emFactory, auditLogService, customerAuthenticationThrottle, commandBus }: CustomerAccountsCradle) =>
           new CustomerAuthService(
             emFactory,
             // Feature 075, Phase C — `auth`'s **published** session surface,
@@ -490,6 +507,19 @@ export function registerModule(ctx: ModuleContext): void {
             // Feature 154 — kernel-provided and ungated, like the membership
             // port; resolved per call so the singleton holds no captured value.
             lazyPort<SalesChannelAccessPort>(ctx, 'salesChannelAccessPort'),
+            // Issue #652 (D-292) — the sign-in fills an unknown preferred
+            // language. This module's own service, so built here rather than
+            // resolved through its port. A failure is logged by account id —
+            // never the tag, which is personal data — and the sign-in goes on.
+            {
+              captureIfUnset: (customerAccountId, language) =>
+                new CustomerAccountPreferenceService(twoFactorEnrolments, commandBus).captureIfUnset(
+                  customerAccountId,
+                  language,
+                ),
+              onFailure: (err, customerAccountId) =>
+                ctx.log.warn({ err, customerAccountId }, 'customer_accounts: preferred-language capture at sign-in failed'),
+            },
           ),
       )
       .singleton(),
@@ -606,7 +636,7 @@ export function registerModule(ctx: ModuleContext): void {
 
         async autoCreate(
           email: string,
-          context: { salesChannelId: string | null },
+          context: { salesChannelId: string | null; preferredLanguage?: string | null },
         ): Promise<{ id: string; organizationId: string | null } | null> {
           const cradle = ctx.cradle<CustomerAccountsCradle>();
           // Issue #773 — the setting is read for the channel the sign-in was
@@ -696,6 +726,9 @@ export function registerModule(ctx: ModuleContext): void {
                 // because the role row exists only in this transaction.
                 organizationRoleId: organization.administratorRoleId,
                 emailVerifiedAt: new Date(),
+                // Issue #652 (D-292) — the language of the page the federated
+                // sign-in was started on, resolved by `mfa` against the channel.
+                preferredLanguage: context.preferredLanguage ?? null,
               });
               // The other way an account is created without an admin —
               // `customers`' standalone self-registration — records this same

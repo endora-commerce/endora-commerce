@@ -48,6 +48,9 @@ export const CUSTOMER_ACCOUNT_AUDIT_KEYS: ReadonlySet<string> = new Set([
   'subtreeRollupEnabled',
   'customerGroupId',
   'via',
+  // Issue #652 — where a preferred-language write came from (`self_service` /
+  // `sign_in`), a code; the language itself is never recorded.
+  'source',
   'anonymizedAt',
   'customFieldKeys',
   'hadBlockReason',

@@ -236,14 +236,17 @@ każdy kanał, w którym miała już zamówienia.
 
 ### W panelu administracyjnym
 
-- **Panel Kanały sprzedaży** — na stronie organizacji. Z uprawnieniem `customers:manage` to lista
-  wielokrotnego wyboru z przyciskiem **Zapisz kanały sprzedaży**; bez niego — lista tylko do odczytu.
-  Nieaktywne kanały są oznaczone *(nieaktywny)*, a domyślny kanał systemowy ma etykietę. Zapis pustego
-  wyboru jest odrzucany: *„Organizacja musi mieć przypisany co najmniej jeden kanał sprzedaży.”*
+- **Panel Kanały sprzedaży** — na stronie organizacji, z etykietą *Działa od razu* w nagłówku.
+  Z uprawnieniem `customers:manage` to lista pól wyboru, po jednym na kanał, a każde zaznaczenie lub
+  odznaczenie jest zapisywane od razu — panel nie ma własnego przycisku Zapisz i nie jest częścią
+  zapisu strony. Podczas zapisu panel o tym informuje (*„Dodawanie kanału Trade…”*) i do jego końca nie
+  przyjmuje kolejnej zmiany; zmiana, której nie udało się zapisać, przywraca pole wyboru i podaje
+  powód. Bez tego uprawnienia — lista tylko do odczytu. Nieaktywne kanały są oznaczone *(nieaktywny)*,
+  a domyślny kanał systemowy ma etykietę. Odznaczenie ostatniego kanału jest odrzucane: *„Organizacja
+  musi mieć przypisany co najmniej jeden kanał sprzedaży.”* Usunięcie kanału nie wymaga potwierdzenia:
+  ponowne zaznaczenie go przywraca.
   Każdy dodany lub usunięty kanał zapisuje jeden wpis w dzienniku audytu. Zmiana obowiązuje od razu na
-  serwerze, który ją zapisał, a na każdym innym serwerze w ciągu 30 sekund. Własny przycisk panelu
-  **Zapisz kanały sprzedaży** nie jest częścią zapisu ekranu (zob. *Jeden przycisk Zapisz na ekranie
-  organizacji*); nagłówek panelu ma etykietę *Działa od razu*.
+  serwerze, który ją zapisał, a na każdym innym serwerze w ciągu 30 sekund.
 - **Nowa organizacja** — przycisk na liście organizacji i akcja w palecie poleceń (⌘K / Ctrl+K),
   widoczne z uprawnieniem `customers:manage`. Formularz pyta o nazwę, NIP, adres siedziby, status
   (*Aktywna* lub *Oczekuje na weryfikację*) i kanały sprzedaży, z domyślnym kanałem systemowym

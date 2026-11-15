@@ -24,6 +24,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import type { InvitationService } from './services/invitation-service.js';
 import type { OrganizationInvitation } from './entities/organization-invitation.entity.js';
 import { memberRoleRef, memberSessionRole } from './services/member-role-views.js';
+import { requestAccountLanguage } from './services/request-account-language.js';
 import { subjectOf } from './routes.roles.js';
 
 /**
@@ -169,6 +170,8 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
         password: body.password,
         firstName: body.firstName,
         lastName: body.lastName,
+        // Issue #652 (D-292) — the invitee's own language, not the inviter's.
+        preferredLanguage: requestAccountLanguage(request.headers['accept-language']),
       });
       const account = result.customerAccount;
       return {

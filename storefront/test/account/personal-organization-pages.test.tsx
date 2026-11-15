@@ -89,8 +89,11 @@ vi.mock('../../lib/server-context', () => ({
     locale,
     ctx: { locale },
     modules: { isPresent: () => true, presentIds: [], absentIds: [] },
+    // Issue #652 — the account page's e-mail-language row reads the channel's languages.
+    urlState: { languages: [], aliases: [], current: locale },
   }),
 }));
+vi.mock('../../lib/dictionary/client', () => ({ fetchDictionary: async () => ({ languages: [] }) }));
 vi.mock('../../lib/i18n/navigation', () => ({
   localeRedirect: async (to: string) => {
     throw new Error(`redirect ${to}`);

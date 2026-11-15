@@ -39,6 +39,8 @@
   "detail.field.organization": "Organization",
   "detail.field.status": "Status",
   "detail.field.lastLogin": "Last login",
+  "detail.field.emailLanguage": "E-mail language",
+  "detail.field.emailLanguageUnset": "Not set — the store's default language is used",
   "detail.action.block": "Block",
   "detail.action.unblock": "Unblock",
   "detail.action.passwordReset": "Reset password",
@@ -91,5 +93,6 @@
   "actions.openCustomers.keywords": "customers, customer",
   "actions.onlineCustomers.keywords": "active, online customers",
   "errors.CUSTOMER_ADDRESS_BOOK_RETIRED": "The personal address book has been retired. Addresses are kept in your organization's address book.",
+  "errors.PREFERRED_LANGUAGE_NOT_OFFERED": "This store does not offer that language.",
   "settingGroups.customers.name": "Customers"
 }

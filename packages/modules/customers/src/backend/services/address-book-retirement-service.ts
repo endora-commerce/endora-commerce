@@ -11,6 +11,7 @@ import { rethrowIfModuleDisabled, type AuditPort } from '@endora-commerce/platfo
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
 import { addressFingerprint, takesOverDefault } from './address-fingerprint.js';
+import { customerAddressAuditBefore } from './customer-address-audit-state.js';
 
 /**
  * The personal address book's retirement (`specs/173-b2c-address-book-merge/`
@@ -241,7 +242,7 @@ export class AddressBookRetirementService {
           action: 'customer_address.anonymized',
           objectType: 'customer_address',
           objectId: row.id,
-          stateBefore: { customerAccountId, kind: row.kind, wasDeleted },
+          stateBefore: { ...customerAddressAuditBefore(row), wasDeleted },
           stateAfter: { anonymizedAt: now.toISOString() },
         });
       }
@@ -366,7 +367,7 @@ export class AddressBookRetirementService {
         // worker, audited below with the null actor that fact deserves.
         if (decision.kind === 'refuse') {
           row.mergeRefusal = decision.code;
-          this.#audit(em, 'customer_address.merge_refused', row, { organizationId, mergeRefusal: decision.code });
+          this.#audit(em, 'customer_address.merge_refused', row, { mergeRefusal: decision.code });
           outcome.refused += 1;
           continue;
         }
@@ -376,7 +377,6 @@ export class AddressBookRetirementService {
         row.deletedAt = now;
         row.isDefault = false;
         this.#audit(em, 'customer_address.merge', row, {
-          organizationId,
           mergedIntoAddressId: decision.target.id,
           deduplicated: decision.deduplicated,
           wasDefault,
@@ -418,7 +418,7 @@ export class AddressBookRetirementService {
       action,
       objectType: 'customer_address',
       objectId: row.id,
-      stateBefore: { customerAccountId: row.customerAccountId, kind: row.kind },
+      stateBefore: customerAddressAuditBefore(row),
       stateAfter,
     });
   }

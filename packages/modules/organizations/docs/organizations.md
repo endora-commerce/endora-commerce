@@ -240,7 +240,7 @@ When this rule was introduced, every existing Organization was assigned the syst
 
 ### In the admin
 
-- **Sales channels panel** — on an Organization's page. With `customers:manage` it is a multi-select with **Save sales channels**; without it, a read-only list. Inactive channels are marked *(inactive)* and the system-default channel is badged. Saving an empty selection is refused: *"An organization must be assigned at least one sales channel."* Each added or removed channel writes one audit row. A change applies at once on the server that saved it and on every other server within 30 seconds. The panel's own **Save sales channels** is not part of the screen's Save (see *One Save on the organization screen*); its heading carries *Applies immediately*.
+- **Sales channels panel** — on an Organization's page, its heading badged *Applies immediately*. With `customers:manage` it is a list of checkboxes, one per channel, and each tick or untick is saved the moment it is made — there is no Save of its own, and it is not part of the page's Save. While a change is being saved the panel says so (*"Adding Trade…"*) and takes no other change until it is done; a change that could not be saved puts the checkbox back and says why. Without `customers:manage` it is a read-only list. Inactive channels are marked *(inactive)* and the system-default channel is badged. Unticking the last channel is refused: *"An organization must be assigned at least one sales channel."* Removing a channel asks no confirmation: ticking it again restores it. Each added or removed channel writes one audit row. A change applies at once on the server that saved it and on every other server within 30 seconds.
 - **New organization** — a button on the Organizations list and an action in the command palette (⌘K / Ctrl+K), both shown with `customers:manage`. The form asks for the name, tax ID, registered address, status (*Active* or *Pending verification*) and the sales channels, with the system-default channel pre-selected. A platform administrator (not a sales representative) also gets an optional *parent organization*, which creates the Organization as a branch of it; once a parent is chosen, the tax-ID field notes that a branch may use its head office's tax ID when the tax-ID scope is *One tree per tax ID*. The creation is one audited command; the new Organization's page opens when it is saved. Members are invited from that page once the Organization exists.
 
 ## Commercial party and moderation
@@ -1376,47 +1376,6 @@ run the `customer_account.change_role` / `customer_account.remove_member`
 Commands of `customer_accounts`; creating and revoking an invitation run
 `organization_invitation.create` / `organization_invitation.revoke`. Each is
 audited against the organization, naming the member or the operator who acted.
-
-## One Save on the organization screen
-
-The organization screen (`/organizations/:id`) has **one Save**, in the page header. It covers
-every setting on the screen that is edited rather than acted on:
-
-- the organization's own settings — status, VAT status, order-confirmation e-mails, fulfilment
-  strategy, the restrictions (the allowed payment methods, delivery methods and warehouses) and
-  custom fields. They no longer save on change, when you leave a field, or through
-  a button of their own;
-- the panels other modules contribute, each while its module is on: the **ordering defaults**
-  (Quick order), the **price display mode** (Price lists) and **price negotiation** on quote
-  requests (Quote requests).
-
-Save reads "Save" while there is nothing to save and "Save 3 changes" once there is, counting the
-organization's own changes and the panels' together.
-
-- **Everything is checked first.** If any part is refused, nothing is written and every change
-  stays; a summary above the sections lists each part with its problems, with **Show** to move to
-  it.
-- **The organization is written first**, as one change carrying only what you changed — and the
-  restrictions right after it, when they changed. Then the panels, one after another.
-- **If someone else changed the organization since you opened it**, nothing is saved: the screen
-  reloads the latest values, discards every unsaved change on the page, and says so. No panel is
-  written.
-- **If the organization is saved and a panel is not**, the summary names what was saved and what
-  was not ("Saved: Organization. Not saved: Ordering defaults — *reason*"). The failed panel keeps
-  its changes, and the next Save writes only what is still unsaved.
-- **A module switched off** while its panel holds changes: the panel goes, its changes are
-  discarded, and the screen says so.
-- **Leaving the page** — a link elsewhere in the admin, or closing or reloading the browser tab —
-  with unsaved changes asks first.
-
-Without `customers:manage` the organization's own settings are shown read-only, and the screen
-shows Save only when one of the panels is one you may change.
-
-**What applies immediately.** Actions on the organization are not part of the Save. They are
-written the moment you use them, and leave the unsaved changes as they are. Each such section
-carries an **Applies immediately** badge: inviting and directly adding members, the member list,
-the hierarchy, moderation (approve, reject, block, unblock), VAT validation, the sales channels,
-the roles and the sales representatives.
 
 ## Audit entries
 

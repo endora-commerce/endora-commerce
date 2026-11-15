@@ -159,12 +159,55 @@ export const customerSelfProfileSchema = z.object({
   organizationId: uuidSchema.nullable(),
   customerGroupId: uuidSchema.nullable(),
   twoFactorEnabled: z.boolean(),
+  /**
+   * Issue #652 (D-292) — the language the account's e-mails are written in, as
+   * the channel that captured it spells it; `null` while unknown. See
+   * `CustomerAccountRecord.preferredLanguage`.
+   */
+  preferredLanguage: z.string().nullable(),
   /** The member's role (`specs/170-organization-roles/` FR-056); it replaced the legacy `role`. */
   organizationRole: organizationRoleRefSchema,
   /** The member's effective organization permissions, sorted (FR-056). */
   permissions: z.array(z.string()),
 });
 export type CustomerSelfProfile = z.infer<typeof customerSelfProfileSchema>;
+
+/**
+ * The longest language tag a preferred language may be — RFC 5646 §4.4.1's
+ * recommended minimum buffer, and the width of `customer_accounts.preferred_language`.
+ */
+export const CUSTOMER_PREFERRED_LANGUAGE_MAX_LENGTH = 35;
+
+/**
+ * A BCP-47 tag's shape: a two- or three-letter primary subtag, then hyphenated
+ * subtags of one to eight letters or digits. The shape, not the registry — the
+ * route checks the tag against the request channel's own languages.
+ */
+const LANGUAGE_TAG_SHAPE = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$/;
+
+/**
+ * `PATCH /api/v1/me/customer/preferred-language` — the buyer's explicit choice
+ * of the language their e-mails are written in (issue #652, D-292). Not
+ * nullable: the account page always submits a language. A tag the request's
+ * sales channel does not offer is refused `422 PREFERRED_LANGUAGE_NOT_OFFERED`;
+ * an offered one is stored in the channel's spelling, matched
+ * case-insensitively.
+ */
+export const patchCustomerPreferredLanguageBodySchema = z.object({
+  preferredLanguage: z
+    .string()
+    .trim()
+    .max(CUSTOMER_PREFERRED_LANGUAGE_MAX_LENGTH)
+    .regex(LANGUAGE_TAG_SHAPE),
+});
+export type PatchCustomerPreferredLanguageBody = z.infer<typeof patchCustomerPreferredLanguageBodySchema>;
+
+export const patchCustomerPreferredLanguageResponseSchema = z.object({
+  data: z.object({ preferredLanguage: z.string() }),
+});
+export type PatchCustomerPreferredLanguageResponse = z.infer<
+  typeof patchCustomerPreferredLanguageResponseSchema
+>;
 
 // Password change reuses `changePasswordRequestSchema` from organizations.ts.
 
@@ -226,6 +269,11 @@ export const adminCustomerDetailSchema = adminCustomerListItemSchema.extend({
   deletion: adminCustomerDeletionInfoSchema.nullable(),
   emailVerifiedAt: isoDateTimeSchema.nullable(),
   twoFactorEnabled: z.boolean(),
+  /**
+   * Issue #652 (D-292) — the customer's e-mail language, shown read-only to
+   * staff; `null` while unknown (the store's default language is used).
+   */
+  preferredLanguage: z.string().nullable(),
   salesChannelIds: z.array(uuidSchema),
   defaults: customerDefaultsSchema,
   /** Feature 055 — custom-field values captured on this customer. */
