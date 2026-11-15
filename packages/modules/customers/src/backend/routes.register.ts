@@ -11,8 +11,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   SESSION_COOKIE_NAME,
   customerRegisterRequestSchema,
-  firstLanguageTag,
-  scopeLanguageOf,
+  requestScopeLanguage,
   type CustomerRegistrationOptionsResponse,
 } from '@endora-commerce/contracts';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
@@ -99,8 +98,8 @@ export async function registerCustomersRegisterRoutes(
   );
 }
 
-/** `scopeLanguageOf(requestChannel, firstLanguageTag(Accept-Language))`; `null` with no channel. */
+/** `requestScopeLanguage(requestChannel, Accept-Language)`; `null` with no channel. */
 function registeringLanguage(acceptLanguage: string | readonly string[] | undefined): string | null {
   const channel = currentSalesChannel();
-  return channel ? scopeLanguageOf(channel, firstLanguageTag(acceptLanguage)) : null;
+  return channel ? requestScopeLanguage(channel, acceptLanguage) : null;
 }

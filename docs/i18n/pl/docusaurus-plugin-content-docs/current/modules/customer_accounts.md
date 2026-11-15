@@ -157,10 +157,11 @@ nadal wynika z nagłówka `Accept-Language` żądania.
 
 **Skąd się bierze.**
 
-- **Przy tworzeniu konta** — z żądania, które je tworzy: pierwszy znacznik
-  `Accept-Language`, dopasowany do kanału sprzedaży żądania — dokładnie ten
-  język, jeśli kanał go oferuje, w przeciwnym razie język kanału o tym samym
-  języku bazowym (`en` → `en-US`), a w ostateczności domyślny język kanału.
+- **Przy tworzeniu konta** — z żądania, które je tworzy: nagłówek
+  `Accept-Language`, dopasowany do kanału sprzedaży żądania — znaczniki w
+  kolejności preferencji (`q`), każdy dokładnie albo według języka bazowego
+  (`en` → `en-US`); wygrywa pierwszy, który kanał oferuje, a w ostateczności
+  domyślny język kanału.
   Dotyczy to rejestracji firmy, rejestracji klienta indywidualnego (B2C),
   przyjęcia zaproszenia (język zaproszonego, nie zapraszającego) i pierwszego
   logowania przez zewnętrznego dostawcę tożsamości (język strony, na której

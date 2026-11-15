@@ -335,7 +335,7 @@ export interface CustomerAccountCreateInput {
   customFieldValues?: Record<string, unknown>;
   /**
    * Issue #652 (D-292) — the language captured from the creating request:
-   * `scopeLanguageOf(requestChannel, firstLanguageTag(Accept-Language))`, so a
+   * `requestScopeLanguage(requestChannel, Accept-Language)`, so a
    * tag the channel spells. Absent or `null` stores `null` — the admin
    * direct-create, which has no buyer request to read it from.
    */

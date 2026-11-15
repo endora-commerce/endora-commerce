@@ -158,10 +158,11 @@ still follows the request's `Accept-Language` header.
 
 **Where it comes from.**
 
-- **At account creation**, from the creating request: its first
-  `Accept-Language` tag, resolved against the request's sales channel — the
-  exact language if the channel offers it, else a channel language with the same
-  base language (`en` → `en-US`), else the channel's default language. That
+- **At account creation**, from the creating request: its `Accept-Language`
+  header, resolved against the request's sales channel — the tags in order of
+  preference (`q`), each matched exactly or else by base language (`en` →
+  `en-US`); the first one the channel offers wins, else the channel's default
+  language. That
   covers business registration, individual (B2C) registration, accepting an
   invitation (the invitee's language, not the inviter's) and a first sign-in
   through an external identity provider (the language of the page the sign-in

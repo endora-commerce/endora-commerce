@@ -146,6 +146,7 @@ describe('customer preferred language — capture (#652)', () => {
       ['pl-PL', 'pl-PL', 'the exact language'],
       ['en', 'en-US', 'the channel language of the same base'],
       ['de-DE,de;q=0.9', 'pl-PL', 'the channel default for a language it does not offer'],
+      ['en;q=0.2, pl-PL;q=0.9', 'pl-PL', 'the most preferred offered language, by q weight'],
     ])('organisation registration in %s records %s (%s)', async (acceptLanguage, expected) => {
       const { email } = await registerOrganization(acceptLanguage);
       expect(await languageOf(email)).toBe(expected);
