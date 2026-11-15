@@ -337,7 +337,7 @@ export function workspaceResolutionRefusal(
       kind: 'missing',
       message:
         `${missing.length} of ${report.links.length} declared \`${scopeToken(report)}\` links ` +
-        `are not installed in this checkout:\n${lines.join('\n')}\n\n${REMEDY}`,
+        `are not installed in this checkout (${report.root}):\n${lines.join('\n')}\n\n${REMEDY}`,
     };
   }
   return null;
