@@ -39,19 +39,6 @@ export function customFieldIssues(failure: unknown): Record<string, string> | nu
   return issues;
 }
 
-/**
- * The bag to send for an edit. A value that was stored and is now empty is
- * sent as `null` — "clear this" — because a key the request does not name
- * keeps its stored value; the server holds `null` against a required field.
- */
-export function withCleared(stored: Record<string, unknown>, edited: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...edited };
-  for (const key of new Set([...Object.keys(stored), ...Object.keys(edited)])) {
-    if (out[key] === undefined) out[key] = null;
-  }
-  return out;
-}
-
 /** Whether the person on this screen may be shown the fields at all. */
 export function useCanSeeCustomFields(): boolean {
   return useAuth().hasPermission(CUSTOM_FIELDS_READ);
@@ -120,7 +107,8 @@ export function ProjectCustomFields(props: { project: ProjectDetail; onChange: (
     try {
       onChange(
         await projectsApi.updateProject(project.id, {
-          customFieldValues: withCleared(project.customFieldValues, values),
+          // The panel's bag as it is: the changed keys only, a cleared one as `null` (issue #1007).
+          customFieldValues: values,
           version: project.version,
         }),
       );

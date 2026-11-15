@@ -361,14 +361,24 @@ export type CustomerLoginResponse = z.infer<typeof customerLoginResponseSchema>;
  * customer's and the anonymous comparison (`compare_token`) is adopted.
  *
  * `organizations` owns the step and runs it from its password sign-in; a route
- * that establishes the session itself — `mfa`'s second-step verify and its
- * enforced-enrolment completion — calls it through
- * {@link CustomerSignInCompletionPort} once the session cookie is set.
+ * that establishes the session itself — `mfa`'s second-step verify, its
+ * enforced-enrolment completion and its federated callback (issue #1188) —
+ * calls it through {@link CustomerSignInCompletionPort} once the session cookie
+ * is set.
  */
 export interface CustomerSignInCompletionInput {
   customerAccountId: string;
   /** The sign-in request's cookies, as `@fastify/cookie` parsed them. */
   cookies: Readonly<Record<string, string | undefined>>;
+  /**
+   * Issue #1188 — the sales channel the sign-in belongs to, for a route whose
+   * request carries none: the federated callback is the provider's redirect, so
+   * it passes the channel its transaction was started on. Only the anonymous
+   * basket of that store is merged (`specs/154-sales-channel-access/`
+   * contracts/basket-attribution.md §3). Absent or `null`: the request's
+   * resolved channel, as for every other sign-in.
+   */
+  salesChannelId?: string | null;
   /**
    * Where a failed step is reported. The step is best-effort — a failed merge
    * never breaks the sign-in (feature 037 FR-007/FR-008) — so a failure is
@@ -393,6 +403,8 @@ export interface CustomerSignInCompletion {
  * Reached with `lazyPort<CustomerSignInCompletionPort>(ctx, 'customerSignInCompletionPort')`
  * and never captured into a singleton (issue #368). `complete` does not throw
  * for a failed merge: it logs the failure and answers "nothing merged".
+ * Consumers: `mfa`'s second-step verify and enforced-enrolment completion
+ * (#368) and its federated sign-in callback (#1188).
  */
 export interface CustomerSignInCompletionPort {
   complete(input: CustomerSignInCompletionInput): Promise<CustomerSignInCompletion>;

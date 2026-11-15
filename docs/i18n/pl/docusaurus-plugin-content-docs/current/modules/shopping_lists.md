@@ -20,7 +20,7 @@ Wszystkie endpointy wymagają zalogowanej sesji klienta i są ograniczone do par
 | `GET /api/v1/shopping-lists` | Listy kupującego wraz z pozycjami |
 | `POST /api/v1/shopping-lists` | Utworzenie nowej listy |
 | `GET /api/v1/shopping-lists/:id` | Jedna lista wraz z pozycjami |
-| `PATCH /api/v1/shopping-lists/:id` | Zmiana nazwy |
+| `PATCH /api/v1/shopping-lists/:id` | Zmiana nazwy, ilości pozycji albo obu naraz, w jednym zapisie |
 | `DELETE /api/v1/shopping-lists/:id` | Usunięcie (razem z pozycjami) |
 | `POST /api/v1/shopping-lists/:id/items` | Dodanie pozycji |
 | `PATCH /api/v1/shopping-lists/:id/items/:itemId` | Zmiana ilości lub notatki |
@@ -30,6 +30,16 @@ Wszystkie endpointy wymagają zalogowanej sesji klienta i są ograniczone do par
 
 Oba przeniesienia przyjmują opcjonalne pole `itemIds: string[]` w treści żądania. Pusta lub
 brakująca tablica oznacza „przenieś wszystkie pozycje z listy”.
+
+`PATCH /api/v1/shopping-lists/:id` przyjmuje `{ name?, items?: [{ id, quantity }] }` — co najmniej
+jedno z dwóch pól, każdą pozycję najwyżej raz. Zapisuje wszystko albo nic: pozycja spoza listy
+odrzuca całe żądanie z `404 NOT_FOUND`, a lista pozostaje bez zmian. Treść z samym `name` zmienia
+nazwę, jak dotąd.
+
+W storefroncie strona listy ma jeden przycisk *Zapisz zmiany* dla nazwy listy i ilości wszystkich
+pozycji. Przyciski przeniesienia wysyłają ten sam formularz: to, co kupujący wpisał, jest najpierw
+zapisywane, a potem przenoszone, więc przeniesienie używa ilości widocznych na ekranie, a nie tych
+zapisanych wcześniej. *Usuń* i *Wyczyść listę* nadal działają od razu.
 
 Lista domyślna ma trzy własne ścieżki: `GET /api/v1/shopping-lists/default` (tworzona przy
 pierwszym odczycie, jeśli jej brak), `POST /api/v1/shopping-lists/default/items` oraz

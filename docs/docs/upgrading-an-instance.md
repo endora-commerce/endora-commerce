@@ -4684,6 +4684,32 @@ custom field values out of it.
 
 **After upgrading,** nothing has to be done.
 
+### Stage names, task titles and file names leave the project audit entries {#projects-stage-names-out-of-audit}
+
+The release that ships this change stops writing the free text of a project's stages, stage tasks
+and attachments into the platform-wide audit log (issue #1226, D-288, owner ruling of 2026-11-10: a
+title is a value). The project's title already left it.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `projects.project.*` entry names a
+  stage by its id (`stageId`), a stage's task by its `position` and a file by `attachmentId` /
+  `assetId`. `stageName` is no longer recorded by `stage_move`, `close` and `reopen`;
+  `projects.project.create` records `stageIds` in place of the list of stage names; `stage_create`,
+  `stage_update` and `stage_delete` no longer carry `name`; each task under `tasks` of
+  `stage_tasks_set` no longer carries `title`; `attachment_add` no longer carries `fileName`.
+- A rename of a stage is recorded as `changedFields: ['name']`, a change of a stage's task titles as
+  `changedFields: ['taskTitles']`, and the names before and after go to the project's own
+  `project_value_changes`, which the entry points at by `valueChangeId`. A deleted stage's entry
+  carries both on its state before.
+- A project's **Change history** tab still names stages, tasks and files: it reads the names from
+  that store, and only for a reader who may see the project. A stage task whose title a change did
+  not touch is named by its place (*Task 1*). No migration is needed.
+- Entries recorded before the upgrade are not rewritten: they keep the names they were written with.
+
+**After upgrading,** nothing has to be done. A report that read stage names out of the audit log
+reads them from the project (`GET /api/v1/admin/projects/:id`) instead.
+
 ### Quote request values leave the platform audit log {#quote-requests-audit-names-only}
 
 The release that ships this change stops writing a quote request's values into the platform-wide

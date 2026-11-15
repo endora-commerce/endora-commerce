@@ -283,6 +283,56 @@ describe('Project change history — names and nested changes (issue #460)', () 
     expect(within(close).getByText(pl('history.lead.stage').replace('{stage}', 'Build'))).toBeInTheDocument();
   });
 
+  it('names Stages, tasks and files from the Project and the stored values in entries written since #1226', async () => {
+    // Since #1226 the audit log names a Stage by id and a task by position; the
+    // server puts back the names its own store kept (a Stage's name, a task's
+    // title, a file's name) and the rest is named from the Project.
+    entries = [
+      entry(
+        1,
+        'projects.project.stage_move',
+        { stageId: STAGE_DESIGN, version: 3 },
+        { stageId: STAGE_BUILD, startedOn: '2026-10-25', deadlineOn: null, version: 4 },
+      ),
+      entry(2, 'projects.project.close', { state: 'open', version: 4 }, {
+        state: 'lost',
+        stageId: STAGE_BUILD,
+        lossReasonCode: 'price',
+        lossCommentLength: 10,
+        version: 5,
+      }),
+      entry(
+        3,
+        'projects.project.stage_tasks_set',
+        { stageId: STAGE_BUILD, tasks: [{ descriptionLength: 0, responsibleRoleId: null, dueOffsetDays: 2, position: 1 }] },
+        { stageId: STAGE_BUILD, tasks: [{ descriptionLength: 0, responsibleRoleId: null, dueOffsetDays: 3, position: 1 }] },
+      ),
+      entry(4, 'projects.project.stage_delete', { stageId: REMOVED_STAGE, name: 'Snagging', position: 4 }, null),
+      entry(5, 'projects.project.create', null, {
+        number: 'PRJ-000001',
+        state: 'open',
+        stageIds: [STAGE_DESIGN, REMOVED_STAGE, STAGE_BUILD],
+        version: 1,
+      }),
+    ];
+    await renderHistory();
+    const move = entryOf('projects.project.stage_move');
+    expect(within(move).getByText('Design')).toBeInTheDocument();
+    expect(within(move).getByText('Build')).toBeInTheDocument();
+    const close = entryOf('projects.project.close');
+    expect(within(close).getByText(en('history.lead.stage', { stage: 'Build' }))).toBeInTheDocument();
+    // A task whose title did not change has none in the entry: it is named by its place.
+    const tasks = entryOf('projects.project.stage_tasks_set');
+    expect(within(tasks).getByText(en('history.tasks.changed', { title: en('history.tasks.numbered', { position: 1 }) }))).toBeInTheDocument();
+    // A Stage the Project no longer has is named by the name its deletion served.
+    const create = entryOf('projects.project.create');
+    expect(create).toHaveTextContent('Design, Snagging, Build');
+    for (const shown of [move, close, tasks, create]) {
+      expect(shown).not.toHaveTextContent(STAGE_DESIGN);
+      expect(shown).not.toHaveTextContent(REMOVED_STAGE);
+    }
+  });
+
   it('ships every new sentence in both languages', () => {
     const keys = [
       'history.field.members',

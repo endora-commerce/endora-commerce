@@ -7,11 +7,12 @@
 // the declarations and emits nothing: registering the plugin stays the host's
 // job, exactly as before.
 import type {} from '@fastify/cookie';
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import {
   SESSION_COOKIE_NAME,
   ADMIN_SESSION_COOKIE_NAME,
+  CART_MERGE_FLASH_COOKIE_NAME,
   MFA_CHALLENGE_COOKIE_NAME,
   channelUrlLanguages,
   firstLanguageTag,
@@ -20,6 +21,7 @@ import {
 import type {
   AuthSessionPort,
   ChannelUrlFacts,
+  CustomerSignInCompletionPort,
   FederatedSignInErrorCode,
   FederatedSignInOptionsResponse,
   MfaLoginPort,
@@ -76,6 +78,13 @@ export interface MfaOAuthDeps {
    * on the channel the transaction was started on.
    */
   customerChannelAccess: Pick<CustomerChannelAccess, 'permits'>;
+  /**
+   * Issue #1188 — `organizations`' post-sign-in step (the signed-out basket
+   * merged, the anonymous comparison adopted), run once the callback has set a
+   * customer session itself. A customer handed to the second step is completed
+   * by the code screen's verify instead (#368).
+   */
+  customerSignInCompletion: Pick<CustomerSignInCompletionPort, 'complete'>;
   /**
    * Feature 167 (FR-034) — the URL-language facts of the channel a customer sign-in
    * started on (the system default when none). Absent: storefront paths unprefixed.
@@ -412,11 +421,65 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
       session.cookieValue,
       session.expiresAt,
     );
+    if (surface === 'customer') {
+      await completeCustomerSignIn(deps, request, reply, result.subjectId, tx.salesChannelId);
+    }
     const dest =
       surface === 'customer' ? `${deps.storefrontBaseUrl}${sanitiseNext(tx.next)}` : `${deps.adminBaseUrl}/`;
     return reply.redirect(dest);
   });
 }
+
+/**
+ * Issue #1188 — the customer session has just been set on this response, so run
+ * the post-sign-in step every customer sign-in runs, over the browser's cookies
+ * and on the channel the sign-in was started on (this request is the provider's
+ * redirect and carries no channel of its own).
+ *
+ * The browser's `b2b_cart_anon` reaches this request for the reason the session
+ * cookie set here reaches the storefront: one host's cookie jar, and the
+ * provider's redirect is a top-level `GET`, which a `SameSite=Lax` cookie rides.
+ *
+ * No storefront action runs between this response and the page the buyer lands
+ * on, so the two things the password step's action does after its merge are
+ * done here: the drained anonymous cookie is dropped (when the step says the
+ * basket was consumed or empty), and an `adopted` / `merged` outcome leaves the
+ * storefront's one-render merge notice (feature 037 FR-018: a `noop` shows
+ * none). The step does not throw for a failed merge, so nothing here catches.
+ */
+async function completeCustomerSignIn(
+  deps: MfaOAuthDeps,
+  request: FastifyRequest,
+  reply: FastifyReply,
+  customerAccountId: string,
+  salesChannelId: string | null,
+): Promise<void> {
+  const completion = await deps.customerSignInCompletion.complete({
+    customerAccountId,
+    cookies: request.cookies ?? {},
+    salesChannelId,
+    log: request.log,
+  });
+  if (completion.clearAnonymousCartCookie) {
+    reply.clearCookie(ANON_CART_COOKIE_NAME, { path: '/' });
+  }
+  const outcome = completion.cartMerge?.outcome;
+  if (outcome === 'adopted' || outcome === 'merged') {
+    reply.setCookie(CART_MERGE_FLASH_COOKIE_NAME, outcome, {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env['NODE_ENV'] === 'production',
+      maxAge: CART_MERGE_FLASH_MAX_AGE_SECONDS,
+      signed: false,
+    });
+  }
+}
+
+/** The signed-out basket's cookie, as `carts` sets it and the storefront forwards it. */
+const ANON_CART_COOKIE_NAME = 'b2b_cart_anon';
+/** Seconds; the storefront's own sign-in actions give the notice the same. */
+const CART_MERGE_FLASH_MAX_AGE_SECONDS = 30;
 
 function ipUa(request: { ip?: string; headers: Record<string, unknown> }): {
   ipAddress?: string;

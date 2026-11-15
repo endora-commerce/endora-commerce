@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { LINE_QUANTITY_MAX, type DisplayMode } from '@endora-commerce/contracts';
+import type { DisplayMode } from '@endora-commerce/contracts';
 import { grossUnitPriceFromNet, moneyByModeWithGross } from '../lib/i18n/money';
 import { tForLocale } from '../lib/i18n/messages';
 import {
@@ -11,6 +11,11 @@ import {
 } from '../lib/cartMinimum';
 import { formatCount } from '../lib/orderMinimum';
 import { LocalizedAnchor } from '../lib/i18n/localized-link';
+import {
+  CartLineQuantity,
+  CartLineQuantityStatus,
+  type CartQuantitySaveResult,
+} from './CartQuantityAutosave';
 
 /**
  * CartLine — Industria-themed cart row (feature 027 US1).
@@ -21,8 +26,10 @@ import { LocalizedAnchor } from '../lib/i18n/localized-link';
  *   [media | name+sku | qty stepper | unit price | line total | remove]
  * with a per-line `<form>` for each mutation so SSR / no-JS still works.
  *
- * The 500 ms auto-save debounce on the qty input is browser-side state
- * the parent page wires; the SSR shell ships a small "↻" submit button.
+ * The quantity stepper is `CartLineQuantity` (issue #1252): with JS off it is a plain form whose
+ * Enter and "−" / "+" post `updateAction`; with JS on, under the cart page's
+ * `CartQuantityAutosave`, a typed quantity saves itself after a short pause, on blur and on Enter
+ * through `saveQuantityAction`, and the page's other actions wait for it.
  */
 
 export interface CartLineViewModel {
@@ -57,6 +64,11 @@ export interface CartLineViewModel {
 interface CartLineProps {
   line: CartLineViewModel;
   updateAction: (formData: FormData) => Promise<void>;
+  /**
+   * Issue #1252 — saves a typed quantity without leaving the page (the JS path). Absent, the
+   * stepper is the plain form and only Enter / "−" / "+" post it.
+   */
+  saveQuantityAction?: (typed: string) => Promise<CartQuantitySaveResult>;
   removeAction: (formData: FormData) => Promise<void>;
   saveToListAction: (formData: FormData) => Promise<void>;
   /** Active Sales Channel display locale (e.g. `pl-PL`). */
@@ -97,6 +109,7 @@ interface CartLineProps {
 export function CartLine({
   line,
   updateAction,
+  saveQuantityAction,
   removeAction,
   saveToListAction,
   locale,
@@ -159,10 +172,6 @@ export function CartLine({
       : null;
   const floorId = `cart-line-${line.id}-floor`;
   const qtyErrorId = `cart-line-${line.id}-qty-error`;
-  const inputDescribedBy = [editError ? qtyErrorId : null, belowText ? belowId : null]
-    .filter((id): id is string => id !== null)
-    .join(' ');
-  const minusDisabled = line.quantity <= floor;
   return (
     <div
       className={`cart-line grid grid-cols-[56px_1fr_130px_110px_130px_28px] items-center gap-[14px] border-b border-line px-[22px] py-[14px] last:border-b-0${
@@ -245,11 +254,10 @@ export function CartLine({
           </div>
         ) : null}
         {gone || !editable ? null : (
-          // U4 — the refused edit's sentence. Mounted empty on every line so the polite live
-          // region exists before it carries text (WCAG 4.1.3); the input points at it.
-          <p id={qtyErrorId} role="status" className="m-0 text-[12px] font-semibold text-bad">
-            {editError?.message ?? ''}
-          </p>
+          // U4 — the refused edit's sentence, and (issue #1252) the saving / saved state of a
+          // typed quantity. Mounted empty on every line so the polite live region exists before
+          // it carries text (WCAG 4.1.3); the input points at it when it holds a refusal.
+          <CartLineQuantityStatus itemId={line.id} id={qtyErrorId} serverMessage={editError?.message ?? null} />
         )}
         {gone || !canSaveToList ? null : (
           <form action={saveToListAction} className="mt-1">
@@ -273,58 +281,21 @@ export function CartLine({
           {line.quantity}
         </span>
       ) : (
-        // `noValidate`: the browser's own `min` bubble speaks the browser's language and refuses
-        // the 0 that removes the line (FR-007). The server action validates and the buyer reads
-        // our sentence beside the field instead (U4).
-        <form action={updateAction} noValidate className="max-[720px]:[grid-area:stepper]">
-          <input type="hidden" name="itemId" value={line.id} />
-          {/* The form's default button: Enter in the quantity input submits the first
-              submit button in tree order. Nameless, so the typed `quantity` is what
-              posts; without it Enter pressed "−" (a step down, or nothing at the floor). */}
-          <button type="submit" className="sr-only" tabIndex={-1} aria-hidden="true">
-            {strings.qtyLabel}
-          </button>
-          <div className="qty__stepper" role="group" aria-label={strings.qtyLabel}>
-            {/* The steppers post `step`, not `quantity`: the input posts `quantity` too and
-                sits between them, so the first `quantity` in the form data would be the
-                input's for "+" (a no-op, or a refusal on a line below its minimum). */}
-            <button
-              type="submit"
-              name="step"
-              value={Math.max(floor, line.quantity - 1)}
-              disabled={minusDisabled}
-              formNoValidate
-              aria-label="−"
-              title="−"
-              {...(minusDisabled && minimumHint ? { 'aria-describedby': floorId } : {})}
-            >
-              −
-            </button>
-            <input
-              type="number"
-              name="quantity"
-              min={floor}
-              max={LINE_QUANTITY_MAX}
-              defaultValue={editError?.typed ?? line.quantity}
-              aria-label={strings.qtyLabel}
-              {...(belowText || editError ? { 'aria-invalid': true } : {})}
-              {...(inputDescribedBy ? { 'aria-describedby': inputDescribedBy } : {})}
-            />
-            <button
-              type="submit"
-              name="step"
-              value={Math.max(line.quantity + 1, floor)}
-              formNoValidate
-              aria-label="+"
-              title="+"
-            >
-              +
-            </button>
-          </div>
-          {minimumHint ? (
-            <p id={floorId} className="m-0 mt-1 text-[11px] text-muted">{minimumHint}</p>
-          ) : null}
-        </form>
+        <CartLineQuantity
+          itemId={line.id}
+          quantity={line.quantity}
+          floor={floor}
+          initialValue={editError?.typed ?? String(line.quantity)}
+          initialRefused={editError !== null}
+          updateAction={updateAction}
+          saveQuantity={saveQuantityAction}
+          qtyLabel={strings.qtyLabel}
+          belowId={belowText ? belowId : null}
+          statusId={qtyErrorId}
+          serverError={editError !== null}
+          minimumHint={minimumHint}
+          floorId={floorId}
+        />
       )}
 
       <span

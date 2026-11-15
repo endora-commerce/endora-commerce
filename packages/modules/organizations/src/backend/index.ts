@@ -582,16 +582,17 @@ export function registerModule(ctx: ModuleContext): void {
   /**
    * Issue #368 — the post-sign-in step for a route that establishes a customer
    * session itself: `mfa`'s second-step verify and enforced-enrolment
-   * completion. The same function the password sign-in runs, over the same
-   * contributed hook, read at call time; the account's organization is looked
-   * up here because those routes know only the account.
+   * completion, and (issue #1188) its federated callback, which also names the
+   * channel the sign-in was started on. The same function the password sign-in
+   * runs, over the same contributed hook, read at call time; the account's
+   * organization is looked up here because those routes know only the account.
    */
   ctx.di.providePort<CustomerSignInCompletionPort>(
     'customerSignInCompletionPort',
     ctx
       .asFunction(
         (): CustomerSignInCompletionPort => ({
-          complete: async ({ customerAccountId, cookies, log }) => {
+          complete: async ({ customerAccountId, cookies, log, salesChannelId }) => {
             const account = await lazyPort<CustomerAccountReadPort>(
               ctx,
               'customerAccountReadPort',
@@ -602,6 +603,7 @@ export function registerModule(ctx: ModuleContext): void {
               organizationId: account.organizationId ?? null,
               cookies,
               log,
+              salesChannelId: salesChannelId ?? null,
             });
           },
         }),

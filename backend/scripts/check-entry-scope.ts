@@ -166,6 +166,20 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'writes a tenant-scoped entity — for example, joining a subscription\'s ' +
     'Organization — which would need `enterSystemScope` here.',
 
+  'packages/modules/google_analytics/src/backend/services/ss-delivery-sweep.ts:buildGaDeliverySweepWorker:new Worker':
+    'Issue #1248 — the hourly sweep of finished `google_analytics.ss.deliver` ' +
+    'jobs. It runs two `queue.clean` calls against Redis and opens no ' +
+    'EntityManager, reads no setting and touches no table. A scope would buy ' +
+    'only an escape-hatch audit row per hourly tick, about nothing. Falsified ' +
+    'the day the tick reads or writes anything through the EntityManager.',
+
+  'packages/modules/google_tag_manager/src/backend/services/ss-relay-sweep.ts:buildGtmRelaySweepWorker:new Worker':
+    'Issue #1248 — the hourly sweep of finished `google_tag_manager.ss.relay` ' +
+    'jobs. It runs two `queue.clean` calls against Redis and opens no ' +
+    'EntityManager, reads no setting and touches no table. A scope would buy ' +
+    'only an escape-hatch audit row per hourly tick, about nothing. Falsified ' +
+    'the day the tick reads or writes anything through the EntityManager.',
+
   'src/db/migrate.ts:<file>:program':
     "The migration runner. MikroORM's migrator executes each migration through " +
     'the connection as SQL and builds no entity query, so no global tenant ' +

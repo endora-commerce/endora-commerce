@@ -27,17 +27,18 @@ export interface CustomFieldValuesPanelProps {
    * Persist the edited bag. Host owns the write (its own endpoint). A field the
    * operator cleared is in the bag as `null` (an empty string for text, an
    * empty array for a multiselect) — never `undefined`, which JSON would drop
-   * and the server would read as "not edited". The bag carries the keys of
-   * `edit`-level definitions only (feature 175); every other stored value is
-   * left to the server's merge. Forward the bag as it is. Omit it,
+   * and the server would read as "not edited". The bag carries only the keys of
+   * `edit`-level definitions (feature 175) whose value the operator changed from
+   * the one the panel loaded (issue #1007); every other stored value is left to
+   * the server's merge. Forward the bag as it is. Omit it,
    * and pass `onChange`, to embed the fields in a form of the host's own: the
    * panel then renders no button and the host submits the bag with its form.
    */
   save?: (values: Record<string, unknown>) => Promise<void>;
   /**
-   * Told the whole edited bag — its `edit`-level keys — on every change. With
-   * no `save`, this is the only way the values leave the panel (the embedded
-   * mode).
+   * Told the edited bag — its changed `edit`-level keys, as `save` is — on every
+   * change. With no `save`, this is the only way the values leave the panel (the
+   * embedded mode).
    */
   onChange?: (values: Record<string, unknown>) => void;
   /**
@@ -70,6 +71,13 @@ type Bag = Record<string, unknown>;
 /** Whether two stored values are the same value (they are JSON on the wire). */
 function sameValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+/** The keys of `keys` whose value in `bag` differs from the one in `baseline`, with that value. */
+function changedOf(bag: Bag, baseline: Bag, keys: ReadonlySet<string>): Bag {
+  return Object.fromEntries(
+    Object.entries(bag).filter(([key, value]) => keys.has(key) && !sameValue(value, baseline[key])),
+  );
 }
 
 /**
@@ -133,6 +141,17 @@ function sameValue(left: unknown, right: unknown): boolean {
  * host reports for a non-`edit` field is shown at the top of the panel with the
  * field's label and level, since there is no input to show it at.
  *
+ * **Only the changed keys** (issue #1007). Every host's write merges per key —
+ * a key the request leaves out keeps the value it holds when the write commits
+ * — but a key the request carries is written as the request has it. So the bag
+ * is narrowed further, to the `edit` keys whose value differs from the one the
+ * panel loaded (its baseline): an untouched key that another writer changed
+ * after the page loaded is not written back stale. A cleared field differs from
+ * a stored value, so it is still sent. The standalone panel moves its baseline
+ * to what a successful save wrote, so the next save does not send those keys
+ * again; under a page Save the session holds the baseline. A key edited back to
+ * the loaded value is not sent.
+ *
  * **Under a page Save** (feature 180, FR-062). With `saveSession` the edited bag lives in the
  * session, so it survives the panel unmounting, counts one change per edited `edit`-level key,
  * and is written by the page's Save through the host's `save` — the panel's own button is not
@@ -151,6 +170,9 @@ export function CustomFieldValuesPanel({
   const t = useTranslation('core');
   const [defs, setDefs] = useState<CustomFieldDefinitionDto[]>([]);
   const [draft, setDraft] = useState<Record<string, unknown>>(values);
+  // What the standalone panel compares its draft against (issue #1007): the bag it loaded, then
+  // what each successful save wrote. Under a page Save the session holds the baseline instead.
+  const [baseline, setBaseline] = useState<Record<string, unknown>>(values);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Per-field refusals the host's own `save` answered with (feature 175) — only
@@ -170,9 +192,10 @@ export function CustomFieldValuesPanel({
     () => new Set(defs.filter((d) => levelOf(d) === 'edit').map((d) => d.key)),
     [defs, levelOf],
   );
+  // The bag that leaves the panel: the `edit` keys the operator changed from `from`.
   const project = useCallback(
-    (bag: Record<string, unknown>): Record<string, unknown> =>
-      Object.fromEntries(Object.entries(bag).filter(([key]) => editKeys.has(key))),
+    (bag: Record<string, unknown>, from: Record<string, unknown>): Record<string, unknown> =>
+      changedOf(bag, from, editKeys),
     [editKeys],
   );
 
@@ -187,8 +210,8 @@ export function CustomFieldValuesPanel({
     () => ({
       changeCount: (next, baseline) => [...editKeys].filter((key) => !sameValue(next[key], baseline[key])).length,
       validate: async () => ({ fields: {} }),
-      save: async (next) => {
-        if (save) await save(project(next));
+      save: async (next, _ctx, from) => {
+        if (save) await save(project(next, from));
         return next;
       },
     }),
@@ -236,7 +259,7 @@ export function CustomFieldValuesPanel({
     const next = { ...current, [key]: value };
     if (inSession) participant.setDraft((previous) => ({ ...previous, [key]: value }));
     else setDraft(next);
-    onChange?.(project(next));
+    onChange?.(project(next, inSession ? loaded : baseline));
   };
 
   const onSave = useCallback(async (): Promise<void> => {
@@ -245,14 +268,16 @@ export function CustomFieldValuesPanel({
     setSaveRefusals({});
     setSaving(true);
     try {
-      await save(project(draft));
+      const written = project(draft, baseline);
+      await save(written);
+      setBaseline((previous) => ({ ...previous, ...written }));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
       if (err instanceof ApiError) setSaveRefusals(refusalsOf(err.envelope.error.details));
     } finally {
       setSaving(false);
     }
-  }, [draft, project, save]);
+  }, [baseline, draft, project, save]);
 
   const shown = defs.filter((d) => levelOf(d) !== 'hidden');
   const nonEditRefusals = defs.flatMap((d) => {

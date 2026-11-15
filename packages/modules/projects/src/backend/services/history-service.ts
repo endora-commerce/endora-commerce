@@ -104,8 +104,9 @@ function asRecord(state: unknown): Record<string, unknown> | null {
  * history serves the values in their place — `valueAmount` / `valueCurrency`
  * and `customFieldValues` of the changed keys, before and after, as entries
  * written before T144 F4 carried them. A create has no state before, so its
- * values join the state after only. Without a stored row the names stay and
- * only the pointer goes.
+ * values join the state after only; something that went — a Stage deleted —
+ * points at its row from the state before and keeps no state after. Without a
+ * stored row the names stay and only the pointer goes.
  */
 export function withValueChange(
   entry: { before: unknown; after: unknown },
@@ -122,12 +123,37 @@ export function withValueChange(
   if (!change) return { before: strip(entry.before, false), after: strip(entry.after, false) };
   const merge = (state: unknown, values: Record<string, unknown> | null): unknown => {
     const stripped = strip(state, true);
-    if (!values) return stripped;
+    // What went keeps no state after: its stored side is empty (#1226).
+    if (!values || (stripped === null && Object.keys(values).length === 0)) return stripped;
     return { ...(asRecord(stripped) ?? {}), ...values };
   };
   return {
     before: entry.before === null && change.before === null ? null : merge(entry.before, change.before),
     after: merge(entry.after, change.after),
+  };
+}
+
+/**
+ * A Stage's task definitions with the titles the Project's store kept for them
+ * put back, by position (#1226): the audit trail names each definition by its
+ * position and the store keeps the titles as `taskTitles`, so the history
+ * serves `tasks` in the shape entries written before carried them. A state
+ * without both is served as it is.
+ */
+export function withTaskTitles(state: unknown): unknown {
+  const record = asRecord(state);
+  if (!record || !Array.isArray(record.taskTitles) || !Array.isArray(record.tasks)) return state;
+  const titles = record.taskTitles as unknown[];
+  const { taskTitles: _taskTitles, ...rest } = record;
+  return {
+    ...rest,
+    tasks: record.tasks.map((item, index) => {
+      const task = asRecord(item);
+      if (!task) return item;
+      const position = typeof task.position === 'number' ? task.position : index + 1;
+      const title = titles[position - 1];
+      return typeof title === 'string' ? { title, ...task } : task;
+    }),
   };
 }
 
@@ -210,19 +236,24 @@ export class ProjectHistoryService {
     const mayReadCustomFields = page.length > 0 ? await this.deps.mayReadCustomFields() : true;
     const reach = await ambientReach();
     const served = (state: unknown): unknown => withinReach(visibleAuditState(state ?? null, mayReadCustomFields), reach);
+    // The pointer is on the state after, or — for something that went — on the state before (#1226).
+    const pointerOf = (entry: (typeof page)[number]): string | null =>
+      valueChangeIdOf(entry.stateAfter) ?? valueChangeIdOf(entry.stateBefore);
     const changes = await this.#valueChanges(
       project.id,
-      page.map((entry) => valueChangeIdOf(entry.stateAfter)).filter((id): id is string => id !== null),
+      page.map(pointerOf).filter((id): id is string => id !== null),
     );
 
     return {
       data: page.map((entry, index) => {
         const actorId = entry.actorAdminUserId ?? null;
-        const changeId = valueChangeIdOf(entry.stateAfter);
-        const { before, after } = withValueChange(
+        const changeId = pointerOf(entry);
+        const stored = withValueChange(
           { before: entry.stateBefore ?? null, after: entry.stateAfter ?? null },
           changeId === null ? null : (changes.get(changeId) ?? null),
         );
+        const before = withTaskTitles(stored.before);
+        const after = withTaskTitles(stored.after);
         return {
           id: entry.id,
           actedAt: entry.actedAt.toISOString(),

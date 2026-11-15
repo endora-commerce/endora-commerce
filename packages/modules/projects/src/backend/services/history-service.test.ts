@@ -7,6 +7,7 @@ import {
   valueChangeIdOf,
   visibleAuditState,
   withinReach,
+  withTaskTitles,
   withValueChange,
 } from './history-service.js';
 
@@ -98,5 +99,40 @@ describe('project history helpers', () => {
       before: null,
       after: { changedFields: ['value'] },
     });
+  });
+
+  it('reads a pointer on the state before when the state after has none, as a removal records it (#1226)', () => {
+    const id = '00000000-0000-4000-8000-0000000000c2';
+    const entry = { before: { stageId: 's1', position: 4, changedFields: ['name'], valueChangeId: id }, after: null };
+    expect(valueChangeIdOf(entry.after) ?? valueChangeIdOf(entry.before)).toBe(id);
+    // What went keeps no state after, and gets its name back before.
+    expect(withValueChange(entry, { before: { name: 'Snagging' }, after: {} })).toEqual({
+      before: { stageId: 's1', position: 4, name: 'Snagging' },
+      after: null,
+    });
+  });
+
+  it('puts the stored task titles back on the tasks, by position, as older entries carried them (#1226)', () => {
+    const state = {
+      stageId: 's1',
+      tasks: [
+        { descriptionLength: 0, responsibleRoleId: null, dueOffsetDays: 2, position: 1 },
+        { descriptionLength: 3, responsibleRoleId: null, dueOffsetDays: 5, position: 2 },
+      ],
+      taskTitles: ['Order racking', 'Book crane'],
+    };
+    expect(withTaskTitles(state)).toEqual({
+      stageId: 's1',
+      tasks: [
+        { title: 'Order racking', descriptionLength: 0, responsibleRoleId: null, dueOffsetDays: 2, position: 1 },
+        { title: 'Book crane', descriptionLength: 3, responsibleRoleId: null, dueOffsetDays: 5, position: 2 },
+      ],
+    });
+    // An older entry, and one with no stored titles, are served as they are.
+    const older = { stageId: 's1', tasks: [{ title: 'Old', position: 1 }] };
+    expect(withTaskTitles(older)).toBe(older);
+    const untitled = { stageId: 's1', tasks: [{ position: 1 }] };
+    expect(withTaskTitles(untitled)).toBe(untitled);
+    expect(withTaskTitles(null)).toBeNull();
   });
 });

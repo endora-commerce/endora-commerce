@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
-import { lineQuantitySchema } from './line-bounds.js';
+import { REQUEST_LINE_ITEMS_MAX, lineQuantitySchema } from './line-bounds.js';
 
 /**
  * Shopping list contracts (T202 / FR-031..FR-033).
@@ -91,6 +91,38 @@ export const renameShoppingListRequestSchema = z
   })
   .strict();
 export type RenameShoppingListRequest = z.infer<typeof renameShoppingListRequestSchema>;
+
+/**
+ * Issue #1251 — `PATCH /api/v1/shopping-lists/:id`: the list's name, the quantities of any of
+ * its lines, or both, written together or not at all — the one *Save changes* of the
+ * storefront list page. Every body {@link renameShoppingListRequestSchema} accepts is accepted
+ * here. A line appears once, at most {@link REQUEST_LINE_ITEMS_MAX} of them; a line that is
+ * not on the list refuses the whole write.
+ */
+export const updateShoppingListRequestSchema = z
+  .object({
+    name: z.string().min(1).max(160).optional(),
+    items: z
+      .array(
+        z
+          .object({
+            id: uuidSchema,
+            quantity: lineQuantitySchema,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(REQUEST_LINE_ITEMS_MAX)
+      .refine((items) => new Set(items.map((item) => item.id)).size === items.length, {
+        message: 'A line may be listed once.',
+      })
+      .optional(),
+  })
+  .strict()
+  .refine((body) => body.name !== undefined || body.items !== undefined, {
+    message: 'Send a name, lines, or both.',
+  });
+export type UpdateShoppingListRequest = z.infer<typeof updateShoppingListRequestSchema>;
 
 export const addShoppingListItemRequestSchema = z.object({
   productId: uuidSchema,

@@ -3,6 +3,7 @@ import type {
   ConvertToRfqResponse,
   DefaultShoppingListSummary,
   ShoppingList,
+  UpdateShoppingListRequest,
 } from '@endora-commerce/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
 
@@ -54,15 +55,19 @@ export async function createShoppingList(
   return res.data!;
 }
 
-export async function renameShoppingList(
+/**
+ * Issue #1251 — the list page's one *Save changes*: the name, any edited line quantities,
+ * or both, written by the API together or not at all.
+ */
+export async function updateShoppingList(
   sessionCookie: string,
   id: string,
-  name: string,
+  patch: UpdateShoppingListRequest,
 ): Promise<ShoppingList> {
   const res = await apiMutate<ShoppingList>({
     method: 'PATCH',
     path: `/api/v1/shopping-lists/${id}`,
-    body: { name },
+    body: patch,
     sessionCookie,
   });
   return res.data!;
@@ -85,21 +90,6 @@ export async function addItemToShoppingList(
     method: 'POST',
     path: `/api/v1/shopping-lists/${id}/items`,
     body: payload,
-    sessionCookie,
-  });
-  return res.data!;
-}
-
-export async function updateShoppingListItem(
-  sessionCookie: string,
-  listId: string,
-  itemId: string,
-  patch: { quantity?: number; note?: string | null },
-): Promise<ShoppingList> {
-  const res = await apiMutate<ShoppingList>({
-    method: 'PATCH',
-    path: `/api/v1/shopping-lists/${listId}/items/${itemId}`,
-    body: patch,
     sessionCookie,
   });
   return res.data!;

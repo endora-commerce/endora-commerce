@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useLayoutEffect, useState, type ReactElement } from 'react';
+import { useLayoutEffect, useRef, useState, type ReactElement } from 'react';
 import type { AdminZoneContribution, AdminZoneProps } from '@endora-commerce/contracts';
 import {
   ApiError,
@@ -361,44 +361,70 @@ describe('host-owned sections (FR-006)', () => {
   });
 });
 
-describe('an edit made before the seed effect has run (#407)', () => {
-  /**
-   * The participant seeds the session from `loaded` in a passive effect. A loaded test runner (or
-   * a slow machine) lets the commit that first shows the control reach the operator before that
-   * effect runs, and an edit in that window used to be dropped: there was no entry yet to record
-   * it in. A layout effect runs in exactly that window, so it stands in for the operator here.
-   */
-  it('seeds the part and keeps the edit', async () => {
-    const loaded: PricesDraft = { amount: '1' };
+describe('an edit that lands before the session was seeded with the read', () => {
+  it('is kept and counted, not dropped (#1271)', async () => {
+    // The panel's read lands in state; the commit that renders its fields is followed by the
+    // effect that seeds the session. Under load React runs that effect a task later, and an
+    // operator's change can be dispatched in between. A layout effect of the same commit is that
+    // moment, deterministically: it runs before the commit's passive effects.
+    const LOADED: PricesDraft = { amount: '10' };
     const handlers = defaultHandlers();
-    let observed: ReturnType<typeof useSaveSession> | null = null;
-    function Early(): ReactElement {
-      const session = useSaveSession();
-      observed = session;
+    function LateSection(): ReactElement {
+      const [loaded, setLoaded] = useState<PricesDraft | null>(null);
       const participant = useSaveParticipant(
-        session.handle,
-        { key: 'early', label: 'Early', writable: true, loaded },
+        useSaveSession().handle,
+        { key: 'late', label: 'Late', writable: true, loaded },
         handlers,
       );
+      const edited = useRef(false);
       const { setDraft } = participant;
-      const [done, setDone] = useState(false);
       useLayoutEffect(() => {
-        if (done) return;
-        setDone(true);
-        setDraft({ amount: '2' });
-      }, [done, setDraft]);
-      return <input aria-label="Early" readOnly value={participant.draft?.amount ?? ''} />;
+        if (loaded === null || edited.current) return;
+        edited.current = true;
+        setDraft({ amount: '12' });
+      }, [loaded, setDraft]);
+      return (
+        <div>
+          <button type="button" onClick={() => setLoaded(LOADED)}>
+            read
+          </button>
+          <output data-testid="late">{participant.draft?.amount ?? ''}</output>
+        </div>
+      );
+    }
+    function LateHost(): ReactElement {
+      const session = useSaveSession();
+      return (
+        <div>
+          <output data-testid="count">{session.dirtyCount}</output>
+          <LateSection />
+        </div>
+      );
     }
     render(
       wrap(
-        <SaveSessionProvider resetKey="early" hostModule="catalog">
-          <Early />
+        <SaveSessionProvider resetKey="late" hostModule="catalog">
+          <LateHost />
         </SaveSessionProvider>,
       ),
     );
-    await waitFor(() => expect((screen.getByLabelText('Early') as HTMLInputElement).value).toBe('2'));
-    expect(observed!.dirtyCount).toBe(1);
-    expect(observed!.dirtyParticipants().map((part) => part.id)).toEqual(['catalog:early']);
+    fireEvent.click(await screen.findByRole('button', { name: 'read' }));
+
+    expect(screen.getByTestId('late').textContent).toBe('12');
+    expect(count()).toBe('1');
+  });
+
+  it('an edit after a Save is judged against the saved state, not the older read', async () => {
+    renderHost();
+    fireEvent.change(await amountInput(), { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'save' }));
+    await waitFor(() => expect(screen.getByTestId('outcome').textContent).toBe('saved'));
+
+    // The panel still holds its first read (`10`); the session's baseline is now `12`.
+    fireEvent.change(await amountInput(), { target: { value: '13' } });
+    expect(count()).toBe('1');
+    fireEvent.change(await amountInput(), { target: { value: '12' } });
+    expect(count()).toBe('0');
   });
 });
 

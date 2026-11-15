@@ -3,7 +3,8 @@ import { RuleScoped } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
 /**
- * What one write changed among a Project's values, with the values (task T145,
+ * What one write changed among a Project's values — or its Stages', its task
+ * definitions' and its attachments' (#1226) — with the values (task T145,
  * issue #470): the platform audit log names the changed fields only (T144 F4),
  * the Project's history shows them from here. Written in the Command of the
  * change; the audit entry carries this row's id as `valueChangeId`. Read only
@@ -38,4 +39,13 @@ export interface ProjectValueState {
   valueAmount?: string | null;
   valueCurrency?: string | null;
   customFieldValues?: Record<string, unknown>;
+  /**
+   * Issue #1226 — the values of the Project's children, which the audit log
+   * names by id or position only: a Stage's name (`projects.project.stage_*`),
+   * a Stage's task-definition titles by position (`stage_tasks_set`), an
+   * attachment's file name (`attachment_add`).
+   */
+  name?: string | null;
+  taskTitles?: string[];
+  fileName?: string | null;
 }

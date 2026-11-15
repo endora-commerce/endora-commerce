@@ -156,10 +156,11 @@ export class MoveService {
         };
         return {
           result: entry.id,
-          before: { stageId: fromStage.id, stageName: fromStage.name, version: body.version },
+          // The Stages by id: a Stage's name is a value (#1226). The Stage
+          // history (`project_stage_entries`) keeps the names it was moved by.
+          before: { stageId: fromStage.id, version: body.version },
           after: {
             stageId: toStage.id,
-            stageName: toStage.name,
             startedOn: toStage.startedOn ?? null,
             deadlineOn: toStage.deadlineOn ?? null,
             version: project.version,
@@ -249,7 +250,6 @@ export class MoveService {
           after: {
             state: project.state,
             stageId: current.id,
-            stageName: current.name,
             ...(lossReasonCode ? { lossReasonCode, lossCommentLength: project.lossComment?.length ?? 0 } : {}),
             version: project.version,
           },
@@ -307,7 +307,7 @@ export class MoveService {
         return {
           result: null,
           before,
-          after: { state: 'open', stageId: stage.id, stageName: stage.name, version: project.version },
+          after: { state: 'open', stageId: stage.id, version: project.version },
         };
       },
       event: () => {

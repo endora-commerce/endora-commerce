@@ -20,7 +20,7 @@ the `(customer, organization)` pair on the session.
 | `GET /api/v1/shopping-lists` | List the buyer's lists with their items |
 | `POST /api/v1/shopping-lists` | Create a new list |
 | `GET /api/v1/shopping-lists/:id` | One list with its items |
-| `PATCH /api/v1/shopping-lists/:id` | Rename |
+| `PATCH /api/v1/shopping-lists/:id` | Rename, set line quantities, or both, in one write |
 | `DELETE /api/v1/shopping-lists/:id` | Delete (cascades to items) |
 | `POST /api/v1/shopping-lists/:id/items` | Add an item |
 | `PATCH /api/v1/shopping-lists/:id/items/:itemId` | Update quantity / note |
@@ -30,6 +30,18 @@ the `(customer, organization)` pair on the session.
 
 The two converters accept an optional `itemIds: string[]` body. Empty or
 missing array means "convert every item on the list".
+
+`PATCH /api/v1/shopping-lists/:id` takes `{ name?, items?: [{ id, quantity }] }`
+— at least one of the two, each line at most once. It writes all of it or
+nothing: a line that is not on the list refuses the whole request with
+`404 NOT_FOUND`, and the list is left as it was. A body with only `name`
+renames, as before.
+
+On the storefront a list's page has one *Save changes* for the list's name
+and every line quantity. The conversion buttons submit the same form: what
+the buyer typed is saved first and then converted, so a conversion uses the
+quantities on screen, not the ones saved before. *Remove* and *Clear list*
+stay immediate actions.
 
 The default list has its own three routes: `GET /api/v1/shopping-lists/default`
 (created on first read when missing), `POST /api/v1/shopping-lists/default/items`

@@ -25,18 +25,6 @@ function customFieldIssues(failure: unknown): Record<string, string> | null {
 }
 
 /**
- * The bag to send: a value that was stored and is now empty is sent as `null`
- * — "clear this" — because a key the request does not name keeps its value.
- */
-function withCleared(stored: Record<string, unknown>, edited: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...edited };
-  for (const key of new Set([...Object.keys(stored), ...Object.keys(edited)])) {
-    if (out[key] === undefined) out[key] = null;
-  }
-  return out;
-}
-
-/**
  * A Task's custom fields (`specs/165-task-management/` FR-007, research R-8):
  * the kit's `CustomFieldValuesPanel` for the `task` host, saved through the
  * Task's own `PATCH`, so the change is the Task's audited
@@ -57,7 +45,8 @@ export function TaskCustomFields(props: {
   const save = async (values: Record<string, unknown>): Promise<void> => {
     setFieldErrors({});
     try {
-      onChange(await tasksApi.updateTask(task.id, { customFieldValues: withCleared(task.customFieldValues, values) }));
+      // The panel's bag as it is: the changed keys only, a cleared one as `null` (issue #1007).
+      onChange(await tasksApi.updateTask(task.id, { customFieldValues: values }));
     } catch (failure) {
       setFieldErrors(customFieldIssues(failure) ?? {});
       // The panel shows the refusal's sentence; the fields show which.

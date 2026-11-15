@@ -76,6 +76,13 @@ przeglądarce:
   chyba że ustawiono `BACKEND_ROLE=api` — wtedy tylko w procesie `worker`) przekazuje każde zdarzenie
   do GA4 przez **Measurement Protocol** i ponawia próbę po błędzie. Każde zdarzenie ma stały klucz
   idempotencji `eventId`.
+- **Zakończone zadania znikają z Redis w ciągu godzin lub dni.** Zadanie wysyłki zawiera `client_id`
+  odwiedzającego i parametry zdarzenia, więc kolejka przechowuje wysłane zadanie najwyżej godzinę, a
+  zadanie, któremu zabrakło prób, najwyżej trzy dni — wystarczająco długo, by zdiagnozować
+  niedziałający adres docelowy. Poza tym przechowuje nie więcej niż 500 ostatnich wysłanych i 5 000
+  ostatnich nieudanych zadań. Cogodzinne sprawdzenie w procesie workera usuwa przeterminowane
+  zadania nawet wtedy, gdy nie przychodzi żadne nowe zdarzenie. Działa tylko wtedy, gdy moduł jest
+  włączony, a pierwszy przebieg po ponownym włączeniu usuwa to, co w tym czasie się przeterminowało.
 - **Nieskonfigurowany kanał nie dodaje żadnych zadań.** Dla kanału, w którym wysyłka po stronie
   serwera nie jest skonfigurowana — główny przełącznik albo `server_side_enabled` jest wyłączony
   albo Measurement ID jest pusty — trasa nie dodaje żadnego zadania i odpowiada `202` z

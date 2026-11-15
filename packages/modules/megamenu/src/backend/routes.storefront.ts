@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { ERROR_CODES, type ResolvedMegamenu } from '@endora-commerce/contracts';
+import { ERROR_CODES, requestScopeLanguage, type ResolvedMegamenu } from '@endora-commerce/contracts';
 import { HttpError, productAudienceOf } from '@endora-commerce/platform/http';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import { filterForViewer, needsCustomerGroup } from './services/audience.js';
@@ -15,7 +15,11 @@ export async function registerMegamenuStorefrontRoutes(
 ): Promise<void> {
   app.get('/api/v1/megamenu/by-channel', async (request, reply) => {
     const query = (request.query ?? {}) as Record<string, string | undefined>;
-    const language = query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0];
+    // Issue #1011 — without `?language=`, the channel language `Accept-Language` asks for:
+    // q-weighted, matched exactly then by base language (`pl` is the channel's `pl-PL`),
+    // else the channel's default (as the catalogue resolves it since #397).
+    const header = readHeader(request.headers['accept-language']);
+    const language = query['language'] ?? (header ? requestScopeLanguage(getResolvedChannel(request), header) : undefined);
 
     const resolved = await deps.storefrontResolver.resolveByChannelAndLanguage({
       resolvedChannel: resolvedChannel(request),

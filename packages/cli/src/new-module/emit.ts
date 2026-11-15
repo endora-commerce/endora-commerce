@@ -947,6 +947,8 @@ export interface ${pascal}JobResult {
 
 export const ${segmentOf(spec.id).toUpperCase()}_QUEUE_NAME = ${quote(queue)};
 
+const DAY_SECONDS = 24 * 60 * 60;
+
 export function create${pascal}Queue(
   redis: Redis,
   overrides?: Partial<QueueOptions>,
@@ -956,8 +958,15 @@ export function create${pascal}Queue(
     defaultJobOptions: {
       attempts: 5,
       backoff: { type: 'exponential', delay: 1_000 },
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 1_000 },
+      // BullMQ keeps a copy of every finished job, with its data, in Redis. A
+      // finished job is bounded by age as well as by count, so a job's data
+      // does not outlive its use: a day once completed, a week once failed,
+      // long enough to diagnose it. BullMQ applies \`age\` only when another job
+      // finishes, so a quiet queue keeps its last jobs; where they carry
+      // personal data, a scheduled \`queue.clean(grace, 0, 'completed' | 'failed')\`
+      // removes them on a clock of its own.
+      removeOnComplete: { age: DAY_SECONDS, count: 100 },
+      removeOnFail: { age: 7 * DAY_SECONDS, count: 1_000 },
     },
     ...overrides,
   };

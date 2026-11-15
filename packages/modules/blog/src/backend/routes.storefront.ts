@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { ERROR_CODES, blogPostsListQuerySchema } from '@endora-commerce/contracts';
+import { ERROR_CODES, blogPostsListQuerySchema, requestScopeLanguage } from '@endora-commerce/contracts';
 import { z } from 'zod';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
@@ -112,9 +112,13 @@ function readContext(request: FastifyRequest): {
   language: string | undefined;
 } {
   const headers = request.headers;
+  // Issue #1011 — `x-blog-language` names the language outright and wins; else the
+  // channel language `Accept-Language` asks for: q-weighted, matched exactly then by
+  // base language, else the channel's default (as the catalogue resolves it since #397).
+  const acceptLanguage = readHeader(headers['accept-language']);
   const language =
     readHeader(headers['x-blog-language']) ??
-    readHeader(headers['accept-language'])?.split(',')[0]?.trim();
+    (acceptLanguage ? requestScopeLanguage(getResolvedChannel(request), acceptLanguage) : undefined);
   return { language };
 }
 

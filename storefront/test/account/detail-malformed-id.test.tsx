@@ -90,8 +90,7 @@ vi.mock('../../lib/api/shopping-lists', () => ({
   convertShoppingListToCart: async () => ({ added: 0, skipped: [] }),
   convertShoppingListToRfq: async () => ({ rfqId: 'r', added: 0, skipped: [] }),
   removeShoppingListItem: async () => undefined,
-  renameShoppingList: async () => undefined,
-  updateShoppingListItem: async () => undefined,
+  updateShoppingList: async () => undefined,
 }));
 vi.mock('../../lib/api/cart', () => ({
   // The real client already answers `null` for a 404 and rethrows the rest.

@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
+import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type { CmsBlockSeedPort } from '@endora-commerce/contracts';
 import type {
@@ -19,7 +20,9 @@ import {
 import {
   createGaDeliveryQueue,
   createGaDeliveryWorker,
+  type GaDeliveryJobData,
 } from './services/ss-delivery-queue.js';
+import { startGaDeliverySweep } from './services/ss-delivery-sweep.js';
 import { makeEnqueuer, makeProcessor } from './services/ss-delivery.service.js';
 import { Ga4MpClient } from './services/ga4-mp-client.js';
 import { ensureCookieConsentBlock } from './services/cookie-consent-block-seeder.js';
@@ -65,6 +68,8 @@ interface GaServices {
   readonly configService: GaConfigService;
   readonly invalidateConfig: () => void;
   readonly enqueueCollect: ReturnType<typeof makeEnqueuer> | undefined;
+  /** The producer's queue, for the finished-job sweep (issue #1248); absent without Redis. */
+  readonly deliveryQueue: Queue<GaDeliveryJobData> | undefined;
 }
 
 export interface GoogleAnalyticsCradle {
@@ -118,6 +123,7 @@ export function registerModule(ctx: ModuleContext): void {
             customEvents,
             configService,
             invalidateConfig,
+            deliveryQueue,
             enqueueCollect: deliveryQueue
               ? makeEnqueuer(deliveryQueue, (salesChannelId) =>
                   configService.isServerSideOn(salesChannelId),
@@ -171,6 +177,22 @@ export function registerModule(ctx: ModuleContext): void {
         ),
         { logger: app.log },
       );
+    }
+
+    // Issue #1248 — the hourly sweep of finished delivery jobs, which carry
+    // the visitor's data, attached and gated exactly as the delivery consumer:
+    // through `ctx.worker`, so no tick runs while this module is off, and only
+    // where this process runs the consumer.
+    if (process.env['BACKEND_ROLE'] !== 'api' && moduleQueueRedis && googleAnalyticsServices.deliveryQueue) {
+      await startGaDeliverySweep({
+        redis: moduleQueueRedis,
+        deliveryQueue: googleAnalyticsServices.deliveryQueue,
+        log: ctx.log,
+        attach: (worker) => ctx.worker(worker, { logger: app.log }),
+        onClose: (close) => {
+          app.addHook('onClose', close);
+        },
+      });
     }
 
     await registerGoogleAnalyticsStorefrontRoutes(app, {

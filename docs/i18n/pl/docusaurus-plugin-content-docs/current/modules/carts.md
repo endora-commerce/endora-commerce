@@ -30,6 +30,9 @@ Koszyk należy do kanału sprzedaży — sklepu — w którym jest używany:
 - Łączenie następuje w chwili utworzenia sesji klienta, więc logowanie dokończone weryfikacją
   dwuetapową również łączy koszyk — po przyjęciu kodu albo po zakończeniu wymaganej konfiguracji
   weryfikacji dwuetapowej.
+- Logowanie przez Google lub Microsoft również łączy koszyk — w sklepie, w którym rozpoczęto
+  logowanie — i pokazuje ten sam komunikat. Gdy konto wymaga także weryfikacji dwuetapowej, koszyk
+  jest łączony po przyjęciu kodu.
 - Złożenie zamówienia korzysta z koszyka kanału zamówienia. Koszyk innego kanału jest odrzucany z
   `422 ORDER_SALES_CHANNEL_MISMATCH` — *„Twój koszyk należy do innego sklepu. Otwórz koszyk w tym
   sklepie i złóż zamówienie ponownie.”* — zanim cokolwiek zostanie zarezerwowane lub zapisane;

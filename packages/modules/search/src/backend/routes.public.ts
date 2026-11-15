@@ -5,6 +5,7 @@ import {
   listingCurrencyQuerySchema,
   resolveListingCurrency,
   RecordPhraseRequestSchema,
+  requestScopeLanguage,
   SearchSuggestQuerySchema,
   SEARCH_PHRASE_MAX_LENGTH,
   SEARCH_SUGGEST_LIMIT_MAX,
@@ -306,9 +307,10 @@ function readContext(request: FastifyRequest): {
   const acceptLanguage = acceptLanguageHeaderSchema.parse(
     request.headers['accept-language'],
   );
-  const preferredLanguage = acceptLanguage
-    ? acceptLanguage.split(',')[0]?.trim()
-    : undefined;
+  // Issue #1011 — the request language is the channel's language the header asks
+  // for: q-weighted, matched exactly then by base language, else the default
+  // (as the catalogue resolves it since #397).
+  const preferredLanguage = acceptLanguage ? requestScopeLanguage(ch, acceptLanguage) : undefined;
   return {
     resolvedChannel: {
       id: ch.id,

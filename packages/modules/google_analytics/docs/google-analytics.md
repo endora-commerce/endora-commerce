@@ -80,6 +80,14 @@ and no browser-side Google library:
   (co-located in the API process unless `BACKEND_ROLE=api`, then only in the
   `worker` process) forwards each event to GA4 via the **Measurement Protocol**,
   retrying on failure. Each event carries a stable `eventId` idempotency key.
+- **Finished jobs leave Redis within hours or days.** A delivery job carries the
+  visitor's `client_id` and the event's parameters, so the queue keeps a
+  delivered job for at most one hour and a job that ran out of retries for at
+  most three days, long enough to diagnose a failing destination. Beyond that it
+  keeps no more than the latest 500 delivered and 5 000 failed jobs. An hourly
+  check in the worker process removes the expired jobs even when no new event
+  arrives. It runs only while this module is on, and the first run after the
+  module is switched back on removes what expired in the meantime.
 - **An unconfigured channel enqueues nothing.** For a channel where server-side
   delivery is not configured — the master switch or `server_side_enabled` is
   off, or the Measurement ID is blank — the route adds no job and answers `202`

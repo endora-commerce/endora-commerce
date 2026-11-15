@@ -32,12 +32,14 @@ import { CartConvertButtons } from '../../../components/CartConvertButtons';
 import { CartDroppedLinesBanner } from '../../../components/CartDroppedLinesBanner';
 import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { CartPrimaryCta } from '../../../components/CartPrimaryCta';
+import { CartQuantityAutosave, type CartQuantitySaveResult } from '../../../components/CartQuantityAutosave';
 import { getMe } from '../../../lib/api/account';
 import { commerceAbilities, memberSession } from '../../../lib/commerce-permissions';
 import { moduleActionPresence, withModulePresence } from '../../../lib/module-action-presence';
 import { getProductDisplayMode, PRICING_UNAVAILABLE } from '../../../lib/api/pricing';
 import { lineAmountHalfUp, type DisplayMode } from '@endora-commerce/contracts';
 import type { Metadata } from 'next';
+import { revalidatePath } from 'next/cache';
 import {
   cartBlocksCheckout,
   cartLineDisplayName,
@@ -310,112 +312,116 @@ export default async function CartPage({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-[1fr_380px] items-start gap-8 max-[960px]:grid-cols-1">
-        <div>
-          <div className="overflow-hidden rounded-md border border-line bg-surface">
-            <div className="flex items-center justify-between border-b border-line px-[22px] py-[18px]">
-              <h2 className="m-0 text-[18px] font-semibold text-fg">{strings.cardHeading}</h2>
-              <span className="font-mono text-[12px] text-muted">
-                {strings.itemCount(cart.items.length)}
-              </span>
-            </div>
+      {/* Issue #1252 — a typed quantity saves itself, and the page's other actions wait for it. */}
+      <CartQuantityAutosave strings={strings.autosave}>
+        <div className="grid grid-cols-[1fr_380px] items-start gap-8 max-[960px]:grid-cols-1">
+          <div>
+            <div className="overflow-hidden rounded-md border border-line bg-surface">
+              <div className="flex items-center justify-between border-b border-line px-[22px] py-[18px]">
+                <h2 className="m-0 text-[18px] font-semibold text-fg">{strings.cardHeading}</h2>
+                <span className="font-mono text-[12px] text-muted">
+                  {strings.itemCount(cart.items.length)}
+                </span>
+              </div>
 
-            {cart.items.map((it) => (
-              <CartLine
-                key={it.id}
-                line={toViewModel(it, locale)}
-                updateAction={updateAction}
-                removeAction={removeAction}
-                saveToListAction={saveToListAction}
-                locale={locale}
-                displayMode={displayMode}
-                editError={cartLineEditError(params, it, locale)}
-                editable={abilities.editCart}
-                canSaveToList={abilities.editShoppingLists}
-                strings={strings.line}
-              />
-            ))}
-
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-[22px] py-[18px]">
-              <LocalizedLink href="/catalog" className="btn btn--ghost">
-                ← {strings.continueShopping}
-              </LocalizedLink>
-              {abilities.requestQuote ? (
-                <CartConvertButtons
-                  disabled={cart.items.length === 0}
-                  disabledReason={null}
-                  convertToQrAction={convertToQrAction}
-                  strings={strings.convertButtons}
+              {cart.items.map((it) => (
+                <CartLine
+                  key={it.id}
+                  line={toViewModel(it, locale)}
+                  updateAction={updateAction}
+                  saveQuantityAction={saveQuantityAction.bind(null, it.id, it.packagingUnitName ?? null)}
+                  removeAction={removeAction}
+                  saveToListAction={saveToListAction}
+                  locale={locale}
+                  displayMode={displayMode}
+                  editError={cartLineEditError(params, it, locale)}
+                  editable={abilities.editCart}
+                  canSaveToList={abilities.editShoppingLists}
+                  strings={strings.line}
                 />
-              ) : null}
+              ))}
+
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-[22px] py-[18px]">
+                <LocalizedLink href="/catalog" className="btn btn--ghost">
+                  ← {strings.continueShopping}
+                </LocalizedLink>
+                {abilities.requestQuote ? (
+                  <CartConvertButtons
+                    disabled={cart.items.length === 0}
+                    disabledReason={null}
+                    convertToQrAction={convertToQrAction}
+                    strings={strings.convertButtons}
+                  />
+                ) : null}
+              </div>
             </div>
+
+            <UpsellStrip upsells={upsells} locale={locale} strings={strings.upsells} />
           </div>
 
-          <UpsellStrip upsells={upsells} locale={locale} strings={strings.upsells} />
+          <aside className="sticky top-[96px] rounded-md border border-line bg-surface p-[20px]">
+            <h3 className="m-0 mb-[14px] text-[14px] font-semibold text-fg">{strings.summary.heading}</h3>
+
+            <CartTotals
+              subtotal={cart.subtotal}
+              discount={cart.discount ?? null}
+              grandTotal={cart.grandTotal ?? cart.subtotal}
+              vat={cart.vat ?? null}
+              itemCount={cart.items.length}
+              locale={locale}
+              displayMode={displayMode}
+              strings={strings.totals}
+            />
+
+            {abilities.editCart ? (
+              <CartCouponInput
+                appliedCode={cart.discount?.code ?? null}
+                droppedOnRead={cart.couponDroppedThisRead ?? null}
+                applyError={
+                  params.couponError
+                    ? {
+                        reason: params.couponError as
+                          | 'invalid_code'
+                          | 'expired'
+                          | 'below_min_spend'
+                          | 'wrong_channel'
+                          | 'wrong_customer_group'
+                          | 'wrong_organization'
+                          | 'coupon_format_invalid',
+                        // Issue #791 — read only when both are in shape; otherwise the bare refusal.
+                        ...(couponShortfall ? { shortfall: couponShortfall } : {}),
+                      }
+                    : null
+                }
+                applyAction={applyCouponAction}
+                clearAction={clearCouponAction}
+                strings={strings.coupon}
+              />
+            ) : null}
+
+            <div className="mt-4">
+              <CartPrimaryCta
+                cta={primaryCta}
+                authenticated={me !== null}
+                canTransact={canTransact}
+                moderationMessage={me?.organization?.moderationMessage ?? null}
+                submitAction={submitForApprovalAction}
+                linesBlockCheckout={cartBlocksCheckout(cart)}
+                linesBlockedNote={tForLocale(locale)('cart.checkoutBlocked')}
+                approvalBlockedNote={tForLocale(locale)('cart.approvalBlocked')}
+                strings={strings.cta}
+              />
+            </div>
+
+            <div className="mt-[14px] flex items-start gap-2 border-t border-line pt-[14px] text-[12px] text-muted [&_svg]:mt-[2px] [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0 [&_svg]:text-ok">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span>{strings.taxesNote}</span>
+            </div>
+          </aside>
         </div>
-
-        <aside className="sticky top-[96px] rounded-md border border-line bg-surface p-[20px]">
-          <h3 className="m-0 mb-[14px] text-[14px] font-semibold text-fg">{strings.summary.heading}</h3>
-
-          <CartTotals
-            subtotal={cart.subtotal}
-            discount={cart.discount ?? null}
-            grandTotal={cart.grandTotal ?? cart.subtotal}
-            vat={cart.vat ?? null}
-            itemCount={cart.items.length}
-            locale={locale}
-            displayMode={displayMode}
-            strings={strings.totals}
-          />
-
-          {abilities.editCart ? (
-            <CartCouponInput
-              appliedCode={cart.discount?.code ?? null}
-              droppedOnRead={cart.couponDroppedThisRead ?? null}
-              applyError={
-                params.couponError
-                  ? {
-                      reason: params.couponError as
-                        | 'invalid_code'
-                        | 'expired'
-                        | 'below_min_spend'
-                        | 'wrong_channel'
-                        | 'wrong_customer_group'
-                        | 'wrong_organization'
-                        | 'coupon_format_invalid',
-                      // Issue #791 — read only when both are in shape; otherwise the bare refusal.
-                      ...(couponShortfall ? { shortfall: couponShortfall } : {}),
-                    }
-                  : null
-              }
-              applyAction={applyCouponAction}
-              clearAction={clearCouponAction}
-              strings={strings.coupon}
-            />
-          ) : null}
-
-          <div className="mt-4">
-            <CartPrimaryCta
-              cta={primaryCta}
-              authenticated={me !== null}
-              canTransact={canTransact}
-              moderationMessage={me?.organization?.moderationMessage ?? null}
-              submitAction={submitForApprovalAction}
-              linesBlockCheckout={cartBlocksCheckout(cart)}
-              linesBlockedNote={tForLocale(locale)('cart.checkoutBlocked')}
-              approvalBlockedNote={tForLocale(locale)('cart.approvalBlocked')}
-              strings={strings.cta}
-            />
-          </div>
-
-          <div className="mt-[14px] flex items-start gap-2 border-t border-line pt-[14px] text-[12px] text-muted [&_svg]:mt-[2px] [&_svg]:h-[14px] [&_svg]:w-[14px] [&_svg]:shrink-0 [&_svg]:text-ok">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-            <span>{strings.taxesNote}</span>
-          </div>
-        </aside>
-      </div>
+      </CartQuantityAutosave>
     </div>
   );
 }
@@ -514,6 +520,45 @@ async function updateAction(formData: FormData): Promise<void> {
     return await localeRedirect(cartLineEditErrorHref(itemId, code, typedValue, minimum));
   }
   return await localeRedirect('/cart');
+}
+
+/**
+ * Issue #1252 — the JS path of a line's quantity edit: the same validation, call and error
+ * mapping as {@link updateAction}, answered rather than redirected, so the page keeps the
+ * buyer's focus. Revalidating makes the action's answer carry the re-read page — totals, the
+ * header's count — which the client applies in place. The refusal is worded here, in the request's
+ * language, exactly as the redirect's `?error=` would have worded it beside the line.
+ * `packagingUnitName` is bound by the page; it only words a minimum refusal.
+ */
+async function saveQuantityAction(
+  itemId: string,
+  packagingUnitName: string | null,
+  typed: string,
+): Promise<CartQuantitySaveResult> {
+  'use server';
+  const { ctx, locale } = await getServerContext();
+  const refused = (code: string, minimum: number | null = null): CartQuantitySaveResult => {
+    const error = cartLineEditError(
+      { errorItem: itemId, error: code, ...(minimum !== null ? { min: String(minimum) } : {}) },
+      { id: itemId, packagingUnitName },
+      locale,
+    );
+    return { ok: false, message: error?.message ?? tForLocale(locale)('cart.line.updateFailed') };
+  };
+  const edit = parseCartQuantityEdit({ quantity: typeof typed === 'string' ? typed : null });
+  if (edit.kind === 'invalid') return refused('QUANTITY_INVALID');
+  try {
+    // `quantity: 0` removes the line (FR-007, contract §2), whatever its minimum.
+    const quantity = edit.kind === 'remove' ? 0 : edit.quantity;
+    const result = await updateCartItem(await readJar(), itemId, quantity, ctx);
+    if (result.newAnonCookie) await setAnonCartCookie(result.newAnonCookie);
+  } catch (err) {
+    const code = CART_ERRORS.failureCode(err, 'UPDATE_FAILED');
+    const minimum = err instanceof StorefrontApiError ? refusalMinimum(err.details) : null;
+    return refused(code, minimum);
+  }
+  revalidatePath('/cart');
+  return { ok: true };
 }
 
 async function removeAction(formData: FormData): Promise<void> {
@@ -639,6 +684,7 @@ function STRINGS(locale: string): {
   breadcrumbs: { label: string; home: string; cart: string };
   summary: { heading: string };
   line: Parameters<typeof CartLine>[0]['strings'];
+  autosave: Parameters<typeof CartQuantityAutosave>[0]['strings'];
   totals: Parameters<typeof CartTotals>[0]['strings'];
   coupon: Parameters<typeof CartCouponInput>[0]['strings'];
   convertButtons: Parameters<typeof CartConvertButtons>[0]['strings'];
@@ -689,6 +735,11 @@ function STRINGS(locale: string): {
         not_purchasable: t('commerce.cart.line.unavailable.notPurchasable'),
         no_price_in_customer_list: t('commerce.cart.line.unavailable.noPriceInCustomerList'),
       },
+    },
+    autosave: {
+      saving: t('commerce.cart.line.saving'),
+      saved: t('commerce.cart.line.saved'),
+      failed: t('cart.line.updateFailed'),
     },
     totals: {
       subtotalLabel: (n: number) =>

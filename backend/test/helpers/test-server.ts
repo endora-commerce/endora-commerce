@@ -2555,6 +2555,7 @@ export async function setupBackendServer(
           organizationId: string | null;
           anonymousCartToken?: string;
           anonymousCompareToken?: string;
+          salesChannelId?: string;
         }) => {
           let result: Record<string, unknown> = {};
           if (loginCtx.anonymousCartToken && loginCtx.organizationId) {
@@ -2563,8 +2564,9 @@ export async function setupBackendServer(
             ).cartService.mergeAnonymousIntoCustomer(loginCtx.anonymousCartToken, {
               customerAccountId: loginCtx.customerAccountId,
               organizationId: loginCtx.organizationId,
-              // Mirrors composition.ts: the sign-in request's channel.
-              salesChannelId: getResolvedChannel().id,
+              // Mirrors composition.ts: the sign-in request's channel, or the
+              // one a federated callback names (issue #1188).
+              salesChannelId: loginCtx.salesChannelId ?? getResolvedChannel().id,
             });
             result = { cartMerge };
           }

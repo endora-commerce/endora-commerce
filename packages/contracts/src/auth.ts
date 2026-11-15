@@ -39,6 +39,16 @@ export const ADMIN_SESSION_COOKIE_NAME = 'b2b_admin_session';
 export const MFA_CHALLENGE_COOKIE_NAME = 'b2b_mfa_challenge';
 
 /**
+ * The storefront's one-render "your basket was carried over" notice: `adopted`
+ * or `merged`, read and cleared by the next page render. Two writers, one
+ * reader, as {@link MFA_CHALLENGE_COOKIE_NAME}: the storefront's sign-in
+ * actions set it, and so does `mfa`'s federated callback, which signs the
+ * customer in with no storefront action in between (issue #1188). `httpOnly`,
+ * path `/`, thirty seconds.
+ */
+export const CART_MERGE_FLASH_COOKIE_NAME = 'b2b_cart_merge_flash';
+
+/**
  * The cookie a completed administrator sign-in leaves on the device, so that
  * the device is recognised as one the account has been used from.
  *
