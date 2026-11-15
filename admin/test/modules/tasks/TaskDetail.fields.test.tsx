@@ -204,6 +204,20 @@ describe('TaskDetail — the fields of a full work item (US1)', () => {
     );
   });
 
+  it('sends only the field the operator changed — never a null for a stored value it did not touch (issue #1007)', async () => {
+    // `erp_ref` has no definition the panel renders, so the panel never offers it: the write must
+    // leave it to the server's merge rather than send it cleared.
+    current = { ...current, customFieldValues: { region: 'North', erp_ref: 'ERP-7' } };
+    patchSpy.mockResolvedValue({ data: { ...current, customFieldValues: { region: 'South', erp_ref: 'ERP-7' } } });
+    await renderPage();
+    const field = await screen.findByLabelText(/Region/);
+    await userEvent.clear(field);
+    await userEvent.type(field, 'South');
+    await userEvent.click(screen.getByRole('button', { name: core('customFields.save') }));
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect(patchSpy.mock.calls[0]).toEqual([TASK_PATH, { customFieldValues: { region: 'South' } }]);
+  });
+
   it('lists the attachments with name, size and uploader, and offers the upload to a writer', async () => {
     await renderPage();
     const section = screen.getByRole('region', { name: en('attachments.title') });

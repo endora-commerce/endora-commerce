@@ -62,10 +62,16 @@ const STORED = { loyalty_tier: 'gold', internal_note: 'kept' };
 
 let outcome: SaveOutcome | null = null;
 
-function Host({ save }: { save: (values: Record<string, unknown>) => Promise<void> }): ReactElement {
+function Host({
+  save,
+  stored = STORED,
+}: {
+  save: (values: Record<string, unknown>) => Promise<void>;
+  stored?: Record<string, unknown>;
+}): ReactElement {
   const session = useSaveSession();
   // The stored bag is the host's state: stable between renders, as `loaded` requires.
-  const [values] = useState<Record<string, unknown>>(STORED);
+  const [values] = useState<Record<string, unknown>>(stored);
   return (
     <div>
       <output data-testid="count">{session.dirtyCount}</output>
@@ -139,6 +145,26 @@ describe('CustomFieldValuesPanel with a save session', () => {
     expect(save).toHaveBeenCalledWith({ loyalty_tier: 'platinum' });
     expect(outcome?.parts[0]?.label).toBe(CORE_EN['customFields.title']);
     expect(screen.getByTestId('count').textContent).toBe('0');
+  });
+
+  it('writes only the keys the operator changed, never an unchanged one (issue #1007)', async () => {
+    getSpy.mockResolvedValue({
+      data: [
+        definition(),
+        definition({ id: '00000000-0000-4000-8000-00000000d003', key: 'region', label: { en: 'Region' }, labelDefault: 'Region' }),
+      ],
+    });
+    const save = vi.fn(async () => undefined);
+    render(wrap(<Host save={save} stored={{ loyalty_tier: 'gold', region: 'north' }} />));
+    await screen.findByLabelText('Region');
+    fireEvent.change(screen.getByLabelText('Loyalty tier'), { target: { value: 'platinum' } });
+    await waitFor(() => expect(screen.getByTestId('count').textContent).toBe('1'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'page save' }));
+
+    await waitFor(() => expect(outcome?.result).toBe('saved'));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith({ loyalty_tier: 'platinum' });
   });
 
   it('keeps the edit staged and shows the field refusal when the write is refused', async () => {

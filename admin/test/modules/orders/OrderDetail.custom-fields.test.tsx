@@ -87,9 +87,12 @@ const ORDER = {
   placedAt: '2026-05-22T12:00:00Z',
 };
 
-function renderDetail(entry = `/orders/${ORDER_ID}`): void {
+function renderDetail(
+  entry = `/orders/${ORDER_ID}`,
+  { order = ORDER, definitions = [DEFINITION] }: { order?: typeof ORDER; definitions?: unknown[] } = {},
+): void {
   getSpy.mockImplementation((path: string) => {
-    if (path === `/api/v1/admin/orders/${ORDER_ID}`) return Promise.resolve({ data: ORDER });
+    if (path === `/api/v1/admin/orders/${ORDER_ID}`) return Promise.resolve({ data: order });
     if (path === '/api/v1/admin/orders/statuses') {
       return Promise.resolve({
         data: {
@@ -99,7 +102,7 @@ function renderDetail(entry = `/orders/${ORDER_ID}`): void {
       });
     }
     if (path === '/api/v1/admin/custom-fields/definitions?entityType=order') {
-      return Promise.resolve({ data: [DEFINITION] });
+      return Promise.resolve({ data: definitions });
     }
     return Promise.resolve({ data: [] });
   });
@@ -154,6 +157,47 @@ describe('OrderDetail — custom fields, through the published panel', () => {
         getSpy.mock.calls.filter((call) => call[0] === `/api/v1/admin/orders/${ORDER_ID}`),
       ).toHaveLength(2),
     );
+  });
+});
+
+describe('OrderDetail — the custom-fields write names only the keys the operator changed (issue #1007)', () => {
+  /**
+   * The route merges per key under a row lock (issue #399), so a key the request
+   * leaves out keeps the value it holds when the write commits. A key the request
+   * carries is written as the request has it — so a panel that sent every key it
+   * loaded would write a stale value over one another writer changed since.
+   */
+  const SOURCE = {
+    ...DEFINITION,
+    id: '00000000-0000-4000-8000-00000000d003',
+    key: 'source',
+    label: { en: 'Source' },
+    labelDefault: 'Source',
+    sortOrder: 1,
+  };
+  const order = { ...ORDER, customFieldValues: { po_number: 'PO-1', source: 'web' } };
+
+  it('leaves an unchanged key out of the request', async () => {
+    renderDetail(undefined, { order, definitions: [DEFINITION, SOURCE] });
+
+    const input = await screen.findByLabelText('PO number');
+    expect(screen.getByLabelText('Source')).toHaveValue('web');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'PO-2');
+    await userEvent.click(screen.getByRole('button', { name: CORE_EN['customFields.save'] as string }));
+
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect(patchSpy.mock.calls[0]?.[1]).toStrictEqual({ po_number: 'PO-2' });
+  });
+
+  it('still sends a cleared key, as empty', async () => {
+    renderDetail(undefined, { order, definitions: [DEFINITION, SOURCE] });
+
+    await userEvent.clear(await screen.findByLabelText('Source'));
+    await userEvent.click(screen.getByRole('button', { name: CORE_EN['customFields.save'] as string }));
+
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect(patchSpy.mock.calls[0]?.[1]).toStrictEqual({ source: '' });
   });
 });
 

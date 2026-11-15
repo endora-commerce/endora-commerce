@@ -625,3 +625,97 @@ describe('CustomFieldValuesPanel — admin access (feature 175, FR-037, FR-038)'
     expect(container.textContent).toBe('');
   });
 });
+
+describe('CustomFieldValuesPanel — only the keys the operator changed leave the panel (issue #1007)', () => {
+  /**
+   * Every host's write merges per key: a key the request leaves out keeps the
+   * value it holds when the write commits. A key the request carries is written
+   * as the request has it — so a bag of every key the panel loaded would write a
+   * stale value over one another writer changed after the page was loaded. The
+   * panel hands on the `edit` keys whose value differs from what it loaded.
+   */
+  const tier = definition();
+  const region = definition({
+    id: '00000000-0000-4000-8000-00000000d007',
+    key: 'region',
+    label: { en: 'Region' },
+    labelDefault: 'Region',
+    sortOrder: 1,
+  });
+  const stored = { loyalty_tier: 'gold', region: 'north' };
+
+  it('hands `save` the changed key and not the unchanged one', async () => {
+    getSpy.mockResolvedValue({ data: [tier, region] });
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    renderWithI18n(<CustomFieldValuesPanel entityType="customer" values={stored} save={save} />, bundle);
+
+    const input = await screen.findByLabelText('Loyalty tier');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'silver');
+    await userEvent.click(screen.getByRole('button', { name: COPY.save }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]?.[0]).toStrictEqual({ loyalty_tier: 'silver' });
+  });
+
+  it('hands `save` a cleared key, and nothing for a key edited back to what was loaded', async () => {
+    getSpy.mockResolvedValue({ data: [tier, region] });
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    renderWithI18n(<CustomFieldValuesPanel entityType="customer" values={stored} save={save} />, bundle);
+
+    const input = await screen.findByLabelText('Loyalty tier');
+    await userEvent.type(input, 'x');
+    await userEvent.type(input, '{Backspace}');
+    await userEvent.clear(screen.getByLabelText('Region'));
+    await userEvent.click(screen.getByRole('button', { name: COPY.save }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save.mock.calls[0]?.[0]).toStrictEqual({ region: '' });
+  });
+
+  it('does not send a key again once a save has written it', async () => {
+    getSpy.mockResolvedValue({ data: [tier, region] });
+    const save = vi.fn().mockResolvedValue(undefined);
+
+    renderWithI18n(<CustomFieldValuesPanel entityType="customer" values={stored} save={save} />, bundle);
+
+    const input = await screen.findByLabelText('Loyalty tier');
+    await userEvent.type(input, '+');
+    await userEvent.click(screen.getByRole('button', { name: COPY.save }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    await userEvent.type(screen.getByLabelText('Region'), '-east');
+    await userEvent.click(screen.getByRole('button', { name: COPY.save }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save.mock.calls[0]?.[0]).toStrictEqual({ loyalty_tier: 'gold+' });
+    expect(save.mock.calls[1]?.[0]).toStrictEqual({ region: 'north-east' });
+  });
+
+  it('sends the key again after a refused save', async () => {
+    getSpy.mockResolvedValue({ data: [tier, region] });
+    const save = vi.fn().mockRejectedValueOnce(new Error('refused')).mockResolvedValue(undefined);
+
+    renderWithI18n(<CustomFieldValuesPanel entityType="customer" values={stored} save={save} />, bundle);
+
+    await userEvent.type(await screen.findByLabelText('Loyalty tier'), '+');
+    await userEvent.click(screen.getByRole('button', { name: COPY.save }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    await userEvent.click(screen.getByRole('button', { name: COPY.save }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save.mock.calls[1]?.[0]).toStrictEqual({ loyalty_tier: 'gold+' });
+  });
+
+  it('tells an embedding host the changed key and not the unchanged one', async () => {
+    getSpy.mockResolvedValue({ data: [tier, region] });
+    const onChange = vi.fn();
+
+    renderWithI18n(<CustomFieldValuesPanel entityType="customer" values={stored} onChange={onChange} />, bundle);
+
+    await userEvent.type(await screen.findByLabelText('Region'), '!');
+    expect(onChange.mock.lastCall?.[0]).toStrictEqual({ region: 'north!' });
+  });
+});

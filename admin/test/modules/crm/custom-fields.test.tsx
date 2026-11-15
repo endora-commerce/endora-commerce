@@ -153,7 +153,8 @@ describe('custom fields on the Opportunity (Overview)', () => {
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy.mock.calls[0]).toEqual([
       `/api/v1/admin/crm/opportunities/${OPPORTUNITY_ID}`,
-      { customFieldValues: { lead_source: 'trade_fair', competitor: 'Globex' } },
+      // Only the changed key (issue #1007): the unchanged `competitor` is left to the server's merge.
+      { customFieldValues: { lead_source: 'trade_fair' } },
       { headers: { 'If-Match': '"4"' } },
     ]);
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(saved));
@@ -166,7 +167,7 @@ describe('custom fields on the Opportunity (Overview)', () => {
     await userEvent.click(screen.getByRole('button', { name: core('customFields.save') }));
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy.mock.calls[0]?.[1]).toEqual({
-      customFieldValues: { lead_source: null, competitor: 'Globex' },
+      customFieldValues: { lead_source: null },
     });
   });
 
