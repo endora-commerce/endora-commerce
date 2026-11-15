@@ -26,6 +26,9 @@ import {
   type EmailMailerPort,
   type OrganizationPermissionPort,
   type OrganizationRoleReadPort,
+  type CustomerAccount,
+  type Organization as OrganizationView,
+  type RegisterOrganizationResponse,
 } from '@endora-commerce/contracts';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import { requestScopeLanguage, storefrontPagePathFor } from '@endora-commerce/contracts';
@@ -94,7 +97,7 @@ export async function registerOrganizationsPublicRoutes(
   const { registrationService, verificationService, customerAuthService, passwordResetService } =
     deps;
   /** An account as a public answer shows it: its role, not the legacy enum (FR-056, FR-073). */
-  const accountView = async (account: CustomerAccountRecord, language: string) => ({
+  const accountView = async (account: CustomerAccountRecord, language: string): Promise<CustomerAccount> => ({
     ...serializeCustomerAccount(account),
     ...(await memberSessionRole(deps.organizationRoles, deps.organizationPermissions(), account, language)),
   });
@@ -104,7 +107,7 @@ export async function registerOrganizationsPublicRoutes(
     // Feature 154 — reachable whatever the sales-channel access rule decides: a
     // business may apply on a store closed to anonymous visitors (feature 154, Q2).
     { schema: { body: registerOrganizationRequestSchema }, config: { salesChannelAccess: 'open' } },
-    async (request, reply) => {
+    async (request, reply): Promise<{ data: RegisterOrganizationResponse }> => {
       const body = registerOrganizationRequestSchema.parse(request.body);
       // Feature 154 (D6) — the store registered on becomes the Organization's channel.
       const result = await registrationService.registerOrganization(body, {
@@ -331,12 +334,12 @@ function serializeOrganization(o: {
   name: string;
   /** `null` for a personal organization (`specs/177-tax-id-scope/`); registration creates companies. */
   taxId?: string | null;
-  status: string;
-  vatStatus: string;
+  status: OrganizationView['status'];
+  vatStatus: OrganizationView['vatStatus'];
   registeredAddress: { street: string; city: string; postalCode: string; country: string };
   createdAt: Date;
   updatedAt: Date;
-}) {
+}): OrganizationView {
   return {
     id: o.id,
     name: o.name,
@@ -414,7 +417,8 @@ export async function completeCustomerSignIn(
 
 const ANON_CART_COOKIE_KEPT: ReadonlySet<CartMergeOutcome['outcome']> = new Set(['noop_no_anon', 'skipped_permission']);
 
-function serializeCustomerAccount(c: CustomerAccountRecord) {
+/** `customerAccountSchema` without the session's role fields, which `accountView` adds (issue #599). */
+function serializeCustomerAccount(c: CustomerAccountRecord): Omit<CustomerAccount, 'organizationRole' | 'permissions'> {
   return {
     id: c.id,
     organizationId: c.organizationId ?? null,

@@ -12,6 +12,12 @@ import {
   type OrganizationPermissionPort,
   type OrganizationRoleReadPort,
   type OrganizationRoleRef,
+  type AcceptInvitationResponse,
+  type InviteMemberResponse,
+  type OrganizationInvitation as OrganizationInvitationView,
+  type OrganizationInvitationListResponse,
+  type OrganizationMember,
+  type OrganizationMemberListResponse,
 } from '@endora-commerce/contracts';
 import type { Command } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -85,13 +91,13 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
   const administrator = [requireCustomer, requireOrganizationAdministrator];
   const language = (request: FastifyRequest): Promise<string> => request.responseLanguage();
 
-  const memberView = async (member: CustomerAccountRecord, lang: string): Promise<Record<string, unknown>> =>
+  const memberView = async (member: CustomerAccountRecord, lang: string): Promise<OrganizationMember> =>
     serializeMember(member, await memberRoleRef(deps.organizationRoles, member, lang));
 
   app.get(
     '/api/v1/organizations/mine/members',
     { preHandler: administrator },
-    async (request) => {
+    async (request): Promise<OrganizationMemberListResponse> => {
       const ctx = resolveCustomerContext(request);
       const lang = await language(request);
       const members = await roleService.listMembers(ctx.organizationId);
@@ -102,7 +108,7 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
   app.get(
     '/api/v1/organizations/mine/invitations',
     { preHandler: administrator },
-    async (request) => {
+    async (request): Promise<OrganizationInvitationListResponse> => {
       const ctx = resolveCustomerContext(request);
       const lang = await language(request);
       const rows = await invitationService.listPending({ organizationId: ctx.organizationId });
@@ -132,7 +138,7 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
   app.post(
     '/api/v1/organizations/mine/invitations',
     { preHandler: administrator, schema: { body: inviteMemberToRoleRequestSchema } },
-    async (request, reply) => {
+    async (request, reply): Promise<InviteMemberResponse> => {
       const ctx = resolveCustomerContext(request);
       const body = inviteMemberToRoleRequestSchema.parse(request.body);
       const result = await invitationService.invite(ctx, {
@@ -157,7 +163,7 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
     // Feature 154 — reachable whatever the sales-channel access rule decides: an
     // invited person joins before they can sign in.
     { schema: { body: acceptInvitationRequestSchema }, config: { salesChannelAccess: 'open' } },
-    async (request) => {
+    async (request): Promise<AcceptInvitationResponse> => {
       const body = acceptInvitationRequestSchema.parse(request.body);
       const result = await invitationService.acceptByToken(request.params.token, {
         password: body.password,
@@ -195,7 +201,7 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
   app.patch<{ Params: { id: string } }>(
     '/api/v1/organizations/mine/members/:id/role',
     { preHandler: administrator, schema: { body: assignMemberRoleRequestSchema } },
-    async (request) => {
+    async (request): Promise<{ data: OrganizationMember }> => {
       const ctx = resolveCustomerContext(request);
       const params = memberRoleParamSchema.parse(request.params);
       const body = assignMemberRoleRequestSchema.parse(request.body);
@@ -224,7 +230,8 @@ export async function registerMembersRoutes(app: FastifyInstance, deps: MembersD
   }
 }
 
-function serializeInvitation(i: OrganizationInvitation, organizationRole: OrganizationRoleRef): Record<string, unknown> {
+/** The published `organizationInvitationSchema` (issue #599). */
+function serializeInvitation(i: OrganizationInvitation, organizationRole: OrganizationRoleRef): OrganizationInvitationView {
   return {
     id: i.id,
     organizationId: i.organizationId,
@@ -236,7 +243,7 @@ function serializeInvitation(i: OrganizationInvitation, organizationRole: Organi
   };
 }
 
-function serializeMemberFields(m: CustomerAccountRecord): Record<string, unknown> {
+function serializeMemberFields(m: CustomerAccountRecord): Omit<OrganizationMember, 'organizationRole'> {
   return {
     id: m.id,
     organizationId: m.organizationId,
@@ -250,6 +257,7 @@ function serializeMemberFields(m: CustomerAccountRecord): Record<string, unknown
   };
 }
 
-function serializeMember(m: CustomerAccountRecord, organizationRole: OrganizationRoleRef): Record<string, unknown> {
+/** The published `organizationMemberSchema` (issue #599). */
+function serializeMember(m: CustomerAccountRecord, organizationRole: OrganizationRoleRef): OrganizationMember {
   return { ...serializeMemberFields(m), organizationRole };
 }
