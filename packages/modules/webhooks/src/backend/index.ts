@@ -106,6 +106,25 @@ export interface WebhooksCradle {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  /**
+   * Issue #928 — the retention window of the delivery history. The setting
+   * is platform-wide, so it is read with `null` for the channel; a read that
+   * fails, or a value outside 1–3650 whole days, is the default. Read per
+   * call, so an operator's change applies to the next tick and, since #1003,
+   * to the next enqueued job.
+   */
+  const readRetentionDays = async (): Promise<number> => {
+    try {
+      return retentionDaysFrom(
+        await ctx
+          .cradle<WebhooksCradle>()
+          .settingsReadPort.get(WEBHOOK_DELIVERY_RETENTION_SETTING, null, z.unknown()),
+      );
+    } catch {
+      return WEBHOOK_DELIVERY_RETENTION_DEFAULT_DAYS;
+    }
+  };
+
   ctx.di.providePort(
     'webhookService',
     ctx
@@ -159,24 +178,17 @@ export function registerModule(ctx: ModuleContext): void {
       .disposer((worker: Worker<WebhookJobData>) => worker.close().catch(() => undefined)),
 
     /**
-     * Issue #928 — the retention window of the delivery history. The setting
-     * is platform-wide, so it is read with `null` for the channel; a read that
-     * fails, or a value outside 1–3650 whole days, is the default.
+     * Issue #928 — the retention window of the delivery history, and since
+     * #1003 of the finished `webhook.deliver` jobs in Redis as well.
      */
     webhookDeliveryRetention: ctx
       .asFunction(
         ({ emFactory }: WebhooksCradle) =>
-          new WebhookDeliveryRetentionService(emFactory, async () => {
-            try {
-              return retentionDaysFrom(
-                await ctx
-                  .cradle<WebhooksCradle>()
-                  .settingsReadPort.get(WEBHOOK_DELIVERY_RETENTION_SETTING, null, z.unknown()),
-              );
-            } catch {
-              return WEBHOOK_DELIVERY_RETENTION_DEFAULT_DAYS;
-            }
-          }),
+          new WebhookDeliveryRetentionService(
+            emFactory,
+            readRetentionDays,
+            () => ctx.cradle<WebhooksCradle>().webhookQueue,
+          ),
       )
       .singleton(),
   });
@@ -203,6 +215,8 @@ export function registerModule(ctx: ModuleContext): void {
       return bridgeEventHandler(eventType, {
         queue: webhookQueue,
         subscriptionLookup: webhookService,
+        // Issue #1003 — every job carries the window as an age bound.
+        retentionDays: readRetentionDays,
       })(payload);
     });
   };

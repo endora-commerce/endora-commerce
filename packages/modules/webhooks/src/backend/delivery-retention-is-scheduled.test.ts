@@ -67,7 +67,7 @@ async function composeAndMountRoutes(host: { webhooksRunWorkers: boolean }) {
   bull.workers.length = 0;
   const routes: Array<(app: unknown) => Promise<void>> = [];
   const attached: unknown[] = [];
-  const purge = vi.fn(async () => ({ retentionDays: 365, deleted: 0 }));
+  const purge = vi.fn(async () => ({ retentionDays: 365, deleted: 0, jobsRemoved: 0 }));
   const cradle = {
     ...host,
     redis: {},
@@ -126,10 +126,10 @@ describe('webhooks — what a stored retention value means (#928)', () => {
 describe('webhooks — one retention tick (#928)', () => {
   it('runs one purge and says what it deleted', async () => {
     const log = { ...silent, info: vi.fn() };
-    const purge = vi.fn(async () => ({ retentionDays: 30, deleted: 4 }));
+    const purge = vi.fn(async () => ({ retentionDays: 30, deleted: 4, jobsRemoved: 2 }));
     await runWebhookDeliveryRetentionTick({ retention: { purge }, log: log as never });
     expect(purge).toHaveBeenCalledTimes(1);
-    expect(log.info).toHaveBeenCalledWith({ retentionDays: 30, deleted: 4 }, expect.any(String));
+    expect(log.info).toHaveBeenCalledWith({ retentionDays: 30, deleted: 4, jobsRemoved: 2 }, expect.any(String));
   });
 
   it('a failed purge is re-thrown, so the job is recorded as failed', async () => {
