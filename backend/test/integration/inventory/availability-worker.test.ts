@@ -8,6 +8,7 @@ import type {
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  TemplateEmailPort,
 } from '@endora-commerce/contracts';
 import { AvailabilityWorker } from '../../../../packages/modules/inventory/src/backend/services/availability-worker.js';
 import { AvailabilityNotification, type ProductRow } from '../../helpers/package-entities.js';
@@ -26,16 +27,19 @@ function ports(handle: BackendServerHandle): {
   catalogProducts: CatalogProductReadPort;
   customerAccounts: CustomerAccountReadPort;
   catalogAvailability: CatalogProductAvailabilityPort;
+  templateEmail: TemplateEmailPort;
 } {
   const cradle = handle.container.cradle as never as {
     catalogProductReadPort: CatalogProductReadPort;
     customerAccountReadPort: CustomerAccountReadPort;
     catalogProductAvailabilityPort: CatalogProductAvailabilityPort;
+    templateEmailPort: TemplateEmailPort;
   };
   return {
     catalogProducts: cradle.catalogProductReadPort,
     customerAccounts: cradle.customerAccountReadPort,
     catalogAvailability: cradle.catalogProductAvailabilityPort,
+    templateEmail: cradle.templateEmailPort,
   };
 }
 
@@ -47,13 +51,14 @@ function ports(handle: BackendServerHandle): {
 
 describe('AvailabilityWorker.dispatchForStockIncrease', () => {
   let h: BackendServerHandle;
-  let mailer: InMemoryMailer;
+  /** The composed transport: the template the worker renders leaves through it (issue #1256). */
+  const mailer = new InMemoryMailer();
   let worker: AvailabilityWorker;
   let product: ProductRow;
   let customer: CustomerAccount;
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ organizationsMailer: mailer });
     product = await h.em().findOneOrFail(Product, { sku: 'EXAMPLE-SIMPLE-001' });
     // Every fixture below stamps `organizationId: customer.organizationId`
     // beside the account: feature 087 Group B / D-187 gives this table an
@@ -71,9 +76,9 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
   });
 
   beforeEach(async () => {
-    mailer = new InMemoryMailer();
-    const { catalogProducts, customerAccounts, catalogAvailability } = ports(h);
-    worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts, catalogAvailability);
+    mailer.sent.length = 0;
+    const { catalogProducts, customerAccounts, catalogAvailability, templateEmail } = ports(h);
+    worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts, catalogAvailability, templateEmail);
     await h
       .em()
       .getConnection()

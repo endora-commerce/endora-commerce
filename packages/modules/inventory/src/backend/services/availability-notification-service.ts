@@ -19,6 +19,7 @@ import { StockLevel } from '../entities/stock-level.entity.js';
 import type { InventoryTemplateEmailPort } from './low-stock-alert-service.js';
 import { restockDisposition } from './restock-product-state.js';
 import { backInStockNames } from './back-in-stock-names.js';
+import { sendBackInStockEmail } from './back-in-stock-email.js';
 
 /** The (channel, scope language) a subscription is asked and stamped in (issue #696). */
 interface SubscriptionScope {
@@ -483,44 +484,22 @@ export class AvailabilityNotificationService {
         row.notifiedAt = now;
         continue;
       }
-      const productName = productNames.get(row.id) ?? 'product';
-      const messageId = `availability:${row.id}`;
-      const meta = {
-        productId: input.productId,
-        variantId: input.variantId ?? null,
-        notificationId: row.id,
-      };
-      let sentViaTemplate = false;
-      if (this.templateEmail) {
-        sentViaTemplate = await this.templateEmail.trySend({
-          code: 'availability_back_in_stock',
+      // Issue #1256 — the template, in the subscription's channel and language.
+      await sendBackInStockEmail(
+        { templateEmail: this.templateEmail, mailer: this.mailer },
+        {
+          notificationId: row.id,
           to,
-          messageId,
-          variables: { product: { name: productName } },
-          meta,
-        });
-      }
-      if (!sentViaTemplate && this.mailer) {
-        const outcome = await this.mailer.send({
-          messageId,
-          to,
-          subject: `Back in stock: ${productName}`,
-          text: `Good news — "${productName}" is available again.`,
-          kind: 'availability_back_in_stock',
-          meta,
-        });
-        // Only the transport's refusal is named here. `logged` (issue #186) is the
-        // console driver saying no mail server is configured: it has already
-        // written the message to the log itself, and the delivery record says so.
-        if (outcome.status === 'suppressed') {
-          // Still marked notified below: the transport's one suppression is an
-          // already-accepted `messageId`, so this subscriber has the message.
-          console.warn('[inventory] the back-in-stock e-mail was not sent', {
+          productName: productNames.get(row.id) ?? 'product',
+          salesChannelId: row.salesChannelId ?? null,
+          languageCode: row.languageCode ?? null,
+          meta: {
+            productId: input.productId,
+            variantId: input.variantId ?? null,
             notificationId: row.id,
-            reason: outcome.reason,
-          });
-        }
-      }
+          },
+        },
+      );
       row.status = 'notified';
       row.notifiedAt = now;
       notified += 1;

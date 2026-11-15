@@ -6,6 +6,7 @@ import type {
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  TemplateEmailPort,
 } from '@endora-commerce/contracts';
 import { AvailabilityWorker } from '../../../../packages/modules/inventory/src/backend/services/availability-worker.js';
 import { AvailabilityNotificationService } from '../../../../packages/modules/inventory/src/backend/services/availability-notification-service.js';
@@ -30,12 +31,14 @@ type Path = 'worker' | 'service';
 
 describe('#468 — the back-in-stock e-mail is sent only for a product that is still for sale [integration]', () => {
   let h: BackendServerHandle;
+  /** The composed transport: the back-in-stock template leaves through it (issue #1256). */
+  const mailer = new InMemoryMailer();
   const RUN = minimumFixtureRun();
   let product: MinimumProductFixture;
   const sql = (query: string, params: unknown[] = []) => h.em().getConnection().execute(query, params);
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ organizationsMailer: mailer });
     product = await createMinimumProduct(h.em(), {
       sku: `S468-${RUN}`,
       nameEn: `Restock ${RUN}`,
@@ -51,6 +54,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
   });
 
   beforeEach(async () => {
+    mailer.sent.length = 0;
     await sql(`delete from availability_notifications where product_id = ?`, [product.id]);
     await sql(
       `update products set status = 'active', archived_at = null, deleted_at = null,
@@ -72,11 +76,12 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
     return row.id;
   }
 
-  async function restock(path: Path, mailer: InMemoryMailer): Promise<number> {
+  async function restock(path: Path): Promise<number> {
     const cradle = h.container.cradle as never as {
       catalogProductReadPort: CatalogProductReadPort;
       customerAccountReadPort: CustomerAccountReadPort;
       catalogProductAvailabilityPort: CatalogProductAvailabilityPort;
+      templateEmailPort: TemplateEmailPort;
     };
     if (path === 'worker') {
       const worker = new AvailabilityWorker(
@@ -85,6 +90,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
         cradle.catalogProductReadPort,
         cradle.customerAccountReadPort,
         cradle.catalogProductAvailabilityPort,
+        cradle.templateEmailPort,
       );
       return (await worker.dispatchForStockIncrease({ productId: product.id })).notified;
     }
@@ -94,6 +100,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
       cradle.customerAccountReadPort,
       cradle.catalogProductAvailabilityPort,
       mailer,
+      cradle.templateEmailPort,
     );
     return (await service.processRestockedFanOut({ productId: product.id })).notified;
   }
@@ -109,8 +116,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
     describe(`through the ${path === 'worker' ? 'stock worker' : 'restock fan-out'}`, () => {
       it('an available product: the subscriber is mailed and the row is notified', async () => {
         const id = await subscribe();
-        const mailer = new InMemoryMailer();
-        expect(await restock(path, mailer)).toBe(1);
+        expect(await restock(path)).toBe(1);
         expect(mailer.sent).toHaveLength(1);
         expect((await rowOf(id)).notified_at).not.toBeNull();
       });
@@ -118,8 +124,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
       it('a deleted product: nothing is sent and the subscription is cancelled', async () => {
         const id = await subscribe();
         await sql(`update products set deleted_at = now() where id = ?`, [product.id]);
-        const mailer = new InMemoryMailer();
-        expect(await restock(path, mailer)).toBe(0);
+        expect(await restock(path)).toBe(0);
         expect(mailer.sent).toHaveLength(0);
         expect((await rowOf(id)).status).toBe('cancelled');
       });
@@ -127,8 +132,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
       it('an archived product: nothing is sent and the subscription stays queued', async () => {
         const id = await subscribe();
         await sql(`update products set archived_at = now() where id = ?`, [product.id]);
-        const mailer = new InMemoryMailer();
-        expect(await restock(path, mailer)).toBe(0);
+        expect(await restock(path)).toBe(0);
         expect(mailer.sent).toHaveLength(0);
         expect(await rowOf(id)).toEqual({ status: 'queued', notified_at: null });
       });
@@ -136,8 +140,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
       it('a globally inactive product: nothing is sent and the subscription stays queued', async () => {
         const id = await subscribe();
         await sql(`update products set status = 'inactive' where id = ?`, [product.id]);
-        const mailer = new InMemoryMailer();
-        expect(await restock(path, mailer)).toBe(0);
+        expect(await restock(path)).toBe(0);
         expect(mailer.sent).toHaveLength(0);
         expect(await rowOf(id)).toEqual({ status: 'queued', notified_at: null });
       });
@@ -146,8 +149,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
         const id = await subscribe();
         // What `AvailabilityNotificationService.cancel` writes: the status, and no `notifiedAt`.
         await sql(`update availability_notifications set status = 'cancelled' where id = ?`, [id]);
-        const mailer = new InMemoryMailer();
-        expect(await restock(path, mailer)).toBe(0);
+        expect(await restock(path)).toBe(0);
         expect(mailer.sent).toHaveLength(0);
         expect(await rowOf(id)).toEqual({ status: 'cancelled', notified_at: null });
       });
@@ -155,8 +157,7 @@ describe('#468 — the back-in-stock e-mail is sent only for a product that is s
       it('a product outside its global publication window: nothing is sent and the subscription stays queued', async () => {
         const id = await subscribe();
         await sql(`update products set publish_from = now() + interval '1 day' where id = ?`, [product.id]);
-        const mailer = new InMemoryMailer();
-        expect(await restock(path, mailer)).toBe(0);
+        expect(await restock(path)).toBe(0);
         expect(mailer.sent).toHaveLength(0);
         expect(await rowOf(id)).toEqual({ status: 'queued', notified_at: null });
       });

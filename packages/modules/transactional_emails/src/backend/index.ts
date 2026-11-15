@@ -216,9 +216,12 @@ export function registerModule(ctx: ModuleContext): void {
           // platform-wide on a branch that cannot be taken.
           resolveScopeSalesChannelId: async () =>
             (await cradle().salesChannelResolutionPort.getSystemDefault()).id,
-          resolveLanguage: async (salesChannelId: string) =>
-            (await cradle().salesChannelResolutionPort.getById(salesChannelId))?.defaultLanguage ??
-            'en-US',
+          // `null` only for a channel that does not resolve (issue #1256): a
+          // caller-named channel that is gone renders on the system default.
+          resolveLanguage: async (salesChannelId: string) => {
+            const channel = await cradle().salesChannelResolutionPort.getById(salesChannelId);
+            return channel ? channel.defaultLanguage || 'en-US' : null;
+          },
         }),
       )
       .singleton(),
