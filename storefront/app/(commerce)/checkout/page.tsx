@@ -33,7 +33,12 @@ import { selectablePaymentMethods } from '../../../lib/checkout/payment-method-e
 import { tForLocale } from '../../../lib/i18n/messages';
 import { format } from '../../../lib/i18n/format';
 import { formatCount } from '../../../lib/orderMinimum';
-import { CouponField } from '../../../components/checkout/CouponField';
+import {
+  CouponField,
+  CouponScope,
+  type CouponActionState,
+} from '../../../components/checkout/CouponField';
+import { revalidatePath } from 'next/cache';
 import { getServerContext } from '../../../lib/server-context';
 import { formatMoney } from '../../../lib/i18n/money';
 import { OrganizationModerationBanner } from '../../../components/OrganizationModerationBanner';
@@ -69,20 +74,17 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  * needs an authenticated session.
  */
 
-export default async function CheckoutPage({
-  searchParams,
-}: {
+export default async function CheckoutPage(_props: {
   /**
-   * Issue #745 — `couponError` is the refusal's reason code, worded here. No `error`: no
-   * checkout action redirects here with one (placement refusals go to `/checkout/failure`), so
-   * whatever a link puts there is not read.
+   * Issue #745 — no `error`: no checkout action redirects here with one (placement refusals go
+   * to `/checkout/failure`), so whatever a link puts there is not read. Issue #1250 — nor
+   * `couponError`: the coupon action answers its refusal as state rather than a redirect.
    */
-  searchParams: Promise<{ couponError?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login?next=/checkout');
 
-  const params = await searchParams;
   const jar: CartCookieJar = await readJar();
   // Feature 036 (T039) — resolve the active locale so checkout components
   // can render their copy in PL/EN.
@@ -263,142 +265,139 @@ export default async function CheckoutPage({
       />
       <BelowMinimumSummary id={BELOW_MINIMUM_SUMMARY_ID} rows={belowMinimumRows} locale={locale} />
 
-      <CheckoutForm action={submitAction} className="b2b-auth__form">
-        <AddressSection
-          deliveryAddresses={deliveryAddrs}
-          billingAddresses={billingAddrs}
-          locale={locale}
-          personalOrganization={isPersonalOrganization(me?.organization ?? null)}
-          countries={countries}
-          preferredShippingAddressId={defaults?.shippingAddressId ?? null}
-          preferredBillingAddressId={defaults?.billingAddressId ?? null}
-          organizationName={me?.organization?.legalName || me?.organization?.name || null}
-          // A personal Organization's tax id is a placeholder, never a default (#757, #767).
-          organizationTaxId={me?.organization ? organizationCompanyTaxId(me.organization) : null}
-        />
-
-        <ShippingMethods
-          methods={deliveryMethods}
-          preferredId={defaults?.deliveryMethodId ?? null}
-          locale={locale}
-        />
-
-        <PaymentMethods
-          methods={paymentMethods}
-          currency={cart.subtotal.currency}
-          preferredId={defaults?.paymentMethodId ?? null}
-          locale={locale}
-        />
-
-        <CouponField
-          applied={cart.discount ?? null}
-          error={params.couponError ? couponRejectionMessage(params.couponError, locale) : null}
-          applyAction={applyCouponAction}
-          clearAction={clearCouponAction}
-          locale={locale}
-        />
-        <div className="b2b-auth__field">
-          <label htmlFor="note">{tr('commerce.checkout.note')}</label>
-          <textarea id="note" name="customerNote" rows={3} maxLength={4000} placeholder=" " />
-        </div>
-
-        {creditLimit ? (
-          <div className="mt-[16px]">
-            <CreditLimitWidget limit={creditLimit} locale={locale} />
-            {creditAvailable < cartTotal ? (
-              <p className="b2b-auth__hint">
-                {format(tr('commerce.checkout.creditExceeded'), {
-                  total: formatMoney(cartTotal, cart.subtotal.currency, locale),
-                })}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-
-        <h3>{tr('commerce.checkout.review')}</h3>
-        <table className="b2b-account__table">
-          <tbody>
-            {cart.items.map((it) => (
-              <tr key={it.id}>
-                <td style={{ fontFamily: 'var(--font-sans)' }}>
-                  {/* Feature 043 — `displayName` carries the packaging-unit
-                      suffix (e.g. "… (Paleta)"); prefer it over the bare
-                      `productName`. Surface the SKU beneath for buyer
-                      reference, matching the cart line. */}
-                  <div>{it.displayName || it.productName || it.productId}</div>
-                  {it.productSku ? (
-                    <div className="font-mono text-[11px] uppercase text-muted">
-                      {it.productSku}
-                    </div>
-                  ) : null}
-                </td>
-                <td className="text-right">
-                  {format(tr('commerce.checkout.quantity'), { count: formatCount(it.quantity, locale) })}
-                </td>
-                <td className="text-right">
-                  {formatMoney(Number(lineAmountHalfUp(it.unitPrice.amount, it.quantity)), it.unitPrice.currency, locale)}
-                </td>
-              </tr>
-            ))}
-            <tr>
-              <th colSpan={2} scope="row" className="text-right">
-                {tr('commerce.common.subtotal')}
-              </th>
-              <th className="text-right">
-                {formatMoney(cart.subtotal.amount, cart.subtotal.currency, locale)}
-              </th>
-            </tr>
-            {cart.discount ? (
-              <tr>
-                <th colSpan={2} scope="row" className="text-right">
-                  {cart.discount.code
-                    ? format(tr('commerce.common.discountWithCode'), { code: cart.discount.code })
-                    : tr('commerce.common.discount')}
-                </th>
-                <th className="text-right">
-                  −{formatMoney(cart.discount.amount, cart.discount.currency, locale)}
-                </th>
-              </tr>
-            ) : null}
-            {/* Issue #853: the review sums net amounts, so its last row is the
-                net total, not what the buyer pays. VAT and gross are a design task. */}
-            {cart.grandTotal ? (
-              <tr>
-                <th colSpan={2} scope="row" className="text-right">
-                  <strong>{tr('commerce.checkout.netTotal')}</strong>
-                </th>
-                <th className="text-right">
-                  <strong>
-                    {formatMoney(cart.grandTotal.amount, cart.grandTotal.currency, locale)}
-                  </strong>
-                </th>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-
-        <div className="b2b-auth__actions items-center justify-between">
-          <LocalizedLink
-            href="/cart"
-            className="inline-flex items-center gap-2 rounded-sm border border-line bg-surface px-[16px] py-[10px] font-medium text-fg-soft transition-[background-color,border-color,color] duration-150 hover:border-line-strong hover:bg-surface-alt hover:text-[color:var(--ink-900)]"
-          >
-            ← {tr('commerce.checkout.backToCart')}
-          </LocalizedLink>
-          <PlaceOrderButton
-            blocked={placeOrderBlockReason}
-            label={tr('commerce.checkout.placeOrder')}
-            pendingLabel={tr('commerce.checkout.placingOrder')}
-            title={blockTitle(placeOrderBlockReason, tr, me?.organization?.moderationMessage ?? null)}
-            describedBy={
-              placeOrderBlockReason === 'below-minimum'
-                ? BELOW_MINIMUM_SUMMARY_ID
-                : placeOrderBlockReason === 'quote-ended'
-                  ? QUOTE_ENDED_NOTICE_ID
-                  : undefined
-            }
+      {/* Issue #1250 — the coupon form sits after the checkout form, not inside it. */}
+      <CouponScope action={couponAction}>
+        <CheckoutForm action={submitAction} className="b2b-auth__form">
+          <AddressSection
+            deliveryAddresses={deliveryAddrs}
+            billingAddresses={billingAddrs}
+            locale={locale}
+            personalOrganization={isPersonalOrganization(me?.organization ?? null)}
+            countries={countries}
+            preferredShippingAddressId={defaults?.shippingAddressId ?? null}
+            preferredBillingAddressId={defaults?.billingAddressId ?? null}
+            organizationName={me?.organization?.legalName || me?.organization?.name || null}
+            // A personal Organization's tax id is a placeholder, never a default (#757, #767).
+            organizationTaxId={me?.organization ? organizationCompanyTaxId(me.organization) : null}
           />
-        </div>
-      </CheckoutForm>
+
+          <ShippingMethods
+            methods={deliveryMethods}
+            preferredId={defaults?.deliveryMethodId ?? null}
+            locale={locale}
+          />
+
+          <PaymentMethods
+            methods={paymentMethods}
+            currency={cart.subtotal.currency}
+            preferredId={defaults?.paymentMethodId ?? null}
+            locale={locale}
+          />
+
+          <CouponField applied={cart.discount ?? null} locale={locale} />
+          <div className="b2b-auth__field">
+            <label htmlFor="note">{tr('commerce.checkout.note')}</label>
+            <textarea id="note" name="customerNote" rows={3} maxLength={4000} placeholder=" " />
+          </div>
+
+          {creditLimit ? (
+            <div className="mt-[16px]">
+              <CreditLimitWidget limit={creditLimit} locale={locale} />
+              {creditAvailable < cartTotal ? (
+                <p className="b2b-auth__hint">
+                  {format(tr('commerce.checkout.creditExceeded'), {
+                    total: formatMoney(cartTotal, cart.subtotal.currency, locale),
+                  })}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <h3>{tr('commerce.checkout.review')}</h3>
+          <table className="b2b-account__table">
+            <tbody>
+              {cart.items.map((it) => (
+                <tr key={it.id}>
+                  <td style={{ fontFamily: 'var(--font-sans)' }}>
+                    {/* Feature 043 — `displayName` carries the packaging-unit
+                        suffix (e.g. "… (Paleta)"); prefer it over the bare
+                        `productName`. Surface the SKU beneath for buyer
+                        reference, matching the cart line. */}
+                    <div>{it.displayName || it.productName || it.productId}</div>
+                    {it.productSku ? (
+                      <div className="font-mono text-[11px] uppercase text-muted">
+                        {it.productSku}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="text-right">
+                    {format(tr('commerce.checkout.quantity'), { count: formatCount(it.quantity, locale) })}
+                  </td>
+                  <td className="text-right">
+                    {formatMoney(Number(lineAmountHalfUp(it.unitPrice.amount, it.quantity)), it.unitPrice.currency, locale)}
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <th colSpan={2} scope="row" className="text-right">
+                  {tr('commerce.common.subtotal')}
+                </th>
+                <th className="text-right">
+                  {formatMoney(cart.subtotal.amount, cart.subtotal.currency, locale)}
+                </th>
+              </tr>
+              {cart.discount ? (
+                <tr>
+                  <th colSpan={2} scope="row" className="text-right">
+                    {cart.discount.code
+                      ? format(tr('commerce.common.discountWithCode'), { code: cart.discount.code })
+                      : tr('commerce.common.discount')}
+                  </th>
+                  <th className="text-right">
+                    −{formatMoney(cart.discount.amount, cart.discount.currency, locale)}
+                  </th>
+                </tr>
+              ) : null}
+              {/* Issue #853: the review sums net amounts, so its last row is the
+                  net total, not what the buyer pays. VAT and gross are a design task. */}
+              {cart.grandTotal ? (
+                <tr>
+                  <th colSpan={2} scope="row" className="text-right">
+                    <strong>{tr('commerce.checkout.netTotal')}</strong>
+                  </th>
+                  <th className="text-right">
+                    <strong>
+                      {formatMoney(cart.grandTotal.amount, cart.grandTotal.currency, locale)}
+                    </strong>
+                  </th>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+
+          <div className="b2b-auth__actions items-center justify-between">
+            <LocalizedLink
+              href="/cart"
+              className="inline-flex items-center gap-2 rounded-sm border border-line bg-surface px-[16px] py-[10px] font-medium text-fg-soft transition-[background-color,border-color,color] duration-150 hover:border-line-strong hover:bg-surface-alt hover:text-[color:var(--ink-900)]"
+            >
+              ← {tr('commerce.checkout.backToCart')}
+            </LocalizedLink>
+            <PlaceOrderButton
+              blocked={placeOrderBlockReason}
+              label={tr('commerce.checkout.placeOrder')}
+              pendingLabel={tr('commerce.checkout.placingOrder')}
+              title={blockTitle(placeOrderBlockReason, tr, me?.organization?.moderationMessage ?? null)}
+              describedBy={
+                placeOrderBlockReason === 'below-minimum'
+                  ? BELOW_MINIMUM_SUMMARY_ID
+                  : placeOrderBlockReason === 'quote-ended'
+                    ? QUOTE_ENDED_NOTICE_ID
+                    : undefined
+              }
+            />
+          </div>
+        </CheckoutForm>
+      </CouponScope>
     </div>
   );
 }
@@ -578,32 +577,38 @@ async function submitAction(formData: FormData): Promise<void> {
 }
 
 /**
- * Feature 036 (US3) — apply (or replace) a coupon on the cart, then re-render
- * checkout so the discount is reflected in the summary before placing the
- * order. The cart is the source of truth `placeOrder` reads. A rejected code
- * round-trips back with a reason-specific message; totals stay unchanged.
+ * Feature 036 (US3) — apply (or replace) a coupon on the cart, or remove it, and re-render
+ * checkout so the summary reflects it before the order is placed. The cart is the source of
+ * truth `placeOrder` reads.
+ *
+ * Issue #1250 — the action belongs to the coupon's own form and answers a state rather than
+ * redirecting: a redirect re-rendered checkout from scratch and the checkout form lost what the
+ * buyer had entered. `revalidatePath` makes the same response carry the re-rendered page, so the
+ * totals change and the checkout form is reconciled, not replaced. A rejected code answers its
+ * reason worded in the page language (issue #745: a code is mapped, never echoed); totals stay
+ * unchanged.
  */
-async function applyCouponAction(formData: FormData): Promise<void> {
+async function couponAction(
+  _prev: CouponActionState | null,
+  formData: FormData,
+): Promise<CouponActionState> {
   'use server';
   const jar = await readJar();
   if (!jar.session && !jar.anon) return await localeRedirect('/login?next=/checkout');
   const code = ((formData.get('couponCode') as string | null) ?? '').trim();
-  if (!code) return await localeRedirect('/checkout');
+  if (formData.get('couponIntent') === 'remove') {
+    await clearCartCoupon(jar);
+    revalidatePath('/checkout');
+    return { outcome: 'removed', code: '', message: null };
+  }
+  if (!code) return { outcome: 'idle', code: '', message: null };
   const result = await applyCartCoupon(jar, code);
   if (result.outcome === 'rejected') {
-    // Issue #745 — the reason code travels; the page words it (`couponRejectionMessage`).
-    const reason = /^[a-z_]{1,64}$/.test(result.reason) ? result.reason : 'generic';
-    return await localeRedirect(`/checkout?couponError=${reason}`);
+    const { locale } = await getServerContext();
+    return { outcome: 'rejected', code, message: couponRejectionMessage(result.reason, locale) };
   }
-  return await localeRedirect('/checkout');
-}
-
-async function clearCouponAction(): Promise<void> {
-  'use server';
-  const jar = await readJar();
-  if (!jar.session && !jar.anon) return await localeRedirect('/login?next=/checkout');
-  await clearCartCoupon(jar);
-  return await localeRedirect('/checkout');
+  revalidatePath('/checkout');
+  return { outcome: 'applied', code, message: null };
 }
 
 /** Map the typed coupon-rejection reasons to a localized buyer message. */

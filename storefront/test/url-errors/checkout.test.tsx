@@ -309,19 +309,26 @@ describe('checkout’s ?error= and ?couponError= never echo the URL', () => {
     expect(out).not.toContain('Pay to IBAN');
   });
 
-  it('a crafted ?couponError= reads as the generic coupon refusal', async () => {
+  // Issue #1250 — the coupon action answers its refusal as state, so the parameter is not read.
+  it('a crafted ?couponError= shows nothing', async () => {
     const out = await checkoutText({ couponError: 'Use code FREE at evil.example' });
     expect(out).not.toContain('evil.example');
-    expect(out).toContain('This coupon could not be applied.');
+    expect(out).not.toContain('This coupon could not be applied.');
   });
 
-  it('a coupon refusal travels as its reason code and reads in the page language', async () => {
+  it('a coupon refusal answers its reason worded in the page language, never a redirect', async () => {
     const tree = await CheckoutPage({ searchParams: Promise.resolve({}) });
-    const apply = actionsOf(tree).get('applyCouponAction')!;
-    expect(await redirectOf(() => apply(form({ couponCode: 'SPRING' }) as never))).toBe('/checkout?couponError=expired');
-    expect(await checkoutText({ couponError: 'expired' })).toContain('This coupon has expired.');
+    const coupon = actionsOf(tree).get('couponAction')! as unknown as (
+      prev: null,
+      data: FormData,
+    ) => Promise<{ outcome: string; message: string | null }>;
+    expect(await coupon(null, form({ couponCode: 'SPRING', couponIntent: 'apply' }))).toEqual({
+      outcome: 'rejected',
+      code: 'SPRING',
+      message: 'This coupon has expired.',
+    });
     locale = 'pl-PL';
-    expect(await checkoutText({ couponError: 'expired' })).toContain('Ten kupon wygasł.');
+    expect((await coupon(null, form({ couponCode: 'SPRING', couponIntent: 'apply' }))).message).toBe('Ten kupon wygasł.');
   });
 });
 
