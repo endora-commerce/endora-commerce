@@ -1,5 +1,6 @@
 import {
   DictionaryReferenceError,
+  requestScopeLanguage,
   resolveTexts,
   supportedLanguageOf,
   searchTextOf,
@@ -90,23 +91,20 @@ export function isFormId(id: string): boolean {
 
 /**
  * The language a public read or a submission is in (research R-12 step 2): the one the client
- * named, else the first of `Accept-Language` the channel serves, else the channel's default — never
- * a language the channel does not serve.
+ * named, when the channel serves it; else the channel language `Accept-Language` asks for; else
+ * the channel's default — never a language the channel does not serve.
+ *
+ * Issue #1011 — the header is read by `requestScopeLanguage`, the catalogue's rule since #397:
+ * the tags in descending `q`, each matched against the channel's languages exactly, then by base
+ * language (`pl` is a `pl-PL` channel's), the first one the channel serves winning. It used to be
+ * tried in the order written, whatever the weights, and only exactly. A content language — which
+ * of the form's translations is shown and stored with the entry — so never the platform's
+ * message-bundle language. `?language=` stays an exact match, as before.
  */
 export function resolveLanguage(channel: SubmissionChannel, request: Omit<PublicRequest, 'channel'>): string {
-  const served = new Map(channel.languages.map((language) => [language.toLowerCase(), language]));
-  const candidates = [
-    ...(request.language ? [request.language] : []),
-    ...(request.acceptLanguage ?? '')
-      .split(',')
-      .map((part) => part.split(';')[0]!.trim())
-      .filter((tag) => tag !== '' && tag !== '*'),
-  ];
-  for (const candidate of candidates) {
-    const match = served.get(candidate.toLowerCase());
-    if (match) return match;
-  }
-  return channel.defaultLanguage;
+  const named = request.language?.toLowerCase();
+  const match = named ? channel.languages.find((language) => language.toLowerCase() === named) : undefined;
+  return match ?? requestScopeLanguage(channel, request.acceptLanguage);
 }
 
 /** A form and the version it serves, read for one request. */

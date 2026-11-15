@@ -23,6 +23,10 @@ import {
   type CustomerRolePort,
   type OrganizationRoleReadPort,
   type OrganizationRoleRef,
+  type AdminOrganization,
+  type AdminOrganizationDetail,
+  type AdminOrganizationListResponse,
+  type AdminOrganizationMember,
   AdminOrganizationCreateBodySchema,
   adminTaxIdScopeSetBodySchema,
   adminOrganizationConvertToCompanyBodySchema,
@@ -260,12 +264,12 @@ export async function registerOrganizationsAdminRoutes(
    * every record carries `extensions`, holding only the modules that declare
    * this host with `adminReads` and are present (one query per module).
    */
-  const withExtensions = async (
+  const withExtensions = async <T extends AdminOrganization>(
     em: EntityManager,
     orgs: readonly Organization[],
-    serialized: readonly Record<string, unknown>[],
+    serialized: T[],
     requested: readonly string[],
-  ): Promise<readonly Record<string, unknown>[]> => {
+  ): Promise<T[]> => {
     if (requested.length === 0) return serialized;
     const attributes =
       deps.schemaExtensionReads === undefined
@@ -275,7 +279,7 @@ export async function registerOrganizationsAdminRoutes(
   };
 
   /** A member as the operator's screens show it: its role, not the legacy enum (FR-008, FR-073). */
-  const memberDetail = async (member: CustomerAccountRecord, language: string): Promise<Record<string, unknown>> =>
+  const memberDetail = async (member: CustomerAccountRecord, language: string): Promise<AdminOrganizationMember> =>
     serializeMemberDetail(member, await memberRoleRef(deps.organizationRoles, member, language));
 
   /** The member as it is after a Command changed it. */
@@ -390,7 +394,7 @@ export async function registerOrganizationsAdminRoutes(
   app.get(
     '/api/v1/admin/organizations',
     { preHandler: customersRead },
-    async (request) => {
+    async (request): Promise<AdminOrganizationListResponse> => {
       const query = listQuerySchema.parse(request.query);
       const em = emFactory();
       // Issue #305 (owner ruling 2026-11-07) — the list narrows to the reach
@@ -432,7 +436,7 @@ export async function registerOrganizationsAdminRoutes(
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/organizations/:id',
     { preHandler: [customersRead, organizationInReach] },
-    async (request) => {
+    async (request): Promise<{ data: AdminOrganizationDetail }> => {
       const { extensions } = ExtensionsQuerySchema.parse(request.query);
       const em = emFactory();
       if (!isUuidShape(request.params.id)) {
@@ -459,7 +463,7 @@ export async function registerOrganizationsAdminRoutes(
           ),
         ),
       );
-      const [data] = await withExtensions(
+      const [data] = await withExtensions<AdminOrganizationDetail>(
         em,
         [org],
         [
@@ -471,7 +475,7 @@ export async function registerOrganizationsAdminRoutes(
         ],
         requestedExtensions(extensions),
       );
-      return { data };
+      return { data: data! };
     },
   );
 
@@ -1424,7 +1428,8 @@ export async function registerOrganizationsAdminRoutes(
   }
 }
 
-function serializeOrg(o: Organization): Record<string, unknown> {
+/** The published `adminOrganizationSchema` (issue #599). */
+function serializeOrg(o: Organization): AdminOrganization {
   return {
     id: o.id,
     name: o.name,
@@ -1460,7 +1465,7 @@ function serializeOrg(o: Organization): Record<string, unknown> {
   };
 }
 
-function memberFields(m: CustomerAccountRecord): Record<string, unknown> {
+function memberFields(m: CustomerAccountRecord): Omit<AdminOrganizationMember, 'organizationRole'> {
   return {
     id: m.id,
     email: m.email,
@@ -1475,8 +1480,11 @@ function memberFields(m: CustomerAccountRecord): Record<string, unknown> {
   };
 }
 
-/** A member as an answer shows it (`specs/170-organization-roles/` WP-03; FR-008, FR-073). */
-function serializeMemberDetail(m: CustomerAccountRecord, organizationRole: OrganizationRoleRef): Record<string, unknown> {
+/**
+ * A member as an answer shows it (`specs/170-organization-roles/` WP-03; FR-008,
+ * FR-073) — the published `adminOrganizationMemberSchema` (issue #599).
+ */
+function serializeMemberDetail(m: CustomerAccountRecord, organizationRole: OrganizationRoleRef): AdminOrganizationMember {
   return { ...memberFields(m), organizationRole };
 }
 

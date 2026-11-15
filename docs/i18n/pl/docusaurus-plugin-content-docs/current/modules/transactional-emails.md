@@ -128,6 +128,14 @@ await sender.send({
 Gdy nadawca nie jest podłączony, moduły wracają do starszych mechanizmów budowania wiadomości w
 kodzie, więc w środowiskach bez tego modułu zachowanie się nie zmienia.
 
+Moduł, który zachowuje też mechanizm zastępczy w kodzie, korzysta zamiast tego z portu
+`templateEmailPort`, którego `trySend` odpowiada `false` tylko wtedy, gdy dla danego kodu nie ma
+definicji. Przyjmuje te same `code`, `to`, `messageId` i `variables`, a opcjonalnie także kanał
+sprzedaży odbiorcy (`salesChannelId`) i jego język (`language`): wiadomość jest renderowana z treści
+tego kanału w tym języku. Brakujący albo usunięty kanał oznacza domyślny kanał systemu, a brakujący
+język — domyślny język kanału, więc wywołanie bez żadnego z nich dostaje domyślny kanał systemu w jego
+domyślnym języku. E-mail o ponownej dostępności przekazuje kanał i język zapisane w subskrypcji.
+
 ## Podgląd
 
 `POST /api/v1/admin/transactional-emails/{code}/preview` renderuje e-mail z zadeklarowanymi

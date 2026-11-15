@@ -85,8 +85,12 @@ export interface InventoryModuleOptions {
    * the container started resolving `emailMailer` for every composition.
    */
   mailer: EmailMailerPort;
-  /** Feature 047 — optional admin-editable template path for inventory emails. */
-  templateEmail?: InventoryTemplateEmailPort;
+  /**
+   * Feature 047 — the admin-editable template path for inventory e-mails, `transactional_emails`'
+   * `templateEmailPort`. Required since issue #1256: the stock worker renders the back-in-stock
+   * template through it, and the owner is a non-deactivatable declared dependency.
+   */
+  templateEmail: InventoryTemplateEmailPort;
   /** Channel id used to read inventory.* settings for low-stock alerts. */
   settingsChannelId?: string;
   /** Lazy lookup for the system-default channel id; used by the
@@ -139,6 +143,7 @@ export function inventoryModule(options: InventoryModuleOptions): InventoryModul
     options.catalogProducts,
     options.customerAccounts,
     options.catalogAvailability,
+    options.templateEmail,
   );
   const lowStockAlertService = new LowStockAlertService(
     options.emFactory,

@@ -57,3 +57,28 @@ export async function canManagePreference(
       return false;
   }
 }
+
+/**
+ * Who may **read** a scope's stored defaults (issue #359): whoever may manage
+ * it, and additionally a customer reading their own Organization's row — the
+ * defaults they inherit, which the storefront names beside "use the
+ * organization default". Writing it stays {@link canManagePreference}'s.
+ *
+ * @param readerOrganizationId the caller's own Organization (null if none).
+ */
+export async function canReadPreference(
+  actor: PreferenceActor,
+  target: PreferenceTarget,
+  targetCustomerOrganizationId: string | null,
+  readerOrganizationId: string | null,
+): Promise<boolean> {
+  if (
+    target.scope === 'organization' &&
+    readerOrganizationId !== null &&
+    readerOrganizationId !== '' &&
+    target.scopeId === readerOrganizationId
+  ) {
+    return true;
+  }
+  return canManagePreference(actor, target, targetCustomerOrganizationId);
+}

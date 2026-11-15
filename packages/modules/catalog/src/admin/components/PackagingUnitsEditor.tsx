@@ -4,7 +4,8 @@ import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { parseOrderMinimumInput } from '../lib/order-minimum-input.js';
-import { ImmediateBadge, GlobalOnlyBadge } from './editor/ImmediateBadge.js';
+import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
+import { GlobalOnlyBadge } from './editor/SectionHeading.js';
 
 /**
  * Feature 043 — Packaging units editor, rendered inside the product card's

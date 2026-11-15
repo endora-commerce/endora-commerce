@@ -204,4 +204,23 @@ describe('Quick-order default preferences', () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  // Issue #359 — a member reads the organization defaults they inherit (the
+  // storefront names them beside "use the organization default"); managing
+  // them stays the Administrator's.
+  it('lets a regular member read their own organization’s defaults, and no other organization’s', async () => {
+    const own = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/quick-order/preferences?scope=organization&scopeId=${TEST_ORGANIZATION_ID}`,
+      cookies: { b2b_session: 'stub-regular-user-session' },
+    });
+    expect(own.statusCode).toBe(200);
+
+    const other = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/quick-order/preferences?scope=organization&scopeId=00000000-0000-4000-8000-0000000000fe',
+      cookies: { b2b_session: 'stub-regular-user-session' },
+    });
+    expect(other.statusCode).toBe(403);
+  });
 });

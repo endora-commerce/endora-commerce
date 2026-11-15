@@ -155,13 +155,23 @@ describe('@@ in a text of an Opportunity', () => {
     }
   });
 
-  it('leaves @@ as typed for a role that may read no document, and asks nobody', async () => {
+  // `specs/165-task-management/` R-5: the server answers the Opportunities
+  // group to every writer, so `crm:read` + `crm:write` alone opens `@@`
+  // (issue #498) — the own kind is a document kind like any other.
+  it('opens @@ for a role holding only crm:read and crm:write, and offers the Opportunities group', async () => {
+    intercept = (path) =>
+      path.startsWith(DOCUMENTS_PATH)
+        ? Promise.resolve({ groups: [{ kind: 'opportunity', items: [{ id: OPPORTUNITY_ID, label: 'OPP-0042' }] }] })
+        : undefined;
     const { panel, field } = await composer(['crm:read', 'crm:write']);
-    await userEvent.type(field, '@@ord');
-    expect(within(panel).queryByRole('listbox')).toBeNull();
-    expect(within(panel).queryByRole('button', { name: core('references.insert.document') })).toBeNull();
-    expect(asked(DOCUMENTS_PATH)).toEqual([]);
-    expect(storedText(field)).toBe('@@ord');
+    expect(within(panel).getByRole('button', { name: core('references.insert.document') })).toBeInTheDocument();
+    await userEvent.type(field, '@@');
+    const list = await documents(panel);
+    expect(within(list).getAllByRole('group').map((group) => group.getAttribute('aria-label'))).toEqual([
+      core('references.group.opportunity'),
+    ]);
+    expect(within(list).getByRole('option')).toHaveTextContent('OPP-0042');
+    expect(asked(DOCUMENTS_PATH)[0]).toBe(`${DOCUMENTS_PATH}?opportunityId=${OPPORTUNITY_ID}`);
   });
 
   it('the Insert document button searches the same list and inserts what is chosen', async () => {

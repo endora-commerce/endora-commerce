@@ -219,8 +219,15 @@ Zapis przechowuje kanał sprzedaży i język, w którym powstał: kanał, na kt�
 język kanału, gdy kanał nie obsługuje żadnego z nich). E-mail podaje nazwę produktu taką, jaką
 widział subskrybent — nazwę dla kanału i języka, a gdy jej nie ma, nazwę dla kanału, a w ostateczności
 nazwę globalną. Zapis utworzony, zanim kanał i język były przechowywane, albo zapis, którego kanał
-został później usunięty, dostaje nazwę globalną. Za zapisem podąża tylko nazwa produktu: reszta
-wiadomości jest sformułowana tak jak wcześniej, a nie w języku zapisu.
+został później usunięty, dostaje nazwę globalną.
+
+Sama wiadomość to e-mail transakcyjny **Back in stock notification** (`availability_back_in_stock`),
+który operator edytuje w kreatorze e-maili jak każdy inny, i również on jest renderowany w kanale i
+języku zapisu: nadpisanie kanału dla tego języka, a gdy go nie ma, nadpisanie globalne, a w
+ostateczności treść domyślna (angielska i polska). Zapis utworzony, zanim kanał i język były
+przechowywane, albo zapis, którego kanał został później usunięty, jest renderowany w domyślnym kanale
+systemu i w jego domyślnym języku. Operator, który wyłączy ten e-mail, wyłącza go dla wszystkich
+subskrybentów: zapisy zostają zużyte i nic nie jest wysyłane — także żaden tekst zastępczy.
 
 **Znane ograniczenie.** Rozsyłka uruchamia się tylko wtedy, gdy stan rośnie od zera. Jeśli produkt
 zostanie przywrócony albo ponownie włączony, gdy ma już stan, oczekujący subskrybenci dostaną

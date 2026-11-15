@@ -50,6 +50,18 @@ export function SalesChannelEditPage(): ReactNode {
   const isCreate = routeCode === 'new' || routeCode === undefined;
 
   const [channel, setChannel] = useState<SalesChannelDetail | null>(null);
+  // Feature 180 (#407) — whether the channel in state is the answer of the header's activation
+  // toggle rather than of a read or the form's own Save: the form then keeps the fields the
+  // operator has changed (and the toggle has not) instead of re-seeding them away.
+  const [reseedKeepsEdits, setReseedKeepsEdits] = useState(false);
+  const setChannelFromForm = useCallback((next: SalesChannelDetail): void => {
+    setReseedKeepsEdits(false);
+    setChannel(next);
+  }, []);
+  const setChannelFromToggle = useCallback((next: SalesChannelDetail): void => {
+    setReseedKeepsEdits(true);
+    setChannel(next);
+  }, []);
   const [loading, setLoading] = useState(!isCreate);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +74,10 @@ export function SalesChannelEditPage(): ReactNode {
       setError(null);
       try {
         const detail = await salesChannelsClient.getByCode(routeCode!);
-        if (!cancelled) setChannel(detail);
+        if (!cancelled) {
+          setReseedKeepsEdits(false);
+          setChannel(detail);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -113,13 +128,13 @@ export function SalesChannelEditPage(): ReactNode {
     setError(null);
     try {
       const updated = await salesChannelsClient.deactivate(channel.code);
-      setChannel(updated);
+      setChannelFromToggle(updated);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Deactivate failed.');
     } finally {
       setSaving(false);
     }
-  }, [channel]);
+  }, [channel, setChannelFromToggle]);
 
   const handleActivate = useCallback(async (): Promise<void> => {
     if (!channel) return;
@@ -127,13 +142,13 @@ export function SalesChannelEditPage(): ReactNode {
     setError(null);
     try {
       const updated = await salesChannelsClient.activate(channel.code);
-      setChannel(updated);
+      setChannelFromToggle(updated);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : 'Activate failed.');
     } finally {
       setSaving(false);
     }
-  }, [channel]);
+  }, [channel, setChannelFromToggle]);
 
   const handleDelete = useCallback(async (): Promise<void> => {
     if (!channel || channel.systemDefault) return;
@@ -253,7 +268,8 @@ export function SalesChannelEditPage(): ReactNode {
             saving={saving}
             onError={setError}
             onSaving={setSaving}
-            onChannel={setChannel}
+            onChannel={setChannelFromForm}
+            reseedKeepsEdits={reseedKeepsEdits}
             onCancel={() => navigate('/sales-channels')}
           />
         </SaveSessionProvider>
@@ -301,6 +317,7 @@ function ChannelEditSection({
   onSaving,
   onChannel,
   onCancel,
+  reseedKeepsEdits,
 }: {
   channel: SalesChannelDetail;
   canWrite: boolean;
@@ -310,6 +327,7 @@ function ChannelEditSection({
   onSaving: (saving: boolean) => void;
   onChannel: (channel: SalesChannelDetail) => void;
   onCancel: () => void;
+  reseedKeepsEdits: boolean;
 }): ReactNode {
   const t = useTranslation('sales_channels');
   const session = useSaveSession();
@@ -388,6 +406,7 @@ function ChannelEditSection({
         readOnly={!canWrite}
         participantChangeCount={session.dirtyCount}
         onChangeCountChange={setHostCount}
+        reseedKeepsEdits={reseedKeepsEdits}
         summary={
           showSummary(session.lastOutcome) || session.notices.length > 0 ? (
             <div className="mb-4">

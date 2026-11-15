@@ -143,6 +143,12 @@ organization — the orders its buyer placed, saved addresses, carts, quote requ
 like — because the organization they belong to goes with it. Another organization's data is
 never touched, and neither is a row that belongs to no organization, such as a guest's cart.
 
+That includes another organization's text that names a demo document. When one of your own
+Opportunities or Projects mentions a demo order or quote request in its description, a note or a
+message, the reference stays in the text after a reset and is shown as *Order unavailable* or
+*Quote request unavailable*, without a number or a link: the reset never edits another organization's records, so it does not rewrite
+that text either. Remove the mention by editing the text, if you want it gone.
+
 The whole reset is one transaction: it either completes or changes nothing. When it is refused,
 the shop still works and the message says what refused it.
 

@@ -142,3 +142,6 @@ export function renderEditor(
 }
 
 export const en = catalogEn as Record<string, string>;
+
+/** The kit's "Applies immediately" badge as it ships in the `core` bundle (feature 180, #407). */
+export const IMMEDIATE_BADGE = (shippedCoreBundle('en').core as Record<string, string>)['saveSession.immediateBadge']!;

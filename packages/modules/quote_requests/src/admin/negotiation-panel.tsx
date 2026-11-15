@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { EditorSaveSessionHandle } from '@endora-commerce/contracts';
 import {
   ApiError,
@@ -20,9 +20,13 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * Feature 146, US4 — what the organization and customer price-negotiation
- * panels share (review fix S5): reading the subject's value with a retry, an
- * optimistic write rolled back on failure, and the card around both with its
- * live status region. Each panel keeps only its own control and wording.
+ * panels share (review fix S5): reading the subject's value with a retry, and
+ * the card around both with its live status region. Each panel keeps only its
+ * own control and wording.
+ *
+ * Feature 180 — both panels are parts of their host's one Save
+ * (`useNegotiationParticipant`); neither writes on change any more, so the
+ * resource only reads.
  */
 
 export interface NegotiationResource<T> {
@@ -30,38 +34,35 @@ export interface NegotiationResource<T> {
   state: T | null;
   loading: boolean;
   loadError: string | null;
+  retry: () => void;
+}
+
+/** What `NegotiationCard` shows: the read's state and the write's. */
+export interface NegotiationCardState {
+  loading: boolean;
+  loadError: string | null;
   saving: boolean;
   saveError: string | null;
-  saved: boolean;
   retry: () => void;
-  /** Show `optimistic` at once, `PUT` `body`, then show the answer — or roll back. */
-  save: (optimistic: T, body: unknown) => Promise<void>;
 }
 
 /**
- * The value behind `route`, read and written by the panel that shows it.
+ * The value behind `route`, read for the panel that shows it.
  *
- * A new `route` is a new subject: the previous subject's value, its "Saved."
- * and its save error are cleared before the next one is read, and an answer
- * that arrives for a subject the panel has left is dropped.
+ * A new `route` is a new subject: the previous subject's value is cleared
+ * before the next one is read, and an answer that arrives for a subject the
+ * panel has left is dropped.
  */
 export function useNegotiationResource<T>(route: string): NegotiationResource<T> {
   const t = useTranslation('quote_requests');
   const [state, setState] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const current = useRef(route);
-  current.current = route;
 
   useEffect(() => {
     let cancelled = false;
     setState(null);
-    setSaved(false);
-    setSaveError(null);
     setLoading(true);
     setLoadError(null);
     apiClient
@@ -83,34 +84,9 @@ export function useNegotiationResource<T>(route: string): NegotiationResource<T>
     };
   }, [route, attempt, t]);
 
-  const save = useCallback(
-    async (optimistic: T, body: unknown): Promise<void> => {
-      const previous = state;
-      setSaving(true);
-      setSaveError(null);
-      setSaved(false);
-      setState(optimistic);
-      try {
-        const res = await apiClient.put<{ data: T }>(route, body);
-        if (current.current !== route) return;
-        setState(res.data);
-        setSaved(true);
-      } catch (err) {
-        if (current.current !== route) return;
-        setState(previous);
-        setSaveError(
-          err instanceof ApiError ? err.envelope.error.message : t('negotiation.saveError'),
-        );
-      } finally {
-        setSaving(false);
-      }
-    },
-    [route, state, t],
-  );
-
   const retry = useCallback((): void => setAttempt((n) => n + 1), []);
 
-  return { state, loading, loadError, saving, saveError, saved, retry, save };
+  return { state, loading, loadError, retry };
 }
 
 /** How a panel's value becomes its `PUT` body, and whether that body is one the route takes. */
@@ -126,14 +102,14 @@ export interface NegotiationParticipant<T> {
   value: T | null;
   setValue: (next: T) => void;
   /** What `NegotiationCard` shows for the part: the read's state, the session's write state. */
-  card: Pick<NegotiationResource<unknown>, 'loading' | 'loadError' | 'saving' | 'saveError' | 'saved' | 'retry'>;
+  card: NegotiationCardState;
 }
 
 /**
  * Feature 180, WP-7 — the value behind `route` as the part `price-negotiation` of its host's one
  * Save (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §2; FR-060). The
  * control stages the value instead of writing it on change; the host's Save writes it through
- * the same `PUT`, and the host's Save reports the outcome, so the card's "Saved." is not shown.
+ * the same `PUT`, and the host's Save reports the outcome, so the card says no "Saved." of its own.
  * Validation is the contracts body schema (research R20); the write stays unversioned, last write
  * wins, as before (research R11). Without `writable` (no `customers:manage`) nothing is staged.
  */
@@ -170,7 +146,6 @@ export function useNegotiationParticipant<T>(
       retry: resource.retry,
       saving: participant.status === 'saving',
       saveError: participant.error ?? participant.issues?.message ?? null,
-      saved: false,
     },
   };
 }
@@ -189,10 +164,7 @@ export function NegotiationCard({
   after,
   children,
 }: {
-  resource: Pick<
-    NegotiationResource<unknown>,
-    'loading' | 'loadError' | 'saving' | 'saveError' | 'saved' | 'retry'
-  >;
+  resource: NegotiationCardState;
   canManage: boolean;
   hintId: string;
   before?: ReactNode;
@@ -200,7 +172,7 @@ export function NegotiationCard({
   children: ReactNode;
 }): ReactNode {
   const t = useTranslation('quote_requests');
-  const { loading, loadError, saving, saveError, saved, retry } = resource;
+  const { loading, loadError, saving, saveError, retry } = resource;
   return (
     <Card className="mb-4" aria-busy={loading || saving}>
       <CardHeader>
@@ -233,7 +205,6 @@ export function NegotiationCard({
         <div role="status" aria-live="polite" className="text-sm">
           {loading ? t('negotiation.loading') : null}
           {saving ? t('negotiation.saving') : null}
-          {saved && !saving ? t('negotiation.saved') : null}
         </div>
 
         {saveError ? (

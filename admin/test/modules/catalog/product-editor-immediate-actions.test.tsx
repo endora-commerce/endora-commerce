@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { ScopeRef, ScopedValuesResponse } from '@endora-commerce/contracts';
 import {
+  IMMEDIATE_BADGE,
   BASE,
   PRODUCT_ID,
   VALID_SCOPES,
@@ -101,17 +102,17 @@ describe('immediate actions beside staged changes (feature 174, US7 #7)', () => 
   it('labels each structural section "Applies immediately"', async () => {
     renderEditor(ProductEditor, { url: MEDIA });
     const heading = await screen.findByRole('heading', { name: new RegExp(en['productEditor.gallery.title']!) });
-    expect(heading).toHaveTextContent(en['productEditor.immediate.badge']!);
+    expect(heading).toHaveTextContent(IMMEDIATE_BADGE);
     fireEvent.click(screen.getByRole('tab', { name: en['productEditor.tab.attachments']! }));
     expect(await screen.findByRole('heading', { name: new RegExp(en['productEditor.attachments.title']!) })).toHaveTextContent(
-      en['productEditor.immediate.badge']!,
+      IMMEDIATE_BADGE,
     );
     // Feature 180 (FR-025): the Inventory tab's product-row settings save with the one Save, so
     // its heading no longer says "Applies immediately"; the per-warehouse table inside does
     // (`product-editor-inventory-save.test.tsx`).
     fireEvent.click(screen.getByRole('tab', { name: en['productEditor.tab.inventory']! }));
     expect(await screen.findByRole('heading', { name: new RegExp(en['productEditor.stock.title']!) })).not.toHaveTextContent(
-      en['productEditor.immediate.badge']!,
+      IMMEDIATE_BADGE,
     );
   });
 

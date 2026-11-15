@@ -149,6 +149,12 @@ kupującego, zapisane adresy, koszyki, zapytania ofertowe i podobne dane — bo 
 której należą, jest usuwana razem z nimi. Dane innych organizacji nigdy nie są ruszane, podobnie
 jak wiersze nienależące do żadnej organizacji, na przykład koszyk gościa.
 
+Dotyczy to także tekstu innej organizacji, który wskazuje dokument demonstracyjny. Gdy jedna z
+Twoich szans sprzedaży lub jeden z Twoich projektów wspomina w opisie, notatce lub wiadomości
+zamówienie albo zapytanie ofertowe z demo, odwołanie zostaje w tekście po resecie i jest pokazywane
+jako *Zamówienie niedostępne* lub *Zapytanie ofertowe niedostępne*, bez numeru i bez linku: reset nigdy nie edytuje danych innej organizacji, więc
+nie przepisuje też tego tekstu. Jeśli chcesz usunąć wzmiankę, zmień tekst.
+
 Cały reset to jedna transakcja: albo kończy się w całości, albo niczego nie zmienia. Gdy zostaje
 odrzucony, sklep nadal działa, a komunikat mówi, co go odrzuciło.
 

@@ -1469,7 +1469,6 @@
   "productEditor.guard.bodyLeave.few": "You have {count} unsaved changes at this scope. Decide what to do with them before you leave this product.",
   "productEditor.guard.bodyLeave.many": "You have {count} unsaved changes at this scope. Decide what to do with them before you leave this product.",
   "productEditor.guard.bodyLeave.other": "You have {count} unsaved changes at this scope. Decide what to do with them before you leave this product.",
-  "productEditor.immediate.badge": "Applies immediately",
   "productEditor.immediate.droppedImage": "Unsaved change to the removed image was discarded.",
   "productEditor.immediate.droppedAttachment": "Unsaved change to the removed attachment was discarded.",
   "productEditor.immediate.droppedPackagingUnit": "Unsaved change to the removed packaging unit was discarded.",

@@ -1,11 +1,10 @@
 import { useCallback, useState, type CSSProperties, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Textarea } from '@endora-commerce/admin-kit/ui';
-import { OrganizationStatusBadge } from '@endora-commerce/admin-kit/components';
+import { OrganizationStatusBadge, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { TriangleAlert } from 'lucide-react';
 import { showRegistryDivergenceNotice } from './vat-validation-view.js';
-import { ImmediateBadge } from '../components/ImmediateBadge.js';
 
 export interface ModerationActionsPanelProps {
   organizationId: string;
@@ -121,7 +120,7 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle>
           {t('organizations.moderation.title')}
-          <ImmediateBadge />
+          <ImmediateBadge className="align-middle" />
         </CardTitle>
         <OrganizationStatusBadge status={props.status} />
       </CardHeader>

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import type { FulfilmentStrategy, OrganizationRoleRef, OrganizationRoleView, Warehouse } from '@endora-commerce/contracts';
+import type {
+  AdminOrganization,
+  AdminOrganizationDetail,
+  AdminOrganizationMember,
+  OrganizationRoleRef,
+  OrganizationRoleView,
+  Warehouse,
+} from '@endora-commerce/contracts';
 import {
   ApiError,
   SaveSessionProvider,
@@ -15,7 +22,6 @@ import {
   type SavePart,
 } from '@endora-commerce/admin-kit/lib';
 import { FulfilmentStrategyPanel } from '../panels/FulfilmentStrategyPanel.js';
-import { ImmediateBadge } from '../components/ImmediateBadge.js';
 import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab.js';
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
 import { ConvertToCompanyForm, type ConvertToCompanyResult } from '../components/ConvertToCompanyForm.js';
@@ -35,6 +41,7 @@ import {
   SaveSessionSummary,
   customFieldErrorsOf,
   type FulfilmentStrategyValue,
+  ImmediateBadge,
 } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
@@ -43,51 +50,11 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 /** The VAT validation panel's heading — where the moderation notice's link lands. */
 const VAT_VALIDATION_HEADING_ID = 'organization-vat-validation';
 
-interface OrgMember {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  /** The member's role (`specs/170-organization-roles/` FR-073): translated name for a predefined role. */
-  organizationRole: OrganizationRoleRef;
-  emailVerifiedAt: string | null;
-  twoFactorEnabled: boolean;
-  lastLoginAt?: string | null;
-  updatedAt?: string;
-}
+/** A member row of the detail (`adminOrganizationMemberSchema`, issue #599). */
+type OrgMember = AdminOrganizationMember;
 
-interface OrgDetail {
-  id: string;
-  name: string;
-  legalName?: string | null;
-  /** `null` for a personal Organization (`specs/177-tax-id-scope/`). */
-  taxId: string | null;
-  status: 'pending_verification' | 'active' | 'blocked' | 'rejected';
-  vatStatus: 'vat_payer' | 'vat_exempt' | 'reverse_charge';
-  /** A B2C customer's own Organization: no role management there (PR-3). */
-  isPersonal?: boolean;
-  registeredAddress: { street: string; city: string; postalCode: string; country: string };
-  orderConfirmationEmails?: string[];
-  fulfilmentStrategy?: FulfilmentStrategy | null;
-  fulfilmentStrategyWarehouseOrder?: string[] | null;
-  customFieldValues?: Record<string, unknown>;
-  /** Feature 056 — hierarchy. `null` ⇒ this org is a root. */
-  parentId?: string | null;
-  members: OrgMember[];
-  version?: number;
-  blockedReason?: string | null;
-  blockedAt?: string | null;
-  rejectedReason?: string | null;
-  rejectedAt?: string | null;
-  approvedAt?: string | null;
-  approvedByAdminUserId?: string | null;
-  vatValidation?: {
-    outcome: 'validated' | 'failed' | 'deferred' | 'unverified' | null;
-    provider: 'vies' | 'mf_pl' | 'format_only' | 'gus_pl' | null;
-    validatedAt: string | null;
-  };
-  updatedAt?: string;
-}
+/** `GET /api/v1/admin/organizations/:id` (`adminOrganizationDetailSchema`, issue #599). */
+type OrgDetail = AdminOrganizationDetail;
 
 const STATUSES = ['pending_verification', 'active', 'blocked', 'rejected'] as const;
 const VAT_STATUSES = ['vat_payer', 'vat_exempt', 'reverse_charge'] as const;
@@ -381,7 +348,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       let patched = false;
       try {
         if (Object.keys(body).length > 0) {
-          const res = await apiClient.patch<{ data: OrgDetail }>(`/api/v1/admin/organizations/${id}`, {
+          const res = await apiClient.patch<{ data: AdminOrganization }>(`/api/v1/admin/organizations/${id}`, {
             ...body,
             ...(current.updatedAt !== undefined ? { expectedUpdatedAt: current.updatedAt } : {}),
           });
@@ -741,7 +708,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         <CardHeader>
           <CardTitle>
             {t('organizations.detail.inviteCard')}
-            <ImmediateBadge />
+            <ImmediateBadge className="align-middle" />
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
@@ -780,7 +747,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         <CardHeader>
           <CardTitle>
             {t('organizations.detail.directAddCard')}
-            <ImmediateBadge />
+            <ImmediateBadge className="align-middle" />
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
@@ -849,7 +816,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         <CardHeader>
           <CardTitle>
             {t('organizations.detail.membersCard')}
-            <ImmediateBadge />
+            <ImmediateBadge className="align-middle" />
           </CardTitle>
         </CardHeader>
         <CardContent>

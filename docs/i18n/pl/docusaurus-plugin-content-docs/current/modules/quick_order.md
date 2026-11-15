@@ -142,7 +142,14 @@ nadal dopuszczalna (aktywna, dozwolona dla organizacji, adres istnieje — w prz
   wybiera wyznaczone wartości domyślne. Członek z rolą *Administrator* swojej organizacji zarządza
   także zakresem organizacji i wartościami domyślnymi pozostałych członków organizacji. Jest to
   zastrzeżone dla roli *Administrator* — nie jest uprawnieniem, nie można go przyznać innej roli,
-  a każdy inny otrzymuje odmowę `403 FORBIDDEN`.
+  a każdy inny otrzymuje odmowę `403 FORBIDDEN`. Na stronie `/preferences` Administrator organizacji
+  firmowej widzi drugi formularz, *Ustawienia domyślne organizacji*, z własnym przyciskiem zapisu;
+  organizacja osobista (B2C) go nie dostaje.
+- Odczyt jest szerszy niż zarządzanie o jeden wiersz: każdy członek może odczytać
+  (`GET /api/v1/quick-order/preferences?scope=organization`) wartości domyślne własnej organizacji,
+  czyli te, które dziedziczy. Strona podaje je w pustej opcji każdego pola („Domyślnie
+  w organizacji: …” albo „Brak ustawienia organizacji”).
+- Domyślny adres jest zawsze jednym z adresów organizacji — jedynej książki adresowej klienta.
 - Panel: `/api/v1/admin/quick-order/preferences` — administrator platformy zarządza dowolnym
   zakresem, a handlowiec tylko przypisanymi organizacjami i ich klientami. Każda zmiana jest
   audytowana.
@@ -161,6 +168,9 @@ włączone jest `quick_order.one_click_buy_enabled` **i** kupujący ma wszystkie
 wartości domyślne, strona produktu pokazuje przycisk „Kup jednym kliknięciem”. Pomija on koszyk i checkout: zamówienie jest składane z wartości domyślnych,
 a kupujący trafia tam, gdzie wskazuje `nextAction` płatności (przekierowanie do bramki albo strona
 zamówienia lub sukcesu, gdy krok płatności nie jest potrzebny).
+Gdy brakuje jedynie wartości domyślnej (`missing_defaults`), strona produktu zamiast przycisku
+pokazuje krótką wskazówkę z odnośnikiem do `/preferences`; z każdego innego powodu nie pokazuje
+niczego.
 
 Koszyk kupującego pozostaje nietknięty. Produkt trafia do osobnego koszyka roboczego (*Koszyki
 robocze* modułu koszyków) przez metodę koszyka `addItems` z `workingBasket: true`

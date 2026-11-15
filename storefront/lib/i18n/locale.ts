@@ -1,4 +1,4 @@
-import type { I18nConfigResponse } from '@endora-commerce/contracts';
+import { parseAcceptLanguage, type I18nConfigResponse } from '@endora-commerce/contracts';
 
 /**
  * The language a page renders in (feature 167, `specs/167-storefront-locale-path/`):
@@ -36,7 +36,9 @@ export function resolvePageLocale(input: {
  * outage in the wrong language is the one thing that would make it worse.
  *
  * Matching is exact first and then language-only, so `pl`, `pl-PL` and
- * `pl-PL,pl;q=0.9,en;q=0.8` all reach the Polish catalogue.
+ * `pl-PL,pl;q=0.9,en;q=0.8` all reach the Polish catalogue. The header is read by the
+ * platform's one parser, `parseAcceptLanguage` (issue #1011): tags in descending `q`,
+ * bounded in length and count, a tag with a malformed `q` dropped.
  */
 export function resolveLocaleWithoutConfig(input: {
   acceptLanguage?: string | null;
@@ -65,20 +67,4 @@ export function pickLocalizedString(
   if (record[locale]) return record[locale];
   if (record[defaultLocale]) return record[defaultLocale];
   return Object.values(record)[0] ?? '';
-}
-
-function parseAcceptLanguage(header: string): string[] {
-  return header
-    .split(',')
-    .map((part) => {
-      const [tag, ...params] = part.trim().split(';');
-      const q = params
-        .map((p) => p.trim())
-        .find((p) => p.startsWith('q='))
-        ?.slice(2);
-      return { tag: tag!.trim(), q: q ? Number(q) : 1 };
-    })
-    .filter((c) => c.tag && !Number.isNaN(c.q))
-    .sort((a, b) => b.q - a.q)
-    .map((c) => c.tag);
 }

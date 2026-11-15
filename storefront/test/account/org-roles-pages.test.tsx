@@ -216,6 +216,8 @@ beforeEach(() => {
       organizationRole: { id: R_ADMIN, kind: 'administrator', name: 'Administrator' },
       emailVerifiedAt: null,
       twoFactorEnabled: false,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     },
     {
       id: 'acc-2',
@@ -226,6 +228,8 @@ beforeEach(() => {
       organizationRole: { id: R_JUNIOR, kind: 'custom', name: 'Junior buyer' },
       emailVerifiedAt: null,
       twoFactorEnabled: false,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     },
   ];
   invitations = [

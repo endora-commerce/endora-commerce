@@ -11,7 +11,7 @@ import {
   urlKeyErrorMessage,
   type ProductUrlKeys,
 } from '../lib/product-url-keys-api.js';
-import { SectionHeading } from './editor/ImmediateBadge.js';
+import { SectionHeading } from './editor/SectionHeading.js';
 
 /**
  * Feature 174 (`contracts/editor-ui.md` §3, §11) — the product's old URLs, below the URL key on

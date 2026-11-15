@@ -29,12 +29,12 @@ import {
   type CartMiniPayload,
   type UpsellsResponse,
   type CouponDropReason,
+  requestScopeLanguage,
 } from '@endora-commerce/contracts';
 import {
   availableRecords,
   basketScopeLanguage,
   effectiveKeysAt,
-  firstLanguageTag,
   withBasketOrderRules,
 } from './services/cart-availability.js';
 import { cartAudience, type CartActor, type CartService } from './services/cart-service.js';
@@ -220,9 +220,19 @@ function cartActorOnRequestChannel(
 ): CartActor & { salesChannelId: string } {
   const actor = resolveCartActor(request);
   const salesChannelId = getResolvedChannel(request).id;
-  // Feature 163 — the request's language tag; the basket's scope language is
-  // it resolved against the channel's own languages.
-  const languageTag = firstLanguageTag(request.headers['accept-language']);
+  // Feature 163 — the basket's scope language. Issue #1011 — the channel
+  // language the whole `Accept-Language` asks for (`requestScopeLanguage`, as
+  // the catalogue resolves it since #397): the tags in descending `q`, each
+  // matched against the channel's languages (exactly, then by base language),
+  // else the channel's default. It used to be the header's first tag alone, so
+  // `en;q=0.2, pl-PL;q=0.9` asked about English. A content language, so not
+  // `request.responseLanguage()`, which words the messages. No header: none,
+  // and the basket is asked about at the channel's default, as before.
+  const header = request.headers['accept-language'];
+  const languageTag =
+    header === undefined || header.length === 0
+      ? undefined
+      : requestScopeLanguage(getResolvedChannel(request), header);
   return {
     ...(actor.customer ? { customer: { ...actor.customer, salesChannelId } } : {}),
     ...(actor.anonymousToken
@@ -583,9 +593,12 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       if (mintAnonymousToken) {
         const token = `anon-${crypto.randomUUID()}`;
         reply.setCookie(ANON_COOKIE, token, { path: '/', sameSite: 'lax', httpOnly: true });
+        // Issue #1011 — the new actor keeps the request's language: dropping it
+        // judged a visitor's first add in the channel's default language.
         actor = {
           anonymousToken: token,
           anonymousSalesChannelId: actor.salesChannelId,
+          ...(actor.languageTag !== undefined ? { languageTag: actor.languageTag } : {}),
           salesChannelId: actor.salesChannelId,
         };
       }

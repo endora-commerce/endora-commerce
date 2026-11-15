@@ -31,6 +31,8 @@ export { SaveSessionActions } from './save-session/SaveSessionActions.js';
 export type { SaveSessionActionsProps } from './save-session/SaveSessionActions.js';
 export { SaveSessionSummary } from './save-session/SaveSessionSummary.js';
 export type { SaveSessionSummaryProps } from './save-session/SaveSessionSummary.js';
+export { ImmediateBadge } from './save-session/ImmediateBadge.js';
+export type { ImmediateBadgeProps } from './save-session/ImmediateBadge.js';
 export { TouchReorderButtons } from './TouchReorderButtons.js';
 export type { TouchReorderButtonsProps } from './TouchReorderButtons.js';
 export { AdminUserPicker } from './admin-user-picker/AdminUserPicker.js';

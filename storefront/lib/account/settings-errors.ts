@@ -14,7 +14,8 @@ export const PASSWORD_ERRORS = defineUrlErrors({
 });
 
 export const PREFERENCES_ERRORS = defineUrlErrors({
-  api: {},
+  // Issue #359 — a default address must be one of the target Organization's own.
+  api: { ADDRESS_NOT_OWNED: 'account.preferences.error.ADDRESS_NOT_OWNED' },
   own: { SAVE_FAILED: 'account.preferences.failed' },
   generic: 'SAVE_FAILED',
 });
