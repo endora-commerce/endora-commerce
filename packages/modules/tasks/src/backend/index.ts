@@ -94,6 +94,7 @@ import { TaskContextRegistry } from './services/task-context-registry.js';
 import { createTaskEmail, type TaskEmail } from './services/task-email.js';
 import { TaskHistoryService } from './services/task-history-service.js';
 import { TaskMaintenanceService } from './services/maintenance-service.js';
+import { TaskTimeZoneRederiveService } from './services/time-zone-rederive-service.js';
 import { createTaskNotifier, type TaskNotifier } from './services/task-notifier.js';
 import { TaskReadPortService } from './services/task-read-port.js';
 import { TaskService } from './services/task-service.js';
@@ -109,6 +110,7 @@ import {
   startTasksReminders,
   TASKS_DIGEST_SCOPE_REASON,
   TASKS_MAINTENANCE_SCOPE_REASON,
+  TASKS_REDERIVE_SCOPE_REASON,
   TASKS_REMINDERS_SCOPE_REASON,
   type TasksRemindersJob,
 } from './workers/tasks-reminders-worker.js';
@@ -159,6 +161,7 @@ interface TasksCradle {
   readonly tasksReminderService: TaskReminderService;
   readonly tasksDigestService: TaskDigestService;
   readonly tasksMaintenanceService: TaskMaintenanceService;
+  readonly tasksTimeZoneRederiveService: TaskTimeZoneRederiveService;
   readonly tasksRemindersJob: TasksRemindersJob;
   /**
    * `transactional_emails`' late-bound sender, read per send. It answers
@@ -742,13 +745,31 @@ export function registerModule(ctx: ModuleContext): void {
           new TaskMaintenanceService({ emFactory, commandBus, contexts: taskContextRegistry, auditLog: auditLogService }),
       )
       .singleton(),
+    // Issue #505 — due dates and relative reminders re-derived once the zone has changed.
+    tasksTimeZoneRederiveService: ctx
+      .asFunction(({ emFactory, commandBus, auditLogService }: TasksCradle) => {
+        const settings = lazyPort<SettingsReadPort>(ctx, 'settingsReadPort');
+        return new TaskTimeZoneRederiveService({
+          emFactory,
+          commandBus,
+          auditLog: auditLogService,
+          timeZone: () => settings.get('tasks.time_zone', null, TaskTimeZoneSchema.shape.timeZone),
+        });
+      })
+      .singleton(),
     // What one tick of the clock runs, and the slower passes' cadence. Registered, so that
     // what a test drives (`runTasksRemindersJob`) is what the consumer runs:
     // presence, then each pass's probe, then its scope.
     tasksRemindersJob: ctx
-      .asFunction(({ tasksReminderService, tasksDigestService, tasksMaintenanceService }: TasksCradle) =>
+      .asFunction(
+        ({ tasksReminderService, tasksDigestService, tasksMaintenanceService, tasksTimeZoneRederiveService }: TasksCradle) =>
         createTasksRemindersJob({
           isPresent: () => effectiveState.isPresent('tasks'),
+          rederive: {
+            scopeReason: TASKS_REDERIVE_SCOPE_REASON,
+            hasWork: () => tasksTimeZoneRederiveService.hasWork(),
+            run: () => tasksTimeZoneRederiveService.pass(),
+          },
           reminders: {
             scopeReason: TASKS_REMINDERS_SCOPE_REASON,
             hasWork: (now) => tasksReminderService.hasWork(now),

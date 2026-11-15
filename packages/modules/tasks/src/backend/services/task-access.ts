@@ -105,6 +105,11 @@ export const TASK_ACCESS_READERS: Readonly<Record<string, string>> = {
     'walks the distinct context ids of each context type whose present owner can say which still exist, and reads ' +
     'the ids of the Tasks of the contexts the owner says are gone, or whose group is — handing each to the delete or ' +
     'ungroup Command, which re-reads it under the lock. Nothing read is shown or sent to anybody.',
+  'services/time-zone-rederive-service.ts':
+    'The #505 time-zone pass, run in the system scope its worker enters (its probe answers one bit, outside any ' +
+    'scope): it reads the ids and due moments of the Tasks whose `due_on` or relative reminders are out of step ' +
+    'with `tasks.time_zone`, platform-wide on purpose, and hands each to the re-derive Command, which re-reads it ' +
+    'under the lock. Nothing read is shown or sent to anybody.',
   'services/task-write-port.ts':
     '`deleteInContext` lists the ids of one context for its owner — the module that registered the context type ' +
     'and is deleting its own record — and hands each to the delete Command. `createMany` looks up which of the ' +

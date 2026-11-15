@@ -55,10 +55,11 @@ const PROBES = [
   // `specs/179-rfq-and-customer-notifications/` R-8 — the notification delivery worker's tick.
   { module: 'quote_requests', file: 'services/notifications/delivery-service.ts', method: 'hasDeliverable' },
   { module: 'projects', file: 'services/stage-alert-service.ts', method: 'hasSweepWork' },
-  // One worker, three passes (`specs/165-task-management/` R-17 – R-19): each pass has its own probe.
+  // One worker, four passes (`specs/165-task-management/` R-17 – R-19, issue #505): each pass has its own probe.
   { module: 'tasks', file: 'services/reminder-service.ts', method: 'hasWork' },
   { module: 'tasks', file: 'services/digest-service.ts', method: 'hasWork' },
   { module: 'tasks', file: 'services/maintenance-service.ts', method: 'hasWork' },
+  { module: 'tasks', file: 'services/time-zone-rederive-service.ts', method: 'hasWork' },
   // Issue #909 — the retention sweep's four passes, one question.
   { module: 'assets_library', file: 'jobs/retention-due-probe.ts', method: 'hasDue' },
   // Issue #894 — the publication-window sweep.

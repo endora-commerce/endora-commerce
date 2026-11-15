@@ -346,6 +346,12 @@ recorded once, on the tag, with how many tasks carried it.
 **General settings** (`/tasks/settings/general`). The **time zone** in which
 Tasks counts "today": when a task with a due date alone becomes overdue, when a
 reminder before such a date fires, and the hour of the daily digest.
+Changing it moves what was counted in the old zone within a minute or two: a
+reminder before a due date alone now counts from 09:00 of that date in the new
+zone, and fires again there even if it was already sent; a task with a due time
+gets that time's date in the new zone as its due date. Each task changed is
+recorded in its history. Reminders at a chosen moment, and reminders before a
+due time, do not depend on the zone and stay as they are.
 
 ## Settings
 
