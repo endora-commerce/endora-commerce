@@ -81,6 +81,7 @@
   "cells.org.category_attribute": "Cennik organizacji, linia kategorii i wartości atrybutu",
   "cells.org.product": "Cennik organizacji, linia produktu",
   "cells.org.variant": "Cennik organizacji, linia wariantu",
+  "displayModeRow.partLabel": "Tryb prezentacji ceny",
   "displayModeRow.error.load": "Nie udało się wczytać trybu prezentacji.",
   "displayModeRow.error.save": "Nie udało się zapisać trybu prezentacji.",
   "displayModeRow.help.format": "Klienci widzą ceny w formacie „{mode}” w tym zakresie.",

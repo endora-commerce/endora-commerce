@@ -241,7 +241,9 @@ export const AdminZoneNameSchema = z.enum([
    *
    * Mounted **once** per open category, and named from the host's own word for
    * the place (Z14): `catalog`'s `CategoriesTree.tsx` is the editor, and the
-   * place is *after* everything the editor itself offers. Props:
+   * place is the end of its form, after the editor's own fields and before its
+   * Save row — what the Save covers sits above it (feature 180, FR-052; the
+   * name predates the move and was kept). Props:
    * {@link CategoryEditorZoneProps}.
    *
    * The first member whose contributor is `price_lists`. `catalog` imported
@@ -679,7 +681,8 @@ export interface InvoiceDetailZoneProps {
 }
 
 /**
- * A zone mounted once at the end of the category editor's form.
+ * A zone mounted once at the end of the category editor's form, before its save
+ * row (feature 180, FR-052).
  *
  * The entity's own id and nothing else, which is what the one contribution
  * reads: `DisplayModeOverrideRow` takes a scope and a target id, and the scope

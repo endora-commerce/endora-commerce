@@ -21,8 +21,9 @@ import { DisplayModeOverrideRow } from '../components/DisplayModeOverrideRow.js'
  */
 export type CategoryDisplayModeProps = AdminZoneProps<'category.editor.after'>;
 
-export function CategoryDisplayMode({ categoryId }: CategoryDisplayModeProps): ReactNode {
-  return <DisplayModeOverrideRow scope="category" targetId={categoryId} />;
+export function CategoryDisplayMode({ categoryId, saveSession }: CategoryDisplayModeProps): ReactNode {
+  // Feature 180, WP-6 — the category editor's Save writes the mode (FR-050).
+  return <DisplayModeOverrideRow scope="category" targetId={categoryId} saveSession={saveSession} />;
 }
 
 /**
