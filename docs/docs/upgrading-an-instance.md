@@ -4984,6 +4984,25 @@ when, and what changed; it no longer says whose preference it was. A report that
 `scopeId` reads an Organization's or a customer's current defaults from
 `GET /api/v1/quick-order/preferences?scope=…&scopeId=…` instead.
 
+### A form entry export's search text leaves the platform audit log {#forms-export-audit-names-only}
+
+The release that ships this change stops writing the search text of a form entry export into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whatever Organizations they may see, and the search text is whatever the employee
+typed — often a submitter's e-mail address or a phrase from their answers.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `forms.entries.export` entry no
+  longer carries `filter.q`. When the export was filtered by a search text, `filter` records
+  `hasQuery: true` and `queryLength`, the number of characters typed. The form, the statuses, the
+  submission dates, the sales channel and the row count are recorded as before.
+- The export itself is unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep the search text.
+
+**After upgrading,** nothing has to be done. The audit log still says who exported which form's
+entries, when, with which filters and how many rows; it no longer says what was searched for.
+
 ### The admin panel's address is a platform input {#admin-base-url-platform-input}
 
 The release that ships this change makes `ADMIN_BASE_URL` — the admin panel's address — an input

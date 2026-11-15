@@ -343,7 +343,13 @@ describe('forms — read and process entries (US4)', () => {
 
       await call('GET', `/export?formId=${survey.detail.id}&q=${encodeURIComponent('survey')}`);
       const exported = await auditRows(h, { action: 'forms.entries.export', objectId: survey.detail.id });
-      expect(exported.at(-1)!.stateAfter).toMatchObject({ formId: survey.detail.id, filter: { q: 'survey' }, rowCount: 1 });
+      // Issue #470 (D-288): the search text is free text, so the entry records its shape only.
+      expect(exported.at(-1)!.stateAfter).toMatchObject({
+        formId: survey.detail.id,
+        filter: { hasQuery: true, queryLength: 6 },
+        rowCount: 1,
+      });
+      expect(JSON.stringify(exported)).not.toContain('survey');
     });
   });
 });

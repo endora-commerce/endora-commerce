@@ -5211,6 +5211,27 @@ kiedy i co się zmieniło; nie podaje już, czyje to były ustawienia. Raport, k
 z `scopeId`, odczytuje aktualne ustawienia domyślne organizacji albo klienta z
 `GET /api/v1/quick-order/preferences?scope=…&scopeId=…`.
 
+### Tekst wyszukiwania eksportu zgłoszeń formularza znika z dziennika audytu platformy {#forms-export-audit-names-only}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać tekst wyszukiwania eksportu zgłoszeń
+formularza w ogólnoplatformowym dzienniku audytu (zgłoszenie #470). Ten dziennik to jedna tabela,
+którą czyta każdy z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi,
+a tekst wyszukiwania to to, co wpisał pracownik — często adres e-mail zgłaszającego albo fragment
+jego odpowiedzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `forms.entries.export` nie
+  zawiera już `filter.q`. Gdy eksport był filtrowany tekstem wyszukiwania, `filter` zapisuje
+  `hasQuery: true` oraz `queryLength`, czyli liczbę wpisanych znaków. Formularz, statusy, daty
+  zgłoszenia, kanał sprzedaży i liczba wierszy są zapisywane jak dotąd.
+- Sam eksport się nie zmienia.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują tekst wyszukiwania.
+
+**Po aktualizacji** nie trzeba nic robić. Dziennik audytu nadal podaje, kto wyeksportował
+zgłoszenia którego formularza, kiedy, z jakimi filtrami i ile wierszy; nie podaje już, czego
+szukano.
+
 ### Adres panelu administracyjnego jest ustawieniem platformy {#admin-base-url-platform-input}
 
 Wydanie, które wprowadza tę zmianę, czyni `ADMIN_BASE_URL` — adres panelu administracyjnego —
