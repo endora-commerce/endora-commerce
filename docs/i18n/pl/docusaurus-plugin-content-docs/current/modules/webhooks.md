@@ -48,6 +48,14 @@ wysyłki nie można już ponowić. Sprawdzenie działa w procesie workera i tylk
 włączony; gdy jest wyłączony, nic nie jest usuwane, a pierwszy przebieg po ponownym włączeniu usuwa
 to, czemu w tym czasie upłynął termin.
 
+Kolejka wysyłek przechowuje w Redis własną kopię każdego zakończonego zadania, z treścią zdarzenia
+i sekretem podpisu subskrypcji. Ta kopia podlega temu samemu okresowi: zakończone zadanie jest
+usuwane, gdy jest starsze niż `webhooks.delivery_retention_days`, a kolejka przechowuje też nie
+więcej niż 500 ostatnich udanych i 5 000 ostatnich nieudanych zadań. Codzienne sprawdzenie usuwa
+również przeterminowane zadania, więc znikają nawet wtedy, gdy nie kończy się żadna nowa wysyłka.
+Zmieniony okres dotyczy zadań dodanych do kolejki po zmianie, a przy najbliższym codziennym
+sprawdzeniu także zadań już zakończonych.
+
 ## Które zdarzenia są dostarczane
 
 Zdarzenie jest dostarczane tylko wtedy, gdy jest przekazywane do kolejki wysyłek. Ten moduł sam z

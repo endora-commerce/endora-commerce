@@ -51,6 +51,15 @@ no longer be replayed. The check runs in the worker process and only while this
 module is on; while it is off nothing is deleted, and the first run after it is
 switched back on deletes what came due meanwhile.
 
+The delivery queue keeps its own copy of each finished job in Redis, with the
+payload and the subscription's signing secret. That copy is bounded by the same
+window: a finished job is removed once it is older than
+`webhooks.delivery_retention_days`, and the queue also keeps no more than the
+latest 500 succeeded and 5 000 failed jobs. The daily check removes the expired
+jobs as well, so they go even when no new delivery finishes. A changed window
+applies to the jobs queued after the change and, at the next daily check, to
+the jobs already finished.
+
 ## Which events are delivered
 
 An event is delivered only when it is bridged to the delivery queue. This
