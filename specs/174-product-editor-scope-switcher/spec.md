@@ -235,6 +235,8 @@ plus one process decision.
   scoped field**. **Structural operations** — adding / removing / reordering variants, bundle slots, links,
   images, attachments, packaging units — plus **price-book rows, channel membership and warehouse stock** stay
   **immediate, individually audited actions**, labelled **"applies immediately"** in the editor.
+  *(Amended 2026-11-14 by `specs/180-one-save-zone-editors/`: the product's base prices join the Save; see
+  FR-070.)*
 - Q: (plan Q3, FR-043) Does the product export use the import profile? → A: **No.** The product CSV export writes
   **Global + per-scope columns** (e.g. `sklep_pl:pl`) and does not use an import profile, so re-importing an
   export through that layout is exact.
@@ -982,12 +984,20 @@ therefore a schema change, not a data-preserving move.
   attachments and packaging units — and **price-book rows, channel membership and warehouse stock** MUST stay
   **immediate, individually audited actions**, not staged and not part of the Save, each labelled **"applies
   immediately"** in the editor.
+  *Amended 2026-11-14 by `specs/180-one-save-zone-editors/` (§ Amendments; FR-020, FR-022, FR-025): "price-book
+  rows" stay immediate on the price-book grid, but the product's **base prices** on the Pricing tab join the one
+  Save as a `price_lists` participant; the Inventory tab's product-row settings (stock management, backorders,
+  low-stock threshold and its mode, fulfilment strategy) are confirmed inside the Save (OQ-7 = B). Channel
+  membership and per-warehouse stock stay immediate.*
 - **FR-071**: A save MUST write every staged change **of the current scope only**, in **one** atomic audited
   Command, across every field family of that scope — SEO included, through `seo`'s write port (FR-091). Either
   every change applies or none does.
 - **FR-072**: A save MUST produce exactly one audit entry carrying, for every field it wrote, the field, the
   scope and the before / after values. (163 FR-080's "one entry per product per command" stands; what changes
   is that one Command now spans several field families.)
+  *Amended 2026-11-14 by `specs/180-one-save-zone-editors/` FR-017: "exactly one audit entry" applies to the
+  catalog write; a Save that also writes participants adds each participant module's own audit, exactly as
+  that module's write produces it, with no cross-module correlation.*
 - **FR-073**: A completeness-gate refusal (*refuse* mode), a validation error, a version conflict or a failed
   SEO write MUST refuse the whole save, write nothing, keep every staged change, and name the reason per field
   (and per (C, L) pair for the gate).
