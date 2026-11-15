@@ -516,7 +516,10 @@ bez pamięci podręcznej, więc zmiana obowiązuje od następnego żądania.
 
 **Kto ją widzi i zmienia.** Obie kontrolki to panele na ekranach organizacji i klienta, widoczne
 dla ról z `customers:read`; zmiana wartości wymaga `customers:manage`, a bez niego kontrolka panelu
-jest nieaktywna. Rola, która ma `customers:manage`, ale **nie** ma `customers:read`, nie widzi
+jest nieaktywna. Panele nie mają własnego zapisu: wybór wartości czeka na zapis, a
+zapisuje go jeden przycisk Zapisz ekranu, po własnych zmianach organizacji lub klienta. Opuszczenie
+strony z niezapisaną wartością wymaga potwierdzenia. Na ekranie klienta wiersz „Obowiązuje: …” jest
+ukryty, gdy zmiana czeka na zapis, bo opisuje zapisaną wartość. Rola, która ma `customers:manage`, ale **nie** ma `customers:read`, nie widzi
 panelu. Opiekun handlowy sięga tylko do organizacji, które może widzieć; każdy inny identyfikator
 dostaje `404`. Organizacja bez przypisanego opiekuna handlowego jest widoczna dla każdego opiekuna
 (zob. *Model widoczności*), więc każdy opiekun może zmienić jej blokadę — a od zgłoszenia #305 także

@@ -73,6 +73,8 @@ P3 — this feature **displays** it (Q11, FR-023 of 160); P1 and P2 ship togethe
 - OQ-1: How does the base-price panel save (FR-020)? → A: **(B) its own *Save prices* button** with
   an unsaved-changes prompt, as every product-editor zone panel saves today. One Save for the whole
   product edit page is the future direction, tracked as issue #407.
+  *Superseded 2026-11-14 by `specs/180-one-save-zone-editors/` FR-020 (issue #407): the panel saves
+  with the product editor's one Save.*
 - OQ-2: Saved views on the book list (FR-034)? → A: **(B) not now**: the list's filters live in the
   URL (shareable, bookmarkable); saved views on the price-book list are issue #408.
 - Review (coordinator, 2026-10-22): the grid pages by **product line**, never splitting a line's tiers
@@ -482,6 +484,10 @@ row; after fixing the file and confirming, the grid equals the file.
   when leaving the Pricing tab or the page; it MUST report its own errors on its fields and state when
   the product has no base price and is therefore not orderable (Clarifications, Session 2026-10-22;
   one Save for the whole product page is issue #407).
+  *Amended 2026-11-14 by `specs/180-one-save-zone-editors/` FR-020 (owner rulings OQ-1…OQ-11, issue
+  #407): the panel MUST save with the product editor's one Save — the original wording, restored. The
+  *Save prices* action and the panel's own unsaved-changes prompt above are superseded; its field
+  errors, its not-orderable statement and its read-only rendering stay.*
 - **FR-021**: The product editor MUST list read-only the books that price the product directly,
   with audience and price, linking to the grid and the explanation screen, replacing the removed
   *Linked price lists* panel.

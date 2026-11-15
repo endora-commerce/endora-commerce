@@ -283,11 +283,11 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     const entries = await em.find(AuditLogEntry, { action: 'address.anonymized', objectId: { $in: [live.id, removed.id] } });
     expect(entries).toHaveLength(2);
     const byId = new Map(entries.map((e) => [e.objectId, e]));
-    expect(byId.get(live.id)!.stateBefore).toMatchObject({ organizationId: c.organizationId, kind: 'delivery', wasDeleted: false });
-    expect(byId.get(removed.id)!.stateBefore).toMatchObject({ organizationId: c.organizationId, kind: 'billing', wasDeleted: true });
+    expect(byId.get(live.id)!.stateBefore).toEqual({ kind: 'delivery', wasDeleted: false });
+    expect(byId.get(removed.id)!.stateBefore).toEqual({ kind: 'billing', wasDeleted: true });
     for (const entry of entries) expect(entry.actorAdminUserId ?? null).toBeNull();
     const serialised = JSON.stringify(entries.map((e) => [e.stateBefore, e.stateAfter]));
-    for (const value of SEEDED) expect(serialised).not.toContain(value);
+    for (const value of [...SEEDED, c.organizationId]) expect(serialised).not.toContain(value);
   });
 
   it('I-927-2 — blanks every row of the retired personal book: moved, deleted by the customer, refused', async () => {

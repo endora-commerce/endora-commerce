@@ -2401,6 +2401,7 @@ export async function setupBackendServer(
               input.shoppingListId,
               undefined,
               input.salesChannelId,
+              input.languageTag !== undefined ? { languageTag: input.languageTag } : {},
             );
             return {
               cartId: '',

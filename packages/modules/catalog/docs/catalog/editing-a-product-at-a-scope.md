@@ -28,18 +28,71 @@ in the scope bar, next to the scope it saves, and shows how many changes are wai
 screen the scope bar stays at the top of the window while you scroll, so Save is always in reach; on a narrow screen
 Save is in the bar fixed to the bottom of the screen.
 
+## What Save covers
+
+Save writes everything you have staged on the product, wherever on the page you staged it:
+
+- the product's fields on every tab, at the current scope, the SEO fields included;
+- the product's stock settings on the **Inventory** tab — stock management, backorders, the low-stock threshold and
+  its mode, and the fulfilment strategy with its warehouse order. They exist only at Global. The tab has no Save of
+  its own, and changing the threshold mode no longer saves by itself; setting a value back to the saved one removes
+  it from the count;
+- the **Base prices** on the **Pricing** tab, while the Price lists module is on. There is no *Save prices* button.
+
+The count on Save adds them all up ("Save 3 changes"). Changes on a tab you have left stay staged and counted, and
+switching tabs asks nothing. Save is offered to anyone who may change the product or any of these parts, and it
+writes only what they may change.
+
+**First, everything is checked.** The product's fields are checked as before, and the base prices are checked by
+the server without being written. If anything is refused, nothing is written and every change stays. A refused
+product field shows its reason on the field, as before. When the base prices have problems, a summary under the
+scope bar lists each part with its problems ("Base prices — 1 problem"); **Show** opens that part's tab and moves to
+the first field with an error.
+
+**Then the parts are written, one after another**: the product's fields first, then the base prices. Each part is
+recorded in the audit log as its own module records it — the product's save as one entry, the base prices as
+another.
+
+- If the product's fields are refused — someone else saved the product meanwhile, the completeness check refuses a
+  status change, a URL key is taken, a value is invalid — the base prices are not written either. The editor says
+  why, as before.
+- If the product's fields are saved and the base prices are not, the summary says both ("Saved: Product fields.
+  Not saved: Base prices — *reason*"). The product's fields are no longer staged; the base prices still are, Save
+  counts only them, and pressing it again writes only the base prices.
+- If the Price lists module is switched off while base prices are staged, those changes are discarded and the editor
+  says so. A save the server refuses because the module was switched off is reported as that part not saved.
+
+## What applies immediately
+
+Some actions on the product are not staged. They are written the moment you use them, each recorded on its own,
+and they neither add to the staged changes nor clear them. Each section holding such an action carries an
+**Applies immediately** badge on its heading, shown only where you may use the action:
+
+- adding, removing, reordering or replacing variants, bundle slots, grouped items, links, images, attachments and
+  packaging units;
+- deleting a URL redirect;
+- the product's sales channels on the **Channels** tab;
+- **Stock by warehouse** on the **Inventory** tab — each warehouse's stock level and low-stock threshold.
+
+The prices in other price books are edited in the book's price grid, not here. The **Pricing** tab carries no badge:
+its base prices save with Save.
+
 ## Switching with unsaved changes
 
 Changes are saved one scope at a time, so switching scope (or leaving the product, or using the browser's Back
-button) with unsaved changes opens a dialog with three choices:
+button) with unsaved changes — base prices included — opens a dialog with three choices:
 
-- **Save and continue** — save the changes at the scope you are leaving, then switch;
-- **Discard changes** — drop them and switch;
+- **Save and continue** — save the changes at the scope you are leaving, then switch; if any part is not saved, you
+  stay;
+- **Discard changes** — drop every unsaved change on the page and switch;
 - **Stay here** — close the dialog and keep editing.
 
 If the save is refused, you stay where you are and the refusal is shown on the field. If someone else saved the
 product in the meantime, the editor reports a version conflict; **Reload** discards your staged changes and reads the
 product again, and the button says so.
+
+There is one such question for the whole page: no tab or panel asks one of its own. Closing or reloading the
+browser tab with unsaved changes makes the browser ask before it leaves.
 
 ## Inherit, or set a value here
 
