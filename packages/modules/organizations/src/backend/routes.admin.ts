@@ -29,7 +29,6 @@ import {
   adminOrganizationChangeTaxIdBodySchema,
   normalizeTaxId,
   type AdminTaxIdScopeResponse,
-  DictionaryReferenceError,
   OrganizationSalesChannelsUpdateBodySchema,
   type DictionaryValidator,
   type OrganizationSalesChannelsResponse,
@@ -46,6 +45,7 @@ import { makeSetParentCommand } from './commands/set-parent.command.js';
 import { makeMoveCommand } from './commands/move.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
+import { assertCountryAvailable, assertSalesChannelsExist } from './services/organization-write-guards.js';
 import { makeSetTaxIdScopeCommand } from './commands/set-tax-id-scope.command.js';
 import { makeConvertToCompanyCommand } from './commands/convert-to-company.command.js';
 import { makeChangeTaxIdCommand } from './commands/change-tax-id.command.js';
@@ -1585,56 +1585,3 @@ function mapModerationError(err: unknown): HttpError {
 }
 
 void (null as FastifyRequest | null);
-
-/**
- * Refuses a channel id that names no channel — one deleted while the form was
- * open, or a mistyped id from an API caller — with a field error naming its
- * position, before anything is written. An inactive channel is a channel, and
- * an Organization may be assigned to one.
- */
-async function assertSalesChannelsExist(
-  em: EntityManager,
-  salesChannelIds: readonly string[],
-): Promise<void> {
-  const known = new Set(
-    (
-      await em.find(SalesChannel, { id: { $in: [...new Set(salesChannelIds)] } }, { fields: ['id'] })
-    ).map((c) => c.id),
-  );
-  const unknown = salesChannelIds
-    .map((id, index) => ({ id, index }))
-    .filter(({ id }) => !known.has(id));
-  if (unknown.length === 0) return;
-  throw new HttpError(
-    422,
-    ERROR_CODES.VALIDATION_FAILED,
-    'One or more of the sales channels do not exist. Reload and choose again.',
-    unknown.map(({ id, index }) => ({ path: `salesChannelIds.${index}`, issue: id })),
-  );
-}
-
-/**
- * The country check self-registration makes (`RegistrationService`), with the
- * same answer: 409 and the Dictionary's code on the address field.
- */
-async function assertCountryAvailable(
-  validator: DictionaryValidator | undefined,
-  country: string,
-): Promise<void> {
-  if (!validator) return;
-  try {
-    await validator.validateCountryCode(country, 'create-or-change');
-  } catch (err) {
-    if (err instanceof DictionaryReferenceError) {
-      throw new HttpError(
-        409,
-        err.code,
-        err.code === 'DICTIONARY_ENTRY_INACTIVE'
-          ? `Country code ${err.entryCode} is no longer available.`
-          : `Country code ${err.entryCode} is not recognised.`,
-        [{ path: 'registeredAddress.country', issue: err.code }],
-      );
-    }
-    throw err;
-  }
-}

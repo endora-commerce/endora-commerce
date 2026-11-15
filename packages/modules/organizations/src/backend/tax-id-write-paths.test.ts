@@ -60,6 +60,7 @@ describe('the writes of organizations.tax_id and path', () => {
     expect(callers.map((path) => relative(BACKEND, path)).sort()).toEqual([
       'routes.admin.ts',
       'services/organization-command-port.ts',
+      'services/organization-write-port.ts',
       'services/registration-service.ts',
     ]);
     for (const path of callers) {
