@@ -79,6 +79,24 @@ async function choose(label: string, value: string): Promise<void> {
   fireEvent.change(select, { target: { value } });
 }
 
+/**
+ * The operator's pick dispatched the moment the field is in the DOM, before the next task — and so
+ * before React's passive effects for that commit have seeded the session. `findByLabelText`
+ * usually resumes after them; under CI load it did not (#1271).
+ */
+async function chooseAtOnce(label: string, value: string): Promise<void> {
+  await new Promise<void>((done) => {
+    const observer = new MutationObserver(() => {
+      const select = screen.queryByLabelText(label) as HTMLSelectElement | null;
+      if (select === null) return;
+      observer.disconnect();
+      fireEvent.change(select, { target: { value } });
+      done();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+}
+
 beforeEach(() => {
   session = null;
   getSpy.mockReset().mockImplementation(async (url: string) => {
@@ -128,6 +146,18 @@ describe('ordering defaults under the organization detail session (feature 180, 
     });
     expect(session?.dirtyCount).toBe(0);
     expect((screen.getByLabelText(PAYMENT) as HTMLSelectElement).value).toBe(PM);
+  });
+
+  it('keeps a pick made the moment the fields appear, before the session was seeded (#1271)', async () => {
+    renderOrganization();
+    await chooseAtOnce(PAYMENT, PM);
+    await waitFor(() => expect(session?.dirtyCount).toBe(1));
+    expect((screen.getByLabelText(PAYMENT) as HTMLSelectElement).value).toBe(PM);
+    await act(async () => {
+      await session!.run(null);
+    });
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(putSpy.mock.calls[0]?.[1]).toMatchObject({ scope: 'organization', scopeId: ORG_ID, defaultPaymentMethodId: PM });
   });
 
   it('a failed write keeps the change staged and says why at the panel', async () => {

@@ -273,10 +273,17 @@ export function useSaveParticipant<D>(
   const setDraft = useCallback(
     (next: D | ((previous: D) => D)) => {
       if (store !== null) {
-        // The edit is judged against what the operator sees now: the meta of this render, which
-        // the effect below may not have pushed to the store yet (a panel that has just become
-        // writable would otherwise drop the first keystroke).
-        if (loaded !== null) store.updateMeta(id, meta);
+        // The edit is judged against what the operator sees now: this render's read and meta,
+        // which the effects above may not have pushed to the store yet. React runs them a task
+        // after the commit that renders the fields, and an event dispatched in between — a panel
+        // whose read has just landed, or one that has just become writable — would otherwise
+        // find no entry, or a read-only one, and drop the first edit. Only a missing entry is
+        // seeded here: an existing one may hold a baseline newer than `loaded` (a Save's), which
+        // re-seeding would roll back.
+        if (loaded !== null) {
+          if (store.getSnapshot().entries.has(id)) store.updateMeta(id, meta);
+          else store.seed(id, meta, loaded);
+        }
         store.setDraft(id, (previous) => resolveNext(next, previous as D));
         return;
       }
