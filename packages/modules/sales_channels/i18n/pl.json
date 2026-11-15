@@ -102,6 +102,10 @@
   "edit.deleteConfirm": "Usunąć kanał sprzedaży „{code}”? Tej operacji nie można cofnąć. Jeśli jakiś produkt, klient lub kategoria zostałyby bez kanału, usunięcie zostanie odrzucone i będzie można przenieść je do domyślnego kanału systemowego.",
   "edit.rebindConfirm": "Przenieść te rekordy do domyślnego kanału systemowego i usunąć ten kanał?",
   "edit.action.rebindAndDelete": "Przenieś i usuń",
+  "edit.action.deactivate": "Dezaktywuj",
+  "edit.action.activate": "Aktywuj ponownie",
+  "edit.error.deactivate": "Nie udało się dezaktywować kanału.",
+  "edit.error.activate": "Nie udało się aktywować kanału.",
   "channelEditor.save.hostPartLabel": "Kanał sprzedaży",
   "channelEditor.save.failed": "Nie udało się zapisać."
 }

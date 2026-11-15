@@ -369,17 +369,22 @@ export class ShoppingListService {
    * the caller's request, since a customer holds one basket per channel
    * (`specs/154-sales-channel-access/`). Archived products are skipped and
    * reported in `skipped`.
+   *
+   * `options.languageTag` (issue #1293) is the channel language the request's
+   * `Accept-Language` asks for; the lines are judged in it, as `POST
+   * /cart/items` judges them. Absent: the channel's default language.
    */
   async convertToCart(
     ctx: CustomerContext,
     listId: string,
     itemIds: string[] | undefined,
     salesChannelId: string,
+    options: { languageTag?: string } = {},
   ): Promise<ConvertToCartResult> {
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
     const items = await this.#selectItems(em, list.id, itemIds);
-    const { skipped, kept } = await this.#partitionByProductStatus(items, ctx);
+    const { skipped, kept } = await this.#partitionByProductStatus(items, ctx, options.languageTag);
 
     let added = 0;
     if (kept.length > 0) {
@@ -392,7 +397,7 @@ export class ShoppingListService {
           ...(item.variantId ? { variantId: item.variantId } : {}),
           quantity: item.quantity,
         })),
-        { onLineError: 'report' },
+        { onLineError: 'report', ...(options.languageTag ? { languageTag: options.languageTag } : {}) },
       );
       for (const outcome of outcomes) {
         const item = kept[outcome.index];

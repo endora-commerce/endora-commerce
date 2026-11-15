@@ -30,8 +30,14 @@ The list page shows every channel registered on the platform. The system-default
 ## Editing an existing channel
 
 1. Click a channel's `code` in the list.
-2. The edit page loads its identity. Make changes; click **Save changes**.
+2. The edit page loads its identity. Make changes; click **Save**. The button counts what is waiting ("Save 2 changes") and does nothing while there is nothing to save.
 3. If another administrator changed the same channel between your load and save, the save returns a 412 conflict banner with the current version. Refresh the page to pull the latest state and re-apply your changes.
+
+The edit page has **one Save**. It writes the channel's own fields and, when another module adds a section to the edit page that holds changes of its own, those too: the channel first, then each section. If the channel is refused, no section is written; if the channel is saved and a section is not, a summary at the top of the form names what was saved and what was not, and the next Save writes only what is left. **Cancel** discards the unsaved changes and returns to the list without asking. Following a link elsewhere in the admin, or closing or reloading the browser tab, with unsaved changes asks first.
+
+**Deactivate** and **Re-activate** apply at once and keep your unsaved edits: a field you changed keeps your value, every other field (the status included) shows the channel as it now is, and the next Save sends your edits without undoing the status change.
+
+**Warehouses for this channel**, the section the Inventory module adds below the form, is not part of the Save: assigning or removing a warehouse, or making one the default, applies the moment you do it, and the section's heading carries an **Applies immediately** badge.
 
 ## Opening and closing a store to anonymous visitors {#anonymous-access}
 

@@ -114,4 +114,58 @@ describe('Comparison language from Accept-Language (issue #1011)', () => {
     expect((await add(polishOnlyId)).status).toBe(404);
     expect(await add(namedId)).toEqual({ status: 200, names: ['Impact drill'] });
   });
+
+  /**
+   * The PDF export's language (`pickExportLanguage`, FR-032) is the same channel content
+   * language: it picks the template's language, the channel name and the share page's
+   * language prefix, so it goes through `requestScopeLanguage` too. It used to strip `;q`
+   * without sorting by it, so `en;q=0.2, pl;q=0.9` exported an English PDF.
+   */
+  describe('PDF export language', () => {
+    let cookie = '';
+
+    beforeAll(async () => {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/comparisons/me/products',
+        headers: { 'x-sales-channel': channelCode, 'content-type': 'application/json' },
+        payload: { productId: namedId },
+      });
+      expect(res.statusCode).toBe(200);
+      const raw = res.headers['set-cookie'];
+      cookie = (Array.isArray(raw) ? raw[0] : raw)?.split(';')[0] ?? '';
+    });
+
+    async function exportLanguage(acceptLanguage?: string): Promise<string | undefined> {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/comparisons/me/pdf',
+        headers: {
+          'x-sales-channel': channelCode,
+          cookie,
+          ...(acceptLanguage === undefined ? {} : { 'accept-language': acceptLanguage }),
+        },
+      });
+      expect(res.statusCode).toBe(200);
+      const language = res.headers['content-language'];
+      return typeof language === 'string' ? language : undefined;
+    }
+
+    it('honours the q-weights: `en;q=0.2, pl;q=0.9` exports in Polish', async () => {
+      expect(await exportLanguage('en;q=0.2, pl;q=0.9')).toBe('pl-PL');
+    });
+
+    it('matches a language-only tag to the channel language: `pl` is `pl-PL`', async () => {
+      expect(await exportLanguage('pl')).toBe('pl-PL');
+    });
+
+    it('skips an unoffered tag for the next offered one', async () => {
+      expect(await exportLanguage('de-DE, pl;q=0.5')).toBe('pl-PL');
+    });
+
+    it('exports a language the channel does not offer, or no header, in the channel default', async () => {
+      expect(await exportLanguage('de-DE')).toBe('en-US');
+      expect(await exportLanguage()).toBe('en-US');
+    });
+  });
 });

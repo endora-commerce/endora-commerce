@@ -41,13 +41,22 @@ opisane własnym zdaniem, na przykład *Wpisz ulicę i numer.*
 `addressServicePort.anonymizeForOrganization(organizationId)` czyści każdy adres organizacji, także
 już usunięty (`-` w polach odbiorcy, ulicy, miejscowości i kodu pocztowego; bez telefonu; nie jest
 domyślny; kraj zostaje), miękko go usuwa (usunięty adres zachowuje datę usunięcia) i zapisuje jeden
-wpis audytu `address.anonymized` na adres, bez autora. Wpis odnotowuje tylko organizację, rodzaj
-adresu i to, czy adres był już usunięty. Adres już wyczyszczony jest pomijany, więc ponowne
+wpis audytu `address.anonymized` na adres, bez autora. Wpis odnotowuje tylko rodzaj adresu, to, czy
+adres był już usunięty, i chwilę wyczyszczenia. Adres już wyczyszczony jest pomijany, więc ponowne
 wywołanie niczego nie zmienia. Wywołuje ją zadanie anonimizacji modułu `customers`, gdy anonimizuje
 organizację osobistą klienta indywidualnego. Zamówienia zachowują własne kopie adresów.
 
 `addressReadPort.listIdsForOrganization(organizationId, { includeDeleted })` zwraca identyfikatory
 adresów organizacji, a gdy `includeDeleted` ma wartość `true`, także adresów usuniętych.
+
+## Dziennik audytu
+
+Dodanie, zmiana, usunięcie i anonimizacja adresu zapisują po jednym wpisie w dzienniku audytu
+platformy, przypisanym do adresu po identyfikatorze. Ten dziennik czyta każdy, kto ma
+`audit_log:read`, niezależnie od tego, które organizacje widzi, więc wpis odnotowuje nazwy, a nie
+wartości (zgłoszenie #470): rodzaj adresu i nazwy zmienionych pól (`changedFields`, na przykład
+`['phone', 'street']`). Nigdy nie zawiera odbiorcy, ulicy, miejscowości, kodu pocztowego, telefonu
+ani identyfikatora organizacji. Wpisy zapisane przed wprowadzeniem tej zasady nie są przepisywane.
 
 ## Encje
 

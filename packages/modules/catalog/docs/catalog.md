@@ -237,6 +237,27 @@ fields with `400 PRICE_SET_IN_PRICE_BOOKS` (`PRICE_FIELDS_REFUSED_ON_PRODUCTS`,
 price books. The catalogue's migration `20261022T111811_catalog_price_fields_removed.ts` dropped the
 column and stripped the keys.
 
+## Editing a category
+
+*Catalog → Categories* shows the category tree; **Edit** on a category opens its editor beside the tree. The
+editor holds the category's own fields — its names, slug, parent and custom fields — and, while the Price lists
+module is on, the category's **Price display mode**, contributed by that module and shown above the Save and Cancel
+buttons.
+
+The editor has **one Save** for all of it. Changing the price display mode only stages it: it is no longer saved
+the moment you choose it. Save reads "Save" while there is nothing to save and "Save 2 changes" once there is,
+counting the category's own changes and the display mode together.
+
+- Save checks everything first; if anything is refused, nothing is written.
+- The category is written first, then the display mode. If the category is refused — a slug already in use, an
+  invalid custom field — the display mode is not written either.
+- If the category is saved and the display mode is not, the editor stays open and a summary says what was saved
+  and what was not. The next Save writes only the display mode.
+- **Cancel** discards every unsaved change without asking.
+- **Edit** on another category with unsaved changes asks first: **Save and continue**, **Discard changes** or
+  **Stay here**. Following a link elsewhere in the admin, or closing or reloading the browser tab, asks too. The
+  open category is not part of the page address, so the browser's Back button leaves the page without asking.
+
 ## Entities
 
 `Product`, `ProductVariant`, `Category`, `ProductAttribute`,

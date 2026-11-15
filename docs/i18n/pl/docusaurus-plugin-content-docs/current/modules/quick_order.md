@@ -153,6 +153,11 @@ nadal dopuszczalna (aktywna, dozwolona dla organizacji, adres istnieje — w prz
 - Panel: `/api/v1/admin/quick-order/preferences` — administrator platformy zarządza dowolnym
   zakresem, a handlowiec tylko przypisanymi organizacjami i ich klientami. Każda zmiana jest
   audytowana.
+  W panelu administracyjnym domyślne ustawienia są panelem na ekranie organizacji i na ekranie
+  klienta, a panel nie ma własnego przycisku zapisu: zmiana czeka na zapis, liczy ją jeden przycisk
+  Zapisz tego ekranu i zapisuje ją po własnych zmianach organizacji lub klienta. Jeśli zapis panelu
+  się nie powiedzie, choć reszta została zapisana, ekran o tym informuje, ustawienia nadal czekają na
+  zapis, a kolejne Zapisz zapisuje tylko je.
 
 ### 4. Ponowne zamówienie
 

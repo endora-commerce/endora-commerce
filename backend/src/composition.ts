@@ -255,6 +255,8 @@ interface ShoppingListBridgeService {
     listId: string,
     itemIds: string[] | undefined,
     salesChannelId: string,
+    /** Issue #1293 — the request's scope language the lines are judged in. */
+    options?: { languageTag?: string },
   ): Promise<{
     added: number;
     /** Feature 155 — `reason` and, on `below_minimum`, the `minimum` the line missed. */
@@ -1153,6 +1155,7 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
           input.shoppingListId,
           undefined,
           input.salesChannelId,
+          input.languageTag !== undefined ? { languageTag: input.languageTag } : {},
         );
         // Map ShoppingListService.convertToCart's shape onto the carts
         // module's uniform return shape across the three conversions — the

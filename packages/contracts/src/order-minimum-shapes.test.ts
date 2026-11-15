@@ -398,6 +398,8 @@ describe('cart batch add — CartWritePort.addItems (contracts/cart-and-checkout
           workingBasket?: boolean;
           keepRepeatedLines?: boolean;
           language?: string;
+          /** Issue #1293 — the request's scope language the lines are judged in. */
+          languageTag?: string;
         },
       ]
     >();

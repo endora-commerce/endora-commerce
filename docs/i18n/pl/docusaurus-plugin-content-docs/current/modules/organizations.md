@@ -1318,6 +1318,45 @@ i unieważnienie zaproszenia — `organization_invitation.create` /
 `organization_invitation.revoke`. Każde jest audytowane względem organizacji,
 z członkiem lub operatorem, który działał.
 
+## Jeden przycisk Zapisz na ekranie organizacji
+
+Ekran organizacji (`/organizations/:id`) ma **jeden przycisk Zapisz**, w nagłówku strony. Obejmuje
+każde ustawienie na ekranie, które się edytuje, a nie wykonuje:
+
+- własne ustawienia organizacji — status, status VAT, adresy e-mail potwierdzeń zamówień, strategię
+  realizacji, ograniczenia (dozwolone metody płatności, metody dostawy i magazyny) oraz pola
+  niestandardowe. Nie zapisują się już przy zmianie, przy opuszczeniu pola ani własnym przyciskiem;
+- panele dodawane przez inne moduły, każdy, gdy jego moduł jest włączony: **domyślne ustawienia
+  zamówień** (Szybkie zamówienia), **tryb prezentacji ceny** (Cenniki) i **negocjację cen** w
+  zapytaniach ofertowych (Zapytania ofertowe).
+
+Zapisz pokazuje „Zapisz”, gdy nie ma nic do zapisania, i „Zapisz 3 zmiany”, gdy jest, licząc razem
+własne zmiany organizacji i zmiany paneli.
+
+- **Najpierw wszystko jest sprawdzane.** Jeśli którakolwiek część zostanie odrzucona, nic nie jest
+  zapisywane, a wszystkie zmiany zostają; podsumowanie nad sekcjami wymienia każdą część z jej
+  problemami, z przyciskiem **Pokaż**, który do niej przechodzi.
+- **Najpierw zapisywana jest organizacja**, jedną zmianą zawierającą tylko to, co zmieniono — a zaraz
+  po niej ograniczenia, jeśli się zmieniły. Potem panele, jeden po drugim.
+- **Jeśli ktoś inny zmienił organizację od chwili otwarcia ekranu**, nic nie jest zapisywane: ekran
+  wczytuje aktualne wartości, odrzuca wszystkie niezapisane zmiany na stronie i o tym informuje.
+  Żaden panel nie jest zapisywany.
+- **Jeśli organizacja zostanie zapisana, a panel nie**, podsumowanie mówi, co zapisano, a czego nie
+  („Zapisano: Organizacja. Nie zapisano: Domyślne ustawienia zamówień — *powód*”). Panel, którego nie
+  zapisano, zachowuje zmiany, a kolejne Zapisz zapisuje tylko to, co nadal czeka.
+- **Moduł wyłączony**, gdy jego panel ma niezapisane zmiany: panel znika, jego zmiany są odrzucane, a
+  ekran o tym informuje.
+- **Opuszczenie strony** — link w inne miejsce panelu albo zamknięcie lub odświeżenie karty
+  przeglądarki — z niezapisanymi zmianami wymaga potwierdzenia.
+
+Bez `customers:manage` własne ustawienia organizacji są tylko do odczytu, a ekran pokazuje Zapisz
+tylko wtedy, gdy któryś z paneli możesz zmienić.
+
+**Co działa od razu.** Działania na organizacji nie są częścią zapisu. Są zapisywane w chwili użycia
+i nie ruszają niezapisanych zmian. Każda taka sekcja ma etykietę **Działa od razu**: zapraszanie i
+bezpośrednie dodawanie członków, lista członków, hierarchia, moderacja (zatwierdzenie, odrzucenie,
+blokada, odblokowanie), walidacja VAT, kanały sprzedaży, role i opiekunowie handlowi.
+
 ## Wpisy audytu
 
 Dziennik audytu platformy to jedna tabela, którą czyta każdy operator z

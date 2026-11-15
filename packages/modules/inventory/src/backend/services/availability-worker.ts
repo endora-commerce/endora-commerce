@@ -32,9 +32,12 @@ export interface AdjustedPayload {
  *   2. For each subscriber, sends the `availability_back_in_stock`
  *      template in the subscription's channel and language (issue #1256),
  *      through `transactional_emails`' `templateEmailPort`.
- *   3. Marks the notification consumed (`notifiedAt = now`) inside one
- *      flush so a worker crash mid-batch doesn't double-send (the next
- *      run re-loads only un-notified rows).
+ *   3. Marks the notification consumed (`status = 'notified'`, `notifiedAt = now`)
+ *      inside one flush so a worker crash mid-batch doesn't double-send (the
+ *      next run re-loads only un-notified rows). A subscriber with no address
+ *      left is closed as `cancelled` instead — what
+ *      `AvailabilityNotificationService.processRestockedFanOut` writes too
+ *      (issue #1291).
  *
  * Production composition can swap synchronous dispatch for a BullMQ job
  * by binding a queue producer to the same method signature.
@@ -69,8 +72,8 @@ export class AvailabilityWorker {
     productId: string;
     variantId?: string | null;
   }): Promise<{ notified: number }> {
-    // command-coverage-ignore: background restock fan-out — stamps notifiedAt on
-    // subscriptions as it sends, delivery bookkeeping (not an audited domain write).
+    // command-coverage-ignore: background restock fan-out — flips subscriptions to
+    // 'notified' as it sends, delivery bookkeeping (not an audited domain write).
     // Feature 050 — triggered off a stock-increase event; may run detached, so
     // scope the AvailabilityNotification reads under a system context.
     return withSystemScope('availability stock-increase', async () => {
@@ -132,7 +135,8 @@ export class AvailabilityWorker {
       // customer-account email.
       const to = sub.email ?? (sub.customerAccountId ? emailById.get(sub.customerAccountId) : null);
       if (!to) {
-        // Customer was deleted; mark consumed anyway so we stop retrying.
+        // Customer was deleted; close it so we stop retrying, as the fan-out does (#1291).
+        sub.status = 'cancelled';
         sub.notifiedAt = now;
         continue;
       }
@@ -151,6 +155,10 @@ export class AvailabilityWorker {
           },
         },
       );
+      // Issue #1291 — consumed is `notified`, whether a mail left or the operator switched the
+      // e-mail off (`sendBackInStockEmail` returns either way); `notifiedAt` alone left the row
+      // reading `queued` in the admin list and its status filter.
+      sub.status = 'notified';
       sub.notifiedAt = now;
     }
     await em.flush();

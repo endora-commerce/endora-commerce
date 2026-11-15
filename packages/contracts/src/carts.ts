@@ -1072,6 +1072,19 @@ export interface CartWritePort {
    *
    * `language` names a refused product — the language the response is answered
    * in (`request.responseLanguage()`); absent, the record's own fallback chain.
+   * A message language only: it never decides which (channel, language) a line
+   * is asked about.
+   *
+   * `languageTag` (issue #1293) — the buyer request's scope language: the
+   * channel language its `Accept-Language` asks for (`requestScopeLanguage`).
+   * Every line is judged for availability, and a below-minimum line named, at
+   * the basket's (channel, `languageTag` resolved against the channel's own
+   * languages), exactly as `POST /cart/items` judges a line of the same
+   * request. Absent: the channel's default language, as before — the answer
+   * for a caller with no storefront request (an API-key order, an operator
+   * naming a customer's channel). Honoured only while the basket's channel is
+   * the request's resolved one; any other basket is asked about at its
+   * channel's default language.
    */
   addItems(
     actor: { customer?: CartCustomerContext; anonymousToken?: string },
@@ -1082,6 +1095,7 @@ export interface CartWritePort {
       workingBasket?: boolean;
       keepRepeatedLines?: boolean;
       language?: string;
+      languageTag?: string;
     },
   ): Promise<CartWithItems & { outcomes: CartBatchLineOutcome[] }>;
   /**
