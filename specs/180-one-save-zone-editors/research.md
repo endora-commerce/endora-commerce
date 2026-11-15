@@ -311,3 +311,27 @@ there would be speculative (Principle IV). The partial-failure path (OQ-1 A) cov
 channel.id}` and passes `saveSession` to `sales_channel.editor.after`; `ChannelIdentityForm`'s submit
 calls `session.run(hostPart)`. `ChannelWarehouses` is unchanged except for the "Applies immediately"
 badge on its heading. The create branch mounts no zone and is unchanged.
+
+## R22. The Inventory tab's product-row settings travel in the scoped-values write (WP-4, T051)
+
+**Finding.** `globalOnlyProductFieldsSchema` (`packages/contracts/src/product-scoped-values.ts`)
+already carries `manageStock`, `backorderEnabled`, `lowStockThreshold`, `lowStockThresholdMode`,
+`fulfilmentStrategy` and `fulfilmentStrategyWarehouseOrder`. The scoped-values read answers all six
+in `data.product`, and the save writes a `product.*` cell to the row's own column at Global, as it
+does for the SKU (`scoped-values-save.service.ts`, `writeGlobal`). The tab wrote them through
+`PATCH /api/v1/admin/catalog/products/:id`, which assigns the same columns with no further rule.
+
+**Decision.** The six settings are staged as Global cells `product:<field>` of the editor's own
+write and go in its `PUT …/scoped-values` (`changes.product`). This needs no contract change and no
+second request, so the product's version check guards them, and one audit entry names them as
+`product.<field>@G`. The tab reads them from the editor's scoped read and no longer requests the
+product itself. Setting a value back to the saved one unstages it. A warehouse order is staged as
+`null` unless the strategy is *defined order*, as the `PATCH` body was. Per-warehouse stock levels
+and thresholds keep their `inventory` writes (OQ-7 = B).
+
+**Rejected.** *A second, blocking host write through the `PATCH`*. It means two writes to one
+record in one Save, each with its own audit entry, and the second would not be covered by the
+scoped write's version.
+
+Held by `backend/test/contract/catalog/scoped-values-inventory-settings.test.ts` and
+`admin/test/modules/catalog/product-editor-inventory-save.test.tsx`.

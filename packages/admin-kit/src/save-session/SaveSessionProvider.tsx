@@ -273,6 +273,10 @@ export function useSaveParticipant<D>(
   const setDraft = useCallback(
     (next: D | ((previous: D) => D)) => {
       if (store !== null) {
+        // The edit is judged against what the operator sees now: the meta of this render, which
+        // the effect below may not have pushed to the store yet (a panel that has just become
+        // writable would otherwise drop the first keystroke).
+        if (loaded !== null) store.updateMeta(id, meta);
         store.setDraft(id, (previous) => resolveNext(next, previous as D));
         return;
       }
@@ -281,7 +285,7 @@ export function useSaveParticipant<D>(
         return base === null ? current : { loaded, draft: resolveNext(next, base) };
       });
     },
-    [store, id, loaded],
+    [store, id, loaded, meta],
   );
 
   if (refused) {

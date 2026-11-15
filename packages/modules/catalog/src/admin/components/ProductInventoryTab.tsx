@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type {
   FulfilmentStrategy,
+  GlobalOnlyProductFields,
   SettingDto,
   StockLevelRow,
   Warehouse,
@@ -9,6 +10,8 @@ import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { FulfilmentStrategyPicker } from '@endora-commerce/admin-kit/components';
 import type { FulfilmentStrategyValue } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useProductEditor } from './editor/editor-context.js';
+import { ImmediateBadge } from './editor/ImmediateBadge.js';
 
 /**
  * Read one setting by code (feature 091, P6).
@@ -34,19 +37,22 @@ interface WarehousesResponse {
 interface SetStockResponse {
   data: { before: number; after: number; productId: string; warehouseId: string };
 }
-interface AdminProductResponse {
-  data: {
-    id: string;
-    manageStock: boolean;
-    backorderEnabled: boolean;
-    lowStockThreshold: number | null;
-    lowStockThresholdMode: 'cumulative' | 'per_warehouse';
-    fulfilmentStrategy: FulfilmentStrategy | null;
-    fulfilmentStrategyWarehouseOrder: string[] | null;
-  };
-}
-
 type ThresholdMode = 'cumulative' | 'per_warehouse';
+
+/** The product-row settings this tab stages into the editor's one Save (feature 180, FR-025). */
+type RowField = Extract<
+  keyof GlobalOnlyProductFields,
+  | 'manageStock'
+  | 'backorderEnabled'
+  | 'lowStockThreshold'
+  | 'lowStockThresholdMode'
+  | 'fulfilmentStrategy'
+  | 'fulfilmentStrategyWarehouseOrder'
+>;
+
+function sameValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
 
 /**
  * Per-product Inventory tab — feature 010 / US2.
@@ -56,9 +62,36 @@ type ThresholdMode = 'cumulative' | 'per_warehouse';
  *     summed on-hand across every warehouse holding the product.
  *   - `per_warehouse`: each warehouse evaluated against its own threshold
  *     (per-(product, warehouse) row, falling back to the warehouse default).
+ *
+ * **Feature 180 (FR-025, owner ruling OQ-7 = B).** The product-row settings —
+ * stock management, backorders, the low-stock threshold and its mode, the
+ * fulfilment strategy — are staged Global cells (`product:<field>`) of the
+ * product editor's own write: the one Save sends them in its
+ * `PUT …/scoped-values` (`changes.product`), which the scoped-values contract
+ * already carries (research R22). They are read from the editor's scoped read,
+ * not from a second product request. Per-warehouse stock levels and thresholds
+ * stay immediate — each its own audited `inventory` write — under an
+ * "Applies immediately" badge.
  */
-export function ProductInventoryTab({ productId }: { productId: string }): ReactNode {
+export function ProductInventoryTab({ productId, editable = true }: { productId: string; editable?: boolean }): ReactNode {
   const t = useTranslation('catalog');
+  const editor = useProductEditor();
+  const saved = editor.state.data?.product ?? null;
+  /** The value a product-row setting has on the page: staged, else saved. */
+  const valueOf = <F extends RowField>(field: F): GlobalOnlyProductFields[F] | null => {
+    const op = editor.state.staged.get(`product:${field}`);
+    if (op?.op === 'set') return op.value as GlobalOnlyProductFields[F];
+    return (saved?.[field] ?? null) as GlobalOnlyProductFields[F] | null;
+  };
+  /** Stage a product-row setting; setting it back to the saved value unstages it. */
+  const stage = (field: RowField, value: unknown): void => {
+    const path = `product:${field}`;
+    editor.dispatch({
+      type: 'stage',
+      path,
+      op: saved !== null && sameValue(value, saved[field]) ? undefined : { op: 'set', value },
+    });
+  };
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [perWarehouse, setPerWarehouse] = useState<Map<string, number>>(new Map());
   const [perWarehouseThreshold, setPerWarehouseThreshold] = useState<
@@ -71,28 +104,24 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
   const [info, setInfo] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [savingThreshold, setSavingThreshold] = useState<string | null>(null);
-  const [lowStockThreshold, setLowStockThreshold] = useState<string>('');
-  const [lowStockSaving, setLowStockSaving] = useState(false);
-  const [mode, setMode] = useState<ThresholdMode>('cumulative');
-  const [modeSaving, setModeSaving] = useState(false);
-  const [fulfilment, setFulfilment] = useState<FulfilmentStrategyValue>({
-    strategy: null,
-    warehouseOrder: [],
-  });
-  const [fulfilmentSaving, setFulfilmentSaving] = useState(false);
-  const [manageStock, setManageStock] = useState(true);
-  const [backorderEnabled, setBackorderEnabled] = useState(false);
   const [allowNegativeGlobal, setAllowNegativeGlobal] = useState(false);
-  const [stockMgmtSaving, setStockMgmtSaving] = useState(false);
+  const manageStock = valueOf('manageStock') ?? true;
+  const backorderEnabled = valueOf('backorderEnabled') ?? false;
+  const mode: ThresholdMode = valueOf('lowStockThresholdMode') ?? 'cumulative';
+  const threshold = valueOf('lowStockThreshold');
+  const lowStockThreshold = threshold === null || threshold === undefined ? '' : String(threshold);
+  const fulfilment: FulfilmentStrategyValue = {
+    strategy: (valueOf('fulfilmentStrategy') ?? null) as FulfilmentStrategy | null,
+    warehouseOrder: valueOf('fulfilmentStrategyWarehouseOrder') ?? [],
+  };
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
-      const [whRes, rosterRes, productRes, allowNegativeSetting] = await Promise.all([
+      const [whRes, rosterRes, allowNegativeSetting] = await Promise.all([
         apiClient.get<WarehousesResponse>('/api/v1/admin/warehouses?activeOnly=true&pageSize=200'),
         apiClient.get<RosterResponse>(`/api/v1/admin/inventory/levels?productId=${productId}`),
-        apiClient.get<AdminProductResponse>(`/api/v1/admin/catalog/products/${productId}`),
         readSetting('inventory.allow_negative_stock').catch(() => null),
       ]);
       setWarehouses(whRes.items);
@@ -116,18 +145,6 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
       }
       setDraft(initialOnHand);
       setThresholdDraft(initialThreshold);
-      setLowStockThreshold(
-        productRes.data.lowStockThreshold == null
-          ? ''
-          : String(productRes.data.lowStockThreshold),
-      );
-      setMode(productRes.data.lowStockThresholdMode);
-      setFulfilment({
-        strategy: productRes.data.fulfilmentStrategy,
-        warehouseOrder: productRes.data.fulfilmentStrategyWarehouseOrder ?? [],
-      });
-      setManageStock(productRes.data.manageStock ?? true);
-      setBackorderEnabled(productRes.data.backorderEnabled ?? false);
       if (allowNegativeSetting) {
         const effective = allowNegativeSetting.globalValue ?? allowNegativeSetting.defaultValue;
         setAllowNegativeGlobal(effective === true);
@@ -149,90 +166,14 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
     return s;
   }, [perWarehouse]);
 
-  const handleModeChange = async (next: ThresholdMode): Promise<void> => {
-    if (next === mode) return;
-    setModeSaving(true);
-    setError(null);
-    setInfo(null);
-    try {
-      await apiClient.patch(`/api/v1/admin/catalog/products/${productId}`, {
-        lowStockThresholdMode: next,
-      });
-      setMode(next);
-      setInfo(t('inventoryTab.lowStock.modeSaved'));
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.envelope.error.message
-          : t('inventoryTab.lowStock.error'),
-      );
-    } finally {
-      setModeSaving(false);
-    }
+  const setFulfilment = (next: FulfilmentStrategyValue): void => {
+    stage('fulfilmentStrategy', next.strategy);
+    stage('fulfilmentStrategyWarehouseOrder', next.strategy === 'defined_order' ? next.warehouseOrder : null);
   };
 
-  const handleSaveFulfilment = async (): Promise<void> => {
-    setFulfilmentSaving(true);
-    setError(null);
-    setInfo(null);
-    try {
-      await apiClient.patch(`/api/v1/admin/catalog/products/${productId}`, {
-        fulfilmentStrategy: fulfilment.strategy,
-        fulfilmentStrategyWarehouseOrder:
-          fulfilment.strategy === 'defined_order' ? fulfilment.warehouseOrder : null,
-      });
-      setInfo(t('inventoryTab.fulfilment.saved'));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('inventoryTab.error.save'));
-    } finally {
-      setFulfilmentSaving(false);
-    }
-  };
-
-  const handleSaveStockMgmt = async (
-    next: { manageStock?: boolean; backorderEnabled?: boolean },
-  ): Promise<void> => {
-    const nextManage = next.manageStock ?? manageStock;
-    const nextBackorder = next.backorderEnabled ?? backorderEnabled;
-    setStockMgmtSaving(true);
-    setError(null);
-    setInfo(null);
-    try {
-      await apiClient.patch(`/api/v1/admin/catalog/products/${productId}`, {
-        manageStock: nextManage,
-        backorderEnabled: nextBackorder,
-      });
-      setManageStock(nextManage);
-      setBackorderEnabled(nextBackorder);
-      setInfo(t('inventoryTab.stockMgmt.saved'));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('inventoryTab.error.save'));
-    } finally {
-      setStockMgmtSaving(false);
-    }
-  };
-
-  const handleSaveLowStock = async (): Promise<void> => {
-    setLowStockSaving(true);
-    setError(null);
-    setInfo(null);
-    try {
-      const trimmed = lowStockThreshold.trim();
-      const value =
-        trimmed === '' ? null : Math.max(0, Number.parseInt(trimmed, 10) || 0);
-      await apiClient.patch(`/api/v1/admin/catalog/products/${productId}`, {
-        lowStockThreshold: value,
-      });
-      setInfo(t('inventoryTab.lowStock.success'));
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? err.envelope.error.message
-          : t('inventoryTab.lowStock.error'),
-      );
-    } finally {
-      setLowStockSaving(false);
-    }
+  const setLowStockThreshold = (text: string): void => {
+    const trimmed = text.trim();
+    stage('lowStockThreshold', trimmed === '' ? null : Math.max(0, Number.parseInt(trimmed, 10) || 0));
   };
 
   const handleSaveWarehouseThreshold = async (warehouseId: string): Promise<void> => {
@@ -302,10 +243,7 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
             <input
               type="checkbox"
               checked={!manageStock}
-              disabled={stockMgmtSaving}
-              onChange={(e): void => {
-                void handleSaveStockMgmt({ manageStock: !e.target.checked });
-              }}
+              onChange={(e): void => stage('manageStock', !e.target.checked)}
             />
             <span>
               <div>{t('inventoryTab.stockMgmt.disableManageStock')}</div>
@@ -317,10 +255,8 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
             <input
               type="checkbox"
               checked={backorderEnabled}
-              disabled={stockMgmtSaving || manageStock === false || !allowNegativeGlobal}
-              onChange={(e): void => {
-                void handleSaveStockMgmt({ backorderEnabled: e.target.checked });
-              }}
+              disabled={manageStock === false || !allowNegativeGlobal}
+              onChange={(e): void => stage('backorderEnabled', e.target.checked)}
             />
             <span>
               <div>{t('inventoryTab.stockMgmt.backorder')}</div>
@@ -364,8 +300,7 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
                 type="radio"
                 name={`low-stock-mode-${productId}`}
                 checked={mode === 'cumulative'}
-                disabled={modeSaving}
-                onChange={(): void => { void handleModeChange('cumulative'); }}
+                onChange={(): void => stage('lowStockThresholdMode', 'cumulative')}
               />
               {t('inventoryTab.lowStock.modeCumulative')}
             </label>
@@ -374,8 +309,7 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
                 type="radio"
                 name={`low-stock-mode-${productId}`}
                 checked={mode === 'per_warehouse'}
-                disabled={modeSaving}
-                onChange={(): void => { void handleModeChange('per_warehouse'); }}
+                onChange={(): void => stage('lowStockThresholdMode', 'per_warehouse')}
               />
               {t('inventoryTab.lowStock.modePerWarehouse')}
             </label>
@@ -389,21 +323,12 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
                     className="b2b-field"
                     type="number"
                     min="0"
+                    aria-label={t('inventoryTab.lowStock.title')}
                     value={lowStockThreshold}
                     placeholder={t('inventoryTab.lowStock.placeholder')}
                     onChange={(e): void => setLowStockThreshold(e.target.value)}
                   />
                 </div>
-                <button
-                  type="button"
-                  className="b2b-btn b2b-btn--primary b2b-btn--sm"
-                  onClick={(): void => { void handleSaveLowStock(); }}
-                  disabled={lowStockSaving}
-                >
-                  {lowStockSaving
-                    ? t('inventoryTab.lowStock.saving')
-                    : t('inventoryTab.lowStock.save')}
-                </button>
               </div>
               <div className="b2b-help" style={{ marginTop: 6 }}>
                 {t('inventoryTab.lowStock.help')}
@@ -429,16 +354,6 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
             allowInherit
             idPrefix={`product-${productId}`}
           />
-          <div style={{ marginTop: 12 }}>
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--primary b2b-btn--sm"
-              onClick={(): void => { void handleSaveFulfilment(); }}
-              disabled={fulfilmentSaving}
-            >
-              {fulfilmentSaving ? t('inventoryTab.lowStock.saving') : t('inventoryTab.lowStock.save')}
-            </button>
-          </div>
         </div>
       </div>
 
@@ -460,7 +375,13 @@ export function ProductInventoryTab({ productId }: { productId: string }): React
       ) : null}
 
       <div className="b2b-card">
-        <div className="b2b-card__head"><h2>{t('inventoryTab.table.title')}</h2></div>
+        {/* Per-warehouse stock and thresholds write at once, each its own audited command. */}
+        <div className="b2b-card__head">
+          <h2>
+            {t('inventoryTab.table.title')}
+            {editable ? <ImmediateBadge /> : null}
+          </h2>
+        </div>
         <table className="b2b-tbl">
           <thead>
             <tr>
