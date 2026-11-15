@@ -11,6 +11,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { Address } from '../entities/address.entity.js';
+import { addressCreatedAuditState, addressUpdatedAuditState, addressValues } from './address-audit-state.js';
 
 /** What an anonymized address's personal fields read (OD-7). */
 const ANONYMIZED = '-';
@@ -80,7 +81,7 @@ export class AddressService {
         isDefault: input.isDefault ?? false,
       });
       txEm.persist(address);
-      this.#audit(txEm, 'address.create', address.id, null, { organizationId, kind: address.kind });
+      this.#audit(txEm, 'address.create', address.id, null, addressCreatedAuditState(address));
       await txEm.flush();
       return address;
     });
@@ -121,6 +122,7 @@ export class AddressService {
           dispatchValidatorMode(address.country, patch.country),
         );
       }
+      const before = addressValues(address);
       if (patch.recipientName !== undefined) address.recipientName = patch.recipientName;
       if (patch.street !== undefined) address.street = patch.street;
       if (patch.city !== undefined) address.city = patch.city;
@@ -128,7 +130,7 @@ export class AddressService {
       if (patch.country !== undefined) address.country = patch.country.toUpperCase();
       if (patch.phone !== undefined) address.phone = patch.phone;
       if (patch.isDefault !== undefined) address.isDefault = patch.isDefault;
-      this.#audit(txEm, 'address.update', address.id, null, { organizationId, kind: address.kind });
+      this.#audit(txEm, 'address.update', address.id, null, addressUpdatedAuditState(before, address));
       await txEm.flush();
       return address;
     });
@@ -147,7 +149,7 @@ export class AddressService {
     // entity there references addresses via snapshot, so a true "in-use" block
     // must query the Orders table. For now we soft-delete.
     address.deletedAt = new Date();
-    this.#audit(em, 'address.delete', address.id, { organizationId, kind: address.kind }, null);
+    this.#audit(em, 'address.delete', address.id, { kind: address.kind }, null);
     await em.flush();
   }
 
@@ -189,7 +191,7 @@ export class AddressService {
           action: 'address.anonymized',
           objectType: 'address',
           objectId: address.id,
-          stateBefore: { organizationId, kind: address.kind, wasDeleted },
+          stateBefore: { kind: address.kind, wasDeleted },
           stateAfter: { anonymizedAt: now.toISOString() },
         });
       }
