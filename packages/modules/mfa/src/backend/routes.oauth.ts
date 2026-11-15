@@ -17,7 +17,7 @@ import {
   channelUrlLanguages,
   customerFederatedSignInStartQuerySchema,
   federatedSignInExchangeRequestSchema,
-  firstLanguageTag,
+  requestScopeLanguage,
   scopeLanguageOf,
   storefrontPagePathFor,
 } from '@endora-commerce/contracts';
@@ -135,6 +135,24 @@ function languageOfPath(next: string, channel: ChannelUrlFacts | null): string |
   if (!channel) return null;
   const first = next.split(/[/?#]/)[1]?.toLowerCase() ?? '';
   return channelUrlLanguages(channel).find((l) => l.prefixed && l.prefix === first)?.languageCode ?? null;
+}
+
+/**
+ * The channel language the request's `Accept-Language` asks for, or `null` without
+ * the header or a resolved channel (the pages are then the channel default's, as
+ * before). Issue #1011 — a **content** language, not a message language: it picks the
+ * storefront page path the sign-in returns to, so it must be one of the channel's
+ * languages, and it is resolved as the catalogue resolves one since #397 —
+ * `requestScopeLanguage` over the whole header, the tags in descending `q`, each matched
+ * against the channel's languages (exactly, then by base language), the first one the
+ * channel offers winning, else the channel's default. This used to be the header's
+ * first tag alone, so `en;q=0.2, pl-PL;q=0.9` returned the browser to the English pages.
+ */
+function browserChannelLanguage(request: FastifyRequest): string | null {
+  const header = request.headers['accept-language'];
+  const channel = currentSalesChannel();
+  if (header === undefined || header.length === 0 || !channel) return null;
+  return requestScopeLanguage(channel, header);
 }
 
 /**
@@ -341,13 +359,11 @@ function registerStart(app: FastifyInstance, deps: MfaOAuthDeps, surface: Surfac
 
       const next = sanitiseNext(request.query.next);
       // Feature 167 — the starting page's language: the prefix of the `next` the
-      // storefront sent (its browser path), else the browser's first language.
+      // storefront sent (its browser path), else the browser's language.
       const channelFacts =
         surface === 'customer' && deps.channelUrlFactsFor ? await deps.channelUrlFactsFor(salesChannelId) : null;
       const language =
-        surface === 'customer'
-          ? (languageOfPath(next, channelFacts) ?? firstLanguageTag(request.headers['accept-language']) ?? null)
-          : null;
+        surface === 'customer' ? (languageOfPath(next, channelFacts) ?? browserChannelLanguage(request)) : null;
       const codeVerifier = randomBytes(32).toString('base64url');
       const nonce = randomBytes(16).toString('base64url');
       const binding = randomBytes(32).toString('base64url');

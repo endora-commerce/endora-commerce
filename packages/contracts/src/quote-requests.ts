@@ -1185,10 +1185,11 @@ export interface CreateForCustomerOptions {
    */
   language?: string;
   /**
-   * Feature 163 — the buyer request's language tag (the first `Accept-Language` tag,
-   * `firstLanguageTag`), which the scope language L of every line is resolved from
-   * against the channel's own languages (`scopeLanguageOf`), as the basket's is. Absent:
-   * the channel's default language. Distinct from `language`, which falls back to a
+   * Feature 163 — the buyer request's language tag, which the scope language L of every
+   * line is resolved from against the channel's own languages (`scopeLanguageOf`), as the
+   * basket's is. The customer routes pass the channel language the whole `Accept-Language`
+   * asks for (`requestScopeLanguage`, issue #1011), which resolves to itself. Absent: the
+   * channel's default language. Distinct from `language`, which falls back to a
    * bundle language the channel may switch a product off in. In-process only.
    */
   languageTag?: string;

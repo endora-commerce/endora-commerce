@@ -70,11 +70,11 @@ implements the lookup chain:
 3. first present value in the record.
 4. empty string.
 
-`resolveRequestLocale(acceptLanguageHeader, activeLocales)` parses an
-`Accept-Language` header (q-weighted) and returns the highest-priority
-match from the active language pool, with a language-only fallback so
-`en-GB` matches `en-US`. Falls back to the configured default when nothing
-matches.
+`LocaleService` does not read `Accept-Language`. A request's content
+language is resolved against its sales channel by `requestScopeLanguage`
+from `@endora-commerce/contracts` (q-weighted, exact then language-only
+match, else the channel's default), and the language of a backend message
+by `request.responseLanguage()`.
 
 The default-locale lookup is cached for 60 seconds; admin mutations call
 `invalidateDefault()` so the cache flushes immediately after a change.
@@ -86,10 +86,6 @@ The default-locale lookup is cached for 60 seconds; admin mutations call
 
 ## Extension points
 
-- **Per-Sales-Channel default** — when a Sales Channel ships its own
-  language, hook the resolver before
-  `LocaleService.resolveRequestLocale()` and use the channel's default
-  instead of the global one.
 - **Translation pull/push** — emit a domain event when a localized field
   changes and let an integration consume it for an external translation
   workflow.
