@@ -82,6 +82,9 @@ function ownTablesOnly(admin: AdminUser | null): {
     flush: async () => {
       flushes += 1;
     },
+    // Issue #470 — `impersonation.start` commits its audit entry (and, with a
+    // reason, its own reason row) in one transaction on this module's em.
+    transactional: async <T>(fn: (tx: unknown) => Promise<T>) => fn(em),
   } as unknown as EntityManager;
   return { em: () => em, flushes: () => flushes };
 }
@@ -245,6 +248,9 @@ function recordingAuditLog(): { log: AuditLogService; actions: () => string[] } 
   const actions: string[] = [];
   const log = {
     record: async (input: { action: string }) => {
+      actions.push(input.action);
+    },
+    recordWithin: (_em: unknown, input: { action: string }) => {
       actions.push(input.action);
     },
   } as unknown as AuditLogService;

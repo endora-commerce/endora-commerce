@@ -5211,6 +5211,31 @@ kiedy i co się zmieniło; nie podaje już, czyje to były ustawienia. Raport, k
 z `scopeId`, odczytuje aktualne ustawienia domyślne organizacji albo klienta z
 `GET /api/v1/quick-order/preferences?scope=…&scopeId=…`.
 
+### Powody logowania jako klient i organizacje znikają z dziennika audytu platformy {#impersonation-reason-store}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać w ogólnoplatformowym dzienniku audytu
+powód, który administrator podaje przy logowaniu jako klient, oraz organizację, z której je
+rozpoczęto (zgłoszenie #470). Ten dziennik to jedna tabela, którą czyta każdy z uprawnieniem
+`audit_log:read`, niezależnie od tego, które organizacje widzi. Wydanie dodaje jedną tabelę,
+`admin_impersonation_reasons`, którą tworzy krok migracji aktualizacji.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `impersonation.start` nie
+  zawiera już `reason` ani `organizationId`. Zapisuje `hasReason`, `reasonLength`, gdy podano
+  powód, `organizationScoped` (czy logowanie rozpoczęto z ekranu organizacji) oraz
+  `valueChangeId`, czyli identyfikator wiersza `admin_impersonation_reasons`, w którym jest powód.
+  Wpis nadal jest przypisany do konta klienta i do administratora, który rozpoczął logowanie.
+- Sam powód jest przechowywany w `admin_impersonation_reasons` i zapisywany w tej samej transakcji
+  co wpis audytu. Żaden ekran jeszcze go nie pokazuje.
+- Gdy konto klienta zostaje zanonimizowane, jego powody logowania jako klient są usuwane, a wpis
+  `impersonation.reasons_erase` podaje, ile ich było.
+- Rozpoczynanie i kończenie logowania jako klient działa jak dotąd.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują powód i organizację.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał powód z dziennika audytu,
+odczytuje go z `admin_impersonation_reasons` po `valueChangeId` wpisu.
+
 ### Adres panelu administracyjnego jest ustawieniem platformy {#admin-base-url-platform-input}
 
 Wydanie, które wprowadza tę zmianę, czyni `ADMIN_BASE_URL` — adres panelu administracyjnego —

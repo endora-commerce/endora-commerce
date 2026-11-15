@@ -480,6 +480,17 @@ przypisaną do docelowego klienta, z zapamiętanym w tle identyfikatorem adminis
 czysto, zapisując `impersonation.end`. Każda czynność wykonana w takiej sesji jest zapisywana w
 dzienniku audytu zarówno z `actorAdminUserId`, jak i z `impersonatedCustomerAccountId`.
 
+Wpis `impersonation.start` podaje kształt rozpoczęcia, nigdy jego wartości (zgłoszenie #470):
+`hasReason`, `reasonLength`, gdy podano powód, `organizationScoped` (czy rozpoczęcie wskazało
+organizację konta) oraz `valueChangeId`. Dziennik audytu to jedna ogólnoplatformowa tabela, którą
+czyta każdy z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi, dlatego
+powód wpisany przez administratora jest przechowywany w `admin_impersonation_reasons`,
+a `valueChangeId` to identyfikator tego wiersza. Wiersz i wpis są zapisywane w jednej transakcji,
+zanim powstanie sesja: rozpoczęcie, które nie powiedzie się przy którymkolwiek zapisie, nie
+zostawia żadnego z nich i nikogo nie loguje. Gdy konto klienta zostaje zanonimizowane, jego powody
+są usuwane (`impersonation.reasons_erase`, z liczbą usuniętych). Żaden ekran nie pokazuje jeszcze
+zapisanego powodu.
+
 ## Encje
 
 `AdminUser` (e-mail, passwordHash, stan weryfikacji dwuetapowej, jedno `adminRoleId`,
@@ -487,6 +498,10 @@ dzienniku audytu zarówno z `actorAdminUserId`, jak i z `impersonatedCustomerAcc
 
 `AdminUserPreference` (administrator, klucz preferencji, wartość `jsonb`, `updatedAt`) — zob.
 *Preferencje panelu administracyjnego*.
+
+`ImpersonationReason` (konto klienta, jego organizacja, administrator, powód, `at`) —
+`@CustomerScoped`, jeden wiersz na każde logowanie jako klient rozpoczęte z powodem; zob.
+*Logowanie jako klient*.
 
 `AdminRole` (kod, nazwa wyświetlana, JSONB `permissions[]`, `requiresTwoFactor`). Symbol
 wieloznaczny `*` służy wyłącznie do inicjalizacji platformy i jest odrzucany przez trasę zapisu
