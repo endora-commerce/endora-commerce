@@ -208,6 +208,11 @@ describe('AddressBookRetirementService', () => {
       const entries = await auditFor(row.id);
       expect(entries.map((e) => e.action)).toEqual(['customer_address.merge']);
       expect(entries[0]!.actorAdminUserId ?? null).toBeNull();
+      // Issue #470 (D-288): the row's account and the Organization it moved to stay out.
+      const recorded = JSON.stringify(entries.map((e) => [e.stateBefore, e.stateAfter]));
+      expect(recorded).not.toContain(row.customerAccountId);
+      expect(recorded).not.toContain(target.organizationId);
+      expect(entries[0]!.stateAfter).toMatchObject({ mergedIntoAddressId: target.id });
     }
   });
 
@@ -368,7 +373,10 @@ describe('AddressBookRetirementService', () => {
     expect(kept.deletedAt ?? null).toBeNull();
     expect(kept.mergeRefusal).toBe('DICTIONARY_ENTRY_INACTIVE');
     expect(kept.mergedIntoAddressId ?? null).toBeNull();
-    expect((await auditFor(refused.id)).map((e) => e.action)).toEqual(['customer_address.merge_refused']);
+    const refusedEntries = await auditFor(refused.id);
+    expect(refusedEntries.map((e) => e.action)).toEqual(['customer_address.merge_refused']);
+    expect(refusedEntries[0]!.stateAfter).toEqual({ mergeRefusal: 'DICTIONARY_ENTRY_INACTIVE' });
+    expect(JSON.stringify(refusedEntries[0]!.stateBefore)).not.toContain(anna.id);
     const moved = await reload(fine);
     expect(moved.deletedAt).toBeInstanceOf(Date);
     expect((await book(anna.organizationId)).map((a) => a.street)).toEqual(['ul. Nowa 3']);

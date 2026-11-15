@@ -5188,6 +5188,27 @@ z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
 z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`), jej
 członków i jej ról.
 
+### Wpisy wycofanej osobistej książki adresowej nie zawierają konta ani organizacji {#customers-address-audit-names-only}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać identyfikator konta klienta
+i identyfikator organizacji osobistej w ogólnoplatformowym dzienniku audytu we wpisach o wierszach
+wycofanej osobistej książki adresowej (zgłoszenie #470). Ten dziennik to jedna tabela, którą czyta
+każdy z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `customer_address.merge`,
+  `customer_address.merge_refused`, `customer_address.erased` lub `customer_address.anonymized` nie
+  zawiera już identyfikatora konta klienta, a wpis przeniesienia nie zawiera już identyfikatora
+  organizacji. Wpis nadal jest przypisany do wiersza po jego identyfikatorze. Przeniesienie nadal
+  wskazuje adres organizacji, do którego trafił wiersz (`mergedIntoAddressId`), a odmowa — kod
+  błędu.
+- Same wiersze, książka adresowa organizacji i zadanie wycofania się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują identyfikatory.
+
+**Po aktualizacji** nie trzeba nic robić. Usuwanie historii audytu klienta przez zadanie retencji
+znajduje te wpisy po identyfikatorach wierszy, a nie po ich stanie, więc zmiana go nie dotyczy.
+
 ### Adres panelu administracyjnego jest ustawieniem platformy {#admin-base-url-platform-input}
 
 Wydanie, które wprowadza tę zmianę, czyni `ADMIN_BASE_URL` — adres panelu administracyjnego —
