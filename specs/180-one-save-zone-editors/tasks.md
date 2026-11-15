@@ -77,9 +77,9 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 
 ## Phase 8: Customer detail — WP-8 (US9, OQ-9 = A)
 
-- [ ] T086 [P] [US9] Failing tests `admin/test/modules/customers/customer-detail-one-save.test.tsx`: one Save; custom-fields host part; two participants; immediate actions unchanged with badges
-- [ ] T087 [US9] `CustomerDetail.tsx`: provider, `SaveSessionActions`, `SaveSessionSummary`, `CustomFieldValuesPanel saveSession`; `detail.save.hostPartLabel`
-- [ ] T088 Changeset: mod-customers
+- [x] T086 [P] [US9] Failing tests `admin/test/modules/customers/customer-detail-one-save.test.tsx`: one Save; custom-fields host part; two participants; immediate actions unchanged with badges
+- [x] T087 [US9] `CustomerDetail.tsx`: provider, `SaveSessionActions`, `SaveSessionSummary`, `CustomFieldValuesPanel saveSession`; `detail.save.hostPartLabel`
+- [x] T088 Changeset: mod-customers
 
 ## Phase 9: Docs and records — WP-10
 

@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { ApiError, apiClient, formatDateTime, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
+import {
+  ApiError,
+  SaveSessionProvider,
+  apiClient,
+  formatDateTime,
+  useAuth,
+  useSaveSession,
+  useUnsavedChangesPrompt,
+  type SavePart,
+} from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Badge, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { OrdersPanel, QuoteRequestsPanel, CartsPanel } from '../panels/HistoryPanels.js';
@@ -9,8 +18,14 @@ import {
   CustomerGroupPanel,
   AddressesPanel,
 } from '../panels/ManagementPanels.js';
-import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
+import {
+  CustomFieldValuesPanel,
+  SaveSessionActions,
+  SaveSessionSummary,
+  customFieldErrorsOf,
+} from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import { ImmediateBadge } from '../components/ImmediateBadge.js';
 
 interface AdminCustomerDetail {
   id: string;
@@ -30,9 +45,36 @@ interface AdminCustomerDetail {
   customFieldValues?: Record<string, unknown>;
 }
 
+/** The host part's unsaved changes: one per edited custom field (feature 180, WP-8). */
+function customFieldChangeCount(
+  edited: Record<string, unknown> | undefined,
+  stored: Record<string, unknown>,
+): number {
+  if (edited === undefined) return 0;
+  return Object.entries(edited).filter(
+    ([key, value]) => JSON.stringify(value ?? null) !== JSON.stringify(stored[key] ?? null),
+  ).length;
+}
+
+/**
+ * Feature 180, WP-8 (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §3;
+ * OQ-9 = A, FR-060, FR-061) — the customer detail runs one save session per customer. Its one
+ * Save, in the page head, writes the customer's custom fields first (the host part, blocking) and
+ * then every panel `customer.detail.after` contributed, in zone order. The account actions, the
+ * organization and the customer-group assignments stay immediate and say so.
+ */
 export function CustomerDetail(): ReactNode {
   const { id = '' } = useParams();
+  return (
+    <SaveSessionProvider resetKey={id} hostModule="customers">
+      <CustomerDetailScreen key={id} id={id} />
+    </SaveSessionProvider>
+  );
+}
+
+function CustomerDetailScreen({ id }: { id: string }): ReactNode {
   const t = useTranslation('customers');
+  const { hasPermission } = useAuth();
   const [c, setC] = useState<AdminCustomerDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -50,6 +92,62 @@ export function CustomerDetail(): ReactNode {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // --- The one Save (feature 180, WP-8) ---------------------------------------------------
+  const session = useSaveSession();
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  // The edited custom-field bag — `undefined` until the operator edits a field, so a Save that
+  // touched none sends no custom-fields request (feature 175's embedded mode).
+  const [customFieldDraft, setCustomFieldDraft] = useState<Record<string, unknown> | undefined>(undefined);
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const storedValues = c?.customFieldValues ?? {};
+  const hostCount = customFieldChangeCount(customFieldDraft, storedValues);
+  // Leaving the page — an in-app link, a reload, closing the tab — asks once for every part.
+  useUnsavedChangesPrompt(hostCount + session.dirtyCount > 0);
+
+  const save = async (): Promise<void> => {
+    const bag = customFieldDraft;
+    const host: SavePart | null =
+      bag !== undefined && hostCount > 0
+        ? {
+            id: 'host',
+            label: t('detail.save.hostPartLabel'),
+            blocking: true,
+            count: hostCount,
+            validate: async () => ({ fields: {} }),
+            save: async () => {
+              setCustomFieldErrors({});
+              try {
+                await apiClient.patch(`/api/v1/admin/customers/${id}/custom-fields`, bag);
+              } catch (err) {
+                setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
+                throw err;
+              }
+              setCustomFieldDraft(undefined);
+              await refresh();
+            },
+          }
+        : null;
+    if (host === null && sessionRef.current.dirtyCount === 0) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await sessionRef.current.run(host);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** The summary's "Show": the custom fields' first marked field, else the page head. */
+  const showPart = (partId: string): void => {
+    setTimeout(() => {
+      if (partId === 'host') {
+        document.querySelector<HTMLElement>('[id^="cf-"][aria-invalid="true"], [id^="cf-"]')?.focus();
+      }
+    }, 0);
+  };
 
   const act = useCallback(
     async (run: () => Promise<unknown>): Promise<void> => {
@@ -102,7 +200,22 @@ export function CustomerDetail(): ReactNode {
 
   return (
     <>
-      <PageHeader title={`${c.firstName} ${c.lastName}`} description={c.email} />
+      <PageHeader
+        title={`${c.firstName} ${c.lastName}`}
+        description={c.email}
+        actions={
+          <SaveSessionActions
+            hostCount={hostCount}
+            canSave={hasPermission('customers:manage')}
+            saving={saving}
+            onSave={(): void => void save()}
+          />
+        }
+      />
+
+      <div className="mb-4 empty:hidden">
+        <SaveSessionSummary outcome={session.lastOutcome} notices={session.notices} onShow={showPart} />
+      </div>
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
@@ -128,7 +241,10 @@ export function CustomerDetail(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle>{t('detail.actions.title')}</CardTitle>
+          <CardTitle>
+            {t('detail.actions.title')}
+            <ImmediateBadge />
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           {c.blocked ? (
@@ -215,17 +331,22 @@ export function CustomerDetail(): ReactNode {
           with the organization screen, because `unrendered-zone` is computed per
           member and a shared one would let that host's mount cover this host's
           absence (Z13). */}
-      {/* Feature 180 — the inert handle until this screen runs its save session (WP-8). */}
-      <AdminZone name="customer.detail.after" props={{ customerId: id, saveSession: INERT_SAVE_SESSION }} />
+      {/* Feature 180 — the page's save session: every panel here saves with the page Save. */}
+      <AdminZone name="customer.detail.after" props={{ customerId: id, saveSession: session.handle }} />
 
-      {/* Feature 055 — operator-defined custom fields for this customer. */}
+      {/* Feature 055 — operator-defined custom fields for this customer. Embedded (feature 180,
+          WP-8): the bag is the host part of the page Save, one `PATCH …/custom-fields`, blocking,
+          so a refused custom field writes no panel. */}
       <CustomFieldValuesPanel
         entityType="customer"
-        values={c.customFieldValues ?? {}}
-        save={async (values): Promise<void> => {
-          await apiClient.patch(`/api/v1/admin/customers/${id}/custom-fields`, values);
-          await refresh();
+        values={customFieldDraft === undefined ? storedValues : { ...storedValues, ...customFieldDraft }}
+        onChange={(bag): void => {
+          setCustomFieldDraft(bag);
+          setCustomFieldErrors({});
+          // The last save's summary belongs to it: an edit clears it (FR-016).
+          sessionRef.current.clearOutcome();
         }}
+        fieldErrors={customFieldErrors}
       />
 
       <OrdersPanel customerId={id} />

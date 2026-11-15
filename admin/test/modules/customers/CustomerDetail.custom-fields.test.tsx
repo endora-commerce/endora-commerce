@@ -171,9 +171,9 @@ describe('CustomerDetail — custom fields, through the published panel', () => 
     const input = await screen.findByLabelText('Loyalty tier');
     await userEvent.clear(input);
     await userEvent.type(input, 'silver');
-    await userEvent.click(
-      screen.getByRole('button', { name: CORE_EN['customFields.save'] as string }),
-    );
+    // Feature 180, WP-8 — the panel has no Save of its own any more: the page Save in the head
+    // writes it ("Save 1 change").
+    await userEvent.click(screen.getByRole('button', { name: /^Save/ }));
 
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy.mock.calls[0]?.[0]).toBe(
