@@ -13,6 +13,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { ProjectAttachment } from '../entities/project-attachment.entity.js';
 import { asDownloadLink, refuseActiveContent } from './attachment-active-content.js';
 import { actingAdminUserId, isUuid, type ProjectAccess } from './project-access.js';
+import { recordChildValueChange } from './project-audit-state.js';
 import { lockProject } from './project-service.js';
 
 export interface ProjectAttachmentServiceDeps {
@@ -136,10 +137,16 @@ export class ProjectAttachmentService {
             assetId,
             addedByAdminUserId: uploader,
           });
+          // A file's name is free text (#1226): the trail names the file by id,
+          // the Project's store keeps the name its change history shows.
+          const values = recordChildValueChange(tx as EntityManager, project.id, {
+            before: null,
+            after: { fileName: asset.filename },
+          });
           return {
             result: created,
             before: null,
-            after: { attachmentId: created.id, assetId, fileName: asset.filename },
+            after: { attachmentId: created.id, assetId, ...values },
           };
         },
       });

@@ -30,6 +30,7 @@ import { ProjectStageEntry } from '../entities/project-stage-entry.entity.js';
 import { ProjectStageMove } from '../entities/project-stage-move.entity.js';
 import { ProjectStageTask } from '../entities/project-stage-task.entity.js';
 import { ProjectValueChange, type ProjectValueState } from '../entities/project-value-change.entity.js';
+import { projectSnapshot } from './project-audit-state.js';
 import { ProjectViewer } from '../entities/project-viewer.entity.js';
 import { isDeepStrictEqual } from 'node:util';
 import { newlyMentioned, type ProjectMentionService, type SavedProjectMentions } from './mention-service.js';
@@ -198,26 +199,6 @@ export async function lockProjectRow(em: EntityManager, id: string): Promise<Pro
   // `loadVisible` found it a moment ago; a delete in between is a change too.
   if (!project) throw projectChanged();
   return project;
-}
-
-/**
- * The audit snapshot of a Project. The audit trail is the platform's and is not
- * tenant-scoped, so it carries no free text and no figure a tenant owns: the
- * description by its length only, and neither the title (owner ruling O-1,
- * 2026-11-10: a title is a value, #470), the value nor the custom-field
- * values at all — a write says *that* they changed ({@link changedValueKeys}),
- * never what to (T144 F4). The values go to the Project's own store, which its
- * history reads ({@link recordValueChange}, T145).
- */
-function snapshot(project: Project): Record<string, unknown> {
-  return {
-    number: project.number,
-    state: project.state,
-    startOn: project.startOn ?? null,
-    visibility: project.visibility,
-    descriptionLength: project.description.length,
-    version: project.version,
-  };
 }
 
 /** The values a write may change that the trail does not carry: the title (O-1) and the value. */
@@ -439,11 +420,12 @@ export class ProjectService {
         return {
           result: id,
           after: {
-            ...snapshot(project),
+            ...projectSnapshot(project),
             organizationIds: body.organizationIds,
             members: members.map((m) => ({ adminUserId: m.adminUserId, roleIds: m.roleIds })),
             viewerIds,
-            stages: rows.map((stage) => stage.name),
+            // The Stages by id: a Stage's name is a value (#1226).
+            stageIds: rows.map((stage) => stage.id),
             templateId: template?.id ?? null,
             ...recordValueChange(em as EntityManager, id, { before: null, after: project }, { before: {}, after: customFieldValues }),
           },
@@ -528,7 +510,7 @@ export class ProjectService {
         objectId: visible.id,
         run: async ({ em }) => {
           const project = await claim(em as EntityManager);
-          const before = snapshot(project);
+          const before = projectSnapshot(project);
           const valueBefore = {
             valueAmount: project.valueAmount ?? null,
             valueCurrency: project.valueCurrency ?? null,
@@ -558,7 +540,7 @@ export class ProjectService {
             result: null,
             before,
             after: {
-              ...snapshot(project),
+              ...projectSnapshot(project),
               ...recordValueChange(em as EntityManager, visible.id, { before: valueBefore, after: project }, null),
             },
           };
@@ -660,7 +642,7 @@ export class ProjectService {
         if (Number(links[0]?.n ?? 0) > 0) {
           throw new HttpError(409, ERROR_CODES.PROJECT_HAS_LINKS, 'Unlink the records of this project before deleting it.');
         }
-        const before = snapshot(project);
+        const before = projectSnapshot(project);
         // Its Stages, Members, history and everything else it owns go with it
         // (`on delete cascade`).
         em.remove(project);
