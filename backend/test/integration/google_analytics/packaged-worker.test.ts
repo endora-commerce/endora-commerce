@@ -24,6 +24,7 @@ import {
   GA_DELIVERY_QUEUE_NAME,
   type GaCollectEnqueuer,
 } from '../../../../packages/modules/google_analytics/src/backend/services/ss-delivery-queue.js';
+import { createGaDeliverySweepQueue } from '../../../../packages/modules/google_analytics/src/backend/services/ss-delivery-sweep.js';
 
 /**
  * `google_analytics` is the first module package with a **real BullMQ
@@ -192,7 +193,15 @@ describe('google_analytics — the packaged BullMQ consumer (Principle X)', () =
   afterAll(async () => {
     registryCache.__setEnabledForTesting([]);
     for (const unsubscribe of sink?.unsubscribes ?? []) unsubscribe();
-    await worker?.close();
+    // Every worker the module registered: since issue #1248 that is the
+    // delivery consumer and the hourly finished-job sweep, whose schedule is
+    // removed with its queue so no later file in this Redis inherits it.
+    for (const registered of sink?.workers ?? []) await (registered as Worker).close();
+    if (redis) {
+      const sweepQueue = createGaDeliverySweepQueue(redis);
+      await sweepQueue.obliterate({ force: true });
+      await sweepQueue.close();
+    }
     await app?.close();
     await redis?.quit();
     await new Promise<void>((resolve) => (deliverySink ? deliverySink.close(() => resolve()) : resolve()));

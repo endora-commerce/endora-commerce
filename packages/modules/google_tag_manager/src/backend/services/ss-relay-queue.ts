@@ -1,4 +1,4 @@
-import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
+import { Queue, Worker, type KeepJobs, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
 import { enterSystemScope } from '@endora-commerce/platform/kernel';
 import type { Redis } from 'ioredis';
 import type { GtmCollectRequest, GtmPageContext } from '@endora-commerce/contracts';
@@ -12,6 +12,11 @@ import type { GtmCollectRequest, GtmPageContext } from '@endora-commerce/contrac
  * Nothing here is persisted in PostgreSQL — the relay is stateless, and
  * `removeOnFail` retention is what makes an exhausted delivery observable
  * (FR-027).
+ *
+ * A job carries the visitor's `clientId`, the event's `params`, the page
+ * context and, with consent, the IP address and user agent, so a finished job
+ * is kept in Redis by age as well as by count (issue #1248): see
+ * {@link GTM_RELAY_KEEP_COMPLETED} and {@link GTM_RELAY_KEEP_FAILED}.
  */
 export interface GtmRelayJobData {
   /** Also the BullMQ `jobId` — the idempotency key across retries (FR-028). */
@@ -48,6 +53,26 @@ export const GTM_RELAY_QUEUE_NAME = 'google_tag_manager.ss.relay';
 
 const DEFAULT_ATTEMPTS = 8;
 const DEFAULT_BACKOFF = { type: 'exponential' as const, delay: 1_000 };
+const HOUR_SECONDS = 60 * 60;
+
+/**
+ * How long BullMQ keeps a relayed job (issue #1248): one hour. A delivered
+ * event has nothing left to say, and the operator's container holds the copy
+ * that matters; the hour is a short tail for an operator looking at the queue.
+ */
+export const GTM_RELAY_KEEP_COMPLETED = { age: HOUR_SECONDS, count: 500 } satisfies KeepJobs;
+
+/**
+ * How long BullMQ keeps a job that ran out of retries (issue #1248): three
+ * days. That is what keeps an exhausted relay observable (FR-027) long enough
+ * to diagnose a failing container over a weekend, and no longer, because the
+ * job still holds the visitor's data.
+ *
+ * BullMQ applies both bounds only when another job finishes in the same set,
+ * so a quiet queue would keep its last jobs indefinitely; the hourly sweep in
+ * `ss-relay-sweep.ts` is the clock that does not depend on traffic.
+ */
+export const GTM_RELAY_KEEP_FAILED = { age: 3 * 24 * HOUR_SECONDS, count: 5_000 } satisfies KeepJobs;
 
 export function createGtmRelayQueue(
   redis: Redis,
@@ -58,8 +83,8 @@ export function createGtmRelayQueue(
     defaultJobOptions: {
       attempts: DEFAULT_ATTEMPTS,
       backoff: DEFAULT_BACKOFF,
-      removeOnComplete: { count: 500 },
-      removeOnFail: { count: 5_000 },
+      removeOnComplete: GTM_RELAY_KEEP_COMPLETED,
+      removeOnFail: GTM_RELAY_KEEP_FAILED,
     },
     ...overrides,
   };

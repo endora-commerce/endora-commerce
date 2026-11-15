@@ -239,6 +239,25 @@ describe('the checklists each flag makes applicable', () => {
   it('declares every module it depends on in the manifest', () => {
     expect(emit(FULL).get('src/manifest.ts')).toContain("'settings',");
   });
+
+  it('bounds the queue’s finished jobs by age as well as by count', () => {
+    // Issue #1248: a count bound alone keeps a quiet queue's last jobs, and the
+    // data they carry, in Redis indefinitely. An emitted `removeOnComplete` or
+    // `removeOnFail` without an `age` is the shape that issue was about.
+    const code = codeOf(emit(FULL).get('src/backend/workers/demo-widgets.worker.ts')!);
+    const bounds = [...code.matchAll(/removeOn(Complete|Fail):\s*\{([^}]*)\}/g)];
+
+    expect(bounds.map((match) => match[1])).toEqual(['Complete', 'Fail']);
+    for (const [, , body] of bounds) {
+      expect(body).toMatch(/\bage:\s*[\w(]/);
+      expect(body).toMatch(/\bcount:\s*[\d_]/);
+    }
+  });
+
+  it('says why the age bound alone does not empty a quiet queue', () => {
+    const worker = emit(FULL).get('src/backend/workers/demo-widgets.worker.ts')!;
+    expect(worker).toMatch(/queue\.clean/);
+  });
 });
 
 describe('the admin layer', () => {
