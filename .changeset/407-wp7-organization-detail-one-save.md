@@ -11,6 +11,7 @@ The organization detail screen now has one Save for the whole page (issue #407, 
 - If either write answers `VERSION_CONFLICT`, no panel is written. The organization is reloaded, every unsaved change on the page (the screen's and every panel's) is discarded, and the screen says so. If a panel fails after the organization saved, a summary reports what was saved and what was not, and the next Save writes only what is left.
 - Members (invite, direct add, role, edit, remove), hierarchy, moderation, VAT validation, sales channels, roles and sales representatives still apply immediately. Each of these sections now carries an "Applies immediately" badge.
 - Leaving the page with unsaved changes asks first.
+- An operator without `customers:manage` sees status, VAT status, e-mails, fulfilment strategy, restrictions and custom fields read-only. The page's Save would never write them for that operator.
 - New strings in English and Polish: `detail.save.hostPartLabel`, `detail.save.conflict` and `detail.immediate.badge`.
 
 **mod-price-lists:**

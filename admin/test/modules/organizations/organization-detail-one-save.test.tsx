@@ -192,7 +192,9 @@ function serve(): void {
   });
 }
 
-function renderDetail(options: { present?: readonly string[]; absent?: readonly string[] } = {}): void {
+function renderDetail(
+  options: { present?: readonly string[]; absent?: readonly string[]; permissions?: readonly string[] } = {},
+): void {
   renderWithSession(
     <MemoryRouter initialEntries={[`/organizations/${ORG_ID}`]}>
       <Routes>
@@ -200,7 +202,7 @@ function renderDetail(options: { present?: readonly string[]; absent?: readonly 
       </Routes>
     </MemoryRouter>,
     {
-      session: adminSession({ permissions: ['*'] }),
+      session: adminSession({ permissions: [...(options.permissions ?? ['*'])] }),
       presence: modulePresence({ present: options.present ?? everyDeclaredModule(), absent: [...(options.absent ?? [])] }),
       contributions: [
         { moduleId: 'price_lists', contributions: priceLists.contributions },
@@ -434,6 +436,25 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     await waitFor(() => expect(writes).toEqual([`DELETE ${ORG_URL}/members/${MEMBER.id}`]));
     await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save 1 change'));
     expect(screen.getByLabelText(coreEn['organizations.detail.vatStatus']!)).toHaveValue('vat_exempt');
+  });
+
+  it('without customers:manage the screen\'s own sections are read-only and there is no Save', async () => {
+    renderDetail({ permissions: ['customers:read', 'custom_fields:read', 'price_lists:read'] });
+    await screen.findByText('Ada');
+    await screen.findByLabelText('Card');
+    for (const control of [
+      screen.getByLabelText(coreEn['organizations.detail.accountStatus']!),
+      screen.getByLabelText(coreEn['organizations.detail.vatStatus']!),
+      screen.getByLabelText('order-confirmation-emails'),
+      screen.getByLabelText(coreEn['fulfilment.label']!),
+      screen.getByLabelText('Card'),
+    ]) {
+      expect(control).toBeDisabled();
+    }
+    // The custom field is shown as its value, with no input to type into.
+    expect(screen.queryByRole('textbox', { name: 'Account manager' })).toBeNull();
+    expect(screen.queryByRole('button', { name: SAVE })).toBeNull();
+    expect(writes).toEqual([]);
   });
 
   it('asks before the page is left with unsaved changes', async () => {

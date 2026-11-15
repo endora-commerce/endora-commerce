@@ -320,6 +320,8 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   const session = useSaveSession();
   const sessionRef = useRef(session);
   sessionRef.current = session;
+  // The host part's writes need `customers:manage`; without it the screen's own sections are
+  // read-only, so nothing is staged that the Save would never write (FR-035).
   const canManage = hasPermission('customers:manage');
   const [edits, setEdits] = useState<HostEdits>({});
   // The stored allow-lists, as the restrictions panel last read them.
@@ -677,7 +679,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             <Select
               id="ostatus"
               value={edits.status ?? org.status}
-              disabled={busy}
+              disabled={busy || !canManage}
               onChange={(e): void => changeEdits({ status: e.target.value as OrgDetail['status'] })}
             >
               {STATUSES.map((s) => (
@@ -692,7 +694,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             <Select
               id="vstatus"
               value={edits.vatStatus ?? org.vatStatus}
-              disabled={busy}
+              disabled={busy || !canManage}
               onChange={(e): void => changeEdits({ vatStatus: e.target.value as OrgDetail['vatStatus'] })}
             >
               {VAT_STATUSES.map((v) => (
@@ -710,7 +712,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
               className="min-h-20 w-full rounded-md border p-2 text-sm"
               value={edits.emailsText ?? (org.orderConfirmationEmails ?? []).join('\n')}
               placeholder={'ops@example.com\nsales@example.com'}
-              disabled={busy}
+              disabled={busy || !canManage}
               onChange={(e): void => changeEdits({ emailsText: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">
@@ -1088,7 +1090,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           value={edits.fulfilment ?? storedFulfilment(org)}
           onChange={(next): void => changeEdits({ fulfilment: next })}
           warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
-          disabled={busy}
+          disabled={busy || !canManage}
         />
       </div>
 
@@ -1108,6 +1110,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           values={edits.customFieldValues === undefined ? (org.customFieldValues ?? {}) : { ...(org.customFieldValues ?? {}), ...edits.customFieldValues }}
           onChange={(bag): void => changeEdits({ customFieldValues: bag })}
           fieldErrors={customFieldErrors}
+          readOnly={!canManage}
         />
       </div>
 
