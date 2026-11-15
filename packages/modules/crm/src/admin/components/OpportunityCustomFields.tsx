@@ -39,24 +39,6 @@ export function customFieldIssues(failure: unknown): Record<string, string> | nu
   return issues;
 }
 
-/**
- * The bag to send for an edit. The panel reports a cleared number, date or
- * choice as `undefined`, which JSON drops — and a key the request does not
- * name keeps its stored value, so the field would silently come back. A value
- * that was stored and is now empty is therefore sent as `null`: "clear this",
- * which the server also holds against a required field.
- */
-export function withCleared(
-  stored: Record<string, unknown>,
-  edited: Record<string, unknown>,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...edited };
-  for (const key of new Set([...Object.keys(stored), ...Object.keys(edited)])) {
-    if (out[key] === undefined) out[key] = null;
-  }
-  return out;
-}
-
 /** Whether the person on this screen may be shown the fields at all. */
 export function useCanSeeCustomFields(): boolean {
   return useAuth().hasPermission(CUSTOM_FIELDS_READ);
@@ -150,7 +132,8 @@ export function OpportunityCustomFields(props: {
       onChange(
         await crmApi.updateOpportunity(
           opportunity.id,
-          { customFieldValues: withCleared(opportunity.customFieldValues, values) },
+          // The panel's bag as it is: the changed keys only, a cleared one as `null` (issue #1007).
+          { customFieldValues: values },
           opportunity.version,
         ),
       );
