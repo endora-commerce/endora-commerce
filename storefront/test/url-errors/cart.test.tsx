@@ -38,7 +38,11 @@ vi.mock('../../lib/api/cart', () => ({
   getCartUpsells: async () => [],
   touchCart: async () => undefined,
   removeCartItem: refuse,
-  updateCartItem: refuse,
+  updateCartItem: async (_jar: unknown, itemId: string, quantity: number) => {
+    if (!updateSucceeds) return refuse();
+    updated.push([itemId, quantity]);
+    return {};
+  },
   applyCartCoupon: async () => couponResult ?? refuse(),
   clearCartCoupon: async () => undefined,
   convertCartToQuoteRequest: refuse,
@@ -47,6 +51,11 @@ vi.mock('../../lib/api/cart', () => ({
     if (failure) throw failure;
   },
 }));
+const revalidated: string[] = [];
+let updated: Array<[string, number]> = [];
+/** The quantity update refuses like every other action (`refuse`) unless a test lets it through. */
+let updateSucceeds = false;
+vi.mock('next/cache', () => ({ revalidatePath: (path: string) => void revalidated.push(path) }));
 vi.mock('../../lib/api/shopping-lists', () => ({
   listShoppingLists: async () => [{ id: 'sl1', name: 'Mine', isDefault: false }],
 }));
@@ -118,6 +127,9 @@ async function action(name: string): Promise<(data: FormData) => unknown> {
 beforeEach(() => {
   locale = 'en-US';
   failure = null;
+  updateSucceeds = false;
+  revalidated.length = 0;
+  updated = [];
   couponResult = null;
 });
 
@@ -317,5 +329,40 @@ describe('?typed= is read only as a whole quantity (issue #790)', () => {
 
   it('a whole quantity is kept in its field', async () => {
     expect(await html({ errorItem: 'l1', error: 'QUANTITY_INVALID', typed: '7' })).toContain('value="7"');
+  });
+});
+
+describe('a typed quantity saved without leaving the page answers the sentence the redirect would (issue #1252)', () => {
+  async function save(typed: string): Promise<unknown> {
+    const found = await action('bound saveQuantityAction');
+    return (found as unknown as (typed: string) => Promise<unknown>)(typed);
+  }
+
+  it('saves the line and revalidates the cart', async () => {
+    updateSucceeds = true;
+    expect(await save('7')).toEqual({ ok: true });
+    expect(updated).toEqual([['l1', 7]]);
+    expect(revalidated).toEqual(['/cart']);
+  });
+
+  it('a minimum refusal reads the minimum beside the line, in the page’s language', async () => {
+    failure = new StorefrontApiError(422, 'PRODUCT_BELOW_MINIMUM_QUANTITY', '"Bolt" has a minimum order quantity of 10 pcs.', undefined, {
+      productName: 'Bolt',
+      minimum: 10,
+    });
+    expect(await save('4')).toEqual({ ok: false, message: 'Below the minimum (10 pcs)' });
+    locale = 'pl-PL';
+    expect(await save('4')).toEqual({ ok: false, message: 'Poniżej minimum (10 szt.)' });
+    expect(revalidated).toEqual([]);
+  });
+
+  it('a value that is not a whole quantity is refused before the API is asked', async () => {
+    updateSucceeds = true;
+    expect(await save('')).toEqual({ ok: false, message: expect.any(String) });
+    expect(updated).toEqual([]);
+  });
+
+  it('a transport failure reads as the generic quantity failure', async () => {
+    expect(await save('5')).toEqual({ ok: false, message: 'Could not update the quantity. Please try again.' });
   });
 });

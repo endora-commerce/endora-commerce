@@ -6,10 +6,10 @@ import { CartLine, type CartLineViewModel } from '../../components/CartLine';
 /**
  * Feature 027 US1 — SSR contract for CartLine.
  *
- * Server-component-friendly per-line row. The 500 ms auto-save debounce
- * on the qty input is browser-side state (not exercised here); the
- * SSR shell renders three forms so qty update / remove / save-to-list
- * all work even with JS disabled.
+ * Server-component-friendly per-line row. The typed quantity's auto-save
+ * (issue #1252) is browser-side and exercised in
+ * `cart-quantity-autosave.test.tsx`; the SSR shell renders three forms so
+ * qty update / remove / save-to-list all work even with JS disabled.
  */
 
 const noopAction = async (): Promise<void> => undefined;
