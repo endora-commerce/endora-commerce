@@ -43,7 +43,9 @@ import type { SocialIdentityService, SocialSignInResult } from './services/socia
 import { OAUTH_BINDING_COOKIE_NAME, registerMfaOAuthRoutes } from './routes.oauth.js';
 
 /** The request's resolved sales channel, as the platform's resolver would leave it. */
-const channel = vi.hoisted(() => ({ current: null as { id: string } | null }));
+const channel = vi.hoisted(() => ({
+  current: null as { id: string; languages?: string[]; defaultLanguage?: string } | null,
+}));
 vi.mock('@endora-commerce/platform/kernel', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@endora-commerce/platform/kernel')>()),
   currentSalesChannel: () => channel.current,
@@ -912,6 +914,47 @@ describe('federated sign-in — the language of the starting page', () => {
   it('passes next through unchanged on success', async () => {
     const { exchange: res } = await signIn(h, '/en/account');
     expect(res.json().data.redirectPath).toBe('/en/account');
+  });
+
+  /**
+   * Issue #1011 — a `next` without a language prefix takes the language from the whole
+   * `Accept-Language` through `requestScopeLanguage`: the tags in descending `q`, each
+   * matched against the started-on channel's languages (exactly, then by base language),
+   * else the channel's default. It used to be the header's first tag alone.
+   */
+  async function refusedFrom(acceptLanguage: string | undefined, next = '/cart'): Promise<string> {
+    channel.current = { id: 'channel-1011', languages: ['pl-PL', 'en-US'], defaultLanguage: 'pl-PL' };
+    h.setPermitted(false);
+    const secret = randomBytes(32).toString('base64url');
+    const query = new URLSearchParams({ next, binding: sha256(secret) });
+    const started = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/auth/customer/oauth/google/start?${query.toString()}`,
+      headers: acceptLanguage === undefined ? {} : { 'accept-language': acceptLanguage },
+    });
+    expect(started.statusCode).toBe(302);
+    const state = new URL(started.headers['location'] as string).searchParams.get('state')!;
+    const binding = started.cookies.find((c) => c.name === OAUTH_BINDING_COOKIE_NAME)!.value;
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding });
+    return String(res.headers['location']);
+  }
+
+  it('honours the q-weights of Accept-Language (#1011)', async () => {
+    expect(await refusedFrom('pl;q=0.2, en-US;q=0.9')).toBe(`${STOREFRONT}/en/login?error=sales_channel_not_permitted`);
+  });
+
+  it('skips a tag the channel does not serve for the next one it does (#1011)', async () => {
+    expect(await refusedFrom('de-DE, en;q=0.5')).toBe(`${STOREFRONT}/en/login?error=sales_channel_not_permitted`);
+  });
+
+  it('matches a language-only tag by base language, and falls back to the default (#1011)', async () => {
+    expect(await refusedFrom('en')).toBe(`${STOREFRONT}/en/login?error=sales_channel_not_permitted`);
+    expect(await refusedFrom('de-DE')).toBe(`${STOREFRONT}/pl/login?error=sales_channel_not_permitted`);
+    expect(await refusedFrom(undefined)).toBe(`${STOREFRONT}/pl/login?error=sales_channel_not_permitted`);
+  });
+
+  it('a prefixed next still wins over Accept-Language (#1011)', async () => {
+    expect(await refusedFrom('en-US', '/pl/cart')).toBe(`${STOREFRONT}/pl/login?error=sales_channel_not_permitted`);
   });
 });
 
