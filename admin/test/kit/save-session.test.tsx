@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useState, type ReactElement } from 'react';
+import { useLayoutEffect, useState, type ReactElement } from 'react';
 import type { AdminZoneContribution, AdminZoneProps } from '@endora-commerce/contracts';
 import {
   ApiError,
@@ -358,6 +358,47 @@ describe('host-owned sections (FR-006)', () => {
   it('are refused with a developer error when the provider has no hostModule', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect(() => renderHost({ withHostSection: true })).toThrow(/hostModule/);
+  });
+});
+
+describe('an edit made before the seed effect has run (#407)', () => {
+  /**
+   * The participant seeds the session from `loaded` in a passive effect. A loaded test runner (or
+   * a slow machine) lets the commit that first shows the control reach the operator before that
+   * effect runs, and an edit in that window used to be dropped: there was no entry yet to record
+   * it in. A layout effect runs in exactly that window, so it stands in for the operator here.
+   */
+  it('seeds the part and keeps the edit', async () => {
+    const loaded: PricesDraft = { amount: '1' };
+    const handlers = defaultHandlers();
+    let observed: ReturnType<typeof useSaveSession> | null = null;
+    function Early(): ReactElement {
+      const session = useSaveSession();
+      observed = session;
+      const participant = useSaveParticipant(
+        session.handle,
+        { key: 'early', label: 'Early', writable: true, loaded },
+        handlers,
+      );
+      const { setDraft } = participant;
+      const [done, setDone] = useState(false);
+      useLayoutEffect(() => {
+        if (done) return;
+        setDone(true);
+        setDraft({ amount: '2' });
+      }, [done, setDraft]);
+      return <input aria-label="Early" readOnly value={participant.draft?.amount ?? ''} />;
+    }
+    render(
+      wrap(
+        <SaveSessionProvider resetKey="early" hostModule="catalog">
+          <Early />
+        </SaveSessionProvider>,
+      ),
+    );
+    await waitFor(() => expect((screen.getByLabelText('Early') as HTMLInputElement).value).toBe('2'));
+    expect(observed!.dirtyCount).toBe(1);
+    expect(observed!.dirtyParticipants().map((part) => part.id)).toEqual(['catalog:early']);
   });
 });
 

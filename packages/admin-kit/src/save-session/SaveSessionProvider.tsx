@@ -273,10 +273,12 @@ export function useSaveParticipant<D>(
   const setDraft = useCallback(
     (next: D | ((previous: D) => D)) => {
       if (store !== null) {
-        // The edit is judged against what the operator sees now: the meta of this render, which
-        // the effect below may not have pushed to the store yet (a panel that has just become
-        // writable would otherwise drop the first keystroke).
-        if (loaded !== null) store.updateMeta(id, meta);
+        // The edit is judged against what the operator sees now: the meta and the loaded value of
+        // this render, which the effects above may not have pushed to the store yet. A panel that
+        // has just become writable would otherwise drop the first keystroke, and one whose read
+        // has just landed would drop an edit made before its seed effect ran (#407). Seeding is
+        // idempotent: a known entry that is dirty, or holds this baseline, only takes the meta.
+        if (loaded !== null) store.seed(id, meta, loaded);
         store.setDraft(id, (previous) => resolveNext(next, previous as D));
         return;
       }
