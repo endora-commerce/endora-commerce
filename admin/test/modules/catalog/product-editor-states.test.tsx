@@ -3,6 +3,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import type { ScopeRef } from '@endora-commerce/contracts';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import {
+  IMMEDIATE_BADGE,
   BASE,
   CH_RETAIL,
   PRODUCT_ID,
@@ -94,7 +95,7 @@ describe('redirects (Details, under the URL key)', () => {
     renderEditor(ProductEditor);
     const section = await screen.findByTestId('product-url-redirects');
     await within(section).findByText(/old-drill/);
-    expect(within(section).getByText(en['productEditor.immediate.badge']!)).toBeInTheDocument();
+    expect(within(section).getByText(IMMEDIATE_BADGE)).toBeInTheDocument();
     expect(en['productEditor.urlKeys.deleteRedirectBody']).toMatch(/applies immediately/i);
   });
 
@@ -137,7 +138,7 @@ describe('global-only tabs outside Global (FR-081)', () => {
     const panel = await screen.findByRole('tabpanel');
     await within(panel).findByTestId('global-only-tab-notice');
     expect(await within(panel).findByText(en['productEditor.links.title']!)).toBeInTheDocument();
-    expect(within(panel).queryByText(en['productEditor.immediate.badge']!)).toBeNull();
+    expect(within(panel).queryByText(IMMEDIATE_BADGE)).toBeNull();
   });
 
   it('Inventory shows the stock read-only outside Global', async () => {

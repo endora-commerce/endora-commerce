@@ -4,6 +4,7 @@ import type { ReactElement } from 'react';
 import { ApiError, useSaveParticipant, type SaveParticipantHandlers } from '@endora-commerce/admin-kit/lib';
 import type { AdminZoneContribution, AdminZoneProps, ScopeRef } from '@endora-commerce/contracts';
 import {
+  IMMEDIATE_BADGE,
   BASE,
   CH_RETAIL,
   PRODUCT_ID,
@@ -145,7 +146,7 @@ describe('the product editor’s one Save with a zone participant (feature 180)'
     await stageName();
     await stageProbe();
     expect(saveButton()).toHaveAccessibleName(/^Save 2 changes/);
-    expect(within(screen.getByRole('tabpanel')).queryByText(en['productEditor.immediate.badge']!)).toBeNull();
+    expect(within(screen.getByRole('tabpanel')).queryByText(IMMEDIATE_BADGE)).toBeNull();
     // SC-001: one Save on the page.
     expect(screen.getAllByRole('button', { name: /^Save/ })).toHaveLength(1);
   });

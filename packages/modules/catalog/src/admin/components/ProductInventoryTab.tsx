@@ -7,11 +7,10 @@ import type {
   Warehouse,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { FulfilmentStrategyPicker } from '@endora-commerce/admin-kit/components';
+import { FulfilmentStrategyPicker, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import type { FulfilmentStrategyValue } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useProductEditor } from './editor/editor-context.js';
-import { ImmediateBadge } from './editor/ImmediateBadge.js';
 
 /**
  * Read one setting by code (feature 091, P6).

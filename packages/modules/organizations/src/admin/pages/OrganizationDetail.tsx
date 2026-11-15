@@ -15,7 +15,6 @@ import {
   type SavePart,
 } from '@endora-commerce/admin-kit/lib';
 import { FulfilmentStrategyPanel } from '../panels/FulfilmentStrategyPanel.js';
-import { ImmediateBadge } from '../components/ImmediateBadge.js';
 import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab.js';
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
 import { ConvertToCompanyForm, type ConvertToCompanyResult } from '../components/ConvertToCompanyForm.js';
@@ -35,6 +34,7 @@ import {
   SaveSessionSummary,
   customFieldErrorsOf,
   type FulfilmentStrategyValue,
+  ImmediateBadge,
 } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
@@ -741,7 +741,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         <CardHeader>
           <CardTitle>
             {t('organizations.detail.inviteCard')}
-            <ImmediateBadge />
+            <ImmediateBadge className="align-middle" />
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
@@ -780,7 +780,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         <CardHeader>
           <CardTitle>
             {t('organizations.detail.directAddCard')}
-            <ImmediateBadge />
+            <ImmediateBadge className="align-middle" />
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
@@ -849,7 +849,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         <CardHeader>
           <CardTitle>
             {t('organizations.detail.membersCard')}
-            <ImmediateBadge />
+            <ImmediateBadge className="align-middle" />
           </CardTitle>
         </CardHeader>
         <CardContent>
