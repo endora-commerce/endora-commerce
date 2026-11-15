@@ -1,5 +1,4 @@
 import {
-  firstLanguageTag,
   scopeLanguageOf,
   type CatalogProductAvailabilityPort,
   type CatalogProductUrlKeyReadPort,
@@ -115,6 +114,3 @@ export async function basketNamesAt(
   const texts = await availability.effectiveTexts([...new Set(productIds)], { channelId, languageCode });
   return new Map([...texts].map(([id, text]) => [id, text.name]));
 }
-
-/** The first `Accept-Language` tag without its quality parameter — the one home is `@endora-commerce/contracts`. */
-export { firstLanguageTag };
