@@ -1,0 +1,5 @@
+---
+'@endora-commerce/mod-quote-requests': patch
+---
+
+**A buyer's quote request judges its lines in the channel language `Accept-Language` asks for, read as a q-weighted list** (issue #1011). `POST /api/v1/quote-requests`, the draft edit `PATCH /api/v1/quote-requests/:id` and `POST /api/v1/quote-requests/:id/resubmit` took the header's first tag alone as the language a line's availability and snapshotted names are judged in, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` asked about English and `de-DE, pl;q=0.5` about the channel default, and a request naming a product available only in Polish was refused with `404`. The language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. The language messages are worded in is unchanged. A request without the header behaves as before.
