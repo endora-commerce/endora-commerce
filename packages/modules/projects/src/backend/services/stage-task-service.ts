@@ -20,6 +20,7 @@ import { ProjectStageEntry } from '../entities/project-stage-entry.entity.js';
 import { ProjectStageTask } from '../entities/project-stage-task.entity.js';
 import { TASKS_READ_PERMISSION } from './owner-read-permissions.js';
 import { uuidArray, type ProjectAccess } from './project-access.js';
+import { recordChildValueChange, taskDefinitionSnapshot } from './project-audit-state.js';
 import { personName, type ProjectReadService } from './project-read-service.js';
 import { assertRolesExist, claimStage, lockProject, lockProjectRow } from './project-service.js';
 import { lockRolesForWrite } from './role-locks.js';
@@ -89,18 +90,6 @@ export interface StageEntryPlan {
 
 const NOTHING_PLANNED: StageEntryPlan = { materialize: false, notes: [] };
 
-function definitionSnapshot(task: ProjectStageTask): Record<string, unknown> {
-  // Titles are the Stage's structure; a description is free text and travels
-  // as its length only (the audit trail is not tenant-scoped).
-  return {
-    title: task.title,
-    descriptionLength: task.description.length,
-    responsibleRoleId: task.responsibleRoleId ?? null,
-    dueOffsetDays: task.dueOffsetDays,
-    position: task.position,
-  };
-}
-
 function notRetryable(): HttpError {
   return new HttpError(
     409,
@@ -134,7 +123,7 @@ export class StageTaskService {
         if (!stage) throw stageNotFound();
         claimStage(stage, version);
         const previous = await em.find(ProjectStageTask, { stageId }, { orderBy: { position: 'asc', id: 'asc' } });
-        const before = { stageId, tasks: previous.map(definitionSnapshot) };
+        const before = { stageId, tasks: previous.map(taskDefinitionSnapshot) };
         await em.nativeDelete(ProjectStageTask, { stageId });
         const written = tasks.map((task, index) =>
           em.create(ProjectStageTask, {
@@ -146,7 +135,14 @@ export class StageTaskService {
             position: index + 1,
           }),
         );
-        return { result: null, before, after: { stageId, tasks: written.map(definitionSnapshot) } };
+        // A title is a value (owner ruling O-1, #1226): the trail names the
+        // definitions by position, and a change of their titles in
+        // `changedFields`; the titles are the Project's store's.
+        const values = recordChildValueChange(em as EntityManager, visible.id, {
+          before: { taskTitles: previous.map((task) => task.title) },
+          after: { taskTitles: written.map((task) => task.title) },
+        });
+        return { result: null, before, after: { stageId, tasks: written.map(taskDefinitionSnapshot), ...values } };
       },
     });
     return this.deps.read.stageAfterWrite(visible.id, stageId);

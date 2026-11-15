@@ -4906,6 +4906,32 @@ niestandardowych projekty już wcześniej trzymały poza nim.
 
 **Po aktualizacji** nie trzeba nic robić.
 
+### Nazwy etapów, tytuły zadań i nazwy plików znikają z wpisów audytu projektów {#projects-stage-names-out-of-audit}
+
+Wydanie z tą zmianą przestaje zapisywać w dzienniku audytu całej platformy wolny tekst etapów
+projektu, zadań etapów i załączników (zgłoszenie #1226, D-288, decyzja właściciela z 2026-11-10:
+tytuł jest wartością). Tytuł projektu już wcześniej z niego zniknął.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `projects.project.*` nazywa etap
+  jego identyfikatorem (`stageId`), zadanie etapu jego miejscem (`position`), a plik przez
+  `attachmentId` / `assetId`. `stage_move`, `close` i `reopen` nie zapisują już `stageName`;
+  `projects.project.create` zapisuje `stageIds` zamiast listy nazw etapów; `stage_create`,
+  `stage_update` i `stage_delete` nie zawierają już `name`; zadania w `tasks` wpisu
+  `stage_tasks_set` nie zawierają już `title`; `attachment_add` nie zawiera już `fileName`.
+- Zmiana nazwy etapu jest zapisywana jako `changedFields: ['name']`, zmiana tytułów zadań etapu jako
+  `changedFields: ['taskTitles']`, a nazwy przed zmianą i po niej trafiają do własnej tabeli
+  projektu `project_value_changes`, na której wiersz wpis wskazuje przez `valueChangeId`. Wpis
+  usunięcia etapu ma oba klucze w stanie sprzed zmiany.
+- Karta **Historia zmian** projektu nadal nazywa etapy, zadania i pliki: odczytuje nazwy z tej
+  tabeli, i tylko dla czytającego, który może zobaczyć projekt. Zadanie etapu, którego tytułu zmiana
+  nie dotyczyła, jest nazywane swoim miejscem (*Zadanie 1*). Migracja nie jest potrzebna.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują nazwy, z którymi zostały zapisane.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał nazwy etapów z dziennika audytu,
+odczytuje je z samego projektu (`GET /api/v1/admin/projects/:id`).
+
 ### Wartości zapytań ofertowych znikają z dziennika audytu platformy {#quote-requests-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać wartości zapytania ofertowego w dzienniku audytu całej

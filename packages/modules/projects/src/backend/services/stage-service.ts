@@ -16,6 +16,7 @@ import { StageGraph, StageGraphError } from '../domain/stage-graph.js';
 import { ProjectStage } from '../entities/project-stage.entity.js';
 import { ProjectStageMove } from '../entities/project-stage-move.entity.js';
 import type { ProjectAccess } from './project-access.js';
+import { recordChildValueChange, stageSnapshot } from './project-audit-state.js';
 import type { ProjectReadService } from './project-read-service.js';
 import {
   assertConfigurationReadAt,
@@ -62,22 +63,6 @@ export function stageNotFound(): HttpError {
   return new HttpError(404, ERROR_CODES.NOT_FOUND, 'No such stage on this project.');
 }
 
-function stageSnapshot(stage: ProjectStage): Record<string, unknown> {
-  return {
-    stageId: stage.id,
-    name: stage.name,
-    color: stage.color,
-    position: stage.position,
-    plannedDurationDays: stage.plannedDurationDays,
-    responsibleRoleIds: stage.responsibleRoleIds,
-    alertOffsetsDays: stage.alertOffsetsDays,
-    completionGate: stage.completionGate,
-    completionPermitted: stage.completionPermitted,
-    deadlineOn: stage.deadlineOn ?? null,
-    deadlineManual: stage.deadlineManual,
-  };
-}
-
 async function stagesOf(em: EntityManager, projectId: string): Promise<ProjectStage[]> {
   return em.find(ProjectStage, { projectId }, { orderBy: { position: 'asc', id: 'asc' } });
 }
@@ -119,7 +104,9 @@ export class StageService {
         });
         await em.flush();
         if (last) em.create(ProjectStageMove, { projectId: visible.id, fromStageId: last.id, toStageId: stage.id });
-        return { result: stage.id, before: null, after: stageSnapshot(stage) };
+        // A Stage's name is a value (#1226): the trail names the Stage by id, the Project's store keeps the name.
+        const values = recordChildValueChange(em as EntityManager, visible.id, { before: null, after: { name: stage.name } });
+        return { result: stage.id, before: null, after: { ...stageSnapshot(stage), ...values } };
       },
     });
     return this.deps.read.stageAfterWrite(visible.id, stageId);
@@ -144,6 +131,7 @@ export class StageService {
         const stage = await em.findOne(ProjectStage, { id: stageId, projectId: visible.id });
         if (!stage) throw stageNotFound();
         const before = stageSnapshot(stage);
+        const nameBefore = stage.name;
         claimStage(stage, body.version);
         if (body.name !== undefined) stage.name = body.name;
         if (body.color !== undefined) stage.color = body.color;
@@ -162,7 +150,12 @@ export class StageService {
           deadlineManual: stage.deadlineManual,
           plannedDurationDays: stage.plannedDurationDays,
         });
-        return { result: null, before, after: stageSnapshot(stage) };
+        // A rename is named in `changedFields`; the names are the Project's store's (#1226).
+        const values = recordChildValueChange(em as EntityManager, visible.id, {
+          before: { name: nameBefore },
+          after: { name: stage.name },
+        });
+        return { result: null, before, after: { ...stageSnapshot(stage), ...values } };
       },
     });
     return this.deps.read.stageAfterWrite(visible.id, stageId);
@@ -205,9 +198,14 @@ export class StageService {
         if (holdsTasks) {
           throw new HttpError(409, ERROR_CODES.PROJECT_STAGE_HAS_TASKS, 'This stage holds tasks.');
         }
-        const before = stageSnapshot(stage);
-        // Its moves and Stage Task definitions go with it (`on delete cascade`);
-        // the Stage history keeps its name.
+        // The Project's store keeps the name of a Stage that went, so its
+        // change history can still name it (#1226); the Stage history keeps
+        // it too. Its moves and Stage Task definitions go with it (`on delete
+        // cascade`).
+        const before = {
+          ...stageSnapshot(stage),
+          ...recordChildValueChange(em as EntityManager, visible.id, { before: { name: stage.name }, after: null }),
+        };
         em.remove(stage);
         await em.flush();
         stages
