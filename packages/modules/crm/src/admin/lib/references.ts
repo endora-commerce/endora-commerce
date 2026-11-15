@@ -64,11 +64,11 @@ export function useCrmReferences(scope: CrmReferenceScope): {
     canWrite &&
     // One literal any-of (issue #458), so the permission inventory reads every
     // group's code; the narrowing drops the groups this text cannot answer.
-    // `specs/165-task-management/` R-5: `projects:read` is the Projects group.
-    // CRM's own Opportunities group is answered to every writer but does not
-    // open `@@` on its own — issue #498.
+    // `specs/165-task-management/` R-5: `projects:read` is the Projects group
+    // and `crm:read` the Opportunities group; the own kind is a document kind
+    // like any other.
     hasAnyPermission(
-      ['orders:read', 'rfqs:handle', 'tasks:read', 'projects:read'].filter(
+      ['orders:read', 'rfqs:handle', 'tasks:read', 'projects:read', 'crm:read'].filter(
         (code) => withOrganization || !ORGANIZATION_DOCUMENT_GROUPS.has(code),
       ),
     );

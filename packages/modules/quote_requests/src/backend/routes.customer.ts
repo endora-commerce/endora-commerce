@@ -11,12 +11,12 @@ import {
   rejectRevisionSchema,
   resubmitQuoteRequestSchema,
   ERROR_CODES,
-  firstLanguageTag,
   OrganizationCannotTransactError,
   organizationPermissionPreHandler,
   type Actor,
   type OrganizationPermissionPort,
   isUuidShape,
+  requestScopeLanguage,
 } from '@endora-commerce/contracts';
 import type { RfqService, CustomerContext } from './services/rfq-service.js';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -288,12 +288,19 @@ export async function registerQuoteRequestsCustomerRoutes(
 }
 
 /**
- * Feature 163 — the request's first `Accept-Language` tag, as `{ languageTag }`
- * when present: the lines' scope language is it resolved against the channel,
- * as the basket's is. Never `responseLanguage()`, which falls back to a bundle
- * language (T155 finding §1.5b).
+ * Feature 163 — the channel language the request's `Accept-Language` asks for, as
+ * `{ languageTag }` when the header is present: the lines' scope language, as the
+ * basket's is. Never `responseLanguage()`, which falls back to a bundle language
+ * (T155 finding §1.5b).
+ *
+ * Issue #1011 — `requestScopeLanguage` over the whole header, as the catalogue
+ * resolves it since #397: the tags in descending `q`, each matched against the
+ * resolved channel's languages (exactly, then by base language), the first one
+ * the channel offers winning, else the channel's default. This used to be the
+ * header's first tag alone, so `en;q=0.2, pl-PL;q=0.9` asked about English.
  */
 function scopeLanguageTagOf(request: FastifyRequest): { languageTag?: string } {
-  const tag = firstLanguageTag(request.headers['accept-language']);
-  return tag ? { languageTag: tag } : {};
+  const header = request.headers['accept-language'];
+  if (header === undefined || header.length === 0) return {};
+  return { languageTag: requestScopeLanguage(getResolvedChannel(request), header) };
 }

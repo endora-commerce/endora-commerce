@@ -441,19 +441,46 @@ export interface EmailDefaultsRegistryPort {
 /**
  * Container name: `templateEmailPort`. Owner: `transactional_emails`.
  *
- * `organizations` is the only cross-module consumer. `true` means "handled —
- * do not use your legacy in-code builder", and it covers three outcomes: a
- * delivered e-mail, one an operator deactivated, and a composition with no
- * transport. In all three the platform decided what to send, and a fallback
- * would either send mail the operator switched off or fail the same way. Only
- * a code with no definition at all answers `false`.
+ * `true` means "handled — do not use your legacy in-code builder", and it
+ * covers three outcomes: a delivered e-mail, one an operator deactivated, and a
+ * composition with no transport. In all three the platform decided what to
+ * send, and a fallback would either send mail the operator switched off or fail
+ * the same way. Only a code with no definition at all answers `false`.
+ *
+ * **The scope a message renders in** (issue #1256). A caller that knows the
+ * recipient's sales channel and language passes them, and the message is
+ * rendered from that channel's content in that language — the per-channel
+ * override, else the global one, else the module default, each falling back to
+ * the e-mail's first language (`TransactionalEmailSender`'s own resolution).
+ * The two are resolved independently:
+ *
+ * - `salesChannelId` absent or `null`, or naming a channel that no longer
+ *   resolves → the **system-default channel**, which always exists (D-47);
+ * - `language` absent or `null` → the resolved channel's default language,
+ *   else `en-US`.
+ *
+ * A caller passing neither gets exactly what every caller got before the two
+ * fields existed: the system-default channel in its default language.
+ *
+ * **Owner off:** `transactional_emails` is non-deactivatable and required to be
+ * present (`composeModules` refuses a composition without it), so the gate this
+ * port is registered behind has no absent state a consumer could meet, and no
+ * consumer probes for one. An operator switches an individual e-mail off
+ * instead, which answers `true` and sends nothing.
  */
 export interface TemplateEmailPort {
-  trySend(input: {
-    code: string;
-    to: string;
-    messageId: string;
-    variables: Record<string, unknown>;
-    meta?: Record<string, unknown> | undefined;
-  }): Promise<boolean>;
+  trySend(input: TemplateEmailSendInput): Promise<boolean>;
+}
+
+/** What {@link TemplateEmailPort.trySend} is handed. */
+export interface TemplateEmailSendInput {
+  code: string;
+  to: string;
+  messageId: string;
+  variables: Record<string, unknown>;
+  meta?: Record<string, unknown> | undefined;
+  /** The recipient's sales channel; absent or `null` = the system-default channel. */
+  salesChannelId?: string | null | undefined;
+  /** The recipient's content language (BCP-47); absent or `null` = the channel's default language. */
+  language?: string | null | undefined;
 }

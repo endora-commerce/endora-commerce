@@ -293,12 +293,21 @@ describe('quick order — organization permission gates', () => {
       expect(refusal(res.body).code).toBe(ERROR_CODES.FORBIDDEN);
     });
 
-    it('lets the administrator read the Organization scope and refuses it to anyone else', async () => {
+    // Issue #359 — FR-012 reserves *managing* the Organization scope; reading
+    // it is every member's, since those are the values they inherit. Another
+    // Organization's row stays refused.
+    it('lets every member read their own Organization scope, and no member another Organization’s', async () => {
       const url = `/api/v1/quick-order/preferences?scope=organization&scopeId=${TEST_ORGANIZATION_ID}`;
       const admin = await h.app.inject({ method: 'GET', url, cookies: ORG_ADMIN });
       expect(admin.statusCode, admin.body).toBe(200);
-      const other = await h.app.inject({ method: 'GET', url, cookies: everything.cookies });
-      expect(other.statusCode, other.body).toBe(403);
+      const member = await h.app.inject({ method: 'GET', url, cookies: everything.cookies });
+      expect(member.statusCode, member.body).toBe(200);
+      const foreign = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/quick-order/preferences?scope=organization&scopeId=00000000-0000-4000-8000-0000000000fe',
+        cookies: everything.cookies,
+      });
+      expect(foreign.statusCode, foreign.body).toBe(403);
     });
 
     it('lets the administrator manage a member’s customer-scope defaults, and not a member another’s', async () => {

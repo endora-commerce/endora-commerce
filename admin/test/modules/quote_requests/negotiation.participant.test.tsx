@@ -87,7 +87,7 @@ describe('price negotiation under the organization detail session (feature 180, 
     const box = await toggle();
     expect(box.checked).toBe(true);
     expect(putSpy).not.toHaveBeenCalled();
-    expect(screen.queryByText(OWN['negotiation.saved']!)).toBeNull();
+    expect(screen.queryByText('Saved.')).toBeNull();
     expect(session?.dirtyCount).toBe(1);
     expect(session?.dirtyParticipants().map((part) => [part.id, part.label])).toEqual([
       ['quote_requests:price-negotiation', OWN['negotiation.partLabel']],
@@ -131,5 +131,126 @@ describe('price negotiation under the organization detail session (feature 180, 
     fireEvent.click(box);
     expect(session?.dirtyCount).toBe(0);
     expect(session?.hasWritableParticipant).toBe(false);
+  });
+});
+
+/**
+ * Feature 180 (#407, after WP-9) — the customer account's override takes part in the customer
+ * detail's one Save the same way (FR-060): a radio stages the part `price-negotiation`, the
+ * session's run writes it through `PUT …/customers/:id/quote-price-negotiation`, nothing is
+ * written before. While a change is staged the server's effective value no longer describes the
+ * selected option, so it is not shown until the Save answers.
+ */
+const CUSTOMER_ID = '00000000-0000-4000-8000-0000000000c1';
+const CUSTOMER_ROUTE = `/api/v1/admin/customers/${CUSTOMER_ID}/quote-price-negotiation`;
+
+function customerState(override: 'inherit' | 'allowed' | 'not_allowed'): Record<string, unknown> {
+  return {
+    customerAccountId: CUSTOMER_ID,
+    organizationId: ORG_ID,
+    override,
+    organizationPriceProposalsAllowed: false,
+    effectivePriceProposalsAllowed: override === 'inherit' ? false : override === 'allowed',
+    effectiveSource: override === 'inherit' ? 'organization' : 'account',
+    updatedAt: null,
+  };
+}
+
+function CustomerHost(): ReactElement {
+  const live = useSaveSession();
+  session = live;
+  return <AdminZone name="customer.detail.after" props={{ customerId: CUSTOMER_ID, saveSession: live.handle }} />;
+}
+
+function renderCustomer(permissions: readonly string[] = ['customers:read', 'customers:manage']): void {
+  render(
+    <TranslationProvider language="en" initialBundle={{ quote_requests: OWN }}>
+      {withSession(
+        <MemoryRouter>
+          <SaveSessionProvider resetKey={CUSTOMER_ID} hostModule="customers">
+            <CustomerHost />
+          </SaveSessionProvider>
+        </MemoryRouter>,
+        {
+          session: adminSession({ permissions: [...permissions] }),
+          presence: modulePresence({ present: ['quote_requests'] }),
+          contributions: [{ moduleId: 'quote_requests', contributions: quoteRequests.contributions }],
+        },
+      )}
+    </TranslationProvider>,
+  );
+}
+
+async function pick(label: string): Promise<HTMLInputElement> {
+  const radio = (await screen.findByLabelText(label)) as HTMLInputElement;
+  await waitFor(() => expect(radio.disabled).toBe(false));
+  fireEvent.click(radio);
+  return radio;
+}
+
+describe('price negotiation under the customer detail session (feature 180, after WP-9)', () => {
+  beforeEach(() => {
+    getSpy.mockReset().mockResolvedValue({ data: customerState('inherit') });
+    putSpy.mockReset().mockImplementation(async (_url: string, body: { override: 'inherit' | 'allowed' | 'not_allowed' }) => ({
+      data: { ...customerState(body.override), updatedAt: '2026-05-01T10:00:00.000Z' },
+    }));
+  });
+
+  it('stages the override instead of writing it, and counts it', async () => {
+    renderCustomer();
+    expect(await screen.findByText('Effective: not allowed (from the organization)')).toBeInTheDocument();
+    const radio = await pick(OWN['negotiation.override.allowed']!);
+    expect(radio.checked).toBe(true);
+    expect(putSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText('Saved.')).toBeNull();
+    // The stored effective value describes the stored option, not the staged one.
+    expect(screen.queryByText(/^Effective:/)).toBeNull();
+    expect(session?.dirtyCount).toBe(1);
+    expect(session?.dirtyParticipants().map((part) => [part.id, part.label])).toEqual([
+      ['quote_requests:price-negotiation', OWN['negotiation.partLabel']],
+    ]);
+    // Back to the stored option: nothing to save, and the effective value is shown again.
+    await pick(OWN['negotiation.override.inherit']!);
+    expect(session?.dirtyCount).toBe(0);
+    expect(screen.getByText('Effective: not allowed (from the organization)')).toBeInTheDocument();
+  });
+
+  it('is written by the session run, through the existing PUT, and shows the answer', async () => {
+    renderCustomer();
+    await pick(OWN['negotiation.override.allowed']!);
+    expect(putSpy).not.toHaveBeenCalled();
+    let result = '';
+    await act(async () => {
+      result = (await session!.run(null)).result;
+    });
+    expect(result).toBe('saved');
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(putSpy).toHaveBeenCalledWith(CUSTOMER_ROUTE, { override: 'allowed' });
+    expect(session?.dirtyCount).toBe(0);
+    expect((screen.getByLabelText(OWN['negotiation.override.allowed']!) as HTMLInputElement).checked).toBe(true);
+    expect(await screen.findByText('Effective: allowed (from this customer account)')).toBeInTheDocument();
+  });
+
+  it('a failed write keeps the override staged and says why at the panel', async () => {
+    putSpy.mockRejectedValueOnce(new Error('The server failed.'));
+    renderCustomer();
+    await pick(OWN['negotiation.override.not_allowed']!);
+    await act(async () => {
+      await session!.run(null);
+    });
+    expect(session?.dirtyCount).toBe(1);
+    expect((screen.getByLabelText(OWN['negotiation.override.not_allowed']!) as HTMLInputElement).checked).toBe(true);
+    expect(await screen.findByText('The server failed.')).toBeInTheDocument();
+  });
+
+  it('a reader without customers:manage never stages anything', async () => {
+    renderCustomer(['customers:read']);
+    const radio = (await screen.findByLabelText(OWN['negotiation.override.allowed']!)) as HTMLInputElement;
+    await waitFor(() => expect(getSpy).toHaveBeenCalledWith(CUSTOMER_ROUTE));
+    expect(radio.disabled).toBe(true);
+    fireEvent.click(radio);
+    expect(session?.dirtyCount).toBe(0);
+    expect(session?.hasWritableParticipant).toBe(false);
+    expect(putSpy).not.toHaveBeenCalled();
   });
 });

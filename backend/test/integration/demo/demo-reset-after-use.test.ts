@@ -108,9 +108,14 @@ const REAL_ORG_TAX_ID = 'PL7777777777';
 /**
  * The `uuid` columns that may still hold the id of a row the reset deleted.
  *
- * Each is a **record of something that happened**, kept on purpose: deleting it
- * would be rewriting history rather than withdrawing data. Anything else that
- * turns up fails the test — re-record an entry only with its reason.
+ * Each is kept on purpose, for one of two reasons. Most are a **record of
+ * something that happened**: deleting it would be rewriting history rather
+ * than withdrawing data. The rest are **another organisation's**: a reference
+ * row derived from a real customer's own text, which a reset never edits
+ * (issue #466) — deleting the row would be matching that organisation's data,
+ * and would not change what is shown, since the row is written again from the
+ * text on its next save. Anything else that turns up fails the test —
+ * re-record an entry only with its reason.
  *
  * Two-way: an entry nothing produces any more fails as well.
  */
@@ -128,6 +133,13 @@ const KEPT_REFERENCES: Readonly<Record<string, string>> = {
   // administrator was really shown.
   'email_deliveries.document_id': 'delivery log of messages already sent',
   'admin_notifications.subject_id': 'notification history of events that happened',
+  // Another organisation's Opportunity or Project whose text names the demo's
+  // Order or Quote Request (issue #466): the token stays in that text, and the
+  // row the reference index derives from it stays with it.
+  'crm_opportunity_references.target_id':
+    "derived from another organisation's text, which a reset never edits; renders as unavailable",
+  'project_references.target_id':
+    "derived from another organisation's text, which a reset never edits; renders as unavailable",
 };
 
 interface ColumnInfo {
@@ -160,6 +172,15 @@ type Owner = 'demo' | 'real' | 'nobody';
 interface TrackedRow {
   readonly table: string;
   readonly where: Readonly<Record<string, unknown>>;
+}
+
+/** The real customer's records whose text names the demo's documents (issue #466). */
+interface CrossReferences {
+  readonly opportunityId: string;
+  readonly commentId: string;
+  readonly projectId: string;
+  readonly referenceIds: readonly string[];
+  readonly text: string;
 }
 
 describe('demo reset on a demo that has been used (issue #143)', () => {
@@ -1053,6 +1074,102 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
   }
 
   /**
+   * The real customer's own records whose text names the demo's documents
+   * (issue #466): an Opportunity's description and a note, and a Project's
+   * description, each with `[[order:…]]` and `[[quote_request:…]]` tokens for
+   * the demo organisation's Order and Quote Request, and the reference rows
+   * derived from them.
+   *
+   * They are another organisation's, so the reset must not touch them — not the
+   * text, and not the rows derived from it, which would be written again from
+   * that text on its next save anyway. After the reset the tokens name
+   * documents that are gone, and render as unavailable.
+   */
+  async function useReferencesToTheDemo(demo: Tenant, real: Tenant): Promise<CrossReferences> {
+    const [quote] = await query<{ id: string }>(
+      `select id from quote_requests where organization_id = $1 limit 1`,
+      [demo.organizationId],
+    );
+    const tokens = `See [[order:${demo.orderId}]] and [[quote_request:${quote!.id}]].`;
+    const [status] = await query<{ code: string }>(
+      `select code from crm_opportunity_statuses order by code limit 1`,
+    );
+    const opportunityId = await insert('real', 'crm_opportunities', {
+      organization_id: real.organizationId,
+      customer_account_id: real.customerAccountId,
+      status_code: status!.code,
+      source: 'manual',
+      value_mode: 'manual',
+      description: tokens,
+    });
+    const commentId = await insert('real', 'crm_opportunity_comments', {
+      opportunity_id: opportunityId,
+      kind: 'note',
+      body: tokens,
+    });
+    const referenceIds: string[] = [];
+    for (const [sourceKind, sourceId] of [
+      ['description', null],
+      ['comment', commentId],
+    ] as const) {
+      for (const [targetType, targetId] of [
+        ['order', demo.orderId],
+        ['quote_request', quote!.id],
+      ] as const) {
+        referenceIds.push(
+          await insert('real', 'crm_opportunity_references', {
+            opportunity_id: opportunityId,
+            source_kind: sourceKind,
+            source_id: sourceId,
+            target_type: targetType,
+            target_id: targetId,
+          }),
+        );
+      }
+    }
+    const projectId = await aProject('real', [['real', real.organizationId]]);
+    await db.query(`update projects set description = $1 where id = $2`, [tokens, projectId]);
+    for (const [targetType, targetId] of [
+      ['order', demo.orderId],
+      ['quote_request', quote!.id],
+    ] as const) {
+      referenceIds.push(
+        await insert('real', 'project_references', {
+          project_id: projectId,
+          source_kind: 'description',
+          target_type: targetType,
+          target_id: targetId,
+        }),
+      );
+    }
+    return { opportunityId, commentId, projectId, referenceIds, text: tokens };
+  }
+
+  /** The real customer's texts and reference rows that name the demo's documents, as they stand. */
+  async function crossReferencesNow(cross: CrossReferences): Promise<{
+    texts: string[];
+    references: string[];
+  }> {
+    const texts = [
+      ...(await query<{ t: string }>(`select description as t from crm_opportunities where id = $1`, [cross.opportunityId])),
+      ...(await query<{ t: string }>(`select body as t from crm_opportunity_comments where id = $1`, [cross.commentId])),
+      ...(await query<{ t: string }>(`select description as t from projects where id = $1`, [cross.projectId])),
+    ].map((row) => row.t);
+    const references = (
+      await query<{ r: string }>(
+        `select 'crm ' || source_kind || ' ' || target_type || ' ' || target_id as r
+           from crm_opportunity_references where id = any($1::uuid[])
+         union all
+         select 'projects ' || source_kind || ' ' || target_type || ' ' || target_id
+           from project_references where id = any($1::uuid[])
+         order by 1`,
+        [cross.referenceIds],
+      )
+    ).map((row) => row.r);
+    return { texts, references };
+  }
+
+  /**
    * Every usage counter of the operator's promotion, as `<scope type> <scope
    * key>` → count.
    *
@@ -1214,6 +1331,9 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
   let leftBehind: Record<string, number>;
   let demoRowsStillThere: string[];
   let realRowsMissing: string[];
+  let crossReferences: CrossReferences;
+  let crossReferencesBeforeReset: { texts: string[]; references: string[] };
+  let crossReferencesAfterReset: { texts: string[]; references: string[] };
   let demoOrganizationsAfterReset: number;
 /** Feature 154 — the demo organisation's sales channels after seeding, by code. */
 let demoChannelsAfterSeed: string[];
@@ -1290,6 +1410,7 @@ let demoDefaultChannelCode: string;
     await useEverythingElse('real', real);
     await useWithoutAnOrganization(real);
     await useProjects(demoIs, real);
+    crossReferences = await useReferencesToTheDemo(demoIs, real);
     const [channel] = await query<{ id: string }>(
       `select id from sales_channels where system_default limit 1`,
     );
@@ -1401,6 +1522,7 @@ let demoDefaultChannelCode: string;
     // `crm`, whose rows hold a foreign key that refuses the organisation's
     // deletion, and `returns`, whose rows hold none and would be left naming
     // an order that is gone.
+    crossReferencesBeforeReset = await crossReferencesNow(crossReferences);
     const before = await idsByTable();
     reset = await withModulesDeactivated(['crm', 'returns'], () => demo('reset', FORCE));
     const after = await idsByTable();
@@ -1414,6 +1536,7 @@ let demoDefaultChannelCode: string;
     leftBehind = await referencesTo(deleted);
     demoRowsStillThere = await trackedRows('demo', true);
     realRowsMissing = await trackedRows('real', false);
+    crossReferencesAfterReset = await crossReferencesNow(crossReferences);
     nobodysRowsMissing = await trackedRows('nobody', false);
     demoChannelRowsAfterReset = Number(
       (
@@ -1738,6 +1861,21 @@ let demoDefaultChannelCode: string;
 
     it('removes nothing that belongs to another organisation on the same instance', () => {
       expect(realRowsMissing).toEqual([]);
+    });
+
+    // Issue #466: a real customer's text naming the demo's Order and Quote
+    // Request is that customer's, and the reset never edits it. Its reference
+    // rows are derived from it and stay with it; they render as unavailable.
+    it("leaves another organisation's references to the demo's documents, text and rows, as they were", () => {
+      expect(crossReferencesBeforeReset.texts).toEqual([
+        crossReferences.text,
+        crossReferences.text,
+        crossReferences.text,
+      ]);
+      expect(crossReferencesBeforeReset.references).toHaveLength(6);
+      expect(crossReferencesAfterReset).toEqual(crossReferencesBeforeReset);
+      expect(leftBehind['crm_opportunity_references.target_id']).toBe(4);
+      expect(leftBehind['project_references.target_id']).toBe(2);
     });
 
     it('removes nothing that belongs to no organisation at all', () => {

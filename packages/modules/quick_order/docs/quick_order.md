@@ -158,7 +158,16 @@ re-check (active / org-allowed / address exists → otherwise dropped to null).
   *Administrator* role also manages the Organization scope and the defaults of
   the Organization's other members. That is reserved to *Administrator* — it is
   not a permission, no other role can be granted it, and anyone else is refused
-  `403 FORBIDDEN`.
+  `403 FORBIDDEN`. On `/preferences` the Administrator of a company Organization
+  sees a second form, *Organization defaults*, with its own Save; a personal
+  (B2C) Organization is not offered it.
+- Reading is wider than managing by one row: every member may read
+  (`GET /api/v1/quick-order/preferences?scope=organization`) their own
+  Organization's defaults, the values they inherit. The page names them in
+  each field's empty choice ("Organization default: …", or "No organization
+  default").
+- A default address is always one of the Organization's own addresses — the
+  only address book a customer has.
 - Admin: `/api/v1/admin/quick-order/preferences` — a platform admin manages any
   scope; a salesperson only their assigned organizations and those orgs'
   customers. Every change is audited.
@@ -179,6 +188,9 @@ When the buyer's role holds **One-click purchase** (`quick_order.one_click`)
 "Buy in one click" button. It skips Cart and Checkout: the order is placed from
 the defaults and the buyer is routed by the payment `nextAction` (gateway
 redirect, or the order / success page when no payment step is required).
+When the only thing missing is a default (`missing_defaults`), the product page
+shows a short hint linking to `/preferences` instead of the button; for any
+other reason it shows nothing.
 
 The buyer's basket is left alone. The product goes into a separate working
 basket (the Carts module's *Working baskets*) through the cart's `addItems`

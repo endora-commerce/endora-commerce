@@ -377,11 +377,12 @@ describe('account shell — the shop language (issue #85)', () => {
     const { en, pl } = await both(() => Page({ searchParams: Promise.resolve({ saved: '1' }) }));
     expect(en).toContain('Default ordering preferences');
     expect(en).toContain('Preferences saved.');
-    expect(en).toContain('Default payment method (use the organization default)');
+    // Issue #359 — the organization has no defaults, and the empty choice says so.
+    expect(en).toContain('Default payment method No organization default');
     expect(en).not.toMatch(POLISH_DIACRITIC);
     expect(pl).toContain('Domyślne ustawienia zamówień');
     expect(pl).toContain('Ustawienia zostały zapisane.');
-    expect(pl).toContain('Domyślna metoda płatności (ustawienie domyślne organizacji)');
+    expect(pl).toContain('Domyślna metoda płatności Brak ustawienia organizacji');
   });
 
   it('renders the newsletter page in both languages', async () => {

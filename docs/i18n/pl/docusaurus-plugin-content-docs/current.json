@@ -143,6 +143,9 @@
   "sidebar.main.category.meta_ads": {
     "message": "Meta Ads"
   },
+  "sidebar.main.category.mfa": {
+    "message": "Weryfikacja dwuetapowa i logowanie federacyjne"
+  },
   "sidebar.main.category.modules": {
     "message": "Moduły"
   },

@@ -32,7 +32,7 @@ function presenceWithout(...absent: string[]): ModulePresenceSet {
 }
 
 let modules: ModulePresenceSet = presenceWithout();
-let oneClick: { enabled: boolean } = { enabled: true };
+let oneClick: { enabled: boolean; reason?: string | null } = { enabled: true };
 let oneClickCalls = 0;
 let product: Record<string, unknown> = {};
 
@@ -267,6 +267,44 @@ function card(presence = ALL_PRESENT, overrides: Partial<ProductSummary> = {}, r
     />,
   );
 }
+
+// Issue #359 — one-click buying switched on for the channel, but the buyer has
+// not set (or no longer has) all four defaults: a short hint linking to the
+// ordering preferences instead of no button at all. Any other reason — the
+// setting off, the member's role — offers nothing: the buyer cannot fix it.
+describe('product page — the one-click hint when the defaults are missing (issue #359)', () => {
+  const HINT = en('commerce.pdp.oneClickSetup');
+  const LINK = en('commerce.pdp.oneClickSetupLink');
+
+  it('links to the ordering preferences when the defaults are missing', async () => {
+    oneClick = { enabled: false, reason: 'missing_defaults' };
+    const out = await pdp();
+    expect(out).not.toContain(ONE_CLICK);
+    expect(out).toContain(HINT);
+    expect(out).toMatch(new RegExp(`href="/preferences"[^>]*>${LINK}<`));
+  });
+
+  it.each(['setting_disabled', 'permission_required', 'cart_approval_required'])(
+    'offers no hint when one-click is unavailable for %s',
+    async (reason) => {
+      oneClick = { enabled: false, reason };
+      const out = await pdp();
+      expect(out).not.toContain(HINT);
+    },
+  );
+
+  it('offers no hint beside the button, nor while quick_order is off', async () => {
+    expect(await pdp()).not.toContain(HINT);
+    oneClick = { enabled: false, reason: 'missing_defaults' };
+    modules = presenceWithout('quick_order');
+    expect(await pdp()).not.toContain(HINT);
+  });
+
+  it('reads the hint in Polish', () => {
+    expect(tForLocale('pl-PL')('commerce.pdp.oneClickSetup')).not.toBe(HINT);
+    expect(tForLocale('pl-PL')('commerce.pdp.oneClickSetupLink')).not.toBe(LINK);
+  });
+});
 
 describe('product card — module presence of its actions (issue #672)', () => {
   it('renders the compare toggle while comparisons is present, and not while it is off', () => {

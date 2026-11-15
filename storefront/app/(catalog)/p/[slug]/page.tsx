@@ -31,6 +31,7 @@ import { QuoteRequestCta } from '../../../../components/pricing/QuoteRequestCta'
 const PDP_API_BASE = publicApiBaseUrl();
 import { ParametryTab } from '../../../../components/attributes/ParametryTab';
 import { Hook } from '../../../../components/Hook';
+import { LocalizedLink } from '../../../../lib/i18n/localized-link';
 import { JsonLd } from '../../../../lib/seo/JsonLd';
 import { ViewItemTracker } from '../../../../components/analytics/EcommerceTrackers';
 import { getStorefrontQuoteRequestSettings } from '../../../../lib/api/rfq';
@@ -186,11 +187,16 @@ export default async function ProductPage({
   // is eligible (setting enabled for the channel + all four valid defaults).
   // One-click buying is `quick_order`'s: while it is off it is not asked (issue #672).
   const oneClickSession = modules.isPresent('quick_order') ? await getSessionCookie() : null;
-  const oneClickEnabled = oneClickSession
-    ? await getOneClickEligibility(oneClickSession, product.id, ctx)
-        .then((e) => e.enabled)
-        .catch(() => false)
-    : false;
+  const oneClick = oneClickSession
+    ? await getOneClickEligibility(oneClickSession, product.id, ctx).catch(() => null)
+    : null;
+  const oneClickEnabled = oneClick?.enabled === true;
+  // Issue #359 — on for the channel and open to this member, but the defaults
+  // are not all set (or one is no longer usable): say where to set them rather
+  // than offering nothing. No other reason is the buyer's to fix.
+  const oneClickNeedsDefaults =
+    oneClick?.enabled === false &&
+    (oneClick.reason === 'missing_defaults' || oneClick.reason === 'ineligible_default');
   // Resolve the optional variant the buyer selected via `?variant=<sku>`
   // to its UUID so the Add-to-cart form posts the right variantId.
   const selectedVariantId =
@@ -474,6 +480,11 @@ export default async function ProductPage({
                         {t('commerce.pdp.oneClick')}
                       </button>
                     </form>
+                  ) : oneClickNeedsDefaults && price ? (
+                    <p className="muted">
+                      {t('commerce.pdp.oneClickSetup')}{' '}
+                      <LocalizedLink href="/preferences">{t('commerce.pdp.oneClickSetupLink')}</LocalizedLink>
+                    </p>
                   ) : null}
                 </>
               )

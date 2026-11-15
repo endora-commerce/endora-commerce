@@ -5266,6 +5266,53 @@ niedostępny, dopóki ktoś go nie zrestartował.
 
 Bez tych zmian backend działa jak dotąd, bez nadzoru.
 
+### Logowanie federacyjne kończy się na własnym hoście sklepu {#federated-sign-in-storefront-handoff}
+
+Wydanie, które zawiera tę zmianę, sprawia, że logowanie przez Google i Microsoft działa w sklepie
+także wtedy, gdy API jest obsługiwane z innego hosta (issue #1279). Dostawca wraca na host API, a
+ciasteczko sesji, które `callback` tam ustawiał, należało do tego hosta, więc sklep nigdy go nie
+widział.
+
+**Zmiana zachowania po aktualizacji:**
+
+- `callback` klienta `GET /api/v1/auth/customer/oauth/{provider}/callback` nie ustawia już
+  `b2b_session`, `b2b_mfa_challenge` ani `b2b_cart_merge_flash`. Odsyła przeglądarkę do
+  `/auth/federated/complete?code=…` w sklepie tego kanału sprzedaży, na którym logowanie się
+  zaczęło — do **Storefront URL** kanału (`sales_channels.storefront_url`), a bez niego do
+  `STOREFRONT_BASE_URL` — a odmowy trafiają na `/login?error=…` tego sklepu.
+- Sklep wymienia kod przez nowe `POST /api/v1/auth/customer/oauth/exchange`: raz, w ciągu
+  sześćdziesięciu sekund, na tym samym kanale sprzedaży i tylko z sekretem wiążącym przeglądarkę.
+  Odpowiedź niesie sesję w `Set-Cookie` i `{ status: 'authenticated', redirectPath, cartMerge }`
+  albo `{ status: 'mfaRequired', challengeId, redirectPath }`; każda odmowa to
+  `400 MFA_FEDERATED_HANDOFF_INVALID`. Koszyk z czasu przed zalogowaniem jest przenoszony w tym
+  wywołaniu.
+- `start` klienta `GET /api/v1/auth/customer/oauth/{provider}/start` wymaga parametru `binding`,
+  czyli skrótu SHA-256 (hex) tego sekretu. Bez niego przeglądarka trafia na
+  `/login?error=sign_in_failed`.
+- Adresy przekierowania u dostawców się nie zmieniają, podobnie jak logowanie federacyjne w panelu
+  administracyjnym.
+- `deploy/compose.prod.yml` i `deploy/.env.prod.example` przekazują backendowi `MFA_OAUTH_*`;
+  wcześniej tego nie robiły, więc stos produkcyjny zbudowany na ich podstawie nie mógł skonfigurować
+  dostawcy.
+
+**Po aktualizacji:**
+
+1. Sklep skopiowany z wersji referencyjnej dodaje dwa route handlery
+   `app/auth/federated/start/route.ts` i `app/auth/federated/complete/route.ts` wraz z modułami
+   pomocniczymi `lib/auth/federated-sign-in-routes.ts` i `lib/auth/federated-sign-in-start-path.ts`,
+   wywołanie wymiany `exchangeFederatedSignIn` w `lib/api/federated-sign-in.ts` oraz obie ścieżki w
+   `HANDLERS_SINCE` w `lib/seo/robots-directive.ts`, dzięki czemu middleware nie dodaje do nich
+   prefiksu języka ani ich nie przekierowuje. `SocialLoginButtons` prowadzi do
+   `/auth/federated/start?provider=…&next=…` i traci właściwości `backendBaseUrl` oraz
+   `salesChannelCode`; usuń je tam, gdzie strona logowania go renderuje. Sklep, który nadal
+   prowadzi do `start` w API, dostaje odmowę `sign_in_failed` przy każdym logowaniu federacyjnym
+   klienta.
+2. Na każdym kanale sprzedaży obsługiwanym pod własnym hostem ustaw **Storefront URL** na ten host.
+3. Wdrożenie zbudowane z własnego pliku compose przekazuje backendowi
+   `MFA_OAUTH_GOOGLE_CLIENT_ID`, `MFA_OAUTH_GOOGLE_CLIENT_SECRET`, `MFA_OAUTH_MICROSOFT_CLIENT_ID`,
+   `MFA_OAUTH_MICROSOFT_CLIENT_SECRET` i `MFA_OAUTH_MICROSOFT_TENANT`, jeśli oferuje logowanie
+   federacyjne. Strona modułu `mfa` wymienia adresy przekierowania do zarejestrowania.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

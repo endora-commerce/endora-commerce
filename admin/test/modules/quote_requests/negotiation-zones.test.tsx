@@ -90,7 +90,6 @@ const NEGOTIATION_KEYS = [
   'negotiation.loadError',
   'negotiation.retry',
   'negotiation.saving',
-  'negotiation.saved',
   'negotiation.saveError',
   'negotiation.readOnlyHint',
 ] as const;
@@ -314,16 +313,15 @@ describe('quote_requests contributes the price-negotiation lock to two detail zo
       expect(container.textContent).toContain('Effective: not allowed (from the organization)');
     });
 
-    it('writes the override through PUT and shows the new source', async () => {
+    it('writes nothing on change: the customer detail\'s one Save writes it (feature 180)', async () => {
+      // The write itself, through the host's session, is
+      // `negotiation.participant.test.tsx`'s subject; this harness hands the inert handle.
       const container = renderCustomer();
       await waitFor(() => expect(overrideRadio(container, 'allowed').disabled).toBe(false));
       fireEvent.click(overrideRadio(container, 'allowed'));
-      await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
-      expect(putSpy).toHaveBeenCalledWith(CUSTOMER_ROUTE, { override: 'allowed' });
-      await waitFor(() =>
-        expect(container.textContent).toContain('Effective: allowed (from this customer account)'),
-      );
-      expect(overrideRadio(container, 'allowed').checked).toBe(true);
+      await waitFor(() => expect(overrideRadio(container, 'allowed').checked).toBe(true));
+      expect(putSpy).not.toHaveBeenCalled();
+      expect(container.textContent).not.toContain('Saved.');
     });
 
     it('names the default as the source when neither level is set', async () => {

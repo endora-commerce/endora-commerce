@@ -346,6 +346,17 @@ export const account = defineMessages({
     'account.preferences.inherit': '(use the organization default)',
     'account.preferences.submit': 'Save preferences',
     'account.preferences.failed': 'Could not save your preferences.',
+    'account.preferences.error.ADDRESS_NOT_OWNED':
+      'That address is no longer one of your organization’s. Choose another one.',
+    // Issue #359 — the buyer's own defaults, and the organization's for its Administrator.
+    'account.preferences.own.heading': 'Your defaults',
+    'account.preferences.inheritValue': 'Organization default: {value}',
+    'account.preferences.inheritNone': 'No organization default',
+    'account.preferences.organization.heading': 'Organization defaults',
+    'account.preferences.organization.hint': 'Every member of {organization} who has not chosen their own uses these.',
+    'account.preferences.organization.none': 'No default',
+    'account.preferences.organization.submit': 'Save organization defaults',
+    'account.preferences.organization.saved': 'Organization defaults saved.',
 
     // Newsletter (`/newsletter` inside the account).
     'account.newsletter.heading': 'Newsletter',
@@ -903,6 +914,17 @@ export const account = defineMessages({
     'account.preferences.inherit': '(ustawienie domyślne organizacji)',
     'account.preferences.submit': 'Zapisz ustawienia',
     'account.preferences.failed': 'Nie udało się zapisać ustawień.',
+    'account.preferences.error.ADDRESS_NOT_OWNED':
+      'Ten adres nie należy już do Twojej organizacji. Wybierz inny.',
+    'account.preferences.own.heading': 'Twoje ustawienia domyślne',
+    'account.preferences.inheritValue': 'Domyślnie w organizacji: {value}',
+    'account.preferences.inheritNone': 'Brak ustawienia organizacji',
+    'account.preferences.organization.heading': 'Ustawienia domyślne organizacji',
+    'account.preferences.organization.hint':
+      'Korzysta z nich każdy członek organizacji {organization}, który nie wybrał własnych.',
+    'account.preferences.organization.none': 'Brak ustawienia domyślnego',
+    'account.preferences.organization.submit': 'Zapisz ustawienia organizacji',
+    'account.preferences.organization.saved': 'Ustawienia organizacji zostały zapisane.',
 
     'account.newsletter.heading': 'Newsletter',
     'account.newsletter.subscribed': 'Subskrybujesz nasz newsletter.',

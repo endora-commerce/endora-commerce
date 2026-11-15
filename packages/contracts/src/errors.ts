@@ -933,6 +933,13 @@ export const ERROR_CODES = {
    * customer. Raised by the self-service `POST …/mfa/disable`.
    */
   MFA_LAST_FACTOR_REQUIRED: 'MFA_LAST_FACTOR_REQUIRED',
+  /**
+   * Issue #1279 — the one answer of `POST /api/v1/auth/customer/oauth/exchange`
+   * for a hand-off code it will not redeem: unknown, expired, already used,
+   * presented with another browser's binding or on another sales channel, or
+   * withdrawn with the account's pending sign-ins.
+   */
+  MFA_FEDERATED_HANDOFF_INVALID: 'MFA_FEDERATED_HANDOFF_INVALID',
   // Feature 055 — Custom Fields Layer.
   CUSTOM_FIELD_NOT_FOUND: 'CUSTOM_FIELD_NOT_FOUND',
   CUSTOM_FIELD_KEY_CONFLICT: 'CUSTOM_FIELD_KEY_CONFLICT',

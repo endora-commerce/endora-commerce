@@ -49,7 +49,6 @@
   "detail.action.restore": "Restore",
   "detail.action.delete": "Delete",
   "detail.save.hostPartLabel": "Customer",
-  "detail.immediate.badge": "Applies immediately",
   "online.title": "Online customers",
   "online.description": "Customers active within the freshness window",
   "online.error": "Could not load online customers.",

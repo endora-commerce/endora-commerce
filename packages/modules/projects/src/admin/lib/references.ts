@@ -61,11 +61,11 @@ export function useProjectReferences(scope: ProjectReferenceScope): {
     canWrite &&
     // One literal any-of (issue #458), so the permission inventory reads every
     // group's code; the narrowing drops the groups this text cannot answer.
-    // `specs/165-task-management/` R-5: `crm:read` is the Opportunities group.
-    // This module's own Projects group is answered to every writer but does
-    // not open `@@` on its own — issue #498.
+    // `specs/165-task-management/` R-5: `crm:read` is the Opportunities group
+    // and `projects:read` the Projects group; the own kind is a document kind
+    // like any other.
     hasAnyPermission(
-      ['orders:read', 'rfqs:handle', 'tasks:read', 'crm:read'].filter(
+      ['orders:read', 'rfqs:handle', 'tasks:read', 'crm:read', 'projects:read'].filter(
         (code) => hasOrganizations || !ORGANIZATION_DOCUMENT_GROUPS.has(code),
       ),
     );

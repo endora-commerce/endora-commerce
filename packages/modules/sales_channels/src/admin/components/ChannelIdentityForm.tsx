@@ -124,6 +124,14 @@ export interface ChannelIdentityFormProps {
   onChangeCountChange?: (count: number) => void;
   /** Feature 180, WP-9 — the outcome of the last Save, at the top of the form. */
   summary?: ReactNode;
+  /**
+   * Feature 180 (#407) — the next `initial` is the answer of a write that was not this form's
+   * (the header's Deactivate / Re-activate), so it must not cost the operator an unsaved edit: a
+   * field the operator changed and that answer did not keeps the operator's value; every other
+   * field follows the answer. Absent or false, a new `initial` replaces every field, as after the
+   * form's own Save.
+   */
+  reseedKeepsEdits?: boolean;
 }
 
 function pickEnglishName(name: Record<string, string> | undefined): string {
@@ -143,6 +151,7 @@ export function ChannelIdentityForm({
   participantChangeCount,
   onChangeCountChange,
   summary,
+  reseedKeepsEdits = false,
 }: ChannelIdentityFormProps): ReactNode {
   const t = useTranslation('sales_channels');
   const tc = useTranslation('core');
@@ -171,21 +180,32 @@ export function ChannelIdentityForm({
   // that first shows the form, and an operator's change made in that window was
   // overwritten by it once it ran (issue #764). The state above is already
   // seeded from the `initial` the form mounted with, so only a later entity
-  // re-seeds.
+  // re-seeds. After a write that was not the form's own (`reseedKeepsEdits`),
+  // a field the operator changed and the answer did not is kept (#407).
   const [seededFrom, setSeededFrom] = useState(initial);
   if (initial !== seededFrom) {
     setSeededFrom(initial);
     if (initial) {
-      setCode(initial.code);
-      setName(pickEnglishName(initial.name));
-      setThemeCode(initial.themeCode ?? '');
-      setLanguages(initial.languages);
-      setDefaultLanguage(initial.defaultLanguage);
-      setCurrencies(initial.currencies);
-      setDefaultCurrency(initial.defaultCurrency);
-      setActive(initial.active);
-      setAnonymousAccess(initial.anonymousAccess);
-      setPrefixDefaultLanguage(initial.prefixDefaultLanguage);
+      const before = seededFrom;
+      const follow = <V,>(
+        current: V,
+        was: V | undefined,
+        now: V,
+        same: (a: V, b: V) => boolean = Object.is,
+      ): V =>
+        reseedKeepsEdits && was !== undefined && !same(current, was) && same(was, now) ? current : now;
+      setCode(follow(code, before?.code, initial.code));
+      setName(follow(name, before ? pickEnglishName(before.name) : undefined, pickEnglishName(initial.name)));
+      setThemeCode(follow(themeCode, before ? (before.themeCode ?? '') : undefined, initial.themeCode ?? ''));
+      setLanguages(follow(languages, before?.languages, initial.languages, sameList));
+      setDefaultLanguage(follow(defaultLanguage, before?.defaultLanguage, initial.defaultLanguage));
+      setCurrencies(follow(currencies, before?.currencies, initial.currencies, sameList));
+      setDefaultCurrency(follow(defaultCurrency, before?.defaultCurrency, initial.defaultCurrency));
+      setActive(follow(active, before?.active, initial.active));
+      setAnonymousAccess(follow(anonymousAccess, before?.anonymousAccess, initial.anonymousAccess));
+      setPrefixDefaultLanguage(
+        follow(prefixDefaultLanguage, before?.prefixDefaultLanguage, initial.prefixDefaultLanguage),
+      );
     }
   }
 

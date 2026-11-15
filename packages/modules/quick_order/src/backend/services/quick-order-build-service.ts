@@ -40,9 +40,10 @@ export interface QuickOrderBuildLineInput {
  * with the minimums flagged rather than refused (FR-030, US4 #15). It changes
  * nothing for target `cart` — a basket is judged the same whoever fills it
  * (US4 #1d). `language` names a refused product (the request's
- * `Accept-Language`). `languageTag` (feature 163) is the request's first
- * `Accept-Language` tag, which a buyer's quote lines' scope language is
- * resolved from (`CreateForCustomerOptions.languageTag`).
+ * `Accept-Language`). `languageTag` (feature 163) is the channel language the
+ * request's `Accept-Language` asks for (`requestScopeLanguage`, issue #1011),
+ * which a buyer's quote lines' scope language is resolved from
+ * (`CreateForCustomerOptions.languageTag`) and resolves to itself.
  */
 export interface QuickOrderBuildOptions {
   actor?: 'operator';

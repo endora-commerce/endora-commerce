@@ -252,6 +252,9 @@ export const commerce = defineMessages({
     'commerce.pdp.notFound': 'Product not found',
     'commerce.pdp.sku': 'SKU:',
     'commerce.pdp.oneClick': 'Buy in one click',
+    // Issue #359 — one-click is on for the channel, the buyer's defaults are not all set.
+    'commerce.pdp.oneClickSetup': 'To buy in one click, choose your default addresses, delivery and payment method.',
+    'commerce.pdp.oneClickSetupLink': 'Set ordering preferences',
     'commerce.pdp.datasheet': 'Datasheet',
 
     // ── quick order and shopping lists (`specs/170-organization-roles/`, FR-047, owner ruling Q2(b))
@@ -583,6 +586,8 @@ export const commerce = defineMessages({
     'commerce.pdp.notFound': 'Nie znaleziono produktu',
     'commerce.pdp.sku': 'Kod:',
     'commerce.pdp.oneClick': 'Kup jednym kliknięciem',
+    'commerce.pdp.oneClickSetup': 'Aby kupować jednym kliknięciem, wybierz domyślne adresy, metodę dostawy i płatności.',
+    'commerce.pdp.oneClickSetupLink': 'Ustaw preferencje zamówień',
     'commerce.pdp.datasheet': 'Karta katalogowa',
 
     // ── quick order and shopping lists (`specs/170-organization-roles/`, FR-047, owner ruling Q2(b))

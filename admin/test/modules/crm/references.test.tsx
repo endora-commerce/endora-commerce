@@ -301,9 +301,11 @@ describe('the textarea that inserts references', () => {
     expect(getSpy.mock.calls.some(([path]) => String(path).includes('/catalog/products'))).toBe(false);
   });
 
-  it('offers a role that may search neither Orders nor Products the people only', async () => {
+  // Issue #498: the Opportunities group is CRM's own, answered to every writer,
+  // so the document search is offered to a role holding CRM's codes alone.
+  it('offers a role that may search no Product the people and the documents', async () => {
     const panel = await composer(['crm:read', 'crm:write']);
-    expect(within(panel).queryByRole('button', { name: core('references.insert.document') })).toBeNull();
+    expect(within(panel).getByRole('button', { name: core('references.insert.document') })).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: core('references.insert.product') })).toBeNull();
     expect(within(panel).getByRole('button', { name: core('references.insert.person') })).toBeInTheDocument();
     expect(within(panel).getByText(core('references.hint'))).toBeInTheDocument();

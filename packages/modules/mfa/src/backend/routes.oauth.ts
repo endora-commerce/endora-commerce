@@ -12,24 +12,29 @@ import { createHash, randomBytes, timingSafeEqual } from 'crypto';
 import {
   SESSION_COOKIE_NAME,
   ADMIN_SESSION_COOKIE_NAME,
-  CART_MERGE_FLASH_COOKIE_NAME,
-  MFA_CHALLENGE_COOKIE_NAME,
+  ERROR_CODES,
+  FEDERATED_SIGN_IN_COMPLETE_PATH,
   channelUrlLanguages,
+  customerFederatedSignInStartQuerySchema,
+  federatedSignInExchangeRequestSchema,
   firstLanguageTag,
   scopeLanguageOf,
   storefrontPagePathFor,
 } from '@endora-commerce/contracts';
 import type {
   AuthSessionPort,
+  CartMergeOutcomePublic,
   ChannelUrlFacts,
   CustomerAccountPreferencePort,
   CustomerSignInCompletionPort,
   FederatedSignInErrorCode,
+  FederatedSignInExchangeResponse,
   FederatedSignInOptionsResponse,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
-import type { ChallengeStore } from './services/challenge-store.js';
+import type { ChallengeStore, FederatedHandoffInput } from './services/challenge-store.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 import type { SocialIdentityService, SocialSignInResult } from './services/social-identity-service.js';
 import type { CustomerChannelAccess } from './services/customer-channel-access.js';
@@ -62,6 +67,21 @@ import type {
  * cookie comes back. `SameSite=Lax` is what lets it travel on the provider's
  * redirect back here — a top-level `GET` navigation — while staying off every
  * cross-site sub-request.
+ *
+ * **The customer callback sets no cookie (issue #1279).** The provider returns
+ * to `BACKEND_PUBLIC_URL`, which may be another host than the storefront (the
+ * split topology of `deploy/nginx.example.conf`), and a cookie set there would
+ * land on the API host, where the storefront never reads it. So the callback
+ * takes every decision — binding, provider code, account, channel access, the
+ * second factor — and then leaves a single-use hand-off (`ChallengeStore`,
+ * sixty seconds) and sends the browser to the started-on channel's storefront,
+ * `<origin>/auth/federated/complete?code=…`. The storefront redeems the code
+ * server-to-server (`POST /api/v1/auth/customer/oauth/exchange`) and sets its
+ * own cookies. The storefront also starts the flow (`/auth/federated/start`):
+ * it binds the attempt to the browser with a cookie on its own host and sends
+ * this module the digest of that secret, so a code is redeemable only by the
+ * browser that began the sign-in. The admin surface is unchanged: the Admin UI
+ * calls the API host with credentials, so its session belongs there.
  */
 export interface MfaOAuthDeps {
   oauthProvider: OAuthProviderPort;
@@ -73,7 +93,16 @@ export interface MfaOAuthDeps {
   sessionService: AuthSessionPort;
   /** Public base URL of the backend (for the provider redirect_uri). */
   backendBaseUrl: string;
+  /** `STOREFRONT_BASE_URL`: the storefront origin when a channel names none. */
   storefrontBaseUrl: string;
+  /**
+   * Issue #1279 — the storefront origin of a sales channel: its
+   * `sales_channels.storefront_url`, else `storefrontBaseUrl`. Operator
+   * configuration only, never anything the request carries, so no customer
+   * redirect can be pointed elsewhere. Absent: `storefrontBaseUrl` for every
+   * channel.
+   */
+  storefrontOriginFor?: (salesChannelId: string | null) => Promise<string>;
   adminBaseUrl: string;
   /**
    * Feature 154 — the sales-channel access rule for a customer sign-in, asked
@@ -82,9 +111,10 @@ export interface MfaOAuthDeps {
   customerChannelAccess: Pick<CustomerChannelAccess, 'permits'>;
   /**
    * Issue #1188 — `organizations`' post-sign-in step (the signed-out basket
-   * merged, the anonymous comparison adopted), run once the callback has set a
-   * customer session itself. A customer handed to the second step is completed
-   * by the code screen's verify instead (#368).
+   * merged, the anonymous comparison adopted), run once the exchange has
+   * created the customer session (issue #1279; it ran in the callback before).
+   * A customer handed to the second step is completed by the code screen's
+   * verify instead (#368).
    */
   customerSignInCompletion: Pick<CustomerSignInCompletionPort, 'complete'>;
   /**
@@ -140,8 +170,23 @@ const SIGN_IN_REFUSAL_CODE: Record<Extract<SocialSignInResult, { ok: false }>['r
 export const OAUTH_BINDING_COOKIE_NAME = 'b2b_oauth_binding';
 /** Seconds; the transaction it binds lives exactly as long. */
 const OAUTH_BINDING_MAX_AGE_SECONDS = 10 * 60;
-/** Seconds; the pending second-step challenge lives exactly as long. */
-const MFA_CHALLENGE_MAX_AGE_SECONDS = 5 * 60;
+
+/** Issue #1279 — the storefront's server-to-server redemption of a hand-off code. */
+export const FEDERATED_SIGN_IN_EXCHANGE_PATH = '/api/v1/auth/customer/oauth/exchange';
+
+/**
+ * The exchange's per-client ceiling, on top of the host's global one. Keyed by
+ * `request.ip` — the buyer's where the deployment trusts the storefront as a
+ * proxy (`TRUSTED_PROXY_HOPS` / `TRUSTED_PROXY_ADDRESSES`), since the storefront
+ * forwards `x-forwarded-for`; else the storefront's, which is why it is high. A
+ * code is 256 random bits and single-use, so the ceiling bounds load, not
+ * guessing.
+ */
+export const FEDERATED_SIGN_IN_EXCHANGE_RATE_LIMIT = {
+  max: 120,
+  timeWindow: '1 minute',
+  keyGenerator: (request: FastifyRequest): string => `mfa-federated-exchange:${request.ip}`,
+};
 
 function oauthCookiePath(surface: Surface): string {
   return `/api/v1/auth/${surface}/oauth`;
@@ -151,16 +196,20 @@ function digest(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
+/** Whether `secret` is the value `expectedDigest` was taken of, in constant time. */
+function matchesDigest(secret: string | undefined, expectedDigest: string | undefined): boolean {
+  if (!secret || !expectedDigest) return false;
+  const actual = Buffer.from(digest(secret), 'hex');
+  const expected = Buffer.from(expectedDigest, 'hex');
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
 /** Whether the request presents the cookie whose digest the transaction holds. */
 function presentsBinding(
   request: { cookies?: Record<string, string | undefined> },
   expectedDigest: string | undefined,
 ): boolean {
-  const presented = request.cookies?.[OAUTH_BINDING_COOKIE_NAME];
-  if (!presented || !expectedDigest) return false;
-  const actual = Buffer.from(digest(presented), 'hex');
-  const expected = Buffer.from(expectedDigest, 'hex');
-  return actual.length === expected.length && timingSafeEqual(actual, expected);
+  return matchesDigest(request.cookies?.[OAUTH_BINDING_COOKIE_NAME], expectedDigest);
 }
 
 export async function registerMfaOAuthRoutes(
@@ -172,10 +221,16 @@ export async function registerMfaOAuthRoutes(
     registerStart(app, deps, surface);
     registerCallback(app, deps, surface);
   }
+  registerExchange(app, deps);
 }
 
-function frontendBase(deps: MfaOAuthDeps, surface: Surface): string {
-  return surface === 'customer' ? deps.storefrontBaseUrl : deps.adminBaseUrl;
+/**
+ * The frontend a surface's redirects go to: the Admin UI, or — issue #1279 —
+ * the storefront of the customer's sales channel.
+ */
+async function frontendBase(deps: MfaOAuthDeps, surface: Surface, salesChannelId: string | null): Promise<string> {
+  if (surface === 'admin') return deps.adminBaseUrl;
+  return deps.storefrontOriginFor ? deps.storefrontOriginFor(salesChannelId) : deps.storefrontBaseUrl;
 }
 
 function parseProvider(value: string): OAuthProviderName | null {
@@ -192,14 +247,15 @@ function sanitiseNext(input: string | undefined): string {
  * (`federatedSignInErrorCodeSchema`) on both surfaces — a fixed ASCII token, so it
  * needs no encoding. Each frontend words the code in its own copy and reads any
  * other `?error=` value as its generic sign-in failure (issues #789, #813).
+ * `base` is the surface's frontend (`frontendBase`): for a customer, the
+ * storefront of the channel the sign-in belongs to (issue #1279).
  */
 function loginRedirect(
-  deps: MfaOAuthDeps,
+  base: string,
   surface: Surface,
   code: FederatedSignInErrorCode,
   pagePath: (path: string) => string = (path) => path,
 ): string {
-  const base = frontendBase(deps, surface);
   if (surface === 'customer') return `${base}${pagePath(`/login?error=${code}`)}`;
   return `${base}/login?error=${code}`;
 }
@@ -245,16 +301,16 @@ function registerProviders(app: FastifyInstance, deps: MfaOAuthDeps, surface: Su
 }
 
 function registerStart(app: FastifyInstance, deps: MfaOAuthDeps, surface: Surface): void {
-  app.get<{ Params: { provider: string }; Querystring: { next?: string } }>(
+  app.get<{ Params: { provider: string }; Querystring: { next?: string; salesChannel?: string; binding?: string } }>(
     `/api/v1/auth/${surface}/oauth/:provider/start`,
     // Feature 154 — reachable whatever the sales-channel access rule decides:
     // this is how a visitor of a closed store starts signing in.
     { config: { salesChannelAccess: 'open' } },
     async (request, reply) => {
-      const provider = parseProvider(request.params.provider);
-      if (!provider) return reply.redirect(loginRedirect(deps, surface, 'unknown_provider'));
-
       const salesChannelId = surface === 'customer' ? (currentSalesChannel()?.id ?? null) : null;
+      const base = await frontendBase(deps, surface, salesChannelId);
+      const provider = parseProvider(request.params.provider);
+      if (!provider) return reply.redirect(loginRedirect(base, surface, 'unknown_provider'));
 
       const policy = await deps.policyResolver.resolve(
         { subjectType: surface, subjectId: '' },
@@ -262,7 +318,25 @@ function registerStart(app: FastifyInstance, deps: MfaOAuthDeps, surface: Surfac
       );
       const settingEnabled = provider === 'google' ? policy.googleEnabled : policy.microsoftEnabled;
       if (!settingEnabled || !deps.oauthProvider.isEnabled(provider)) {
-        return reply.redirect(loginRedirect(deps, surface, 'provider_unavailable'));
+        return reply.redirect(loginRedirect(base, surface, 'provider_unavailable'));
+      }
+
+      // Issue #1279 — a customer sign-in is started by the storefront, which
+      // binds it to the browser on its own host and sends the digest here. A
+      // start without one (an old link, a storefront not yet upgraded) cannot be
+      // completed, so it is refused before the provider is involved.
+      let storefrontBindingDigest: string | undefined;
+      if (surface === 'customer') {
+        const query = customerFederatedSignInStartQuerySchema.safeParse(request.query);
+        if (!query.success) {
+          const parameters = [...new Set(query.error.issues.map((issue) => String(issue.path[0] ?? 'query')))];
+          request.log.warn(
+            { parameters, salesChannelId },
+            `federated sign-in start refused: missing or malformed ${parameters.join(', ')}`,
+          );
+          return reply.redirect(loginRedirect(base, surface, 'sign_in_failed'));
+        }
+        storefrontBindingDigest = query.data.binding;
       }
 
       const next = sanitiseNext(request.query.next);
@@ -286,6 +360,7 @@ function registerStart(app: FastifyInstance, deps: MfaOAuthDeps, surface: Surfac
         next,
         language,
         browserBinding: digest(binding),
+        ...(storefrontBindingDigest ? { storefrontBindingDigest } : {}),
       });
       reply.setCookie(OAUTH_BINDING_COOKIE_NAME, binding, {
         path: oauthCookiePath(surface),
@@ -319,19 +394,30 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
     // The binding is single-use whatever the outcome: a later attempt starts
     // again and gets a cookie of its own.
     reply.clearCookie(OAUTH_BINDING_COOKIE_NAME, { path: oauthCookiePath(surface) });
+    const tx = state ? await deps.challengeStore.getOAuthTransaction(state) : null;
+    // Issue #1279 — a customer goes back to the storefront of the channel the
+    // transaction was started on, whichever way this ends. The origin comes from
+    // the operator's configuration for that channel, never from the request.
+    const base = await frontendBase(
+      deps,
+      surface,
+      surface === 'customer' && tx?.surface === surface ? tx.salesChannelId : null,
+    );
     if (!provider || error || !code || !state) {
-      return reply.redirect(loginRedirect(deps, surface, 'sign_in_cancelled'));
+      return reply.redirect(loginRedirect(base, surface, 'sign_in_cancelled'));
     }
-    const tx = await deps.challengeStore.getOAuthTransaction(state);
     // A callback from a browser that did not start this transaction is refused
     // without consuming it, so it cannot use up the attempt of the one that did.
+    // A customer transaction without the storefront's binding (one started
+    // before issue #1279) cannot be handed off, so it is refused the same way.
     if (
       !tx ||
       tx.surface !== surface ||
       tx.provider !== provider ||
-      !presentsBinding(request, tx.browserBinding)
+      !presentsBinding(request, tx.browserBinding) ||
+      (surface === 'customer' && !tx.storefrontBindingDigest)
     ) {
-      return reply.redirect(loginRedirect(deps, surface, 'sign_in_expired'));
+      return reply.redirect(loginRedirect(base, surface, 'sign_in_expired'));
     }
     await deps.challengeStore.consumeOAuthTransaction(state);
     // Feature 167 — from here on the transaction is this browser's: the pages it
@@ -352,7 +438,7 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
         redirectUri,
       });
     } catch {
-      return reply.redirect(loginRedirect(deps, surface, 'sign_in_failed', pagePath));
+      return reply.redirect(loginRedirect(base, surface, 'sign_in_failed', pagePath));
     }
 
     // Issue #652 (D-292) — the language of the page the sign-in was started on,
@@ -372,7 +458,7 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
         : await deps.socialIdentityService.signInAdmin(identity);
 
     if (!result.ok) {
-      return reply.redirect(loginRedirect(deps, surface, SIGN_IN_REFUSAL_CODE[result.reason], pagePath));
+      return reply.redirect(loginRedirect(base, surface, SIGN_IN_REFUSAL_CODE[result.reason], pagePath));
     }
 
     // Feature 154 — a customer signs in only on a sales channel its
@@ -385,7 +471,7 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
       !(await deps.customerChannelAccess.permits(result.organizationId, tx.salesChannelId))
     ) {
       return reply.redirect(
-        loginRedirect(deps, surface, SALES_CHANNEL_NOT_PERMITTED_LOGIN_ERROR, pagePath),
+        loginRedirect(base, surface, SALES_CHANNEL_NOT_PERMITTED_LOGIN_ERROR, pagePath),
       );
     }
 
@@ -413,23 +499,49 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
         organizationId: surface === 'customer' ? result.organizationId : null,
       },
     );
+    if (decision.kind === 'setup') {
+      return reply.redirect(loginRedirect(base, surface, 'mfa_setup_required', pagePath));
+    }
+
+    if (surface === 'customer') {
+      // Issue #1279 — no cookie here: the storefront redeems the hand-off and
+      // sets the session (or the second-step challenge) on its own host.
+      const common = {
+        customerAccountId: result.subjectId,
+        salesChannelId: tx.salesChannelId,
+        storefrontBindingDigest: tx.storefrontBindingDigest!,
+      };
+      const handoff: FederatedHandoffInput =
+        decision.kind === 'challenge'
+          ? {
+              ...common,
+              kind: 'mfaChallenge',
+              challengeId: decision.challengeId,
+              redirectPath: pagePath(`/login/mfa?next=${encodeURIComponent(sanitiseNext(tx.next))}`),
+            }
+          : {
+              ...common,
+              kind: 'session',
+              organizationId: result.organizationId,
+              redirectPath: sanitiseNext(tx.next),
+            };
+      const issued = await deps.challengeStore.issueFederatedHandoff(handoff);
+      request.log.info(
+        {
+          outcome: 'handoff_issued',
+          kind: handoff.kind,
+          codeDigestPrefix: issued.codeDigest.slice(0, 8),
+          salesChannelId: tx.salesChannelId,
+        },
+        'federated sign-in hand-off issued',
+      );
+      // The landing URL carries the code: it must not leak to whatever the
+      // storefront page loads next, nor be sent on by this redirect.
+      reply.header('Referrer-Policy', 'no-referrer');
+      return reply.redirect(`${base}${FEDERATED_SIGN_IN_COMPLETE_PATH}?code=${encodeURIComponent(issued.code)}`);
+    }
+
     if (decision.kind === 'challenge') {
-      if (surface === 'customer') {
-        // The storefront's code screen reads the pending challenge from this
-        // cookie — the one its own password sign-in sets — and it reaches the
-        // storefront exactly as the session cookie below would have.
-        reply.setCookie(MFA_CHALLENGE_COOKIE_NAME, decision.challengeId, {
-          path: '/',
-          httpOnly: true,
-          sameSite: 'lax',
-          secure: process.env['NODE_ENV'] === 'production',
-          maxAge: MFA_CHALLENGE_MAX_AGE_SECONDS,
-          signed: false,
-        });
-        return reply.redirect(
-          `${deps.storefrontBaseUrl}${pagePath(`/login/mfa?next=${encodeURIComponent(sanitiseNext(tx.next))}`)}`,
-        );
-      }
       // The Admin UI holds the pending challenge in memory, as after its own
       // password step. The fragment is how it gets there: a fragment is never
       // sent to a server or in a `Referer`, and the Admin UI removes it from
@@ -438,46 +550,115 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
         `${deps.adminBaseUrl}/#mfa-challenge=${encodeURIComponent(decision.challengeId)}`,
       );
     }
-    if (decision.kind === 'setup') {
-      return reply.redirect(loginRedirect(deps, surface, 'mfa_setup_required', pagePath));
-    }
 
-    const session = await deps.sessionService.createSession(
-      surface === 'customer'
-        ? { kind: 'customer', customerAccountId: result.subjectId, ...ipUa(request) }
-        : { kind: 'admin', adminUserId: result.subjectId, ...ipUa(request) },
-    );
-    setSessionCookie(
-      reply,
-      surface === 'customer' ? SESSION_COOKIE_NAME : ADMIN_SESSION_COOKIE_NAME,
-      session.cookieValue,
-      session.expiresAt,
-    );
-    if (surface === 'customer') {
-      await completeCustomerSignIn(deps, request, reply, result.subjectId, tx.salesChannelId);
-    }
-    const dest =
-      surface === 'customer' ? `${deps.storefrontBaseUrl}${sanitiseNext(tx.next)}` : `${deps.adminBaseUrl}/`;
-    return reply.redirect(dest);
+    const session = await deps.sessionService.createSession({
+      kind: 'admin',
+      adminUserId: result.subjectId,
+      ...ipUa(request),
+    });
+    setSessionCookie(reply, ADMIN_SESSION_COOKIE_NAME, session.cookieValue, session.expiresAt);
+    return reply.redirect(`${deps.adminBaseUrl}/`);
   });
 }
 
 /**
+ * Issue #1279 — `POST /api/v1/auth/customer/oauth/exchange`: the storefront's
+ * server-to-server redemption of the code the callback left, answered like the
+ * password sign-in (`federatedSignInExchangeResponseSchema`).
+ *
+ * The storefront calls it from its landing route with the browser's own
+ * storefront cookies it forwards for every sign-in (`b2b_cart_anon`,
+ * `compare_token`, the known-device cookie), `X-Sales-Channel`,
+ * `x-forwarded-for` and `user-agent`. So this is where the session is created
+ * and where the signed-out basket is carried over (#1188): on split hosts the
+ * provider's redirect to the API host never carries the storefront's basket.
+ *
+ * The code is taken out of the store before anything is checked, so a refused
+ * attempt has used it up as well — a binding guessed wrong cannot be retried.
+ * Every refusal is the same `400 MFA_FEDERATED_HANDOFF_INVALID`; which check
+ * refused is logged, never answered. Nothing secret is logged: not the code, not
+ * the binding, not the challenge or the session — only the first eight hex
+ * digits of the code's digest.
+ */
+function registerExchange(app: FastifyInstance, deps: MfaOAuthDeps): void {
+  // Declared as a value rather than an inline literal: `rateLimit` is an
+  // augmentation of `@fastify/rate-limit`, which the host registers and this
+  // package does not depend on.
+  const exchangeConfig = {
+    // Feature 154 — the exchange completes a sign-in before any session exists;
+    // the channel it must be asked on is checked against the hand-off below.
+    salesChannelAccess: 'open' as const,
+    rateLimit: FEDERATED_SIGN_IN_EXCHANGE_RATE_LIMIT,
+  };
+  app.post(
+    FEDERATED_SIGN_IN_EXCHANGE_PATH,
+    { schema: { body: federatedSignInExchangeRequestSchema }, config: exchangeConfig },
+    async (request, reply): Promise<FederatedSignInExchangeResponse> => {
+      const body = federatedSignInExchangeRequestSchema.parse(request.body);
+      const codeDigestPrefix = digest(body.code).slice(0, 8);
+      const handoff = await deps.challengeStore.takeFederatedHandoff(body.code);
+      const refuse = (reason: string): never => {
+        request.log.warn(
+          { outcome: 'refused', reason, codeDigestPrefix, salesChannelId: handoff?.salesChannelId ?? null },
+          'federated sign-in hand-off refused',
+        );
+        throw new HttpError(
+          400,
+          ERROR_CODES.MFA_FEDERATED_HANDOFF_INVALID,
+          'This sign-in has expired or was already used. Please sign in again.',
+        );
+      };
+      if (!handoff) return refuse('unknown_expired_or_used');
+      if (!matchesDigest(body.binding, handoff.storefrontBindingDigest)) return refuse('binding_mismatch');
+      if ((currentSalesChannel()?.id ?? null) !== handoff.salesChannelId) return refuse('sales_channel_mismatch');
+      if (
+        !(await deps.challengeStore.isCurrentGeneration('customer', handoff.customerAccountId, handoff.generation))
+      ) {
+        return refuse('withdrawn');
+      }
+
+      const logRedeemed = (): void =>
+        request.log.info(
+          { outcome: 'redeemed', kind: handoff.kind, codeDigestPrefix, salesChannelId: handoff.salesChannelId },
+          'federated sign-in hand-off redeemed',
+        );
+      if (handoff.kind === 'mfaChallenge') {
+        logRedeemed();
+        return {
+          data: { status: 'mfaRequired', challengeId: handoff.challengeId, redirectPath: handoff.redirectPath },
+        };
+      }
+
+      const session = await deps.sessionService.createSession({
+        kind: 'customer',
+        customerAccountId: handoff.customerAccountId,
+        ...ipUa(request),
+      });
+      setSessionCookie(reply, SESSION_COOKIE_NAME, session.cookieValue, session.expiresAt);
+      const cartMerge = await completeCustomerSignIn(
+        deps,
+        request,
+        reply,
+        handoff.customerAccountId,
+        handoff.salesChannelId,
+      );
+      logRedeemed();
+      return { data: { status: 'authenticated', redirectPath: handoff.redirectPath, cartMerge } };
+    },
+  );
+}
+
+/**
  * Issue #1188 — the customer session has just been set on this response, so run
- * the post-sign-in step every customer sign-in runs, over the browser's cookies
- * and on the channel the sign-in was started on (this request is the provider's
- * redirect and carries no channel of its own).
+ * the post-sign-in step every customer sign-in runs, over the cookies the
+ * storefront forwarded and on the channel the sign-in was started on.
  *
- * The browser's `b2b_cart_anon` reaches this request for the reason the session
- * cookie set here reaches the storefront: one host's cookie jar, and the
- * provider's redirect is a top-level `GET`, which a `SameSite=Lax` cookie rides.
- *
- * No storefront action runs between this response and the page the buyer lands
- * on, so the two things the password step's action does after its merge are
- * done here: the drained anonymous cookie is dropped (when the step says the
- * basket was consumed or empty), and an `adopted` / `merged` outcome leaves the
- * storefront's one-render merge notice (feature 037 FR-018: a `noop` shows
- * none). The step does not throw for a failed merge, so nothing here catches.
+ * Issue #1279 — this runs in the exchange, whose cookies are the storefront
+ * host's: the provider's redirect to the API host never carries them on split
+ * hosts. The drained anonymous cookie is cleared on this response, as the
+ * second step's verify clears it; the merge notice is the storefront's to
+ * write from the returned `cartMerge`, as after a password sign-in. The step
+ * does not throw for a failed merge, so nothing here catches.
  */
 async function completeCustomerSignIn(
   deps: MfaOAuthDeps,
@@ -485,7 +666,7 @@ async function completeCustomerSignIn(
   reply: FastifyReply,
   customerAccountId: string,
   salesChannelId: string | null,
-): Promise<void> {
+): Promise<CartMergeOutcomePublic | null> {
   const completion = await deps.customerSignInCompletion.complete({
     customerAccountId,
     cookies: request.cookies ?? {},
@@ -495,23 +676,11 @@ async function completeCustomerSignIn(
   if (completion.clearAnonymousCartCookie) {
     reply.clearCookie(ANON_CART_COOKIE_NAME, { path: '/' });
   }
-  const outcome = completion.cartMerge?.outcome;
-  if (outcome === 'adopted' || outcome === 'merged') {
-    reply.setCookie(CART_MERGE_FLASH_COOKIE_NAME, outcome, {
-      path: '/',
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env['NODE_ENV'] === 'production',
-      maxAge: CART_MERGE_FLASH_MAX_AGE_SECONDS,
-      signed: false,
-    });
-  }
+  return completion.cartMerge;
 }
 
 /** The signed-out basket's cookie, as `carts` sets it and the storefront forwards it. */
 const ANON_CART_COOKIE_NAME = 'b2b_cart_anon';
-/** Seconds; the storefront's own sign-in actions give the notice the same. */
-const CART_MERGE_FLASH_MAX_AGE_SECONDS = 30;
 
 function ipUa(request: { ip?: string; headers: Record<string, unknown> }): {
   ipAddress?: string;

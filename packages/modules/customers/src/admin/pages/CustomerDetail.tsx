@@ -23,9 +23,9 @@ import {
   SaveSessionActions,
   SaveSessionSummary,
   customFieldErrorsOf,
+  ImmediateBadge,
 } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { ImmediateBadge } from '../components/ImmediateBadge.js';
 
 interface AdminCustomerDetail {
   id: string;

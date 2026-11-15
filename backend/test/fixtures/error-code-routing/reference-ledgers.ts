@@ -383,6 +383,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'customer\'s organization. The noun is the second factor, this module\'s whole subject; ' +
       'the one raise site is `mfa`\'s self-service `POST …/mfa/disable`.',
   },
+  MFA_FEDERATED_HANDOFF_INVALID: {
+    to: 'mfa',
+    reason:
+      'Minted by issue #1279 for the refusal of a federated customer sign-in hand-off the ' +
+      'storefront tries to redeem: unknown, expired, already used, bound to another browser, ' +
+      'asked on another sales channel or withdrawn. The noun is the federated sign-in, which ' +
+      'this module owns; the one raise site is `mfa`\'s `POST /api/v1/auth/customer/oauth/exchange`.',
+  },
   MFA_DEACTIVATION_BLOCKED: {
     to: 'mfa',
     reason:

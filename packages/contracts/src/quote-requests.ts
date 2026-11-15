@@ -645,6 +645,12 @@ export const quoteRequestSummarySchema = z.object({
    */
   amount: quoteRequestAmountSchema.shape.amount.optional(),
   agreement: quoteRequestAgreementSchema.optional(),
+  /**
+   * Issue #455 — `status` named in the response language, in this module's
+   * own wording (`QuoteRequestReadPort.statusName`), for another module's link
+   * picker to show. **Admin list only**; declared by issue #1270.
+   */
+  statusName: z.string().optional(),
 });
 export type QuoteRequestSummary = z.infer<typeof quoteRequestSummarySchema>;
 

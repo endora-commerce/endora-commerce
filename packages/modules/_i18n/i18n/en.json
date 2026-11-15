@@ -2312,6 +2312,7 @@
   "saveSession.error.moduleOff": "Not saved: this module was switched off.",
   "saveSession.notice.crashed": "{label}: unsaved changes were discarded because this section stopped working.",
   "saveSession.notice.moduleOff": "{label}: unsaved changes were discarded because the module was switched off.",
+  "saveSession.immediateBadge": "Applies immediately",
   "savedViews.label": "Saved views",
   "savedViews.none": "— Select a view —",
   "savedViews.sharedSuffix": "(shared)",

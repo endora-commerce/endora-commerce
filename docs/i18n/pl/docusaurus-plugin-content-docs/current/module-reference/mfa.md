@@ -11,7 +11,7 @@ description: "Wszystko, co manifest modułu `mfa` deklaruje: uprawnienia, akcje 
 
 # `mfa` — referencja modułu
 
-Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Nikt jeszcze nie napisał strony o tym, co ten moduł *robi*; [mapa modułów](../modules/module-map.generated.md) wymienia wszystkie moduły, z których składa się platforma.
+Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł *robi*, opisuje [jego własna strona](../modules/mfa.md).
 
 | | |
 | --- | --- |

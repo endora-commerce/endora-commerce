@@ -3,7 +3,7 @@ import { Trash2, UserPlus } from 'lucide-react';
 import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Combobox, type ComboboxOption, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { ImmediateBadge } from './ImmediateBadge.js';
+import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
 
 /**
  * Organization → Sales reps assignment tab (feature 008 / T079).
@@ -225,7 +225,7 @@ function OrganizationSalesRepsPanel({
       <CardHeader>
         <CardTitle>
           {t('organizations.salesReps.title')}
-          <ImmediateBadge />
+          <ImmediateBadge className="align-middle" />
         </CardTitle>
       </CardHeader>
       <CardContent style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

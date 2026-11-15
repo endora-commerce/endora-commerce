@@ -457,10 +457,11 @@ describe('typing @ in a text of an Opportunity', () => {
   });
 
   it('names only the shortcuts the role has', async () => {
+    // No `catalog:read`: no Product shortcut. The document list is CRM's own
+    // Opportunities group at the least (issue #498).
     const { panel } = await composer(['crm:read', 'crm:write']);
-    expect(
-      within(panel).getByText(core('references.shortcuts', { list: core('references.shortcut.person') })),
-    ).toBeInTheDocument();
+    const list = [core('references.shortcut.person'), core('references.shortcut.document')].join(', ');
+    expect(within(panel).getByText(core('references.shortcuts', { list }))).toBeInTheDocument();
   });
 
   it('the Mention a person button searches people and writes the mention where the caret was', async () => {
