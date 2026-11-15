@@ -232,6 +232,15 @@ describe('projects (contract) — lookups for the pickers', () => {
       await deleteProjects(h, internalProjectId ? [internalProjectId] : []);
     });
 
+    // Issue #498: the Projects group — this module's own — is answered to a
+    // role holding nothing but Projects' codes, which is why `@@` opens for it.
+    it('answers the Projects group to a role holding only projects:read and projects:write', async () => {
+      const own = await documents('', writer);
+      expect(own.groups.map((group) => group.kind)).toEqual(['project']);
+      const onProject = await documents(`?projectId=${internalProjectId}`, writer);
+      expect(onProject.groups.map((group) => group.kind)).toEqual(['project']);
+    });
+
     it('offers the Orders and Quote Requests of the Organizations it names', async () => {
       const orders = await documents(
         `?organizationIds=${TEST_ORGANIZATION_ID}&q=${q(orderOfTest.businessId)}`,

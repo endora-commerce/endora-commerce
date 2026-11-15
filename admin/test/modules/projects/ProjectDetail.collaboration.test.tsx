@@ -325,3 +325,36 @@ describe('ProjectDetail — the description', () => {
     expect(within(panel).queryByRole('button', { name: en('overview.editDescription') })).toBeNull();
   });
 });
+
+/**
+ * `@@` for a role holding only Projects' own codes (issue #498): the server
+ * answers the Projects group to every writer (`specs/165-task-management/`
+ * R-5), so the list opens on it — the own kind is a document kind like any
+ * other.
+ */
+describe('ProjectDetail — @@ with only projects:read and projects:write', () => {
+  const DOCUMENTS_PATH = '/api/v1/admin/projects/lookups/documents';
+  const OTHER_PROJECT_ID = '00000000-0000-4000-8000-0000000004b2';
+
+  it('opens the document list and offers the Projects group', async () => {
+    const fallback = getSpy.getMockImplementation()!;
+    getSpy.mockImplementation((path: string) =>
+      path.startsWith(DOCUMENTS_PATH)
+        ? Promise.resolve({ groups: [{ kind: 'project', items: [{ id: OTHER_PROJECT_ID, label: 'PRJ-000042' }] }] })
+        : fallback(path),
+    );
+    await renderPage({ search: '?tab=notes', permissions: ['projects:read', 'projects:write'] });
+    const panel = await screen.findByRole('tabpanel');
+    const field = await within(panel).findByLabelText(en('comments.notes.composer.label'));
+    expect(within(panel).getByRole('button', { name: core('references.insert.document') })).toBeInTheDocument();
+    await userEvent.type(field, '@@');
+    const list = await within(panel).findByRole('listbox', { name: core('references.suggest.title.document') });
+    expect(within(list).getAllByRole('group').map((group) => group.getAttribute('aria-label'))).toEqual([
+      core('references.group.project'),
+    ]);
+    expect(within(list).getByRole('option')).toHaveTextContent('PRJ-000042');
+    expect(
+      getSpy.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(DOCUMENTS_PATH))[0],
+    ).toBe(`${DOCUMENTS_PATH}?projectId=${PROJECT_ID}`);
+  });
+});
