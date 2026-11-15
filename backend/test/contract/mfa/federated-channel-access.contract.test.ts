@@ -10,7 +10,14 @@ import {
 import { CustomerAccount, Organization, Session } from '../../helpers/package-entities.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
-import { oauthBinding } from '../../helpers/oauth-binding.js';
+import {
+  customerOAuthStartUrl,
+  exchangeHandoff,
+  oauthBinding,
+  sessionOf,
+  storefrontBinding,
+  type StorefrontBinding,
+} from '../../helpers/oauth-binding.js';
 import { assignOrganizationChannels } from '../../helpers/sales-channel-access.js';
 
 /**
@@ -77,21 +84,45 @@ describe('mfa sign-in paths — sales-channel access (T045)', () => {
     return h.em().count(Session, { customerAccountId: TEST_CUSTOMER_ID });
   }
 
-  async function start(channel: string): Promise<{ state: string; cookies: Record<string, string> }> {
+  interface Started {
+    state: string;
+    cookies: Record<string, string>;
+    binding: StorefrontBinding;
+    channel: string;
+  }
+
+  async function start(channel: string): Promise<Started> {
+    const binding = storefrontBinding();
     const res = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(binding),
       headers: { 'x-sales-channel': channel },
     });
     expect(res.statusCode).toBe(302);
     const location = res.headers['location'] as string;
-    return { state: new URL(location).searchParams.get('state')!, cookies: oauthBinding(res) };
+    return { state: new URL(location).searchParams.get('state')!, cookies: oauthBinding(res), binding, channel };
   }
 
-  function callback(
-    started: { state: string; cookies: Record<string, string> },
-    email: string = EMAIL,
-  ) {
+  /**
+   * Issue #1279 — a signed-in callback hands off to the storefront, whose
+   * server-to-server exchange (on the started-on channel) returns the session.
+   */
+  async function signedIn(started: Started, email: string = EMAIL): Promise<string> {
+    const res = await callback(started, email);
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toMatch(new RegExp(`^${STOREFRONT}/auth/federated/complete\\?code=`));
+    expect(res.cookies.find((c) => c.name === 'b2b_session')).toBeUndefined();
+    const redeemed = await exchangeHandoff(h.app, res, started.binding, {
+      headers: { 'x-sales-channel': started.channel },
+    });
+    expect(redeemed.statusCode, redeemed.body).toBe(200);
+    expect(redeemed.json().data).toMatchObject({ status: 'authenticated', redirectPath: '/account' });
+    const session = sessionOf(redeemed);
+    expect(session).toBeTruthy();
+    return session!;
+  }
+
+  function callback(started: Started, email: string = EMAIL) {
     // The provider's redirect: no storefront channel signal at all. The fake
     // provider answers the `code` as the verified e-mail address.
     return h.app.inject({
@@ -157,21 +188,14 @@ describe('mfa sign-in paths — sales-channel access (T045)', () => {
 
     it('signs in when the started-on channel is assigned', async () => {
       await assignOrganizationChannels(h, TEST_ORGANIZATION_ID, ['default', OTHER]);
-      const res = await callback(await start(OTHER));
-      expect(res.statusCode).toBe(302);
-      expect(res.headers['location']).toBe(`${STOREFRONT}/account`);
-      expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+      await signedIn(await start(OTHER));
     });
   });
 
   describe('federated sign-up (D6)', () => {
     it('gives the new personal Organization exactly the channel the sign-in was started on, and signs it in there', async () => {
       const email = `fca-signup-${Date.now()}@example.test`;
-      const res = await callback(await start(OTHER), email);
-      expect(res.statusCode).toBe(302);
-      expect(res.headers['location']).toBe(`${STOREFRONT}/account`);
-      const session = res.cookies.find((c) => c.name === 'b2b_session')?.value;
-      expect(session).toBeTruthy();
+      const session = await signedIn(await start(OTHER), email);
 
       const account = await h.em().findOneOrFail(CustomerAccount, { email });
       const channels = await h.salesChannels.membershipService.listChannelsForEntity(
@@ -204,10 +228,7 @@ describe('mfa sign-in paths — sales-channel access (T045)', () => {
 
     it('still signs an existing account in on a closed channel its Organization is assigned to', async () => {
       await assignOrganizationChannels(h, TEST_ORGANIZATION_ID, ['default', CLOSED]);
-      const res = await callback(await start(CLOSED));
-      expect(res.statusCode).toBe(302);
-      expect(res.headers['location']).toBe(`${STOREFRONT}/account`);
-      expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+      await signedIn(await start(CLOSED));
     });
   });
 

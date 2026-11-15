@@ -5,12 +5,16 @@ import {
   type FederatedProvider,
   type FederatedSignInState,
 } from '../lib/federated-sign-in';
+import { FEDERATED_SIGN_IN_START_PATH } from '../lib/auth/federated-sign-in-start-path';
 
 /**
  * Federated sign-in buttons (feature 042, US4; corrected by issue #193).
  *
- * Anchor links to the backend OAuth `start` endpoint — absolute, because the
- * hand-off runs in the browser against the backend origin.
+ * Anchor links to the storefront's own start route (`/auth/federated/start`,
+ * issue #1279) — relative, because the flow starts and ends on this host: the
+ * route binds the attempt to the browser with a cookie here and only then
+ * sends it to the API's OAuth `start`, which may be on another host. The route
+ * also names the sales channel to the API, from the request's stamped channel.
  *
  * **A provider the platform cannot complete a sign-in with is absent, not
  * disabled.** The caller resolves that (module presence AND provider
@@ -43,27 +47,17 @@ import {
  * failed presence read must not be able to fabricate buttons.
  */
 export function SocialLoginButtons({
-  backendBaseUrl,
   next,
   locale,
   modulePresent,
   availableProviders,
-  salesChannelCode,
 }: {
-  backendBaseUrl: string;
   next: string;
   locale: string;
   /** `mfa` effective presence, projected from `/module-presence`. */
   modulePresent: boolean | undefined;
   /** Providers that are configured AND enabled for this channel. */
   availableProviders: readonly FederatedProvider[] | undefined;
-  /**
-   * The active sales channel. The start link is a browser navigation, which
-   * carries no `X-Sales-Channel`, so the channel rides as `?salesChannel=` —
-   * the OAuth transaction records it and the callback applies that store's
-   * access rule (`specs/154-sales-channel-access/`).
-   */
-  salesChannelCode: string | undefined;
 }): ReactNode {
   const state: FederatedSignInState = resolveFederatedSignIn({
     modulePresent,
@@ -72,12 +66,8 @@ export function SocialLoginButtons({
   if (state.status !== 'ready') return null;
 
   const t = tForLocale(locale);
-  const channelParam =
-    salesChannelCode !== undefined && salesChannelCode !== ''
-      ? `&salesChannel=${encodeURIComponent(salesChannelCode)}`
-      : '';
   const href = (provider: FederatedProvider): string =>
-    `${backendBaseUrl}/api/v1/auth/customer/oauth/${provider}/start?next=${encodeURIComponent(next)}${channelParam}`;
+    `${FEDERATED_SIGN_IN_START_PATH}?provider=${provider}&next=${encodeURIComponent(next)}`;
 
   return (
     <div

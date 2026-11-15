@@ -7,7 +7,7 @@ import {
 } from '../../helpers/test-server.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
-import { oauthBinding } from '../../helpers/oauth-binding.js';
+import { customerOAuthStartUrl, oauthBinding, storefrontBinding } from '../../helpers/oauth-binding.js';
 
 /**
  * Feature 042 — audit coverage (FR-031). Exercises the security-relevant MFA
@@ -117,7 +117,7 @@ describe('MFA — audit coverage', () => {
     // social account creation (new email auto-creates a standalone customer).
     const start = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(storefrontBinding()),
     });
     const state = new URL(start.headers['location'] as string).searchParams.get('state')!;
     await h.app.inject({
@@ -168,7 +168,7 @@ describe('MFA — audit coverage', () => {
     });
 
     // social_linked — existing customer signs in via Google.
-    const start = await h.app.inject({ method: 'GET', url: '/api/v1/auth/customer/oauth/google/start' });
+    const start = await h.app.inject({ method: 'GET', url: customerOAuthStartUrl(storefrontBinding()) });
     const state = new URL(start.headers['location'] as string).searchParams.get('state')!;
     await h.app.inject({
       method: 'GET',

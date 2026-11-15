@@ -40,9 +40,11 @@ export interface SubscribeInput {
    */
   audience?: ProductAudience;
   /**
-   * Feature 163 — the request's first `Accept-Language` tag, resolved against
-   * the request channel's languages to the scope language L the availability
-   * question is asked in. Absent: the channel's default language.
+   * Feature 163 — the request's language tag, resolved against the request
+   * channel's languages to the scope language L the availability question is
+   * asked in. Absent: the channel's default language. The storefront routes pass
+   * the channel language the whole `Accept-Language` asks for
+   * (`requestScopeLanguage`, issue #1011), which resolves to itself here.
    */
   languageTag?: string | undefined;
 }

@@ -33,6 +33,8 @@ const MFA = 'The second factor and its set-up ticket complete a sign-in before a
 const OAUTH_START = 'Federated sign-in starts before any session exists.';
 const OAUTH_CALLBACK =
   "The identity provider's redirect carries no storefront channel signal and completes a sign-in.";
+const OAUTH_EXCHANGE =
+  'The storefront redeems a federated sign-in hand-off before any session exists; the hand-off itself names the channel it may be redeemed on.';
 const OAUTH_PROVIDERS =
   'The sign-in page lists the federated providers before anybody is signed in.';
 const ACCOUNT = 'Account recovery and verification happen before the buyer can sign in.';
@@ -60,6 +62,7 @@ export const CHANNEL_ACCESS_OPEN_ROUTES: Readonly<Record<string, OpenRouteEntry>
   'GET /api/v1/auth/customer/oauth/providers': { owner: 'mfa', reason: OAUTH_PROVIDERS },
   'GET /api/v1/auth/customer/oauth/:provider/start': { owner: 'mfa', reason: OAUTH_START },
   'GET /api/v1/auth/customer/oauth/:provider/callback': { owner: 'mfa', reason: OAUTH_CALLBACK },
+  'POST /api/v1/auth/customer/oauth/exchange': { owner: 'mfa', reason: OAUTH_EXCHANGE },
 
   // customer sign-in, recovery, registration, invitations — `organizations`
   'POST /api/v1/auth/customer/login': { owner: 'organizations', reason: SIGN_IN },

@@ -2,9 +2,8 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import {
   availabilityNotificationRequestSchema,
-  firstLanguageTag,
   inventoryDisplayModeSchema,
-  scopeLanguageOf,
+  requestScopeLanguage,
   type CatalogCategoryReadPort,
   type CatalogProductAvailabilityPort,
   type CatalogProductReadPort,
@@ -115,7 +114,7 @@ export async function registerInventoryRoutes(
         // no organisation cannot be answered differently here than next door.
         audience: productAudienceOf(request),
         // Feature 163 — the language the availability question is asked in.
-        languageTag: firstLanguageTag(request.headers['accept-language']),
+        languageTag: channelLanguageOf(request),
       });
       reply.status(202);
       return {
@@ -168,7 +167,7 @@ export async function registerInventoryRoutes(
         // `productAudienceOf` reads the actor and nothing else.
         audience: productAudienceOf(request),
         // Feature 163 — the language the availability question is asked in.
-        languageTag: firstLanguageTag(request.headers['accept-language']),
+        languageTag: channelLanguageOf(request),
       });
       reply.status(202);
       return {
@@ -209,7 +208,9 @@ export async function registerInventoryRoutes(
       const available = product
         ? await catalogAvailability.filterAvailable([product.id], {
             channelId: requestChannel.id,
-            languageCode: scopeLanguageOf(requestChannel, firstLanguageTag(request.headers['accept-language'])),
+            // Issue #1011 — the channel language the whole `Accept-Language` asks for:
+            // q-weighted, matched exactly then by base language, else the channel's default.
+            languageCode: requestScopeLanguage(requestChannel, request.headers['accept-language']),
             audience: productAudienceOf(request),
           })
         : new Set<string>();
@@ -319,6 +320,20 @@ export async function registerInventoryRoutes(
       return { data: payload };
     },
   );
+}
+
+/**
+ * The channel language the request's `Accept-Language` asks for, or `undefined` without the
+ * header (the subscription is then judged in the channel's default, as before). Issue #1011 —
+ * `requestScopeLanguage` over the whole header, as the catalogue resolves it since #397: the
+ * tags in descending `q`, each matched against the resolved channel's languages (exactly, then
+ * by base language), the first one the channel offers winning, else the channel's default. This
+ * used to be the header's first tag alone, so `en;q=0.2, pl-PL;q=0.9` asked about English.
+ */
+function channelLanguageOf(request: FastifyRequest): string | undefined {
+  const header = request.headers['accept-language'];
+  if (header === undefined || header.length === 0) return undefined;
+  return requestScopeLanguage(getResolvedChannel(request), header);
 }
 
 async function resolveChannelId(

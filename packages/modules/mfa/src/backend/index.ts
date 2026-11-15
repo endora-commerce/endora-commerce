@@ -354,6 +354,13 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'customerSignInCompletionPort',
             ),
+            // Issue #1279 — the storefront a customer's federated sign-in
+            // returns to. Read at call time like every input here; the resolver
+            // treats an absent `sales_channels` as "no URL configured".
+            readChannelStorefrontUrl: (salesChannelId) =>
+              ctx
+                .cradle<MfaCradle>()
+                .settingsReadPort.get('sales_channels.storefront_url', salesChannelId, z.string()),
             // Feature 167 — the started-on channel, else the system default.
             channelUrlFactsFor: async (salesChannelId) => {
               const resolution = lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort');
