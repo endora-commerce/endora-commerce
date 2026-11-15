@@ -9,11 +9,13 @@
  * them on the public channel read (`urlLanguages`, `urlLanguageAliases`), so this
  * file only matches against them.
  *
- * Middleware-safe: no `next/*` import, no validation library — the contracts import
- * below is type-only and erased.
+ * Middleware-safe: no `next/*` import, no validation library. The barrel import from
+ * the contracts is type-only and erased; the one value import is the `accept-language`
+ * subpath, a dependency-free module, so the edge bundle never reaches the Zod schemas.
  */
 
 import type { ChannelUrlLanguage, ChannelUrlLanguageAlias } from '@endora-commerce/contracts';
+import { weightedAcceptLanguage } from '@endora-commerce/contracts/accept-language';
 import { LANGUAGE_NEUTRAL_SEGMENTS } from '../../app/reserved-segments';
 
 /** The channel's URL languages and the language of the current URL. */
@@ -107,22 +109,18 @@ function matchLanguage(
   return among.find((l) => l.languageCode.split('-')[0]!.toLowerCase() === primary);
 }
 
-/** `Accept-Language` tags by descending q-weight (today's `resolveLocale` order). */
+/**
+ * `Accept-Language` tags by descending q-weight, through the shared parse
+ * (`weightedAcceptLanguage`, `@endora-commerce/contracts`, issue #1011) — so the bounds
+ * (512 characters, ten tags after weighting), a malformed `q` dropping its tag and `q`
+ * read case-insensitively are the backend's. What stays the redirect's own: a tag at
+ * `q=0` or below is "not acceptable" (RFC 9110) and `*` names no language, so neither is
+ * ever a redirect target.
+ */
 export function acceptLanguageTags(header: string | null | undefined): string[] {
-  if (!header) return [];
-  return header
-    .split(',')
-    .map((part) => {
-      const [tag, ...params] = part.trim().split(';');
-      const q = params
-        .map((p) => p.trim())
-        .find((p) => p.startsWith('q='))
-        ?.slice(2);
-      return { tag: (tag ?? '').trim(), q: q ? Number(q) : 1 };
-    })
-    .filter((c) => c.tag !== '' && c.tag !== '*' && !Number.isNaN(c.q) && c.q > 0)
-    .sort((a, b) => b.q - a.q)
-    .map((c) => c.tag);
+  return weightedAcceptLanguage(header ?? undefined)
+    .filter((entry) => entry.q > 0 && entry.tag !== '*')
+    .map((entry) => entry.tag);
 }
 
 function matchAcceptLanguage(
