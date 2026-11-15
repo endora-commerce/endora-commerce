@@ -86,7 +86,8 @@ describe.skipIf(!shouldRun)('the price-change history’s cost on the largest pr
         `select "line_count" from "price_list_value_changes" where "price_list_id" = ? order by "at" desc, "id" desc limit 1`,
         [bookId],
       );
-    return Number(row?.line_count ?? 0);
+    if (!row) throw new Error(`no price-change history row for book ${bookId}`);
+    return Number(row.line_count);
   }
 
   const timings: Record<string, number[]> = { import: [], change: [], replace: [], duplicate: [] };
