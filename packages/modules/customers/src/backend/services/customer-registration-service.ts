@@ -51,6 +51,8 @@ export interface RegisterStandaloneInput {
   password: string;
   firstName: string;
   lastName: string;
+  /** Issue #652 (D-292) — the registering request's language, resolved against its channel. */
+  preferredLanguage?: string | null;
   ip?: string;
   userAgent?: string;
 }
@@ -101,6 +103,7 @@ export class CustomerRegistrationService {
       password: input.password,
       firstName: input.firstName,
       lastName: input.lastName,
+      preferredLanguage: input.preferredLanguage ?? null,
     });
 
     const session = await this.deps.sessionService.createSession({

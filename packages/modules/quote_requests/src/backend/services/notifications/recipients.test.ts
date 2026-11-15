@@ -61,6 +61,7 @@ function account(id: string, organizationRoleId: string, overrides: Partial<Cust
     blockedByCustomerAccountId: null,
     deletionRequestedByAdminUserId: null,
     anonymizedAt: null,
+    preferredLanguage: null,
     ...overrides,
   };
 }

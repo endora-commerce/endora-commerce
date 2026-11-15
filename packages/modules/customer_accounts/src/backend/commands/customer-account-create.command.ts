@@ -84,6 +84,10 @@ function makeCreateCustomerAccountCommand(
         // Feature 175 (research R-5) — already validated by the caller through
         // custom_fields' value port; stored as given, never re-validated here.
         customFieldValues: input.customFieldValues ?? {},
+        // Issue #652 (D-292) — the language captured from the creating request,
+        // already resolved against its channel; `null` for the admin
+        // direct-create. Part of the creation's own write, so it adds no entry.
+        preferredLanguage: input.preferredLanguage ?? null,
         ...(input.emailVerified ? { emailVerifiedAt: new Date() } : {}),
       });
       try {

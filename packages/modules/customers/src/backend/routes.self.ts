@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type {
+  CustomerAccountPreferencePort,
   CustomerAccountReadPort,
   CustomerAuthPort,
   OrderListPort,
@@ -10,10 +11,14 @@ import type {
 import {
   SESSION_COOKIE_NAME,
   changePasswordRequestSchema,
+  patchCustomerPreferredLanguageBodySchema,
+  toScopeChannel,
   updateCustomerDefaultsRequestSchema,
   ERROR_CODES,
+  type PatchCustomerPreferredLanguageResponse,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import type { CustomerDefaultsService } from './services/customer-defaults-service.js';
 import { addressBookRetired } from './address-book-retired.js';
 
@@ -69,6 +74,11 @@ export interface CustomersSelfDeps {
   orderList: OrderListPort;
   rfqService: RfqCustomerPort;
   customerDefaultsService: CustomerDefaultsService;
+  /**
+   * Issue #652 (D-292) — `customer_accounts`' preference write, for the buyer's
+   * explicit choice of their e-mail language.
+   */
+  preferences: CustomerAccountPreferencePort;
 }
 
 export async function registerCustomersSelfRoutes(
@@ -132,10 +142,41 @@ export async function registerCustomersSelfRoutes(
           organizationId: customer.organizationId ?? null,
           customerGroupId: customer.customerGroupId ?? null,
           twoFactorEnabled: customer.twoFactorEnabled,
+          preferredLanguage: customer.preferredLanguage,
           organizationRole,
           permissions: [...effective.permissions],
         },
       };
+    },
+  );
+
+  // PATCH /api/v1/me/customer/preferred-language — issue #652 (D-292).
+  //
+  // The buyer's explicit choice of the language their e-mails are written in,
+  // and the only write that overwrites a stored value. The language must be one
+  // the request's sales channel offers — matched case-insensitively, stored as
+  // the channel spells it — so a sender resolving it against that channel
+  // finds it exactly. The actor's own row only; the id is never read from the
+  // request.
+  app.patch(
+    '/api/v1/me/customer/preferred-language',
+    { preHandler: requireCustomer, schema: { body: patchCustomerPreferredLanguageBodySchema } },
+    async (request): Promise<PatchCustomerPreferredLanguageResponse> => {
+      const actor = resolveCustomerActor(request);
+      const body = patchCustomerPreferredLanguageBodySchema.parse(request.body);
+      const requested = body.preferredLanguage.toLowerCase();
+      const offered = toScopeChannel(getResolvedChannel()).languages.find(
+        (language) => language.toLowerCase() === requested,
+      );
+      if (offered === undefined) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.PREFERRED_LANGUAGE_NOT_OFFERED,
+          'This store does not offer that language.',
+        );
+      }
+      const account = await deps.preferences.setPreferredLanguage(actor.customerAccountId, offered);
+      return { data: { preferredLanguage: account.preferredLanguage ?? offered } };
     },
   );
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
 import type { OrganizationSalesChannelOption } from '@endora-commerce/contracts';
 import { Badge, Checkbox, Label } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -15,6 +16,11 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  *
  * Without `onChange` it renders the selected channels as a plain list, which is
  * the read-only view an operator without `customers:manage` gets.
+ *
+ * `pendingId` names a channel whose change is being written (the Organization
+ * panel applies each tick at once, issue #1305): that box is `aria-busy` with a
+ * spinner beside it, every box is `aria-disabled` and a tick is not passed on.
+ * `aria-disabled` rather than `disabled`, so the box just ticked keeps the focus.
  */
 export interface SalesChannelChecklistProps {
   options: readonly OrganizationSalesChannelOption[];
@@ -28,6 +34,8 @@ export interface SalesChannelChecklistProps {
   /** Ids of the description and, while invalid, the error message. */
   describedBy?: string | undefined;
   invalid?: boolean;
+  /** The channel whose change is being written; every box waits for it. */
+  pendingId?: string | null;
 }
 
 export function channelLabel(option: Pick<OrganizationSalesChannelOption, 'code' | 'name'>): string {
@@ -44,6 +52,7 @@ export function SalesChannelChecklist({
   labelledBy,
   describedBy,
   invalid = false,
+  pendingId = null,
 }: SalesChannelChecklistProps): ReactNode {
   const t = useTranslation('organizations');
   const selected = new Set(value);
@@ -78,6 +87,7 @@ export function SalesChannelChecklist({
   }
 
   const toggle = (id: string, checked: boolean): void => {
+    if (pendingId !== null) return;
     // The order the options are listed in, whatever order they were ticked in,
     // so the set compares and reads the same however it was reached.
     const next = new Set(value);
@@ -101,12 +111,18 @@ export function SalesChannelChecklist({
               id={id}
               checked={selected.has(option.id)}
               disabled={disabled}
+              aria-disabled={pendingId !== null ? true : undefined}
+              aria-busy={pendingId === option.id ? true : undefined}
+              className="aria-disabled:cursor-wait aria-disabled:opacity-50"
               onChange={(e) => toggle(option.id, e.target.checked)}
             />
             <Label htmlFor={id} className="cursor-pointer font-normal">
               {text(option)}
             </Label>
             {markers(option)}
+            {pendingId === option.id ? (
+              <Loader2 aria-hidden="true" className="h-3 w-3 animate-spin text-muted-foreground" />
+            ) : null}
           </div>
         );
       })}

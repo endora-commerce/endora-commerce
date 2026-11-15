@@ -263,6 +263,44 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     for (const key of ['customFields.save', 'organizations.restrictions.action.save', 'defaultPreferences.save']) {
       expect(screen.queryByRole('button', { name: coreEn[key]! })).toBeNull();
     }
+    // Issue #1305 — the sales-channels panel had a Save of its own too.
+    expect(screen.queryByRole('button', { name: /sales channels/i })).toBeNull();
+  });
+
+  it('applies a sales-channel tick at once and leaves the page Save count alone (issue #1305)', async () => {
+    const CHANNELS_URL = `${ORG_URL}/sales-channels`;
+    const RETAIL = '00000000-0000-4000-8000-00000000c001';
+    const TRADE = '00000000-0000-4000-8000-00000000c002';
+    const answer = (assigned: string[]) => ({
+      data: {
+        organizationId: ORG_ID,
+        assignedSalesChannelIds: assigned,
+        options: [
+          { id: RETAIL, code: 'retail', name: { 'en-US': 'Retail' }, active: true, systemDefault: true },
+          { id: TRADE, code: 'trade', name: { 'en-US': 'Trade' }, active: true, systemDefault: false },
+        ],
+      },
+    });
+    const base = getSpy.getMockImplementation()!;
+    getSpy.mockImplementation(async (url: string) => (url === CHANNELS_URL ? answer([RETAIL]) : base(url)));
+    const basePut = putSpy.getMockImplementation()!;
+    putSpy.mockImplementation(async (url: string, body: Record<string, unknown>) =>
+      url === CHANNELS_URL ? answer(body['salesChannelIds'] as string[]) : basePut(url, body),
+    );
+    renderDetail();
+    await ready();
+    fireEvent.change(screen.getByLabelText(coreEn['organizations.detail.vatStatus']!), { target: { value: 'vat_exempt' } });
+    await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save 1 change'));
+
+    const trade = await screen.findByRole('checkbox', { name: /Trade/ });
+    fireEvent.click(trade);
+    await waitFor(() => expect(writes).toEqual([`PUT ${CHANNELS_URL}`]));
+    expect(putSpy).toHaveBeenCalledWith(CHANNELS_URL, { salesChannelIds: [RETAIL, TRADE] });
+    await waitFor(() => expect(trade.getAttribute('aria-busy')).toBeNull());
+    expect(trade).toBeChecked();
+    // The tick is not a staged change: the count still counts only the VAT status.
+    expect(saveButton()).toHaveAccessibleName('Save 1 change');
+    expect(screen.getByLabelText(coreEn['organizations.detail.vatStatus']!)).toHaveValue('vat_exempt');
   });
 
   it('writes nothing on change or on blur; Save counts every change', async () => {

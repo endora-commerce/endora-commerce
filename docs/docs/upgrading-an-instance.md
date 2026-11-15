@@ -5007,6 +5007,26 @@ by the `organizationId` in their state lists the Organization's addresses first
 (`GET /api/v1/organizations/mine/addresses`, or `addressReadPort.listIdsForOrganization`) and
 filters the audit log by those ids.
 
+### Retired personal address book entries leave out the account and the Organization {#customers-address-audit-names-only}
+
+The release that ships this change stops writing the customer account's id and the personal
+Organization's id into the platform-wide audit log from the entries about rows of the retired
+personal address book (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whatever Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `customer_address.merge`,
+  `customer_address.merge_refused`, `customer_address.erased` or `customer_address.anonymized`
+  entry no longer carries the customer account's id, and a merge entry no longer carries the
+  Organization's id. The entry is still recorded against the row by id. A merge still names the
+  Organization address the row went to (`mergedIntoAddressId`), and a refusal its error code.
+- The rows, the Organization address book and the retirement job are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep the ids.
+
+**After upgrading,** nothing has to be done. The retention sweep's erasure of a customer's audit
+history finds these entries by the row ids, not by their state, so it is unaffected.
+
 ### Impersonation reasons and Organizations leave the platform audit log {#impersonation-reason-store}
 
 The release that ships this change stops writing the reason an administrator gives for

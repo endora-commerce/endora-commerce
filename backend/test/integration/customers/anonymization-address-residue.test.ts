@@ -317,12 +317,12 @@ describe('Anonymization sweep — address rows the customer deleted, and the ret
     const entries = await em.find(AuditLogEntry, { action: 'customer_address.anonymized', objectId: { $in: ids } });
     expect(entries.map((e) => e.objectId).sort()).toEqual([...ids].sort());
     const byId = new Map(entries.map((e) => [e.objectId, e]));
-    expect(byId.get(moved)!.stateBefore).toMatchObject({ customerAccountId: c.id, kind: 'delivery', wasDeleted: true });
-    expect(byId.get(deletedEarlier)!.stateBefore).toMatchObject({ customerAccountId: c.id, kind: 'billing', wasDeleted: true });
-    expect(byId.get(refused)!.stateBefore).toMatchObject({ customerAccountId: c.id, kind: 'delivery', wasDeleted: false });
+    expect(byId.get(moved)!.stateBefore).toEqual({ kind: 'delivery', wasDeleted: true });
+    expect(byId.get(deletedEarlier)!.stateBefore).toEqual({ kind: 'billing', wasDeleted: true });
+    expect(byId.get(refused)!.stateBefore).toEqual({ kind: 'delivery', wasDeleted: false });
     for (const entry of entries) expect(entry.actorAdminUserId ?? null).toBeNull();
     const serialised = JSON.stringify(entries.map((e) => [e.stateBefore, e.stateAfter]));
-    for (const value of SEEDED) expect(serialised).not.toContain(value);
+    for (const value of [...SEEDED, c.id]) expect(serialised).not.toContain(value);
 
     expect(announcedFor(c.id)).toEqual([c.id]);
   });

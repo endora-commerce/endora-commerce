@@ -72,8 +72,11 @@ vi.mock('../../../lib/server-context', () => ({
     locale,
     ctx: { locale },
     modules: { isPresent: () => true, presentIds: [], absentIds: [] },
+    // Issue #652 — the account page's e-mail-language row reads the channel's languages.
+    urlState: { languages: [], aliases: [], current: locale },
   }),
 }));
+vi.mock('../../../lib/dictionary/client', () => ({ fetchDictionary: async () => ({ languages: [] }) }));
 /** `specs/173-b2c-address-book-merge/` — `/addresses` is the B2C customer's page; a company member is sent on. */
 let personal = false;
 const personalMe: MeResult = {

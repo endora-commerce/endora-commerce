@@ -27,6 +27,7 @@ import type {
   CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
   CustomerAccountLifecycleWritePort,
+  CustomerAccountPreferencePort,
   CustomerAccountReadPort,
   CustomerAuthPort,
   CustomerGroupReadPort,
@@ -111,6 +112,8 @@ export interface CustomersModuleOptions {
    */
   authSessionReadPort: AuthSessionReadPort;
   customerAccountReadPort: CustomerAccountReadPort;
+  /** Issue #652 (D-292) — the buyer's e-mail-language write, for the self-service route. */
+  customerAccountPreferencePort: CustomerAccountPreferencePort;
   /**
    * Feature 075, Phase C — the rest of `customer_accounts`' published surface
    * this module's own screens run on: the lifecycle writes it used to perform
@@ -352,6 +355,7 @@ export function customersModule(options: CustomersModuleOptions): {
       orderList: options.orderList,
       rfqService: options.rfqService,
       customerDefaultsService,
+      preferences: options.customerAccountPreferencePort,
     });
     await registerCustomersAdminRoutes(app, {
       accounts: options.customerAccountReadPort,

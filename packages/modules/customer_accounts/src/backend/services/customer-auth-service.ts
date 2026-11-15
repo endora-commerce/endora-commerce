@@ -60,6 +60,17 @@ export type CustomerLoginOutcome =
   | { status: 'mfaRequired'; challengeId: string }
   | { status: 'mfaSetupRequired'; setupTicket: string };
 
+/**
+ * Issue #652 (D-292) — how a sign-in fills an account's unknown preferred
+ * language: `captureIfUnset` is `customerAccountPreferencePort`'s, and
+ * `onFailure` is told about a capture that threw. A capture never fails the
+ * sign-in it rides on.
+ */
+export interface SignInLanguageCapture {
+  captureIfUnset(customerAccountId: string, preferredLanguage: string): Promise<void>;
+  onFailure(err: unknown, customerAccountId: string): void;
+}
+
 export class CustomerAuthService {
   constructor(
     private readonly emFactory: () => EntityManager,
@@ -82,6 +93,11 @@ export class CustomerAuthService {
      * Optional so a unit composition without it keeps working.
      */
     private readonly channelAccess?: Pick<SalesChannelAccessPort, 'assertCustomerMayUse'>,
+    /**
+     * Issue #652 (D-292) — the preferred-language capture. Optional so a unit
+     * composition without it keeps working; absent, nothing is captured.
+     */
+    private readonly languageCapture?: SignInLanguageCapture,
   ) {}
 
   async login(input: {
@@ -91,6 +107,7 @@ export class CustomerAuthService {
     userAgent?: string;
     salesChannelId?: string | null;
     knownDevice?: string;
+    language?: string | null;
   }): Promise<CustomerLoginOutcome> {
     const em = this.emFactory();
     // Folded, because the row is. `=` on `text` is case-sensitive in Postgres,
@@ -159,6 +176,13 @@ export class CustomerAuthService {
       );
     }
 
+    // Issue #652 (D-292) — an account that has no preferred language yet takes
+    // the sign-in's. Here, after every refusal above and before the second
+    // factor, so a sign-in that goes on to a code captures too and a refused
+    // one captures nothing. A known language is never overwritten: only the
+    // owner's explicit choice does that.
+    await this.capturePreferredLanguage(customer, input.language);
+
     // Second factor (feature 042). No session is issued until it succeeds.
     const mfaPort = this.getMfaLoginPort?.();
     if (mfaPort) {
@@ -199,6 +223,19 @@ export class CustomerAuthService {
       // this device is now one the account has been used from.
       knownDevice: this.throttle ? await this.throttle.issueKnownDevice(customer.id) : null,
     };
+  }
+
+  private async capturePreferredLanguage(
+    customer: CustomerAccount,
+    language: string | null | undefined,
+  ): Promise<void> {
+    const capture = this.languageCapture;
+    if (!capture || !language || customer.preferredLanguage != null) return;
+    try {
+      await capture.captureIfUnset(customer.id, language);
+    } catch (err) {
+      capture.onFailure(err, customer.id);
+    }
   }
 
   async changePassword(

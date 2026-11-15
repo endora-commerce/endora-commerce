@@ -38,6 +38,7 @@ import { readCustomerKnownDevice, rememberCustomerKnownDevice } from './known-de
 import { buildVerificationEmail } from './email-templates/verification.js';
 import type { OrgTemplateEmail } from './services/org-template-email.js';
 import { memberSessionRole } from './services/member-role-views.js';
+import { requestAccountLanguage } from './services/request-account-language.js';
 
 /**
  * Anonymous endpoints: registration, email verification, customer login /
@@ -114,6 +115,8 @@ export async function registerOrganizationsPublicRoutes(
         salesChannelId: currentSalesChannel()?.id ?? null,
         // Feature 175 — a refused custom-field value is worded in the buyer's language.
         language: await request.responseLanguage(),
+        // Issue #652 (D-292) — the language the first user's account records.
+        preferredLanguage: requestAccountLanguage(request.headers['accept-language']),
       });
       // Stash the raw token for the test-only probe so integration tests can
       // complete the verify step without reading the mail.
@@ -210,6 +213,8 @@ export async function registerOrganizationsPublicRoutes(
         email: body.email,
         password: body.password,
         salesChannelId: channelId,
+        // Issue #652 (D-292) — stored only on an account that has none yet.
+        language: requestAccountLanguage(request.headers['accept-language']),
         ...(knownDevice !== undefined ? { knownDevice } : {}),
         ...(request.ip ? { ip: request.ip } : {}),
         ...(typeof request.headers['user-agent'] === 'string'

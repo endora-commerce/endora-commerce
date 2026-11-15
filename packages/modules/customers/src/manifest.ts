@@ -170,7 +170,7 @@ export const manifest = defineModuleManifest({
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   /**
-   * Two codes this module raises.
+   * Three codes this module raises.
    *
    * **`CUSTOMER_ADDRESS_BOOK_RETIRED`** (`specs/173-b2c-address-book-merge/`
    * release 1, OD-8) — every former personal-address-book endpoint answers
@@ -189,12 +189,19 @@ export const manifest = defineModuleManifest({
    * and stays on `UNTRANSLATED_ERROR_CODES`; the storefront's registration page
    * carries its own copy for the refusal.
    *
+   * **`PREFERRED_LANGUAGE_NOT_OFFERED`** (issue #652, D-292) — the buyer's
+   * `PATCH /api/v1/me/customer/preferred-language` named a language the
+   * request's sales channel does not offer (422). The route is this module's
+   * and so is the check; the reader is the buyer on their account page, so it
+   * carries a sentence in both languages.
+   *
    * **`tokens` is derived from the raise sites, not from the bundle**
-   * (runbook §5), and there are none: both raises are a bare
+   * (runbook §5), and there are none: every raise is a bare
    * `HttpError(status, code, message)` with no `details`.
    */
   errorCodes: [
     { code: 'CUSTOMER_ADDRESS_BOOK_RETIRED' },
+    { code: 'PREFERRED_LANGUAGE_NOT_OFFERED' },
     { code: 'REGISTRATION_REQUIRES_ORGANIZATION' },
   ],
   actions: [
