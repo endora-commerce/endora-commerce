@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label } from '@endora-commerce/admin-kit/ui';
-import { OrganizationPicker, CustomerGroupPicker } from '@endora-commerce/admin-kit/components';
+import { OrganizationPicker, CustomerGroupPicker, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { ImmediateBadge } from '../components/ImmediateBadge.js';
 
 interface CommonProps {
   customerId: string;

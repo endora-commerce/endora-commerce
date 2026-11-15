@@ -3,22 +3,19 @@ import type {
   CatalogProductReadPort,
   CatalogProductRecord,
   EmailMailerPort,
+  TemplateEmailPort,
 } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { z } from 'zod';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import { INVENTORY_SETTING_CODES } from '../../manifest.js';
 
-/** Feature 047 — structural port for sending via the admin-editable templates. */
-export interface InventoryTemplateEmailPort {
-  trySend(input: {
-    code: string;
-    to: string;
-    messageId: string;
-    variables: Record<string, unknown>;
-    meta?: Record<string, unknown> | undefined;
-  }): Promise<boolean>;
-}
+/**
+ * Feature 047 — sending via the admin-editable templates: `transactional_emails`'
+ * published `TemplateEmailPort`, which since issue #1256 also takes the
+ * recipient's channel and language.
+ */
+export type InventoryTemplateEmailPort = TemplateEmailPort;
 
 export interface LowStockSummaryRow {
   productId: string;

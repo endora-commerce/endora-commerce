@@ -14,4 +14,4 @@ The sales-channel editor's Save now covers the panels contributed to `sales_chan
 - New strings in English and Polish: `channelEditor.save.hostPartLabel` and `channelEditor.save.failed`.
 
 **mod-inventory:**
-- The warehouse routing panel on the sales-channel editor stays immediate: assigning, unassigning and making a warehouse the default still apply at once. Its heading now carries an "Applies immediately" badge while those actions are offered (`warehouses.channel.immediateBadge`, English and Polish).
+- The warehouse routing panel on the sales-channel editor stays immediate: assigning, unassigning and making a warehouse the default still apply at once. Its heading now carries `@endora-commerce/admin-kit`'s "Applies immediately" badge while those actions are offered.

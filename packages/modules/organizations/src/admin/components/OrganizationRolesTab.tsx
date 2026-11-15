@@ -6,7 +6,7 @@ import type {
   OrganizationRoleView,
 } from '@endora-commerce/contracts';
 import { ApiError, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { ModalDialog } from '@endora-commerce/admin-kit/components';
+import { ModalDialog, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
@@ -31,7 +31,6 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { organizationRolesClient } from '../api/roles.js';
-import { ImmediateBadge } from './ImmediateBadge.js';
 
 /**
  * The operator's *Roles* tab of an Organization (`specs/170-organization-roles/`
@@ -146,7 +145,7 @@ function OrganizationRolesPanel({
           {/* The badge beside the heading, not in it: the heading's name stays the tab's name. */}
           <CardTitle className="flex flex-wrap items-center">
             <h2 className="text-base font-semibold">{t('roles.tab.title')}</h2>
-            <ImmediateBadge />
+            <ImmediateBadge className="align-middle" />
           </CardTitle>
           <CardDescription>{t('roles.tab.description')}</CardDescription>
         </div>

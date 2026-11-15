@@ -37,7 +37,6 @@
   "negotiation.loadError": "Nie udało się wczytać ustawienia negocjacji cen.",
   "negotiation.retry": "Spróbuj ponownie",
   "negotiation.saving": "Zapisywanie…",
-  "negotiation.saved": "Zapisano.",
   "negotiation.saveError": "Nie udało się zapisać ustawienia negocjacji cen. Zachowano poprzednią wartość.",
   "negotiation.readOnlyHint": "Możesz przeglądać to ustawienie. Do jego zmiany potrzebne jest uprawnienie do zarządzania klientami.",
   "adminSearch.group.label": "Zapytania ofertowe",

@@ -546,7 +546,9 @@ describe('foreign-gate sweep — this build', () => {
 
   /**
    * Issue #458 — the two `@@` document-list gates are judged, not passed over
-   * as runtime values: each is one site naming every group's code.
+   * as runtime values: each is one site naming every group's code — the
+   * module's own read code included (issue #498): the own kind is a document
+   * kind like any other.
    */
   it('reads the @@ document-list any-ofs as codes it judges', async () => {
     const scan = scanEnforcedPermissionGates(await permissionScanRoots());
@@ -555,8 +557,8 @@ describe('foreign-gate sweep — this build', () => {
       .filter((site) => site.codes.includes('orders:read'))
       .map((site) => [site.moduleId, site.resolution, [...site.codes].sort()]);
     expect(documentLists.sort()).toEqual([
-      ['crm', 'code', ['orders:read', 'projects:read', 'rfqs:handle', 'tasks:read']],
-      ['projects', 'code', ['crm:read', 'orders:read', 'rfqs:handle', 'tasks:read']],
+      ['crm', 'code', ['crm:read', 'orders:read', 'projects:read', 'rfqs:handle', 'tasks:read']],
+      ['projects', 'code', ['crm:read', 'orders:read', 'projects:read', 'rfqs:handle', 'tasks:read']],
     ]);
     const runtime = scan.runtimeValue
       .filter((site) => /admin[\\/]lib[\\/]references\.ts$/.test(site.file))

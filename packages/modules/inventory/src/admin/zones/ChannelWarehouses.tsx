@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Zap } from 'lucide-react';
-import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { ImmediateBadge, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   AdminZoneProps,
   Warehouse,
@@ -68,7 +67,6 @@ export type ChannelWarehousesProps = AdminZoneProps<'sales_channel.editor.after'
 
 export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactNode {
   const t = useTranslation('core');
-  const ti = useTranslation('inventory');
   const { confirm, confirmDialog } = useConfirmDialog();
   const isVisible = useSurfaceVisibility();
   const canWrite = isVisible({ module: 'inventory', requiredPermission: 'inventory:write' });
@@ -196,12 +194,9 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
           <h2 className="flex flex-wrap items-center gap-2">
             {t('warehouses.channel.title')}
             {canWrite ? (
-              // The product editor's "Applies immediately" badge, drawn the same way: one look for
-              // one meaning on every editor (feature 174 FR-070, feature 180).
-              <span className="inline-flex items-center gap-1 rounded-md border border-[var(--info)]/40 bg-[var(--info-soft)] px-2 py-0.5 text-xs font-medium text-[var(--info-soft-fg)]">
-                <Zap className="size-3" aria-hidden="true" />
-                {ti('warehouses.channel.immediateBadge')}
-              </span>
+              // The kit's "Applies immediately" badge, one look for one meaning on every editor
+              // (feature 174 FR-070, feature 180). The heading's gap spaces it, not its margin.
+              <ImmediateBadge className="ml-0" />
             ) : null}
           </h2>
         </div>

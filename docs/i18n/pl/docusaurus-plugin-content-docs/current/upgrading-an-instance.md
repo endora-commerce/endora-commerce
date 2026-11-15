@@ -5188,6 +5188,29 @@ z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
 z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`), jej
 członków i jej ról.
 
+### Domyślne ustawienia zamawiania nie zapisują organizacji ani konta w dzienniku audytu {#quick-order-preferences-audit-names-only}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać identyfikator organizacji albo konta
+klienta w ogólnoplatformowym dzienniku audytu przy zmianie domyślnych ustawień zamawiania
+(zgłoszenie #470). Ten dziennik to jedna tabela, którą czyta każdy z uprawnieniem
+`audit_log:read`, niezależnie od tego, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis
+  `quick_order.default_preference.update` nie zawiera już `scopeId`, czyli identyfikatora
+  organizacji albo konta klienta, którego ustawienia się zmieniły. Zachowuje zakres
+  (`organization` albo `customer`) i identyfikatory wybranej metody płatności, metody dostawy
+  i adresów, a jego `stateAfter` podaje teraz nazwy zmienionych pól w `changedFields`. Wpis nadal
+  jest przypisany do ustawień po ich identyfikatorze.
+- Same ustawienia się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują `scopeId`.
+
+**Po aktualizacji** nie trzeba nic robić. Dziennik audytu nadal podaje, kto zmienił ustawienia,
+kiedy i co się zmieniło; nie podaje już, czyje to były ustawienia. Raport, który odczytywał to
+z `scopeId`, odczytuje aktualne ustawienia domyślne organizacji albo klienta z
+`GET /api/v1/quick-order/preferences?scope=…&scopeId=…`.
+
 ### Wpisy wycofanej osobistej książki adresowej nie zawierają konta ani organizacji {#customers-address-audit-names-only}
 
 Wydanie, które wprowadza tę zmianę, przestaje zapisywać identyfikator konta klienta

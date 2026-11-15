@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
+import { OrganizationPicker, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, Label } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { ImmediateBadge } from '../components/ImmediateBadge.js';
 
 interface TreeNode {
   id: string;
@@ -88,7 +87,7 @@ export function HierarchyPanel(props: HierarchyPanelProps): ReactNode {
       <CardHeader>
         <CardTitle>
           {t('organizations.detail.hierarchyCard')}
-          <ImmediateBadge />
+          <ImmediateBadge className="align-middle" />
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">

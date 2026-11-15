@@ -1844,7 +1844,7 @@ straight from the keyboard:
 | Type | To mention | Offered to |
 | --- | --- | --- |
 | `@` | a **person** — a user of the Admin UI who may read opportunities | anybody writing the text |
-| `@@` | a **document** — an order or a quote request of the opportunity's organization, a task, an opportunity or a project — from the grouped list above | a role that also holds `orders:read`, `rfqs:handle`, `tasks:read` or `projects:read`; each group only with its own |
+| `@@` | a **document** — an order or a quote request of the opportunity's organization, a task, an opportunity or a project — from the grouped list above | anybody writing the text — the opportunities group is always offered; orders, quote requests, tasks and projects only to a role that also holds `orders:read`, `rfqs:handle`, `tasks:read` or `projects:read` respectively |
 | `@@@` | a **product** | a role that also holds `catalog:read` |
 
 Type the `@` at the start of the text or after a space and a list opens **where

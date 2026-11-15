@@ -42,6 +42,5 @@
   "actions.openLowStock.keywords": "low, stock level, threshold",
   "actions.openStockNotifications.keywords": "notifications, availability",
   "actions.importStock.keywords": "stock levels, warehouse",
-  "settingGroups.inventory.name": "Inventory",
-  "warehouses.channel.immediateBadge": "Applies immediately"
+  "settingGroups.inventory.name": "Inventory"
 }

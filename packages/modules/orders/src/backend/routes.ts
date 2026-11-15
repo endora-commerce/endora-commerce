@@ -14,7 +14,6 @@ import {
   customFieldValuesSchema,
   customerAddOrderCommentRequestSchema,
   ERROR_CODES,
-  firstLanguageTag,
   isCustomFieldFilterUnavailableFailure,
   isCustomFieldValidationFailure,
   organizationCompanyTaxId,
@@ -22,6 +21,7 @@ import {
   OrganizationCannotTransactError,
   orderPreviewTotalRequestSchema,
   placeOrderRequestSchema,
+  requestScopeLanguage,
   setOrderTransitionsRequestSchema,
   updateOrderSavedViewRequestSchema,
   updateOrderStatusRequestSchema,
@@ -1523,7 +1523,16 @@ export async function registerOrderRoutes(
       // answers 404 for one outside it.
       // Feature 155 — the buyer's clone: no actor, so a minimum refuses it (US4 #5a).
       // Feature 163 — its lines are judged at the request's channel and scope language.
-      const languageTag = firstLanguageTag(request.headers['accept-language']);
+      // Issue #1011 — the channel language the whole `Accept-Language` asks for
+      // (`requestScopeLanguage`, as the catalogue resolves it since #397): the tags in
+      // descending `q`, each matched against the channel's languages (exactly, then by base
+      // language), else the channel's default. It used to be the header's first tag alone.
+      // A content language, so not `request.responseLanguage()`, which words the messages.
+      const header = request.headers['accept-language'];
+      const languageTag =
+        header === undefined || header.length === 0
+          ? undefined
+          : requestScopeLanguage(getResolvedChannel(request), header);
       const result = await deps.orderCloneToQuoteService.clone(
         request.params.id,
         { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId },

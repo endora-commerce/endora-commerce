@@ -1925,7 +1925,7 @@ klawiatury:
 | Wpisz | Aby wspomnieć | Dostępne dla |
 | --- | --- | --- |
 | `@` | **osobę** — użytkownika Admin UI, który może czytać szanse sprzedażowe | każdego, kto pisze tekst |
-| `@@` | **dokument** — zamówienie albo zapytanie ofertowe organizacji tej szansy, zadanie, szansę sprzedażową albo projekt — z pogrupowanej listy opisanej wyżej | roli, która ma także `orders:read`, `rfqs:handle`, `tasks:read` albo `projects:read`; każdą grupę tylko z jej własnym uprawnieniem |
+| `@@` | **dokument** — zamówienie albo zapytanie ofertowe organizacji tej szansy, zadanie, szansę sprzedażową albo projekt — z pogrupowanej listy opisanej wyżej | każdemu, kto pisze tekst — grupa szans sprzedażowych jest oferowana zawsze; zamówienia, zapytania ofertowe, zadania i projekty tylko roli, która ma także odpowiednio `orders:read`, `rfqs:handle`, `tasks:read` albo `projects:read` |
 | `@@@` | **produkt** | roli, która ma także `catalog:read` |
 
 Wpisz `@` na początku tekstu albo po spacji, a lista otworzy się **tam, gdzie

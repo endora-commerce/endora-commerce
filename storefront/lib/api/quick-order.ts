@@ -202,7 +202,14 @@ export async function upsertQuickOrderPreference(
 
 export interface QuickOrderOneClickEligibility {
   enabled: boolean;
-  reason?: 'setting_disabled' | 'missing_defaults' | 'ineligible_default' | null;
+  /** `@endora-commerce/contracts`' `quickOrderOneClickEligibilitySchema` — the member's role first. */
+  reason?:
+    | 'permission_required'
+    | 'cart_approval_required'
+    | 'setting_disabled'
+    | 'missing_defaults'
+    | 'ineligible_default'
+    | null;
 }
 
 export interface QuickOrderNextAction {

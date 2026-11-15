@@ -9,6 +9,7 @@ import type {
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  TemplateEmailPort,
 } from '@endora-commerce/contracts';
 import { AvailabilityWorker } from '../../../../packages/modules/inventory/src/backend/services/availability-worker.js';
 import { AvailabilityNotificationService } from '../../../../packages/modules/inventory/src/backend/services/availability-notification-service.js';
@@ -33,13 +34,15 @@ const SEED_WAREHOUSE_ID = '00000000-0000-4000-8000-00000000d017';
 
 describe('174 — inventory alerts name products by their Global name [integration]', () => {
   let h: BackendServerHandle;
+  /** The composed transport: the back-in-stock template leaves through it (issue #1256). */
+  const mailer = new InMemoryMailer();
   const RUN = minimumFixtureRun();
   let drill: MinimumProductFixture;
   const GLOBAL = `Drill X ${RUN}`;
   const sql = (query: string, params: unknown[] = []) => h.em().getConnection().execute(query, params);
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ organizationsMailer: mailer });
     const em = h.em();
     const vipId = (await em.findOneOrFail(SalesChannel, { code: 'pl_b2b_vip' })).id;
     drill = await createMinimumProduct(em, { sku: `S170-IN-${RUN}`, nameEn: GLOBAL, namePl: GLOBAL, channelIds: [vipId] });
@@ -76,16 +79,19 @@ describe('174 — inventory alerts name products by their Global name [integrati
     catalogProducts: CatalogProductReadPort;
     customerAccounts: CustomerAccountReadPort;
     catalogAvailability: CatalogProductAvailabilityPort;
+    templateEmail: TemplateEmailPort;
   } {
     const cradle = h.container.cradle as never as {
       catalogProductReadPort: CatalogProductReadPort;
       customerAccountReadPort: CustomerAccountReadPort;
       catalogProductAvailabilityPort: CatalogProductAvailabilityPort;
+      templateEmailPort: TemplateEmailPort;
     };
     return {
       catalogProducts: cradle.catalogProductReadPort,
       customerAccounts: cradle.customerAccountReadPort,
       catalogAvailability: cradle.catalogProductAvailabilityPort,
+      templateEmail: cradle.templateEmailPort,
     };
   }
 
@@ -104,9 +110,9 @@ describe('174 — inventory alerts name products by their Global name [integrati
 
   it('the back-in-stock e-mail of the stock worker names an unscoped subscription\'s product by its Global name', async () => {
     await subscribe();
-    const mailer = new InMemoryMailer();
-    const { catalogProducts, customerAccounts, catalogAvailability } = ports();
-    const worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts, catalogAvailability);
+    mailer.sent.length = 0;
+    const { catalogProducts, customerAccounts, catalogAvailability, templateEmail } = ports();
+    const worker = new AvailabilityWorker(h.em, mailer, catalogProducts, customerAccounts, catalogAvailability, templateEmail);
     expect((await worker.dispatchForStockIncrease({ productId: drill.id })).notified).toBe(1);
     expect(mailer.sent[0]?.subject).toBe(`Back in stock: ${GLOBAL}`);
     expect(mailer.sent[0]?.text).toContain(`"${GLOBAL}"`);
@@ -114,9 +120,9 @@ describe('174 — inventory alerts name products by their Global name [integrati
 
   it('the back-in-stock e-mail of the restock fan-out names an unscoped subscription\'s product by its Global name', async () => {
     await subscribe();
-    const mailer = new InMemoryMailer();
-    const { catalogProducts, customerAccounts, catalogAvailability } = ports();
-    const service = new AvailabilityNotificationService(h.em, catalogProducts, customerAccounts, catalogAvailability, mailer);
+    mailer.sent.length = 0;
+    const { catalogProducts, customerAccounts, catalogAvailability, templateEmail } = ports();
+    const service = new AvailabilityNotificationService(h.em, catalogProducts, customerAccounts, catalogAvailability, mailer, templateEmail);
     expect((await service.processRestockedFanOut({ productId: drill.id })).notified).toBe(1);
     expect(mailer.sent[0]?.subject).toBe(`Back in stock: ${GLOBAL}`);
     expect(mailer.sent[0]?.text).toContain(`"${GLOBAL}"`);

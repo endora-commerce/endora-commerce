@@ -9,4 +9,4 @@ The customer detail screen now has one Save for everything that waits to be save
 - The custom fields no longer have a Save button of their own. Save writes them first, through the same `PATCH /api/v1/admin/customers/:id/custom-fields`, then the panels in zone order. If the custom-field write is refused, no panel is written and the refusal is shown at its field. If a panel fails after the custom fields saved, a summary at the top of the screen says what was saved and what was not; the next Save writes only what is left.
 - Leaving the page or closing the browser tab with unsaved changes asks first.
 - Block, unblock, password reset, two-step verification reset, impersonation, delete and restore, and the organization and customer-group assignments still apply at once. Their sections now carry an "Applies immediately" badge.
-- New strings in English and Polish: `detail.save.hostPartLabel` and `detail.immediate.badge`.
+- New string in English and Polish: `detail.save.hostPartLabel`. The badge is `@endora-commerce/admin-kit`'s `ImmediateBadge`.

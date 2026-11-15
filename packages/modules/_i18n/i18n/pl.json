@@ -2312,6 +2312,7 @@
   "saveSession.error.moduleOff": "Nie zapisano: ten moduł został wyłączony.",
   "saveSession.notice.crashed": "{label}: niezapisane zmiany odrzucono, ponieważ ta sekcja przestała działać.",
   "saveSession.notice.moduleOff": "{label}: niezapisane zmiany odrzucono, ponieważ moduł został wyłączony.",
+  "saveSession.immediateBadge": "Działa od razu",
   "savedViews.label": "Zapisane widoki",
   "savedViews.none": "— Wybierz widok —",
   "savedViews.sharedSuffix": "(udostępniony)",

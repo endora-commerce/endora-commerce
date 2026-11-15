@@ -54,7 +54,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog, ProductPicker, SaveSessionSummary } from '@endora-commerce/admin-kit/components';
+import { ModalDialog, ProductPicker, SaveSessionSummary, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from '../components/ProductInventoryTab.js';
@@ -69,7 +69,7 @@ import { ProductScopeBar } from '../components/ProductScopeBar.js';
 import { ProductEditorSaveAction } from '../components/ProductEditorSaveAction.js';
 import { DetailsTab } from '../components/editor/DetailsTab.js';
 import { EditorField, ProductEditorContextProvider, fieldDomId, type ProductEditorContextValue } from '../components/editor/editor-context.js';
-import { ImmediateBadge, SectionHeading } from '../components/editor/ImmediateBadge.js';
+import { SectionHeading } from '../components/editor/SectionHeading.js';
 import { TextControl } from '../components/editor/scoped-controls.js';
 import { useConfirmRemoval } from '../components/editor/confirm-removal.js';
 import { ProductCreateForm } from './ProductCreateForm.js';

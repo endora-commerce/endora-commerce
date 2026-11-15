@@ -1,10 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   CustomerSessionRequiredError,
-  firstLanguageTag,
   quickOrderBuildRequestSchema,
   quickOrderImportRequestSchema,
   quickOrderSearchQuerySchema,
+  requestScopeLanguage,
   type CatalogQuickSearchPort,
   type OrganizationPermissionPort,
   type OrganizationPermissionSubject,
@@ -145,8 +145,9 @@ export async function registerQuickOrderRoutes(
         },
         // Feature 155 — the buyer's build: no actor, so a quote request is
         // judged by the buyer's rules (FR-012). Feature 163 — its quote lines'
-        // scope language is the request's tag, not the message language.
-        { language: await request.responseLanguage(), languageTag: firstLanguageTag(request.headers['accept-language']) },
+        // scope language is the request's channel language (issue #1011), not
+        // the message language.
+        { language: await request.responseLanguage(), languageTag: channelLanguageOf(request) },
       );
       return { data: result };
     },
@@ -183,9 +184,10 @@ export async function registerQuickOrderRoutes(
       limit: query.limit,
       salesChannelId: getResolvedChannel(request).id,
       organizationId: resolveCustomerContext(request).organizationId,
-      // Feature 163 — the request's language; `catalog` resolves it against
-      // the channel's own languages, so a product off in it is not a hit.
-      languageCode: firstLanguageTag(request.headers['accept-language']),
+      // Feature 163 — the request's language; a product off in it is not a
+      // hit. Issue #1011 — already one of the channel's languages, which
+      // `catalog`'s own resolution against the channel leaves as it is.
+      languageCode: channelLanguageOf(request),
     });
 
     return {
@@ -201,4 +203,21 @@ export async function registerQuickOrderRoutes(
       })),
     };
   });
+}
+
+/**
+ * The channel language the request's `Accept-Language` asks for, or `undefined` without the
+ * header (the channel's default language is then asked about, as before). Issue #1011 —
+ * `requestScopeLanguage` over the whole header, as the catalogue resolves it since #397: the
+ * tags in descending `q`, each matched against the resolved channel's languages (exactly, then
+ * by base language), the first one the channel offers winning, else the channel's default. This
+ * used to be the header's first tag alone, so `en;q=0.2, pl-PL;q=0.9` asked about English.
+ *
+ * A content language — which (channel, language) a product is available and named at — so not
+ * `request.responseLanguage()`, the language messages are worded in.
+ */
+function channelLanguageOf(request: FastifyRequest): string | undefined {
+  const header = request.headers['accept-language'];
+  if (header === undefined || header.length === 0) return undefined;
+  return requestScopeLanguage(getResolvedChannel(request), header);
 }

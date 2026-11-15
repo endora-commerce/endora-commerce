@@ -8,6 +8,8 @@ import type {
 import { AvailabilityNotification } from '../entities/availability-notification.entity.js';
 import { restockDisposition } from './restock-product-state.js';
 import { backInStockNames } from './back-in-stock-names.js';
+import { sendBackInStockEmail } from './back-in-stock-email.js';
+import type { InventoryTemplateEmailPort } from './low-stock-alert-service.js';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
 export interface AdjustedPayload {
@@ -27,8 +29,9 @@ export interface AdjustedPayload {
  *
  *   1. Loads every AvailabilityNotification for that (productId, variantId)
  *      that hasn't yet been notified.
- *   2. For each subscriber, sends a back-in-stock email via the injected
- *      Mailer.
+ *   2. For each subscriber, sends the `availability_back_in_stock`
+ *      template in the subscription's channel and language (issue #1256),
+ *      through `transactional_emails`' `templateEmailPort`.
  *   3. Marks the notification consumed (`notifiedAt = now`) inside one
  *      flush so a worker crash mid-batch doesn't double-send (the next
  *      run re-loads only un-notified rows).
@@ -51,6 +54,15 @@ export class AvailabilityWorker {
      * back to the Global name.
      */
     private readonly catalogTexts: Pick<CatalogProductAvailabilityPort, 'effectiveTexts'>,
+    /**
+     * `templateEmailPort`, owned by `transactional_emails` — the operator-editable
+     * back-in-stock template, rendered in each subscription's channel and language (issue
+     * #1256). Required for the reason `catalogTexts` is: the owner is non-deactivatable and a
+     * declared dependency, and an optional sender is a composition that silently sends the
+     * fixed English text. {@link mailer} carries that text only when the template path answers
+     * that no definition exists.
+     */
+    private readonly templateEmail: InventoryTemplateEmailPort,
   ) {}
 
   async dispatchForStockIncrease(input: {
@@ -124,31 +136,21 @@ export class AvailabilityWorker {
         sub.notifiedAt = now;
         continue;
       }
-      const outcome = await this.mailer.send({
-        messageId: `availability:${sub.id}`,
-        to,
-        subject: `Back in stock: ${productName}`,
-        text: `Good news — "${productName}" is available again.`,
-        kind: 'availability_back_in_stock',
-        meta: {
-          productId: input.productId,
-          variantId: input.variantId ?? null,
+      await sendBackInStockEmail(
+        { templateEmail: this.templateEmail, mailer: this.mailer },
+        {
           notificationId: sub.id,
+          to,
+          productName,
+          salesChannelId: sub.salesChannelId ?? null,
+          languageCode: sub.languageCode ?? null,
+          meta: {
+            productId: input.productId,
+            variantId: input.variantId ?? null,
+            notificationId: sub.id,
+          },
         },
-      });
-      // Only the transport's refusal is named here. `logged` (issue #186) is the
-      // console driver saying no mail server is configured: it has already
-      // written the message to the log itself, and the delivery record says so.
-      if (outcome.status === 'suppressed') {
-        // The subscription is still consumed: the one suppression a transport
-        // performs is an already-accepted `messageId`, which means this
-        // subscriber was notified by an earlier run. Re-sending it is the
-        // duplicate the idempotency key exists to prevent.
-        console.warn('[inventory] the back-in-stock e-mail was not sent', {
-          notificationId: sub.id,
-          reason: outcome.reason,
-        });
-      }
+      );
       sub.notifiedAt = now;
     }
     await em.flush();

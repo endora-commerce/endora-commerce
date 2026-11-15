@@ -130,7 +130,8 @@ describe('the actions redirect with a code, never a sentence', () => {
 
   it('preferences carries SAVE_FAILED', async () => {
     failure = new StorefrontApiError(500, 'INTERNAL', 'Database exploded.');
-    const action = actionsOf(await tree('preferences')).get('saveAction')!;
+    // Issue #359 — the page's two forms share one action, which lives beside the other account actions.
+    const { saveOrderingPreferencesAction: action } = await import('../../lib/actions/ordering-preferences');
     expect(await redirectOf(() => action(form({}) as never))).toBe('/preferences?error=SAVE_FAILED');
   });
 

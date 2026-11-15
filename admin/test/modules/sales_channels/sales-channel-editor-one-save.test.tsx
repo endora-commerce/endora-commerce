@@ -46,6 +46,8 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 
 const getByCodeSpy = vi.fn();
 const updateSpy = vi.fn();
+const activateSpy = vi.fn();
+const deactivateSpy = vi.fn();
 
 vi.mock('../../../../packages/modules/sales_channels/src/admin/api/sales-channels-client', () => ({
   salesChannelsClient: {
@@ -53,6 +55,14 @@ vi.mock('../../../../packages/modules/sales_channels/src/admin/api/sales-channel
     update: (...a: unknown[]) => {
       writes.push('PATCH channel');
       return updateSpy(...a);
+    },
+    activate: (...a: unknown[]) => {
+      writes.push('POST activate');
+      return activateSpy(...a);
+    },
+    deactivate: (...a: unknown[]) => {
+      writes.push('POST deactivate');
+      return deactivateSpy(...a);
     },
     create: vi.fn(),
     list: vi.fn(),
@@ -73,9 +83,7 @@ const read = (path: string): Record<string, string> =>
 const en = read('../packages/modules/sales_channels/i18n/en.json');
 const pl = read('../packages/modules/sales_channels/i18n/pl.json');
 const coreEn = read('../packages/modules/_i18n/i18n/en.json');
-const inventoryEn = read('../packages/modules/inventory/i18n/en.json');
-const inventoryPl = read('../packages/modules/inventory/i18n/pl.json');
-const bundle = { sales_channels: en, core: coreEn, inventory: inventoryEn };
+const bundle = { sales_channels: en, core: coreEn };
 
 const CHANNEL_ID = '00000000-0000-4000-8000-000000000001';
 const WAREHOUSE_ID = '55555555-5555-4555-8555-555555555501';
@@ -198,15 +206,15 @@ beforeEach(() => {
     channel({ name: body.name, version: 4 }),
   );
   probe.save.mockReset().mockImplementation(async (draft) => draft);
+  activateSpy.mockReset().mockResolvedValue(channel({ active: true, version: 4 }));
+  deactivateSpy.mockReset().mockResolvedValue(channel({ active: false, version: 4 }));
 });
 afterEach(() => cleanup());
 
 describe('bundle', () => {
-  it('ships the host part label and the immediate badge in English and Polish', () => {
+  it('ships the host part label in English and Polish', () => {
     expect(en['channelEditor.save.hostPartLabel']).toBe('Sales channel');
     expect(pl['channelEditor.save.hostPartLabel']).toBeTruthy();
-    expect(inventoryEn['warehouses.channel.immediateBadge']).toBe('Applies immediately');
-    expect(inventoryPl['warehouses.channel.immediateBadge']).toBeTruthy();
   });
 });
 
@@ -329,7 +337,7 @@ describe('sales-channel editor — warehouse routing stays immediate (feature 18
     renderPage({ probe: false });
     await nameField();
     const heading = await screen.findByRole('heading', { name: new RegExp(coreEn['warehouses.channel.title']!) });
-    expect(heading).toHaveTextContent(inventoryEn['warehouses.channel.immediateBadge']!);
+    expect(heading).toHaveTextContent(coreEn['saveSession.immediateBadge']!);
 
     fireEvent.change(await screen.findByLabelText(coreEn['warehouses.channel.field.warehouse']!), {
       target: { value: WAREHOUSE_ID },
@@ -337,6 +345,66 @@ describe('sales-channel editor — warehouse routing stays immediate (feature 18
     fireEvent.click(screen.getByRole('button', { name: coreEn['warehouses.channel.action.add']! }));
     await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
     expect(writes).toEqual([`POST /api/v1/admin/sales-channels/${CHANNEL_ID}/warehouses`]);
+    expect(saveButton()).toHaveTextContent(/^Save$/);
+  });
+});
+
+/**
+ * Feature 180 (#407, after WP-9) — the header's Deactivate / Re-activate write the status at once
+ * and hand the form the channel they answered with. That re-seed used to overwrite every field,
+ * silently dropping the operator's unsaved identity edits. Now a field the operator changed and
+ * the answer did not is kept; a field the answer changed (the status) follows it. Participants
+ * keep their drafts: the session is keyed by the channel id, which the toggle does not change.
+ */
+describe('sales-channel editor — the activation toggle keeps unsaved edits (feature 180)', () => {
+  const activeBox = (): HTMLInputElement => screen.getByLabelText(en['identity.active']!) as HTMLInputElement;
+
+  it('Deactivate keeps the unsaved name and the participant draft, and the status follows', async () => {
+    renderPage();
+    fireEvent.change(await nameField(), { target: { value: 'Serwis B' } });
+    await changeProbe();
+    expect(saveButton()).toHaveTextContent('Save 2 changes');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
+    await waitFor(() => expect(deactivateSpy).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('button', { name: 'Re-activate' })).toBeInTheDocument();
+
+    expect((screen.getByLabelText(en['identity.name.label']!) as HTMLInputElement).value).toBe('Serwis B');
+    expect((screen.getByLabelText('Probe value') as HTMLInputElement).value).toBe('edited');
+    expect(activeBox().checked).toBe(false);
+    expect(saveButton()).toHaveTextContent('Save 2 changes');
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(probe.save).toHaveBeenCalledTimes(1));
+    // The new version and the new status: the Save does not undo the toggle.
+    expect(updateSpy.mock.calls[0]?.[1]).toMatchObject({
+      expectedVersion: 4,
+      active: false,
+      name: { 'en-US': 'Serwis B' },
+    });
+    expect(writes).toEqual(['POST deactivate', 'PATCH channel', 'PUT probe']);
+  });
+
+  it('Re-activate keeps the unsaved name too', async () => {
+    getByCodeSpy.mockResolvedValue(channel({ active: false }));
+    renderPage({ probe: false });
+    fireEvent.change(await nameField(), { target: { value: 'Serwis B' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-activate' }));
+    expect(await screen.findByRole('button', { name: 'Deactivate' })).toBeInTheDocument();
+    expect((screen.getByLabelText(en['identity.name.label']!) as HTMLInputElement).value).toBe('Serwis B');
+    expect(activeBox().checked).toBe(true);
+    expect(saveButton()).toHaveTextContent('Save 1 change');
+  });
+
+  it('a Save still re-seeds every field from the answer, even one the answer left unchanged', async () => {
+    // A server that normalises the written name back to the stored one: the form shows the answer.
+    updateSpy.mockImplementation(async () => channel({ version: 4 }));
+    renderPage({ probe: false });
+    fireEvent.change(await nameField(), { target: { value: 'Serwis B' } });
+    fireEvent.click(saveButton());
+    await waitFor(() =>
+      expect((screen.getByLabelText(en['identity.name.label']!) as HTMLInputElement).value).toBe('Serwis A'),
+    );
     expect(saveButton()).toHaveTextContent(/^Save$/);
   });
 });

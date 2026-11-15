@@ -8,7 +8,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { DefaultPreferenceService } from './services/default-preference-service.js';
-import { canManagePreference, type PreferenceActor } from './services/default-preference-authz.js';
+import { canReadPreference, type PreferenceActor } from './services/default-preference-authz.js';
 
 /**
  * Storefront default-preferences routes (feature 039, US2). The caller manages
@@ -21,6 +21,9 @@ import { canManagePreference, type PreferenceActor } from './services/default-pr
  * `organizationPermissionPort.isAdministrator`, never a permission code, so no
  * custom role can be granted it, and a refusal is the existing `403
  * FORBIDDEN`. It used to be read off the account's legacy role.
+ *
+ * Reading is wider than managing by one row (issue #359): every member may read
+ * their own Organization's defaults, the values they inherit.
  */
 export interface QuickOrderPreferenceRoutesDeps {
   service: DefaultPreferenceService;
@@ -73,12 +76,13 @@ export async function registerQuickOrderPreferenceRoutes(
     const scope = quickOrderPreferenceScopeSchema.parse(query.scope);
     const scopeId = query.scopeId ?? '';
     const actor = await resolveActor(request, deps);
+    const { organizationId } = resolveCustomerContext(request);
 
     const targetCustomerOrgId =
       scope === 'customer'
         ? ((await customerAccounts.findById(scopeId))?.organizationId ?? null)
         : null;
-    if (!(await canManagePreference(actor, { scope, scopeId }, targetCustomerOrgId))) {
+    if (!(await canReadPreference(actor, { scope, scopeId }, targetCustomerOrgId, organizationId || null))) {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Not allowed to read these defaults.');
     }
     return { data: await service.readRaw(scope, scopeId) };

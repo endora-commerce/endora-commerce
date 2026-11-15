@@ -1,21 +1,14 @@
 import type { ReactNode } from 'react';
-import { Lock, Zap } from 'lucide-react';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { Lock } from 'lucide-react';
+import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
 
 /**
- * Feature 174 (FR-070, `contracts/editor-ui.md` §3 and §11) — one visible "Applies immediately"
- * badge on the heading of a section whose controls run at once as their own audited Commands
- * (structural operations, price-book rows, membership, stock). Text, not only an icon.
+ * Feature 174 (FR-070, `contracts/editor-ui.md` §3 and §11) — the product editor's section
+ * headings: a section whose controls run at once as their own audited Commands (structural
+ * operations, price-book rows, membership, stock) carries the kit's "Applies immediately" badge
+ * (feature 180, #407: one badge for every editor, formerly a copy here); outside Global a
+ * structural section carries "Global only" instead.
  */
-export function ImmediateBadge(): ReactNode {
-  const t = useTranslation('catalog');
-  return (
-    <span className="ml-2 inline-flex items-center gap-1 rounded-md border border-[var(--info)]/40 bg-[var(--info-soft)] px-2 py-0.5 text-xs font-medium text-[var(--info-soft-fg)]">
-      <Zap className="size-3" aria-hidden="true" />
-      {t('productEditor.immediate.badge')}
-    </span>
-  );
-}
 
 /** The heading badge of a structural section outside Global: the set itself is Global only. */
 export function GlobalOnlyBadge({ label }: { label: string }): ReactNode {
