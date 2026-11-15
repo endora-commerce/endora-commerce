@@ -142,8 +142,8 @@ describe('AddressService.anonymizeForOrganization (T-U3)', () => {
     expect(removed.deletedAt).toBe(deletedAt);
     // Whether the row was already deleted is the one new fact the entry records.
     expect(recorded.map((r) => r.stateBefore)).toEqual([
-      { organizationId: ORG, kind: 'delivery', wasDeleted: false },
-      { organizationId: ORG, kind: 'billing', wasDeleted: true },
+      { kind: 'delivery', wasDeleted: false },
+      { kind: 'billing', wasDeleted: true },
     ]);
     expect(JSON.stringify(recorded)).not.toContain('Kowalski');
   });

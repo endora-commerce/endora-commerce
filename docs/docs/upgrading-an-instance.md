@@ -4962,6 +4962,29 @@ read by everybody holding `audit_log:read` whatever Organizations they may see.
 the audit log reads them from the Organization (`GET /api/v1/admin/organizations/:id`), its members
 and its roles instead.
 
+### Organization addresses leave the platform audit log {#addresses-audit-names-only}
+
+The release that ships this change stops writing the Organization's id into the platform-wide
+audit log from Organization address writes, and makes an address update say what changed
+(issue #470). That log is one table, read by everybody holding `audit_log:read` whatever
+Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `address.create`, `address.update`,
+  `address.delete` or `address.anonymized` entry no longer carries the Organization's id. The entry
+  is still recorded against the address by id.
+- `address.create` and `address.update` now name the fields as `changedFields` (for an update,
+  only the fields whose value changed), beside the kind of address. Neither carries the recipient,
+  street, city, postal code or phone, as before.
+- The addresses themselves are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep the Organization's id.
+
+**After upgrading,** nothing has to be done. A report that found an Organization's address entries
+by the `organizationId` in their state lists the Organization's addresses first
+(`GET /api/v1/organizations/mine/addresses`, or `addressReadPort.listIdsForOrganization`) and
+filters the audit log by those ids.
+
 ### The admin panel's address is a platform input {#admin-base-url-platform-input}
 
 The release that ships this change makes `ADMIN_BASE_URL` — the admin panel's address — an input
