@@ -127,6 +127,11 @@ export interface OrganizationsModuleOptions {
     anonymousCartToken?: string;
     /** `compare_token` cookie value, if the caller was building an anonymous comparison. */
     anonymousCompareToken?: string;
+    /**
+     * Issue #1188 — the channel the sign-in belongs to when its request carries
+     * none (the federated callback). Absent: the request's resolved channel.
+     */
+    salesChannelId?: string;
   }) => Promise<{ cartMerge?: CartMergeOutcome }>;
   /** Admin gate for /admin/organizations routes. */
   requireAdmin?: RequireAdminFactory;

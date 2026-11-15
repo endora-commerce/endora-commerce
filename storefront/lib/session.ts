@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import {
+  CART_MERGE_FLASH_COOKIE_NAME,
   CUSTOMER_KNOWN_DEVICE_COOKIE_NAME,
   MFA_CHALLENGE_COOKIE_NAME,
 } from '@endora-commerce/contracts';
@@ -22,7 +23,9 @@ const ANON_CART_COOKIE = 'b2b_cart_anon';
  * it; it only forwards it with a sign-in (issue #1189).
  */
 const ANON_COMPARE_COOKIE = 'compare_token';
-const CART_MERGE_FLASH_COOKIE = 'b2b_cart_merge_flash';
+// Published by the contracts package: the backend sets the same cookie when a
+// federated sign-in carries the signed-out basket over (issue #1188).
+const CART_MERGE_FLASH_COOKIE = CART_MERGE_FLASH_COOKIE_NAME;
 // Published by the contracts package: the backend sets the same cookie when a
 // federated sign-in hands over to the second step.
 const MFA_CHALLENGE_COOKIE = MFA_CHALLENGE_COOKIE_NAME;

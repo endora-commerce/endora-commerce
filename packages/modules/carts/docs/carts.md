@@ -25,6 +25,7 @@ A basket belongs to the sales channel — the store — it is used on:
 - Line prices, promotions and coupons, and whether a product is sold on request only, are resolved for the basket's channel — the price a buyer sees in a store's basket is that store's price.
 - Merging at sign-in only merges an anonymous basket of the store the customer signs in on; a basket filled on another store is left as it is.
 - The merge runs when the customer session is established, so a sign-in completed by two-step verification merges the basket too — after the code is accepted, or after a required set-up of two-step verification is finished.
+- A sign-in with Google or Microsoft merges the basket too, on the store the sign-in was started on, and shows the same notice. When the account also needs two-step verification, the basket is merged once the code is accepted.
 - Placing an order uses the basket of the order's channel. A basket of another channel is refused with `422 ORDER_SALES_CHANNEL_MISMATCH` — *"Your basket belongs to a different store. Open the basket in this store and place the order again."* — before anything is reserved or written; the basket is kept and nothing is repriced.
 
 When baskets started recording their channel, every basket that had none was recorded on the system-default channel.
