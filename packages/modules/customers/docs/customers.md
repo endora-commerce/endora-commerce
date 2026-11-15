@@ -71,6 +71,28 @@ switched off by a special case.
 - Read-only orders, quote-requests, and (current + abandoned) carts panels.
 - An "online customers" view backed by recent session activity.
 
+**One Save on the customer screen.** The customer screen (`/customers/:id`) has one Save in its
+header (kept in reach at the bottom of a narrow screen). It covers the customer's **custom fields**
+and the panels other modules contribute, each while its module is on: the **ordering defaults**
+(Quick order) and the **price negotiation** override (Quote requests). None of them saves on its
+own any more. Save reads "Save 2 changes" once there is something to save.
+
+- Everything is checked first; if any part is refused, nothing is written.
+- The custom fields are written first. If they are refused, no panel is written, and the reason
+  is shown at the field.
+- If the custom fields are saved and a panel is not, a summary under the header names what was
+  saved and what was not ("Saved: Customer. Not saved: Ordering defaults — *reason*"); the next
+  Save writes only the panel.
+- While a price-negotiation change is unsaved, the panel hides its "Effective: …" line, which
+  describes the stored value; it comes back once the change is saved.
+- Leaving the page — a link elsewhere in the admin, or closing or reloading the browser tab — with
+  unsaved changes asks first.
+
+Save is shown to an operator with `customers:manage`, or one who may change one of the panels.
+The **Actions** (block / unblock, password reset, two-factor reset, impersonate, delete /
+restore), the **Organization** assignment and the **Customer group** are not part of the Save: they
+apply the moment you use them, and each section carries an **Applies immediately** badge.
+
 ## Deletion & anonymization
 
 Deletion is a soft-disable: login is denied, the account is hidden, and sessions

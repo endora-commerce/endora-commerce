@@ -236,11 +236,13 @@ export async function registerShoppingListRoutes(
       const ctx = resolveCustomerContext(request);
       const body = convertShoppingListRequestSchema.parse(request.body ?? {});
       // Into the basket of the storefront the buyer is on (`specs/154-sales-channel-access/`).
+      // Issue #1293 — its lines judged in the request's scope language.
       const result = await service.convertToCart(
         ctx,
         request.params.id,
         body.itemIds,
         getResolvedChannel(request).id,
+        languageTagOf(request),
       );
       return { data: result };
     },

@@ -6,6 +6,7 @@ import {
 } from '@endora-commerce/contracts';
 import { currentSalesChannel, getResolvedChannel } from '@endora-commerce/platform/kernel';
 import type { OneClickContext, OneClickService } from './services/one-click-service.js';
+import { channelLanguageOf } from './routes.js';
 
 /**
  * One-click buy routes (feature 039, US5).
@@ -72,6 +73,7 @@ export async function registerQuickOrderOneClickRoutes(
     },
     async (request, reply) => {
       const body = quickOrderOneClickRequestSchema.parse(request.body);
+      const languageTag = channelLanguageOf(request);
       const order = await service.place(
         buyerOf(request, deps),
         {
@@ -81,7 +83,13 @@ export async function registerQuickOrderOneClickRoutes(
           ...(body.idempotencyKey ? { idempotencyKey: body.idempotencyKey } : {}),
         },
         getResolvedChannel(request).id,
-        { language: await request.responseLanguage() },
+        {
+          language: await request.responseLanguage(),
+          // Issue #1308 — the line added and the order placed judged in the
+          // request's channel language, as `POST /cart/items` judges it; the
+          // message language above only names a refused product.
+          ...(languageTag !== undefined ? { languageTag } : {}),
+        },
       );
       reply.status(201);
       return {
