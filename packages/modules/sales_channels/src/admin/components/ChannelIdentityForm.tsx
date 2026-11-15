@@ -335,7 +335,6 @@ export function ChannelIdentityForm({
     }
   }, [languages, defaultLanguage, prefixDefaultLanguage]);
 
-
   return (
     <Card>
       <CardHeader>
