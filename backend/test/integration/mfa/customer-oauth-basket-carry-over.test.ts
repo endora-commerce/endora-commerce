@@ -7,7 +7,13 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { Cart, CartItem, CustomerAccount } from '../../helpers/package-entities.js';
-import { oauthBinding } from '../../helpers/oauth-binding.js';
+import {
+  customerOAuthStartUrl,
+  exchangeHandoff,
+  oauthBinding,
+  sessionOf,
+  storefrontBinding,
+} from '../../helpers/oauth-binding.js';
 import { withModuleOff } from '../../helpers/off-state.js';
 import {
   seedTwoChannelBasket,
@@ -19,13 +25,17 @@ import {
  * signed-out basket over, as the password sign-in does and, since #368, the
  * second step.
  *
- * The callback establishes the customer session itself when no second step is
- * needed, and returned before anything merged the anonymous basket: the buyer
- * landed signed in with the basket they had filled gone. It now runs
- * `organizations`' `customerSignInCompletionPort` — the step every other
- * sign-in runs — over the browser's `b2b_cart_anon`, on the channel the sign-in
- * was **started** on (the provider's redirect carries none), drops the drained
- * cookie and leaves the storefront's merge-notice flash.
+ * The sign-in used to establish the session without merging the anonymous
+ * basket: the buyer landed signed in with the basket they had filled gone. It
+ * now runs `organizations`' `customerSignInCompletionPort` — the step every
+ * other sign-in runs — over the browser's `b2b_cart_anon`, on the channel the
+ * sign-in was **started** on.
+ *
+ * Issue #1279 — the step runs in the storefront's exchange, not in the
+ * provider's redirect to the API: that is the request that carries the
+ * storefront host's `b2b_cart_anon`. The exchange clears the drained cookie and
+ * answers `cartMerge`; the merge notice is the storefront's to write from it,
+ * so the backend writes no `b2b_cart_merge_flash`.
  *
  * Writes are this file's own rows: the accounts are created by the sign-ins
  * themselves (unique addresses), and the channels and product come from the
@@ -57,6 +67,10 @@ function flashOf(res: LightMyRequestResponse): string | undefined {
   return res.cookies.find((c) => c.name === FLASH_COOKIE)?.value;
 }
 
+function cartMergeOf(res: LightMyRequestResponse): string | null {
+  return (res.json().data as { cartMerge: { outcome: string } | null }).cartMerge?.outcome ?? null;
+}
+
 describe('federated customer sign-in — the signed-out basket is carried over (#1188)', () => {
   let h: BackendServerHandle;
   let fx: TwoChannelBasket;
@@ -78,19 +92,27 @@ describe('federated customer sign-in — the signed-out basket is carried over (
     signInEmail: string,
     anonToken?: string,
   ): Promise<LightMyRequestResponse> {
+    const binding = storefrontBinding();
     const started = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(binding),
       headers: { 'x-sales-channel': channelCode },
     });
     expect(started.statusCode).toBe(302);
     const state = new URL(started.headers['location'] as string).searchParams.get('state')!;
-    // The provider's redirect: no storefront channel signal. The browser sends
-    // the binding and — the same host's cookie jar — the anonymous basket.
-    return h.app.inject({
+    // The provider's redirect to the API host: no storefront channel signal and
+    // none of the storefront's cookies — only the API host's binding.
+    const back = await h.app.inject({
       method: 'GET',
       url: `/api/v1/auth/customer/oauth/google/callback?code=${encodeURIComponent(signInEmail)}&state=${encodeURIComponent(state)}`,
-      cookies: { ...oauthBinding(started), ...(anonToken ? { [ANON_COOKIE]: anonToken } : {}) },
+      cookies: oauthBinding(started),
+    });
+    expect(back.headers['location']).toMatch(new RegExp(`^${STOREFRONT}/auth/federated/complete\\?code=`));
+    expect(back.cookies.some((c) => c.name === 'b2b_session' || c.name === FLASH_COOKIE)).toBe(false);
+    // The storefront's exchange: its channel and its host's cookies.
+    return exchangeHandoff(h.app, back, binding, {
+      headers: { 'x-sales-channel': channelCode },
+      ...(anonToken ? { cookies: { [ANON_COOKIE]: anonToken } } : {}),
     });
   }
 
@@ -116,11 +138,12 @@ describe('federated customer sign-in — the signed-out basket is carried over (
 
     const res = await signIn(fx.a.code, email, anonToken);
 
-    expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toBe(`${STOREFRONT}/account`);
-    expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().data.redirectPath).toBe('/account');
+    expect(sessionOf(res)).toBeTruthy();
     expect(anonCleared(res)).toBe(true);
-    expect(flashOf(res)).toBe('adopted');
+    expect(cartMergeOf(res)).toBe('adopted');
+    expect(flashOf(res)).toBeUndefined();
 
     const account = await h.em().fork().findOneOrFail(CustomerAccount, { email });
     const cart = await activeCartOf(account.id, fx.a.id);
@@ -134,10 +157,11 @@ describe('federated customer sign-in — the signed-out basket is carried over (
 
     const res = await signIn(fx.a.code, email, anonToken);
 
-    expect(res.statusCode).toBe(302);
-    expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+    expect(res.statusCode, res.body).toBe(200);
+    expect(sessionOf(res)).toBeTruthy();
     expect(anonCleared(res)).toBe(true);
-    expect(flashOf(res)).toBe('merged');
+    expect(cartMergeOf(res)).toBe('merged');
+    expect(flashOf(res)).toBeUndefined();
 
     const account = await h.em().fork().findOneOrFail(CustomerAccount, { email });
     const cart = await activeCartOf(account.id, fx.a.id);
@@ -148,9 +172,10 @@ describe('federated customer sign-in — the signed-out basket is carried over (
   it('a sign-in with no signed-out basket merges nothing, clears nothing and shows no notice', async () => {
     const res = await signIn(fx.a.code, email);
 
-    expect(res.statusCode).toBe(302);
-    expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+    expect(res.statusCode, res.body).toBe(200);
+    expect(sessionOf(res)).toBeTruthy();
     expect(res.cookies.some((c) => c.name === ANON_COOKIE)).toBe(false);
+    expect(cartMergeOf(res)).toBeNull();
     expect(flashOf(res)).toBeUndefined();
   });
 
@@ -160,9 +185,10 @@ describe('federated customer sign-in — the signed-out basket is carried over (
 
     const res = await signIn(fx.a.code, other, anonToken);
 
-    expect(res.statusCode).toBe(302);
-    expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+    expect(res.statusCode, res.body).toBe(200);
+    expect(sessionOf(res)).toBeTruthy();
     expect(anonCleared(res)).toBe(false);
+    expect(['adopted', 'merged']).not.toContain(cartMergeOf(res));
     expect(flashOf(res)).toBeUndefined();
     const anonymous = await h.em().fork().findOne(Cart, { anonymousCartToken: anonToken });
     expect(anonymous?.customerAccountId ?? null).toBeNull();
@@ -173,10 +199,11 @@ describe('federated customer sign-in — the signed-out basket is carried over (
 
     const res = await withModuleOff('carts', 'platform-unavailable', () => signIn(fx.a.code, email, anonToken));
 
-    expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toBe(`${STOREFRONT}/account`);
-    expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().data.redirectPath).toBe('/account');
+    expect(sessionOf(res)).toBeTruthy();
     expect(anonCleared(res)).toBe(false);
+    expect(cartMergeOf(res)).toBeNull();
     expect(flashOf(res)).toBeUndefined();
   });
 });

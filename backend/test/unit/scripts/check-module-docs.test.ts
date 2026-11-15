@@ -349,7 +349,6 @@ describe('check:module-docs', () => {
       expect(Object.keys(MODULES_WITHOUT_DOCUMENTATION).sort()).toEqual([
         'admin_notifications',
         'email',
-        'mfa',
       ]);
       for (const reason of Object.values(MODULES_WITHOUT_DOCUMENTATION)) {
         expect(reason.length).toBeGreaterThan(40);

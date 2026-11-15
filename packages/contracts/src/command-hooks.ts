@@ -280,7 +280,13 @@ export const CommandOutboxListResponseSchema = z.object({
 });
 export type CommandOutboxListResponse = z.infer<typeof CommandOutboxListResponseSchema>;
 
-export const CommandOutboxRetryParamsSchema = z.object({ id: z.string().uuid() });
+/**
+ * `POST /api/v1/admin/command-outbox/:id/retry` — the path parameter. Any
+ * string, on purpose: a value that is not a uuid names no row, so the route
+ * answers it with the same `404` as an unknown id (issue #781, owner ruling of
+ * 2026-11-05), where a uuid params schema would answer `400` (issue #1269).
+ */
+export const CommandOutboxRetryParamsSchema = z.object({ id: z.string() });
 
 /** `POST /api/v1/admin/command-outbox/:id/retry` — the row, now pending. */
 export const CommandOutboxRetryResponseSchema = z.object({ item: CommandOutboxListItemSchema });

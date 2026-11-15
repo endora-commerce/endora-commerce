@@ -61,6 +61,11 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
   variant: { kind: 'id', why: 'a variant SKU the product page matches against its own variants' },
   cursor: { kind: 'id', why: 'an opaque pagination cursor the API reads' },
   salesChannel: { kind: 'code', why: 'the sales-channel code on the OAuth start link, which the backend resolves' },
+  binding: {
+    kind: 'id',
+    why: 'the SHA-256 digest of the federated sign-in binding secret, sent to the API’s OAuth start and never printed (#1279)',
+  },
+  provider: { kind: 'code', why: 'a federated sign-in provider, `google` or `microsoft` (`mfaSocialProviderSchema`)' },
   v: { kind: 'id', why: 'the build version the service-worker URL is keyed by, never printed' },
   l: { kind: 'id', why: 'the GTM snippet’s own dataLayer name (`dataLayer`)' },
   token: { kind: 'id', why: 'an opaque verification or reset token, never printed' },
@@ -205,6 +210,7 @@ const CODE_THROUGH_SEARCH_PARAMS = new Set<string>([
   'app/newsletter/subscribe/route.ts:newsletter', // `outcome.status`, a newsletter outcome code
   'app/forms/submit/route.ts:formsReason', // `outcome.reason`, a submission outcome code
   'lib/cartMinimum.ts:error', // `code`, a `CART_ERRORS` code (`cartLineEditErrorHref`)
+  'app/auth/federated/start/route.ts:salesChannel', // the channel code the middleware or a proxy stamped (#1279)
 ]);
 
 /**
@@ -233,7 +239,8 @@ const CODE_IN_TEMPLATE = new Map<string, string>([
   ['components/newsletter/NewsletterSignup.tsx:status=status', "`'pending' | 'active'`"],
   ['lib/payments/post-payment-landing.ts:outcome=reason', 'a `PaymentFailureReason`'],
   ['lib/payments/post-payment-landing.ts:outcome=outcome', 'a `PaymentReturnOutcome`'],
-  ['components/SocialLoginButtons.tsx:salesChannel=encodeURIComponent(salesChannelCode)', 'the channel code the backend resolves'],
+  ['components/SocialLoginButtons.tsx:provider=provider', 'a `FederatedProvider`, the closed `mfaSocialProviderSchema` union (#1279)'],
+  ['app/auth/federated/complete/route.ts:error=error', "`'sign_in_expired' | 'sign_in_failed'`, federated sign-in codes (#1279)"],
 ]);
 
 const files = SCANNED.flatMap((dir) => sources(join(ROOT, dir))).map((path) => relative(ROOT, path).split('\\').join('/'));

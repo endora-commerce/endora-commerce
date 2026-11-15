@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { oauthBinding } from '../../helpers/oauth-binding.js';
+import { customerOAuthStartUrl, handoffCodeOf, oauthBinding, storefrontBinding } from '../../helpers/oauth-binding.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 
 /**
@@ -32,7 +32,7 @@ describe('federated sign-up follows the B2C registration setting per channel (is
   async function signIn(channelCode: string, email: string) {
     const started = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(storefrontBinding()),
       headers: { 'x-sales-channel': channelCode },
     });
     expect(started.statusCode, started.body).toBe(302);
@@ -90,7 +90,8 @@ describe('federated sign-up follows the B2C registration setting per channel (is
     const res = await signIn(ON, email);
     expect(res.statusCode).toBe(302);
     expect(res.headers['location'] ?? '').not.toContain('error=');
-    expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+    // Issue #1279 — signed in: handed off to the storefront, which sets the session.
+    expect(handoffCodeOf(res)).toBeTruthy();
     expect(await h.em().findOne(CustomerAccount, { email })).not.toBeNull();
   });
 

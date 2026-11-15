@@ -33,6 +33,7 @@ import { SocialLinkService } from './services/social-link-service.js';
 import type { CustomerChannelAccess } from './services/customer-channel-access.js';
 import type { OAuthProviderPort } from './services/oauth-provider-service.js';
 import { SecretCipher } from './services/secret-cipher.js';
+import { createStorefrontOriginResolver } from './services/storefront-origin.js';
 import { registerMfaPublicRoutes } from './routes.public.js';
 import { registerMfaSelfServiceRoutes } from './routes.self-service.js';
 import { registerMfaAdminOrgPolicyRoutes, registerMfaAdminRoutes } from './routes.admin.js';
@@ -111,6 +112,12 @@ export interface MfaModuleOptions {
   socialAccountResolvers?: SocialIdentityDeps;
   backendBaseUrl?: string;
   storefrontBaseUrl?: string;
+  /**
+   * Issue #1279 — a sales channel's `sales_channels.storefront_url`, or `null`
+   * when it names none; the customer federated sign-in returns to that
+   * storefront, else to `storefrontBaseUrl`. Absent: `storefrontBaseUrl` always.
+   */
+  readChannelStorefrontUrl?: (salesChannelId: string) => Promise<string | null>;
   adminBaseUrl?: string;
   /**
    * `specs/110-instance-repository/` T118c — required, where both were optional
@@ -151,7 +158,7 @@ export interface MfaModuleOptions {
   /**
    * Issue #368 — `organizations`' post-sign-in step, run by the customer
    * routes here that establish the session (second-step verify, enforced
-   * enrolment and — issue #1188 — the federated callback), so those sign-ins
+   * enrolment and — issues #1188, #1279 — the federated exchange), so those sign-ins
    * carry the signed-out basket over.
    */
   customerSignInCompletion: CustomerSignInCompletionPort;
@@ -287,6 +294,7 @@ export function mfaModule(options: MfaModuleOptions): {
     });
     // Federated sign-in (US4 customer / US5 admin).
     if (options.oauthProvider && options.socialAccountResolvers) {
+      const storefrontBaseUrl = options.storefrontBaseUrl ?? 'http://localhost:3000';
       const socialIdentityService = new SocialIdentityService(
         options.emFactory,
         options.socialAccountResolvers,
@@ -301,7 +309,11 @@ export function mfaModule(options: MfaModuleOptions): {
         loginService,
         sessionService: options.sessionService,
         backendBaseUrl: options.backendBaseUrl ?? 'http://localhost:8080',
-        storefrontBaseUrl: options.storefrontBaseUrl ?? 'http://localhost:3000',
+        storefrontBaseUrl,
+        storefrontOriginFor: createStorefrontOriginResolver(
+          options.readChannelStorefrontUrl ?? (async () => null),
+          storefrontBaseUrl,
+        ),
         adminBaseUrl: adminRedirectBase(options.adminBaseUrl),
         customerChannelAccess: options.customerChannelAccess,
         customerSignInCompletion: options.customerSignInCompletion,

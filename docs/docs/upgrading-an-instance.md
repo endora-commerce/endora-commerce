@@ -5060,6 +5060,48 @@ only *unhealthy*, so a backend process that was alive but no longer answered —
 
 Without these edits the backend runs as before, unsupervised.
 
+### Federated sign-in completes on the storefront's own host {#federated-sign-in-storefront-handoff}
+
+The release that ships this change makes Google and Microsoft sign-in work on the storefront when
+the API is served from another host (issue #1279). The provider returns to the API host, and the
+session cookie the callback used to set there belonged to that host, so the storefront never saw
+it.
+
+**Behaviour change on upgrade:**
+
+- The customer callback `GET /api/v1/auth/customer/oauth/{provider}/callback` sets no
+  `b2b_session`, `b2b_mfa_challenge` or `b2b_cart_merge_flash` any more. It sends the browser to
+  `/auth/federated/complete?code=…` on the storefront of the sales channel the sign-in was started
+  on — the channel's **Storefront URL** (`sales_channels.storefront_url`), else
+  `STOREFRONT_BASE_URL` — and the refusals go to that storefront's `/login?error=…`.
+- The storefront redeems the code with the new `POST /api/v1/auth/customer/oauth/exchange`, once,
+  within sixty seconds, on the same sales channel, and only with the browser's binding secret. It
+  answers the session in `Set-Cookie` and `{ status: 'authenticated', redirectPath, cartMerge }`,
+  or `{ status: 'mfaRequired', challengeId, redirectPath }`; every refusal is
+  `400 MFA_FEDERATED_HANDOFF_INVALID`. The signed-out basket is carried over in that call.
+- The customer start `GET /api/v1/auth/customer/oauth/{provider}/start` requires `binding`, the
+  SHA-256 (hex) of that secret. Without it the browser is sent to `/login?error=sign_in_failed`.
+- The provider's redirect URIs do not change, and nor does the Admin UI's federated sign-in.
+- `deploy/compose.prod.yml` and `deploy/.env.prod.example` pass `MFA_OAUTH_*` to the backend;
+  they did not before, so a production stack built from them could not configure a provider.
+
+**After upgrading:**
+
+1. A storefront copied from the reference adds the two route handlers
+   `app/auth/federated/start/route.ts` and `app/auth/federated/complete/route.ts` with their helper
+   `lib/auth/federated-sign-in-routes.ts` and `lib/auth/federated-sign-in-start-path.ts`, the
+   exchange call `exchangeFederatedSignIn` in `lib/api/federated-sign-in.ts`, and the two paths in
+   `HANDLERS_SINCE` in `lib/seo/robots-directive.ts`, which keeps the middleware from prefixing or
+   redirecting them. `SocialLoginButtons` links to `/auth/federated/start?provider=…&next=…` and
+   loses its `backendBaseUrl` and `salesChannelCode` props; drop them where the sign-in page
+   renders it. A storefront that still links to the API's `start` gets every customer federated
+   sign-in refused with `sign_in_failed`.
+2. On every sales channel served on a host of its own, set **Storefront URL** to that host.
+3. A deployment built from your own compose file passes `MFA_OAUTH_GOOGLE_CLIENT_ID`,
+   `MFA_OAUTH_GOOGLE_CLIENT_SECRET`, `MFA_OAUTH_MICROSOFT_CLIENT_ID`,
+   `MFA_OAUTH_MICROSOFT_CLIENT_SECRET` and `MFA_OAUTH_MICROSOFT_TENANT` to the backend if it offers
+   federated sign-in. The `mfa` module page lists the redirect URIs to register.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

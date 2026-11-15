@@ -1,0 +1,8 @@
+---
+'@endora-commerce/mod-price-lists': patch
+---
+
+**The storefront pricing routes read `Accept-Language` as a q-weighted list matched against the sales channel's languages, and the admin price-book labels follow the operator's language** (issue #1011).
+
+- `GET /api/v1/storefront/pricing/display-mode/:productId` and `GET /api/v1/storefront/products/:id/resolved-price` ask whether the product is available at the request's (channel, language). That language used to be the header's first tag alone, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` asked about English and `de-DE, pl;q=0.5` about the channel default, and a product available only in Polish answered `404`. It is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. A request without the header behaves as before.
+- The admin price-book routes (`/api/v1/admin/price-books/...`: the attribute targets, rows, lines, resolution explanations and row writes) pick product, category and attribute labels in `?lang=` when it is given, as before, and otherwise in `request.responseLanguage()` — the admin's stored preferred language, the one the admin panel renders in and error messages are translated into. They used to take the first tag of the browser's `Accept-Language`, which the admin panel does not set, so an operator whose panel is in English could read Polish labels, and the reverse. An admin with no stored preference now gets English labels, where an exact English label exists.

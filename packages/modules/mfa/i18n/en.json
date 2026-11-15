@@ -2,6 +2,7 @@
   "adminRoles.permission.mfa:reset": "Reset a user's two-step verification",
   "adminRoles.permission.mfa:manage": "Manage two-step verification policies and organization enforcement",
   "errors.MFA_SOCIAL_LAST_CREDENTIAL": "This is the last sign-in identity linked to the account, and the account has no password on record — removing it could lock its holder out for good. Set a password for the account first, then this link can be removed.",
+  "errors.MFA_FEDERATED_HANDOFF_INVALID": "This sign-in has expired or was already completed. Please sign in again.",
   "errors.MFA_LAST_FACTOR_REQUIRED": "Two-step verification cannot be switched off on this account, because it is required here — by a security setting, your role or your organization. It stays on while that requirement stands; ask your administrator if it should be lifted.",
   "errors.MFA_ALREADY_ENROLLED": "Two-step verification is already set up on this account, so there is nothing left to configure. To move it to a different authenticator app, switch it off first and then set it up again.",
   "errors.MFA_INVALID_CHALLENGE": "This sign-in step is no longer valid — it has expired, or it was already finished. Sign in again to start a new one.",
