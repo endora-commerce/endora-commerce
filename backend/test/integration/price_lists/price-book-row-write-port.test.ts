@@ -236,8 +236,10 @@ describe('price_lists — priceBookRowWritePort (issue #1028)', () => {
       expect(entry.stateAfter).toMatchObject({ valueChangeId: expect.any(String) });
     }
     const sql = <T>(q: string, p: unknown[]) => h.em().getConnection().execute<T[]>(q, p);
+    // The port's writes only: since #470 Stage 2 the book's creation has a history row of its own.
     const changes = await sql<{ id: string; action: string; actor_kind: string; line_count: number }>(
-      `select "id", "action", "actor_kind", "line_count" from "price_list_value_changes" where "price_list_id" = ? order by "at", "id"`,
+      `select "id", "action", "actor_kind", "line_count" from "price_list_value_changes"
+        where "price_list_id" = ? and "action" in ('price_list.book_rows_set', 'price_list.book_rows_remove') order by "at", "id"`,
       [book.id],
     );
     expect(changes.map((c) => c.id).sort()).toEqual(entries.map((e) => e.stateAfter!['valueChangeId']).sort());

@@ -44,10 +44,8 @@ import {
   planBookProductRows,
   rowValueLines,
   writePathOf,
-  type RowValueLine,
 } from './price-book-row-write.js';
-import { PriceListValueChange } from '../entities/price-list-value-change.entity.js';
-import { PriceListRowValueChange } from '../entities/price-list-row-value-change.entity.js';
+import { baseRowChanges, createdHeaderValues, headerValueChange, recordValueChange } from './price-book-value-changes.js';
 import { reconcileProductLines, syncProductLines } from './price-book-product-lines.js';
 import {
   audienceKindWritable,
@@ -353,11 +351,11 @@ export class PriceBookService {
       }
     }
 
-    return this.#command('price_list.base_prices_set', bookIds[currencies[0]!]!, async (txEm) => {
+    return this.#command('price_list.base_prices_set', bookIds[currencies[0]!]!, async (txEm, actor) => {
       for (const code of toCreate) {
         const book = txEm.create(PriceList, {
           id: bookIds[code]!,
-          name: `Base prices ${code}`,
+          name: baseBookName(code),
           currency: code,
           priority: 0,
           type: 'regular',
@@ -371,6 +369,8 @@ export class PriceBookService {
       await txEm.flush();
       const before: Record<string, unknown> = {};
       const after: Record<string, unknown> = {};
+      // #470 (D-288, O-3): one history row per base book whose values moved, keyed by currency.
+      const valueChangeIds: Record<string, string> = {};
       for (const code of currencies) {
         const bookId = bookIds[code]!;
         const replaced = keepVariantRows ? { priceListId: bookId, productId, variantId: null } : { priceListId: bookId, productId };
@@ -414,11 +414,25 @@ export class PriceBookService {
         await syncProductLines(txEm, [bookId], [productId]);
         if (!toCreate.includes(code) && (removed.length > 0 || inserted.length > 0)) await this.#bumpVersion(txEm, bookId, null);
         after[code] = rows.map(rowState);
+        const valueChangeId = await recordValueChange(txEm, {
+          priceListId: bookId,
+          action: 'price_list.base_prices_set',
+          actor,
+          headerAfter: toCreate.includes(code) ? createdHeaderValues({ name: baseBookName(code), priority: 0, memberIds: [] }) : null,
+          lines: rowValueLines(baseRowChanges(removed.map(plannedOfEntity), inserted)),
+        });
+        if (valueChangeId) valueChangeIds[code] = valueChangeId;
       }
       return {
         result: { bookIds },
         before: { productId, byCurrency: before },
-        after: { productId, byCurrency: after, createdBaseBooks: toCreate, ...(keepVariantRows ? { variantRowsKept: true } : {}) },
+        after: {
+          productId,
+          byCurrency: after,
+          createdBaseBooks: toCreate,
+          ...(keepVariantRows ? { variantRowsKept: true } : {}),
+          ...(Object.keys(valueChangeIds).length > 0 ? { valueChangeIds } : {}),
+        },
       };
     }, { kind: 'products', productIds: [productId], currencyCodes: currencies }, { rowsWritten: true });
   }
@@ -493,7 +507,7 @@ export class PriceBookService {
     const em = this.deps.emFactory();
     await this.#assertChannelsOffer(em, currencyCode, input.channelIds);
     const id = randomUUID();
-    return this.#command('price_list.create', id, async (txEm) => {
+    return this.#command('price_list.create', id, async (txEm, actor) => {
       const view = await this.#insertBook(txEm, id, {
         name: input.name,
         type: input.type,
@@ -504,7 +518,13 @@ export class PriceBookService {
         audience: input.audience,
         channelIds: input.channelIds,
       });
-      return { result: view, before: null, after: { ...view, channelIds: [...input.channelIds] } };
+      const valueChangeId = await recordValueChange(txEm, {
+        priceListId: id,
+        action: 'price_list.create',
+        actor,
+        headerAfter: createdHeaderValues({ name: view.name, priority: view.priority, memberIds: view.audience.memberIds }),
+      });
+      return { result: view, before: null, after: { ...view, channelIds: [...input.channelIds], valueChangeId } };
       // A new book is a draft: it prices nowhere until it is activated.
     }, { kind: 'none' });
   }
@@ -640,8 +660,16 @@ export class PriceBookService {
       };
     };
 
-    await this.#command('price_list.update', bookId, async (txEm) => {
+    await this.#command('price_list.update', bookId, async (txEm, actor) => {
       const row = await txEm.findOneOrFail(PriceList, { id: bookId });
+      const header = headerValueChange(
+        { name: row.name, priority: row.priority, memberIds: members.map(memberIdOf) },
+        {
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
+          ...(patch.audience ? { memberIds: patch.audience.memberIds } : {}),
+        },
+      );
       const before: Record<string, unknown> = {};
       const after: Record<string, unknown> = {};
       const set = <K extends 'name' | 'priority'>(key: K, value: PriceList[K] | undefined) => {
@@ -690,6 +718,15 @@ export class PriceBookService {
       }
       after['version'] = await this.#bumpVersion(txEm, bookId, options.expectedVersion);
       before['version'] = options.expectedVersion;
+      if (header) {
+        after['valueChangeId'] = await recordValueChange(txEm, {
+          priceListId: bookId,
+          action: 'price_list.update',
+          actor,
+          headerBefore: header.before,
+          headerAfter: header.after,
+        });
+      }
       return { result: undefined, before, after };
     }, surface);
   }
@@ -897,8 +934,9 @@ export class PriceBookService {
         [...plan.removed, ...plan.changed.map((c) => c.before), ...toInsert].flatMap((r) => (r.productId ? [r.productId] : [])),
       );
       const version = await this.#bumpVersion(txEm, bookId, expectedVersion);
+      // #470 (D-288, O-3): the book's own history, in this transaction; nothing when no row moved.
+      const valueChangeId = await recordValueChange(txEm, { priceListId: bookId, action: options.action, actor, lines: rowValueLines(plan) });
       if (options.namesOnly) {
-        const valueChangeId = await recordValueChange(txEm, bookId, options.action, actor, rowValueLines(plan));
         const variantIds = [
           ...new Set([...plan.added, ...plan.removed, ...plan.changed.map((c) => c.after)].flatMap((r) => (r.variantId ? [r.variantId] : []))),
         ].sort();
@@ -920,7 +958,13 @@ export class PriceBookService {
       return {
         result: { version },
         before: { ...options.audit, rows: [...plan.removed, ...plan.changed.map((c) => c.before)].map(rowState), version: book.version },
-        after: { ...options.audit, rows: toInsert.map(rowState), deleted: plan.removed.map((r) => r.id), version },
+        after: {
+          ...options.audit,
+          rows: toInsert.map(rowState),
+          deleted: plan.removed.map((r) => r.id),
+          version,
+          ...(valueChangeId ? { valueChangeId } : {}),
+        },
       };
     }, { kind: 'books', books: [{ facts: [this.#facts(book)], selections: touched }] }, { rowsWritten: true });
     return {
@@ -1142,7 +1186,7 @@ export class PriceBookService {
     const source = await this.#book(em, bookId);
     const rows = await this.#storedRows(em, bookId);
     const id = randomUUID();
-    return this.#command('price_list.duplicate', id, async (txEm) => {
+    return this.#command('price_list.duplicate', id, async (txEm, actor) => {
       const view = await this.#insertBook(txEm, id, {
         name: input.name,
         type: source.type === 'sale' ? 'sale' : 'regular',
@@ -1153,22 +1197,42 @@ export class PriceBookService {
         audience: input.audience,
         channelIds: input.channelIds,
       });
+      const copied: PlannedRow[] = [];
       for (const row of rows) {
         const { id: _sourceRowId, ...rest } = row;
-        txEm.persist(
-          txEm.create(PriceListMatrixEntry, {
-            ...rest,
-            priceListId: id,
-            amount: row.priceType === 'percent' || row.amount === null ? row.amount : multiplySignedAmount(row.amount, input.amountMultiplier),
-          }),
-        );
+        const copy: PlannedRow = {
+          ...rest,
+          amount: row.priceType === 'percent' || row.amount === null ? row.amount : multiplySignedAmount(row.amount, input.amountMultiplier),
+        };
+        copied.push(copy);
+        txEm.persist(txEm.create(PriceListMatrixEntry, { ...copy, priceListId: id }));
       }
       await txEm.flush();
       await syncProductLines(txEm, [id], 'all');
+      // Every copied row is an added line at the copy's own amount; the header carries the multiplier.
+      const valueChangeId = await recordValueChange(txEm, {
+        priceListId: id,
+        action: 'price_list.duplicate',
+        actor,
+        headerAfter: createdHeaderValues({
+          name: view.name,
+          priority: view.priority,
+          memberIds: view.audience.memberIds,
+          amountMultiplier: input.amountMultiplier,
+        }),
+        lines: rowValueLines({ added: copied, changed: [], removed: [] }),
+      });
       return {
         result: view,
         before: null,
-        after: { ...view, sourceBookId: bookId, amountMultiplier: input.amountMultiplier, rowCount: rows.length, channelIds: [...input.channelIds] },
+        after: {
+          ...view,
+          sourceBookId: bookId,
+          amountMultiplier: input.amountMultiplier,
+          rowCount: rows.length,
+          channelIds: [...input.channelIds],
+          valueChangeId,
+        },
       };
       // The copy is a draft: it prices nowhere until it is activated.
     }, { kind: 'none' }, { rowsWritten: true });
@@ -1373,33 +1437,9 @@ export class PriceBookService {
   }
 }
 
-/**
- * Write one price-change history row and its lines (issue #470, D-288) in the
- * Command's transaction, and answer its id for the audit entry's
- * `valueChangeId`. The values live here, under the book's rule scope, and never
- * in `audit_log_entries`.
- */
-async function recordValueChange(
-  txEm: EntityManager,
-  priceListId: string,
-  action: string,
-  actor: CommandActor,
-  lines: readonly RowValueLine[],
-): Promise<string> {
-  const change = txEm.create(PriceListValueChange, {
-    priceListId,
-    action,
-    actorKind: actor.kind,
-    actorAdminUserId: actor.actorAdminUserId,
-    lineCount: lines.length,
-  });
-  txEm.persist(change);
-  await txEm.flush();
-  lines.forEach((line, seq) => {
-    txEm.persist(txEm.create(PriceListRowValueChange, { changeId: change.id, seq, priceListId, at: change.at, ...line }));
-  });
-  await txEm.flush();
-  return change.id;
+/** The name a base book is created with. */
+function baseBookName(currencyCode: string): string {
+  return `Base prices ${currencyCode}`;
 }
 
 /** A refused batch: overlaps alone are a conflict (409); anything else is a bad request (400). */
