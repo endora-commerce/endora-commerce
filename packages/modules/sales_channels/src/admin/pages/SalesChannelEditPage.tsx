@@ -130,11 +130,11 @@ export function SalesChannelEditPage(): ReactNode {
       const updated = await salesChannelsClient.deactivate(channel.code);
       setChannelFromToggle(updated);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Deactivate failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('edit.error.deactivate'));
     } finally {
       setSaving(false);
     }
-  }, [channel, setChannelFromToggle]);
+  }, [channel, setChannelFromToggle, t]);
 
   const handleActivate = useCallback(async (): Promise<void> => {
     if (!channel) return;
@@ -144,11 +144,11 @@ export function SalesChannelEditPage(): ReactNode {
       const updated = await salesChannelsClient.activate(channel.code);
       setChannelFromToggle(updated);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Activate failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('edit.error.activate'));
     } finally {
       setSaving(false);
     }
-  }, [channel, setChannelFromToggle]);
+  }, [channel, setChannelFromToggle, t]);
 
   const handleDelete = useCallback(async (): Promise<void> => {
     if (!channel || channel.systemDefault) return;
@@ -239,11 +239,11 @@ export function SalesChannelEditPage(): ReactNode {
                   onClick={() => void handleDeactivate()}
                   disabled={saving || channel.systemDefault}
                 >
-                  Deactivate
+                  {t('edit.action.deactivate')}
                 </Button>
               ) : (
                 <Button variant="outline" onClick={() => void handleActivate()} disabled={saving}>
-                  Re-activate
+                  {t('edit.action.activate')}
                 </Button>
               )}
               <Button
