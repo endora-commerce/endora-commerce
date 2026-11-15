@@ -163,6 +163,25 @@ export interface CustomerAccountRecord {
   blockedByCustomerAccountId: string | null;
   deletionRequestedByAdminUserId: string | null;
   anonymizedAt: Date | null;
+  /**
+   * Issue #652 (D-292) — the language the account's owner reads: one BCP-47
+   * content-language tag, spelled as the sales channel that captured it spells
+   * it (`pl-PL`, `en-US`). Captured at account creation and, while still
+   * `null`, at sign-in, from the request's channel and its `Accept-Language`;
+   * overwritten only by the owner's own choice on the storefront account page.
+   *
+   * A message composed outside a request resolves it against the channel it
+   * is rendered for — `scopeLanguageOf(renderChannel, preferredLanguage)`:
+   * the exact language, else one of the same base language, else that
+   * channel's default — so a value the channel no longer offers falls back
+   * rather than failing. Inside a request the `Accept-Language` header still
+   * decides the response language (D-131).
+   *
+   * `null` means unknown: the account predates the field and has not signed in
+   * since, or was created by an operator. Personal data (D-288 list 2): never
+   * written into an audit state, cleared by the anonymisation sweep.
+   */
+  preferredLanguage: string | null;
 }
 
 /**
@@ -314,6 +333,13 @@ export interface CustomerAccountCreateInput {
    * must validate before its first write). Stored as given; `{}` when absent.
    */
   customFieldValues?: Record<string, unknown>;
+  /**
+   * Issue #652 (D-292) — the language captured from the creating request:
+   * `scopeLanguageOf(requestChannel, firstLanguageTag(Accept-Language))`, so a
+   * tag the channel spells. Absent or `null` stores `null` — the admin
+   * direct-create, which has no buyer request to read it from.
+   */
+  preferredLanguage?: string | null;
 }
 
 /** Absent fields are left unchanged. */
@@ -326,6 +352,39 @@ export interface CustomerAccountProfilePatch {
   email?: string;
   firstName?: string;
   lastName?: string;
+}
+
+/** Where a preferred-language write comes from (issue #652, D-292). */
+export type CustomerPreferredLanguageSource = 'self_service' | 'sign_in';
+
+/**
+ * Container name: `customerAccountPreferencePort`. Owner: `customer_accounts`.
+ *
+ * Issue #652 (D-292) — the account's preferred language, the customer twin of
+ * `AdminUserPreferencePort`. Two methods, because there are two writers:
+ *
+ * - `setPreferredLanguage` — the owner's explicit choice on the storefront
+ *   account page (`customers`' `PATCH /api/v1/me/customer/preferred-language`),
+ *   the only write that overwrites a stored value. The caller has already
+ *   checked the tag against the request channel's languages and passes it in
+ *   that channel's spelling; this port stores it as given. Throws HTTP 404
+ *   `NOT_FOUND` for an id no live account has.
+ * - `captureIfUnset` — a sign-in's capture (federated sign-in through `mfa`):
+ *   writes only while the account has no value, and does nothing at all —
+ *   no write, no audit entry — when it already has one or the id is unknown.
+ *
+ * Both run `customer_account.set_preferred_language` on the Command Bus. Its
+ * audit entry names the field and the source and never the tag (D-288 list 2):
+ * `{ changedFields: ['preferredLanguage'], source }`.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`. Whether
+ * `customer_accounts` has an off state at all is its manifest's `activation` to
+ * say, not this line's: a module declaring `nonDeactivatable` never enters one.
+ */
+export interface CustomerAccountPreferencePort {
+  setPreferredLanguage(customerAccountId: string, preferredLanguage: string): Promise<CustomerAccountRecord>;
+  captureIfUnset(customerAccountId: string, preferredLanguage: string): Promise<void>;
 }
 
 /**
@@ -438,6 +497,14 @@ export interface CustomerLoginInput extends CustomerAuthenticationOrigin {
   ip?: string;
   userAgent?: string;
   salesChannelId?: string | null;
+  /**
+   * Issue #652 (D-292) — the sign-in request's language, already resolved
+   * against its channel (`scopeLanguageOf`). Stored on the account only while
+   * the account has none, and only once the password, the block and the
+   * channel access have been accepted; a refused sign-in stores nothing.
+   * Absent or `null` stores nothing.
+   */
+  language?: string | null;
 }
 
 /** Where a customer's attempt came from, as far as the caller knows. */
@@ -867,6 +934,8 @@ export interface CustomerAccountStandaloneCreateInput {
   password: string;
   firstName: string;
   lastName: string;
+  /** Issue #652 — as {@link CustomerAccountCreateInput.preferredLanguage}. */
+  preferredLanguage?: string | null;
 }
 
 /**

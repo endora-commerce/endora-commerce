@@ -139,13 +139,67 @@ nigdy jego wartości:
 - zmiana pól niestandardowych (`customer.custom_fields.update`) wymienia
   zmienione klucze jako `changedCustomFields`;
 - zmiana roli zapisuje rolę przez identyfikator i rodzaj, nigdy nazwę roli
-  niestandardowej.
+  niestandardowej;
+- zmiana preferowanego języka (`customer_account.set_preferred_language`)
+  zapisuje `changedFields: ['preferredLanguage']` i jej źródło jako `source`
+  (`self_service` albo `sign_in`), nigdy sam język.
 
 Wartości przechowuje samo konto.
 
+## Preferowany język
+
+Każde konto może zapisać język, w którym czyta jego właściciel, jako
+`CustomerAccountRecord.preferredLanguage`: jeden znacznik języka, zapisany tak,
+jak zapisuje go kanał sprzedaży, który go przechwycił (`pl-PL`, `en-US`), albo
+`null`, dopóki nie jest znany. W tym języku mają być pisane e-maile tworzone dla
+konta poza żądaniem. Wewnątrz żądania nic się nie zmienia: język odpowiedzi
+nadal wynika z nagłówka `Accept-Language` żądania.
+
+**Skąd się bierze.**
+
+- **Przy tworzeniu konta** — z żądania, które je tworzy: pierwszy znacznik
+  `Accept-Language`, dopasowany do kanału sprzedaży żądania — dokładnie ten
+  język, jeśli kanał go oferuje, w przeciwnym razie język kanału o tym samym
+  języku bazowym (`en` → `en-US`), a w ostateczności domyślny język kanału.
+  Dotyczy to rejestracji firmy, rejestracji klienta indywidualnego (B2C),
+  przyjęcia zaproszenia (język zaproszonego, nie zapraszającego) i pierwszego
+  logowania przez zewnętrznego dostawcę tożsamości (język strony, na której
+  logowanie rozpoczęto). Konto utworzone przez operatora w panelu organizacji
+  nie zapisuje żadnego.
+- **Przy logowaniu, tylko dopóki jest nieznany** — dla konta sprzed wprowadzenia
+  tego pola albo utworzonego przez operatora. Język jest zapisywany po
+  zaakceptowaniu hasła, blokady i dostępu do sklepu, zanim padnie pytanie o drugi
+  składnik; logowanie przez dostawcę tożsamości do istniejącego konta działa tak
+  samo. Odrzucone logowanie niczego nie zapisuje, operator działający w imieniu
+  klienta niczego nie zapisuje, a logowanie nigdy nie zastępuje języka, który
+  konto już ma. Jeśli zapis się nie powiedzie, logowanie i tak się udaje.
+- **Wybór samego klienta** na stronie konta w sklepie — jedyne, co zastępuje
+  zapisany język. Zob. moduł `customers`.
+
+**Odczyt.** `customerAccountReadPort` zwraca to pole w każdym rekordzie. Nadawca
+dopasowuje je do kanału, dla którego tworzy wiadomość:
+`scopeLanguageOf(renderChannel, preferredLanguage)` — dokładnie ten język, w
+przeciwnym razie język o tym samym języku bazowym, a w ostateczności domyślny
+język tego kanału. Język, którego kanał już nie oferuje, prowadzi więc do języka
+zastępczego zamiast do błędu, a gdy kanał wycofuje język, niczego się nie
+migruje.
+
+**Zapis z innego modułu.** `customerAccountPreferencePort` ma dwie metody i obie
+wykonują polecenie `customer_account.set_preferred_language`:
+`setPreferredLanguage(customerAccountId, tag)` zapisuje znacznik w otrzymanej
+postaci (wywołujący sprawdził go względem kanału żądania) i odpowiada 404
+`NOT_FOUND` dla nieznanego konta; `captureIfUnset(customerAccountId, tag)`
+zapisuje tylko wtedy, gdy konto nie ma języka, a w przeciwnym razie nic nie
+robi — bez zapisu i bez wpisu audytu.
+
+**Dane osobowe.** Język opisuje osobę. Nigdy nie trafia do wpisu audytu ani do
+logów, a anonimizacja usuwa go razem z imieniem, nazwiskiem i adresem e-mail;
+konto zanonimizowane przed wprowadzeniem tego pola, które nadal go ma, kończy
+najbliższe przejście anonimizacji.
+
 ## Encje
 
-`CustomerAccount` (e-mail, passwordHash, organizationRoleId), `PasswordResetToken`.
+`CustomerAccount` (e-mail, passwordHash, organizationRoleId, preferredLanguage), `PasswordResetToken`.
 `organizationRoleId` wskazuje rolę konta w organizacji. Starsze, dwuwartościowe
 pole `role` (`organization_admin | regular_user`) jest nadal utrzymywane zgodnie
 z nią, dopóki platforma z niego nie zrezygnuje, i zostanie usunięte.

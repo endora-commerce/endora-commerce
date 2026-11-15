@@ -41,12 +41,25 @@ switched off by a special case.
 - Default payment method and delivery method. The default addresses are read
   from the Organization book, where they are set.
 - Change password; read-only history of own orders and quote requests.
+- **E-mail language.** The account page (`/account`) shows the language the
+  customer's e-mails are written in, under *Two-step verification*, as a list
+  of the store's languages named in their own language, with *Save*. The
+  account records a language on its own when it is created and, if it has
+  none yet, at the next sign-in (see `customer_accounts`); this is how the
+  customer changes it, and only this replaces it. A language the store does not
+  offer is refused (`422 PREFERRED_LANGUAGE_NOT_OFFERED`). If the stored
+  language is no longer offered by the store, the page says so and preselects
+  the language its e-mails are sent in instead. On a store with one language,
+  and while this module is switched off, the row only names the language and
+  offers no control.
 
 **Admin (oversight)**
 
 - Customer list (search + status/organization/group filters) and a detail view
-  showing creation date, customer group, organization, blocked status, and last
-  login.
+  showing creation date, customer group, organization, blocked status, last
+  login and the customer's **e-mail language** — read-only, and *Not set — the
+  store's default language is used* while the account has none. Staff with
+  `customers:read` see it; only the customer changes it.
 - Block / unblock and soft-delete / restore, with role-based authority: a
   Platform Administrator may act on anyone; otherwise the authorized salesperson
   is the one inherited from the customer's Organization. A personal organization
@@ -193,7 +206,8 @@ Admin routes are gated by `customers:read` (reads), `customers:manage`
 | --- | --- | --- |
 | `POST /api/v1/customers/register` | anon | Standalone registration (setting-gated) |
 | `GET /api/v1/storefront/settings/customer-registration` | anon | Whether standalone registration is offered (`allowRegistrationWithoutOrganization`) |
-| `GET /api/v1/me/customer` | customer | Own profile, with `organizationRole` and the effective `permissions` |
+| `GET /api/v1/me/customer` | customer | Own profile, with `organizationRole`, the effective `permissions` and `preferredLanguage` (`null` while unknown) |
+| `PATCH /api/v1/me/customer/preferred-language` | customer | Body `{ preferredLanguage }`: the customer's e-mail language. A language the request's sales channel offers, matched without regard to case and stored as the channel spells it; answers `{ data: { preferredLanguage } }`. Otherwise `422 PREFERRED_LANGUAGE_NOT_OFFERED`. Audited as `customer_account.set_preferred_language`, without the language |
 | `POST /api/v1/me/customer/change-password` | customer | Change password. A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `GET/POST /api/v1/me/customer/addresses` · `PATCH/DELETE .../:id` · `PUT .../:id/default` | customer | Retired: `410 CUSTOMER_ADDRESS_BOOK_RETIRED`. Use `/api/v1/organizations/mine/addresses` |
 | `GET /api/v1/me/customer/defaults` | customer | Default payment/delivery method, and the Organization book's default addresses |

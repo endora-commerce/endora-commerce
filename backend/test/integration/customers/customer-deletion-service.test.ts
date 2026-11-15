@@ -1073,6 +1073,46 @@ describe('CustomerDeletionService', () => {
     expect(await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id })).toHaveLength(1);
   });
 
+  it('I-17c — the sweep erases the account’s preferred language, and the audit row records no tag (#652, D-292)', async () => {
+    const customer = await makePersonalCustomer();
+    customer.preferredLanguage = 'pl-PL';
+    await em.flush();
+    await svc.softDelete(customer.id, actor);
+
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.preferredLanguage ?? null).toBeNull();
+    const row = await auditRow('customer_account.anonymized', customer.id);
+    expect(JSON.stringify([row.stateBefore, row.stateAfter])).not.toContain('pl-PL');
+  });
+
+  it('I-17d — an account anonymised before #652 that still holds a language is listed, finished once and then left alone', async () => {
+    const scrubbedAt = new Date('2026-04-05T06:07:08.000Z');
+    const customer = await makeEarlierAnonymizedCustomer(scrubbedAt, {
+      blockReason: null,
+      customFieldValues: {},
+    });
+    customer.preferredLanguage = 'en-US';
+    await em.flush();
+
+    const due = await accountWrites.listDueForAnonymization(after(60_000));
+    expect(due.map((d) => d.id)).toContain(customer.id);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.preferredLanguage ?? null).toBeNull();
+    expect(account.anonymizedAt!.toISOString()).toBe(scrubbedAt.toISOString());
+    const row = await auditRow('customer_account.anonymized', customer.id);
+    expect(JSON.stringify([row.stateBefore, row.stateAfter])).not.toContain('en-US');
+    expect(announcedFor(customer.id)).toEqual([]);
+
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([]);
+    expect(await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id })).toHaveLength(1);
+  });
+
   it('I-23a — an anonymised account with residue is finished even after the retention window is raised past its deletion', async () => {
     // Deleted (and anonymised) a day ago; the operator has since raised the
     // window to a year, so the cutoff now lies long before `deletedAt`.

@@ -291,6 +291,12 @@ export const ERROR_CODES = {
   CUSTOMER_NOT_DELETED: 'CUSTOMER_NOT_DELETED',
   CUSTOMER_RESTORE_WINDOW_ELAPSED: 'CUSTOMER_RESTORE_WINDOW_ELAPSED',
   ORG_OWNER_DEPLETION: 'ORG_OWNER_DEPLETION',
+  /**
+   * Issue #652 (D-292): `PATCH /api/v1/me/customer/preferred-language` names a
+   * language the request's sales channel does not offer (422). Owned by
+   * `customers`.
+   */
+  PREFERRED_LANGUAGE_NOT_OFFERED: 'PREFERRED_LANGUAGE_NOT_OFFERED',
 
   // Orders + Carts (feature 027)
   CART_EMPTY: 'CART_EMPTY',

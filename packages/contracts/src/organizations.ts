@@ -200,6 +200,12 @@ export const customerAccountSchema = z.object({
   permissions: z.array(z.string()),
   emailVerifiedAt: isoDateTimeSchema.nullable(),
   twoFactorEnabled: z.boolean(),
+  /**
+   * Issue #652 (D-292) — the account's e-mail language, `null` while unknown
+   * (see `CustomerAccountRecord.preferredLanguage`). Answered by
+   * `GET /api/v1/me`; the registration and sign-in answers do not carry it.
+   */
+  preferredLanguage: z.string().nullable().optional(),
   createdAt: isoDateTimeSchema,
   updatedAt: isoDateTimeSchema,
 });

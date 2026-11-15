@@ -11,6 +11,7 @@ import type {
   CustomerAccountReadPort,
   CustomerPasswordStatePort,
   CustomerPasswordVerificationPort,
+  CustomerAccountPreferencePort,
   CustomerSignInCompletionPort,
   MfaAdminEnforcementPort,
   MfaDeactivationGuardPort,
@@ -353,6 +354,13 @@ export function registerModule(ctx: ModuleContext): void {
             customerSignInCompletion: lazyPort<CustomerSignInCompletionPort>(
               ctx,
               'customerSignInCompletionPort',
+            ),
+            // Issue #652 (D-292) — `customer_accounts`' preference port, a proxy
+            // like the rest; that module is in this one's `dependencies` and
+            // `nonDeactivatable`.
+            customerLanguageCapture: lazyPort<CustomerAccountPreferencePort>(
+              ctx,
+              'customerAccountPreferencePort',
             ),
             // Feature 167 — the started-on channel, else the system default.
             channelUrlFactsFor: async (salesChannelId) => {

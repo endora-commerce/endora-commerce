@@ -9,6 +9,7 @@ import type {
   CustomerAuthenticationThrottlePort,
   AuthSessionPort,
   CustomerPasswordStatePort,
+  CustomerAccountPreferencePort,
   CustomerSignInCompletionPort,
   MfaLoginPort,
 } from '@endora-commerce/contracts';
@@ -157,6 +158,8 @@ export interface MfaModuleOptions {
   customerSignInCompletion: CustomerSignInCompletionPort;
   /** Feature 167 — the channel's URL-language facts for the storefront pages sign-in returns to. */
   channelUrlFactsFor?: (salesChannelId: string | null) => Promise<ChannelUrlFacts | null>;
+  /** Issue #652 (D-292) — the preferred-language capture at a federated sign-in. */
+  customerLanguageCapture?: Pick<CustomerAccountPreferencePort, 'captureIfUnset'>;
 }
 
 export interface MfaModuleHandle {
@@ -306,6 +309,7 @@ export function mfaModule(options: MfaModuleOptions): {
         customerChannelAccess: options.customerChannelAccess,
         customerSignInCompletion: options.customerSignInCompletion,
         ...(options.channelUrlFactsFor ? { channelUrlFactsFor: options.channelUrlFactsFor } : {}),
+        ...(options.customerLanguageCapture ? { customerLanguageCapture: options.customerLanguageCapture } : {}),
       });
     }
     // Admin user self-service (US2) + admin reset (US6).

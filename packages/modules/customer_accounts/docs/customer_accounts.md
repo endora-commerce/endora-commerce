@@ -140,13 +140,66 @@ never its values:
   and `hasBlockReason`, never the reason;
 - a custom-field change (`customer.custom_fields.update`) names the changed keys
   as `changedCustomFields`;
-- a role change records the role by id and kind, never a custom role's name.
+- a role change records the role by id and kind, never a custom role's name;
+- a preferred-language change (`customer_account.set_preferred_language`)
+  records `changedFields: ['preferredLanguage']` and where it came from as
+  `source` (`self_service` or `sign_in`), never the language.
 
 The account itself holds the values.
 
+## Preferred language
+
+Every account can record the language its owner reads, as
+`CustomerAccountRecord.preferredLanguage`: one language tag, spelled as the
+sales channel that captured it spells it (`pl-PL`, `en-US`), or `null` while it
+is not known. It is what e-mails composed for the account outside a request are
+meant to be written in. Inside a request nothing changes: the response language
+still follows the request's `Accept-Language` header.
+
+**Where it comes from.**
+
+- **At account creation**, from the creating request: its first
+  `Accept-Language` tag, resolved against the request's sales channel — the
+  exact language if the channel offers it, else a channel language with the same
+  base language (`en` → `en-US`), else the channel's default language. That
+  covers business registration, individual (B2C) registration, accepting an
+  invitation (the invitee's language, not the inviter's) and a first sign-in
+  through an external identity provider (the language of the page the sign-in
+  was started on). An account an operator creates on the organization panel
+  records none.
+- **At sign-in, only while it is unknown** — an account that predates the field,
+  or that an operator created. The language is taken once the password, the
+  block and the store access have been accepted, before any second factor is
+  asked for; a federated sign-in to an existing account is treated the same way.
+  A refused sign-in records nothing, an operator impersonating the customer
+  records nothing, and a sign-in never replaces a language the account already
+  has. If recording it fails, the sign-in still succeeds.
+- **The customer's own choice** on the storefront account page — the only thing
+  that replaces a stored language. See the `customers` module.
+
+**Reading it.** `customerAccountReadPort` returns the field on every record. A
+sender resolves it against the channel it renders for:
+`scopeLanguageOf(renderChannel, preferredLanguage)` — the exact language, else
+one of the same base language, else that channel's default. A language the
+channel no longer offers therefore falls back rather than failing, and nothing
+is migrated when a channel drops a language.
+
+**Writing it from another module.** `customerAccountPreferencePort` has two
+methods, both running the `customer_account.set_preferred_language` Command:
+`setPreferredLanguage(customerAccountId, tag)` stores the tag as given (the
+caller has checked it against the request's channel) and answers 404
+`NOT_FOUND` for an unknown account; `captureIfUnset(customerAccountId, tag)`
+writes only while the account has no language and otherwise does nothing — no
+write and no audit entry.
+
+**Personal data.** The language describes a person. It is never written into an
+audit entry, never logged, and the anonymisation sweep erases it with the name
+and the e-mail; an account anonymised before the field existed that still holds
+one is finished by the next sweep.
+
 ## Entities
 
-`CustomerAccount` (email, passwordHash, organizationRoleId), `PasswordResetToken`.
+`CustomerAccount` (email, passwordHash, organizationRoleId, preferredLanguage), `PasswordResetToken`.
 `organizationRoleId` names the account's organization role. The older two-value
 `role` (`organization_admin | regular_user`) is still kept in step with it while
 the platform moves off it, and will be removed.

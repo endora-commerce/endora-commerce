@@ -129,6 +129,7 @@ function customerRecord(id: string, firstName: string, lastName: string, email: 
     blockedByCustomerAccountId: null,
     deletionRequestedByAdminUserId: null,
     anonymizedAt: null,
+    preferredLanguage: null,
   } as CustomerAccountRecord;
 }
 

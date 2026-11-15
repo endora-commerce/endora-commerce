@@ -84,6 +84,14 @@ export const account = defineMessages({
     'account.profile.twoFactor': 'Two-step verification',
     'account.profile.twoFactorEnabled': 'Enabled',
     'account.profile.twoFactorDisabled': 'Disabled',
+    'account.profile.emailLanguage': 'E-mail language',
+    'account.profile.emailLanguageHint':
+      'E-mails about your orders, returns, invoices and approvals are written in this language.',
+    'account.profile.emailLanguageSave': 'Save',
+    'account.profile.emailLanguageSaved': 'E-mail language saved.',
+    'account.profile.emailLanguageError': 'The e-mail language could not be saved. Try again.',
+    'account.profile.emailLanguageNotOffered':
+      'This store does not offer your e-mail language ({language}), so its e-mails are sent in {fallback}.',
     'account.profile.organization': 'Organization',
     'account.profile.allows.heading': 'What your role allows',
     'account.profile.allows.item': '{label} — {description}',
@@ -640,6 +648,14 @@ export const account = defineMessages({
     'account.profile.twoFactor': 'Weryfikacja dwuetapowa',
     'account.profile.twoFactorEnabled': 'Włączone',
     'account.profile.twoFactorDisabled': 'Wyłączone',
+    'account.profile.emailLanguage': 'Język wiadomości e-mail',
+    'account.profile.emailLanguageHint':
+      'W tym języku wysyłamy Ci e-maile o zamówieniach, zwrotach, fakturach i akceptacjach.',
+    'account.profile.emailLanguageSave': 'Zapisz',
+    'account.profile.emailLanguageSaved': 'Zapisano język wiadomości e-mail.',
+    'account.profile.emailLanguageError': 'Nie udało się zapisać języka wiadomości e-mail. Spróbuj ponownie.',
+    'account.profile.emailLanguageNotOffered':
+      'Ten sklep nie oferuje Twojego języka wiadomości ({language}), więc jego e-maile wysyłamy w języku: {fallback}.',
     'account.profile.organization': 'Organizacja',
     'account.profile.allows.heading': 'Na co pozwala Twoja rola',
     'account.profile.allows.item': '{label} — {description}',

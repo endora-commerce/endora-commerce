@@ -826,7 +826,7 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
     ): Promise<{ id: string; organizationId: string | null; blocked: boolean } | null>;
     autoCreate(
       email: string,
-      context: { salesChannelId: string | null },
+      context: { salesChannelId: string | null; preferredLanguage?: string | null },
     ): Promise<{ id: string; organizationId: string | null } | null>;
   } =>
     (
@@ -837,7 +837,7 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
           ): Promise<{ id: string; organizationId: string | null; blocked: boolean } | null>;
           autoCreate(
             email: string,
-            context: { salesChannelId: string | null },
+            context: { salesChannelId: string | null; preferredLanguage?: string | null },
           ): Promise<{ id: string; organizationId: string | null } | null>;
         };
       }
@@ -845,7 +845,7 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
 
   const mfaSocialResolvers = {
     resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
-    autoCreateCustomer: (email: string, context: { salesChannelId: string }) =>
+    autoCreateCustomer: (email: string, context: { salesChannelId: string; preferredLanguage?: string | null }) =>
       customerSocialLogin().autoCreate(email, context),
     resolveAdminByEmail: async (email: string) => {
       // The claim's spelling is the identity provider's, and the row holds the

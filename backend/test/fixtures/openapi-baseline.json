@@ -9184,6 +9184,15 @@
         }
       }
     },
+    "/api/v1/me/customer/preferred-language": {
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/me/customer/quote-requests": {
       "get": {
         "responses": {

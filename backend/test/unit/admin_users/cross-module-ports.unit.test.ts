@@ -195,6 +195,7 @@ const TARGET: CustomerAccountRecord = {
   blockedByCustomerAccountId: null,
   deletionRequestedByAdminUserId: null,
   anonymizedAt: null,
+  preferredLanguage: null,
 };
 
 /** Only the methods this module calls, answered as `customer_accounts` would. */

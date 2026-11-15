@@ -81,13 +81,18 @@ export const ANONYMIZED_PASSWORD_HASH = 'anonymized-no-login';
 
 /**
  * Whether an anonymised account still holds something today's scrub erases
- * (issue #843): a block reason, or custom field values a pre-#802 scrub left.
+ * (issue #843): a block reason, custom field values a pre-#802 scrub left, or
+ * a preferred language a pre-#652 scrub left (D-292).
  * Such an account is unfinished, and {@link CustomerAccountLifecycleWriteService.anonymize}
  * finishes it. The residue branch of {@link dueForAnonymization} is the same
  * rule as SQL.
  */
 function hasScrubResidue(account: CustomerAccount): boolean {
-  return account.blockReason != null || Object.keys(account.customFieldValues ?? {}).length > 0;
+  return (
+    account.blockReason != null ||
+    Object.keys(account.customFieldValues ?? {}).length > 0 ||
+    account.preferredLanguage != null
+  );
 }
 
 /**
@@ -106,7 +111,8 @@ function dueForAnonymization(cutoff: Date): WorkRows {
   return {
     from:
       'from "customer_accounts" where ("deleted_at" is not null and "deleted_at" < ? and "anonymized_at" is null)' +
-      ` or ("anonymized_at" is not null and ("block_reason" is not null or "custom_field_values" <> '{}'::jsonb))`,
+      ` or ("anonymized_at" is not null and ("block_reason" is not null or "custom_field_values" <> '{}'::jsonb` +
+      ` or "preferred_language" is not null))`,
     params: [cutoff],
   };
 }
@@ -211,6 +217,9 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         // ruling PR-3, research R-34); the id comes from the provisioning
         // answer because the role row exists only in this transaction.
         organizationRoleId: organization.administratorRoleId,
+        // Issue #652 (D-292) — the registering request's language, resolved
+        // against its channel by the caller.
+        preferredLanguage: input.preferredLanguage ?? null,
       });
       // Self-registration is pre-auth, so there is no ambient actor and the row
       // is recorded with a null one — as it was before this write moved here.
@@ -557,6 +566,7 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
         });
         row.blockReason = null;
         row.customFieldValues = {};
+        row.preferredLanguage = null;
         await tem.flush();
         return { row, transitioned: false };
       }
@@ -573,6 +583,9 @@ export class CustomerAccountLifecycleWriteService implements CustomerAccountLife
       row.customFieldValues = {};
       const hadBlockReason = row.blockReason != null;
       row.blockReason = null;
+      // Issue #652 (D-292) — the language its owner reads is personal data too;
+      // the audit row records nothing about it.
+      row.preferredLanguage = null;
       row.anonymizedAt = new Date();
       // The sweep runs on a timer, so there is no operator to attribute it to.
       this.auditLog.recordWithin(tem, {

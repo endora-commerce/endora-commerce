@@ -56,6 +56,7 @@ function account(overrides: Partial<CustomerAccountRecord> & { id: string }): Cu
     blockedByCustomerAccountId: null,
     deletionRequestedByAdminUserId: null,
     anonymizedAt: null,
+    preferredLanguage: null,
     ...overrides,
   };
 }

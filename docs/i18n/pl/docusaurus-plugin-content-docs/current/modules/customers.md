@@ -37,11 +37,23 @@ zamiast być wyłączane jako przypadek szczególny.
 - Domyślna metoda płatności i metoda dostawy. Adresy domyślne są odczytywane z książki organizacji,
   w której się je ustawia.
 - Zmiana hasła; historia własnych zamówień i zapytań ofertowych tylko do odczytu.
+- **Język wiadomości e-mail.** Strona konta (`/account`) pokazuje, pod
+  *Weryfikacją dwuetapową*, język, w którym piszemy e-maile do klienta — jako
+  listę języków sklepu nazwanych we własnym języku, z przyciskiem *Zapisz*.
+  Konto samo zapisuje język przy utworzeniu oraz, jeśli jeszcze go nie ma, przy
+  następnym logowaniu (zob. `customer_accounts`); tutaj klient go zmienia i tylko
+  to go zastępuje. Język, którego sklep nie oferuje, jest odrzucany
+  (`422 PREFERRED_LANGUAGE_NOT_OFFERED`). Jeśli zapisanego języka sklep już nie
+  oferuje, strona o tym informuje i wstępnie wybiera język, w którym wysyłamy
+  e-maile. W sklepie z jednym językiem, a także gdy ten moduł jest wyłączony,
+  wiersz tylko podaje język i nie oferuje wyboru.
 
 **Panel administracyjny (nadzór)**
 
 - Lista klientów (wyszukiwanie oraz filtry statusu, organizacji i grupy) i widok szczegółów z datą
-  utworzenia, grupą klientów, organizacją, stanem blokady i ostatnim logowaniem.
+  utworzenia, grupą klientów, organizacją, stanem blokady, ostatnim logowaniem i **językiem
+  wiadomości e-mail** klienta — tylko do odczytu, a gdy konto go nie ma: *Nie ustawiono — używany
+  jest domyślny język sklepu*. Widzą go pracownicy z `customers:read`; zmienić go może tylko klient.
 - Blokowanie i odblokowanie oraz usunięcie miękkie i przywrócenie, z uprawnieniami zależnymi od roli:
   administrator platformy może działać na każdym kliencie; poza nim uprawniony jest handlowiec
   przypisany do organizacji klienta. Organizacja osobista nigdy nie ma przypisanego handlowca, więc
@@ -174,7 +186,8 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | --- | --- | --- |
 | `POST /api/v1/customers/register` | anonimowy | Samodzielna rejestracja (zależna od ustawienia) |
 | `GET /api/v1/storefront/settings/customer-registration` | anonimowy | Czy samodzielna rejestracja jest dostępna (`allowRegistrationWithoutOrganization`) |
-| `GET /api/v1/me/customer` | klient | Własny profil z `organizationRole` i faktycznymi uprawnieniami `permissions` |
+| `GET /api/v1/me/customer` | klient | Własny profil z `organizationRole`, faktycznymi uprawnieniami `permissions` i `preferredLanguage` (`null`, dopóki nieznany) |
+| `PATCH /api/v1/me/customer/preferred-language` | klient | Treść `{ preferredLanguage }`: język wiadomości e-mail klienta. Język oferowany przez kanał sprzedaży żądania, dopasowany bez względu na wielkość liter i zapisany tak, jak zapisuje go kanał; odpowiedź `{ data: { preferredLanguage } }`. W przeciwnym razie `422 PREFERRED_LANGUAGE_NOT_OFFERED`. Audytowane jako `customer_account.set_preferred_language`, bez języka |
 | `POST /api/v1/me/customer/change-password` | klient | Zmiana hasła. Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `GET/POST /api/v1/me/customer/addresses` · `PATCH/DELETE .../:id` · `PUT .../:id/default` | klient | Wycofane: `410 CUSTOMER_ADDRESS_BOOK_RETIRED`. Używaj `/api/v1/organizations/mine/addresses` |
 | `GET /api/v1/me/customer/defaults` | klient | Domyślna metoda płatności i dostawy oraz adresy domyślne z książki organizacji |

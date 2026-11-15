@@ -67,6 +67,9 @@ interface Harness {
   /** Issue #1188 — what `organizations`' post-sign-in step was handed, in order. */
   completions: CustomerSignInCompletionInput[];
   setCompletion: (completion: CustomerSignInCompletion) => void;
+  /** Issue #652 — what the preferred-language capture was asked, in order. */
+  captured: Array<[string, string]>;
+  setCaptureFails: (fails: boolean) => void;
 }
 
 async function build(
@@ -84,6 +87,8 @@ async function build(
   const signInCustomer = vi.fn(async () => customerResult);
   const completions: CustomerSignInCompletionInput[] = [];
   let completion: CustomerSignInCompletion = { cartMerge: null, clearAnonymousCartCookie: false };
+  const captured: Array<[string, string]> = [];
+  let captureFails = false;
 
   const beginLogin = vi.fn(async () => decision);
   const createSession = vi.fn(async () => ({
@@ -129,6 +134,12 @@ async function build(
         return completion;
       },
     },
+    customerLanguageCapture: {
+      captureIfUnset: async (customerAccountId, tag) => {
+        if (captureFails) throw new Error('database blip');
+        captured.push([customerAccountId, tag]);
+      },
+    },
   });
   await app.ready();
 
@@ -154,6 +165,10 @@ async function build(
     completions,
     setCompletion: (c) => {
       completion = c;
+    },
+    captured,
+    setCaptureFails: (fails) => {
+      captureFails = fails;
     },
   };
 }
@@ -533,7 +548,9 @@ describe('federated sign-in — the sales-channel access rule (feature 154)', ()
     await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
     expect(h.signInCustomer).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'buyer@example.com' }),
-      { salesChannelId: null },
+      // Issue #652 — with the language the account would record: here the
+      // channel default, the starting page having named none.
+      { salesChannelId: null, preferredLanguage: 'pl-PL' },
     );
   });
 
@@ -584,6 +601,65 @@ describe('federated sign-in — the language of the starting page', () => {
     const { state, binding } = await start(h, 'customer', '/en/account');
     const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
     expect(res.headers['location']).toBe(`${STOREFRONT}/en/account`);
+  });
+});
+
+/**
+ * Issue #652 (D-292) — an accepted customer sign-in hands the account the
+ * starting page's language, resolved against the started-on channel; the port
+ * fills it only while the account has none. A refused sign-in hands it nothing,
+ * an administrator's sign-in is not a customer's, and a failed capture does not
+ * fail the sign-in.
+ */
+describe('federated sign-in — the account language (#652)', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await build();
+  });
+  afterEach(async () => {
+    await h.app.close();
+  });
+
+  it('offers the starting page’s language, as the channel spells it, to a new and an existing account', async () => {
+    const { state, binding } = await start(h, 'customer', '/en/account');
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
+    expect(res.headers['location']).toBe(`${STOREFRONT}/en/account`);
+    expect(h.signInCustomer.mock.calls[0]?.[1]).toMatchObject({ preferredLanguage: 'en-US' });
+    expect(h.captured).toEqual([['c1', 'en-US']]);
+  });
+
+  it('captures before the second factor is asked for', async () => {
+    h.setDecision({ kind: 'challenge', challengeId: 'challenge-1' });
+    const { state, binding } = await start(h, 'customer', '/en/account');
+    await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
+    expect(h.captured).toEqual([['c1', 'en-US']]);
+  });
+
+  it('captures nothing for a refused sign-in', async () => {
+    h.setPermitted(false);
+    const refusedByChannel = await start(h, 'customer', '/en/account');
+    await callback(h, refusedByChannel.state, { [OAUTH_BINDING_COOKIE_NAME]: refusedByChannel.binding! });
+
+    h.setPermitted(true);
+    h.setCustomerResult({ ok: false, reason: 'blocked' });
+    const blocked = await start(h, 'customer', '/en/account');
+    await callback(h, blocked.state, { [OAUTH_BINDING_COOKIE_NAME]: blocked.binding! });
+
+    expect(h.captured).toEqual([]);
+  });
+
+  it('captures nothing for an administrator', async () => {
+    const { state, binding } = await start(h, 'admin');
+    await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! }, 'admin');
+    expect(h.captured).toEqual([]);
+  });
+
+  it('signs the customer in even when the capture fails', async () => {
+    h.setCaptureFails(true);
+    const { state, binding } = await start(h, 'customer', '/en/account');
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! });
+    expect(res.headers['location']).toBe(`${STOREFRONT}/en/account`);
+    expect(sessionCookie(res, 'b2b_session')).toBeDefined();
   });
 });
 

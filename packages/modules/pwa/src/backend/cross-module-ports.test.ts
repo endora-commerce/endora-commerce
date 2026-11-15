@@ -84,6 +84,7 @@ function accountRecord(
     blockedByCustomerAccountId: null,
     deletionRequestedByAdminUserId: null,
     anonymizedAt: null,
+    preferredLanguage: null,
     ...overrides,
   };
 }
