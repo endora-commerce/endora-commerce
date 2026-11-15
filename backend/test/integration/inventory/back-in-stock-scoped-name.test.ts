@@ -190,7 +190,25 @@ describe('#696 — the back-in-stock e-mail names the product at the subscriptio
     expect(rows).toEqual([{ language_code: 'pl-PL' }]);
   });
 
+  /** Each subscription's status, once its `notified_at` is stamped — `null` while it is not. */
+  async function statuses(productId: string): Promise<Array<string | null>> {
+    const rows = (await sql(
+      `select status, notified_at from availability_notifications where product_id = ? order by status`,
+      [productId],
+    )) as Array<{ status: string; notified_at: Date | null }>;
+    return rows.map((r) => (r.notified_at === null ? null : r.status));
+  }
+
   describe.each(senders)('%s', (_label, send) => {
+    it('marks every subscription it mailed notified, not queued (#1291)', async () => {
+      await reset(drill.id);
+      await seedUnscoped(drill.id);
+      expect((await subscribeOnStorefront(drill.id, `s1291-st-${RUN}@example.test`, 'pl-PL')).statusCode).toBe(202);
+      expect((await send(drill.id, mailer)).notified).toBe(2);
+      expect(mailer.sent).toHaveLength(2);
+      expect(await statuses(drill.id)).toEqual(['notified', 'notified']);
+    });
+
     it('names the product at Channel × language', async () => {
       await reset(drill.id);
       expect((await subscribeOnStorefront(drill.id, `s696-cl-${RUN}@example.test`, 'pl-PL')).statusCode).toBe(202);
@@ -259,6 +277,8 @@ describe('#696 — the back-in-stock e-mail names the product at the subscriptio
         // Consumed, as the port's `true` says: the platform decided to send nothing.
         expect((await send(drill.id, mailer)).notified).toBe(2);
         expect(mailer.sent).toEqual([]);
+        // Issue #1291 — and consumed reads as `notified`, from either sender.
+        expect(await statuses(drill.id)).toEqual(['notified', 'notified']);
       } finally {
         await sql(`update transactional_emails set active = true where code = 'availability_back_in_stock'`);
       }
