@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { EditorSaveSessionHandle } from '@endora-commerce/contracts';
+import {
+  ApiError,
+  apiClient,
+  useSaveParticipant,
+  type ParticipantIssues,
+  type SaveParticipantHandlers,
+} from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -104,6 +111,68 @@ export function useNegotiationResource<T>(route: string): NegotiationResource<T>
   const retry = useCallback((): void => setAttempt((n) => n + 1), []);
 
   return { state, loading, loadError, saving, saveError, saved, retry, save };
+}
+
+/** How a panel's value becomes its `PUT` body, and whether that body is one the route takes. */
+export interface NegotiationWrite<T> {
+  /** Module-level, so the participant's handlers keep one identity. */
+  readonly bodyOf: (value: T) => unknown;
+  readonly validBody: (body: unknown) => boolean;
+}
+
+/** A panel's part in its host's one Save: the staged value, its setter and its card state. */
+export interface NegotiationParticipant<T> {
+  /** The value to show: the staged one, else the stored one; `null` until read. */
+  value: T | null;
+  setValue: (next: T) => void;
+  /** What `NegotiationCard` shows for the part: the read's state, the session's write state. */
+  card: Pick<NegotiationResource<unknown>, 'loading' | 'loadError' | 'saving' | 'saveError' | 'saved' | 'retry'>;
+}
+
+/**
+ * Feature 180, WP-7 — the value behind `route` as the part `price-negotiation` of its host's one
+ * Save (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §2; FR-060). The
+ * control stages the value instead of writing it on change; the host's Save writes it through
+ * the same `PUT`, and the host's Save reports the outcome, so the card's "Saved." is not shown.
+ * Validation is the contracts body schema (research R20); the write stays unversioned, last write
+ * wins, as before (research R11). Without `writable` (no `customers:manage`) nothing is staged.
+ */
+export function useNegotiationParticipant<T>(
+  route: string,
+  resource: NegotiationResource<T>,
+  handle: EditorSaveSessionHandle,
+  writable: boolean,
+  write: NegotiationWrite<T>,
+): NegotiationParticipant<T> {
+  const t = useTranslation('quote_requests');
+  const { bodyOf, validBody } = write;
+  // Pure of component state: the session may run them after the panel has unmounted.
+  const handlers = useMemo<SaveParticipantHandlers<T>>(
+    () => ({
+      changeCount: (draft, baseline) => (JSON.stringify(bodyOf(draft)) === JSON.stringify(bodyOf(baseline)) ? 0 : 1),
+      validate: async (draft): Promise<ParticipantIssues> =>
+        validBody(bodyOf(draft)) ? { fields: {} } : { fields: {}, message: t('negotiation.saveError') },
+      save: async (draft): Promise<T> => (await apiClient.put<{ data: T }>(route, bodyOf(draft))).data,
+    }),
+    [route, bodyOf, validBody, t],
+  );
+  const participant = useSaveParticipant<T>(
+    handle,
+    { key: 'price-negotiation', label: t('negotiation.partLabel'), writable, loaded: resource.state },
+    handlers,
+  );
+  return {
+    value: participant.draft ?? resource.state,
+    setValue: (next) => participant.setDraft(next),
+    card: {
+      loading: resource.loading,
+      loadError: resource.loadError,
+      retry: resource.retry,
+      saving: participant.status === 'saving',
+      saveError: participant.error ?? participant.issues?.message ?? null,
+      saved: false,
+    },
+  };
 }
 
 /**

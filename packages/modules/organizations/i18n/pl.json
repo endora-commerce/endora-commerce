@@ -295,5 +295,8 @@
   "changeTaxId.page.pickerPlaceholder": "Szukaj po nazwie",
   "changeTaxId.page.empty": "Brak pasujących organizacji firmowych.",
   "changeTaxId.page.next": "Dalej",
-  "changeTaxId.page.loadError": "Nie udało się wczytać organizacji."
+  "changeTaxId.page.loadError": "Nie udało się wczytać organizacji.",
+  "detail.save.hostPartLabel": "Organizacja",
+  "detail.save.conflict": "Ta organizacja została zmieniona w innym miejscu. Niczego nie zapisano: strona została wczytana ponownie z aktualnymi wartościami, a niezapisane zmiany na niej odrzucono.",
+  "detail.immediate.badge": "Działa od razu"
 }

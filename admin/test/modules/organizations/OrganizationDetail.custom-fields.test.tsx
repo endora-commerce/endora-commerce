@@ -12,9 +12,9 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * with the panel resolved from `@endora-commerce/admin-kit/components`
  * (feature 091, P4e).
  *
- * This is the call site whose writer is not a bare endpoint: `save` is the
- * screen's own `handlePatch`, which folds the bag into the organization PATCH
- * together with `expectedUpdatedAt`. `admin-component-contribution.md` §9.1
+ * This is the call site whose writer is not a bare endpoint: the panel is
+ * embedded (`onChange`, no `save`) and the screen's one Save folds the bag into
+ * the organization PATCH together with `expectedUpdatedAt` (feature 180, WP-7). `admin-component-contribution.md` §9.1
  * names it as the case that makes the reach *"the host renders its own data"*
  * rather than *"the owner mounts its fragment"* — the panel cannot know about
  * the concurrency field, and after publication it still does not have to.
@@ -172,15 +172,15 @@ describe('OrganizationDetail — custom fields, through the published panel', ()
     );
   });
 
-  it('saves through the screen\'s own `handlePatch`, concurrency field included', async () => {
+  it('saves through the screen\'s one Save, in its PATCH, concurrency field included', async () => {
     renderDetail();
 
     const input = await screen.findByLabelText('Account manager');
     await userEvent.clear(input);
     await userEvent.type(input, 'Bea');
-    await userEvent.click(
-      screen.getByRole('button', { name: CORE_EN['customFields.save'] as string }),
-    );
+    // Feature 180, WP-7 — the panel's own button is gone; the page's Save writes the bag.
+    expect(screen.queryByRole('button', { name: CORE_EN['customFields.save'] as string })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Save 1 change' }));
 
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy.mock.calls[0]?.[0]).toBe(`/api/v1/admin/organizations/${ORG_ID}`);

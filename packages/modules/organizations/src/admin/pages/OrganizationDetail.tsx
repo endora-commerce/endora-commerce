@@ -1,9 +1,21 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import type { FulfilmentStrategy, OrganizationRoleRef, OrganizationRoleView, Warehouse } from '@endora-commerce/contracts';
-import { ApiError, apiClient, useAuth, useSurfaceVisibility, useUnsavedChangesPrompt, formatDateTime, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
+import {
+  ApiError,
+  SaveSessionProvider,
+  apiClient,
+  formatDateTime,
+  useAuth,
+  useSaveSession,
+  useSurfaceVisibility,
+  useUnsavedChangesPrompt,
+  type SaveOutcome,
+  type SavePart,
+} from '@endora-commerce/admin-kit/lib';
 import { FulfilmentStrategyPanel } from '../panels/FulfilmentStrategyPanel.js';
+import { ImmediateBadge } from '../components/ImmediateBadge.js';
 import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab.js';
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
 import { ConvertToCompanyForm, type ConvertToCompanyResult } from '../components/ConvertToCompanyForm.js';
@@ -14,9 +26,16 @@ import { ApplicablePriceListsPanel } from '../panels/ApplicablePriceListsPanel.j
 import { HierarchyPanel } from '../panels/HierarchyPanel.js';
 import { VatValidationPanel } from '../panels/VatValidationPanel.js';
 import { newestRegistrationRow } from '../panels/vat-validation-view.js';
-import { RestrictionsPanel } from '../panels/RestrictionsPanel.js';
+import { RestrictionsPanel, changedRestrictionLists, type RestrictionsSelection } from '../panels/RestrictionsPanel.js';
 import { SalesChannelsPanel } from '../panels/SalesChannelsPanel.js';
-import { CustomFieldValuesPanel, ModalDialog, customFieldErrorsOf } from '@endora-commerce/admin-kit/components';
+import {
+  CustomFieldValuesPanel,
+  ModalDialog,
+  SaveSessionActions,
+  SaveSessionSummary,
+  customFieldErrorsOf,
+  type FulfilmentStrategyValue,
+} from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -85,7 +104,95 @@ function byKindThenName(a: OrganizationRoleRef, b: OrganizationRoleRef): number 
   return KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.name.localeCompare(b.name);
 }
 
+/**
+ * Feature 180, WP-7 — the screen's own sections, staged for its one Save. A field is `undefined`
+ * until the operator edits it; the stored organization (and the restrictions the panel read) is
+ * the baseline every count and every `PATCH` body is computed against.
+ */
+interface HostEdits {
+  status?: OrgDetail['status'];
+  vatStatus?: OrgDetail['vatStatus'];
+  /** The e-mails textarea as typed; parsed on Save, as it used to be parsed on blur. */
+  emailsText?: string;
+  fulfilment?: FulfilmentStrategyValue;
+  /** The custom-field panel's `edit`-level bag, as it reports it. */
+  customFieldValues?: Record<string, unknown>;
+  restrictions?: RestrictionsSelection;
+}
+
+function parseEmails(text: string): string[] {
+  return text
+    .split(/[\n,]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function storedFulfilment(org: OrgDetail): FulfilmentStrategyValue {
+  return { strategy: org.fulfilmentStrategy ?? null, warehouseOrder: org.fulfilmentStrategyWarehouseOrder ?? [] };
+}
+
+/** A warehouse order only matters for `defined_order`, which is what the `PATCH` sends. */
+function sameFulfilment(a: FulfilmentStrategyValue, b: FulfilmentStrategyValue): boolean {
+  if (a.strategy !== b.strategy) return false;
+  return a.strategy !== 'defined_order' || a.warehouseOrder.join('|') === b.warehouseOrder.join('|');
+}
+
+/** The custom fields the bag changes, against the stored values. */
+function changedCustomFields(bag: Record<string, unknown> | undefined, stored: Record<string, unknown>): number {
+  if (bag === undefined) return 0;
+  return Object.entries(bag).filter(([key, value]) => JSON.stringify(value ?? null) !== JSON.stringify(stored[key] ?? null)).length;
+}
+
+/**
+ * The `PATCH …/organizations/:id` body for the staged edits — only the fields that differ from
+ * the stored organization, in the shapes the screen has always sent them.
+ */
+function patchBodyOf(edits: HostEdits, org: OrgDetail): Record<string, unknown> {
+  const body: Record<string, unknown> = {};
+  if (edits.status !== undefined && edits.status !== org.status) body['status'] = edits.status;
+  if (edits.vatStatus !== undefined && edits.vatStatus !== org.vatStatus) body['vatStatus'] = edits.vatStatus;
+  if (edits.emailsText !== undefined) {
+    const emails = parseEmails(edits.emailsText);
+    if (emails.join('|') !== (org.orderConfirmationEmails ?? []).join('|')) body['orderConfirmationEmails'] = emails;
+  }
+  if (edits.fulfilment !== undefined && !sameFulfilment(edits.fulfilment, storedFulfilment(org))) {
+    body['fulfilmentStrategy'] = edits.fulfilment.strategy;
+    body['fulfilmentStrategyWarehouseOrder'] =
+      edits.fulfilment.strategy === 'defined_order' ? edits.fulfilment.warehouseOrder : null;
+  }
+  if (changedCustomFields(edits.customFieldValues, org.customFieldValues ?? {}) > 0) {
+    body['customFieldValues'] = edits.customFieldValues;
+  }
+  return body;
+}
+
+/** The host part's unsaved changes: one per changed field, custom field and allow-list. */
+function hostChangeCount(edits: HostEdits, org: OrgDetail, restrictions: RestrictionsSelection | null): number {
+  const body = patchBodyOf(edits, org);
+  let count = ['status', 'vatStatus', 'orderConfirmationEmails', 'fulfilmentStrategy'].filter((key) => key in body).length;
+  count += changedCustomFields(edits.customFieldValues, org.customFieldValues ?? {});
+  if (edits.restrictions !== undefined && restrictions !== null) count += changedRestrictionLists(edits.restrictions, restrictions);
+  return count;
+}
+
+/**
+ * Feature 180, WP-7 (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §2;
+ * US9, OQ-9 = A, OQ-11 = A; FR-060, FR-061) — one Save for the screen. Its own sections (status,
+ * VAT status, order-confirmation e-mails, fulfilment strategy, restrictions, custom fields) are
+ * staged and written by it as the host part; `organization.detail.after`'s panels take part
+ * through the session. Members, hierarchy, moderation, VAT validation, sales channels, roles and
+ * sales representatives stay immediate, each labelled so. The session is one per organization.
+ */
 export function OrganizationDetail(): ReactNode {
+  const { id = '' } = useParams<{ id: string }>();
+  return (
+    <SaveSessionProvider resetKey={id} hostModule="organizations">
+      <OrganizationDetailScreen id={id} />
+    </SaveSessionProvider>
+  );
+}
+
+function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   const t = useTranslation('core');
   const own = useTranslation('organizations');
   const isVisible = useSurfaceVisibility();
@@ -97,7 +204,6 @@ export function OrganizationDetail(): ReactNode {
   const canChangeTaxId = isVisible({ module: 'organizations', requiredPermission: 'organizations:change-tax-id' });
   const canValidateTaxId = isVisible({ module: 'organizations', requiredPermission: 'customers:manage' });
   const [changingTaxId, setChangingTaxId] = useState(false);
-  const { id = '' } = useParams<{ id: string }>();
   const [org, setOrg] = useState<OrgDetail | null>(null);
   // Feature 173 — the newest registration-time lookup's differing fields, as
   // the VAT validation panel loaded them, for the moderation notice.
@@ -210,51 +316,161 @@ export function OrganizationDetail(): ReactNode {
     }
   }, [editMember]);
 
-  // The member-edit overlay is the only deferred-save form on this page (the
-  // rest of the org fields persist immediately on change). Warn before leaving
-  // if it holds edits that haven't been saved yet.
+  // --- The one Save (feature 180, WP-7) -------------------------------------------------
+  const session = useSaveSession();
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const canManage = hasPermission('customers:manage');
+  const [edits, setEdits] = useState<HostEdits>({});
+  // The stored allow-lists, as the restrictions panel last read them.
+  const [restrictionsStored, setRestrictionsStored] = useState<RestrictionsSelection | null>(null);
+  // A new value remounts what holds a read of its own (the zone's panels, the custom-field
+  // panel) and re-reads the restrictions — after a version conflict discarded every change.
+  const [reloadKey, setReloadKey] = useState(0);
+  const [restrictionsReloadKey, setRestrictionsReloadKey] = useState(0);
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const busy = saving || session.saving;
+  const hostCount = org !== null && canManage ? hostChangeCount(edits, org, restrictionsStored) : 0;
+
+  const changeEdits = useCallback((patch: Partial<HostEdits>): void => {
+    setEdits((current) => ({ ...current, ...patch }));
+    // The last save's summary belongs to it: an edit clears it (FR-016).
+    sessionRef.current.clearOutcome();
+    setInfo(null);
+  }, []);
+
+  // The member-edit overlay, the invite and the direct-add forms hold unsaved
+  // data-entry of their own (each applies immediately on its button); the page's
+  // Save covers the rest. Warn before leaving if any of them holds an edit.
   const memberEditDirty =
     editMember !== null &&
     (editFirst !== editMember.firstName ||
       editLast !== editMember.lastName ||
       editEmail !== editMember.email);
-  // The invite and direct-add forms also hold unsaved data-entry.
   const inviteDirty = inviteEmail !== '';
   const directAddDirty =
     directEmail !== '' || directFirst !== '' || directLast !== '' || directPassword !== '';
-  useUnsavedChangesPrompt(memberEditDirty || inviteDirty || directAddDirty);
+  useUnsavedChangesPrompt(memberEditDirty || inviteDirty || directAddDirty || hostCount + session.dirtyCount > 0);
 
-  const handlePatch = useCallback(
-    async (patch: {
-      status?: string;
-      vatStatus?: string;
-      name?: string;
-      orderConfirmationEmails?: string[];
-      fulfilmentStrategy?: FulfilmentStrategy | null;
-      fulfilmentStrategyWarehouseOrder?: string[] | null;
-      customFieldValues?: Record<string, unknown>;
-      expectedUpdatedAt?: string;
-    }): Promise<void> => {
-      if (!org?.updatedAt) return;
+  // The latest stored organization, read by the host part when Save runs.
+  const orgRef = useRef(org);
+  orgRef.current = org;
+  const conflictRef = useRef(false);
+
+  /**
+   * The host part's write, blocking: one `PATCH …/organizations/:id` with `expectedUpdatedAt`
+   * for every changed field of the screen's own sections, then — when the allow-lists changed —
+   * the restrictions `PUT`, gated by the version that `PATCH` answered (or the one read, when
+   * nothing else changed). A `VERSION_CONFLICT` on either is flagged for the reload below; it
+   * is rethrown, so the session writes no panel after it (FR-015).
+   */
+  const writeHost = useCallback(
+    async (staged: HostEdits, stored: RestrictionsSelection | null): Promise<void> => {
+      const current = orgRef.current;
+      if (current === null) return;
+      setCustomFieldErrors({});
+      const body = patchBodyOf(staged, current);
+      const restrictions =
+        staged.restrictions !== undefined && stored !== null && changedRestrictionLists(staged.restrictions, stored) > 0
+          ? staged.restrictions
+          : null;
+      let version = current.version ?? 0;
+      let patched = false;
       try {
-        await apiClient.patch<{ data: OrgDetail }>(`/api/v1/admin/organizations/${id}`, {
-          ...patch,
-          expectedUpdatedAt: patch.expectedUpdatedAt ?? org.updatedAt,
-        });
-        setInfo(t('organizations.detail.info.saved'));
-        await refresh();
+        if (Object.keys(body).length > 0) {
+          const res = await apiClient.patch<{ data: OrgDetail }>(`/api/v1/admin/organizations/${id}`, {
+            ...body,
+            ...(current.updatedAt !== undefined ? { expectedUpdatedAt: current.updatedAt } : {}),
+          });
+          patched = true;
+          version = res.data.version ?? version;
+        }
+        if (restrictions !== null) {
+          await apiClient.put(`/api/v1/admin/organizations/${id}/restrictions`, {
+            expectedVersion: version,
+            paymentMethodIds: [...restrictions.paymentMethodIds],
+            deliveryMethodIds: [...restrictions.deliveryMethodIds],
+            warehouseIds: [...restrictions.warehouseIds],
+          });
+          setRestrictionsStored(restrictions);
+        }
       } catch (err) {
         if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-          setError(t('organizations.detail.error.versionConflictOrg'));
-          await refresh();
-          setError(null);
+          conflictRef.current = true;
         } else {
-          setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.save'));
+          setCustomFieldErrors(customFieldErrorsOf(err) ?? {});
+          if (patched) {
+            // The organization's fields are saved; what is left staged is the allow-lists.
+            setEdits((latest) => (latest.restrictions === undefined ? {} : { restrictions: latest.restrictions }));
+            await refresh({ quiet: true });
+          }
         }
+        throw err;
       }
+      setEdits({});
+      await refresh({ quiet: true });
     },
-    [id, org, refresh, t],
+    [id, refresh],
   );
+
+  /**
+   * The one Save: the host part first (blocking), then every participant in zone order
+   * (OQ-2 = A). A version conflict reloads the organization and discards every change on the
+   * page — the host's and every panel's — and says so.
+   */
+  const savePage = async (): Promise<void> => {
+    if (org === null) return;
+    const staged = edits;
+    const stored = restrictionsStored;
+    const host: SavePart | null =
+      hostCount > 0
+        ? {
+            id: 'host',
+            label: own('detail.save.hostPartLabel'),
+            blocking: true,
+            count: hostCount,
+            validate: async () => ({ fields: {} }),
+            save: async () => writeHost(staged, stored),
+          }
+        : null;
+    if (host === null && sessionRef.current.dirtyCount === 0) return;
+    setSaving(true);
+    setError(null);
+    setInfo(null);
+    conflictRef.current = false;
+    try {
+      const outcome = await sessionRef.current.run(host);
+      if (conflictRef.current) {
+        conflictRef.current = false;
+        sessionRef.current.discardAll();
+        setEdits({});
+        setCustomFieldErrors({});
+        setReloadKey((n) => n + 1);
+        setRestrictionsReloadKey((n) => n + 1);
+        await refresh({ quiet: true });
+        setError(own('detail.save.conflict'));
+        return;
+      }
+      if (outcome.result === 'saved') setInfo(t('organizations.detail.info.saved'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** The summary's "Show": the part's first marked field, else its first control. */
+  const zoneRef = useRef<HTMLDivElement | null>(null);
+  const showPart = (partId: string): void => {
+    setTimeout(() => {
+      const root: ParentNode | null = partId === 'host' ? document : zoneRef.current;
+      const target =
+        root?.querySelector<HTMLElement>('[aria-invalid="true"]') ??
+        (partId === 'host'
+          ? document.getElementById('ostatus')
+          : zoneRef.current?.querySelector<HTMLElement>('select, input, textarea'));
+      target?.focus();
+    }, 0);
+  };
 
   const inviteMember = useCallback(async (): Promise<void> => {
     if (!inviteEmail.trim()) return;
@@ -411,9 +627,20 @@ export function OrganizationDetail(): ReactNode {
                 {own('changeTaxId.button')}
               </Button>
             ) : null}
+            <SaveSessionActions hostCount={hostCount} canSave={canManage} saving={busy} onSave={(): void => void savePage()} />
           </div>
         }
       />
+
+      {showSummary(session.lastOutcome) || session.notices.length > 0 ? (
+        <div className="mb-4">
+          <SaveSessionSummary
+            outcome={showSummary(session.lastOutcome) ? session.lastOutcome : null}
+            notices={session.notices}
+            onShow={showPart}
+          />
+        </div>
+      ) : null}
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
@@ -449,13 +676,9 @@ export function OrganizationDetail(): ReactNode {
             <Label htmlFor="ostatus">{t('organizations.detail.accountStatus')}</Label>
             <Select
               id="ostatus"
-              value={org.status}
-              onChange={(e): void =>
-                void handlePatch({
-                  status: e.target.value,
-                  ...(org.updatedAt !== undefined ? { expectedUpdatedAt: org.updatedAt } : {}),
-                })
-              }
+              value={edits.status ?? org.status}
+              disabled={busy}
+              onChange={(e): void => changeEdits({ status: e.target.value as OrgDetail['status'] })}
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -468,13 +691,9 @@ export function OrganizationDetail(): ReactNode {
             <Label htmlFor="vstatus">{t('organizations.detail.vatStatus')}</Label>
             <Select
               id="vstatus"
-              value={org.vatStatus}
-              onChange={(e): void =>
-                void handlePatch({
-                  vatStatus: e.target.value,
-                  ...(org.updatedAt !== undefined ? { expectedUpdatedAt: org.updatedAt } : {}),
-                })
-              }
+              value={edits.vatStatus ?? org.vatStatus}
+              disabled={busy}
+              onChange={(e): void => changeEdits({ vatStatus: e.target.value as OrgDetail['vatStatus'] })}
             >
               {VAT_STATUSES.map((v) => (
                 <option key={v} value={v}>
@@ -489,21 +708,10 @@ export function OrganizationDetail(): ReactNode {
               id="orderConfEmails"
               aria-label="order-confirmation-emails"
               className="min-h-20 w-full rounded-md border p-2 text-sm"
-              defaultValue={(org.orderConfirmationEmails ?? []).join('\n')}
+              value={edits.emailsText ?? (org.orderConfirmationEmails ?? []).join('\n')}
               placeholder={'ops@example.com\nsales@example.com'}
-              onBlur={(e): void => {
-                const emails = e.target.value
-                  .split(/[\n,]/)
-                  .map((s) => s.trim())
-                  .filter(Boolean);
-                const current = org.orderConfirmationEmails ?? [];
-                if (emails.join('|') !== current.join('|')) {
-                  void handlePatch({
-                    orderConfirmationEmails: emails,
-                    ...(org.updatedAt !== undefined ? { expectedUpdatedAt: org.updatedAt } : {}),
-                  });
-                }
-              }}
+              disabled={busy}
+              onChange={(e): void => changeEdits({ emailsText: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">
               {t('organizations.detail.orderConfirmationEmailsHint')}
@@ -529,7 +737,10 @@ export function OrganizationDetail(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>{t('organizations.detail.inviteCard')}</CardTitle>
+          <CardTitle>
+            {t('organizations.detail.inviteCard')}
+            <ImmediateBadge />
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           <div className="space-y-2">
@@ -565,7 +776,10 @@ export function OrganizationDetail(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>{t('organizations.detail.directAddCard')}</CardTitle>
+          <CardTitle>
+            {t('organizations.detail.directAddCard')}
+            <ImmediateBadge />
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-2">
           <div className="space-y-2">
@@ -631,7 +845,10 @@ export function OrganizationDetail(): ReactNode {
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>{t('organizations.detail.membersCard')}</CardTitle>
+          <CardTitle>
+            {t('organizations.detail.membersCard')}
+            <ImmediateBadge />
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {editMember ? (
@@ -820,8 +1037,11 @@ export function OrganizationDetail(): ReactNode {
           sign in at all. */}
       <SalesChannelsPanel organizationId={org.id} />
 
-      {/* Feature 180 — the inert handle until this screen runs its save session (WP-7). */}
-      <AdminZone name="organization.detail.after" props={{ organizationId: org.id, saveSession: INERT_SAVE_SESSION }} />
+      {/* Feature 180, WP-7 — the panels here take part in this screen's one Save. Re-keyed when
+          a version conflict discarded every change, so each panel reads its stored value again. */}
+      <div ref={zoneRef}>
+        <AdminZone key={reloadKey} name="organization.detail.after" props={{ organizationId: org.id, saveSession: session.handle }} />
+      </div>
 
       {/* Feature 056 US1 — organization hierarchy (parent picker + subtree view). */}
       <HierarchyPanel
@@ -834,8 +1054,11 @@ export function OrganizationDetail(): ReactNode {
       <div className="mt-4">
         <RestrictionsPanel
           organizationId={org.id}
-          version={org.version ?? 0}
-          onChanged={refresh}
+          value={edits.restrictions ?? restrictionsStored}
+          onChange={(next): void => changeEdits({ restrictions: next })}
+          onLoaded={setRestrictionsStored}
+          reloadKey={restrictionsReloadKey}
+          disabled={busy || !canManage}
         />
       </div>
 
@@ -862,20 +1085,10 @@ export function OrganizationDetail(): ReactNode {
       {/* Org-level warehouse-picking (fulfilment) strategy override. */}
       <div className="mt-4">
         <FulfilmentStrategyPanel
-          key={org.updatedAt ?? org.id}
-          initial={{
-            strategy: org.fulfilmentStrategy ?? null,
-            warehouseOrder: org.fulfilmentStrategyWarehouseOrder ?? [],
-          }}
+          value={edits.fulfilment ?? storedFulfilment(org)}
+          onChange={(next): void => changeEdits({ fulfilment: next })}
           warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
-          onSave={(value): Promise<void> =>
-            handlePatch({
-              fulfilmentStrategy: value.strategy,
-              fulfilmentStrategyWarehouseOrder:
-                value.strategy === 'defined_order' ? value.warehouseOrder : null,
-              ...(org.updatedAt !== undefined ? { expectedUpdatedAt: org.updatedAt } : {}),
-            })
-          }
+          disabled={busy}
         />
       </div>
 
@@ -884,12 +1097,17 @@ export function OrganizationDetail(): ReactNode {
         <ApplicablePriceListsPanel organizationId={org.id} />
       </div>
 
-      {/* Feature 055 — operator-defined custom fields for this organization. */}
+      {/* Feature 055 — operator-defined custom fields for this organization. Embedded rather
+          than saving on its own (feature 180, WP-7): its bag travels in the host part's one
+          `PATCH`, under the organization's `expectedUpdatedAt`, so the record's version check
+          guards it with the rest (research R15). */}
       <div className="mt-4">
         <CustomFieldValuesPanel
+          key={reloadKey}
           entityType="organization"
-          values={org.customFieldValues ?? {}}
-          save={(values): Promise<void> => handlePatch({ customFieldValues: values })}
+          values={edits.customFieldValues === undefined ? (org.customFieldValues ?? {}) : { ...(org.customFieldValues ?? {}), ...edits.customFieldValues }}
+          onChange={(bag): void => changeEdits({ customFieldValues: bag })}
+          fieldErrors={customFieldErrors}
         />
       </div>
 
@@ -904,6 +1122,14 @@ export function OrganizationDetail(): ReactNode {
  * the spelling this module's own code and its tests use.
  */
 export default OrganizationDetail;
+
+/**
+ * A summary worth showing: anything but a full save. A version conflict is not one — it
+ * discards the outcome with every change and the screen says so in its own words.
+ */
+function showSummary(outcome: SaveOutcome | null): boolean {
+  return outcome !== null && outcome.result !== 'saved';
+}
 
 /** The page's success line after a conversion: the VAT validation's outcome when one ran. */
 function conversionMessage(own: (key: string) => string, result: ConvertToCompanyResult): string {

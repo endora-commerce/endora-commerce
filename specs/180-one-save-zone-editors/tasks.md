@@ -68,12 +68,12 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 
 ## Phase 7: Organization detail — WP-7 (US9, OQ-9 = A, OQ-11 = A)
 
-- [ ] T080 [P] [US9] Failing tests `admin/test/modules/organizations/organization-detail-one-save.test.tsx`: one Save; host part gathers status, VAT status, e-mails, fulfilment strategy, restrictions, custom fields into one `PATCH` with `expectedUpdatedAt`; `VERSION_CONFLICT` writes no panel; panels in zone order; immediate sections keep working with badges; no other Save, no save-on-change / on-blur
-- [ ] T081 [US9] `OrganizationDetail.tsx` and `panels/FulfilmentStrategyPanel.tsx`, `panels/RestrictionsPanel.tsx`: drafts into the host part; `SaveSessionActions`, `SaveSessionSummary`; badges; `organizations.detail.save.hostPartLabel`
-- [ ] T082 [P] [US9] Failing tests `admin/test/modules/quick_order/default-preferences.participant.test.tsx`, `admin/test/modules/quote_requests/negotiation.participant.test.tsx`
-- [ ] T083 [US9] `DefaultPreferencesPanel.tsx` (Save button removed) and `negotiation-panel.tsx` (on-change write removed) as participants; part labels (en, pl)
-- [ ] T084 [P] [US5] Off-state tests for `quick_order`, `quote_requests`, `price_lists` on the organization screen
-- [ ] T085 Changesets: mod-organizations, mod-quick-order, mod-quote-requests
+- [x] T080 [P] [US9] Failing tests `admin/test/modules/organizations/organization-detail-one-save.test.tsx`: one Save; host part gathers status, VAT status, e-mails, fulfilment strategy, restrictions, custom fields into one `PATCH` with `expectedUpdatedAt`; `VERSION_CONFLICT` writes no panel; panels in zone order; immediate sections keep working with badges; no other Save, no save-on-change / on-blur
+- [x] T081 [US9] `OrganizationDetail.tsx` and `panels/FulfilmentStrategyPanel.tsx`, `panels/RestrictionsPanel.tsx`: drafts into the host part; `SaveSessionActions`, `SaveSessionSummary`; badges; `organizations.detail.save.hostPartLabel`
+- [x] T082 [P] [US9] Failing tests `admin/test/modules/quick_order/default-preferences.participant.test.tsx`, `admin/test/modules/quote_requests/negotiation.participant.test.tsx`
+- [x] T083 [US9] `DefaultPreferencesPanel.tsx` (Save button removed) and `negotiation-panel.tsx` (on-change write removed) as participants; part labels (en, pl)
+- [x] T084 [P] [US5] Off-state tests for `quick_order`, `quote_requests`, `price_lists` on the organization screen
+- [x] T085 Changesets: mod-organizations, mod-quick-order, mod-quote-requests
 
 ## Phase 8: Customer detail — WP-8 (US9, OQ-9 = A)
 

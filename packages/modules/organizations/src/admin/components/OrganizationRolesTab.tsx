@@ -31,6 +31,7 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { organizationRolesClient } from '../api/roles.js';
+import { ImmediateBadge } from './ImmediateBadge.js';
 
 /**
  * The operator's *Roles* tab of an Organization (`specs/170-organization-roles/`
@@ -142,8 +143,10 @@ function OrganizationRolesPanel({
     <Card className="mt-4">
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="space-y-1.5">
-          <CardTitle>
+          {/* The badge beside the heading, not in it: the heading's name stays the tab's name. */}
+          <CardTitle className="flex flex-wrap items-center">
             <h2 className="text-base font-semibold">{t('roles.tab.title')}</h2>
+            <ImmediateBadge />
           </CardTitle>
           <CardDescription>{t('roles.tab.description')}</CardDescription>
         </div>
