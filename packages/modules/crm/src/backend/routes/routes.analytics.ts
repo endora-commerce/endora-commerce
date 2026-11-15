@@ -19,7 +19,8 @@ export interface AnalyticsRoutesDeps {
  * whole team is doing is not what everybody who works an Opportunity is shown.
  * Each takes a range of days and may be narrowed to a Sales Channel and to an
  * assignee; tenant scope is ambient, so a confined manager's figures are over
- * their Organizations.
+ * their Organizations. Each answers `{ data, timeZone }`: the figure and the
+ * reporting time zone its days were counted in (issues #474, #475).
  */
 export async function registerCrmAnalyticsRoutes(
   app: FastifyInstance,
@@ -30,40 +31,30 @@ export async function registerCrmAnalyticsRoutes(
   app.get(
     '/api/v1/admin/crm/analytics/handling-time',
     { preHandler: requireAdmin('crm:analytics') },
-    async (request) => ({
-      data: await analytics.handlingTime(OpportunityAnalyticsQuerySchema.parse(request.query ?? {})),
-    }),
+    async (request) => await analytics.handlingTime(OpportunityAnalyticsQuerySchema.parse(request.query ?? {})),
   );
 
   app.get(
     '/api/v1/admin/crm/analytics/time-in-status',
     { preHandler: requireAdmin('crm:analytics') },
-    async (request) => ({
-      data: await analytics.timeInStatus(OpportunityTimeInStatusQuerySchema.parse(request.query ?? {})),
-    }),
+    async (request) => await analytics.timeInStatus(OpportunityTimeInStatusQuerySchema.parse(request.query ?? {})),
   );
 
   app.get(
     '/api/v1/admin/crm/analytics/rep-effectiveness',
     { preHandler: requireAdmin('crm:analytics') },
-    async (request) => ({
-      data: await analytics.repEffectiveness(OpportunityAnalyticsQuerySchema.parse(request.query ?? {})),
-    }),
+    async (request) => await analytics.repEffectiveness(OpportunityAnalyticsQuerySchema.parse(request.query ?? {})),
   );
 
   app.get(
     '/api/v1/admin/crm/analytics/top-opportunities',
     { preHandler: requireAdmin('crm:analytics') },
-    async (request) => ({
-      data: await analytics.topOpportunities(TopOpportunitiesQuerySchema.parse(request.query ?? {})),
-    }),
+    async (request) => await analytics.topOpportunities(TopOpportunitiesQuerySchema.parse(request.query ?? {})),
   );
 
   app.get(
     '/api/v1/admin/crm/analytics/average-value',
     { preHandler: requireAdmin('crm:analytics') },
-    async (request) => ({
-      data: await analytics.averageValue(OpportunityAnalyticsQuerySchema.parse(request.query ?? {})),
-    }),
+    async (request) => await analytics.averageValue(OpportunityAnalyticsQuerySchema.parse(request.query ?? {})),
   );
 }

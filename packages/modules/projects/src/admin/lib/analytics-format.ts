@@ -40,14 +40,33 @@ function isoDay(year: number, month: number, day: number): string {
   return new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10);
 }
 
+/** The calendar day `now` falls on in `timeZone` — or on this computer's own calendar without one. */
+function todayIn(now: Date, timeZone: string | null | undefined): { year: number; month: number; day: number } {
+  const local = { year: now.getFullYear(), month: now.getMonth(), day: now.getDate() };
+  if (!timeZone) return local;
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'numeric', day: 'numeric' }).formatToParts(now);
+  } catch {
+    // A zone this browser's time-zone data does not have: its own calendar is the best left.
+    return local;
+  }
+  const part = (type: Intl.DateTimeFormatPartTypes): number => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return { year: part('year'), month: part('month') - 1, day: part('day') };
+}
+
 /**
- * The days a preset means, on the operator's own calendar. `custom` has no
+ * The days a preset means. "Today" is the day it is in `timeZone` — the
+ * reporting time zone the server counts in, which every figure names (issue
+ * #475) — so a preset and the server's counting agree around midnight; until
+ * the screen knows that zone, the operator's own calendar. `custom` has no
  * days of its own: the screen keeps whatever range was on it.
  */
-export function presetRange(preset: Exclude<RangePreset, 'custom'>, today: Date = new Date()): DayRange {
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const day = today.getDate();
+export function presetRange(
+  preset: Exclude<RangePreset, 'custom'>,
+  options: { timeZone?: string | null; now?: Date } = {},
+): DayRange {
+  const { year, month, day } = todayIn(options.now ?? new Date(), options.timeZone);
   switch (preset) {
     case 'thisMonth':
       return { from: isoDay(year, month, 1), to: isoDay(year, month + 1, 0) };

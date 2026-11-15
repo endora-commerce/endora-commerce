@@ -68,14 +68,14 @@ export const manifest = defineModuleManifest({
       },
       {
         // Owner decisions 2026-10-27 (#465): the calendar reports count days
-        // in, owned here so no single reporting module owns it. Projects
-        // analytics reads it through `reportingTimeZonePort`; CRM may follow
-        // (#474). Validated as an IANA zone (`services/reporting-time-zone.ts`).
+        // in, owned here so no single reporting module owns it. Projects and
+        // CRM analytics read it through `reportingTimeZonePort` (#474).
+        // Validated as an IANA zone (`services/reporting-time-zone.ts`).
         code: ANALYTICS_REPORTING_TIME_ZONE_SETTING,
         name: 'Reporting time zone',
         description:
           'The time zone, as an IANA name such as Europe/Warsaw, in which reports count days, months and other ' +
-          'ranges of days — today, Projects analytics. Default UTC. While Analytics is switched off, reports count in UTC.',
+          'ranges of days — today, Projects analytics and CRM analytics. Default UTC. While Analytics is switched off, reports count in UTC.',
         groupCode: 'analytics',
         valueType: 'string',
         defaultValue: 'UTC',

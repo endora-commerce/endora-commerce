@@ -41,6 +41,10 @@ function useAnalyticsFigure<T>(read: (filters: ProjectAnalyticsFilters) => Promi
  * applies Organization reach and visibility — and each says the period and
  * how many Projects it counted (FR-038).
  *
+ * **Days are the reporting time zone's** (issue #475): every figure names the
+ * zone the server counted in, the screen says it under the filters, and the
+ * presets take "today" from that zone's calendar rather than this computer's.
+ *
  * The screen opens on `projects:analytics`; the Template list and the two
  * pickers are `projects:read` reads, which that code's `requires` names.
  */
@@ -85,10 +89,24 @@ export function AnalyticsPage(): ReactNode {
   const topOpen = useAnalyticsFigure(projectsAnalyticsApi.topOpen, filters);
   const managers = useAnalyticsFigure(projectsAnalyticsApi.managers, filters);
 
+  // The zone the server counted in, as the first figure to answer names it (issue #475).
+  const timeZone =
+    [summary, durations, timeInStage, losses, value, topOpen, managers].find((figure) => figure.data?.timeZone)?.data
+      ?.timeZone ?? null;
+
+  // A preset means days of the reporting time zone's calendar: once the zone is
+  // known — or if it changes — the preset on screen is taken again in it. A
+  // range of the operator's own is theirs and is left alone.
+  useEffect(() => {
+    if (!timeZone || preset === 'custom') return;
+    const next = presetRange(preset, { timeZone });
+    setRange((previous) => (previous.from === next.from && previous.to === next.to ? previous : next));
+  }, [timeZone, preset]);
+
   const choosePreset = (next: RangePreset): void => {
     setPreset(next);
     // "Custom" keeps the days on screen: they are where the operator starts from.
-    if (next !== 'custom') setRange(presetRange(next));
+    if (next !== 'custom') setRange(presetRange(next, { timeZone }));
   };
   const editRange = (patch: Partial<DayRange>): void => {
     setPreset('custom');
@@ -192,6 +210,11 @@ export function AnalyticsPage(): ReactNode {
           >
             {valid ? '' : t('analytics.filter.invalidRange')}
           </p>
+          {timeZone ? (
+            <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-3 xl:col-span-6">
+              {t('analytics.timeZone', { zone: timeZone })}
+            </p>
+          ) : null}
         </form>
       </Card>
 

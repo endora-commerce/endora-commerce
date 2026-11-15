@@ -63,8 +63,7 @@ Ustawienie **Strefa czasowa raportów** (`analytics.reporting_time_zone`, w sekc
 zakres dni bierze każdy dzień od północy do północy w tej strefie. Jest to nazwa
 strefy czasowej IANA, np. `Europe/Warsaw`, albo `UTC` — wartość domyślna; strefa,
 której środowisko uruchomieniowe nie zna, jest odrzucana z `422`
-`VALIDATION_FAILED`. Obecnie liczy w niej analityka projektów, a CRM ma do niej
-dołączyć.
+`VALIDATION_FAILED`. Liczą w niej analityka projektów i analityka CRM.
 
 Inne moduły odczytują je przez bramkowany port `reportingTimeZonePort`
 (`ReportingTimeZonePort` w `@endora-commerce/contracts`, `timeZone()`), nigdy przez

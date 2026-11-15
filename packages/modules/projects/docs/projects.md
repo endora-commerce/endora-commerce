@@ -641,7 +641,9 @@ Each chart has a table with the same numbers below it. Days are counted in the
 section of the settings screen, `UTC` unless changed: a range starts at
 midnight of its first day and ends at midnight after its last, both in that
 zone. While the Analytics module is switched off, days are counted in `UTC`.
-The range presets (*This month*, …) take today's date from your own computer.
+The screen names the zone under the filters, and the range presets
+(*This month*, …) take today's date in that zone, not from your own computer —
+so around midnight a preset means the same days the figures are counted over.
 
 While Projects is switched off the screen and its sidebar entry are gone, and
 the figures are not served.
@@ -727,7 +729,8 @@ days in the reporting time zone, `analytics.reporting_time_zone`, which the
 `UTC` by default, and `UTC` while `analytics` is off: a `degrades-without`
 edge, asked before the port in `services/reporting-time-zone.ts`) and optionally `templateId`, `organizationId` and `projectManagerId`; a
 range that ends before it starts is `400`. Each answers
-`{ from, to, projectCount, excluded: { noValue }, data }`: `projectCount` is
+`{ from, to, projectCount, excluded: { noValue }, timeZone, data }`: `timeZone`
+is the IANA name of the zone the days were counted in, `projectCount` is
 how many projects the range and the filters select for that figure, among
 those the caller may see, and `excluded.noValue` how many of them a figure of
 amounts left out for having no value.

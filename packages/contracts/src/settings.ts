@@ -488,8 +488,8 @@ export type HomepageConfigResponse = z.infer<typeof HomepageConfigResponseSchema
 /**
  * The reporting time zone: the calendar in which a report counts a day, a
  * month or any other range of days. A setting of the `analytics` module, so
- * that no single reporting module owns it — Projects analytics reads it, CRM
- * may follow (#474). An IANA name; default `UTC`. Read it through
+ * that no single reporting module owns it — Projects and CRM analytics read
+ * it (#474). An IANA name; default `UTC`. Read it through
  * {@link ReportingTimeZonePort}, never by code: `analytics` can be switched
  * off, and a reader then counts in `UTC`.
  */

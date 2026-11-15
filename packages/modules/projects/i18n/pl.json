@@ -578,6 +578,7 @@
   "analytics.filter.from": "Od",
   "analytics.filter.to": "Do",
   "analytics.filter.invalidRange": "Wybierz datę początkową, która nie jest późniejsza niż końcowa.",
+  "analytics.timeZone": "Dni są liczone w strefie czasowej {zone}.",
   "analytics.filter.template": "Szablon",
   "analytics.filter.templateAll": "Dowolny szablon",
   "analytics.filter.organization": "Organizacja",

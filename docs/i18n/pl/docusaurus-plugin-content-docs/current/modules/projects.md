@@ -662,8 +662,10 @@ Pod każdym wykresem jest tabela z tymi samymi liczbami. Dni są liczone w
 **strefie czasowej raportów** — ustawieniu *Strefa czasowa raportów* w sekcji
 *Analityka* ekranu ustawień, domyślnie `UTC`: zakres zaczyna się o północy jego
 pierwszego dnia i kończy o północy po ostatnim, obie w tej strefie. Gdy moduł
-Analityka jest wyłączony, dni są liczone w `UTC`. Gotowe zakresy (*Ten
-miesiąc*, …) biorą dzisiejszą datę z Twojego komputera.
+Analityka jest wyłączony, dni są liczone w `UTC`. Ekran podaje tę strefę pod
+filtrami, a gotowe zakresy (*Ten miesiąc*, …) biorą dzisiejszą datę w tej
+strefie, a nie z Twojego komputera — dzięki temu około północy gotowy zakres
+oznacza te same dni, za które liczone są wskaźniki.
 
 Gdy moduł Projekty jest wyłączony, ekranu i jego pozycji w menu bocznym nie
 ma, a wskaźniki nie są udostępniane.
@@ -750,7 +752,8 @@ dni w strefie czasowej raportów, `analytics.reporting_time_zone`, którą modu�
 domyślnie `UTC`, a gdy `analytics` jest wyłączony, też `UTC`: krawędź
 `degrades-without`, sprawdzana przed portem w `services/reporting-time-zone.ts`) oraz opcjonalnie `templateId`, `organizationId` i `projectManagerId`;
 okres kończący się przed początkiem to `400`. Każda odpowiada
-`{ from, to, projectCount, excluded: { noValue }, data }`: `projectCount` to
+`{ from, to, projectCount, excluded: { noValue }, timeZone, data }`: `timeZone`
+to nazwa IANA strefy, w której liczono dni, `projectCount` to
 liczba projektów, które okres i filtry wybierają dla danego wskaźnika spośród
 tych, które wywołujący może zobaczyć, a `excluded.noValue` — ile z nich
 wskaźnik kwot pominął, bo nie miały wartości.

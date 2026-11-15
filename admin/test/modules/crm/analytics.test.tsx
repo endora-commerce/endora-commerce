@@ -125,6 +125,9 @@ const AVERAGE: OpportunityAverageValueRow[] = [
   { currency: 'PLN', average: '1675.00', count: 4 },
 ];
 
+/** The zone the server says it counted in (issue #475); a test may move it. */
+let reportingZone = 'UTC';
+
 type Figure = 'handling-time' | 'time-in-status' | 'rep-effectiveness' | 'top-opportunities' | 'average-value';
 let answers: Record<Figure, () => Promise<unknown>>;
 
@@ -144,12 +147,13 @@ beforeEach(() => {
   getSpy.mockReset();
   // The middle of a month, so "this month" and "last month" are whole months.
   vi.useFakeTimers({ toFake: ['Date'], now: new Date('2026-03-15T12:00:00.000Z') });
+  reportingZone = 'UTC';
   answers = {
-    'handling-time': () => Promise.resolve({ data: HANDLING }),
-    'time-in-status': () => Promise.resolve({ data: STAYS }),
-    'rep-effectiveness': () => Promise.resolve({ data: REPS }),
-    'top-opportunities': () => Promise.resolve({ data: TOP }),
-    'average-value': () => Promise.resolve({ data: AVERAGE }),
+    'handling-time': () => Promise.resolve({ data: HANDLING, timeZone: reportingZone }),
+    'time-in-status': () => Promise.resolve({ data: STAYS, timeZone: reportingZone }),
+    'rep-effectiveness': () => Promise.resolve({ data: REPS, timeZone: reportingZone }),
+    'top-opportunities': () => Promise.resolve({ data: TOP, timeZone: reportingZone }),
+    'average-value': () => Promise.resolve({ data: AVERAGE, timeZone: reportingZone }),
   };
   getSpy.mockImplementation((path: string) => {
     const lookup = crmLookupResponse(path);
@@ -443,6 +447,42 @@ describe('the CRM analytics screen', () => {
       fail = false;
       await userEvent.click(within(reps).getByRole('button', { name: core('common.action.retry') }));
       expect(await within(reps).findByRole('table', { name: en('analytics.reps.rankingCaption') })).toBeInTheDocument();
+    });
+  });
+
+  describe('the reporting time zone (#474, #475)', () => {
+    const FIGURES = [
+      'handling-time',
+      'time-in-status',
+      'rep-effectiveness',
+      'top-opportunities',
+      'average-value',
+    ] as const;
+
+    it('names the zone the figures are counted in', async () => {
+      reportingZone = 'Europe/Warsaw';
+      open();
+      await within(card('analytics.handling.title')).findByText(/23[.,]5 days/);
+      expect(await screen.findByText(en('analytics.timeZone', { zone: 'Europe/Warsaw' }))).toBeInTheDocument();
+    });
+
+    it('takes a preset’s days from that zone, not from the computer', async () => {
+      // 12:00 UTC on 31 March is already 1 April in Kiritimati (UTC+14) — on no computer this runs on.
+      vi.setSystemTime(new Date('2026-03-31T12:00:00.000Z'));
+      reportingZone = 'Pacific/Kiritimati';
+      open();
+      await waitFor(() => {
+        for (const figure of FIGURES) {
+          expect(last(figure).get('from'), figure).toBe('2026-04-01');
+          expect(last(figure).get('to'), figure).toBe('2026-04-30');
+        }
+      });
+      await userEvent.selectOptions(
+        screen.getByLabelText(en('analytics.filter.range')),
+        en('analytics.filter.range.lastMonth'),
+      );
+      await waitFor(() => expect(last('average-value').get('from')).toBe('2026-03-01'));
+      expect(last('average-value').get('to')).toBe('2026-03-31');
     });
   });
 });

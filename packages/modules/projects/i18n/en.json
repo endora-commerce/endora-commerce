@@ -578,6 +578,7 @@
   "analytics.filter.from": "From",
   "analytics.filter.to": "To",
   "analytics.filter.invalidRange": "Choose a start date that is not after the end date.",
+  "analytics.timeZone": "Days are counted in the {zone} time zone.",
   "analytics.filter.template": "Template",
   "analytics.filter.templateAll": "Any template",
   "analytics.filter.organization": "Organization",

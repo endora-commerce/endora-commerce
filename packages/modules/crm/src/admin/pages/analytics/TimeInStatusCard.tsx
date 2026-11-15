@@ -13,10 +13,11 @@ import {
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { crmAnalyticsApi, type AnalyticsFilters } from '../../analytics-api.js';
+import { crmAnalyticsApi, type AnalyticsAnswer, type AnalyticsFilters } from '../../analytics-api.js';
 import { daysOf, durationLabel } from '../../lib/analytics-format.js';
 import { workflowStatusLabel } from '../../lib/labels.js';
 import { prefersReducedMotion, useChartColors } from '../../lib/use-chart-colors.js';
+import { useReportedTimeZone } from '../../lib/reporting-time-zone.js';
 import { useFigure } from '../../lib/use-figure.js';
 import { FigureCard } from './FigureCard.js';
 
@@ -42,11 +43,11 @@ export function TimeInStatusCard({ filters, statuses }: TimeInStatusCardProps): 
   const load = useMemo(
     () =>
       filters
-        ? (): Promise<OpportunityTimeInStatusRow[]> => crmAnalyticsApi.timeInStatus(filters, selected)
+        ? (): Promise<AnalyticsAnswer<OpportunityTimeInStatusRow[]>> => crmAnalyticsApi.timeInStatus(filters, selected)
         : null,
     [filters, selected],
   );
-  const figure = useFigure(load);
+  const figure = useFigure(useReportedTimeZone(load));
 
   const byCode = useMemo(
     () => new Map((statuses ?? []).map((status) => [status.code, status])),

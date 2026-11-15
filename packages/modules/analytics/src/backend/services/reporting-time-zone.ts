@@ -12,8 +12,8 @@ import { z } from 'zod';
 /**
  * The reporting time zone (owner decisions 2026-10-27, issue #465):
  * `analytics.reporting_time_zone`, the calendar reports count days in. This
- * module owns it so that no single reporting module does — Projects analytics
- * reads it, CRM may follow (#474).
+ * module owns it so that no single reporting module does — Projects and CRM
+ * analytics read it (#474).
  */
 
 /** A zone the runtime does not know would make every report counted in it fail. */

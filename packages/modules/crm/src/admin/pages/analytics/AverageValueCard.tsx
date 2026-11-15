@@ -2,8 +2,9 @@ import { useMemo, type ReactNode } from 'react';
 import type { OpportunityAverageValueRow } from '@endora-commerce/contracts';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { crmAnalyticsApi, type AnalyticsFilters } from '../../analytics-api.js';
+import { crmAnalyticsApi, type AnalyticsAnswer, type AnalyticsFilters } from '../../analytics-api.js';
 import { moneyLabel } from '../../lib/labels.js';
+import { useReportedTimeZone } from '../../lib/reporting-time-zone.js';
 import { useFigure } from '../../lib/use-figure.js';
 import { FigureCard } from './FigureCard.js';
 
@@ -14,10 +15,10 @@ import { FigureCard } from './FigureCard.js';
 export function AverageValueCard({ filters }: { filters: AnalyticsFilters | null }): ReactNode {
   const t = useTranslation('crm');
   const load = useMemo(
-    () => (filters ? (): Promise<OpportunityAverageValueRow[]> => crmAnalyticsApi.averageValue(filters) : null),
+    () => (filters ? (): Promise<AnalyticsAnswer<OpportunityAverageValueRow[]>> => crmAnalyticsApi.averageValue(filters) : null),
     [filters],
   );
-  const figure = useFigure(load);
+  const figure = useFigure(useReportedTimeZone(load));
 
   return (
     <FigureCard
