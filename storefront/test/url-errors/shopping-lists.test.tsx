@@ -53,8 +53,7 @@ vi.mock('../../lib/api/shopping-lists', () => ({
   convertShoppingListToCart: refuse,
   convertShoppingListToRfq: refuse,
   removeShoppingListItem: refuse,
-  renameShoppingList: refuse,
-  updateShoppingListItem: refuse,
+  updateShoppingList: refuse,
 }));
 vi.mock('../../lib/api/catalog', () => ({
   getProductBySlug: async () => ({ name: 'Bolt', sku: 'BOLT-1', slug: 'bolt' }),
@@ -127,15 +126,16 @@ describe('the actions redirect with a code, never a sentence', () => {
   });
 
   it.each([
-    ['renameAction', 'RENAME_FAILED'],
-    ['removeAction', 'REMOVE_FAILED'],
-    ['convertAllToCartAction', 'CONVERT_FAILED'],
-    ['convertAllToRfqAction', 'CONVERT_FAILED'],
-  ])('%s carries %s for a refusal it cannot name', async (name, code) => {
+    // Issue #1251 — the one Save, here with a changed name, so it writes.
+    ['saveListAction', 'SAVE_FAILED', { name: 'B', nameWas: 'Site A' }],
+    ['removeAction', 'REMOVE_FAILED', { itemId: 'i1' }],
+    ['convertAllToCartAction', 'CONVERT_FAILED', {}],
+    ['convertAllToRfqAction', 'CONVERT_FAILED', {}],
+  ] as const)('%s carries %s for a refusal it cannot name', async (name, code, fields) => {
     failure = new StorefrontApiError(500, 'INTERNAL', 'Database exploded.');
     const action = actionsOf(await detail()).get(name);
     if (!action) throw new Error(`the detail page hands no ${name}`);
-    expect(await redirectOf(() => action(form({ listId: list.id, itemId: 'i1', name: 'B' }) as never))).toBe(
+    expect(await redirectOf(() => action(form({ listId: list.id, ...fields }) as never))).toBe(
       `/shopping-lists/${list.id}?error=${code}`,
     );
   });

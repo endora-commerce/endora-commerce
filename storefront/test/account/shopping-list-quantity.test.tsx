@@ -47,8 +47,7 @@ vi.mock('../../lib/api/shopping-lists', () => ({
   convertShoppingListToCart: async () => ({ added: 0, skipped: [] }),
   convertShoppingListToRfq: async () => ({ rfqId: 'r', added: 0, skipped: [] }),
   removeShoppingListItem: async () => undefined,
-  renameShoppingList: async () => undefined,
-  updateShoppingListItem: async () => undefined,
+  updateShoppingList: async () => undefined,
 }));
 vi.mock('../../lib/api/catalog', () => ({
   getProductBySlug: async () => ({ name: 'Bolt', sku: 'BOLT-1', slug: 'bolt' }),
@@ -71,7 +70,7 @@ async function render(sp: Record<string, string>): Promise<string> {
 }
 
 function qtyInput(html: string): string {
-  const match = /<input[^>]*name="quantity"[^>]*>/.exec(html);
+  const match = /<input[^>]*name="quantity\.i1"[^>]*>/.exec(html);
   expect(match).not.toBeNull();
   return match![0];
 }
@@ -93,20 +92,21 @@ describe('parseListQuantity', () => {
 });
 
 describe('shopping list — quantity input', () => {
-  it('asks the browser not to validate the quantity form', () => {
-    const page = readFileSync(resolve(import.meta.dirname, '../../app/(account)/shopping-lists/[id]/page.tsx'), 'utf8');
-    expect(page).toMatch(/<form id=\{`sl-qty-\$\{it\.id\}`\} action=\{updateQtyAction\} noValidate>/);
-    expect(page).toContain('parseListQuantity(formData.get(\'quantity\'))');
+  // Issue #1251 — the quantities sit in the list's one form, which the browser does not validate.
+  it('asks the browser not to validate the list form', async () => {
+    expect(await render({})).toMatch(/<form id="sl-list" noValidate=""/);
+    const edits = readFileSync(resolve(import.meta.dirname, '../../lib/account/shopping-list-edits.ts'), 'utf8');
+    expect(edits).toContain('parseListQuantity(value)');
   });
 
   it.each([
-    ['en-US', 'Quantity', 'Enter a whole number from 1 to 9999.', 'Save'],
-    ['pl-PL', 'Ilość', 'Wpisz liczbę całkowitą od 1 do 9999.', 'Zapisz'],
-  ])('%s: names the input, its save button, and words a refused quantity beside it', async (tag, label, message, save) => {
+    ['en-US', 'Quantity', 'Enter a whole number from 1 to 9999.', 'Save changes'],
+    ['pl-PL', 'Ilość', 'Wpisz liczbę całkowitą od 1 do 9999.', 'Zapisz zmiany'],
+  ])('%s: names the input, the list’s one save, and words a refused quantity beside it', async (tag, label, message, save) => {
     locale = tag;
     const idle = await render({});
     expect(qtyInput(idle)).toContain(`aria-label="${label}"`);
-    expect(idle).toMatch(new RegExp(`<button type="submit" form="sl-qty-i1"[^>]*>${save}</button>`));
+    expect(idle).toMatch(new RegExp(`<button type="submit"[^>]*>${save}</button>`));
     expect(qtyInput(idle)).not.toContain('aria-invalid');
     expect(idle).not.toContain(message);
 

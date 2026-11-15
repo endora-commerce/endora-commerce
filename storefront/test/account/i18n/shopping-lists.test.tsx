@@ -84,8 +84,7 @@ vi.mock('../../../lib/api/shopping-lists', () => ({
   convertShoppingListToCart: async () => ({ added: 0, skipped: [] }),
   convertShoppingListToRfq: async () => ({ rfqId: 'r', added: 0, skipped: [] }),
   removeShoppingListItem: async () => undefined,
-  renameShoppingList: async () => undefined,
-  updateShoppingListItem: async () => undefined,
+  updateShoppingList: async () => undefined,
 }));
 vi.mock('../../../lib/api/catalog', () => ({
   getProductBySlug: async () => ({ name: 'Bolt', sku: 'BOLT-1', slug: 'bolt' }),
@@ -151,7 +150,7 @@ describe('shopping-list detail — the shop language (issue #85)', () => {
     locale = 'en-US';
     const text = await renderDetail();
     expect(text).toContain('← All lists');
-    expect(text).toContain('Rename list');
+    expect(text).toContain('List name');
     expect(text).toContain('Product Qty Note');
     expect(text).toContain('SKU: BOLT-1');
     expect(text).toContain('variant v1234567');
@@ -165,7 +164,7 @@ describe('shopping-list detail — the shop language (issue #85)', () => {
     locale = 'pl-PL';
     const text = await renderDetail();
     expect(text).toContain('← Wszystkie listy');
-    expect(text).toContain('Zmień nazwę listy');
+    expect(text).toContain('Nazwa listy');
     expect(text).toContain('Produkt Ilość Notatka');
     expect(text).toContain('wariant v1234567');
     expect(text).toContain('Dodaj wszystko do koszyka');

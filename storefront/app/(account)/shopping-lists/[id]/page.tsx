@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { revalidatePath } from 'next/cache';
 import {
   clearShoppingListItems,
@@ -6,8 +6,7 @@ import {
   convertShoppingListToRfq,
   getShoppingList,
   removeShoppingListItem,
-  renameShoppingList,
-  updateShoppingListItem,
+  updateShoppingList,
 } from '../../../../lib/api/shopping-lists';
 import { getSessionCookie } from '../../../../lib/session';
 import { getCommerceAbilitiesAction } from '../../../../lib/actions/cart';
@@ -29,7 +28,8 @@ import { shoppingListDisplayName } from '../../../../lib/shopping-list-name';
 import { format } from '../../../../lib/i18n/format';
 import { formatCount } from '../../../../lib/orderMinimum';
 import { pluralKey, richText } from '../../../../lib/account/labels';
-import { LIST_QUANTITY_MAX, parseListQuantity } from '../../../../lib/shoppingListQuantity';
+import { readShoppingListEdits } from '../../../../lib/account/shopping-list-edits';
+import { ShoppingListEditor } from '../../../../components/shopping-lists/ShoppingListEditor';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
 import { SHOPPING_LIST_ERRORS } from '../../../../lib/account/shopping-list-errors';
@@ -51,11 +51,13 @@ interface ResolvedProduct {
 }
 
 /**
- * Shopping list detail (T205). Items can be edited inline; "Convert all
- * to cart" / "Convert all to RFQ" run the bulk conversion. Per-item
- * checkboxes feed an `itemIds` array to the server actions for the
- * "Convert selected" variant; archived skips are surfaced via a banner
- * after conversion.
+ * Shopping list detail (T205). The list's name and every line quantity are
+ * edited in one form with one *Save changes* (issue #1251); "Convert all to
+ * cart" / "Convert all to RFQ" run the bulk conversion, and per-item
+ * checkboxes feed an `itemIds` array to the "Convert selected" variants. The
+ * conversions submit the same form, so what the buyer typed is saved first
+ * and converted as typed. Archived skips are surfaced via a banner after
+ * conversion.
  *
  * `specs/170-organization-roles/` (FR-047, FR-048): renaming and editing the
  * list need `shopping_lists.create`; each conversion needs
@@ -81,6 +83,8 @@ export default async function ShoppingListDetailPage({
     rfqSkips?: string;
     /** U4 — the row whose quantity edit was refused; the page words why beside its input. */
     qtyError?: string;
+    /** Issue #1251 — `saved` after *Save changes* wrote something. */
+    status?: string;
   }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
@@ -91,7 +95,6 @@ export default async function ShoppingListDetailPage({
   const t = tForLocale(locale);
   const abilities = await getCommerceAbilitiesAction();
   const canEdit = abilities.editShoppingLists;
-  const canConvert = abilities.convertListToCart || abilities.convertListToQuote;
   const notFound = (
     <div>
       <h2>{t('account.shoppingList.notFound.heading')}</h2>
@@ -196,164 +199,81 @@ export default async function ShoppingListDetailPage({
         </p>
       ) : null}
 
-      {canEdit ? (
-        <form action={renameAction} className="flex items-end gap-2">
-          <input type="hidden" name="listId" value={list.id} />
-          <div className="flex flex-1 flex-col gap-1">
-            <label htmlFor="rename" className="text-sm text-fg-soft">
-              {t('account.shoppingList.rename.label')}
-            </label>
-            <input
-              id="rename"
-              name="name"
-              defaultValue={shoppingListDisplayName(list, t)}
-              required
-              maxLength={160}
-              className="w-full rounded-md border border-line px-3 py-2 text-sm"
-            />
-          </div>
-          <button type="submit" className="btn btn--outline">
-            {t('account.shoppingList.rename.submit')}
-          </button>
-        </form>
+      {sp.status === 'saved' ? (
+        <p className="b2b-auth__success" role="status">
+          {t('account.shoppingList.saved')}
+        </p>
       ) : null}
 
-      <h3 className="mt-10 mb-4">{t('account.common.items')}</h3>
-      {list.items.length === 0 ? (
-        <p className="muted">
-          {richText(t('account.shoppingList.empty'), {
-            catalog: <LocalizedLink href="/catalog" className="b2b-account__link">{t('account.shoppingList.emptyCatalogLink')}</LocalizedLink>,
-          })}
-        </p>
+      {/* Keyed by what the list holds, so a save, a removal or a clear starts the form afresh. */}
+      <ShoppingListEditor
+        key={`${list.name}|${list.items.map((it) => `${it.id}:${it.quantity}`).join(',')}`}
+        listId={list.id}
+        locale={locale}
+        name={shoppingListDisplayName(list, t)}
+        canEdit={canEdit}
+        canConvertToCart={abilities.convertListToCart}
+        canConvertToQuote={abilities.convertListToQuote}
+        qtyErrorItemId={sp.qtyError ?? null}
+        nameError={sp.error === 'NAME_REQUIRED'}
+        heading={<h3 className="mt-10 mb-4">{t('account.common.items')}</h3>}
+        empty={
+          <p className="muted">
+            {richText(t('account.shoppingList.empty'), {
+              catalog: <LocalizedLink href="/catalog" className="b2b-account__link">{t('account.shoppingList.emptyCatalogLink')}</LocalizedLink>,
+            })}
+          </p>
+        }
+        rows={list.items.map((it) => ({
+          id: it.id,
+          quantity: it.quantity,
+          note: it.note ?? null,
+          product: <ProductCell product={productsById.get(it.productId) ?? null} productId={it.productId} variantId={it.variantId} t={t} />,
+        }))}
+        saveListAction={saveListAction}
+        removeAction={removeAction}
+        convertAllToCartAction={convertAllToCartAction}
+        convertSelectedToCartAction={convertSelectedToCartAction}
+        convertAllToRfqAction={convertAllToRfqAction}
+        convertSelectedToRfqAction={convertSelectedToRfqAction}
+      />
+      {canEdit && list.items.length > 0 ? (
+        <div className="mb-10 flex flex-wrap gap-2 border-t border-line pt-6">
+          <ClearListButton listId={list.id} locale={locale} clearAction={clearListAction} />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** A line's product: its name and SKU linking to its page, or the id of one that no longer resolves. */
+function ProductCell({
+  product,
+  productId,
+  variantId,
+  t,
+}: {
+  product: ResolvedProduct | null;
+  productId: string;
+  variantId: string | null;
+  t: ReturnType<typeof tForLocale>;
+}): ReactNode {
+  return (
+    <>
+      {product ? (
+        <LocalizedLink href={`/p/${product.slug}`} className="b2b-account__link b2b-account__link--stacked">
+          <span className="font-medium">{product.name}</span>
+          <span className="text-xs text-fg-soft">{format(t('account.common.sku'), { sku: product.sku })}</span>
+        </LocalizedLink>
       ) : (
-        <>
-        {/*
-          The per-row "Save" / "Remove" controls and the "Convert" buttons each
-          need their own form, but a table can't host nested forms (the browser
-          drops the inner ones, which is why Remove appeared to do nothing).
-          Instead we declare every form once here as a sibling of the table and
-          wire the in-cell controls to them via the HTML `form` attribute.
-        */}
-        {canConvert ? (
-          <form id="sl-convert" action={convertSelectedToCartAction}>
-            <input type="hidden" name="listId" value={list.id} />
-          </form>
-        ) : null}
-        {canEdit ? list.items.map((it) => (
-          <Fragment key={`forms-${it.id}`}>
-            {/* `noValidate`: the browser's own `min` bubble speaks the browser's language. The
-                action validates and the row says what is wrong beside the field (U4). */}
-            <form id={`sl-qty-${it.id}`} action={updateQtyAction} noValidate>
-              <input type="hidden" name="listId" value={list.id} />
-              <input type="hidden" name="itemId" value={it.id} />
-            </form>
-            <form id={`sl-remove-${it.id}`} action={removeAction}>
-              <input type="hidden" name="listId" value={list.id} />
-              <input type="hidden" name="itemId" value={it.id} />
-            </form>
-          </Fragment>
-        )) : null}
-        <table className="b2b-account__table">
-            <thead>
-              <tr>
-                {canConvert ? <th></th> : null}
-                <th>{t('account.common.product')}</th>
-                <th>{t('account.common.quantity')}</th>
-                <th>{t('account.shoppingList.col.note')}</th>
-                {canEdit ? <th></th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {list.items.map((it) => (
-                <tr key={it.id}>
-                  {canConvert ? (
-                    <td>
-                      <input type="checkbox" name="itemIds" value={it.id} form="sl-convert" />
-                    </td>
-                  ) : null}
-                  <td>
-                    {(() => {
-                      const product = productsById.get(it.productId);
-                      if (!product) {
-                        return (
-                          <span className="text-fg-soft">
-                            {it.productId.slice(0, 8)}
-                          </span>
-                        );
-                      }
-                      return (
-                        <LocalizedLink href={`/p/${product.slug}`} className="b2b-account__link b2b-account__link--stacked">
-                          <span className="font-medium">{product.name}</span>
-                          <span className="text-xs text-fg-soft">{format(t('account.common.sku'), { sku: product.sku })}</span>
-                        </LocalizedLink>
-                      );
-                    })()}
-                    {it.variantId ? (
-                      <span className="text-xs text-fg-soft">
-                        {' · '}
-                        {format(t('account.shoppingList.variant'), { id: it.variantId.slice(0, 8) })}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td>
-                    {canEdit ? (
-                      <UpdateQtyForm
-                        itemId={it.id}
-                        qty={it.quantity}
-                        label={t('common.quantity')}
-                        saveLabel={t('shoppingList.qty.save')}
-                        error={sp.qtyError === it.id ? t('shoppingList.qty.invalid') : null}
-                      />
-                    ) : (
-                      it.quantity
-                    )}
-                  </td>
-                  <td>{it.note ?? ''}</td>
-                  {canEdit ? (
-                    <td>
-                      <RemoveItemForm itemId={it.id} label={t('account.common.remove')} />
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {canConvert ? (
-            <div className="mt-6 mb-10 flex flex-wrap gap-2">
-              {abilities.convertListToCart ? (
-                <>
-                  <button type="submit" form="sl-convert" formAction={convertAllToCartAction} className="btn btn--primary">
-                    {t('account.shoppingList.toCart.all')}
-                  </button>
-                  <button type="submit" form="sl-convert" className="btn btn--outline">
-                    {t('account.shoppingList.toCart.selected')}
-                  </button>
-                </>
-              ) : null}
-              {abilities.convertListToQuote ? (
-                <>
-                  <button
-                    type="submit"
-                    form="sl-convert"
-                    formAction={convertAllToRfqAction}
-                    className={abilities.convertListToCart ? 'btn btn--outline' : 'btn btn--primary'}
-                  >
-                    {t('account.shoppingList.toQuote.all')}
-                  </button>
-                  <button type="submit" form="sl-convert" formAction={convertSelectedToRfqAction} className="btn btn--outline">
-                    {t('account.shoppingList.toQuote.selected')}
-                  </button>
-                </>
-              ) : null}
-            </div>
-          ) : null}
-        {canEdit ? (
-          <div className="mb-10 flex flex-wrap gap-2 border-t border-line pt-6">
-            <ClearListButton listId={list.id} locale={locale} clearAction={clearListAction} />
-          </div>
-        ) : null}
-        </>
+        <span className="text-fg-soft">{productId.slice(0, 8)}</span>
       )}
+      {variantId ? (
+        <span className="text-xs text-fg-soft">
+          {' · '}
+          {format(t('account.shoppingList.variant'), { id: variantId.slice(0, 8) })}
+        </span>
+      ) : null}
     </>
   );
 }
@@ -401,94 +321,35 @@ function ConversionSkipReport({
 }
 
 /**
- * Per-row quantity editor. The control lives inside a table cell but is wired
- * to the standalone `sl-qty-<itemId>` form (declared as a table sibling) via
- * the HTML `form` attribute, so it submits independently of the convert form.
+ * Issue #1251 — writes what the buyer changed on the list form, the name and the edited
+ * quantities together, in one request. `{ saved }` says whether anything was written;
+ * `{ refusal }` is where to send the buyer instead: the refused field, or the refusal's
+ * code. Every conversion runs it first, so a conversion converts the quantities the buyer
+ * typed, and does not run when the save is refused.
  */
-function UpdateQtyForm({
-  itemId,
-  qty,
-  label,
-  saveLabel,
-  error,
-}: {
-  itemId: string;
-  qty: number;
-  /** The input's accessible name, in the page's language. */
-  label: string;
-  saveLabel: string;
-  /** The refusal of this row's last edit, in the page's language; `null` = none. */
-  error: string | null;
-}): ReactNode {
-  const formId = `sl-qty-${itemId}`;
-  const errorId = `sl-qty-error-${itemId}`;
-  return (
-    <span className="inline-flex flex-col gap-1">
-      <span style={{ display: 'inline-flex', gap: '0.25rem' }}>
-        <input
-          type="number"
-          name="quantity"
-          form={formId}
-          min={1}
-          max={LIST_QUANTITY_MAX}
-          defaultValue={qty}
-          aria-label={label}
-          {...(error ? { 'aria-invalid': true, 'aria-describedby': errorId } : {})}
-          className="rounded-md border border-line px-2 py-1 text-sm"
-          style={{ width: '4rem' }}
-        />
-        <button type="submit" form={formId} className="btn btn--outline btn--sm">
-          {saveLabel}
-        </button>
-      </span>
-      {/* Mounted empty on every row so the polite live region exists before it carries text
-          (WCAG 4.1.3), as on the cart line. */}
-      <p id={errorId} role="status" className="m-0 text-[12px] font-semibold text-bad">
-        {error ?? ''}
-      </p>
-    </span>
-  );
+async function saveTypedEdits(session: string, listId: string, formData: FormData): Promise<{ refusal: string } | { saved: boolean }> {
+  const reading = readShoppingListEdits(formData);
+  if (reading.kind === 'nameRequired') return { refusal: `/shopping-lists/${listId}?error=NAME_REQUIRED` };
+  if (reading.kind === 'invalidQuantity') {
+    return { refusal: `/shopping-lists/${listId}?qtyError=${encodeURIComponent(reading.itemId)}` };
+  }
+  if (reading.edits === null) return { saved: false };
+  try {
+    await updateShoppingList(session, listId, reading.edits);
+  } catch (err) {
+    return { refusal: `/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'SAVE_FAILED')}` };
+  }
+  return { saved: true };
 }
 
-/** Per-row remove button, wired to the standalone `sl-remove-<itemId>` form. */
-function RemoveItemForm({ itemId, label }: { itemId: string; label: string }): ReactNode {
-  return (
-    <button type="submit" form={`sl-remove-${itemId}`} className="btn btn--outline btn--sm">
-      {label}
-    </button>
-  );
-}
-
-async function renameAction(formData: FormData): Promise<void> {
+async function saveListAction(formData: FormData): Promise<void> {
   'use server';
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const listId = (formData.get('listId') as string) ?? '';
-  const name = ((formData.get('name') as string) ?? '').trim();
-  try {
-    await renameShoppingList(session, listId, name);
-  } catch (err) {
-    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'RENAME_FAILED')}`);
-  }
-  return await localeRedirect(`/shopping-lists/${listId}`);
-}
-
-async function updateQtyAction(formData: FormData): Promise<void> {
-  'use server';
-  const session = await getSessionCookie();
-  if (!session) return await localeRedirect('/login');
-  const listId = (formData.get('listId') as string) ?? '';
-  const itemId = (formData.get('itemId') as string) ?? '';
-  const quantity = parseListQuantity(formData.get('quantity'));
-  if (quantity === null) {
-    return await localeRedirect(`/shopping-lists/${listId}?qtyError=${encodeURIComponent(itemId)}`);
-  }
-  try {
-    await updateShoppingListItem(session, listId, itemId, { quantity });
-  } catch (err) {
-    return await localeRedirect(`/shopping-lists/${listId}?error=${SHOPPING_LIST_ERRORS.failureCode(err, 'UPDATE_FAILED')}`);
-  }
-  return await localeRedirect(`/shopping-lists/${listId}`);
+  const outcome = await saveTypedEdits(session, listId, formData);
+  if ('refusal' in outcome) return await localeRedirect(outcome.refusal);
+  return await localeRedirect(outcome.saved ? `/shopping-lists/${listId}?status=saved` : `/shopping-lists/${listId}`);
 }
 
 async function removeAction(formData: FormData): Promise<void> {
@@ -523,6 +384,9 @@ async function convertAllToCartAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const listId = (formData.get('listId') as string) ?? '';
+  // Issue #1251 — what the buyer typed is saved first, so the conversion converts it.
+  const saved = await saveTypedEdits(session, listId, formData);
+  if ('refusal' in saved) return await localeRedirect(saved.refusal);
   // The success redirect must live OUTSIDE the try: Next's `redirect()` signals
   // by throwing `NEXT_REDIRECT`, which a surrounding catch would swallow and
   // mis-report as a failed conversion (the bug this fixes). Only the API call is
@@ -548,6 +412,9 @@ async function convertSelectedToCartAction(formData: FormData): Promise<void> {
   if (itemIds.length === 0) {
     return await localeRedirect(`/shopping-lists/${listId}?error=SELECT_AT_LEAST_ONE`);
   }
+  // Issue #1251 — what the buyer typed is saved first, so the conversion converts it.
+  const saved = await saveTypedEdits(session, listId, formData);
+  if ('refusal' in saved) return await localeRedirect(saved.refusal);
   let result: Awaited<ReturnType<typeof convertShoppingListToCart>>;
   try {
     result = await convertShoppingListToCart(session, listId, itemIds);
@@ -563,6 +430,9 @@ async function convertAllToRfqAction(formData: FormData): Promise<void> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const listId = (formData.get('listId') as string) ?? '';
+  // Issue #1251 — what the buyer typed is saved first, so the conversion converts it.
+  const saved = await saveTypedEdits(session, listId, formData);
+  if ('refusal' in saved) return await localeRedirect(saved.refusal);
   let result: Awaited<ReturnType<typeof convertShoppingListToRfq>>;
   try {
     result = await convertShoppingListToRfq(session, listId);
@@ -585,6 +455,9 @@ async function convertSelectedToRfqAction(formData: FormData): Promise<void> {
   if (itemIds.length === 0) {
     return await localeRedirect(`/shopping-lists/${listId}?error=SELECT_AT_LEAST_ONE`);
   }
+  // Issue #1251 — what the buyer typed is saved first, so the conversion converts it.
+  const saved = await saveTypedEdits(session, listId, formData);
+  if ('refusal' in saved) return await localeRedirect(saved.refusal);
   let result: Awaited<ReturnType<typeof convertShoppingListToRfq>>;
   try {
     result = await convertShoppingListToRfq(session, listId, itemIds);

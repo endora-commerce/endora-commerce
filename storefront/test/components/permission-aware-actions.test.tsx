@@ -125,8 +125,7 @@ vi.mock('../../lib/api/shopping-lists', () => ({
   convertShoppingListToCart: async () => ({ added: 0, skipped: [] }),
   convertShoppingListToRfq: async () => ({ rfqId: 'r', added: 0, skipped: [] }),
   removeShoppingListItem: async () => undefined,
-  renameShoppingList: async () => undefined,
-  updateShoppingListItem: async () => undefined,
+  updateShoppingList: async () => undefined,
 }));
 vi.mock('../../lib/api/catalog', () => ({
   getProductBySlug: async () => ({ name: 'Bolt', sku: 'BOLT-1', slug: 'bolt' }),
@@ -463,7 +462,7 @@ describe('shopping-list pages — editing and conversions per the member’s rol
   const renderDetail = async (): Promise<string> =>
     html(await ShoppingListDetailPage({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000f1' }), searchParams: Promise.resolve({}) }));
   const createList = `>${en('account.shoppingLists.create.submit')}</button>`;
-  const rename = `>${en('account.shoppingList.rename.submit')}</button>`;
+  const rename = `>${en('account.shoppingList.save')}</button>`;
   const toCart = en('account.shoppingList.toCart.all');
   const toQuote = en('account.shoppingList.toQuote.all');
   const readOnly = en('commerce.shoppingLists.readOnlyNote');
