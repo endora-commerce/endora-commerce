@@ -6,7 +6,14 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { oauthBinding } from '../../helpers/oauth-binding.js';
+import {
+  customerOAuthStartUrl,
+  exchangeHandoff,
+  oauthBinding,
+  sessionOf,
+  storefrontBinding,
+  type StorefrontBinding,
+} from '../../helpers/oauth-binding.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { MfaSocialIdentity } from '../../helpers/package-entities.js';
@@ -25,6 +32,10 @@ import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
  * own `autoCreateCustomer` closure over `customer_accounts`' table. One
  * implementation serves both now — the module's — so this suite has to say
  * which side of the gate it is testing, and it can finally test the other one.
+ *
+ * Issue #1279 — the callback sets no cookie: it hands off to the storefront's
+ * `/auth/federated/complete`, and the session comes from the storefront's
+ * server-to-server exchange.
  */
 const EXISTING_EMAIL = 'stub-customer@example.com';
 
@@ -56,14 +67,12 @@ async function setStandaloneRegistrationAllowed(
  */
 async function startAndGetState(
   h: BackendServerHandle,
-): Promise<{ state: string; cookies: Record<string, string> }> {
-  const res = await h.app.inject({
-    method: 'GET',
-    url: '/api/v1/auth/customer/oauth/google/start',
-  });
+): Promise<{ state: string; cookies: Record<string, string>; binding: StorefrontBinding }> {
+  const binding = storefrontBinding();
+  const res = await h.app.inject({ method: 'GET', url: customerOAuthStartUrl(binding) });
   expect(res.statusCode).toBe(302);
   const location = res.headers['location'] as string;
-  return { state: new URL(location).searchParams.get('state')!, cookies: oauthBinding(res) };
+  return { state: new URL(location).searchParams.get('state')!, cookies: oauthBinding(res), binding };
 }
 
 function callback(
@@ -113,8 +122,13 @@ describe('MFA US4 — customer social login', () => {
     const state = await startAndGetState(h);
     const res = await callback(h, EXISTING_EMAIL, state);
     expect(res.statusCode).toBe(302);
-    expect(res.headers['location']).toContain('http://localhost:3000');
-    expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+    expect(res.headers['location']).toMatch(/^http:\/\/localhost:3000\/auth\/federated\/complete\?code=/);
+    // Issue #1279 — the session is the storefront's to set, from the exchange.
+    expect(res.cookies.find((c) => c.name === 'b2b_session')).toBeUndefined();
+    const redeemed = await exchangeHandoff(h.app, res, state.binding);
+    expect(redeemed.statusCode, redeemed.body).toBe(200);
+    expect(redeemed.json().data).toMatchObject({ status: 'authenticated', redirectPath: '/account' });
+    expect(sessionOf(redeemed)).toBeTruthy();
 
     const link = await h
       .em()
@@ -139,7 +153,7 @@ describe('MFA US4 — customer social login', () => {
     const state = await startAndGetState(h);
     const res = await callback(h, email, state);
     expect(res.statusCode).toBe(302);
-    expect(res.cookies.find((c) => c.name === 'b2b_session')?.value).toBeTruthy();
+    expect(sessionOf(await exchangeHandoff(h.app, res, state.binding))).toBeTruthy();
 
     const created = await h.em().findOne(CustomerAccount, { email });
     expect(created).not.toBeNull();
@@ -193,11 +207,18 @@ describe('MFA US4 — customer social login', () => {
     expect(res.cookies.find((c) => c.name === 'b2b_session')).toBeUndefined();
   });
 
+  it('refuses to start without the storefront binding (#1279)', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/auth/customer/oauth/google/start' });
+    expect(res.statusCode).toBe(302);
+    expect(withoutLanguagePrefix(res.headers['location'])).toBe('http://localhost:3000/login?error=sign_in_failed');
+    expect(res.cookies.some((c) => c.name === 'b2b_oauth_binding')).toBe(false);
+  });
+
   it('refuses to start when the provider is disabled', async () => {
     await setGoogleEnabled(h, false);
     const res = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(storefrontBinding()),
     });
     expect(res.statusCode).toBe(302);
     expect(res.headers['location']).toContain('/login?error=provider_unavailable');
@@ -254,8 +275,9 @@ describe('MFA US4 — customer social login', () => {
     });
 
     // First sign-in creates the account and signs it in; it then enrols.
-    const first = await callback(h, email, await startAndGetState(h));
-    const session = first.cookies.find((c) => c.name === 'b2b_session')!.value;
+    const firstStarted = await startAndGetState(h);
+    const first = await exchangeHandoff(h.app, await callback(h, email, firstStarted), firstStarted.binding);
+    const session = sessionOf(first)!;
     const setup = await h.app.inject({
       method: 'POST',
       url: '/api/v1/account/mfa/setup',
@@ -270,14 +292,21 @@ describe('MFA US4 — customer social login', () => {
     });
     expect(activated.statusCode, activated.body).toBe(200);
 
-    // The next federated sign-in stops at the second factor.
-    const res = await callback(h, email, await startAndGetState(h));
+    // The next federated sign-in stops at the second factor: the callback sets
+    // no cookie, and the exchange answers the challenge the code screen needs.
+    const started = await startAndGetState(h);
+    const res = await callback(h, email, started);
     expect(res.statusCode).toBe(302);
-    expect(withoutLanguagePrefix(res.headers['location'])).toBe(
-      `http://localhost:3000/login/mfa?next=${encodeURIComponent('/account')}`,
+    expect(res.cookies.some((c) => c.name === 'b2b_session' || c.name === 'b2b_mfa_challenge')).toBe(false);
+    const redeemed = await exchangeHandoff(h.app, res, started.binding);
+    expect(redeemed.statusCode, redeemed.body).toBe(200);
+    const pending = redeemed.json().data as { status: string; challengeId: string; redirectPath: string };
+    expect(pending.status).toBe('mfaRequired');
+    expect(pending.redirectPath.replace(/^\/[a-z]{2,3}(?:-[a-z0-9]+)?(?=\/login)/, '')).toBe(
+      `/login/mfa?next=${encodeURIComponent('/account')}`,
     );
-    expect(res.cookies.find((c) => c.name === 'b2b_session' && c.value)).toBeUndefined();
-    const challengeId = res.cookies.find((c) => c.name === 'b2b_mfa_challenge')?.value;
+    expect(sessionOf(redeemed)).toBeUndefined();
+    const challengeId = pending.challengeId;
     expect(challengeId).toBeTruthy();
 
     // And the challenge is the one the password sign-in's code screen completes.

@@ -61,7 +61,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [LinkedIn Ads](./linkedin-ads.md) | LinkedIn Insight Tag osobno dla każdego kanału sprzedaży, raportujący działania w storefroncie według reguł konwersji z Campaign Managera | @endora-commerce/mod-linkedin-ads |
 | [Megamenu](./megamenu/index.md) | Konfigurowalne drzewo nawigacji przypisywane osobno do każdej pary kanału i języka | @endora-commerce/mod-megamenu |
 | [Meta Ads](./meta-ads.md) | Meta Pixel osobno dla każdego kanału sprzedaży, ze standardowymi zdarzeniami e-commerce i opcjonalnymi zdarzeniami własnymi | @endora-commerce/mod-meta-ads |
-| `mfa` | _brak strony_ | @endora-commerce/mod-mfa |
+| [Weryfikacja dwuetapowa i logowanie federacyjne](./mfa.md) | Weryfikacja dwuetapowa TOTP z kodami odzyskiwania, logowanie przez Google i Microsoft oraz ich zasady dla poszczególnych zakresów. | @endora-commerce/mod-mfa |
 | [Newsletter](./newsletter.md) | Newsletter na własnej infrastrukturze — lista subskrybentów, tagi, segmenty, jednorazowe kampanie i wieloetapowe automatyzacje ze zgodą zbieraną osobno w każdym kanale | @endora-commerce/mod-newsletter |
 | [Zamówienia](./orders.md) | Składanie zamówień, statusy i ich przejścia, powiązanie z płatnością i dostawą | @endora-commerce/mod-orders |
 | [Organizacje](./organizations.md) | Organizacje klientów, rejestracja, zaproszenia | @endora-commerce/mod-organizations |

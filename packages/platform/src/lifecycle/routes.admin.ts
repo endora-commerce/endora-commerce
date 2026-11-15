@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   ERROR_CODES,
+  isUuidShape,
   MFA_SETTING_CODES,
   AdminModulePresenceResponseSchema,
   ModuleActivationRequestSchema,
@@ -416,6 +417,9 @@ export function registerCommandOutboxAdminRoutes(app: FastifyInstance, deps: Com
     },
     async (request): Promise<CommandOutboxRetryResponse> => {
       const { id } = CommandOutboxRetryParamsSchema.parse(request.params);
+      // A value that is not a uuid names no row: the unknown id's own `404`,
+      // before the database sees it (issue #1269).
+      if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `No command outbox row "${id}".`);
       return { item: await deps.commandBus.run(makeRetryCommandOutboxCommand(id)) };
     },
   );

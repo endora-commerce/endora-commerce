@@ -72,6 +72,15 @@ x-backend-env: &backend-env
   NEWSLETTER_TOKEN_SECRET: ${NEWSLETTER_TOKEN_SECRET}
   SETTINGS_SECRET_ENCRYPTION_KEY: ${SETTINGS_SECRET_ENCRYPTION_KEY}
   MFA_SECRET_ENCRYPTION_KEY: ${MFA_SECRET_ENCRYPTION_KEY}
+  # Federated sign-in (Google / Microsoft, issue #1279). A provider is offered
+  # only when both its id and secret are set AND its `mfa.*_enabled` setting is
+  # on. Register `https://${API_DOMAIN}/api/v1/auth/{customer|admin}/oauth/
+  # {google|microsoft}/callback` as the redirect URIs — see the mfa module page.
+  MFA_OAUTH_GOOGLE_CLIENT_ID: ${MFA_OAUTH_GOOGLE_CLIENT_ID:-}
+  MFA_OAUTH_GOOGLE_CLIENT_SECRET: ${MFA_OAUTH_GOOGLE_CLIENT_SECRET:-}
+  MFA_OAUTH_MICROSOFT_CLIENT_ID: ${MFA_OAUTH_MICROSOFT_CLIENT_ID:-}
+  MFA_OAUTH_MICROSOFT_CLIENT_SECRET: ${MFA_OAUTH_MICROSOFT_CLIENT_SECRET:-}
+  MFA_OAUTH_MICROSOFT_TENANT: ${MFA_OAUTH_MICROSOFT_TENANT:-common}
   ASSETS_LIBRARY_HMAC_KEY: ${ASSETS_LIBRARY_HMAC_KEY}
   # Which upstream proxy may be believed about the client address (issue #220).
   # Unset, the backend trusts none and `request.ip` is this stack's own nginx —

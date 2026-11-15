@@ -1,5 +1,7 @@
 import type { FastifyRequest } from 'fastify';
+import { requestScopeLanguage } from '@endora-commerce/contracts';
 import { productAudienceOf } from '@endora-commerce/platform/http';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import type { ComparisonViewer } from './services/comparison-service.js';
 
 /**
@@ -18,9 +20,18 @@ export function buyerViewerOf(request: FastifyRequest): ComparisonViewer {
   };
 }
 
-/** The first `Accept-Language` tag without its quality parameter, or `undefined`. */
+/**
+ * The channel language the request's `Accept-Language` asks for, or `undefined` without the
+ * header (the service then reads in the channel's default, as before).
+ *
+ * Issue #1011 — `requestScopeLanguage` over the whole header, as the catalogue resolves it since
+ * #397: the tags in descending `q`, each matched against the resolved channel's languages
+ * (exactly, then by base language), the first one the channel offers winning, else the
+ * channel's default. This used to be the header's first tag alone, so `en;q=0.2, pl-PL;q=0.9`
+ * read English and `de-DE, pl;q=0.5` the default.
+ */
 export function languageTagOf(request: FastifyRequest): string | undefined {
   const header = request.headers['accept-language'];
-  const tag = typeof header === 'string' ? header.split(',')[0]?.split(';')[0]?.trim() : undefined;
-  return tag ? tag : undefined;
+  if (header === undefined || header.length === 0) return undefined;
+  return requestScopeLanguage(getResolvedChannel(request), header);
 }

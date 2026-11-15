@@ -9,7 +9,7 @@ import { CustomerAccount } from '../../helpers/package-entities.js';
 import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 import { MfaSocialIdentity, type MfaSocialIdentityRow } from '../../helpers/package-entities.js';
-import { oauthBinding } from '../../helpers/oauth-binding.js';
+import { customerOAuthStartUrl, oauthBinding, storefrontBinding } from '../../helpers/oauth-binding.js';
 
 /**
  * Issue #194 — a customer can see the identities linked to their account and
@@ -77,7 +77,7 @@ describe('MFA social identity links — list + unlink (issue #194)', () => {
     // platform actually writes rather than one this test invented.
     const start = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(storefrontBinding()),
     });
     const state = new URL(start.headers['location'] as string).searchParams.get('state')!;
     await h.app.inject({

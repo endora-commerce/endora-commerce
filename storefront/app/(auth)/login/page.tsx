@@ -13,7 +13,6 @@ import { SocialLoginButtons } from '../../../components/SocialLoginButtons';
 import { getServerContext } from '../../../lib/server-context';
 import { getFederatedSignInProviders } from '../../../lib/api/federated-sign-in';
 import type { Metadata } from 'next';
-import { backendBaseUrl } from '../../../lib/env.mjs';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { signInErrorMessage, signInErrorParam } from '../../../lib/auth/sign-in-errors';
 import { SIGN_IN_REQUIRED_REASON } from '../../../lib/channel/closed-store';
@@ -105,14 +104,12 @@ export default async function LoginPage({
           </div>
         </form>
         <SocialLoginButtons
-          backendBaseUrl={backendBaseUrl()}
           // Feature 167 — the return address under this page's prefix, from which the
           // backend learns the language to come back in.
           next={await localizedPath(nextPath)}
           locale={locale}
           modulePresent={mfaPresent}
           availableProviders={federatedProviders}
-          salesChannelCode={ctx.salesChannelCode}
         />
         <p className="b2b-auth__hint">
           {t('auth.login.forgotPrompt')}{' '}

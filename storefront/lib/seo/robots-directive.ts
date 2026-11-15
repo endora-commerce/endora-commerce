@@ -118,7 +118,18 @@ const DOCUMENT_PATH =
  */
 const FILES_SINCE: ReadonlySet<string> = new Set(['/llms.txt']);
 
+/**
+ * The route handlers that are not pages and must not be treated as one, at
+ * exact addresses. Issue #1279: the two ends of a federated customer sign-in
+ * (`app/auth/federated/start/route.ts`, `app/auth/federated/complete/route.ts`)
+ * answer a redirect, never a page. As documents they would be prefixed with a
+ * language, and on a store closed to anonymous visitors the returning buyer —
+ * who has no session until `complete` sets it — would be sent to the sign-in
+ * page instead of being signed in. Both stay channel-stamped like any file.
+ */
+const HANDLERS_SINCE: ReadonlySet<string> = new Set(['/auth/federated/start', '/auth/federated/complete']);
+
 /** Whether `pathname` is a document rather than a file. See {@link DOCUMENT_PATH}. */
 export function isDocumentPath(pathname: string): boolean {
-  return !FILES_SINCE.has(pathname) && DOCUMENT_PATH.test(pathname);
+  return !FILES_SINCE.has(pathname) && !HANDLERS_SINCE.has(pathname) && DOCUMENT_PATH.test(pathname);
 }

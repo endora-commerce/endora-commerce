@@ -3,8 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PriceListService } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
 import {
-  firstLanguageTag,
-  scopeLanguageOf,
+  requestScopeLanguage,
   type CatalogProductAvailabilityPort,
   type CatalogProductReadPort,
   type CatalogProductRecord,
@@ -103,7 +102,9 @@ async function availableProduct(
   const channel = getResolvedChannel(request);
   const available = await catalogAvailability.filterAvailable([product.id], {
     channelId: channel.id,
-    languageCode: scopeLanguageOf(channel, firstLanguageTag(request.headers['accept-language'])),
+    // Issue #1011 — the channel language the whole `Accept-Language` asks for: q-weighted,
+    // matched exactly then by base language, else the channel's default (as #397's catalogue).
+    languageCode: requestScopeLanguage(channel, request.headers['accept-language']),
     audience,
   });
   return available.has(product.id) ? product : null;
