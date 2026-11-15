@@ -246,12 +246,15 @@ describe('command outbox operator API (176 T060)', () => {
       expect(row).toMatchObject({ status: 'in_flight', attempts: 1 });
     });
 
-    it('answers 404 for an unknown id and 400 for a malformed one', async () => {
+    // A malformed id names no row, so it is answered as an unknown one (issue
+    // #781's malformed-id contract; issue #1269).
+    it('answers 404 NOT_FOUND for an unknown id and for a malformed one alike', async () => {
       const unknown = await h.app.inject({ method: 'POST', url: retryUrl(randomUUID()), cookies: PLATFORM_ADMIN });
       expect(unknown.statusCode).toBe(404);
       expect(errorCode(unknown.body)).toBe(ERROR_CODES.NOT_FOUND);
       const malformed = await h.app.inject({ method: 'POST', url: retryUrl('not-a-uuid'), cookies: PLATFORM_ADMIN });
-      expect(malformed.statusCode).toBe(400);
+      expect(malformed.statusCode).toBe(404);
+      expect(errorCode(malformed.body)).toBe(ERROR_CODES.NOT_FOUND);
     });
 
     it('answers 403 without platform.command_outbox.manage, holding .read, and leaves the row dead', async () => {
