@@ -43,7 +43,9 @@ export interface QuickOrderBuildLineInput {
  * `Accept-Language`). `languageTag` (feature 163) is the channel language the
  * request's `Accept-Language` asks for (`requestScopeLanguage`, issue #1011),
  * which a buyer's quote lines' scope language is resolved from
- * (`CreateForCustomerOptions.languageTag`) and resolves to itself.
+ * (`CreateForCustomerOptions.languageTag`) and resolves to itself, and which a
+ * build to the basket's lines are judged in (`CartWritePort.addItems`'
+ * `languageTag`, issue #1293).
  */
 export interface QuickOrderBuildOptions {
   actor?: 'operator';
@@ -143,7 +145,13 @@ export class QuickOrderBuildService {
         ...(item.variantId ? { variantId: item.variantId } : {}),
         quantity: item.quantity,
       })),
-      { onLineError: 'throw', ...(options.language ? { language: options.language } : {}) },
+      {
+        onLineError: 'throw',
+        ...(options.language ? { language: options.language } : {}),
+        // Issue #1293 — the lines are judged in the request's scope language,
+        // as `POST /cart/items` judges them.
+        ...(options.languageTag ? { languageTag: options.languageTag } : {}),
+      },
     );
     const cartId = result.cart.id;
     return {

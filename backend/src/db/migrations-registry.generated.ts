@@ -250,6 +250,7 @@ import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '@en
 import { Migration20260830T182139InventoryOrganizationAttribution } from '@endora-commerce/mod-inventory/migrations';
 import { Migration20260912T125716InventoryOrganizationWarehouses } from '@endora-commerce/mod-inventory/migrations';
 import { Migration20261115T065605InventoryAvailabilityNotificationScope } from '@endora-commerce/mod-inventory/migrations';
+import { Migration20261115T182156InventoryAvailabilityNotificationNotifiedStatus } from '@endora-commerce/mod-inventory/migrations';
 
 // ── invoice_ledger ──────────────────────────────────────────────────────────
 import { Migration20260908T125013InvoiceLedgerInit } from '@endora-commerce/mod-invoice-ledger/migrations';
@@ -688,6 +689,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('inventory', Migration20260830T182139InventoryOrganizationAttribution),
   migration('inventory', Migration20260912T125716InventoryOrganizationWarehouses),
   migration('inventory', Migration20261115T065605InventoryAvailabilityNotificationScope),
+  migration('inventory', Migration20261115T182156InventoryAvailabilityNotificationNotifiedStatus),
 
   // ── invoice_ledger ──────────────────────────────────────────────────────────
   migration('invoice_ledger', Migration20260908T125013InvoiceLedgerInit),

@@ -28,18 +28,70 @@ na pasku zakresu, obok zakresu, który zapisuje, i pokazuje, ile zmian czeka na 
 ekranie pasek zakresu zostaje u góry okna podczas przewijania, więc Zapisz jest zawsze pod ręką; na wąskim ekranie
 Zapisz jest na pasku przypiętym do dołu ekranu.
 
+## Co obejmuje Zapisz
+
+Zapisz zapisuje wszystko, co zmieniono w produkcie, niezależnie od tego, w którym miejscu strony:
+
+- pola produktu na każdej zakładce, w bieżącym zakresie, łącznie z polami SEO;
+- ustawienia magazynowe produktu na zakładce **Magazyn** — zarządzanie stanem magazynowym, zamówienia przy braku
+  stanu, próg niskiego stanu i jego tryb oraz strategię realizacji z kolejnością magazynów. Istnieją tylko w zakresie
+  Global. Zakładka nie ma własnego przycisku zapisu, a zmiana trybu progu nie zapisuje się już sama; przywrócenie
+  zapisanej wartości usuwa zmianę z licznika;
+- **Ceny bazowe** na zakładce **Ceny**, gdy moduł Cenniki jest włączony. Nie ma przycisku *Zapisz ceny*.
+
+Licznik na przycisku Zapisz sumuje je wszystkie („Zapisz 3 zmiany”). Zmiany na zakładce, którą opuszczono, zostają
+i są liczone, a przełączenie zakładki o nic nie pyta. Zapisz widzi każdy, kto może zmienić produkt albo którąkolwiek z
+tych części, i zapisuje tylko to, co wolno mu zmienić.
+
+**Najpierw wszystko jest sprawdzane.** Pola produktu są sprawdzane jak dotąd, a ceny bazowe sprawdza serwer, nie
+zapisując ich. Jeśli cokolwiek zostanie odrzucone, nic nie jest zapisywane, a wszystkie zmiany zostają. Odrzucone pole
+produktu pokazuje powód przy polu, jak dotąd. Gdy ceny bazowe mają problemy, podsumowanie pod paskiem zakresu wymienia
+każdą część z jej problemami („Ceny bazowe — 1 problem”); **Pokaż** otwiera zakładkę tej części i przechodzi do
+pierwszego pola z błędem.
+
+**Potem części są zapisywane jedna po drugiej**: najpierw pola produktu, potem ceny bazowe. Każda część trafia do
+dziennika audytu tak, jak zapisuje ją jej moduł — zapis produktu jako jeden wpis, ceny bazowe jako osobny.
+
+- Jeśli pola produktu zostaną odrzucone — ktoś inny zapisał produkt w międzyczasie, kontrola kompletności odrzuca
+  zmianę statusu, klucz URL jest zajęty, wartość jest niepoprawna — ceny bazowe też nie są zapisywane. Edytor podaje
+  powód, jak dotąd.
+- Jeśli pola produktu zostaną zapisane, a ceny bazowe nie, podsumowanie mówi o obu („Zapisano: Pola produktu. Nie
+  zapisano: Ceny bazowe — *powód*”). Pola produktu nie czekają już na zapis; ceny bazowe nadal czekają, Zapisz liczy
+  tylko je, a ponowne naciśnięcie zapisuje tylko ceny bazowe.
+- Jeśli moduł Cenniki zostanie wyłączony, gdy ceny bazowe mają niezapisane zmiany, te zmiany są odrzucane, a edytor o
+  tym informuje. Zapis odrzucony przez serwer, bo moduł został wyłączony, jest pokazywany jako niezapisana część.
+
+## Co działa od razu
+
+Niektóre działania na produkcie nie czekają na Zapisz. Są zapisywane w chwili użycia, każde osobno, i ani nie
+dodają się do niezapisanych zmian, ani ich nie czyszczą. Każda sekcja z takim działaniem ma w nagłówku etykietę
+**Działa od razu**, widoczną tylko tam, gdzie możesz z niego skorzystać:
+
+- dodawanie, usuwanie, zmiana kolejności lub zastępowanie wariantów, pozycji zestawu, pozycji grupy, powiązań, zdjęć,
+  załączników i jednostek opakowania;
+- usuwanie przekierowania URL;
+- kanały sprzedaży produktu na zakładce **Kanały**;
+- **Stan po magazynach** na zakładce **Magazyn** — stan i próg niskiego stanu w każdym magazynie.
+
+Ceny w pozostałych cennikach edytuje się w siatce cen cennika, nie tutaj. Zakładka **Ceny** nie ma etykiety: jej
+ceny bazowe zapisuje Zapisz.
+
 ## Zmiana zakresu z niezapisanymi zmianami
 
 Zmiany zapisuje się osobno dla każdego zakresu, więc zmiana zakresu (albo opuszczenie produktu, albo przycisk
-„Wstecz” przeglądarki) z niezapisanymi zmianami otwiera okno z trzema wyborami:
+„Wstecz” przeglądarki) z niezapisanymi zmianami — także w cenach bazowych — otwiera okno z trzema wyborami:
 
-- **Zapisz i kontynuuj** — zapisuje zmiany w zakresie, który opuszczasz, a potem przełącza zakres;
-- **Odrzuć zmiany** — porzuca je i przełącza zakres;
+- **Zapisz i kontynuuj** — zapisuje zmiany w zakresie, który opuszczasz, a potem przełącza zakres; jeśli którakolwiek
+  część nie zostanie zapisana, zostajesz na miejscu;
+- **Odrzuć zmiany** — porzuca wszystkie niezapisane zmiany na stronie i przełącza zakres;
 - **Zostań tutaj** — zamyka okno i pozwala edytować dalej.
 
 Jeśli zapis zostanie odrzucony, zostajesz na miejscu, a powód widać przy polu. Jeśli ktoś inny zapisał produkt w
 międzyczasie, edytor zgłasza konflikt wersji; **Wczytaj ponownie** porzuca Twoje niezapisane zmiany i czyta produkt
 od nowa, a przycisk mówi o tym wprost.
+
+Takie pytanie jest jedno dla całej strony: żadna zakładka ani panel nie zadaje własnego. Zamknięcie lub odświeżenie
+karty przeglądarki z niezapisanymi zmianami sprawia, że przeglądarka pyta przed opuszczeniem strony.
 
 ## Dziedziczenie albo wartość w tym zakresie
 

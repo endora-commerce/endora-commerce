@@ -568,7 +568,11 @@ every request, uncached, so a change applies to the next request.
 
 **Who sees and changes it.** Both controls are panels on the organization and
 customer screens, shown to roles with `customers:read`; changing a value needs
-`customers:manage`, and the panel's control is disabled without it. A role that
+`customers:manage`, and the panel's control is disabled without it. The panels
+have no save of their own: choosing a value stages it, and the screen's one Save writes it, after
+the organization's or the customer's own changes. Leaving the page with it unsaved asks first. On
+the customer screen the "Effective: …" line is hidden while a change is unsaved, because it describes
+the stored value. A role that
 holds `customers:manage` but **not** `customers:read` sees no panel. A sales
 representative reaches only the organizations they may see; any other id
 answers `404`. An organization with no assigned sales representative is visible

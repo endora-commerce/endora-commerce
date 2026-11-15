@@ -150,7 +150,7 @@ the *Subject* column, which keeps the section names this file used to carry.
 | When | Subject | Read |
 | --- | --- | --- |
 | Composing a module — registering services, publishing or resolving a port, declaring a lifecycle edge, wiring routes/workers/subscribers, writing an install hook | Composition | `specs/conventions/module-composition.md` |
-| Adding or changing an admin permission code, a `requireAdmin(...)` gate, a command-palette action or an AppShell nav entry | Admin permissions, Command palette | `specs/conventions/module-admin-surfaces.md` |
+| Adding or changing an admin permission code, a `requireAdmin(...)` gate, a command-palette action, an AppShell nav entry, or a zone host or zone panel that writes | Admin permissions, Command palette, Zone-panel editors save once | `specs/conventions/module-admin-surfaces.md` |
 | Gating anything on a module's presence — routes, workers, subscribers, timers, boot hooks, cross-module calls, admin or storefront surfaces — or writing an off-state test | Module enable/disable | `specs/conventions/module-activation.md` |
 | Writing a migration, adding an `@Entity()` class, or wondering which number to use (there is none) | Migrations | `specs/conventions/module-migrations.md` |
 | Writing a Command's audit state (`before` / `after`, `stateBefore` / `stateAfter`) or a record history that reads audit entries back | Audit state | `specs/conventions/audit-state.md` |

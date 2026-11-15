@@ -171,6 +171,11 @@ re-check (active / org-allowed / address exists → otherwise dropped to null).
 - Admin: `/api/v1/admin/quick-order/preferences` — a platform admin manages any
   scope; a salesperson only their assigned organizations and those orgs'
   customers. Every change is audited.
+  In the admin the defaults are a panel on the organization screen and on the customer screen,
+  and the panel has no Save of its own: a change is staged, counted by that screen's one Save and
+  written by it after the organization's or customer's own changes. If the panel's write fails
+  while the rest was saved, the screen says so, the defaults stay unsaved, and the next Save
+  writes only them.
 
 ### 4. Reorder
 

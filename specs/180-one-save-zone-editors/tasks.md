@@ -87,10 +87,28 @@ After WP-9 (clean-up): `quote_requests`' `CustomerPriceNegotiation` is the part 
 
 ## Phase 9: Docs and records — WP-10
 
-- [ ] T090 Write the approved amendment pointers into `specs/161-price-book-editor/spec.md` FR-020 and `specs/174-product-editor-scope-switcher/spec.md` FR-070 / FR-072 and `contracts/editor-ui.md` §3
-- [ ] T091 [P] FR-083 rule in `specs/conventions/module-admin-surfaces.md`
-- [ ] T092 [P] Docs EN + PL (and translation pins): `packages/modules/catalog/docs/catalog/editing-a-product-at-a-scope.md` and the categories page, `packages/modules/price_lists/docs/price_lists.md` and `price_lists/price-book-editor.md`, `packages/modules/organizations/docs/organizations.md`, `packages/modules/customers/docs/customers.md`, `packages/modules/quick_order/docs/quick_order.md`, `packages/modules/quote_requests/docs/quote_requests.md`, `packages/modules/sales_channels/docs/sales_channels/`; `check:docs-translations`, `check:module-docs`
-- [ ] T093 Verify: `pnpm run build:packages`, `pnpm -r run typecheck`, `pnpm -r run lint`, targeted tests, `pnpm --filter '!backend' run test`, `check:naming`, `check:language`, `check:admin-zones`, `i18n:hardcoded`
+- [x] T090 Write the approved amendment pointers into `specs/161-price-book-editor/spec.md` FR-020 and `specs/174-product-editor-scope-switcher/spec.md` FR-070 / FR-072 and `contracts/editor-ui.md` §3
+- [x] T091 [P] FR-083 rule in `specs/conventions/module-admin-surfaces.md`
+- [x] T092 [P] Docs EN + PL (and translation pins): `packages/modules/catalog/docs/catalog/editing-a-product-at-a-scope.md` and the categories page, `packages/modules/price_lists/docs/price_lists.md` and `price_lists/price-book-editor.md`, `packages/modules/organizations/docs/organizations.md`, `packages/modules/customers/docs/customers.md`, `packages/modules/quick_order/docs/quick_order.md`, `packages/modules/quote_requests/docs/quote_requests.md`, `packages/modules/sales_channels/docs/sales_channels/`; `check:docs-translations`, `check:module-docs`
+- [x] T093 Verify: `pnpm run build:packages`, `pnpm -r run typecheck`, `pnpm -r run lint`, targeted tests, `pnpm --filter '!backend' run test`, `check:naming`, `check:language`, `check:admin-zones`, `i18n:hardcoded`
+
+**As built (WP-10).** T090: an *Amended 2026-11-14* pointer under 161 FR-020 and its Session 2026-10-22 OQ-1, under
+174 FR-070, FR-072 and its plan-Q2 clarification, and at the head of 174 `contracts/editor-ui.md` §3. T091: the
+rule is the *Zone-panel editors save once (FR-083)* section of `specs/conventions/module-admin-surfaces.md`; the
+`AGENTS.md` routing row for that document names it, and no other file restates it. T092: there was no catalog
+"categories page", so the category editor is documented as a new *Editing a category* section of
+`packages/modules/catalog/docs/catalog.md`. `sales_channels/admin-usage.md` is the sales-channel page changed; its
+`index.md` and `developer-guide.md` describe no editor save. Every page describes the code as merged (#1236,
+#1239–#1242, #1244, #1266), not the spec where they differ:
+- the organization's own write is a `PATCH` followed by a `PUT …/restrictions` when the allow-lists changed;
+- the organization's sales-channels panel keeps its own *Save sales channels* button, labelled "Applies immediately";
+- the organization and customer custom fields are part of the host part, through the panel's embedded `onChange`
+  mode, not through `CustomFieldValuesPanel saveSession`;
+- the category editor does not guard the browser's Back button (#1240).
+
+T093: typecheck and lint (recursive), `check:naming`, `check:language`, `check:admin-zones`, `i18n:hardcoded`,
+`check:docs-translations` and `check:module-docs` were run on the WP-10 branch. Only docs and specs changed, so no
+admin or package test suite was re-run here; each WP's PR records its own runs.
 
 ## Dependencies
 

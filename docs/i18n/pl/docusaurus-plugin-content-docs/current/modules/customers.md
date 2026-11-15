@@ -75,6 +75,30 @@ zamiast być wyłączane jako przypadek szczególny.
 - Panele zamówień, zapytań ofertowych i koszyków (bieżących i porzuconych), tylko do odczytu.
 - Widok „klienci online” oparty na ostatniej aktywności sesji.
 
+**Jeden przycisk Zapisz na ekranie klienta.** Ekran klienta (`/customers/:id`) ma jeden przycisk
+Zapisz w nagłówku (na wąskim ekranie zostaje pod ręką u dołu). Obejmuje **pola niestandardowe**
+klienta i panele dodawane przez inne moduły, każdy, gdy jego moduł jest włączony: **domyślne
+ustawienia zamówień** (Szybkie zamówienia) i nadpisanie **negocjacji cen** (Zapytania ofertowe).
+Żadne z nich nie zapisuje się już samo. Gdy jest coś do zapisania, przycisk pokazuje „Zapisz 2
+zmiany”.
+
+- Najpierw wszystko jest sprawdzane; jeśli którakolwiek część zostanie odrzucona, nic nie jest
+  zapisywane.
+- Najpierw zapisywane są pola niestandardowe. Jeśli zostaną odrzucone, żaden panel nie jest
+  zapisywany, a powód widać przy polu.
+- Jeśli pola niestandardowe zostaną zapisane, a panel nie, podsumowanie pod nagłówkiem mówi, co
+  zapisano, a czego nie („Zapisano: Klient. Nie zapisano: Domyślne ustawienia zamówień — *powód*”);
+  kolejne Zapisz zapisuje tylko panel.
+- Gdy zmiana negocjacji cen czeka na zapis, panel ukrywa wiersz „Obowiązuje: …”, który opisuje
+  zapisaną wartość; wraca on po zapisaniu zmiany.
+- Opuszczenie strony — link w inne miejsce panelu albo zamknięcie lub odświeżenie karty przeglądarki
+  — z niezapisanymi zmianami wymaga potwierdzenia.
+
+Zapisz widzi operator z `customers:manage` albo taki, który może zmienić któryś z paneli. **Akcje**
+(blokada / odblokowanie, reset hasła, reset weryfikacji dwuetapowej, logowanie jako klient,
+usunięcie / przywrócenie), przypisanie do **organizacji** i **Grupa klientów** nie są częścią zapisu:
+działają w chwili użycia, a każda z tych sekcji ma etykietę **Działa od razu**.
+
 ## Usuwanie i anonimizacja
 
 Usunięcie to miękkie wyłączenie konta: logowanie jest odrzucane, konto ukryte, sesje unieważnione, a

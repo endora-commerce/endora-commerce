@@ -262,6 +262,8 @@ nadpisany na *Tylko brutto* pokazuje cenę gościom nawet w kanale, którego try
 *Żaden*, i jest to jedyny sposób, by pokazać tam gościowi cenę. Nadpisanie organizacji dotyczy tylko
 zalogowanych kupujących z tej organizacji. Tryby prezentacji ustawia się w *Ustawieniach cenowych*
 oraz w edytorach organizacji i kategorii.
+W edytorach organizacji i kategorii nadpisanie jest częścią jednego przycisku Zapisz edytora: wybór trybu
+czeka na zapis, a Zapisz edytora zapisuje go po własnych zmianach organizacji lub kategorii.
 
 Cena brutto na karcie produktu, w wierszu listy i na stronie produktu to cena netto powiększona
 o **stawkę VAT tego produktu** dla oglądającego — tę samą, którą stosują koszyk i zamówienie, według
