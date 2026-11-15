@@ -20,6 +20,23 @@ const MAX_TAGS = 10;
  * `*` is returned as an ordinary tag; no consumer matches it to a language.
  */
 export function parseAcceptLanguage(header: string | readonly string[] | undefined): string[] {
+  return weightedAcceptLanguage(header).map((entry) => entry.tag);
+}
+
+/** One element of a parsed `Accept-Language` header: the tag and its weight. */
+export interface WeightedLanguageTag {
+  tag: string;
+  /** The `q` parameter as written, `1` when absent. Not clamped: `0` and below are kept. */
+  q: number;
+}
+
+/**
+ * {@link parseAcceptLanguage} with the weights kept, in the same order and under the same
+ * bounds. For a consumer that has to tell a tag at `q=0` — "not acceptable" (RFC 9110) — from
+ * an ordinary one, as the storefront's locale redirect does (issue #1011); every other reader
+ * takes {@link parseAcceptLanguage}.
+ */
+export function weightedAcceptLanguage(header: string | readonly string[] | undefined): WeightedLanguageTag[] {
   const raw = typeof header === 'string' ? header : header?.[0];
   if (!raw) return [];
   const weighted: Array<{ tag: string; weight: number; order: number }> = [];
@@ -32,7 +49,7 @@ export function parseAcceptLanguage(header: string | readonly string[] | undefin
     weighted.push({ tag, weight, order: weighted.length });
   }
   weighted.sort((a, b) => b.weight - a.weight || a.order - b.order);
-  return weighted.slice(0, MAX_TAGS).map((entry) => entry.tag);
+  return weighted.slice(0, MAX_TAGS).map((entry) => ({ tag: entry.tag, q: entry.weight }));
 }
 
 /** The `q` parameter of one list element: its weight, `1` by default, or `null` if malformed. */
