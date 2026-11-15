@@ -1290,7 +1290,7 @@ dostęp tylko do wybranych organizacji, dostaje wskaźniki wyłącznie dla nich.
 | --- | --- | --- |
 | Średni czas obsługi szansy | Średni czas od utworzenia szansy do jej zamknięcia. Podawany łącznie dla wszystkich zamkniętych szans oraz osobno dla wygranych i przegranych. | Zamknięte w wybranym zakresie. Szansa otwarta ponownie nie jest liczona, dopóki nie zostanie znów zamknięta. |
 | Średni czas w statusie | Jak długo szansa pozostaje w statusie: od zmiany, która ją do niego wprowadziła, do jej następnej zmiany — średnio dla każdego wejścia w ten status. Szansa, która nadal jest w statusie, jest liczona do chwili obecnej. Można wybrać pokazywane statusy albo zobaczyć wszystkie. | Każde wejście w status, które nastąpiło w wybranym zakresie. |
-| Najskuteczniejsi handlowcy | Ile szans każdy handlowiec zamknął jako wygrane i ile były warte — za cały zakres oraz miesiąc po miesiącu (miesiące kalendarzowe, w czasie UTC). Handlowiec to osoba, do której szansa jest przypisana **teraz**: szansa przypisana komuś innemu już po wygranej liczy się obecnej osobie. | Zamknięte jako wygrane w wybranym zakresie i przypisane do kogoś. |
+| Najskuteczniejsi handlowcy | Ile szans każdy handlowiec zamknął jako wygrane i ile były warte — za cały zakres oraz miesiąc po miesiącu (miesiące kalendarzowe, w strefie czasowej raportów). Handlowiec to osoba, do której szansa jest przypisana **teraz**: szansa przypisana komuś innemu już po wygranej liczy się obecnej osobie. | Zamknięte jako wygrane w wybranym zakresie i przypisane do kogoś. |
 | Najcenniejsze szanse | Dziesięć szans o najwyższej wartości, każda z odnośnikiem do szansy. Można wybrać, czy zakres dotyczy daty utworzenia, czy daty zamknięcia. | Utworzone — albo zamknięte — w wybranym zakresie i mające wartość. |
 | Średnia wartość szansy | Średnia wartość szansy sprzedażowej. | Utworzone w wybranym zakresie i mające wartość. |
 
@@ -1304,8 +1304,13 @@ albo — gdy szansa ma wartość wyliczaną — kwota wyliczona z powiązanych z
 dokumentów. „Najcenniejsze” oznacza najwyższą wartość i nic więcej: moduł nie
 zna kosztów ani marży, więc żaden wskaźnik nie jest tu zyskiem.
 
-**Dni i miesiące są liczone w czasie UTC**, a zakres obejmuje obie swoje daty
-w całości.
+**Dni i miesiące są liczone w strefie czasowej raportów** — ustawieniu *Strefa
+czasowa raportów* w sekcji *Analityka* ekranu ustawień, domyślnie `UTC` — a
+zakres obejmuje obie swoje daty w całości: zaczyna się o północy jego pierwszego
+dnia i kończy o północy po ostatnim, obie w tej strefie. Gdy moduł Analityka
+jest wyłączony, dni i miesiące są liczone w `UTC`. Ekran podaje tę strefę pod
+filtrami, a gotowe zakresy (*Ten miesiąc*, …) biorą dzisiejszą datę w tej
+strefie, a nie z Twojego komputera.
 
 Czas w statusie i ranking handlowców są przedstawione na wykresach. Pod każdym
 wykresem jest tabela z tymi samymi liczbami, więc żadna informacja nie jest
@@ -1322,10 +1327,15 @@ z wyprzedzeniem.
 | `GET /api/v1/admin/crm/analytics/top-opportunities` | `crm:analytics` | Szanse o najwyższej wartości: `limit` (domyślnie 10, najwyżej 100) **dla każdej waluty**, w kolejności walut, a potem od najwyższej. `basis=created`, o ile nie podano `basis=closed`. |
 | `GET /api/v1/admin/crm/analytics/average-value` | `crm:analytics` | Wiersz dla każdej waluty: `currency`, `average`, `count`. |
 
-Każdy punkt przyjmuje `from` i `to` (`YYYY-MM-DD`) oraz opcjonalnie
+Każdy punkt przyjmuje `from` i `to` (`YYYY-MM-DD`, oba włącznie, dni w strefie
+czasowej raportów, `analytics.reporting_time_zone`, którą moduł `analytics`
+posiada i udostępnia przez bramkowany `reportingTimeZonePort` — domyślnie
+`UTC`, a gdy `analytics` jest wyłączony, też `UTC`: krawędź `degrades-without`,
+sprawdzana przed portem w `services/reporting-time-zone.ts`) oraz opcjonalnie
 `salesChannelId` i `assignedAdminUserId`. Dla zakresu, który kończy się przed
-swoim początkiem, odpowiedzią jest 422. Wskaźnik, dla którego nie ma czego
-uśredniać, ma wartość `null`, a nie zero.
+swoim początkiem, odpowiedzią jest 422. Każdy odpowiada `{ data, timeZone }`:
+wskaźnikiem i nazwą IANA strefy, w której liczono jego dni i miesiące.
+Wskaźnik, dla którego nie ma czego uśredniać, ma wartość `null`, a nie zero.
 
 ## Zapytania ofertowe i wartość wyliczana
 

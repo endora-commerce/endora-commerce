@@ -24,6 +24,7 @@ import type {
   OrderTransitionPort,
   OrganizationDetailsPort,
   QuoteRequestReadPort,
+  ReportingTimeZonePort,
   PermissionReadPort,
   SalesChannelAttributionRegistryPort,
   SalesRepAssignmentPort,
@@ -64,6 +65,7 @@ import { registerCrmTagRoutes } from './routes/routes.tags.js';
 import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
 import { AnalyticsService } from './services/analytics-service.js';
+import { reportingTimeZoneOf } from './services/reporting-time-zone.js';
 import { BoardCardFieldService } from './services/board-card-field-service.js';
 import { BoardService } from './services/board-service.js';
 import { CalendarService } from './services/calendar-service.js';
@@ -995,6 +997,11 @@ export function registerModule(ctx: ModuleContext): void {
             workflowRead: crmWorkflowReadService,
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             summarize: (rows) => crmOpportunityService.summarize(rows),
+            // `analytics`' reporting time zone, or UTC while it is off (`degrades-without`, #474).
+            reportingTimeZone: reportingTimeZoneOf({
+              present: () => effectiveState.isPresent('analytics'),
+              port: lazyPort<ReportingTimeZonePort>(ctx, 'reportingTimeZonePort'),
+            }),
           }),
       )
       .singleton(),

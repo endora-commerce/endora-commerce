@@ -1235,7 +1235,7 @@ organizations gets figures over those organizations only.
 | --- | --- | --- |
 | Average handling time | The time from creating an opportunity to closing it, averaged. Given for every closed opportunity together, and for won and lost apart. | Those closed in the range. An opportunity that was reopened is not counted until it is closed again. |
 | Average time in status | How long an opportunity stays in a status: from the change that put it there to its next change, averaged over every time the status was entered. An opportunity that is still in the status is counted up to now. Choose the statuses to show, or see them all. | Every entry into the status that happened in the range. |
-| Most effective sales reps | How many opportunities each sales rep closed as won, and what they were worth — for the whole range, and month by month (calendar months, in UTC). The sales rep is the person the opportunity is assigned to **now**: an opportunity reassigned after it was won counts for its current assignee. | Those closed as won in the range and assigned to somebody. |
+| Most effective sales reps | How many opportunities each sales rep closed as won, and what they were worth — for the whole range, and month by month (calendar months, in the reporting time zone). The sales rep is the person the opportunity is assigned to **now**: an opportunity reassigned after it was won counts for its current assignee. | Those closed as won in the range and assigned to somebody. |
 | Most valuable opportunities | The ten opportunities with the highest value, each a link to the opportunity. Choose whether the range goes by the creation date or by the closing date. | Those created — or closed — in the range that have a value. |
 | Average opportunity value | The mean value of an opportunity. | Those created in the range that have a value. |
 
@@ -1249,8 +1249,13 @@ hand, or — when the opportunity is set to be computed — the amount computed
 from its linked documents. "Most valuable" means the highest value and nothing
 else: the module knows no cost and no margin, so no figure here is a profit.
 
-**Days and months are counted in UTC**, and a range includes both of its dates
-in full.
+**Days and months are counted in the reporting time zone** — the *Reporting
+time zone* setting in the *Analytics* section of the settings screen, `UTC`
+unless changed — and a range includes both of its dates in full: it starts at
+midnight of its first day and ends at midnight after its last, both in that
+zone. While the Analytics module is switched off, days and months are counted
+in `UTC`. The screen names the zone under the filters, and the range presets
+(*This month*, …) take today's date in that zone, not from your own computer.
 
 Time in status and the ranking of sales reps are drawn as charts. Each chart
 has a table under it with the same numbers, so nothing is said by a chart
@@ -1267,9 +1272,15 @@ stored in advance.
 | `GET /api/v1/admin/crm/analytics/top-opportunities` | `crm:analytics` | The opportunities with the highest value: `limit` (10 unless given, 100 at most) **for each currency**, ordered by currency and then highest first. `basis=created` unless `basis=closed`. |
 | `GET /api/v1/admin/crm/analytics/average-value` | `crm:analytics` | A row per currency: `currency`, `average`, `count`. |
 
-Each takes `from` and `to` (`YYYY-MM-DD`) and, optionally, `salesChannelId` and
-`assignedAdminUserId`. A range that ends before it begins answers 422. A
-figure with nothing to average answers `null`, not zero.
+Each takes `from` and `to` (`YYYY-MM-DD`, both included, days in the reporting
+time zone, `analytics.reporting_time_zone`, which the `analytics` module owns
+and serves through its gated `reportingTimeZonePort` — `UTC` by default, and
+`UTC` while `analytics` is off: a `degrades-without` edge, asked before the port
+in `services/reporting-time-zone.ts`) and, optionally, `salesChannelId` and
+`assignedAdminUserId`. A range that ends before it begins answers 422. Each
+answers `{ data, timeZone }`: the figure, and the IANA name of the zone its days
+and months were counted in. A figure with nothing to average answers `null`,
+not zero.
 
 ## Quote requests and a computed value
 

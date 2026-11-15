@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import type { OpportunityWorkflowStatus } from '@endora-commerce/contracts';
 import { Card, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -12,6 +12,7 @@ import {
   type DayRange,
   type RangePreset,
 } from '../lib/analytics-format.js';
+import { ReportingTimeZoneContext } from '../lib/reporting-time-zone.js';
 import { AverageValueCard } from './analytics/AverageValueCard.js';
 import { HandlingTimeCard } from './analytics/HandlingTimeCard.js';
 import { RepEffectivenessCard } from './analytics/RepEffectivenessCard.js';
@@ -39,6 +40,11 @@ import { TopOpportunitiesCard } from './analytics/TopOpportunitiesCard.js';
  * **Money is shown per currency**, as the endpoints answer it. Nothing on this
  * screen adds two currencies.
  *
+ * **Days and months are the reporting time zone's** (issues #474, #475): every
+ * figure names the zone the server counted in, the screen says it under the
+ * filters, and the presets take "today" from that zone's calendar rather than
+ * this computer's.
+ *
  * The screen opens on `crm:analytics`. The status names and the two pickers
  * are read from `crm:read` endpoints, which that code's `requires` names; a
  * role holding the analytics code alone still gets every figure, with status
@@ -52,6 +58,18 @@ export function AnalyticsPage(): ReactNode {
   const [salesChannelId, setSalesChannelId] = useState<string | null>(null);
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<OpportunityWorkflowStatus[] | null>(null);
+  // The zone the server counted in, as the figures name it (issues #474, #475).
+  const [timeZone, setTimeZone] = useState<string | null>(null);
+  const reportTimeZone = useCallback((zone: string): void => setTimeZone(zone), []);
+
+  // A preset means days of the reporting time zone's calendar: once the zone is
+  // known — or if it changes — the preset on screen is taken again in it. A
+  // range of the operator's own is theirs and is left alone.
+  useEffect(() => {
+    if (!timeZone || preset === 'custom') return;
+    const next = presetRange(preset, { timeZone });
+    setRange((previous) => (previous.from === next.from && previous.to === next.to ? previous : next));
+  }, [timeZone, preset]);
 
   useEffect(() => {
     let current = true;
@@ -88,7 +106,7 @@ export function AnalyticsPage(): ReactNode {
   const choosePreset = (next: RangePreset): void => {
     setPreset(next);
     // "Custom" keeps the days on screen: they are where the operator starts from.
-    if (next !== 'custom') setRange(presetRange(next));
+    if (next !== 'custom') setRange(presetRange(next, { timeZone }));
   };
   const editRange = (patch: Partial<DayRange>): void => {
     setPreset('custom');
@@ -101,7 +119,7 @@ export function AnalyticsPage(): ReactNode {
   const invalidId = `${ids}-invalid`;
 
   return (
-    <>
+    <ReportingTimeZoneContext.Provider value={reportTimeZone}>
       <PageHeader title={t('analytics.title')} description={t('analytics.description')} />
 
       <Card className="mb-6 p-4 sm:p-6">
@@ -181,6 +199,11 @@ export function AnalyticsPage(): ReactNode {
           >
             {valid ? '' : t('analytics.filter.invalidRange')}
           </p>
+          {timeZone ? (
+            <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-5">
+              {t('analytics.timeZone', { zone: timeZone })}
+            </p>
+          ) : null}
         </form>
       </Card>
 
@@ -191,7 +214,7 @@ export function AnalyticsPage(): ReactNode {
         <RepEffectivenessCard filters={filters} />
         <TopOpportunitiesCard filters={filters} />
       </div>
-    </>
+    </ReportingTimeZoneContext.Provider>
   );
 }
 

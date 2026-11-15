@@ -36,6 +36,8 @@ export interface AnalyticsFigure<T> {
   projectCount: number;
   /** Of those, the ones without a value — left out of every amount the figure shows. */
   excluded: { noValue: number };
+  /** The time zone the range's days were counted in — the reporting time zone, `UTC` without `analytics` (#475). */
+  timeZone: string;
   data: T;
 }
 
@@ -101,7 +103,8 @@ export class ProjectAnalyticsService {
    * Project created or closed in the range.
    */
   async summary(query: ProjectAnalyticsQuery): Promise<AnalyticsFigure<z.infer<typeof ProjectAnalyticsSummarySchema>>> {
-    const selection = await this.#selection(query);
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = await this.#selection(query, timeZone);
     let opened = 0;
     let completed = 0;
     let lost = 0;
@@ -121,7 +124,7 @@ export class ProjectAnalyticsService {
       lost = Number(row?.lost ?? 0);
       projectCount = Number(row?.total ?? 0);
     }
-    return this.#figure(query, projectCount, 0, {
+    return this.#figure(query, timeZone, projectCount, 0, {
       opened,
       completed,
       lost,
@@ -131,7 +134,8 @@ export class ProjectAnalyticsService {
 
   /** Creation to close, in days, averaged over the Projects closed in the range, per outcome. */
   async durations(query: ProjectAnalyticsQuery): Promise<AnalyticsFigure<z.infer<typeof ProjectAnalyticsDurationsSchema>>> {
-    const selection = await this.#selection(query);
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = await this.#selection(query, timeZone);
     const outcome = { completed: { seconds: null as number | null, count: 0 }, lost: { seconds: null as number | null, count: 0 } };
     if (selection) {
       const rows = await this.#rows<{ state: 'completed' | 'lost'; closed_count: number; average_seconds: number }>(
@@ -146,7 +150,7 @@ export class ProjectAnalyticsService {
         outcome[row.state] = { seconds: Number(row.average_seconds), count: Number(row.closed_count) };
       }
     }
-    return this.#figure(query, outcome.completed.count + outcome.lost.count, 0, {
+    return this.#figure(query, timeZone, outcome.completed.count + outcome.lost.count, 0, {
       completedAverageDays: secondsToDays(outcome.completed.seconds),
       completedCount: outcome.completed.count,
       lostAverageDays: secondsToDays(outcome.lost.seconds),
@@ -165,8 +169,9 @@ export class ProjectAnalyticsService {
   async timeInStage(
     query: ProjectAnalyticsQuery,
   ): Promise<AnalyticsFigure<z.infer<typeof ProjectAnalyticsTimeInStageSchema>>> {
-    const selection = await this.#selection(query);
-    if (!selection) return this.#figure(query, 0, 0, []);
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = await this.#selection(query, timeZone);
+    if (!selection) return this.#figure(query, timeZone, 0, 0, []);
     // The window runs over the whole history of each Project that has an
     // entry in the range — a stay ends at the next entry, whenever that was —
     // and the range then selects the stays by when they began.
@@ -203,6 +208,7 @@ export class ProjectAnalyticsService {
     );
     return this.#figure(
       query,
+      timeZone,
       Number(rows[0]?.project_count ?? 0),
       0,
       rows.map((row) => ({
@@ -222,8 +228,9 @@ export class ProjectAnalyticsService {
     query: ProjectAnalyticsQuery,
     language: string,
   ): Promise<AnalyticsFigure<z.infer<typeof ProjectAnalyticsLossesSchema>>> {
-    const selection = await this.#selection(query);
-    if (!selection) return this.#figure(query, 0, 0, { byStage: [], byReason: [], lostValue: [] });
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = await this.#selection(query, timeZone);
+    if (!selection) return this.#figure(query, timeZone, 0, 0, { byStage: [], byReason: [], lostValue: [] });
     const rows = await this.#rows<{
       grouping: 'stage' | 'reason' | 'value';
       group_key: string | null;
@@ -282,13 +289,14 @@ export class ProjectAnalyticsService {
     const lostValue: ProjectCurrencyAmount[] = values
       .map((row) => ({ currency: row.group_key ?? '', amount: row.amount ?? '0.00' }))
       .sort((a, b) => a.currency.localeCompare(b.currency));
-    return this.#figure(query, total, total - valued, { byStage, byReason, lostValue });
+    return this.#figure(query, timeZone, total, total - valued, { byStage, byReason, lostValue });
   }
 
   /** The average value of the Projects **created in the range**, per currency. */
   async value(query: ProjectAnalyticsQuery): Promise<AnalyticsFigure<z.infer<typeof ProjectAnalyticsValueSchema>>> {
-    const selection = await this.#selection(query);
-    if (!selection) return this.#figure(query, 0, 0, { average: [] });
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = await this.#selection(query, timeZone);
+    if (!selection) return this.#figure(query, timeZone, 0, 0, { average: [] });
     // The group without a currency is the Projects without a value (a value
     // and its currency are set together, `projects_value_check`).
     const rows = await this.#rows<{ currency: string | null; count: number; average: string | null }>(
@@ -302,7 +310,7 @@ export class ProjectAnalyticsService {
     );
     const projectCount = rows.reduce((sum, row) => sum + Number(row.count), 0);
     const noValue = Number(rows.find((row) => row.currency === null)?.count ?? 0);
-    return this.#figure(query, projectCount, noValue, {
+    return this.#figure(query, timeZone, projectCount, noValue, {
       average: rows
         .filter((row) => row.currency !== null)
         .map((row) => ({ currency: row.currency!, amount: row.average ?? '0.00', count: Number(row.count) })),
@@ -314,8 +322,9 @@ export class ProjectAnalyticsService {
    * {@link TOP_OPEN_PER_CURRENCY} per currency, by currency, highest first.
    */
   async topOpen(query: ProjectAnalyticsQuery): Promise<AnalyticsFigure<z.infer<typeof ProjectAnalyticsTopOpenSchema>>> {
-    const selection = await this.#selection(query);
-    if (!selection) return this.#figure(query, 0, 0, []);
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = await this.#selection(query, timeZone);
+    if (!selection) return this.#figure(query, timeZone, 0, 0, []);
     // One row at least — the counts — whatever is ranked.
     const rows = await this.#rows<VisibleProjectRow & { total: number; no_value: number }>(
       `with "candidates" as (
@@ -336,7 +345,7 @@ export class ProjectAnalyticsService {
     const projectCount = Number(rows[0]?.total ?? 0);
     const noValue = Number(rows[0]?.no_value ?? 0);
     const ranked = rows.filter((row) => row.id !== null);
-    return this.#figure(query, projectCount, noValue, await this.deps.read.summaries(ranked));
+    return this.#figure(query, timeZone, projectCount, noValue, await this.deps.read.summaries(ranked));
   }
 
   /**
@@ -345,8 +354,9 @@ export class ProjectAnalyticsService {
    * {@link MANAGERS_LIMIT}, most first.
    */
   async managers(query: ProjectAnalyticsQuery): Promise<AnalyticsFigure<z.infer<typeof ProjectAnalyticsManagersSchema>>> {
-    const selection = await this.#selection(query);
-    if (!selection) return this.#figure(query, 0, 0, []);
+    const timeZone = await this.deps.reportingTimeZone();
+    const selection = await this.#selection(query, timeZone);
+    if (!selection) return this.#figure(query, timeZone, 0, 0, []);
     const rows = await this.#rows<{ admin_user_id: string | null; completed_count: number | null; total: number }>(
       `with "done" as (
          select p."id" from "projects" p
@@ -372,6 +382,7 @@ export class ProjectAnalyticsService {
     const nameOf = new Map(people.map((person) => [person.id, personName(person)]));
     return this.#figure(
       query,
+      timeZone,
       projectCount,
       0,
       ranked
@@ -392,9 +403,9 @@ export class ProjectAnalyticsService {
    * The range, the visibility predicate for the reader and the filters — or
    * `null` for a reader who reaches no Organization, for whom no statement runs.
    */
-  async #selection(query: ProjectAnalyticsQuery): Promise<Selection | null> {
+  async #selection(query: ProjectAnalyticsQuery, timeZone: string): Promise<Selection | null> {
     // Days are the reporting time zone's (issue #465): `analytics`', or UTC without it.
-    const { start, end } = analyticsRange(query, await this.deps.reportingTimeZone());
+    const { start, end } = analyticsRange(query, timeZone);
     const viewer = await this.deps.access.currentViewer();
     if (reachesNoOrganization(viewer.reach.constraint)) return null;
     const visible = await this.deps.access.visibleProjectSql(viewer);
@@ -427,8 +438,14 @@ export class ProjectAnalyticsService {
     return Array.from({ length: times }, () => [selection.start, selection.end]).flat();
   }
 
-  #figure<T>(query: ProjectAnalyticsQuery, projectCount: number, noValue: number, data: T): AnalyticsFigure<T> {
-    return { from: query.from, to: query.to, projectCount, excluded: { noValue }, data };
+  #figure<T>(
+    query: ProjectAnalyticsQuery,
+    timeZone: string,
+    projectCount: number,
+    noValue: number,
+    data: T,
+  ): AnalyticsFigure<T> {
+    return { from: query.from, to: query.to, projectCount, excluded: { noValue }, timeZone, data };
   }
 
   async #rows<T>(sql: string, params: unknown[]): Promise<T[]> {

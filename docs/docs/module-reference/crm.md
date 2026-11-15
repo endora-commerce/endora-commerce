@@ -43,6 +43,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `admin_notifications` | no | degrades-without `adminNotificationRecordPort` — CRM stops notifying people about assignments and messages; everything else in CRM keeps working |
 | `admin_search` | no | contributes-to `adminSearchProviderRegistry` |
+| `analytics` | no | degrades-without `reportingTimeZonePort` — CRM analytics count days in UTC instead of the reporting time zone. |
 | `projects` | no | degrades-without `projectReadPort` — References to Projects show as unavailable and Projects are not offered after @@. |
 | `quote_requests` | no | degrades-without `quoteRequestCustomFieldCarryPort` — Values of Sales Opportunities are not carried into Quote Requests created from them |
 | `quote_requests` | no | degrades-without `quoteRequestReadPort` — Quote Requests linked to Opportunities show as unavailable, stop counting toward computed values, and can no longer be linked or created from one. Opportunities and their Orders keep working |
