@@ -1,7 +1,11 @@
 import type {
+  AcceptInvitationResponse,
   CreateOrganizationRoleRequest,
   DeleteOrganizationRoleResponse,
   DeleteOrganizationRoleRequest,
+  InviteMemberResponse,
+  OrganizationInvitation,
+  OrganizationMember,
   OrganizationOwnRoleResponse,
   OrganizationPermissionCatalogueResponse,
   OrganizationRoleRef,
@@ -25,16 +29,8 @@ import { apiGetAuthed, apiMutate } from './mutations';
 
 export type { OrganizationRoleRef, OrganizationRoleView };
 
-export interface MemberSummary {
-  id: string;
-  organizationId: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  organizationRole: OrganizationRoleRef;
-  emailVerifiedAt: string | null;
-  twoFactorEnabled: boolean;
-}
+/** A row of the Organization's member roster (`organizationMemberSchema`). */
+export type MemberSummary = OrganizationMember;
 
 export async function listMembers(sessionCookie: string, ctx?: RequestContext): Promise<MemberSummary[]> {
   return apiGetAuthed<MemberSummary[]>({
@@ -44,15 +40,8 @@ export async function listMembers(sessionCookie: string, ctx?: RequestContext): 
   });
 }
 
-export interface PendingInvitation {
-  id: string;
-  organizationId: string;
-  email: string;
-  organizationRole: OrganizationRoleRef;
-  invitedByCustomerAccountId: string | null;
-  expiresAt: string;
-  createdAt: string;
-}
+/** A pending invitation (`organizationInvitationSchema`). */
+export type PendingInvitation = OrganizationInvitation;
 
 export async function listPendingInvitations(
   sessionCookie: string,
@@ -80,8 +69,8 @@ export async function inviteMember(
   sessionCookie: string,
   /** An absent `roleId` is the Organization's *Member* role, resolved by the API. */
   payload: { email: string; roleId?: string },
-): Promise<{ invitationId: string; expiresAt: string }> {
-  const result = await apiMutate<{ invitationId: string; expiresAt: string }>({
+): Promise<InviteMemberResponse['data']> {
+  const result = await apiMutate<InviteMemberResponse['data']>({
     method: 'POST',
     path: '/api/v1/organizations/mine/invitations',
     body: payload,
@@ -96,8 +85,8 @@ export async function inviteMember(
 export async function acceptInvitation(
   token: string,
   payload: { password: string; firstName: string; lastName: string },
-): Promise<{ customerAccount: MemberSummary }> {
-  const result = await apiMutate<{ customerAccount: MemberSummary }>({
+): Promise<AcceptInvitationResponse['data']> {
+  const result = await apiMutate<AcceptInvitationResponse['data']>({
     method: 'POST',
     path: `/api/v1/organizations/invitations/${encodeURIComponent(token)}/accept`,
     body: payload,

@@ -6,9 +6,14 @@ import {
 } from './common.js';
 import { fulfilmentStrategySchema, type FulfilmentStrategy } from './inventory.js';
 import { organizationRoleRefSchema } from './organization-roles.js';
+import { paginationSchema } from './pagination.js';
 import { SalesChannelOptionSchema } from './sales-channels.js';
 import { foldDiacritics } from './text-normalization.js';
-import { registryLookupIdSchema } from './organization-registry-lookup.js';
+import {
+  registryLookupIdSchema,
+  vatValidationOutcomeSchema,
+  vatValidationProviderSchema,
+} from './organization-registry-lookup.js';
 import { ExtensionAttributesSchema } from './schema-extensions.js';
 import { customFieldValuesSchema } from './custom-fields.js';
 
@@ -130,6 +135,33 @@ export type Organization = z.infer<typeof organizationSchema>;
  * non-exposing module is simply not a key (FR-052).
  */
 export const adminOrganizationSchema = organizationSchema.extend({
+  /*
+   * Issue #599 — the keys every admin organization reply (the list, the detail
+   * and each write's answer) has carried, which the contract did not declare.
+   * The Admin UI's organization page reads them. Declared optional, so a client
+   * that does not read them is unaffected.
+   */
+  legalName: z.string().nullable().optional(),
+  /** Feature 038 (US4) — additional addresses copied on this Organization's order confirmations. */
+  orderConfirmationEmails: z.array(z.string()).optional(),
+  /** The optimistic-concurrency token the moderation and restriction writes check. */
+  version: z.number().int().nonnegative().optional(),
+  blockedReason: z.string().nullable().optional(),
+  blockedAt: isoDateTimeSchema.nullable().optional(),
+  rejectedReason: z.string().nullable().optional(),
+  rejectedAt: isoDateTimeSchema.nullable().optional(),
+  approvedAt: isoDateTimeSchema.nullable().optional(),
+  approvedByAdminUserId: uuidSchema.nullable().optional(),
+  /** The latest tax-ID validation; each member is `null` while none has run. */
+  vatValidation: z
+    .object({
+      outcome: vatValidationOutcomeSchema.nullable(),
+      provider: vatValidationProviderSchema.nullable(),
+      validatedAt: isoDateTimeSchema.nullable(),
+    })
+    .optional(),
+  /** Feature 055 — this Organization's custom-field values. */
+  customFieldValues: customFieldValuesSchema.optional(),
   extensions: ExtensionAttributesSchema.optional(),
 });
 export type AdminOrganization = z.infer<typeof adminOrganizationSchema>;
@@ -490,6 +522,101 @@ export const registerOrganizationResponseSchema = z.object({
   emailVerificationSent: z.boolean(),
 });
 export type RegisterOrganizationResponse = z.infer<typeof registerOrganizationResponseSchema>;
+
+// --- Admin organization replies (issue #599) --------------------------------
+
+/** `GET /api/v1/admin/organizations` — one page of Organizations. */
+export const adminOrganizationListResponseSchema = z.object({
+  data: z.array(adminOrganizationSchema),
+  pagination: paginationSchema,
+});
+export type AdminOrganizationListResponse = z.infer<typeof adminOrganizationListResponseSchema>;
+
+/**
+ * A member as the operator's screens show it: the detail's member roster and
+ * the answer of every admin member write (profile, roll-up, role, block,
+ * unblock). The role is `organizationRole` (`specs/170-organization-roles/`
+ * FR-008, FR-073); an operator view carries no effective permissions.
+ */
+export const adminOrganizationMemberSchema = z.object({
+  id: uuidSchema,
+  email: z.string().email(),
+  firstName: z.string(),
+  lastName: z.string(),
+  /** Feature 056 — this login sees and acts across its Organization's subtree. */
+  subtreeRollupEnabled: z.boolean(),
+  emailVerifiedAt: isoDateTimeSchema.nullable(),
+  twoFactorEnabled: z.boolean(),
+  lastLoginAt: isoDateTimeSchema.nullable(),
+  organizationRole: organizationRoleRefSchema,
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type AdminOrganizationMember = z.infer<typeof adminOrganizationMemberSchema>;
+
+/**
+ * `GET /api/v1/admin/organizations/:id` — the Organization, its active members,
+ * and its two predefined roles, so the member role select can offer
+ * Administrator and Member to an operator who may assign roles but not read the
+ * role list (`specs/170-organization-roles/contracts/operator-api.md` §5).
+ */
+export const adminOrganizationDetailSchema = adminOrganizationSchema.extend({
+  members: z.array(adminOrganizationMemberSchema),
+  predefinedRoles: z.array(organizationRoleRefSchema),
+});
+export type AdminOrganizationDetail = z.infer<typeof adminOrganizationDetailSchema>;
+
+// --- Buyer member and invitation replies (issue #599) -----------------------
+
+/**
+ * A member as the buyer's roster shows it — `GET /api/v1/organizations/mine/members`
+ * and `PATCH …/mine/members/:id/role`. A session view (`customerAccountSchema`)
+ * adds the member's effective permissions; a roster row does not.
+ */
+export const organizationMemberSchema = z.object({
+  id: uuidSchema,
+  organizationId: uuidSchema,
+  email: z.string().email(),
+  firstName: z.string(),
+  lastName: z.string(),
+  organizationRole: organizationRoleRefSchema,
+  emailVerifiedAt: isoDateTimeSchema.nullable(),
+  twoFactorEnabled: z.boolean(),
+  createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
+});
+export type OrganizationMember = z.infer<typeof organizationMemberSchema>;
+
+export const organizationMemberListResponseSchema = z.object({ data: z.array(organizationMemberSchema) });
+export type OrganizationMemberListResponse = z.infer<typeof organizationMemberListResponseSchema>;
+
+/** A pending invitation — `GET /api/v1/organizations/mine/invitations`. */
+export const organizationInvitationSchema = z.object({
+  id: uuidSchema,
+  organizationId: uuidSchema,
+  email: z.string().email(),
+  /** The role the invitee will hold (FR-008, FR-073). */
+  organizationRole: organizationRoleRefSchema,
+  invitedByCustomerAccountId: uuidSchema.nullable(),
+  expiresAt: isoDateTimeSchema,
+  createdAt: isoDateTimeSchema,
+});
+export type OrganizationInvitation = z.infer<typeof organizationInvitationSchema>;
+
+export const organizationInvitationListResponseSchema = z.object({ data: z.array(organizationInvitationSchema) });
+export type OrganizationInvitationListResponse = z.infer<typeof organizationInvitationListResponseSchema>;
+
+/** `POST /api/v1/organizations/mine/invitations` — 201. */
+export const inviteMemberResponseSchema = z.object({
+  data: z.object({ invitationId: uuidSchema, expiresAt: isoDateTimeSchema }),
+});
+export type InviteMemberResponse = z.infer<typeof inviteMemberResponseSchema>;
+
+/** `POST /api/v1/organizations/invitations/:token/accept` — the account the invitation created, as a session view. */
+export const acceptInvitationResponseSchema = z.object({
+  data: z.object({ customerAccount: customerAccountSchema }),
+});
+export type AcceptInvitationResponse = z.infer<typeof acceptInvitationResponseSchema>;
 
 // --- Organization picker (feature 091, P2) ----------------------------------
 
