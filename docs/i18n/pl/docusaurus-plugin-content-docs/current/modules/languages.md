@@ -66,9 +66,10 @@ kolejności:
 3. pierwsza wartość obecna w rekordzie;
 4. pusty string.
 
-`resolveRequestLocale(acceptLanguageHeader, activeLocales)` odczytuje nagłówek `Accept-Language`
-(z wagami q) i zwraca najlepiej dopasowany język spośród aktywnych, z dopasowaniem po samym języku,
-dzięki któremu `en-GB` pasuje do `en-US`. Gdy nic nie pasuje, zwraca skonfigurowany język domyślny.
+`LocaleService` nie odczytuje nagłówka `Accept-Language`. Język treści żądania wyznacza względem
+jego kanału sprzedaży funkcja `requestScopeLanguage` z `@endora-commerce/contracts` (z wagami q,
+dopasowanie dokładne, potem po samym języku, w przeciwnym razie język domyślny kanału), a język
+komunikatu backendu — `request.responseLanguage()`.
 
 Odczyt języka domyślnego jest przechowywany w pamięci podręcznej przez 60 sekund; zmiany w panelu
 wywołują `invalidateDefault()`, aby pamięć podręczna została wyczyszczona od razu po zmianie.
@@ -80,8 +81,5 @@ wywołują `invalidateDefault()`, aby pamięć podręczna została wyczyszczona 
 
 ## Punkty rozszerzenia
 
-- **Język domyślny dla kanału sprzedaży** — gdy kanał sprzedaży ma własny język, wstaw przed
-  `LocaleService.resolveRequestLocale()` mechanizm wyznaczania i używaj języka domyślnego kanału
-  zamiast globalnego.
 - **Wymiana tłumaczeń z systemami zewnętrznymi** — emituj zdarzenie domenowe przy zmianie
   przetłumaczonego pola i pozwól integracji przekazywać je do zewnętrznego procesu tłumaczeń.
