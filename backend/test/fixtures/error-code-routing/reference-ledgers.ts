@@ -2284,6 +2284,13 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'with an English literal the envelope never replaces: ' +
       'deleting a tag a campaign or an automation references. Its `tag_in_use` token was dropped: the code says it.',
   },
+  PREFERRED_LANGUAGE_NOT_OFFERED: {
+    to: 'customers',
+    reason:
+      'Minted by issue #652 (D-292) for `PATCH /api/v1/me/customer/preferred-language` naming a ' +
+      "language the request's sales channel does not offer (422). The route and the check are " +
+      "`customers`' own, and the reader is the buyer on their account page.",
+  },
 };
 
 /**
