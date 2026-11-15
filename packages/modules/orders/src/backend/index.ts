@@ -947,6 +947,8 @@ export function registerModule(ctx: ModuleContext): void {
             'order placement',
           ).placeOrder(customerContext, req, {
             ...(options?.language ? { language: options.language } : {}),
+            // Issue #1308 — the request's scope language the basket is judged in.
+            ...(options?.languageTag ? { languageTag: options.languageTag } : {}),
             ...(options?.workingBasketId ? { workingBasketId: options.workingBasketId } : {}),
           });
           return { ...toOrderRecord(order), nextAction: order.nextAction ?? null };
