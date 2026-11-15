@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { SaveSessionSummary, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SalesChannelDetail } from '@endora-commerce/contracts';
-import { ApiError, useAuth, INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
+import {
+  ApiError,
+  SaveSessionProvider,
+  useAuth,
+  useSaveSession,
+  useUnsavedChangesPrompt,
+  type SaveOutcome,
+  type SavePart,
+} from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { salesChannelsClient } from '../api/sales-channels-client.js';
 import {
@@ -70,32 +78,15 @@ export function SalesChannelEditPage(): ReactNode {
     };
   }, [isCreate, routeCode]);
 
-  const handleSubmit = useCallback(
+  const handleCreate = useCallback(
     async (value: ChannelIdentityFormValue): Promise<void> => {
       setSaving(true);
       setError(null);
       try {
-        if (isCreate) {
-          const created = await salesChannelsClient.create({
-            code: value.code,
-            name: { 'en-US': value.name },
-            ...(value.themeCode ? { themeCode: value.themeCode } : {}),
-            languages: value.languages,
-            defaultLanguage: value.defaultLanguage,
-            currencies: value.currencies,
-            defaultCurrency: value.defaultCurrency,
-            active: value.active,
-            anonymousAccess: value.anonymousAccess,
-            prefixDefaultLanguage: value.prefixDefaultLanguage,
-          });
-          navigate(`/sales-channels/${encodeURIComponent(created.code)}`, { replace: true });
-          return;
-        }
-        if (!channel) return;
-        const updated = await salesChannelsClient.update(channel.code, {
-          expectedVersion: channel.version,
+        const created = await salesChannelsClient.create({
+          code: value.code,
           name: { 'en-US': value.name },
-          ...(value.themeCode !== undefined ? { themeCode: value.themeCode || null } : {}),
+          ...(value.themeCode ? { themeCode: value.themeCode } : {}),
           languages: value.languages,
           defaultLanguage: value.defaultLanguage,
           currencies: value.currencies,
@@ -104,7 +95,7 @@ export function SalesChannelEditPage(): ReactNode {
           anonymousAccess: value.anonymousAccess,
           prefixDefaultLanguage: value.prefixDefaultLanguage,
         });
-        setChannel(updated);
+        navigate(`/sales-channels/${encodeURIComponent(created.code)}`, { replace: true });
       } catch (err) {
         setError(
           err instanceof ApiError ? err.envelope.error.message : 'Save failed.',
@@ -113,7 +104,7 @@ export function SalesChannelEditPage(): ReactNode {
         setSaving(false);
       }
     },
-    [channel, isCreate, navigate],
+    [navigate],
   );
 
   const handleDeactivate = useCallback(async (): Promise<void> => {
@@ -251,15 +242,169 @@ export function SalesChannelEditPage(): ReactNode {
           ) : null
         }
       />
+      {channel && !isCreate ? (
+        // Feature 180, WP-9 — one save session per channel, the existing-channel branch only:
+        // a create form has no id and mounts no zone.
+        <SaveSessionProvider resetKey={channel.id} hostModule="sales_channels">
+          <ChannelEditSection
+            channel={channel}
+            canWrite={canWrite}
+            error={error}
+            saving={saving}
+            onError={setError}
+            onSaving={setSaving}
+            onChannel={setChannel}
+            onCancel={() => navigate('/sales-channels')}
+          />
+        </SaveSessionProvider>
+      ) : (
+        <ChannelIdentityForm
+          mode="create"
+          initial={channel}
+          errorMessage={error}
+          saving={saving}
+          readOnly={!canWrite}
+          onSubmit={(v) => void handleCreate(v)}
+          onCancel={() => navigate('/sales-channels')}
+        />
+      )}
+      {confirmDialog}
+    </>
+  );
+}
+
+/**
+ * A summary worth showing: a refusal or failure that names a participant, or a partial save.
+ * A refusal of the channel write alone is said by the form's own error, as before.
+ */
+function showSummary(outcome: SaveOutcome | null): boolean {
+  if (outcome === null || outcome.result === 'saved') return false;
+  return (
+    outcome.result === 'partial' ||
+    outcome.parts.some((part) => part.id !== 'host' && part.result !== 'saved' && part.result !== 'not-attempted')
+  );
+}
+
+/**
+ * Feature 180, WP-9 (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §4;
+ * FR-070, OQ-10 = A) — the identity form and the panels below it under one save session. The
+ * form's Save is the session's: the channel write first (blocking), then every participant of
+ * `sales_channel.editor.after` in zone order. `inventory`'s warehouse routing is no participant:
+ * it applies immediately and says so on its own heading.
+ */
+function ChannelEditSection({
+  channel,
+  canWrite,
+  error,
+  saving,
+  onError,
+  onSaving,
+  onChannel,
+  onCancel,
+}: {
+  channel: SalesChannelDetail;
+  canWrite: boolean;
+  error: string | null;
+  saving: boolean;
+  onError: (message: string | null) => void;
+  onSaving: (saving: boolean) => void;
+  onChannel: (channel: SalesChannelDetail) => void;
+  onCancel: () => void;
+}): ReactNode {
+  const t = useTranslation('sales_channels');
+  const session = useSaveSession();
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const [hostCount, setHostCount] = useState(0);
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const zoneRef = useRef<HTMLDivElement | null>(null);
+  // The last save's summary belongs to it: an edit of the form's own clears it (FR-016).
+  useEffect(() => {
+    if (hostCount > 0) sessionRef.current.clearOutcome();
+  }, [hostCount]);
+  // Leaving the page — an in-app link, a reload, closing the tab — asks once for every part.
+  useUnsavedChangesPrompt(hostCount + session.dirtyCount > 0);
+
+  const handleSubmit = async (value: ChannelIdentityFormValue): Promise<void> => {
+    const host: SavePart | null =
+      hostCount > 0
+        ? {
+            id: 'host',
+            label: t('channelEditor.save.hostPartLabel'),
+            blocking: true,
+            count: hostCount,
+            // The form refuses to submit while a list or a default is missing; the server
+            // answers the rest on the write.
+            validate: async () => ({ fields: {} }),
+            save: async () => {
+              try {
+                const updated = await salesChannelsClient.update(channel.code, {
+                  expectedVersion: channel.version,
+                  name: { 'en-US': value.name },
+                  ...(value.themeCode !== undefined ? { themeCode: value.themeCode || null } : {}),
+                  languages: value.languages,
+                  defaultLanguage: value.defaultLanguage,
+                  currencies: value.currencies,
+                  defaultCurrency: value.defaultCurrency,
+                  active: value.active,
+                  anonymousAccess: value.anonymousAccess,
+                  prefixDefaultLanguage: value.prefixDefaultLanguage,
+                });
+                onChannel(updated);
+              } catch (err) {
+                // Said where it was said before, and rethrown so no participant is written.
+                onError(err instanceof ApiError ? err.envelope.error.message : t('channelEditor.save.failed'));
+                throw err;
+              }
+            },
+          }
+        : null;
+    if (host === null && sessionRef.current.dirtyCount === 0) return;
+    onSaving(true);
+    onError(null);
+    try {
+      await sessionRef.current.run(host);
+    } finally {
+      onSaving(false);
+    }
+  };
+
+  /** The summary's "Show": the form's first marked field, or the zone's first control. */
+  const showPart = (partId: string): void => {
+    setTimeout(() => {
+      const root = partId === 'host' ? sectionRef.current?.querySelector<HTMLElement>('form') : zoneRef.current;
+      (root?.querySelector<HTMLElement>('[aria-invalid="true"], input, select, textarea, button') ?? root)?.focus();
+    }, 0);
+  };
+
+  return (
+    <div ref={sectionRef}>
       <ChannelIdentityForm
-        mode={isCreate ? 'create' : 'edit'}
+        mode="edit"
         initial={channel}
-        lockCode={!isCreate}
+        lockCode
         errorMessage={error}
-        saving={saving}
+        saving={saving || session.saving}
         readOnly={!canWrite}
+        participantChangeCount={session.dirtyCount}
+        onChangeCountChange={setHostCount}
+        summary={
+          showSummary(session.lastOutcome) || session.notices.length > 0 ? (
+            <div className="mb-4">
+              <SaveSessionSummary
+                outcome={showSummary(session.lastOutcome) ? session.lastOutcome : null}
+                notices={session.notices}
+                onShow={showPart}
+              />
+            </div>
+          ) : null
+        }
         onSubmit={(v) => void handleSubmit(v)}
-        onCancel={() => navigate('/sales-channels')}
+        // Cancel is *Discard* without a dialog: a programmatic navigation is not intercepted.
+        onCancel={() => {
+          session.discardAll();
+          onCancel();
+        }}
       />
       {/* Feature 091 / P7c — the place below this screen's identity form.
           `inventory` contributes its warehouse routing panel here; this screen
@@ -267,15 +412,12 @@ export function SalesChannelEditPage(): ReactNode {
           mount is conditional on an existing channel, not on the zone being
           empty: a create form has no id to pass, and `<AdminZone>` renders
           nothing at all when no contribution survives the filter, so there is
-          no chrome of this screen's to hide. */}
-      {channel && !isCreate ? (
-        <div style={{ marginTop: 24 }}>
-          {/* Feature 180 — the inert handle until this editor runs its save session (WP-9). */}
-          <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id, saveSession: INERT_SAVE_SESSION }} />
-        </div>
-      ) : null}
-      {confirmDialog}
-    </>
+          no chrome of this screen's to hide. Feature 180 — the zone gets the
+          editor's save session; a participant's changes join the form's Save. */}
+      <div ref={zoneRef} style={{ marginTop: 24 }}>
+        <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id, saveSession: session.handle }} />
+      </div>
+    </div>
   );
 }
 

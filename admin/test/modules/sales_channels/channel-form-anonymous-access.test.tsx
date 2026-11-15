@@ -8,6 +8,7 @@ import type { SalesChannelDetail, SalesChannelSummary } from '@endora-commerce/c
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, renderWithSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
+import { shippedCoreBundle } from '../../helpers/core-bundle';
 
 /**
  * `specs/154-sales-channel-access/` T058 — the operator's switch for a store
@@ -225,7 +226,8 @@ describe('SalesChannelEditPage — saving', () => {
       {
         session: adminSession({ permissions: ['*'] }),
         presence: modulePresence({ present: ['sales_channels'] }),
-        bundle,
+        // The Save button's count is the kit's copy (feature 180, WP-9).
+        bundle: { ...bundle, ...shippedCoreBundle('en') },
       },
     );
     // The form re-seeds its fields from the loaded channel in an effect. Under
@@ -235,7 +237,8 @@ describe('SalesChannelEditPage — saving', () => {
     await screen.findByRole('button', { name: 'Delete' });
     await waitFor(() => expect(anonymousSwitch().checked).toBe(true));
     fireEvent.click(anonymousSwitch());
-    fireEvent.click(screen.getByRole('button', { name: en['identity.action.save']! }));
+    // Feature 180, WP-9 — the edit form's Save counts its changes ("Save 1 change").
+    fireEvent.click(screen.getByRole('button', { name: /^Save/ }));
     await waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
     expect(updateSpy.mock.calls[0]![0]).toBe('serwis-a');
     expect(updateSpy.mock.calls[0]![1]).toMatchObject({ expectedVersion: 3, anonymousAccess: false });

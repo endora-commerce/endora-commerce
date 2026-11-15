@@ -31,7 +31,7 @@ import {
   MultiCombobox,
   type ComboboxOption,
 } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 /**
  * ChannelIdentityForm — feature 005 / T040.
@@ -113,6 +113,17 @@ export interface ChannelIdentityFormProps {
   readOnly?: boolean;
   onSubmit: (value: ChannelIdentityFormValue) => void;
   onCancel?: () => void;
+  /**
+   * Feature 180, WP-9 — the edit form inside the editor's save session: the unsaved changes of
+   * every panel contributed to `sales_channel.editor.after`. Given, the Save button counts them
+   * with the form's own ("Save 2 changes") and does nothing while the total is zero. Absent (the
+   * create form), Save behaves as it always has.
+   */
+  participantChangeCount?: number;
+  /** Feature 180, WP-9 — the form's own unsaved changes, one per changed field. */
+  onChangeCountChange?: (count: number) => void;
+  /** Feature 180, WP-9 — the outcome of the last Save, at the top of the form. */
+  summary?: ReactNode;
 }
 
 function pickEnglishName(name: Record<string, string> | undefined): string {
@@ -129,8 +140,13 @@ export function ChannelIdentityForm({
   readOnly = false,
   onSubmit,
   onCancel,
+  participantChangeCount,
+  onChangeCountChange,
+  summary,
 }: ChannelIdentityFormProps): ReactNode {
   const t = useTranslation('sales_channels');
+  const tc = useTranslation('core');
+  const { language } = useTranslationContext();
   const [code, setCode] = useState(initial?.code ?? '');
   const [name, setName] = useState(pickEnglishName(initial?.name));
   const [themeCode, setThemeCode] = useState(initial?.themeCode ?? '');
@@ -233,12 +249,50 @@ export function ChannelIdentityForm({
   const invalid =
     languagesMissing || currenciesMissing || defaultLanguageMissing || defaultCurrencyMissing;
 
+  // Feature 180, WP-9 — the form's own unsaved changes against the channel it was seeded from.
+  const hostChangeCount =
+    mode === 'edit' && seededFrom
+      ? [
+          name !== pickEnglishName(seededFrom.name),
+          themeCode !== (seededFrom.themeCode ?? ''),
+          !sameList(languages, seededFrom.languages),
+          defaultLanguage !== seededFrom.defaultLanguage,
+          !sameList(currencies, seededFrom.currencies),
+          defaultCurrency !== seededFrom.defaultCurrency,
+          active !== seededFrom.active,
+          anonymousAccess !== seededFrom.anonymousAccess,
+          prefixDefaultLanguage !== seededFrom.prefixDefaultLanguage,
+        ].filter(Boolean).length
+      : 0;
+  useEffect(() => {
+    onChangeCountChange?.(hostChangeCount);
+  }, [hostChangeCount, onChangeCountChange]);
+
+  const inSession = participantChangeCount !== undefined;
+  const changeCount = hostChangeCount + (participantChangeCount ?? 0);
+  const cannotSubmit = saving || invalid;
+  // In the save session Save is inert, not disabled, while there is nothing to save: focus stays
+  // on it after it has saved (WCAG 2.4.3), as on the category editor.
+  const nothingToSave = inSession && (changeCount === 0 || saving);
+  const saveLabel =
+    mode === 'create'
+      ? t('identity.action.create')
+      : inSession && saving
+        ? tc('saveSession.action.saving')
+        : inSession && changeCount > 0
+          ? tc(`saveSession.action.count.${new Intl.PluralRules(language).select(changeCount)}`, {
+              count: String(changeCount),
+            })
+          : inSession
+            ? tc('saveSession.action.save')
+            : t('identity.action.save');
+
   const handleSubmit = useCallback(
     (e: FormEvent): void => {
       e.preventDefault();
       // The submit button is disabled while `invalid`, but a form is also
       // submitted by Enter in a text field and by anything calling `submit()`.
-      if (invalid) return;
+      if (invalid || nothingToSave) return;
       onSubmit({
         code: code.trim(),
         name: name.trim(),
@@ -254,6 +308,7 @@ export function ChannelIdentityForm({
     },
     [
       invalid,
+      nothingToSave,
       onSubmit,
       code,
       name,
@@ -280,8 +335,6 @@ export function ChannelIdentityForm({
     }
   }, [languages, defaultLanguage, prefixDefaultLanguage]);
 
-  const cannotSubmit = saving || invalid;
-
   return (
     <Card>
       <CardHeader>
@@ -290,6 +343,7 @@ export function ChannelIdentityForm({
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {summary}
         {errorMessage && (
           <Alert variant="destructive" className="mb-4">
             <AlertDescription>{errorMessage}</AlertDescription>
@@ -577,8 +631,14 @@ export function ChannelIdentityForm({
                 {t('identity.action.cancel')}
               </Button>
             )}
-            <Button type="submit" disabled={cannotSubmit}>
-              {mode === 'create' ? t('identity.action.create') : t('identity.action.save')}
+            <Button
+              type="submit"
+              disabled={inSession ? invalid : cannotSubmit}
+              aria-disabled={nothingToSave || undefined}
+              aria-busy={(inSession && saving) || undefined}
+              className={inSession ? 'aria-disabled:cursor-not-allowed aria-disabled:opacity-50' : undefined}
+            >
+              {saveLabel}
             </Button>
           </div>
         </form>
@@ -588,6 +648,11 @@ export function ChannelIdentityForm({
 }
 
 type DictionaryStatus = 'loading' | 'ready' | 'error';
+
+/** Same entries in the same order: the order of a channel's languages is the operator's. */
+function sameList(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
 
 interface DictionaryRow {
   code: string;

@@ -62,9 +62,9 @@ seen failing first. Format: `[ID] [P?] [Story] Description` — `[P]` = parallel
 
 ## Phase 6: Sales-channel editor — WP-9 (US10, OQ-10 = A)
 
-- [ ] T070 [P] [US10] Failing test `admin/test/modules/sales_channels/sales-channel-editor-one-save.test.tsx`: test-only participant joins the identity Save; leave guard; `ChannelWarehouses` immediate with badge
-- [ ] T071 [US10] `SalesChannelEditPage.tsx` provider + submit through `session.run`; badge in `packages/modules/inventory/src/admin/zones/ChannelWarehouses.tsx`; `channelEditor.save.hostPartLabel`
-- [ ] T072 Changesets: mod-sales-channels, mod-inventory
+- [x] T070 [P] [US10] Failing test `admin/test/modules/sales_channels/sales-channel-editor-one-save.test.tsx`: test-only participant joins the identity Save; leave guard; `ChannelWarehouses` immediate with badge
+- [x] T071 [US10] `SalesChannelEditPage.tsx` provider + submit through `session.run`; badge in `packages/modules/inventory/src/admin/zones/ChannelWarehouses.tsx`; `channelEditor.save.hostPartLabel`
+- [x] T072 Changesets: mod-sales-channels, mod-inventory
 
 ## Phase 7: Organization detail — WP-7 (US9, OQ-9 = A, OQ-11 = A)
 
