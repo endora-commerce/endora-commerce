@@ -5872,6 +5872,15 @@
         }
       }
     },
+    "/api/v1/admin/product-feeds/{id}/price-book-options": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/product-feeds/{id}/runs": {
       "get": {
         "responses": {
@@ -10181,6 +10190,51 @@
     },
     "/api/v1/storefront/module-presence": {
       "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/storefront/notifications": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/storefront/notifications/read-all": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/storefront/notifications/unread-count": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/storefront/notifications/{id}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/storefront/notifications/{id}/read": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"
