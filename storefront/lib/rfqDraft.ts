@@ -21,6 +21,11 @@ import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
 
 export const RFQ_DRAFT_STORAGE_KEY = 'b2b:rfq-draft';
 export const RFQ_DRAFT_CHANGED_EVENT = 'b2b:rfq-draft:changed';
+/**
+ * Issue #1253 — the draft's note to sales, kept beside the lines under its own key (the lines'
+ * stored shape stays an array) so it survives a reload the way they do.
+ */
+export const RFQ_DRAFT_NOTE_STORAGE_KEY = 'b2b:rfq-draft:note';
 
 export interface RfqDraftItem {
   productId: string;
@@ -219,8 +224,34 @@ export function removeRfqDraftItem(productId: string): RfqDraftItem[] {
   return items;
 }
 
+/** Clears the draft: its lines and its note. */
 export function clearRfqDraft(): void {
+  writeRfqDraftNote('');
   writeRfqDraft([]);
+}
+
+/** The draft's note as the buyer last typed it; empty when there is none. */
+export function readRfqDraftNote(): string {
+  if (!isBrowser()) return '';
+  try {
+    return window.localStorage.getItem(RFQ_DRAFT_NOTE_STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Keeps the draft's note; an empty one is removed. No change event: nothing but the draft view
+ * shows the note, and it is the one writing it.
+ */
+export function writeRfqDraftNote(note: string): void {
+  if (!isBrowser()) return;
+  try {
+    if (note === '') window.localStorage.removeItem(RFQ_DRAFT_NOTE_STORAGE_KEY);
+    else window.localStorage.setItem(RFQ_DRAFT_NOTE_STORAGE_KEY, note);
+  } catch {
+    // Quota / privacy-mode failures are non-fatal — the note just won't persist.
+  }
 }
 
 /** Total quantity across all lines (used by the header badge). */
