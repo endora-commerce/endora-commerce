@@ -118,6 +118,44 @@ describe('AvailabilityWorker.dispatchForStockIncrease', () => {
       notifiedAt: null,
     });
     expect(remaining).toHaveLength(0);
+
+    // Issue #1291 — consumed means `notified`, as `processRestockedFanOut` writes it: a row left
+    // `queued` beside its `notified_at` shows as waiting in the admin list and its status filter.
+    const rows = (await h
+      .em()
+      .getConnection()
+      .execute(`select status, notified_at from availability_notifications where product_id = ?`, [
+        product.id,
+      ])) as Array<{ status: string; notified_at: Date | null }>;
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.status).toBe('notified');
+      expect(row.notified_at).not.toBeNull();
+    }
+  });
+
+  it('closes a subscription whose account is gone as cancelled, the way the fan-out does (#1291)', async () => {
+    const em = h.em();
+    em.create(AvailabilityNotification, {
+      // No foreign key holds the account id, so a deleted account leaves it dangling.
+      customerAccountId: '88888888-8888-4888-8888-888888888888',
+      organizationId: customer.organizationId,
+      productId: product.id,
+      variantId: null,
+    });
+    await em.flush();
+
+    await worker.dispatchForStockIncrease({ productId: product.id });
+    expect(mailer.sent).toHaveLength(0);
+    const rows = (await h
+      .em()
+      .getConnection()
+      .execute(`select status, notified_at from availability_notifications where product_id = ?`, [
+        product.id,
+      ])) as Array<{ status: string; notified_at: Date | null }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.status).toBe('cancelled');
+    expect(rows[0]?.notified_at).not.toBeNull();
   });
 
   it('skips already-consumed notifications on a second run', async () => {

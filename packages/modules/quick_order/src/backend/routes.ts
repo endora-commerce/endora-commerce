@@ -214,9 +214,10 @@ export async function registerQuickOrderRoutes(
  * used to be the header's first tag alone, so `en;q=0.2, pl-PL;q=0.9` asked about English.
  *
  * A content language — which (channel, language) a product is available and named at — so not
- * `request.responseLanguage()`, the language messages are worded in.
+ * `request.responseLanguage()`, the language messages are worded in. Shared with the one-click
+ * route (`routes.one-click.ts`, issue #1308).
  */
-function channelLanguageOf(request: FastifyRequest): string | undefined {
+export function channelLanguageOf(request: FastifyRequest): string | undefined {
   const header = request.headers['accept-language'];
   if (header === undefined || header.length === 0) return undefined;
   return requestScopeLanguage(getResolvedChannel(request), header);

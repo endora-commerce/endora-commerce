@@ -1,7 +1,8 @@
-# Admin surfaces a module owns — permissions and the command palette
+# Admin surfaces a module owns — permissions, the command palette and zone-panel saves
 
 **Open this before adding or changing an admin permission code, a route gated by
-`requireAdmin(...)`, a command-palette action or an AppShell nav entry.** One of the bodies
+`requireAdmin(...)`, a command-palette action, an AppShell nav entry, or a zone host or zone
+panel that writes.** One of the bodies
 `AGENTS.md` routes to; it is the single home for these rules, so never restate them in
 `AGENTS.md` or in a tool-specific pointer file.
 
@@ -176,6 +177,56 @@ is not enough.
    admin's module dependencies, and it prints what it read (`[palette-coverage] read: …`).
    Overlay modules discovered at runtime are outside it.
 
+
+## Zone-panel editors save once (FR-083)
+
+**An admin editor that mounts a zone panel which writes has exactly one Save.** Provenance:
+`specs/180-one-save-zone-editors/` (issue #407, owner rulings OQ-1…OQ-11), FR-083; the API is
+`specs/180-one-save-zone-editors/contracts/save-participation.md`. The product, category,
+organization, customer and sales-channel editors follow it; a zone host added later that mounts
+such a panel **must** too. A host whose panels write nothing (they read the host's draft, or are
+read-only lists) needs no session, and a zone of such a host carries no handle.
+
+1. **The host offers a session.** Wrap the editor in `SaveSessionProvider` (from
+   `@endora-commerce/admin-kit/lib`) with `resetKey` = the record (and, in the product editor, the
+   scope) being edited, and `hostModule` = the host's module id. Every zone the editor mounts
+   receives the session's handle as the `saveSession` prop, declared in that zone's props in
+   `packages/contracts/src/admin-contributions.ts` as `readonly saveSession:
+   EditorSaveSessionHandle`. A `useAdminZone` probe that passes placeholder props passes
+   `INERT_SAVE_SESSION`. A zone with no handle in its props is a zone a contribution cannot join —
+   the type-check refuses it.
+2. **The host's Save runs the session.** The host's own unsaved changes are one `SavePart`
+   (blocking, labelled in the host's catalogue); Save calls `session.run(hostPart)`, which checks
+   every part first and writes nothing if any refuses, then writes the host part, then each
+   participant in zone order through its own module's API. A refused or failed host write writes
+   no participant; a participant that fails stays staged and the next Save writes only it. The
+   count is the host's changes plus `session.dirtyCount`. A host with no Save of its own uses the
+   kit's `SaveSessionActions`; every host shows `SaveSessionSummary` for a refusal or a partial
+   save. Save is shown when the operator may write the host record **or** any participant.
+3. **A panel joins through `useSaveParticipant`.** The contribution passes its `saveSession` prop,
+   a module-local `key`, a translated `label` (its own module's catalogue), `writable` (its own
+   write permission — a non-writable part never becomes dirty) and `loaded`, with `changeCount`,
+   `validate` (its own checks plus any server pre-check its module offers) and `save` (its module's
+   existing write, so its Command and audit are unchanged). It renders no Save button, no "saved"
+   message, no save-on-change or on-blur and no unsaved-changes prompt of its own. A host-owned
+   section joins through the same hook under `hostModule`, or is folded into the host part.
+   `CustomFieldValuesPanel` takes the `saveSession` prop or the host-held `onChange` mode inside an
+   adopting host and keeps its own Save only where the host does not adopt.
+4. **Immediate actions stay immediate and say so.** A list action that is its own audited write
+   (membership, links, warehouse stock and routing, members, moderation and the like) is not
+   staged; the section carrying it shows admin-kit's `ImmediateBadge`
+   (`@endora-commerce/admin-kit/components`, string `saveSession.immediateBadge` in `core`) on its
+   heading while the action is offered. Do not add a module-local copy of the badge.
+5. **One leave guard per page.** The page's one `useUnsavedChangesPrompt` is given the host's
+   changes plus `session.dirtyCount`, and the host's own context switch (another record, another scope) asks *Save /
+   Discard / Stay* through the same session. Tab switches ask nothing. Cancel discards without a
+   dialog.
+6. **Presence.** A participant of a module that is off never renders, so it never registers; the
+   session drops a switched-off participant's changes with a notice and reports a
+   `503 MODULE_DISABLED` as that part "switched off" (`module-activation.md`).
+7. **Tests.** An adopting host's test registers a test-only participant from a module of its own
+   and proves it joins the count, the order and the partial-failure retry with no host change
+   (spec 180 SC-006).
 
 ## The generated admin registry conflicts, and is regenerated rather than merged
 

@@ -5211,6 +5211,29 @@ kiedy i co się zmieniło; nie podaje już, czyje to były ustawienia. Raport, k
 z `scopeId`, odczytuje aktualne ustawienia domyślne organizacji albo klienta z
 `GET /api/v1/quick-order/preferences?scope=…&scopeId=…`.
 
+### Adresy organizacji znikają z dziennika audytu platformy {#addresses-audit-names-only}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać identyfikator organizacji
+w ogólnoplatformowym dzienniku audytu przy zapisach adresów organizacji, a wpis zmiany adresu
+podaje, co się zmieniło (zgłoszenie #470). Ten dziennik to jedna tabela, którą czyta każdy
+z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `address.create`,
+  `address.update`, `address.delete` lub `address.anonymized` nie zawiera już identyfikatora
+  organizacji. Wpis nadal jest przypisany do adresu po jego identyfikatorze.
+- `address.create` i `address.update` podają teraz nazwy pól w `changedFields` (przy zmianie tylko
+  te pola, których wartość się zmieniła) obok rodzaju adresu. Jak dotąd żaden z nich nie zawiera
+  odbiorcy, ulicy, miejscowości, kodu pocztowego ani telefonu.
+- Same adresy się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują identyfikator organizacji.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który znajdował wpisy adresów organizacji po
+`organizationId` w ich stanie, najpierw pobiera listę adresów organizacji
+(`GET /api/v1/organizations/mine/addresses` albo `addressReadPort.listIdsForOrganization`),
+a potem filtruje dziennik audytu po tych identyfikatorach.
+
 ### Powody logowania jako klient i organizacje znikają z dziennika audytu platformy {#impersonation-reason-store}
 
 Wydanie, które wprowadza tę zmianę, przestaje zapisywać w ogólnoplatformowym dzienniku audytu
