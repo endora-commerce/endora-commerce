@@ -69,6 +69,8 @@ export interface OrganizationsPublicDeps {
     organizationId: string | null;
     anonymousCartToken?: string;
     anonymousCompareToken?: string;
+    /** Issue #1188 — the sign-in's channel when its request carries none; absent: the resolved one. */
+    salesChannelId?: string;
   }) => Promise<{ cartMerge?: CartMergeOutcome }>;
   /** Dispatches verification email after registration. */
   mailer: EmailMailerPort;
@@ -366,6 +368,8 @@ export async function completeCustomerSignIn(
     organizationId: string | null;
     cookies: Readonly<Record<string, string | undefined>>;
     log: CustomerSignInCompletionInput['log'];
+    /** Issue #1188 — see {@link CustomerSignInCompletionInput.salesChannelId}. */
+    salesChannelId?: string | null;
   },
 ): Promise<CustomerSignInCompletion> {
   if (!onLogin) return { cartMerge: null, clearAnonymousCartCookie: false };
@@ -378,6 +382,7 @@ export async function completeCustomerSignIn(
       organizationId: input.organizationId,
       ...(anon ? { anonymousCartToken: anon } : {}),
       ...(compareAnon ? { anonymousCompareToken: compareAnon } : {}),
+      ...(input.salesChannelId ? { salesChannelId: input.salesChannelId } : {}),
     });
     cartMerge = hookResult.cartMerge;
   } catch (err) {

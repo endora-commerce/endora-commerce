@@ -149,9 +149,10 @@ export interface MfaModuleOptions {
    */
   customerChannelAccess: CustomerChannelAccess;
   /**
-   * Issue #368 — `organizations`' post-sign-in step, run by the two customer
+   * Issue #368 — `organizations`' post-sign-in step, run by the customer
    * routes here that establish the session (second-step verify, enforced
-   * enrolment), so a two-step sign-in carries the signed-out basket over.
+   * enrolment and — issue #1188 — the federated callback), so those sign-ins
+   * carry the signed-out basket over.
    */
   customerSignInCompletion: CustomerSignInCompletionPort;
   /** Feature 167 — the channel's URL-language facts for the storefront pages sign-in returns to. */
@@ -303,6 +304,7 @@ export function mfaModule(options: MfaModuleOptions): {
         storefrontBaseUrl: options.storefrontBaseUrl ?? 'http://localhost:3000',
         adminBaseUrl: adminRedirectBase(options.adminBaseUrl),
         customerChannelAccess: options.customerChannelAccess,
+        customerSignInCompletion: options.customerSignInCompletion,
         ...(options.channelUrlFactsFor ? { channelUrlFactsFor: options.channelUrlFactsFor } : {}),
       });
     }

@@ -13,6 +13,7 @@
  * The provider, the account resolvers and the second-factor decision are
  * stand-ins; the transaction store is the real one over an in-memory Redis.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import Fastify, { type FastifyInstance, type LightMyRequestResponse } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
@@ -21,6 +22,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   federatedSignInErrorCodeSchema,
   type AuthSessionPort,
+  type CustomerSignInCompletion,
+  type CustomerSignInCompletionInput,
   type MfaLoginDecision,
   type MfaLoginPort,
 } from '@endora-commerce/contracts';
@@ -61,6 +64,9 @@ interface Harness {
   permits: ReturnType<typeof vi.fn>;
   signInCustomer: ReturnType<typeof vi.fn>;
   setPermitted: (permitted: boolean) => void;
+  /** Issue #1188 — what `organizations`' post-sign-in step was handed, in order. */
+  completions: CustomerSignInCompletionInput[];
+  setCompletion: (completion: CustomerSignInCompletion) => void;
 }
 
 async function build(
@@ -76,6 +82,8 @@ async function build(
   let permitted = true;
   const permits = vi.fn(async () => permitted);
   const signInCustomer = vi.fn(async () => customerResult);
+  const completions: CustomerSignInCompletionInput[] = [];
+  let completion: CustomerSignInCompletion = { cartMerge: null, clearAnonymousCartCookie: false };
 
   const beginLogin = vi.fn(async () => decision);
   const createSession = vi.fn(async () => ({
@@ -115,6 +123,12 @@ async function build(
       prefixDefaultLanguage: true,
     }),
     customerChannelAccess: { permits },
+    customerSignInCompletion: {
+      complete: async (input) => {
+        completions.push(input);
+        return completion;
+      },
+    },
   });
   await app.ready();
 
@@ -136,6 +150,10 @@ async function build(
     signInCustomer,
     setPermitted: (p) => {
       permitted = p;
+    },
+    completions,
+    setCompletion: (c) => {
+      completion = c;
     },
   };
 }
@@ -341,6 +359,140 @@ describe('federated sign-in — the second factor', () => {
     const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding! }, 'admin');
     expect(res.headers['location']).toBe(`${ADMIN}/`);
     expect(sessionCookie(res, 'b2b_admin_session')?.value).toBe('session-cookie');
+  });
+});
+
+/**
+ * Issue #1188 — a federated sign-in carries the signed-out basket over, as the
+ * password sign-in and (since #368) the second step do.
+ *
+ * The callback establishes the session itself when no second step is needed,
+ * so it is where `organizations`' post-sign-in step runs: the request's cookies
+ * (the browser's `b2b_cart_anon`, which travels on the provider's top-level
+ * redirect exactly as the session cookie set here travels back) and the channel
+ * the sign-in was **started** on, because the provider's redirect carries none.
+ * The storefront is not in the loop on this path, so the callback also drops
+ * the drained anonymous cookie and leaves the merge notice's flash cookie the
+ * storefront's sign-in actions leave.
+ */
+describe('federated sign-in — the signed-out basket is carried over (#1188)', () => {
+  let h: Harness;
+  beforeEach(async () => {
+    h = await build();
+  });
+  afterEach(async () => {
+    await h.app.close();
+  });
+
+  const MERGED: CustomerSignInCompletion = {
+    cartMerge: { outcome: 'merged', destinationCartId: 'cart-1' },
+    clearAnonymousCartCookie: true,
+  };
+
+  const anonCleared = (res: LightMyRequestResponse) =>
+    res.cookies.some(
+      (c) =>
+        c.name === 'b2b_cart_anon' &&
+        c.value === '' &&
+        c.path === '/' &&
+        (c.maxAge === 0 || (c.expires !== undefined && c.expires.getTime() <= Date.now())),
+    );
+
+  it('hands the request cookies and the started-on channel to the completion step once the session is set', async () => {
+    h.setCompletion(MERGED);
+    const binding = 'binding-1188';
+    const state = await h.challengeStore.issueOAuthTransaction({
+      surface: 'customer',
+      provider: 'google',
+      salesChannelId: 'channel-started-on',
+      pkceVerifier: 'verifier',
+      nonce: 'nonce',
+      next: '/account/orders',
+      language: null,
+      browserBinding: createHash('sha256').update(binding).digest('hex'),
+    });
+    const res = await callback(h, state, {
+      [OAUTH_BINDING_COOKIE_NAME]: binding,
+      b2b_cart_anon: 'anon-1188',
+      compare_token: 'cmp-1188',
+    });
+
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toBe(`${STOREFRONT}/account/orders`);
+    expect(sessionCookie(res, 'b2b_session')?.value).toBe('session-cookie');
+    expect(h.completions).toHaveLength(1);
+    expect(h.completions[0]).toMatchObject({
+      customerAccountId: 'c1',
+      salesChannelId: 'channel-started-on',
+    });
+    expect(h.completions[0]!.cookies['b2b_cart_anon']).toBe('anon-1188');
+    expect(h.completions[0]!.cookies['compare_token']).toBe('cmp-1188');
+  });
+
+  it.each(['merged', 'adopted'] as const)(
+    'a %s basket clears the anonymous cookie and leaves the merge notice for the storefront',
+    async (outcome) => {
+      h.setCompletion({ cartMerge: { outcome, destinationCartId: 'cart-1' }, clearAnonymousCartCookie: true });
+      const { state, binding } = await start(h);
+      const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding!, b2b_cart_anon: 'anon-1188' });
+
+      expect(sessionCookie(res, 'b2b_session')?.value).toBe('session-cookie');
+      expect(anonCleared(res)).toBe(true);
+      expect(res.cookies.find((c) => c.name === 'b2b_cart_merge_flash')).toMatchObject({
+        value: outcome,
+        path: '/',
+        httpOnly: true,
+        sameSite: 'Lax',
+        maxAge: 30,
+      });
+    },
+  );
+
+  it('an emptied basket (noop) clears the anonymous cookie but shows no notice', async () => {
+    h.setCompletion({ cartMerge: { outcome: 'noop', destinationCartId: 'cart-1' }, clearAnonymousCartCookie: true });
+    const { state, binding } = await start(h);
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding!, b2b_cart_anon: 'anon-1188' });
+
+    expect(anonCleared(res)).toBe(true);
+    expect(res.cookies.find((c) => c.name === 'b2b_cart_merge_flash')).toBeUndefined();
+  });
+
+  it('nothing merged (no basket, a failed merge) keeps the anonymous cookie and shows no notice', async () => {
+    const { state, binding } = await start(h);
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding!, b2b_cart_anon: 'anon-1188' });
+
+    expect(sessionCookie(res, 'b2b_session')?.value).toBe('session-cookie');
+    expect(h.completions).toHaveLength(1);
+    expect(res.cookies.some((c) => c.name === 'b2b_cart_anon')).toBe(false);
+    expect(res.cookies.find((c) => c.name === 'b2b_cart_merge_flash')).toBeUndefined();
+  });
+
+  it('a customer handed to the second step is not completed here — the code screen completes it', async () => {
+    h.setCompletion(MERGED);
+    h.setDecision({ kind: 'challenge', challengeId: 'challenge-1' });
+    const { state, binding } = await start(h);
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding!, b2b_cart_anon: 'anon-1188' });
+
+    expect(h.completions).toEqual([]);
+    expect(res.cookies.some((c) => c.name === 'b2b_cart_anon')).toBe(false);
+  });
+
+  it('a refused sign-in is not completed', async () => {
+    h.setCompletion(MERGED);
+    h.setPermitted(false);
+    const { state, binding } = await start(h);
+    await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding!, b2b_cart_anon: 'anon-1188' });
+    expect(h.completions).toEqual([]);
+  });
+
+  it('the admin surface never calls the customer completion step', async () => {
+    h.setCompletion(MERGED);
+    const { state, binding } = await start(h, 'admin');
+    const res = await callback(h, state, { [OAUTH_BINDING_COOKIE_NAME]: binding!, b2b_cart_anon: 'anon-1188' }, 'admin');
+
+    expect(sessionCookie(res, 'b2b_admin_session')?.value).toBe('session-cookie');
+    expect(h.completions).toEqual([]);
+    expect(res.cookies.some((c) => c.name === 'b2b_cart_anon' || c.name === 'b2b_cart_merge_flash')).toBe(false);
   });
 });
 

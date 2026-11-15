@@ -1250,6 +1250,7 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
       organizationId: string | null;
       anonymousCartToken?: string;
       anonymousCompareToken?: string;
+      salesChannelId?: string;
     }) => {
       let cartMerge:
         | Awaited<ReturnType<ContainerReads['cartService']['mergeAnonymousIntoCustomer']>>
@@ -1264,8 +1265,11 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
             // merges into the customer's basket of that store, and a basket of
             // another store is left alone (`specs/154-sales-channel-access/`,
             // contracts/basket-attribution.md §3). The hook runs inside the
-            // login request, so its scope carries the resolved channel.
-            salesChannelId: getResolvedChannel().id,
+            // login request, so its scope carries the resolved channel —
+            // except the federated callback's, which is the provider's
+            // redirect and names the channel its sign-in was started on
+            // instead (issue #1188).
+            salesChannelId: loginCtx.salesChannelId ?? getResolvedChannel().id,
           },
         );
       }
