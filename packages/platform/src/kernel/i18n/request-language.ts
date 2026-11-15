@@ -142,10 +142,12 @@ export function createRequestLanguageResolver(
       return normalise(await deps.adminPreferredLanguage(actor.adminUserId)) ?? LANGUAGE_FALLBACK;
     }
 
-    // Rung 0 — a stored per-customer preference goes here when one exists, and
-    // the storefront's language switcher must write it for a logged-in buyer
-    // (D-133). Deliberately a comment and not a branch: there is no column, no
-    // contract field and no screen, and #234 does not need one.
+    // A customer account's stored `preferredLanguage` (issue #652, D-292) is
+    // deliberately not a rung. It governs messages composed **outside** a
+    // request — the e-mails a sender writes to that account, resolved against
+    // the rendering channel. **Inside** a request the header wins: the buyer is
+    // looking at a storefront page in the language they chose there, and the
+    // answer is written in it (D-131).
 
     for (const tag of parseAcceptLanguage(request.headers['accept-language'])) {
       const language = normalise(tag);

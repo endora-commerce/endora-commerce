@@ -11,8 +11,10 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import {
   SESSION_COOKIE_NAME,
   customerRegisterRequestSchema,
+  requestScopeLanguage,
   type CustomerRegistrationOptionsResponse,
 } from '@endora-commerce/contracts';
+import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import type { CustomerRegistrationService } from './services/customer-registration-service.js';
 
 /**
@@ -71,6 +73,9 @@ export async function registerCustomersRegisterRoutes(
         password: body.password,
         firstName: body.firstName,
         lastName: body.lastName,
+        // Issue #652 (D-292) — the language the new account records: the
+        // request's first tag resolved against its channel.
+        preferredLanguage: registeringLanguage(request.headers['accept-language']),
         ip: request.ip,
         ...(typeof request.headers['user-agent'] === 'string'
           ? { userAgent: request.headers['user-agent'] }
@@ -91,4 +96,10 @@ export async function registerCustomersRegisterRoutes(
       };
     },
   );
+}
+
+/** `requestScopeLanguage(requestChannel, Accept-Language)`; `null` with no channel. */
+function registeringLanguage(acceptLanguage: string | readonly string[] | undefined): string | null {
+  const channel = currentSalesChannel();
+  return channel ? requestScopeLanguage(channel, acceptLanguage) : null;
 }

@@ -18,12 +18,14 @@ import {
   customerFederatedSignInStartQuerySchema,
   federatedSignInExchangeRequestSchema,
   requestScopeLanguage,
+  scopeLanguageOf,
   storefrontPagePathFor,
 } from '@endora-commerce/contracts';
 import type {
   AuthSessionPort,
   CartMergeOutcomePublic,
   ChannelUrlFacts,
+  CustomerAccountPreferencePort,
   CustomerSignInCompletionPort,
   FederatedSignInErrorCode,
   FederatedSignInExchangeResponse,
@@ -120,6 +122,12 @@ export interface MfaOAuthDeps {
    * started on (the system default when none). Absent: storefront paths unprefixed.
    */
   channelUrlFactsFor?: (salesChannelId: string | null) => Promise<ChannelUrlFacts | null>;
+  /**
+   * Issue #652 (D-292) — `customer_accounts`' preference port: a federated
+   * sign-in to an existing account fills its preferred language while it has
+   * none. Absent, nothing is captured.
+   */
+  customerLanguageCapture?: Pick<CustomerAccountPreferencePort, 'captureIfUnset'>;
 }
 
 /** The channel language whose path prefix `next` starts with, or null. */
@@ -449,10 +457,19 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
       return reply.redirect(loginRedirect(base, surface, 'sign_in_failed', pagePath));
     }
 
+    // Issue #652 (D-292) — the language of the page the sign-in was started on,
+    // resolved against that channel: what a new account records, and what an
+    // existing one without a language takes below.
+    const accountLanguage =
+      surface === 'customer' && channelFacts
+        ? scopeLanguageOf({ id: tx.salesChannelId ?? '', ...channelFacts }, tx.language ?? null)
+        : null;
+
     const result =
       surface === 'customer'
         ? await deps.socialIdentityService.signInCustomer(identity, {
             salesChannelId: tx.salesChannelId,
+            preferredLanguage: accountLanguage,
           })
         : await deps.socialIdentityService.signInAdmin(identity);
 
@@ -472,6 +489,21 @@ function registerCallback(app: FastifyInstance, deps: MfaOAuthDeps, surface: Sur
       return reply.redirect(
         loginRedirect(base, surface, SALES_CHANNEL_NOT_PERMITTED_LOGIN_ERROR, pagePath),
       );
+    }
+
+    // Issue #652 (D-292) — an accepted customer sign-in fills an unknown
+    // preferred language, before the second factor as the password sign-in
+    // does; a known one is left alone by the port. Best effort: a failed
+    // capture is logged by account id — never the tag — and the sign-in goes on.
+    if (surface === 'customer' && accountLanguage && deps.customerLanguageCapture) {
+      try {
+        await deps.customerLanguageCapture.captureIfUnset(result.subjectId, accountLanguage);
+      } catch (err) {
+        request.log.warn(
+          { err, customerAccountId: result.subjectId },
+          'mfa: preferred-language capture at federated sign-in failed',
+        );
+      }
     }
 
     // The second factor, decided exactly as the password sign-ins decide it.

@@ -40,6 +40,8 @@ interface AdminCustomerDetail {
   deleted: boolean;
   createdAt: string;
   lastLoginAt: string | null;
+  /** Issue #652 (D-292) — the customer's e-mail language; `null` while unknown. */
+  preferredLanguage?: string | null;
   block: { blockedAt: string; blockReason: string | null } | null;
   deletion: { deletedAt: string; anonymizedAt: string | null } | null;
   customFieldValues?: Record<string, unknown>;
@@ -196,6 +198,8 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
       ),
     ],
     [t('detail.field.lastLogin'), c.lastLoginAt ? formatDateTime(c.lastLoginAt) : t('list.none')],
+    // Issue #652 (D-292) — read-only: only the buyer changes it, on the storefront.
+    [t('detail.field.emailLanguage'), c.preferredLanguage ?? t('detail.field.emailLanguageUnset')],
   ];
 
   return (

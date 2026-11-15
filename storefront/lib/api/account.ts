@@ -1,4 +1,5 @@
-import type { OrganizationRoleRef } from '@endora-commerce/contracts';
+import type { OrganizationRoleRef, PatchCustomerPreferredLanguageResponse } from '@endora-commerce/contracts';
+import type { RequestContext } from './client';
 import { apiGetAuthed, apiMutate } from './mutations';
 
 /**
@@ -23,6 +24,12 @@ export interface CurrentCustomer {
   permissions: string[];
   emailVerifiedAt: string | null;
   twoFactorEnabled: boolean;
+  /**
+   * Issue #652 (D-292) — the language this customer's e-mails are written in,
+   * as the channel that captured it spells it; `null` while unknown (the
+   * store's default language is used). Absent from a backend that predates it.
+   */
+  preferredLanguage?: string | null;
 }
 
 export type OrganizationLifecycleStatus =
@@ -70,6 +77,26 @@ export interface MeResult {
 
 export async function getMe(sessionCookie: string): Promise<MeResult> {
   return apiGetAuthed<MeResult>({ path: '/api/v1/me', sessionCookie });
+}
+
+/**
+ * Issue #652 (D-292) — the buyer's choice of e-mail language. The backend
+ * accepts a language the request's channel offers and answers it in the
+ * channel's spelling; anything else is refused (422).
+ */
+export async function updatePreferredLanguage(
+  sessionCookie: string,
+  ctx: RequestContext | undefined,
+  preferredLanguage: string,
+): Promise<string | null> {
+  const result = await apiMutate<PatchCustomerPreferredLanguageResponse['data']>({
+    method: 'PATCH',
+    path: '/api/v1/me/customer/preferred-language',
+    body: { preferredLanguage },
+    sessionCookie,
+    ...(ctx ? { ctx } : {}),
+  });
+  return result.data?.preferredLanguage ?? null;
 }
 
 export async function changePassword(

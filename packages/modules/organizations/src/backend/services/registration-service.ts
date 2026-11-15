@@ -177,10 +177,15 @@ export class RegistrationService {
    * @param context.language the request's response language — feature 175: a
    *   refused custom-field value is worded in it by `custom_fields`
    *   (`specs/conventions/module-i18n.md`, case 1). Absent, in English.
+   * @param context.preferredLanguage issue #652 (D-292) — the language the
+   *   first user's account records, already resolved against the request's
+   *   channel. Absent, none.
    */
   async registerOrganization(
     req: RegisterOrganizationRequest,
-    context: { salesChannelId: string | null; language?: SupportedLanguage } = { salesChannelId: null },
+    context: { salesChannelId: string | null; language?: SupportedLanguage; preferredLanguage?: string | null } = {
+      salesChannelId: null,
+    },
   ): Promise<RegistrationResult> {
     await this.validateCountry(req.organization.registeredAddress.country);
 
@@ -234,6 +239,7 @@ export class RegistrationService {
       lastName: req.firstUser.lastName,
       // Feature 175 — validated above; the account's owner stores it as given.
       customFieldValues: customFieldValues.customer,
+      preferredLanguage: context.preferredLanguage ?? null,
     });
 
     const result = await runOrganizationWrite(

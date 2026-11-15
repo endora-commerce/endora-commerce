@@ -178,3 +178,17 @@ describe('SocialIdentityService.signInAdmin', () => {
     });
   });
 });
+
+describe('SocialIdentityService.signInCustomer — the account language (#652, D-292)', () => {
+  it('creates the account with the language of the page the sign-in was started on', async () => {
+    const autoCreateCustomer = vi.fn(async () => ({ id: 'c2', organizationId: 'o2' }));
+    const { service } = harness({ autoCreateCustomer });
+
+    await service.signInCustomer(IDENTITY, { ...ON_B, preferredLanguage: 'en-US' });
+
+    expect(autoCreateCustomer).toHaveBeenCalledWith('buyer@example.com', {
+      salesChannelId: 'channel-b',
+      preferredLanguage: 'en-US',
+    });
+  });
+});

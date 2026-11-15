@@ -20,6 +20,7 @@ import type {
   CustomFieldValuePort,
   CustomerAccountAdminSearchPort,
   CustomerAccountLifecycleWritePort,
+  CustomerAccountPreferencePort,
   CustomerAccountReadPort,
   CustomerAuthPort,
   CustomerGroupReadPort,
@@ -280,6 +281,11 @@ export function registerModule(ctx: ModuleContext): void {
             customerAccountReadPort: lazyPort<CustomerAccountReadPort>(
               ctx,
               'customerAccountReadPort',
+            ),
+            // Issue #652 (D-292) — the buyer's e-mail-language write.
+            customerAccountPreferencePort: lazyPort<CustomerAccountPreferencePort>(
+              ctx,
+              'customerAccountPreferencePort',
             ),
             // Feature 075, Phase C — the rest of `customer_accounts`' surface
             // this module's screens run on. Every one of these replaced a

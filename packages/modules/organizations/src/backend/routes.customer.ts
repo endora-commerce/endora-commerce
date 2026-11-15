@@ -242,6 +242,8 @@ function serializeCustomer(c: CustomerAccountRecord) {
     lastName: c.lastName,
     emailVerifiedAt: c.emailVerifiedAt?.toISOString() ?? null,
     twoFactorEnabled: c.twoFactorEnabled,
+    // Issue #652 (D-292) — the buyer's e-mail language, for the account page.
+    preferredLanguage: c.preferredLanguage,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };

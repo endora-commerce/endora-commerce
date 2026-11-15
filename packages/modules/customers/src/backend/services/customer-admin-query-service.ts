@@ -127,6 +127,8 @@ export class CustomerAdminQueryService {
         : null,
       emailVerifiedAt: customer.emailVerifiedAt ? customer.emailVerifiedAt.toISOString() : null,
       twoFactorEnabled: customer.twoFactorEnabled,
+      // Issue #652 (D-292) — shown read-only on the admin customer detail.
+      preferredLanguage: customer.preferredLanguage,
       salesChannelIds,
       defaults,
       customFieldValues: customer.customFieldValues ?? {},

@@ -1234,7 +1234,7 @@ export async function setupBackendServer(
     ): Promise<{ id: string; organizationId: string | null; blocked: boolean } | null>;
     autoCreate(
       email: string,
-      context: { salesChannelId: string | null },
+      context: { salesChannelId: string | null; preferredLanguage?: string | null },
     ): Promise<{ id: string; organizationId: string | null } | null>;
   } =>
     (
@@ -1245,7 +1245,7 @@ export async function setupBackendServer(
           ): Promise<{ id: string; organizationId: string | null; blocked: boolean } | null>;
           autoCreate(
             email: string,
-            context: { salesChannelId: string | null },
+            context: { salesChannelId: string | null; preferredLanguage?: string | null },
           ): Promise<{ id: string; organizationId: string | null } | null>;
         };
       }
@@ -2006,7 +2006,7 @@ export async function setupBackendServer(
         // had configured), and one fixed password hash for every account it made.
         mfaSocialAccountResolvers: {
           resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
-          autoCreateCustomer: (email: string, context: { salesChannelId: string }) =>
+          autoCreateCustomer: (email: string, context: { salesChannelId: string; preferredLanguage?: string | null }) =>
             customerSocialLogin().autoCreate(email, context),
           resolveAdminByEmail: async (email: string) => {
             // T052 — the same port production reads, rather than a second copy of

@@ -35,8 +35,11 @@ vi.mock('../../lib/server-context', () => ({
     locale,
     ctx: { locale },
     modules: { isPresent: (id: string) => !absent.includes(id), presentIds: [], absentIds: absent },
+    // Issue #652 — the account page's e-mail-language row reads the channel's languages.
+    urlState: { languages: [], aliases: [], current: locale },
   }),
 }));
+vi.mock('../../lib/dictionary/client', () => ({ fetchDictionary: async () => ({ languages: [] }) }));
 
 const me = {
   customerAccount: {
