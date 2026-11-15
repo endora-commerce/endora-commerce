@@ -203,8 +203,12 @@ export class CartConversionService {
   async createCartFromQuoteRequest(
     qrId: string,
     ctx: CartCustomerContext,
-    /** The request's language, which the batch names a refused product in (feature 155). */
-    options: { language?: string } = {},
+    /**
+     * The request's language, which the batch names a refused product in
+     * (feature 155), and its scope language, which the batch's lines are
+     * judged in (issue #1293, `CartActor.languageTag`).
+     */
+    options: { language?: string; languageTag?: string } = {},
   ): Promise<CreateCartFromQrResult> {
     const qr = await this.quoteRequests.findById(qrId);
     if (!qr) {
@@ -261,7 +265,7 @@ export class CartConversionService {
       // pricing engine is never reported as "no price in your list" for every
       // line (issue #124) — so there is no `catch` here.
       const result = await this.cartService.addItems(
-        { customer: ctx },
+        { customer: ctx, ...(options.languageTag ? { languageTag: options.languageTag } : {}) },
         batch.map(({ qrItem }) => ({
           productId: qrItem.productId,
           ...(qrItem.variantId ? { variantId: qrItem.variantId } : {}),
