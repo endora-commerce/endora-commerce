@@ -198,12 +198,34 @@ export class ShoppingListService {
     return { list, itemCount };
   }
 
-  async rename(ctx: CustomerContext, listId: string, name: string): Promise<ShoppingList> {
+  /**
+   * Issue #1251 — the list page's one *Save changes*: the name, any number of line
+   * quantities, or both, in one flush. Every line is checked to be on this list before
+   * anything changes, so a line that is not refuses the whole write with `404 NOT_FOUND`.
+   */
+  async update(
+    ctx: CustomerContext,
+    listId: string,
+    patch: { name?: string; items?: ReadonlyArray<{ id: string; quantity: number }> },
+  ): Promise<ShoppingList> {
     // command-coverage-ignore: customer-owned personal saved list — self-service
     // convenience data; conversions delegate to the audited cart/RFQ paths.
     const em = this.emFactory();
     const list = await this.#owned(em, ctx, listId);
-    list.name = name;
+    const edits = patch.items ?? [];
+    if (edits.length > 0) {
+      const items = await em.find(ShoppingListItem, {
+        shoppingListId: list.id,
+        id: { $in: edits.map((edit) => edit.id) },
+      });
+      const byId = new Map(items.map((item) => [item.id, item]));
+      if (edits.some((edit) => !byId.has(edit.id))) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Shopping list item not found.');
+      }
+      for (const edit of edits) byId.get(edit.id)!.quantity = edit.quantity;
+      list.updatedAt = new Date();
+    }
+    if (patch.name !== undefined) list.name = patch.name;
     await em.flush();
     return list;
   }

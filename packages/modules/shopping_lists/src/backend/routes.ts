@@ -3,8 +3,8 @@ import {
   addShoppingListItemRequestSchema,
   convertShoppingListRequestSchema,
   createShoppingListRequestSchema,
-  renameShoppingListRequestSchema,
   updateShoppingListItemRequestSchema,
+  updateShoppingListRequestSchema,
   firstLanguageTag,
   organizationPermissionPreHandler,
   type ConvertToCartResponse,
@@ -149,15 +149,18 @@ export async function registerShoppingListRoutes(
     },
   );
 
+  // Issue #1251 — the name, line quantities, or both, written together or not at all.
   app.patch<{ Params: { id: string } }>(
     '/api/v1/shopping-lists/:id',
-    { preHandler: canEdit, schema: { body: renameShoppingListRequestSchema } },
+    { preHandler: canEdit, schema: { body: updateShoppingListRequestSchema } },
     async (request): Promise<{ data: ShoppingListView }> => {
       const ctx = resolveCustomerContext(request);
-      const body = renameShoppingListRequestSchema.parse(request.body);
-      const list = await service.rename(ctx, request.params.id, body.name);
-      const em = emFactory();
-      const items = await em.find(ShoppingListItem, { shoppingListId: list.id });
+      const body = updateShoppingListRequestSchema.parse(request.body);
+      await service.update(ctx, request.params.id, {
+        ...(body.name !== undefined ? { name: body.name } : {}),
+        ...(body.items !== undefined ? { items: body.items } : {}),
+      });
+      const { list, items } = await service.getByIdWithItems(ctx, request.params.id);
       return { data: serializeWithItems(list, items) };
     },
   );
