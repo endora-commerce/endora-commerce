@@ -20,6 +20,7 @@ import { getCommerceAbilitiesAction } from '../../../lib/actions/cart';
 import type { CommerceAbilities } from '../../../lib/commerce-permissions';
 import { getServerContext } from '../../../lib/server-context';
 import { FileDropzone } from '../../../components/FileDropzone';
+import { QuickOrderPasteField, QuickOrderResultQuantity } from '../../../components/quick-order/QuickOrderKeptFields';
 import { previewOfImport, summarizeQuickOrderPreview } from '../../../lib/quick-order-preview';
 import {
   clearQuickOrderPreview,
@@ -162,6 +163,8 @@ export default async function QuickOrderPage({
       </>
     );
   }
+  // Issue #1253 — a build has used what the buyer typed: the kept paste and quantities go.
+  const buildDone = sp.built === 'cart' || sp.built === 'quote';
   const searchResults = searchQuery
     ? await searchProducts(session, searchQuery, ctx).catch(() => [])
     : [];
@@ -231,13 +234,8 @@ export default async function QuickOrderPage({
       <form action={importAction} className="b2b-auth__form">
         <div className="b2b-auth__field">
           <label htmlFor="csv">{t('quickOrder.page.pasteLabel')}</label>
-          <textarea
-            id="csv"
-            name="csv"
-            rows={8}
-            placeholder={CSV_SAMPLE}
-            style={{ fontFamily: 'monospace' }}
-          />
+          {/* Issue #1253 — kept across the reload a search or an Add causes. */}
+          <QuickOrderPasteField id="csv" name="csv" rows={8} placeholder={CSV_SAMPLE} forget={buildDone} />
         </div>
         <div className="b2b-auth__actions">
           <button type="submit">{t('quickOrder.page.preview')}</button>
@@ -282,14 +280,11 @@ export default async function QuickOrderPage({
                       <input type="hidden" name="q" value={searchQuery} />
                       <input type="hidden" name="productId" value={r.productId} />
                       <input type="hidden" name="sku" value={r.sku} />
-                      <input
-                        type="number"
-                        name="quantity"
-                        min={1}
-                        max={LINE_QUANTITY_MAX}
-                        defaultValue={1}
-                        style={{ width: 64 }}
-                        aria-label={t('quickOrder.qtyFor').replace('{sku}', () => r.sku)}
+                      {/* Issue #1253 — the other rows' typed quantities outlive this row's Add. */}
+                      <QuickOrderResultQuantity
+                        productId={r.productId}
+                        ariaLabel={t('quickOrder.qtyFor').replace('{sku}', () => r.sku)}
+                        forget={buildDone}
                       />
                     </form>
                   </td>

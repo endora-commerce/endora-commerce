@@ -12,10 +12,13 @@ import {
   draftQuantityOnBlur,
   draftQuantityOnType,
   readRfqDraft,
+  readRfqDraftNote,
   removeRfqDraftItem,
   setRfqDraftProposedPrice,
   setRfqDraftQuantity,
+  writeRfqDraftNote,
   RFQ_DRAFT_CHANGED_EVENT,
+  RFQ_DRAFT_NOTE_STORAGE_KEY,
   RFQ_DRAFT_STORAGE_KEY,
   type RfqDraftItem,
 } from '../../lib/rfqDraft';
@@ -31,8 +34,9 @@ import { LocalizedLink, LocalizedAnchor } from '../../lib/i18n/localized-link';
 /**
  * Quote-request draft view — the cart-modelled "review & submit" page at
  * `/quote-request`. Lines come from the client-side draft (`lib/rfqDraft`);
- * the buyer can adjust quantities, remove lines, add a note, then press
- * "Submit quote request" to create the actual server-side Quote Request via
+ * the buyer can adjust quantities, remove lines, add a note (kept with the
+ * lines, issue #1253), then press "Submit quote request" to create the actual
+ * server-side Quote Request via
  * `POST /api/v1/quote-requests` (one-shot, full `items[]` payload).
  *
  * On success the draft is cleared and the buyer is routed to the quote-request
@@ -77,11 +81,15 @@ export function RfqDraftView(props: {
   const [minimums, setMinimums] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
-    const refresh = (): void => setItems(readRfqDraft());
+    // Issue #1253 — the note is kept with the lines, so it is read back with them.
+    const refresh = (): void => {
+      setItems(readRfqDraft());
+      setNote(readRfqDraftNote());
+    };
     refresh();
     setHydrated(true);
     const onStorage = (e: StorageEvent): void => {
-      if (e.key === RFQ_DRAFT_STORAGE_KEY || e.key === null) refresh();
+      if (e.key === RFQ_DRAFT_STORAGE_KEY || e.key === RFQ_DRAFT_NOTE_STORAGE_KEY || e.key === null) refresh();
     };
     window.addEventListener(RFQ_DRAFT_CHANGED_EVENT, refresh);
     window.addEventListener('storage', onStorage);
@@ -234,6 +242,7 @@ export function RfqDraftView(props: {
               onClick={(): void => {
                 clearRfqDraft();
                 setItems([]);
+                setNote('');
               }}
               className="cursor-pointer border-0 bg-transparent p-0 text-[12px] text-muted underline underline-offset-2"
             >
@@ -262,7 +271,10 @@ export function RfqDraftView(props: {
           <textarea
             id="rfq-note"
             value={note}
-            onChange={(e): void => setNote(e.target.value)}
+            onChange={(e): void => {
+              setNote(e.target.value);
+              writeRfqDraftNote(e.target.value);
+            }}
             rows={3}
             placeholder={t.notePlaceholder}
             className="mt-1 w-full resize-y rounded-sm border border-line px-[10px] py-[8px] text-[13px]"
