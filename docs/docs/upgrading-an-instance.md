@@ -4962,6 +4962,28 @@ read by everybody holding `audit_log:read` whatever Organizations they may see.
 the audit log reads them from the Organization (`GET /api/v1/admin/organizations/:id`), its members
 and its roles instead.
 
+### Default ordering preferences leave the Organization and the account out of the audit log {#quick-order-preferences-audit-names-only}
+
+The release that ships this change stops writing the Organization's or the customer account's id
+into the platform-wide audit log when a default ordering preference changes (issue #470). That log
+is one table, read by everybody holding `audit_log:read` whatever Organizations they may see.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new
+  `quick_order.default_preference.update` entry no longer carries `scopeId`, the id of the
+  Organization or the customer account whose defaults changed. It keeps the scope (`organization`
+  or `customer`) and the ids of the chosen payment method, delivery method and addresses, and its
+  `stateAfter` now names the fields that changed as `changedFields`. The entry is still recorded
+  against the preference by id.
+- The preferences themselves are unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep the `scopeId`.
+
+**After upgrading,** nothing has to be done. The audit log still says who changed a preference,
+when, and what changed; it no longer says whose preference it was. A report that read that out of
+`scopeId` reads an Organization's or a customer's current defaults from
+`GET /api/v1/quick-order/preferences?scope=…&scopeId=…` instead.
+
 ### The admin panel's address is a platform input {#admin-base-url-platform-input}
 
 The release that ships this change makes `ADMIN_BASE_URL` — the admin panel's address — an input
