@@ -28,7 +28,7 @@ import { shoppingListDisplayName } from '../../../../lib/shopping-list-name';
 import { format } from '../../../../lib/i18n/format';
 import { formatCount } from '../../../../lib/orderMinimum';
 import { pluralKey, richText } from '../../../../lib/account/labels';
-import { readShoppingListEdits } from '../../../../lib/account/shopping-list-edits';
+import { readShoppingListEdits, shoppingListEditorKey } from '../../../../lib/account/shopping-list-edits';
 import { ShoppingListEditor } from '../../../../components/shopping-lists/ShoppingListEditor';
 import type { Metadata } from 'next';
 import { localeRedirect } from '../../../../lib/i18n/navigation';
@@ -205,9 +205,9 @@ export default async function ShoppingListDetailPage({
         </p>
       ) : null}
 
-      {/* Keyed by what the list holds, so a save, a removal or a clear starts the form afresh. */}
+      {/* Keyed by the list alone: a Remove re-renders it with the remaining lines and keeps what was typed. */}
       <ShoppingListEditor
-        key={`${list.name}|${list.items.map((it) => `${it.id}:${it.quantity}`).join(',')}`}
+        key={shoppingListEditorKey(list)}
         listId={list.id}
         locale={locale}
         name={shoppingListDisplayName(list, t)}

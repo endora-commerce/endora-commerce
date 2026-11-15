@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ShoppingListEditor } from '../../components/shopping-lists/ShoppingListEditor';
+import { shoppingListEditorKey } from '../../lib/account/shopping-list-edits';
 
 /**
  * Issue #1251 — the list page's one form, once JavaScript is running: it says while there
@@ -29,23 +30,43 @@ afterEach(() => {
   toCart.mockClear();
 });
 
-function mount(props: Partial<Parameters<typeof ShoppingListEditor>[0]> = {}): HTMLElement {
+const DEFAULT_ROWS = [
+  { id: 'i1', quantity: 4, note: null, product: <span>Bolt</span> },
+  { id: 'i2', quantity: 2, note: null, product: <span>Nut</span> },
+];
+
+type EditorProps = Partial<Parameters<typeof ShoppingListEditor>[0]>;
+let lastProps: EditorProps = {};
+
+/** Renders the editor again in the same root, as the page does after an action redirects. */
+function rerender(props: EditorProps): void {
+  lastProps = { ...lastProps, ...props };
+  render(lastProps);
+}
+
+function mount(props: EditorProps = {}): HTMLElement {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
+  lastProps = props;
+  render(props);
+  return host;
+}
+
+function render(props: EditorProps): void {
+  // Keyed as the page keys it, so a re-render here remounts exactly when the page's would.
+  const key = shoppingListEditorKey({ id: 'l1' });
   act(() =>
     root!.render(
       <ShoppingListEditor
+        key={key}
         listId="l1"
         locale="en-US"
         name="Site A"
         canEdit
         canConvertToCart
         canConvertToQuote
-        rows={[
-          { id: 'i1', quantity: 4, note: null, product: <span>Bolt</span> },
-          { id: 'i2', quantity: 2, note: null, product: <span>Nut</span> },
-        ]}
+        rows={DEFAULT_ROWS}
         qtyErrorItemId={null}
         nameError={false}
         heading={<h3>Items</h3>}
@@ -60,7 +81,6 @@ function mount(props: Partial<Parameters<typeof ShoppingListEditor>[0]> = {}): H
       />,
     ),
   );
-  return host;
 }
 
 function type(input: HTMLInputElement, value: string): void {
@@ -164,5 +184,44 @@ describe('ShoppingListEditor', () => {
     const el = mount({ qtyErrorItemId: 'i2' });
     expect(document.activeElement).toBe(qty(el, 'i2'));
     expect(qty(el, 'i2').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  // Issue #1251 (review) — Remove on one row is immediate, and the page re-renders with the
+  // remaining lines; what the buyer typed on the other rows and in the name survives it.
+  it('keeps the typed name and quantities on the other rows when a row is removed', () => {
+    const three = [
+      { id: 'a', quantity: 4, note: null, product: <span>A</span> },
+      { id: 'b', quantity: 2, note: null, product: <span>B</span> },
+      { id: 'c', quantity: 9, note: null, product: <span>C</span> },
+    ];
+    const el = mount({ rows: three });
+    type(qty(el, 'a'), '14');
+    type(qty(el, 'b'), '12');
+    type(el.querySelector<HTMLInputElement>('input[name="name"]')!, 'Site B');
+    // The server answers the removal of C with the list as stored: A and B unchanged.
+    rerender({ rows: three.slice(0, 2).map((row) => ({ ...row })) });
+    expect(qty(el, 'a').value).toBe('14');
+    expect(qty(el, 'b').value).toBe('12');
+    expect(el.querySelector('input[name="quantity.c"]')).toBeNull();
+    expect(el.querySelector<HTMLInputElement>('input[name="name"]')!.value).toBe('Site B');
+    expect(status(el)).not.toBe('');
+  });
+
+  it('takes the stored value for a row the buyer did not touch, and is clean after a save', () => {
+    const rows = [
+      { id: 'a', quantity: 4, note: null, product: <span>A</span> },
+      { id: 'b', quantity: 2, note: null, product: <span>B</span> },
+    ];
+    const el = mount({ rows });
+    type(qty(el, 'a'), '14');
+    // Another tab changed B meanwhile; this page shows what is stored now.
+    rerender({ rows: [rows[0]!, { ...rows[1]!, quantity: 6 }] });
+    expect(qty(el, 'a').value).toBe('14');
+    expect(qty(el, 'b').value).toBe('6');
+    expect(el.querySelector<HTMLInputElement>('input[name="quantityWas.b"]')!.value).toBe('6');
+    // The save stored A at 14: the form is no longer dirty.
+    rerender({ rows: [{ ...rows[0]!, quantity: 14 }, { ...rows[1]!, quantity: 6 }] });
+    expect(qty(el, 'a').value).toBe('14');
+    expect(status(el)).toBe('');
   });
 });

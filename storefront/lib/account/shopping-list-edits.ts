@@ -18,6 +18,16 @@ const QUANTITY_WAS_PREFIX = 'quantityWas.';
 export const quantityField = (itemId: string): string => `${QUANTITY_PREFIX}${itemId}`;
 export const quantityWasField = (itemId: string): string => `${QUANTITY_WAS_PREFIX}${itemId}`;
 
+/**
+ * The React key the list page gives its editor: the list, and nothing it holds. A new key
+ * remounts the editor and drops whatever the buyer typed, so a Remove on one row — which
+ * re-renders the page with the remaining lines — must not change it; the editor reconciles
+ * the new stored values with what was typed itself (issue #1251).
+ */
+export function shoppingListEditorKey(list: { id: string }): string {
+  return list.id;
+}
+
 /** The body of `PATCH /api/v1/shopping-lists/:id` — only what changed. */
 export interface ShoppingListEdits {
   name?: string;

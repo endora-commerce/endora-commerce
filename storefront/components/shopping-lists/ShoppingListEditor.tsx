@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import { tForLocale } from '../../lib/i18n/messages';
 import { LIST_QUANTITY_MAX, parseListQuantity } from '../../lib/shoppingListQuantity';
@@ -81,10 +81,31 @@ export function ShoppingListEditor({
   convertSelectedToRfqAction: FormAction;
 }): ReactNode {
   const t = tForLocale(locale);
-  const [name, setName] = useState(initialName);
-  const [quantities, setQuantities] = useState<Record<string, string>>(() =>
-    Object.fromEntries(rows.map((row) => [row.id, String(row.quantity)])),
+  const shown = useMemo(
+    () => Object.fromEntries(rows.map((row) => [row.id, String(row.quantity)])) as Record<string, string>,
+    [rows],
   );
+  const [name, setName] = useState(initialName);
+  const [quantities, setQuantities] = useState<Record<string, string>>(shown);
+  // What the server last showed. When it changes — after a Remove, a Save, another tab's
+  // write — a field the buyer has not touched takes the new stored value, and a field they
+  // typed in keeps what they typed; a removed row drops out (issue #1251).
+  const [prevShown, setPrevShown] = useState(shown);
+  const [prevName, setPrevName] = useState(initialName);
+  if (prevShown !== shown || prevName !== initialName) {
+    setPrevShown(shown);
+    setPrevName(initialName);
+    setQuantities((current) =>
+      Object.fromEntries(
+        rows.map((row) => {
+          const typed = current[row.id];
+          const untouched = typed === undefined || typed === prevShown[row.id];
+          return [row.id, untouched ? shown[row.id]! : typed];
+        }),
+      ),
+    );
+    if (name === prevName) setName(initialName);
+  }
   const [nameInvalid, setNameInvalid] = useState(nameError);
   const [invalid, setInvalid] = useState<ReadonlySet<string>>(
     () => new Set(qtyErrorItemId && rows.some((row) => row.id === qtyErrorItemId) ? [qtyErrorItemId] : []),
@@ -102,7 +123,7 @@ export function ShoppingListEditor({
   const canConvert = rows.length > 0 && (canConvertToCart || canConvertToQuote);
   const dirty =
     canEdit &&
-    (name !== initialName || rows.some((row) => parseListQuantity(quantities[row.id]) !== row.quantity));
+    (name.trim() !== initialName || rows.some((row) => parseListQuantity(quantities[row.id]) !== row.quantity));
 
   const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
     if (!canEdit) return;
