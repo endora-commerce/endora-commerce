@@ -3,6 +3,7 @@ import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label } from '@endora-commerce/admin-kit/ui';
 import { OrganizationPicker, CustomerGroupPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ImmediateBadge } from '../components/ImmediateBadge.js';
 
 interface CommonProps {
   customerId: string;
@@ -47,7 +48,10 @@ export function OrganizationAssignmentPanel({
   return (
     <Card className="mb-4">
       <CardHeader>
-        <CardTitle>{t('detail.org.title')}</CardTitle>
+        <CardTitle>
+          {t('detail.org.title')}
+          <ImmediateBadge />
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {error ? (
@@ -104,7 +108,10 @@ export function CustomerGroupPanel({
   return (
     <Card className="mb-4">
       <CardHeader>
-        <CardTitle>{t('detail.group.title')}</CardTitle>
+        <CardTitle>
+          {t('detail.group.title')}
+          <ImmediateBadge />
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {error ? (

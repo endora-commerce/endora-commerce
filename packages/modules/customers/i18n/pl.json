@@ -46,6 +46,8 @@
   "detail.action.impersonate": "Zaloguj jako klient",
   "detail.action.restore": "Przywróć",
   "detail.action.delete": "Usuń",
+  "detail.save.hostPartLabel": "Klient",
+  "detail.immediate.badge": "Działa od razu",
   "online.title": "Klienci online",
   "online.description": "Klienci aktywni w oknie świeżości",
   "online.error": "Nie udało się wczytać klientów online.",
