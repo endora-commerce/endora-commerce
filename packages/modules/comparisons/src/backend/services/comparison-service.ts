@@ -94,7 +94,10 @@ export type ComparisonViewer =
   | {
       readonly kind: 'buyer';
       readonly audience: ProductAudience;
-      /** Feature 163 — the request's language tag; L is it resolved against the channel. */
+      /**
+       * Feature 163 — the request's language tag; L is it resolved against the channel. The
+       * routes pass the channel language `Accept-Language` asks for (`languageTagOf`, issue #1011).
+       */
       readonly languageTag?: string;
     }
   | { readonly kind: 'administrator' };
