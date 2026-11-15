@@ -28,7 +28,7 @@ import {
   type OrganizationRoleReadPort,
 } from '@endora-commerce/contracts';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
-import { firstLanguageTag, storefrontPagePathFor } from '@endora-commerce/contracts';
+import { requestScopeLanguage, storefrontPagePathFor } from '@endora-commerce/contracts';
 import type { RegistrationService } from './services/registration-service.js';
 import type { EmailVerificationService } from './services/email-verification-service.js';
 import { readCustomerKnownDevice, rememberCustomerKnownDevice } from './known-device-cookie.js';
@@ -127,13 +127,23 @@ export async function registerOrganizationsPublicRoutes(
           organizationName: result.organization.name,
           storefrontBaseUrl: deps.storefrontBaseUrl,
           // Feature 167 — under the language prefix of the language the visitor
-          // registered in (the request's), else the channel default.
-          pagePath: (path) =>
-            storefrontPagePathFor({
+          // registered in (the request's), else the channel default. Issue #1011 —
+          // the channel language the whole `Accept-Language` asks for
+          // (`requestScopeLanguage`, as the catalogue resolves it since #397): the tags
+          // in descending `q`, each matched against the channel's languages (exactly,
+          // then by base language), else the default. It used to be the header's first
+          // tag alone. A content language — which storefront page the link opens — so
+          // not `request.responseLanguage()`, the language the e-mail is worded in.
+          pagePath: (path) => {
+            const channel = currentSalesChannel();
+            return storefrontPagePathFor({
               path,
-              channel: currentSalesChannel(),
-              requestedLanguage: firstLanguageTag(request.headers['accept-language']),
-            }),
+              channel,
+              requestedLanguage: channel
+                ? requestScopeLanguage(channel, request.headers['accept-language'])
+                : undefined,
+            });
+          },
         });
         const verifyUrl = (message.meta as { verifyUrl?: string } | undefined)?.verifyUrl ?? '';
         const sentViaTemplate = deps.templateEmail
