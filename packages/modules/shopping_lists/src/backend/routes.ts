@@ -5,8 +5,8 @@ import {
   createShoppingListRequestSchema,
   updateShoppingListItemRequestSchema,
   updateShoppingListRequestSchema,
-  firstLanguageTag,
   organizationPermissionPreHandler,
+  requestScopeLanguage,
   type ConvertToCartResponse,
   type ConvertToRfqResponse,
   type DefaultShoppingListSummary,
@@ -287,8 +287,19 @@ function serializeWithItems(list: ShoppingList, items: ShoppingListItem[]): Shop
   };
 }
 
-/** Feature 163 — the request's first `Accept-Language` tag, as `{ languageTag }` when present. */
+/**
+ * Feature 163 — the channel language the request's `Accept-Language` asks for, as
+ * `{ languageTag }` when the header is present; absent, the channel's default language.
+ *
+ * Issue #1011 — `requestScopeLanguage` over the whole header, as the catalogue resolves it
+ * since #397: the tags in descending `q`, each matched against the resolved channel's languages
+ * (exactly, then by base language), the first one the channel offers winning, else the
+ * channel's default. This used to be the header's first tag alone, so `en;q=0.2, pl-PL;q=0.9`
+ * asked about English. A content language — which (channel, language) a product is available
+ * at — so not `request.responseLanguage()`, the language messages are worded in.
+ */
 function languageTagOf(request: FastifyRequest): { languageTag?: string } {
-  const tag = firstLanguageTag(request.headers['accept-language']);
-  return tag ? { languageTag: tag } : {};
+  const header = request.headers['accept-language'];
+  if (header === undefined || header.length === 0) return {};
+  return { languageTag: requestScopeLanguage(getResolvedChannel(request), header) };
 }
