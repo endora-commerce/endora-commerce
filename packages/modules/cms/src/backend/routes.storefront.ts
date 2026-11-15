@@ -3,7 +3,7 @@
 // (the `analytics` precedent).
 import type {} from '@fastify/rate-limit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { ERROR_CODES, contactFormSubmissionSchema } from '@endora-commerce/contracts';
+import { ERROR_CODES, contactFormSubmissionSchema, requestScopeLanguage } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import type { StorefrontResolver } from './services/storefront-resolver.js';
@@ -31,6 +31,18 @@ function resolvedChannel(request: FastifyRequest): {
     languages: ch.languages,
     prefixDefaultLanguage: ch.prefixDefaultLanguage,
   };
+}
+
+/**
+ * Issue #1011 — the content language `Accept-Language` asks for, as the request's
+ * channel offers it: q-weighted, matched exactly then by base language (`pl` is the
+ * channel's `pl-PL`), else the channel's default (as the catalogue resolves it since
+ * #397). No header, no language: the lookup then falls back as it always has. An
+ * explicit `?language=` is read before this and wins.
+ */
+function headerLanguage(request: FastifyRequest): string | undefined {
+  const header = readHeader(request.headers['accept-language']);
+  return header ? requestScopeLanguage(getResolvedChannel(request), header) : undefined;
 }
 
 export async function registerCmsStorefrontRoutes(
@@ -67,7 +79,7 @@ export async function registerCmsStorefrontRoutes(
     const page = await deps.storefrontResolver.resolvePageBySlug({
       slug,
       resolvedChannel: resolvedChannel(request),
-      language: query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0],
+      language: query['language'] ?? headerLanguage(request),
     });
     if (!page) {
       throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
@@ -109,7 +121,7 @@ export async function registerCmsStorefrontRoutes(
     const block = await deps.storefrontResolver.resolveBlockByCode({
       code,
       resolvedChannel: resolvedChannel(request),
-      language: query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0],
+      language: query['language'] ?? headerLanguage(request),
     });
     if (!block) {
       throw new HttpError(404, ERROR_CODES.CMS_BLOCK_NOT_FOUND, 'CMS Block not found.');
@@ -127,7 +139,7 @@ export async function registerCmsStorefrontRoutes(
     const hook = await deps.storefrontResolver.resolveHookByCode({
       code,
       resolvedChannel: resolvedChannel(request),
-      language: query['language'] ?? readHeader(request.headers['accept-language'])?.split(',')[0],
+      language: query['language'] ?? headerLanguage(request),
     });
     if (!hook) {
       throw new HttpError(404, ERROR_CODES.CMS_HOOK_NOT_FOUND, 'CMS Hook not found.');
