@@ -90,16 +90,17 @@ const NO_LABELS: PriceBookRowLabels = {
   attributeValueLabel: null,
 };
 
-/** A short language tag for display labels: `?lang=`, else the first `Accept-Language` tag. */
-function labelLanguage(request: FastifyRequest): string | null {
+/**
+ * The language display labels are picked in: `?lang=`, else the operator's own language
+ * (`request.responseLanguage()` — the admin's stored preference, which the admin SPA renders in
+ * and the error envelope translates into). Issue #1011: this used to be the first tag of the
+ * browser's `Accept-Language`, which the SPA does not set, so the labels could disagree with
+ * the screen around them.
+ */
+async function labelLanguage(request: FastifyRequest): Promise<string | null> {
   const query = (request.query as { lang?: unknown } | undefined)?.lang;
-  const candidate =
-    typeof query === 'string'
-      ? query
-      : typeof request.headers['accept-language'] === 'string'
-        ? request.headers['accept-language'].split(',')[0]!.split(';')[0]!.trim()
-        : '';
-  return /^[a-z]{2}(-[A-Za-z]{2})?$/.test(candidate) ? candidate : null;
+  if (typeof query === 'string') return /^[a-z]{2}(-[A-Za-z]{2})?$/.test(query) ? query : null;
+  return request.responseLanguage();
 }
 
 /** The version a write is made against: the body's `expectedVersion`, else `If-Match` (G5). */
@@ -297,7 +298,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
   }));
 
   app.get(`${base}/targets/attributes`, { preHandler: readGate }, async (request) => {
-    const language = labelLanguage(request);
+    const language = await labelLanguage(request);
     const views = await deps.catalogAttributeRead.listByFlag('isPriceRule');
     return {
       data: {
@@ -404,7 +405,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
     );
     const labelsOf = await deps.reads.rowLabels(
       shown.flatMap((candidates) => candidates.map((c) => c.rowId)),
-      labelLanguage(request),
+      await labelLanguage(request),
     );
     const data: PriceBookResolvedLine[] = answers.map((answer, index) => ({
       key: answer.key,
@@ -499,14 +500,14 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
   app.get<{ Params: { id: string } }>(`${base}/:id/rows`, { preHandler: readGate }, async (request) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
     const query = parseOr400(priceBookRowsQuerySchema, request.query);
-    return deps.reads.rows(request.params.id, query, await currentPriceBookScope(), labelLanguage(request));
+    return deps.reads.rows(request.params.id, query, await currentPriceBookScope(), await labelLanguage(request));
   });
 
   // 161 G15 — the grid's pages: whole lines, at a cost that does not grow with the book.
   app.get<{ Params: { id: string } }>(`${base}/:id/lines`, { preHandler: readGate }, async (request) => {
     if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
     const query = parseOr400(priceBookLinesQuerySchema, request.query);
-    return deps.reads.lines(request.params.id, query, await currentPriceBookScope(), labelLanguage(request));
+    return deps.reads.lines(request.params.id, query, await currentPriceBookScope(), await labelLanguage(request));
   });
 
   // 161 (Checkpoint 5 review) — which picked products already have a line, in one read.
@@ -529,7 +530,7 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
       const bodyVersion = typeof raw.expectedVersion === 'number' ? raw.expectedVersion : undefined;
       // A preview may be asked without a version; a write may not (G5).
       const expectedVersion = dryRun && bodyVersion === undefined && !request.headers['if-match'] ? null : expectedVersionOf(request, bodyVersion);
-      const result = await books.writeRows(id, request.body, { dryRun, expectedVersion, scope, language: labelLanguage(request) });
+      const result = await books.writeRows(id, request.body, { dryRun, expectedVersion, scope, language: await labelLanguage(request) });
       if (dryRun) return { data: result };
       const { stored: _stored, ...answer } = result as typeof result & { stored?: unknown };
       return { data: answer };
