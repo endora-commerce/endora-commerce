@@ -5,6 +5,7 @@
 // Provider client secrets are NOT modelled here — they are backend config/env.
 
 import { z } from 'zod';
+import { cartMergeOutcomePublicSchema } from './organizations.js';
 
 // ---------------------------------------------------------------------------
 // Shared enums
@@ -87,6 +88,87 @@ export const federatedSignInErrorCodeSchema = z.enum([
   'sales_channel_not_permitted',
 ]);
 export type FederatedSignInErrorCode = z.infer<typeof federatedSignInErrorCodeSchema>;
+
+// ---------------------------------------------------------------------------
+// Federated customer sign-in hand-off (issue #1279)
+// ---------------------------------------------------------------------------
+
+/**
+ * The storefront route the customer callback sends the browser to, on the sales
+ * channel's own storefront origin (`sales_channels.storefront_url`, else
+ * `STOREFRONT_BASE_URL`): `<origin>/auth/federated/complete?code=<code>`. Not
+ * language-prefixed. The storefront redeems the code server-to-server through
+ * `POST /api/v1/auth/customer/oauth/exchange` and sets its own cookies, so the
+ * sign-in works when the API is served from another host than the storefront.
+ */
+export const FEDERATED_SIGN_IN_COMPLETE_PATH = '/auth/federated/complete';
+
+/** Seconds a hand-off code can be redeemed for; it is single-use either way. */
+export const FEDERATED_SIGN_IN_HANDOFF_TTL_SECONDS = 60;
+
+/**
+ * `GET /api/v1/auth/customer/oauth/:provider/start` query. `binding` is the
+ * SHA-256 (lower-case hex) of the secret the storefront put in its own
+ * `b2b_federated_binding` cookie before redirecting here; the exchange is
+ * answered only for a caller presenting that secret, so a hand-off code cannot be
+ * redeemed from another browser (login CSRF, history replay). Required on the
+ * customer surface: a start without it is sent back to `/login?error=sign_in_failed`.
+ */
+export const customerFederatedSignInStartQuerySchema = z.object({
+  next: z.string().max(2048).optional(),
+  salesChannel: z.string().optional(),
+  binding: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export type CustomerFederatedSignInStartQuery = z.infer<typeof customerFederatedSignInStartQuerySchema>;
+
+/** 32 random bytes, base64url without padding. */
+const handoffTokenSchema = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
+
+/**
+ * `POST /api/v1/auth/customer/oauth/exchange` body: the hand-off `code` from the
+ * landing URL and the raw `binding` secret from the storefront's cookie.
+ */
+export const federatedSignInExchangeRequestSchema = z
+  .object({
+    code: handoffTokenSchema,
+    binding: handoffTokenSchema,
+  })
+  .strict();
+export type FederatedSignInExchangeRequest = z.infer<typeof federatedSignInExchangeRequestSchema>;
+
+/** A path on the storefront: starts with `/`, never `//`. Carries the language prefix. */
+const storefrontRedirectPathSchema = z
+  .string()
+  .min(1)
+  .refine((path) => path.startsWith('/') && !path.startsWith('//'), {
+    message: 'Must be a root-relative path',
+  });
+
+/**
+ * `POST /api/v1/auth/customer/oauth/exchange` answer — the same kinds of answer
+ * the password sign-in gives. `authenticated`: the session arrives as
+ * `Set-Cookie: b2b_session` (as from `POST /api/v1/auth/customer/login`) and
+ * `cartMerge` is the signed-out basket's merge. `mfaRequired`: the storefront
+ * keeps `challengeId` in its second-step cookie and sends the buyer to
+ * `redirectPath`, the code screen. A second factor still to be set up, and every
+ * refusal, never reaches the exchange: the callback sends those to
+ * `/login?error=<code>`. Every failure is `400 MFA_FEDERATED_HANDOFF_INVALID`.
+ */
+export const federatedSignInExchangeResponseSchema = z.object({
+  data: z.discriminatedUnion('status', [
+    z.object({
+      status: z.literal('authenticated'),
+      redirectPath: storefrontRedirectPathSchema,
+      cartMerge: cartMergeOutcomePublicSchema.nullable(),
+    }),
+    z.object({
+      status: z.literal('mfaRequired'),
+      challengeId: z.string().min(1),
+      redirectPath: storefrontRedirectPathSchema,
+    }),
+  ]),
+});
+export type FederatedSignInExchangeResponse = z.infer<typeof federatedSignInExchangeResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Two-step login result (replaces the inline `twoFactorCode` shape)

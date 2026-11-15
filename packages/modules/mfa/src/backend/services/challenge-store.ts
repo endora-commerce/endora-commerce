@@ -1,5 +1,6 @@
 import type { Redis } from 'ioredis';
-import { randomBytes } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
+import { FEDERATED_SIGN_IN_HANDOFF_TTL_SECONDS } from '@endora-commerce/contracts';
 
 /**
  * Short-lived, server-held login state in Redis (feature 042, R4/R9).
@@ -12,13 +13,18 @@ import { randomBytes } from 'crypto';
  *   - setup ticket (`mfa:setup:<id>`) — enforced-but-unenrolled subject, may
  *     only call the enrolment endpoints until activation;
  *   - OAuth transaction (`mfa:oauth:<state>`) — PKCE verifier + nonce + next,
- *     and the digest of the cookie binding it to the browser that started it.
+ *     and the digest of the cookie binding it to the browser that started it;
+ *   - federated sign-in hand-off (`mfa:oauth:handoff:<sha256 of the code>`,
+ *     issue #1279) — what a customer callback leaves for the storefront to
+ *     redeem. A `state` is base64url and never contains `:`, so the two key
+ *     spaces cannot meet.
  */
 const CHAL_PREFIX = 'mfa:chal:';
 const ATTEMPTS_PREFIX = 'mfa:chal-attempts:';
 const SETUP_PREFIX = 'mfa:setup:';
 const OAUTH_PREFIX = 'mfa:oauth:';
 const GENERATION_PREFIX = 'mfa:gen:';
+const HANDOFF_PREFIX = 'mfa:oauth:handoff:';
 
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 const SETUP_TTL_SECONDS = 10 * 60;
@@ -62,7 +68,45 @@ export interface OAuthTransaction {
    * of; the cookie value itself is never stored.
    */
   browserBinding: string;
+  /**
+   * Issue #1279 — SHA-256 (hex) of the secret the storefront put in its own
+   * `b2b_federated_binding` cookie before sending the browser to `start`. The
+   * hand-off the callback leaves is redeemed only by a caller presenting that
+   * secret. Customer surface only; absent on the admin surface.
+   */
+  storefrontBindingDigest?: string;
 }
+
+/**
+ * Issue #1279 — what a successful customer callback leaves for the storefront
+ * to redeem (`POST /api/v1/auth/customer/oauth/exchange`). The callback sets no
+ * cookie: the session is created when this is redeemed, on the storefront's
+ * server-to-server call, which also carries the browser's storefront cookies.
+ *
+ * Keyed by the SHA-256 of the code; the code itself is never stored. Single
+ * use: it is read and deleted in one step, whatever the outcome.
+ */
+interface FederatedHandoffCommon {
+  /** The customer the sign-in resolved to; also the subject of the generation check. */
+  customerAccountId: string;
+  /** The channel the transaction was started on; the exchange must be asked on it. */
+  salesChannelId: string | null;
+  /** Where the storefront sends the browser afterwards; root-relative, language-prefixed. */
+  redirectPath: string;
+  /** SHA-256 (hex) of the storefront's binding secret, from the transaction. */
+  storefrontBindingDigest: string;
+  /** The subject's generation when this was issued — see `invalidateSubject`. */
+  generation: number;
+}
+
+export type FederatedHandoff =
+  | (FederatedHandoffCommon & { kind: 'session'; organizationId: string | null })
+  | (FederatedHandoffCommon & { kind: 'mfaChallenge'; challengeId: string });
+
+/** `FederatedHandoff` as issued: the store stamps the generation itself. */
+export type FederatedHandoffInput =
+  | Omit<Extract<FederatedHandoff, { kind: 'session' }>, 'generation'>
+  | Omit<Extract<FederatedHandoff, { kind: 'mfaChallenge' }>, 'generation'>;
 
 /**
  * Count one attempt and (re)arm the counter's expiry in the same step, so the
@@ -231,4 +275,52 @@ export class ChallengeStore {
   async consumeOAuthTransaction(state: string): Promise<void> {
     await this.redis.del(OAUTH_PREFIX + state);
   }
+
+  // --- federated sign-in hand-off (issue #1279) -----------------------------
+
+  /**
+   * Store a hand-off and answer the code the browser carries to the storefront,
+   * with the hex digest it is stored under (`codeDigest`, for logging a prefix
+   * of; never log the code). Lives `FEDERATED_SIGN_IN_HANDOFF_TTL_SECONDS`.
+   */
+  async issueFederatedHandoff(input: FederatedHandoffInput): Promise<{ code: string; codeDigest: string }> {
+    const code = newToken();
+    const codeDigest = sha256Hex(code);
+    const payload: FederatedHandoff = {
+      ...input,
+      generation: await this.generationOf('customer', input.customerAccountId),
+    } as FederatedHandoff;
+    await this.redis.set(
+      HANDOFF_PREFIX + codeDigest,
+      JSON.stringify(payload),
+      'EX',
+      FEDERATED_SIGN_IN_HANDOFF_TTL_SECONDS,
+    );
+    return { code, codeDigest };
+  }
+
+  /**
+   * Read and delete the hand-off in one step (`GETDEL`), so of any number of
+   * concurrent attempts exactly one gets it, and a failed attempt has used it
+   * up as well. `null` for a code never issued, expired or already taken. The
+   * generation is not applied here — `isCurrentGeneration` is — so the caller
+   * can log which check refused it.
+   */
+  async takeFederatedHandoff(code: string): Promise<FederatedHandoff | null> {
+    const raw = await this.redis.getdel(HANDOFF_PREFIX + sha256Hex(code));
+    return raw ? (JSON.parse(raw) as FederatedHandoff) : null;
+  }
+
+  /** Whether an artefact stamped with `generation` survived every invalidation since. */
+  async isCurrentGeneration(
+    subjectType: 'customer' | 'admin',
+    subjectId: string,
+    generation: number,
+  ): Promise<boolean> {
+    return generation >= (await this.generationOf(subjectType, subjectId));
+  }
+}
+
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
 }

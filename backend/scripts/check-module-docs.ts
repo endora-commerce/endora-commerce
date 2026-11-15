@@ -208,7 +208,6 @@ export const MODULES_WITHOUT_DOCUMENTATION: Readonly<Record<string, string>> = {
   email:
     'The outbound mail transport other modules send through. Operator-facing insofar as an ' +
     'operator configures the adapter; wants a page (spec.md Q3).',
-  mfa: 'Multi-factor authentication for admin sign-in. Operator-facing and wants a page (spec.md Q3).',
 };
 
 /**

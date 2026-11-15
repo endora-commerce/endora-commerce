@@ -417,6 +417,37 @@ też wyłączenia modułu `mfa` (`409 MFA_DEACTIVATION_BLOCKED`): jeśli moduł 
 wyłączony, najpierw wyłącz wymuszenie. Bez `MFA_SECRET_ENCRYPTION_KEY` wymuszenia nie da się
 włączyć (`409 MFA_ENFORCEMENT_UNAVAILABLE`).
 
+### D5. Zarejestruj adresy przekierowania logowania federacyjnego, jeśli oferujesz logowanie przez Google lub Microsoft
+
+**Dlaczego.** Dostawca odsyła przeglądarkę do **backendu**, pod adres, który musi już znać:
+adres przekierowania, którego nie zarejestrowano albo który różni się od `BACKEND_PUBLIC_URL`
+schematem, hostem lub portem, sprawia, że dostawca odrzuca każde logowanie. Logowanie w sklepie
+odsyła potem kupującego do sklepu tego kanału sprzedaży, na którym się zaczęło — do ustawienia
+kanału **Storefront URL** (`sales_channels.storefront_url`), a bez niego do `STOREFRONT_BASE_URL`
+— i tam się kończy, więc ten adres musi być hostem, którego kupujący danego kanału naprawdę używają.
+
+**Do zrobienia (inżynier).** Utwórz klienta OAuth u każdego oferowanego dostawcy, ustaw w
+środowisku backendu `MFA_OAUTH_GOOGLE_CLIENT_ID` / `MFA_OAUTH_GOOGLE_CLIENT_SECRET` oraz
+`MFA_OAUTH_MICROSOFT_CLIENT_ID` / `MFA_OAUTH_MICROSOFT_CLIENT_SECRET` (i
+`MFA_OAUTH_MICROSOFT_TENANT`, domyślnie `common`) i zarejestruj adresy przekierowania tych
+powierzchni, które włączasz:
+
+```text
+${BACKEND_PUBLIC_URL}/api/v1/auth/customer/oauth/google/callback
+${BACKEND_PUBLIC_URL}/api/v1/auth/customer/oauth/microsoft/callback
+${BACKEND_PUBLIC_URL}/api/v1/auth/admin/oauth/google/callback
+${BACKEND_PUBLIC_URL}/api/v1/auth/admin/oauth/microsoft/callback
+```
+
+**Do zrobienia (operator).** Włącz dostawców dla poszczególnych powierzchni
+(`mfa.storefront.google_enabled`, `mfa.storefront.microsoft_enabled` dla każdego kanału sprzedaży,
+`mfa.admin.google_enabled`, `mfa.admin.microsoft_enabled`) i ustaw **Storefront URL** na każdym
+kanale sprzedaży obsługiwanym pod własnym hostem.
+
+**Weryfikacja.** Na każdym hoście sklepu kupujący, który loguje się przez każdego z dostawców,
+trafia zalogowany na ten sam host, a koszyk napełniony przed zalogowaniem nadal tam jest; w panelu
+administracyjnym to samo dotyczy administratora. Szczegóły są na stronie modułu `mfa`.
+
 ---
 
 ## E. Aktywacja modułów

@@ -354,7 +354,6 @@ const modules = [
       'module-reference/meta-ads',
     ],
   },
-  { type: 'doc', id: 'module-reference/mfa', label: 'mfa', key: 'mfa' },
   {
     type: 'category',
     label: 'Module lifecycle', key: '_lifecycle',
@@ -558,6 +557,14 @@ const modules = [
     link: { type: 'doc', id: 'modules/transactional-emails' },
     items: [
       'module-reference/transactional-emails',
+    ],
+  },
+  {
+    type: 'category',
+    label: 'Two-step verification and federated sign-in', key: 'mfa',
+    link: { type: 'doc', id: 'modules/mfa' },
+    items: [
+      'module-reference/mfa',
     ],
   },
   {

@@ -417,6 +417,37 @@ switch `mfa` off (`409 MFA_DEACTIVATION_BLOCKED`): turn enforcement off first if
 really has to go. Without `MFA_SECRET_ENCRYPTION_KEY`, enforcement cannot be turned on
 (`409 MFA_ENFORCEMENT_UNAVAILABLE`).
 
+### D5. Register the federated sign-in redirect URIs, if you offer Google or Microsoft sign-in
+
+**Why.** The provider sends the browser back to the **backend**, at an address it must already
+know: a redirect URI that was not registered, or that differs from `BACKEND_PUBLIC_URL` in scheme,
+host or port, makes the provider refuse every sign-in. A storefront sign-in then returns the buyer
+to the storefront of the sales channel it started on — the channel's **Storefront URL** setting
+(`sales_channels.storefront_url`), else `STOREFRONT_BASE_URL` — and finishes there, so that
+address must be the host the channel's buyers actually use.
+
+**Do (engineer).** Create an OAuth client with each provider you offer, set
+`MFA_OAUTH_GOOGLE_CLIENT_ID` / `MFA_OAUTH_GOOGLE_CLIENT_SECRET` and
+`MFA_OAUTH_MICROSOFT_CLIENT_ID` / `MFA_OAUTH_MICROSOFT_CLIENT_SECRET` (and
+`MFA_OAUTH_MICROSOFT_TENANT`, `common` by default) in the backend's environment, and register
+the redirect URIs of the surfaces you enable:
+
+```text
+${BACKEND_PUBLIC_URL}/api/v1/auth/customer/oauth/google/callback
+${BACKEND_PUBLIC_URL}/api/v1/auth/customer/oauth/microsoft/callback
+${BACKEND_PUBLIC_URL}/api/v1/auth/admin/oauth/google/callback
+${BACKEND_PUBLIC_URL}/api/v1/auth/admin/oauth/microsoft/callback
+```
+
+**Do (operator).** Switch the providers on per surface (`mfa.storefront.google_enabled`,
+`mfa.storefront.microsoft_enabled` per sales channel, `mfa.admin.google_enabled`,
+`mfa.admin.microsoft_enabled`), and set **Storefront URL** on every sales channel served on a
+host of its own.
+
+**Verify.** On every storefront host, a buyer who signs in with each provider lands signed in on
+that same host, with the basket filled before signing in still there; in the Admin UI, an
+administrator does too. The `mfa` module page has the details.
+
 ---
 
 ## E. Module activation

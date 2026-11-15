@@ -8543,6 +8543,15 @@
         }
       }
     },
+    "/api/v1/auth/customer/oauth/exchange": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/auth/customer/oauth/providers": {
       "get": {
         "responses": {

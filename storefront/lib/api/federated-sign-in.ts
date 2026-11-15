@@ -1,6 +1,13 @@
-import type { FederatedSignInOptionsResponse } from '@endora-commerce/contracts';
+import type {
+  CartMergeOutcomePublic,
+  FederatedSignInExchangeRequest,
+  FederatedSignInExchangeResponse,
+  FederatedSignInOptionsResponse,
+} from '@endora-commerce/contracts';
 import type { FederatedProvider } from '../federated-sign-in';
+import { rememberKnownDevice, signInCookieHeader } from '../session';
 import { apiGet, type RequestContext } from './client';
+import { apiMutate, extractSessionCookieValue } from './mutations';
 
 /**
  * Which federated providers this storefront can complete a sign-in with —
@@ -33,4 +40,57 @@ export async function getFederatedSignInProviders(
   } catch {
     return [];
   }
+}
+
+/**
+ * Issue #1279 — redeem the hand-off code the backend's OAuth callback sent the
+ * browser here with (`POST /api/v1/auth/customer/oauth/exchange`).
+ *
+ * Server-to-server, so the browser's own storefront cookies travel only as this
+ * call forwards them: the allow-list every customer sign-in forwards
+ * (`signInCookieHeader` — the known-device cookie, the signed-out basket and
+ * comparison), so the backend carries the basket over exactly as after a
+ * password sign-in. The buyer's address and browser travel as
+ * `x-forwarded-for` and `user-agent`, as the form handlers forward them, so the
+ * session is recorded against the buyer rather than this server.
+ *
+ * Throws `StorefrontApiError` for any refusal (`400
+ * MFA_FEDERATED_HANDOFF_INVALID`, `503 MODULE_DISABLED`) and whatever `fetch`
+ * throws on a network failure; the caller decides what each means.
+ */
+export type FederatedSignInExchangeResult =
+  | {
+      status: 'authenticated';
+      redirectPath: string;
+      sessionCookieValue: string | null;
+      cartMerge: CartMergeOutcomePublic | null;
+    }
+  | { status: 'mfaRequired'; redirectPath: string; challengeId: string };
+
+export async function exchangeFederatedSignIn(
+  input: FederatedSignInExchangeRequest,
+  forwarded: { salesChannelCode?: string | undefined; forwardedFor?: string | null; userAgent?: string | null },
+): Promise<FederatedSignInExchangeResult> {
+  const headers: Record<string, string> = {};
+  if (forwarded.forwardedFor) headers['x-forwarded-for'] = forwarded.forwardedFor;
+  if (forwarded.userAgent) headers['user-agent'] = forwarded.userAgent;
+  const result = await apiMutate<FederatedSignInExchangeResponse['data']>({
+    method: 'POST',
+    path: '/api/v1/auth/customer/oauth/exchange',
+    body: input,
+    rawCookieHeader: await signInCookieHeader(),
+    headers,
+    ...(forwarded.salesChannelCode ? { ctx: { salesChannelCode: forwarded.salesChannelCode } } : {}),
+  });
+  await rememberKnownDevice(result.setCookie);
+  const data = result.data!;
+  if (data.status === 'mfaRequired') {
+    return { status: 'mfaRequired', redirectPath: data.redirectPath, challengeId: data.challengeId };
+  }
+  return {
+    status: 'authenticated',
+    redirectPath: data.redirectPath,
+    sessionCookieValue: extractSessionCookieValue(result.setCookie),
+    cartMerge: data.cartMerge ?? null,
+  };
 }

@@ -4,6 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { customerOAuthStartUrl, storefrontBinding } from '../../helpers/oauth-binding.js';
 
 /**
  * Issue #193 — the pre-auth route that tells a login screen which federated
@@ -70,7 +71,7 @@ describe('GET /api/v1/auth/:surface/oauth/providers (#193)', () => {
 
     const start = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(storefrontBinding()),
     });
     expect(start.statusCode).toBe(302);
     // The refusal path redirects to the login screen with an error rather than
@@ -83,7 +84,7 @@ describe('GET /api/v1/auth/:surface/oauth/providers (#193)', () => {
     );
     const refused = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(storefrontBinding()),
     });
     expect(refused.statusCode).toBe(302);
     expect(refused.headers['location']).toContain('/login?error=');
