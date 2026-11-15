@@ -362,18 +362,19 @@ export type CustomerLoginResponse = z.infer<typeof customerLoginResponseSchema>;
  *
  * `organizations` owns the step and runs it from its password sign-in; a route
  * that establishes the session itself — `mfa`'s second-step verify, its
- * enforced-enrolment completion and its federated callback (issue #1188) —
- * calls it through {@link CustomerSignInCompletionPort} once the session cookie
- * is set.
+ * enforced-enrolment completion and its federated sign-in exchange (issues
+ * #1188, #1279) — calls it through {@link CustomerSignInCompletionPort} once the
+ * session cookie is set.
  */
 export interface CustomerSignInCompletionInput {
   customerAccountId: string;
   /** The sign-in request's cookies, as `@fastify/cookie` parsed them. */
   cookies: Readonly<Record<string, string | undefined>>;
   /**
-   * Issue #1188 — the sales channel the sign-in belongs to, for a route whose
-   * request carries none: the federated callback is the provider's redirect, so
-   * it passes the channel its transaction was started on. Only the anonymous
+   * Issue #1188 — the sales channel the sign-in belongs to, where the route
+   * knows it better than its request does: the federated sign-in exchange
+   * (issue #1279) passes the channel its transaction was started on, which it
+   * has already required the request to be asked on. Only the anonymous
    * basket of that store is merged (`specs/154-sales-channel-access/`
    * contracts/basket-attribution.md §3). Absent or `null`: the request's
    * resolved channel, as for every other sign-in.
@@ -404,7 +405,7 @@ export interface CustomerSignInCompletion {
  * and never captured into a singleton (issue #368). `complete` does not throw
  * for a failed merge: it logs the failure and answers "nothing merged".
  * Consumers: `mfa`'s second-step verify and enforced-enrolment completion
- * (#368) and its federated sign-in callback (#1188).
+ * (#368) and its federated sign-in exchange (#1188, #1279).
  */
 export interface CustomerSignInCompletionPort {
   complete(input: CustomerSignInCompletionInput): Promise<CustomerSignInCompletion>;

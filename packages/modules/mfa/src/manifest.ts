@@ -258,6 +258,9 @@ export const manifest = defineModuleManifest({
     // — `customer_encryption_key_missing` is the same refusal of
     // `mfa.storefront.totp_enforced` and of an organization's policy.
     { code: 'MFA_ENFORCEMENT_UNAVAILABLE', tokens: ['encryption_key_missing', 'customer_encryption_key_missing'] },
+    // Issue #1279 — the storefront's redemption of a federated sign-in hand-off,
+    // refused for an unknown, expired, used, wrongly bound or withdrawn code.
+    { code: 'MFA_FEDERATED_HANDOFF_INVALID' },
     { code: 'MFA_INVALID_CHALLENGE' },
     { code: 'MFA_INVALID_CODE' },
     // Issue #935 — the self-service disable, refused while the factor is the
@@ -274,6 +277,7 @@ export const manifest = defineModuleManifest({
     { code: 'TWO_FACTOR_REQUIRED_BY_ROLE' },
   ],
   i18n: { bundlesDir: 'i18n' },
+  docs: { dir: 'docs' },
   permissions: [
     { code: 'mfa:reset', label: "Reset a user's two-step verification" },
     { code: 'mfa:manage', label: 'Manage two-step verification policies and organization enforcement' },

@@ -10,7 +10,13 @@ import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 import { PasswordResetToken } from '../../helpers/package-entities.js';
 import { CustomerAccount } from '../../helpers/package-entities.js';
 import { MfaEnrolment } from '../../helpers/package-entities.js';
-import { oauthBinding } from '../../helpers/oauth-binding.js';
+import {
+  customerOAuthStartUrl,
+  exchangeHandoff,
+  oauthBinding,
+  sessionOf,
+  storefrontBinding,
+} from '../../helpers/oauth-binding.js';
 
 /**
  * `mfa` off-state — Constitution XVII item 6, feature 042 FR-033, D-96.
@@ -114,9 +120,10 @@ describe('mfa off-state — login degrades to password-only (D-96, FR-033)', () 
 
     // The federated-sign-in strand: an account this platform created from a
     // verified Google identity, with a random password nobody was ever told.
+    const binding = storefrontBinding();
     const start = await h.app.inject({
       method: 'GET',
-      url: '/api/v1/auth/customer/oauth/google/start',
+      url: customerOAuthStartUrl(binding),
     });
     const state = new URL(start.headers['location'] as string).searchParams.get('state')!;
     const callback = await h.app.inject({
@@ -126,9 +133,9 @@ describe('mfa off-state — login degrades to password-only (D-96, FR-033)', () 
       cookies: oauthBinding(start),
     });
     // The session that sign-in minted — the only way to speak *as* the account
-    // the platform created, which is the account issue #194 is about.
-    SOCIAL_CUSTOMER_COOKIE.b2b_session =
-      callback.cookies.find((c) => c.name === 'b2b_session')!.value;
+    // the platform created, which is the account issue #194 is about. Issue
+    // #1279: the storefront's exchange of the callback's hand-off mints it.
+    SOCIAL_CUSTOMER_COOKIE.b2b_session = sessionOf(await exchangeHandoff(h.app, callback, binding))!;
   });
 
   afterAll(async () => {
@@ -231,6 +238,15 @@ describe('mfa off-state — login degrades to password-only (D-96, FR-033)', () 
       });
       expect(oauth.statusCode).toBe(503);
       expect(oauth.json().error?.code).toBe('MODULE_DISABLED');
+
+      // Issue #1279 — and so is the storefront's redemption of a hand-off.
+      const exchange = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/customer/oauth/exchange',
+        payload: { code: 'A'.repeat(43), binding: 'B'.repeat(43) },
+      });
+      expect(exchange.statusCode).toBe(503);
+      expect(exchange.json().error?.code).toBe('MODULE_DISABLED');
 
       const storefront = await h.app.inject({
         method: 'GET',
