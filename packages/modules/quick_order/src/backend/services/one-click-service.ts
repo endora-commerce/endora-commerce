@@ -134,8 +134,14 @@ export class OneClickService {
     ctx: OneClickContext,
     input: OneClickPlaceInput,
     salesChannelId: string,
-    /** The language a minimum refusal names the product in (feature 155, D3/D4). */
-    options: { language?: string } = {},
+    /**
+     * `language` — the language a minimum refusal names the product in
+     * (feature 155, D3/D4). `languageTag` (issue #1308) — the request's scope
+     * language, the channel language its `Accept-Language` asks for
+     * (`requestScopeLanguage`): the line is added and the order placed judged
+     * in it. Absent: the channel's default language.
+     */
+    options: { language?: string; languageTag?: string } = {},
   ): Promise<PlacedOrderRecord> {
     // The role first, on the same rule and in the same order as
     // `eligibility` (FR-050, PR-8): `403 ORGANIZATION_PERMISSION_REQUIRED`
@@ -194,6 +200,7 @@ export class OneClickService {
         onBelowMinimum: 'throw',
         workingBasket: true,
         ...(options.language ? { language: options.language } : {}),
+        ...(options.languageTag ? { languageTag: options.languageTag } : {}),
       },
     );
 
@@ -207,7 +214,13 @@ export class OneClickService {
         salesChannelId,
         ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
       },
-      { ...(options.language ? { language: options.language } : {}), workingBasketId: working.cart.id },
+      // Issue #1308 — placement re-judges the working basket's line, in the
+      // language the add above judged it in.
+      {
+        ...(options.language ? { language: options.language } : {}),
+        ...(options.languageTag ? { languageTag: options.languageTag } : {}),
+        workingBasketId: working.cart.id,
+      },
     );
   }
 

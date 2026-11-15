@@ -86,7 +86,15 @@ export function createCartWritePort(
     },
 
     async addItems(actor, lines, options) {
-      const result = await getService().addItems(actor, lines, options);
+      // Issue #1293 — the scope language travels on the service's actor, where
+      // `POST /cart/items` carries it (`CartActor.languageTag`), so a batch from
+      // another module is judged in it exactly as the route's own add is.
+      const { languageTag, ...rest } = options;
+      const result = await getService().addItems(
+        languageTag !== undefined ? { ...actor, languageTag } : actor,
+        lines,
+        rest,
+      );
       return {
         cart: toCartRecord(result.cart),
         items: result.items.map(toCartItemRecord),

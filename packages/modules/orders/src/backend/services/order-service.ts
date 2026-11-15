@@ -1731,6 +1731,13 @@ export class OrderService {
     options?: {
       origin?: OriginReference;
       language?: string | undefined;
+      /**
+       * Issue #1308 — the buyer request's scope language
+       * (`requestScopeLanguage`), which the basket's lines are judged for
+       * availability and the order's lines named in. Absent: the channel
+       * language `language` names, else the channel's default, as before.
+       */
+      languageTag?: string | undefined;
       lineGrouping?: OrderLineGroupingInput | undefined;
       /**
        * Issue #169 — the working basket to place from instead of the customer's
@@ -1922,13 +1929,18 @@ export class OrderService {
       // then the evaluation. A line whose product record is gone refuses the
       // placement (FR-037, fail-closed). Nothing has been written, so the
       // rollback releases the lock and leaves the basket as it was.
+      //
+      // Issue #1308 — at the request's scope language when the caller hands it
+      // over (one-click: the language its basket add judged the line in), so a
+      // line admitted there is not refused here for being off in the channel's
+      // default; otherwise at the one the message language names, as before.
       const orderLanguage = resolveScopeLanguage(
         {
           id: orderChannel.id,
           languages: orderChannel.languages,
           defaultLanguage: orderChannel.defaultLanguage,
         },
-        options?.language,
+        options?.languageTag ?? options?.language,
       );
       const catalogue = await readBasketCatalogue(this.neighbours.catalogProductRead, items, (products) =>
         availableOnly(this.neighbours.catalogProductAvailability, products, {
