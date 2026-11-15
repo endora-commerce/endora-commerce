@@ -143,7 +143,30 @@ describe('ordering defaults under the organization detail session (feature 180, 
     expect(await screen.findByText('The server failed.')).toBeInTheDocument();
   });
 
-  it('keeps its own Save where the host passes no session (the customer detail, until WP-8)', async () => {
+  it('takes part in the customer detail\'s session too, scope customer (pairs with WP-8, #1241)', async () => {
+    // A test-only host: the customer detail's own provider arrives with #1241.
+    function CustomerHost(): ReactElement {
+      const live = useSaveSession();
+      session = live;
+      return <AdminZone name="customer.detail.after" props={{ customerId: CUSTOMER_ID, saveSession: live.handle }} />;
+    }
+    renderWith(
+      <SaveSessionProvider resetKey={CUSTOMER_ID} hostModule="customers">
+        <CustomerHost />
+      </SaveSessionProvider>,
+    );
+    await choose(PAYMENT, PM);
+    expect(screen.queryByRole('button', { name: CORE['defaultPreferences.save']! })).toBeNull();
+    expect(putSpy).not.toHaveBeenCalled();
+    expect(session?.dirtyParticipants().map((part) => part.id)).toEqual(['quick_order:ordering-defaults']);
+    await act(async () => {
+      await session!.run(null);
+    });
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(putSpy.mock.calls[0]?.[1]).toMatchObject({ scope: 'customer', scopeId: CUSTOMER_ID, defaultPaymentMethodId: PM });
+  });
+
+  it('keeps its own Save where the customer host still hands the inert handle (master before #1241)', async () => {
     renderWith(<AdminZone name="customer.detail.after" props={{ customerId: CUSTOMER_ID, saveSession: INERT_SAVE_SESSION }} />);
     await choose(PAYMENT, PM);
     expect(putSpy).not.toHaveBeenCalled();

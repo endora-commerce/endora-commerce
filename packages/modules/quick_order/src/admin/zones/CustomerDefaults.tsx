@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { AdminZoneProps } from '@endora-commerce/contracts';
+import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
 import { DefaultPreferencesPanel } from '../components/DefaultPreferencesPanel.js';
 
 /**
@@ -21,8 +22,18 @@ import { DefaultPreferencesPanel } from '../components/DefaultPreferencesPanel.j
  */
 export type CustomerDefaultsProps = AdminZoneProps<'customer.detail.after'>;
 
-export function CustomerDefaults({ customerId }: CustomerDefaultsProps): ReactNode {
-  return <DefaultPreferencesPanel scope="customer" scopeId={customerId} />;
+export function CustomerDefaults({ customerId, saveSession }: CustomerDefaultsProps): ReactNode {
+  // Feature 180 — the customer detail's Save writes the defaults once that screen runs a session
+  // (WP-8, #1241). While it still hands the inert handle the panel keeps its own Save: forwarding
+  // the inert handle would leave the defaults with no way to be saved. That guard goes with the
+  // standalone branch once every host passes a live session.
+  return (
+    <DefaultPreferencesPanel
+      scope="customer"
+      scopeId={customerId}
+      {...(saveSession === INERT_SAVE_SESSION ? {} : { saveSession })}
+    />
+  );
 }
 
 /**
