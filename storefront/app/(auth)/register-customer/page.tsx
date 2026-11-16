@@ -130,15 +130,21 @@ export default async function RegisterCustomerPage({
 
 async function registerCustomerAction(formData: FormData): Promise<void> {
   'use server';
+  // Issue #1323 — the context carries the page language, from which the backend records the
+  // new account's e-mail language.
+  const { ctx } = await getServerContext();
   let result;
   try {
-    result = await registerStandaloneCustomer({
-      email: (formData.get('email') as string) ?? '',
-      password: (formData.get('password') as string) ?? '',
-      firstName: (formData.get('firstName') as string) ?? '',
-      lastName: (formData.get('lastName') as string) ?? '',
-      acceptedTermsVersion: (formData.get('acceptedTermsVersion') as string) ?? '2025-01',
-    });
+    result = await registerStandaloneCustomer(
+      {
+        email: (formData.get('email') as string) ?? '',
+        password: (formData.get('password') as string) ?? '',
+        firstName: (formData.get('firstName') as string) ?? '',
+        lastName: (formData.get('lastName') as string) ?? '',
+        acceptedTermsVersion: (formData.get('acceptedTermsVersion') as string) ?? '2025-01',
+      },
+      ctx,
+    );
   } catch (err) {
     if (err instanceof StorefrontApiError && err.code === 'REGISTRATION_REQUIRES_ORGANIZATION') {
       return await localeRedirect('/register-customer?orgRequired=1');
@@ -149,7 +155,6 @@ async function registerCustomerAction(formData: FormData): Promise<void> {
   // consent checkbox was ticked. Never block registration on a subscribe failure.
   if (formData.get('newsletterConsent') === 'on' && result.customerAccount?.email) {
     try {
-      const { ctx } = await getServerContext();
       await subscribeNewsletter({
         email: result.customerAccount.email,
         channelCode: ctx.salesChannelCode ?? 'default',

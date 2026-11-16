@@ -275,6 +275,57 @@ describe('OneClickService.place', () => {
   });
 
   /**
+   * Issue #1308 — the line is added and the order placed in the request's scope
+   * language, the channel language its `Accept-Language` asks for: both calls
+   * judge availability, so a product on only in the buyer's language must be
+   * asked about there by each. It travels beside the message language, never
+   * instead of it.
+   */
+  it('hands the request scope language to the basket add and to the placement', async () => {
+    const addItems = vi.fn(async () => ({ cart: { id: 'working-1' }, items: [], outcomes: [] }));
+    const placeOrder = vi.fn(
+      async () => ({ id: 'o-1', status: 'new', nextAction: null }) as unknown as PlacedOrderRecord,
+    );
+    const cart = { addItems } as unknown as CartWritePort;
+    const placement = { placeOrder } as unknown as OrderPlacementPort;
+
+    const svc = new OneClickService(prefStub(FULL_DEFAULTS), cart, placement, async () => true, catalogOf(), ALLOW_ALL);
+    await svc.place(ctx, { productId: 'p-1', quantity: 1 }, CHANNEL_ID, { language: 'en', languageTag: 'pl-PL' });
+
+    expect((addItems.mock.calls[0] as unknown[])[2]).toEqual({
+      onLineError: 'throw',
+      onBelowMinimum: 'throw',
+      workingBasket: true,
+      language: 'en',
+      languageTag: 'pl-PL',
+    });
+    expect((placeOrder.mock.calls[0] as unknown[])[2]).toEqual({
+      language: 'en',
+      languageTag: 'pl-PL',
+      workingBasketId: 'working-1',
+    });
+  });
+
+  it('passes no scope language when the request carried none', async () => {
+    const addItems = vi.fn(async () => ({ cart: { id: 'working-1' }, items: [], outcomes: [] }));
+    const placeOrder = vi.fn(
+      async () => ({ id: 'o-1', status: 'new', nextAction: null }) as unknown as PlacedOrderRecord,
+    );
+    const svc = new OneClickService(
+      prefStub(FULL_DEFAULTS),
+      { addItems } as unknown as CartWritePort,
+      { placeOrder } as unknown as OrderPlacementPort,
+      async () => true,
+      catalogOf(),
+      ALLOW_ALL,
+    );
+    await svc.place(ctx, { productId: 'p-1', quantity: 1 }, CHANNEL_ID, { language: 'en' });
+
+    expect((addItems.mock.calls[0] as unknown[])[2]).not.toHaveProperty('languageTag');
+    expect((placeOrder.mock.calls[0] as unknown[])[2]).not.toHaveProperty('languageTag');
+  });
+
+  /**
    * Feature 155 (FR-010, R12.3, analyze F14) — without a quantity, one-click
    * orders the product's pieces minimum, only for the types the rule applies to.
    */

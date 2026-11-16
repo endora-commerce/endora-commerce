@@ -499,6 +499,14 @@ describe('CustomerDeletionService', () => {
     other.organizationId = company.id;
     other.organizationRoleId = companyMember;
     await em.flush();
+    const companyAddress = await addresses.createAddress(company.id, {
+      kind: 'delivery',
+      recipientName: 'ACME Warehouse',
+      street: 'Main 1',
+      city: 'Warsaw',
+      postalCode: '00-001',
+      country: 'PL',
+    });
 
     await svc.softDelete(member.id, actor);
     await svc.sweep(0, new Date(Date.now() + 60_000));
@@ -506,10 +514,12 @@ describe('CustomerDeletionService', () => {
     const reloadedCompany = await em.findOne(Organization, { id: company.id });
     expect(reloadedCompany!.deletedAt ?? null).toBeNull();
     expect(reloadedCompany!.name).toBe('ACME Sp. z o.o.');
-    // Scoped to the company: another file's due account in a shared database
-    // is swept by the same run and may well have addresses (issue #978).
-    const scrubbedAddresses = await em.find(AuditLogEntry, { action: 'address.anonymized' });
-    expect(scrubbedAddresses.filter((e) => (e.stateBefore as { organizationId?: string } | null)?.organizationId === company.id)).toEqual([]);
+    // Scoped to the company's own address by id: another file's due account in a
+    // shared database is swept by the same run (issue #978), and the entry no
+    // longer names the Organization (#470, D-288).
+    expect(await em.find(AuditLogEntry, { action: 'address.anonymized', objectId: companyAddress.id })).toEqual([]);
+    em.clear();
+    expect((await em.findOneOrFail(Address, { id: companyAddress.id })).recipientName).toBe('ACME Warehouse');
   });
 
   // --- issue #800: the cascade is restartable ---------------------------------
@@ -1067,6 +1077,46 @@ describe('CustomerDeletionService', () => {
       hadBlockReason: false,
     });
     expect(JSON.stringify([row.stateBefore, row.stateAfter])).not.toContain('1990-01-01');
+    expect(announcedFor(customer.id)).toEqual([]);
+
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([]);
+    expect(await em.find(AuditLogEntry, { action: 'customer_account.anonymized', objectId: customer.id })).toHaveLength(1);
+  });
+
+  it('I-17c — the sweep erases the account’s preferred language, and the audit row records no tag (#652, D-292)', async () => {
+    const customer = await makePersonalCustomer();
+    customer.preferredLanguage = 'pl-PL';
+    await em.flush();
+    await svc.softDelete(customer.id, actor);
+
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.preferredLanguage ?? null).toBeNull();
+    const row = await auditRow('customer_account.anonymized', customer.id);
+    expect(JSON.stringify([row.stateBefore, row.stateAfter])).not.toContain('pl-PL');
+  });
+
+  it('I-17d — an account anonymised before #652 that still holds a language is listed, finished once and then left alone', async () => {
+    const scrubbedAt = new Date('2026-04-05T06:07:08.000Z');
+    const customer = await makeEarlierAnonymizedCustomer(scrubbedAt, {
+      blockReason: null,
+      customFieldValues: {},
+    });
+    customer.preferredLanguage = 'en-US';
+    await em.flush();
+
+    const due = await accountWrites.listDueForAnonymization(after(60_000));
+    expect(due.map((d) => d.id)).toContain(customer.id);
+    expect(await sweepFor([customer.id], after(60_000))).toEqual([customer.id]);
+
+    em.clear();
+    const account = await em.findOneOrFail(CustomerAccount, { id: customer.id });
+    expect(account.preferredLanguage ?? null).toBeNull();
+    expect(account.anonymizedAt!.toISOString()).toBe(scrubbedAt.toISOString());
+    const row = await auditRow('customer_account.anonymized', customer.id);
+    expect(JSON.stringify([row.stateBefore, row.stateAfter])).not.toContain('en-US');
     expect(announcedFor(customer.id)).toEqual([]);
 
     expect(await sweepFor([customer.id], after(60_000))).toEqual([]);
@@ -1732,7 +1782,7 @@ describe('CustomerDeletionService', () => {
       expect(orgRow!.stateAfter).toEqual({ anonymizedAt: expect.stringMatching(/^\d{4}-/), isPersonal: true });
       const [addressRow] = await em.find(AuditLogEntry, { action: 'address.anonymized', objectId: live.id });
       // `wasDeleted` is #927's: a live row, so `false`.
-      expect(addressRow!.stateBefore).toEqual({ organizationId: org.id, kind: 'delivery', wasDeleted: false });
+      expect(addressRow!.stateBefore).toEqual({ kind: 'delivery', wasDeleted: false });
     });
 
     it('I-844-5 — a company member: only its own account’s rows are erased, the company’s are untouched', async () => {

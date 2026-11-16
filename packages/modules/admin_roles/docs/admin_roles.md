@@ -9,21 +9,26 @@ Admin role definitions and the per-module Permission matrix the role grants.
 
 ## Public surface
 
+This module has no routes of its own. The role routes are served by `admin_users` over this
+module's services, all under `admin_users:manage`; that module's page describes each answer.
+
 | Verb + Path | Purpose |
 | --- | --- |
-| `GET /api/v1/admin/roles` | List Roles |
-| `POST /api/v1/admin/roles` | Create Role with a Permission set |
-| `PATCH /api/v1/admin/roles/:id` | Update Role |
-| `DELETE /api/v1/admin/roles/:id` | Delete (rejected if assigned to active admin users) |
+| `GET /api/v1/admin/admin-roles` | List roles with their permission arrays |
+| `PUT /api/v1/admin/admin-roles/:code` | Create or update the role with that code (unknown permission codes answer `400 VALIDATION_FAILED`) |
+| `GET /api/v1/admin/admin-roles/:code/two-factor-impact` | How many holders would be signed out by turning the role's two-step requirement on |
+| `DELETE /api/v1/admin/admin-roles/:id` | Delete (`409 ADMIN_ROLE_IN_USE` while any administrator, a soft-deleted one included, holds it) |
+| `GET /api/v1/admin/permissions` | The catalogue of permission codes an operator may grant |
 
 ## Permission model
 
 Permissions are strings shaped `module:action` (e.g. `catalog:write`,
-`integrations:manage`, `audit:read`). `permission-service.ts` exposes
-`hasPermission(adminUser, 'module:action')`; the `requireAdmin(permission?)`
-pre-handler in `auth/plugin.ts` consults it on every gated route. A Role
-may also require two-step verification — `requireAdmin` enforces the
-second-step challenge before invoking the route handler.
+`integrations:manage`, `audit_log:read`). `permission-service.ts` exposes
+`hasPermission(adminUserId, 'module:action')`; the `requireAdmin(permission?)`
+guard, a port of the `auth` module, consults it on every gated route. A role
+may also require two-step verification (`requiresTwoFactor`): its holders are
+asked for a second factor at sign-in, through the `mfa` module, and turning the
+requirement on signs out the holders who have none (see `admin_users`).
 
 ## The platform-administrator role
 
@@ -42,12 +47,14 @@ how to repair it.
 
 ## Entities
 
-`AdminRole`, with `requires2fa: boolean` and a `permissions: string[]`
-column.
+`AdminRole`, with `requiresTwoFactor: boolean` and a `permissions: string[]`
+(JSON) column.
 
 ## Extension points
 
-- **Custom permission strings** — define new ones at their first use; the
-  permission set is open and not enumerated server-side.
+- **Custom permission strings** — a module declares its codes in its manifest's
+  `permissions`; the catalogue (`permission-catalogue.service.ts`) offers the codes of
+  every present module on `/admin-roles`, and a role is saved only with known codes (a
+  switched-off module's included) or the wildcard `*`.
 - **Hierarchical roles** — `permission-service.hasPermission` can resolve
   inherited permissions; today every Role is flat.

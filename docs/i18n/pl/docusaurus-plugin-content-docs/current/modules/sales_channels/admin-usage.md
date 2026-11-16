@@ -44,10 +44,27 @@ automatycznie dostaje kanał `default`).
 ## Edycja istniejącego kanału
 
 1. Kliknij `code` kanału na liście.
-2. Strona edycji wczytuje dane kanału. Wprowadź zmiany i kliknij **Save changes**.
+2. Strona edycji wczytuje dane kanału. Wprowadź zmiany i kliknij **Zapisz**. Przycisk pokazuje, ile
+   zmian czeka („Zapisz 2 zmiany”), i nic nie robi, gdy nie ma nic do zapisania.
 3. Jeśli inny administrator zmienił ten sam kanał między wczytaniem strony a zapisem, zapis zwróci
    baner konfliktu 412 z bieżącą wersją. Odśwież stronę, aby pobrać aktualny stan, i ponownie
    wprowadź swoje zmiany.
+
+Strona edycji ma **jeden przycisk Zapisz**. Zapisuje własne pola kanału, a gdy inny moduł doda do
+strony edycji sekcję z własnymi zmianami — także je: najpierw kanał, potem każdą sekcję. Jeśli kanał
+zostanie odrzucony, żadna sekcja nie jest zapisywana; jeśli kanał zostanie zapisany, a sekcja nie,
+podsumowanie u góry formularza mówi, co zapisano, a czego nie, a kolejne Zapisz zapisuje tylko to, co
+zostało. **Anuluj** odrzuca niezapisane zmiany i bez pytania wraca do listy. Przejście linkiem w inne
+miejsce panelu albo zamknięcie lub odświeżenie karty przeglądarki z niezapisanymi zmianami wymaga
+potwierdzenia.
+
+**Deactivate** i **Re-activate** działają od razu i zachowują niezapisane zmiany: pole, które
+zmieniono, zachowuje Twoją wartość, każde inne pole (łącznie ze statusem) pokazuje kanał w obecnym
+stanie, a kolejne Zapisz wysyła Twoje zmiany, nie cofając zmiany statusu.
+
+**Magazyny dla tego kanału**, sekcja dodawana przez moduł Magazyn pod formularzem, nie jest częścią
+zapisu: przypisanie lub usunięcie magazynu albo ustawienie go jako domyślnego działa w chwili
+wykonania, a nagłówek sekcji ma etykietę **Działa od razu**.
 
 ## Otwieranie i zamykanie sklepu dla niezalogowanych odwiedzających {#anonymous-access}
 

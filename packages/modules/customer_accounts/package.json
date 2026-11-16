@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-customer-accounts",
-  "version": "0.110.0",
+  "version": "0.111.0",
   "type": "module",
   "sideEffects": false,
   "description": "Customer (B2B) account records, including organization membership and role.",
@@ -82,6 +82,7 @@
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/mod-organizations": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@endora-commerce/test-kit": "workspace:*",
     "@mikro-orm/core": "^6.6.13",
     "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",

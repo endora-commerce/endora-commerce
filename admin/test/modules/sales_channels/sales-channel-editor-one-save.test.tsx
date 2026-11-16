@@ -83,7 +83,9 @@ const read = (path: string): Record<string, string> =>
 const en = read('../packages/modules/sales_channels/i18n/en.json');
 const pl = read('../packages/modules/sales_channels/i18n/pl.json');
 const coreEn = read('../packages/modules/_i18n/i18n/en.json');
+const corePl = read('../packages/modules/_i18n/i18n/pl.json');
 const bundle = { sales_channels: en, core: coreEn };
+const bundlePl = { sales_channels: pl, core: corePl };
 
 const CHANNEL_ID = '00000000-0000-4000-8000-000000000001';
 const WAREHOUSE_ID = '55555555-5555-4555-8555-555555555501';
@@ -150,7 +152,9 @@ function channel(over: Partial<SalesChannelDetail> = {}): SalesChannelDetail {
   };
 }
 
-function renderPage(options: { probe?: boolean; path?: string } = {}): void {
+function renderPage(
+  options: { probe?: boolean; path?: string; bundle?: Record<string, Record<string, string>> } = {},
+): void {
   const contributions = [
     { moduleId: 'inventory', contributions: inventory.contributions },
     ...(options.probe === false ? [] : [{ moduleId: 'test_probe', contributions: { zones: [PROBE] } }]),
@@ -166,7 +170,7 @@ function renderPage(options: { probe?: boolean; path?: string } = {}): void {
       session: adminSession({ permissions: ['*'] }),
       presence: modulePresence({ present: ['sales_channels', 'inventory', 'test_probe'] }),
       contributions,
-      bundle,
+      bundle: options.bundle ?? bundle,
     },
   );
 }
@@ -365,9 +369,9 @@ describe('sales-channel editor — the activation toggle keeps unsaved edits (fe
     await changeProbe();
     expect(saveButton()).toHaveTextContent('Save 2 changes');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Deactivate' }));
+    fireEvent.click(screen.getByRole('button', { name: en['edit.action.deactivate']! }));
     await waitFor(() => expect(deactivateSpy).toHaveBeenCalledTimes(1));
-    expect(await screen.findByRole('button', { name: 'Re-activate' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: en['edit.action.activate']! })).toBeInTheDocument();
 
     expect((screen.getByLabelText(en['identity.name.label']!) as HTMLInputElement).value).toBe('Serwis B');
     expect((screen.getByLabelText('Probe value') as HTMLInputElement).value).toBe('edited');
@@ -389,8 +393,8 @@ describe('sales-channel editor — the activation toggle keeps unsaved edits (fe
     getByCodeSpy.mockResolvedValue(channel({ active: false }));
     renderPage({ probe: false });
     fireEvent.change(await nameField(), { target: { value: 'Serwis B' } });
-    fireEvent.click(await screen.findByRole('button', { name: 'Re-activate' }));
-    expect(await screen.findByRole('button', { name: 'Deactivate' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: en['edit.action.activate']! }));
+    expect(await screen.findByRole('button', { name: en['edit.action.deactivate']! })).toBeInTheDocument();
     expect((screen.getByLabelText(en['identity.name.label']!) as HTMLInputElement).value).toBe('Serwis B');
     expect(activeBox().checked).toBe(true);
     expect(saveButton()).toHaveTextContent('Save 1 change');
@@ -406,6 +410,46 @@ describe('sales-channel editor — the activation toggle keeps unsaved edits (fe
       expect((screen.getByLabelText(en['identity.name.label']!) as HTMLInputElement).value).toBe('Serwis A'),
     );
     expect(saveButton()).toHaveTextContent(/^Save$/);
+  });
+});
+
+/**
+ * Issue #1306 — the header's activation toggle and its error read from the module's bundle, so a
+ * Polish operator reads Polish and the English text is the English bundle's, not the page's.
+ */
+describe('sales-channel editor — the activation toggle is translated (#1306)', () => {
+  const KEYS = ['edit.action.deactivate', 'edit.action.activate', 'edit.error.deactivate', 'edit.error.activate'];
+
+  it('ships every toggle string in English and Polish', () => {
+    for (const key of KEYS) {
+      expect(en[key], key).toBeTruthy();
+      expect(pl[key], key).toBeTruthy();
+      expect(pl[key], key).not.toBe(en[key]);
+    }
+  });
+
+  it('renders Deactivate and Re-activate from the Polish bundle', async () => {
+    renderPage({ probe: false, bundle: bundlePl });
+    fireEvent.click(await screen.findByRole('button', { name: pl['edit.action.deactivate']! }));
+    await waitFor(() => expect(deactivateSpy).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('button', { name: pl['edit.action.activate']! })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Deactivate' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Re-activate' })).toBeNull();
+  });
+
+  it('shows the Polish error when a deactivation fails without an API message', async () => {
+    deactivateSpy.mockRejectedValue(new Error('network down'));
+    renderPage({ probe: false, bundle: bundlePl });
+    fireEvent.click(await screen.findByRole('button', { name: pl['edit.action.deactivate']! }));
+    expect(await screen.findByText(pl['edit.error.deactivate']!)).toBeInTheDocument();
+  });
+
+  it('shows the Polish error when a re-activation fails without an API message', async () => {
+    getByCodeSpy.mockResolvedValue(channel({ active: false }));
+    activateSpy.mockRejectedValue(new Error('network down'));
+    renderPage({ probe: false, bundle: bundlePl });
+    fireEvent.click(await screen.findByRole('button', { name: pl['edit.action.activate']! }));
+    expect(await screen.findByText(pl['edit.error.activate']!)).toBeInTheDocument();
   });
 });
 

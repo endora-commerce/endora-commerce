@@ -1,5 +1,209 @@
 # @endora-commerce/mod-mfa
 
+## 0.111.0
+
+### Minor Changes
+
+- 761d9c4: Issue #1279 — federated (Google / Microsoft) customer sign-in completes on the storefront's own host, so it works when the API is served from another host.
+
+  - `GET /api/v1/auth/customer/oauth/:provider/start` requires `binding` (`customerFederatedSignInStartQuerySchema`); without it the browser is sent to `/login?error=sign_in_failed` and a warning names the parameter. The digest is kept with the OAuth transaction.
+  - The customer callback sets no `b2b_session`, `b2b_mfa_challenge` or `b2b_cart_merge_flash`. After the same checks as before (binding, provider code, account, sales-channel access, second-factor decision) it stores a single-use hand-off in Redis (`mfa:oauth:handoff:<sha256 of the code>`, 60 seconds) and redirects with `Referrer-Policy: no-referrer` to `<origin>/auth/federated/complete?code=…`. `<origin>`, and the origin of every customer `/login?error=…` redirect, is the started-on channel's `sales_channels.storefront_url`, else `STOREFRONT_BASE_URL`.
+  - New `POST /api/v1/auth/customer/oauth/exchange` (`salesChannelAccess: 'open'`, 120 requests a minute per client address, `503 MODULE_DISABLED` while the module is off). It takes the code with `GETDEL`, then checks the binding, the request's sales channel and the account's pending-sign-in generation; any failure is `400 MFA_FEDERATED_HANDOFF_INVALID`. A session hand-off creates the session (`Set-Cookie: b2b_session`) and runs `customerSignInCompletionPort` over the forwarded cookies, so the signed-out basket is carried over here rather than in the callback; a challenge hand-off answers its `challengeId`. Nothing secret is logged.
+  - `ChallengeStore` gains `issueFederatedHandoff`, `takeFederatedHandoff` and `isCurrentGeneration`; `MfaModuleOptions` gains `readChannelStorefrontUrl`.
+  - The module ships its documentation page (`docs/mfa.md`): the redirect URIs to register, `MFA_OAUTH_*`, and the per-channel storefront address. `MFA_FEDERATED_HANDOFF_INVALID` is declared in the manifest with its EN and PL sentences.
+  - The Admin UI's federated sign-in is unchanged.
+
+- ff6b599: Issue #935 — an account's last second factor can no longer be switched off while a two-step requirement is in force for it.
+
+  - `POST /api/v1/admin/account/mfa/disable` and `POST /api/v1/account/mfa/disable` answer `409 MFA_LAST_FACTOR_REQUIRED` when the factor is the account's last one and a requirement applies: `mfa.admin.totp_enforced` or a role's `requiresTwoFactor` for an administrator, `mfa.storefront.totp_enforced` at the request's sales channel or the organization's policy for a customer. The requirement is read through `MfaPolicyResolver`, the reader the sign-in decision uses, so every source counts as it does at sign-in and none is stricter. The refusal comes before the code or password is checked, so it spends neither. Without `MFA_SECRET_ENCRYPTION_KEY` no requirement is in force (#930, #947, #948) and nothing is refused.
+  - `@endora-commerce/contracts` exports `ERROR_CODES.MFA_LAST_FACTOR_REQUIRED`, and `mfaStatusResponseSchema` gains `canDisable: boolean` and `disableBlockedReason` (`mfaDisableBlockedReasonSchema`, `'factor_required'` or `null`), the verdict the disable route enforces.
+  - `mfa` declares the code in its manifest and ships its sentence in EN and PL (`errors.MFA_LAST_FACTOR_REQUIRED`). The admin **Account security** screen hides the switch-off form while it is refused and says why (`security.disableBlocked.title`, `security.disableBlocked.body`); so does the storefront's account security page.
+  - `MfaEnrolmentService.countActiveFactors(subject)` answers how many active second factors the subject holds.
+
+  **Behaviour change on upgrade.** Switching one's own two-step verification off is refused where it used to succeed: for an administrator or a customer bound by one of the requirements above. An administrator's reset of somebody else's factor is unchanged. See _The last second factor stays while two-step verification is required_ in the upgrade guide.
+
+- ac65359: Issue #947 — the customer two-step requirements, `mfa.storefront.totp_enforced` and an organization's policy, follow #930's rules on an instance with no `MFA_SECRET_ENCRYPTION_KEY`, where no second factor can be enrolled.
+
+  - Turning `mfa.storefront.totp_enforced` on there, for every sales channel or for some, is refused with `409 MFA_ENFORCEMENT_UNAVAILABLE` (`details.reason: 'encryption_key_missing'`, `details.code: 'customer_encryption_key_missing'`), through `settings`' write-validator registry. A write of `true` is accepted only where the value was already `true` at every scope it targets; turning it off is always accepted.
+  - An organization's policy refuses the same off → on write in `MfaOrgPolicyService`, so `PUT /api/v1/account/organization/mfa-policy` and `POST /api/v1/admin/organizations/:organizationId/mfa-policy` refuse alike. Lifting a policy, and writing `true` over `true`, are accepted. Both routes are now registered without the key too; before, they answered 404 there, so a policy set while the key was configured could not be lifted.
+  - `MfaPolicyResolver` applies its `canEnrolSecondFactor` argument to customers as well: without the key neither the storefront setting nor an organization's policy is applied. Sign-in already asked no second factor of anybody there (#948).
+  - While the setting is on platform-wide or for any sales channel and the key is missing, its settings read carries `notice: { code: 'encryption_key_missing', … }`, shown as "Not in force: no encryption key" / "Nie obowiązuje: brak klucza szyfrowania". Every boot logs, at error level, the setting (with the sales channels it is on for) and the number of organizations whose policy requires a second factor.
+  - `@endora-commerce/contracts` exports `CUSTOMER_ENCRYPTION_KEY_MISSING` (`'customer_encryption_key_missing'`), the sentence token for customer-side refusals, beside `ENCRYPTION_KEY_MISSING`.
+  - New sentences in EN and PL: `errors.MFA_ENFORCEMENT_UNAVAILABLE.customer_encryption_key_missing` and `settingLabels.mfa.storefront.totp_enforced.notice.encryption_key_missing`.
+
+  **Behaviour change on upgrade.** On an instance without the key, turning the storefront setting or an organization's policy on is now refused, and both organization-policy routes exist where they used to answer 404. Customers already signed in on the password there (#948), so nobody's sign-in changes. Instances that have the key are unaffected. See _Customer two-step verification requirements without an encryption key_ in the upgrade guide.
+
+### Patch Changes
+
+- 18b5f67: **A federated customer sign-in returns the browser to the storefront pages in the channel language its whole `Accept-Language` asks for** (issue #1011). When the `next` the storefront sends carries no language prefix, `GET /api/v1/auth/customer/oauth/:provider/start` recorded the header's first tag alone as the starting page's language, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` sent a refused or second-step sign-in back to the English pages and `de-DE, pl;q=0.5` to the default language's. The language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the sales channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. A language-prefixed `next` still wins, and a request without the header behaves as before.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- d2f179f: A federated customer sign-in (Google, Microsoft) now carries the signed-out basket over (issue #1188). When `GET /api/v1/auth/customer/oauth/:provider/callback` signs the customer in itself, it runs `organizations`' `customerSignInCompletionPort` over the browser's `b2b_cart_anon` on the channel the sign-in was started on: the basket is adopted or merged as on the password sign-in, `b2b_cart_anon` is cleared when the basket was consumed, and an `adopted` or `merged` outcome sets the storefront's `b2b_cart_merge_flash` notice cookie (30 seconds). A customer handed to the second step is completed by the code screen, as since #368; a failed merge still issues the session; the admin surface is unchanged. `MfaOAuthDeps` gains the required `customerSignInCompletion`, which `mfaModule` already receives.
+- a2d306f: `mfa` no longer declares `ADMIN_BASE_URL` in its manifest's `env` (issue #185): the platform owns
+  the input now, and `mfa` reads it through `configuredAdminBaseUrl()` from
+  `@endora-commerce/platform/kernel`. A well-formed value behaves as before, with any trailing slash
+  ignored. A malformed value no longer reaches `mfa`: the platform refuses to boot on it. With the
+  value unset, the admin-surface sign-in redirects fall back to `http://localhost:3002` only when
+  `NODE_ENV` is not `production`; in production they carry no absolute admin address (a path on the
+  host that served the callback) and never name `localhost`. `adminRedirectBase()` in the plugin is
+  that rule.
+- bf257b8: A two-step customer sign-in now carries the signed-out basket over (issue #368). `POST /api/v1/auth/customer/mfa/verify` and `POST /api/v1/auth/customer/mfa/setup-ticket/complete` run `organizations`' `customerSignInCompletionPort` once the session is set: the `b2b_cart_anon` basket the request carries is merged into the customer's, the answer gains the optional `cartMerge` (`{ outcome: 'adopted' | 'merged' | 'noop', destinationCartId }`) the password sign-in already returns, and the anonymous cookie is cleared when the basket was consumed. A failed merge still issues the session. The admin routes are unchanged. The port is resolved per request; `mfa` already depends on `organizations`, so no manifest edge is added.
+- d0c5dc8: A federated (Google, Microsoft) customer sign-in records the language of the page it was started on, resolved against that sales channel: on the account it creates, and on an existing account that has none yet, once the sign-in has been accepted and before any second factor (issue #652). A language the account already has is never replaced, and a failed capture is logged without failing the sign-in. `SocialIdentityDeps.autoCreateCustomer` and `CustomerSignInContext` accept an optional `preferredLanguage`.
+- 49b43de: **Breaking (0.x, so `minor`):** a sales representative's reach is no longer computed on every admin request (issue #955, owner ruling of 2026-11-10). `@endora-commerce/platform/tenancy` removes `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` — use `await orgInScope(id, ctx?)` and `await ruleInScope(ids, ctx?)`, or `const inScope = await orgScopeTest(ctx?)` for a synchronous predicate over rows you already hold — and `assignedOrganizationIdsForRanking(ctx?)` now returns a promise. They were removed rather than retyped because `if (!isOrgInScope(x))` over a promise is always false.
+
+  `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) replaces `excludedOrganizationIds` / `assignedOrganizationIds` with `loadReach(): Promise<{ excludedOrganizationIds, assignedOrganizationIds }>`, beside `excludedOrganizationsQuery`; the platform memoises it once per tenant context, and a failure rejects every helper that awaits it. `OrgConstraint`'s `excluded` arm and `AdminScopeInput` follow. `PreferenceActor`'s `salesperson.reaches(id)` returns `Promise<boolean>`, and `canManagePreference` (`quick_order`) is async. `adminTenantScopePort` (`organizations`) answers without calling `reachOf`. The listed modules move their call sites to the async helpers.
+
+- c67fa24: An organization's 2FA enforcement is now written through the Command Bus, from the storefront
+  (`PUT /api/v1/account/organization/mfa-policy`) and from the Admin UI
+  (`POST /api/v1/admin/organizations/:organizationId/mfa-policy`). The audit trail changes as
+  follows:
+
+  - each write records **one** entry instead of two: `mfa.org_enforced` on the `organization`,
+    written in the same transaction as the write;
+  - `mfa.set_org_enforcement` (object type `mfa_organization_policy`) is no longer written;
+  - `stateBefore` now carries the replaced value (`{ enforceTotp }`, or `null` for an
+    organization's first policy) instead of always `null`;
+  - the storefront administrator's write now records the acting customer account, where it
+    recorded no actor before.
+
+- b064fec: Documentation only. The module page (English and Polish) describes the two-step requirements: the last second factor cannot be switched off while one applies (`MFA_LAST_FACTOR_REQUIRED`), and without `MFA_SECRET_ENCRYPTION_KEY` none is in force and turning one on is refused (`MFA_ENFORCEMENT_UNAVAILABLE`).
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

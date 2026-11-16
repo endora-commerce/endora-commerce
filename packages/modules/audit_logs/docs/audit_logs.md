@@ -24,8 +24,22 @@ Gated by the `audit_log:read` permission.
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET /api/v1/admin/audit-log` | Query the log. Filters: `filter[actor]`, `filter[customer]`, `filter[action]`, `filter[objectType]`, `filter[objectId]`. Default `limit=100`, capped at 500. Each row carries `stateBefore` / `stateAfter` JSON inline so the admin viewer can render side-by-side diffs without a second roundtrip. A row also carries `actorCustomerAccountId` and `actorCustomerLabel`, the customer's audit label: the person as *First Last (e-mail)*, or the e-mail alone when the account has no name. An impersonated customer is named the same way. |
+| `GET /api/v1/admin/audit-log/recent-activity` | The dashboard's recent-activity feed (`limit` 1–12) |
+| `GET /api/v1/admin/audit-log/recent-activity/visibility` | Which modules' entries reach that feed — gated by `platform.modules.activate` instead |
+| `POST /api/v1/admin/audit-log/recent-activity/visibility/:moduleId` | Show or hide one module's entries in the feed (`{ visible }`), under `platform.modules.activate` |
+
+The same log is read from the host with the `audit_logs read` CLI
+(`pnpm --filter backend run audit:read -- [--actor] [--action] [--object-type] [--object-id] …`).
 
 ## Recording
+
+**What an entry holds.** The log is one platform-wide table read under `audit_log:read`
+without Organization reach, so an entry about a tenant's record (an Organization, a customer
+account, an address, a credit limit, an impersonation and the like) holds names and
+structure, never values: ids, codes, booleans, dates, counts and `changedFields` /
+`changedCustomFields`, the sorted names of what changed. Values such as names, e-mails,
+tax ids, amounts and reasons stay on the record itself. Entries written before a module
+adopted this rule are not rewritten. The rule is `specs/conventions/audit-state.md`.
 
 `AuditPort.record({ ... })` is invoked from every sensitive
 mutation: catalog price change, role change, credit-limit adjust, order
@@ -84,7 +98,7 @@ the erased values: they cannot be restored.
 
 **In the viewer.** The admin audit viewer shows an erased value as *Erased*,
 and the dashboard's recent activity never prints the marker as a name. The
-raw JSON, the `audit:read` CLI and any export show the stored `"[erased]"`.
+raw JSON, the `audit_logs read` CLI and any export show the stored `"[erased]"`.
 
 The writer of the table owns this write. It is the platform's
 `AuditRedactionPort`, registered as `auditRedactionService` beside

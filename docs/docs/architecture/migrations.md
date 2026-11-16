@@ -484,7 +484,7 @@ the Endora Commerce repository the same command is
 
 ## Ordering rules
 
-`orderMigrations()` (`backend/src/db/migration-order.ts`) is a pure function: same
+`orderMigrations()` (`packages/platform/src/db/migration-order.ts`) is a pure function: same
 inputs, same output, no database, no clock, no environment. The emitted order is the
 concatenation of **two blocks**.
 

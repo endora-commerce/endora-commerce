@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
 import { getSessionCookie } from '../../../lib/session';
 import { getServerContext } from '../../../lib/server-context';
-import { getMe, type MeResult } from '../../../lib/api/account';
+import { getMe, updatePreferredLanguage, type MeResult } from '../../../lib/api/account';
+import { fetchDictionary, type DictionaryRegistry } from '../../../lib/dictionary/client';
+import { EmailLanguageRow, emailLanguageFromForm } from '../../../components/account/EmailLanguageRow';
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
 import { getMyRole, type OwnRole } from '../../../lib/api/organization';
 import {
@@ -47,12 +49,12 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function AccountProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ pushSaved?: string; pushError?: string }>;
+  searchParams: Promise<{ pushSaved?: string; pushError?: string; languageSaved?: string; languageError?: string }>;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
   if (!session) return await localeRedirect('/login');
   const sp = await searchParams;
-  const { locale, ctx, modules } = await getServerContext();
+  const { locale, ctx, modules, urlState } = await getServerContext();
   const t = tForLocale(locale);
   // The push section (`specs/149-pwa-order-status-push/`) is read beside the
   // profile: the public config says what the channel offers, the preferences
@@ -62,7 +64,7 @@ export default async function AccountProfilePage({
   const ownRolePromise = mePromise.then((me) =>
     showsRole(me) ? getMyRole(session, ctx).catch((): OwnRole | null => null) : null,
   );
-  const [me, creditLimit, pwaConfig, pushPreferences, ownRole, unread] = await Promise.all([
+  const [me, creditLimit, pwaConfig, pushPreferences, ownRole, unread, dictionary] = await Promise.all([
     mePromise,
     getMyCreditLimit(session),
     fetchPwaConfig(ctx.salesChannelCode),
@@ -73,7 +75,15 @@ export default async function AccountProfilePage({
     modules.isPresent('customer_notifications')
       ? getUnreadNotificationCount(session, ctx.salesChannelCode, ctx.locale)
       : Promise.resolve(0),
+    // Issue #652 — the languages' own names for the e-mail-language row. A
+    // failed read leaves the codes as their labels.
+    fetchDictionary({ ctx }).catch((): DictionaryRegistry | null => null),
   ]);
+  const channelLanguages = urlState.languages.map((language) => language.languageCode);
+  const channelDefault =
+    urlState.languages.find((language) => language.isDefault)?.languageCode ?? channelLanguages[0] ?? locale;
+  const languageLabel = (code: string): string =>
+    dictionary?.languages.find((language) => language.code.toLowerCase() === code.toLowerCase())?.nativeLabel || code;
   const role = showsRole(me) ? (ownRole?.role ?? me.customerAccount.organizationRole) : null;
 
   return (
@@ -135,6 +145,18 @@ export default async function AccountProfilePage({
                 ? t('account.profile.twoFactorEnabled')
                 : t('account.profile.twoFactorDisabled')}</td>
           </tr>
+          {/* Issue #652 (D-292) — the language the buyer's e-mails are written in. */}
+          <EmailLanguageRow
+            locale={locale}
+            languages={channelLanguages.length > 0 ? channelLanguages : [channelDefault]}
+            defaultLanguage={channelDefault}
+            preferredLanguage={me.customerAccount.preferredLanguage ?? null}
+            labelOf={languageLabel}
+            editable={modules.isPresent('customers')}
+            saveAction={saveEmailLanguageAction}
+            saved={sp.languageSaved === '1'}
+            failed={sp.languageError === '1'}
+          />
           {/* A personal Organization is not a company: no row names it (issue #757). */}
           {isPersonalOrganization(me.organization) ? null : (
             <tr>
@@ -190,6 +212,23 @@ function RoleAllowsList({
  */
 function showsRole(me: MeResult): boolean {
   return isCompanyOrganization(me.organization);
+}
+
+async function saveEmailLanguageAction(formData: FormData): Promise<void> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session) return await localeRedirect('/login');
+  const language = emailLanguageFromForm(formData);
+  if (!language) return await localeRedirect('/account');
+  const { ctx } = await getServerContext();
+  let saved = true;
+  try {
+    await updatePreferredLanguage(session, ctx, language);
+  } catch {
+    saved = false;
+  }
+  // Outside the `try`: `redirect` throws by design.
+  return await localeRedirect(saved ? '/account?languageSaved=1' : '/account?languageError=1');
 }
 
 async function savePushPreferencesAction(formData: FormData): Promise<void> {

@@ -13,8 +13,9 @@ zawieszanie. Pierwszy użytkownik rejestrujący organizację otrzymuje jej rolę
 
 Trasy oznaczone *administrator organizacji* są zastrzeżone dla członka z rolą Administrator
 organizacji — sprawdza to serwer przez `organizationPermissionPort.isAdministrator` i odmawia
-z `403 FORBIDDEN`; żadne uprawnienie ich nie nadaje (zob. *Role* niżej). Trasy administracyjne
-platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
+z `403 FORBIDDEN`; żadne uprawnienie ich nie nadaje (zob. *Role* niżej). Odczyty administracyjne
+platformy (`GET /api/v1/admin/*`) przyjmują `customers:read` albo `customers:manage`, a zapisy
+wymagają `customers:manage`, chyba że wiersz podaje inny kod.
 
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
@@ -24,7 +25,7 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `POST /api/v1/auth/customer/logout` | klient | Zakończenie sesji |
 | `POST /api/v1/auth/password-reset/request` | anonimowy | Zawsze 202 (ochrona przed sprawdzaniem, czy konto istnieje) |
 | `POST /api/v1/auth/password-reset/confirm` | anonimowy | Użycie tokenu resetu z e-maila. Wykorzystanie tokenu wylogowuje konto ze **wszystkich** sesji, unieważnia pozostałe niewykorzystane tokeny resetu i wycofuje każde rozpoczęte, a niedokończone logowanie. |
-| `GET /api/v1/me` | klient | Bieżący klient (z `organizationRole` i `permissions`) i jego organizacja oraz `impersonation: { impersonatorAdminUserId }`, gdy administrator działa jako kupujący |
+| `GET /api/v1/me` | klient | Bieżący klient (z `organizationRole`, `permissions` i `preferredLanguage`, `null`, dopóki nieznany) i jego organizacja oraz `impersonation: { impersonatorAdminUserId }`, gdy administrator działa jako kupujący |
 | `POST /api/v1/me/password` | klient | Zmiana hasła (odrzucana przy błędnym `currentPassword`). Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `GET /api/v1/organizations/mine/members` | administrator organizacji | Lista członków, każdy z `organizationRole` |
 | `DELETE /api/v1/organizations/mine/members/:id` | administrator organizacji | Usunięcie członka (z ochroną ostatniego administratora) |
@@ -47,10 +48,14 @@ platformy (`/api/v1/admin/*`) są chronione przez `customers:manage`.
 | `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. pod tabelą), jak dla organizacji, która nie istnieje |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza zasięgiem przedstawiciela handlowego, jak przy odczycie |
 | `GET /api/v1/admin/organizations/:id` | administrator | Organizacja z listą członków (`updatedAt`, członkowie z `lastLoginAt` i `organizationRole`; `predefinedRoles` podaje role Administrator i Członek) |
-| `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `status` lub `vatStatus` i scalenie wartości pól niestandardowych (`customFieldValues`); opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne. Jeden wpis audytu, `organization.admin_patch`, zapisywany razem ze zmianą: kody statusu, statusu VAT i strategii realizacji przed zmianą i po niej oraz nazwy zmienionych pól (`changedFields`) i pól niestandardowych (`changedCustomFields`) — nigdy nazwa, adresy e-mail do potwierdzeń zamówień ani wartość pola niestandardowego |
+| `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `status`, `vatStatus`, `orderConfirmationEmails` lub `fulfilmentStrategy` (z `fulfilmentStrategyWarehouseOrder`) i scalenie wartości pól niestandardowych (`customFieldValues`); opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne. Jeden wpis audytu, `organization.admin_patch`, zapisywany razem ze zmianą: kody statusu, statusu VAT i strategii realizacji przed zmianą i po niej oraz nazwy zmienionych pól (`changedFields`) i pól niestandardowych (`changedCustomFields`) — nigdy nazwa, adresy e-mail do potwierdzeń zamówień ani wartość pola niestandardowego |
+| `DELETE /api/v1/admin/organizations/:id` | administrator (`customers:manage`) | Usunięcie miękkie (`204`); odrzucane z `409 ORGANIZATION_HAS_CHILDREN`, dopóki organizacja ma organizację podrzędną (zob. *Hierarchia organizacji*) |
+| `GET /api/v1/admin/organizations/:id/addresses` | administrator | Książka adresowa organizacji |
 | `POST /api/v1/admin/organizations/:id/members/invite` | administrator | Zaproszenie e-mailem (`{ email, roleId? }`, domyślnie rola Członek; z poziomu platformy) |
 | `POST /api/v1/admin/organizations/:id/members` | administrator | Bezpośrednie utworzenie członka z hasłem (`roleId?`, domyślnie rola Członek) i wartościami pól niestandardowych konta (`customFieldValues`) |
 | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | administrator | Przypisanie roli (`{ roleId, expectedUpdatedAt? }`) |
+| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/rollup` | administrator | Włączenie lub wyłączenie wglądu członka w organizacje podrzędne (`{ subtreeRollupEnabled, expectedUpdatedAt? }`) |
+| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId` | administrator | Edycja `firstName`, `lastName` lub `email` członka (co najmniej jednego; `expectedUpdatedAt?` → `409 VERSION_CONFLICT`, gdy nieaktualne) |
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | administrator | Usunięcie miękkie członka (z ochroną ostatniego administratora) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | administrator | Procedura awaryjna — nadanie istniejącemu członkowi roli Administrator |
 
@@ -71,8 +76,10 @@ podatkowe* niżej).
 
 ## Emitowane zdarzenia
 
-`organization.registered.v1`, `organization.verified.v1`, `organization.suspended.v1`,
-`organization.member_invited.v1`, `organization.member_role_changed.v1`,
+`organization.registered.v1`, `organization.verified.v1`,
+`organization.status_changed.v1` (`{ organizationId, newStatus }`, po zatwierdzeniu, odrzuceniu,
+zablokowaniu lub odblokowaniu), `organization_role.permissions_changed.v1` (`{ organizationId,
+roleId, added, removed }`, po zmianie uprawnień roli),
 `organization.converted_to_company.v1` (`OrganizationConvertedToCompanyEvent`: `{ eventId,
 occurredAt, organizationId, convertedAt }` — bez nazwy i bez NIP; wysyłane raz, po zatwierdzeniu
 zamiany), `organization.tax_id_changed.v1` (`OrganizationTaxIdChangedEvent`: `{ eventId,
@@ -81,12 +88,14 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
 
 ## Punkty rozszerzenia
 
-- **Wysyłka weryfikacji** — `email-verification-service.ts` udostępnia wymienny interfejs wysyłki
-  poczty; w kompozycji produkcyjnej zastąp wypisywanie do konsoli prawdziwym sterownikiem SMTP lub
-  SendGrid.
-- **Ochrona ostatniego administratora** — zapisana w `role-service.ts#changeRole` i
-  `invitation-service.ts#revoke`; nowe miejsca, w których „musi zostać co najmniej jeden
-  administrator”, dodawaj właśnie tam.
+- **Wysyłka weryfikacji** — trasa rejestracji wysyła e-mail weryfikacyjny szablonem
+  `email_verification`, gdy jest zdefiniowany, a w przeciwnym razie przez skomponowany `emailMailer`
+  (`EmailMailerPort`, z modułu `email`); `SMTP_URL` (albo `SMTP_HOST` + `SMTP_PORT`) decyduje, czy
+  jest to SMTP, czy wypisywanie do konsoli.
+- **Ochrona ostatniego administratora** — zapisana w Commandach modułu `customer_accounts`
+  `customer-account-change-role.command.ts` i `customer-account-remove-member.command.ts` oraz
+  w `organization-invitation-revoke.command.ts` tego modułu; nowe miejsca, w których „musi zostać
+  co najmniej jeden administrator”, dodawaj właśnie tam.
 - **Wartości pól niestandardowych z kodu po stronie serwera** — publikowany port
   `organizationCustomFieldWritePort` (zob. *Ustawianie wartości pól
   niestandardowych z kodu po stronie serwera* poniżej).
@@ -236,10 +245,15 @@ każdy kanał, w którym miała już zamówienia.
 
 ### W panelu administracyjnym
 
-- **Panel Kanały sprzedaży** — na stronie organizacji. Z uprawnieniem `customers:manage` to lista
-  wielokrotnego wyboru z przyciskiem **Zapisz kanały sprzedaży**; bez niego — lista tylko do odczytu.
-  Nieaktywne kanały są oznaczone *(nieaktywny)*, a domyślny kanał systemowy ma etykietę. Zapis pustego
-  wyboru jest odrzucany: *„Organizacja musi mieć przypisany co najmniej jeden kanał sprzedaży.”*
+- **Panel Kanały sprzedaży** — na stronie organizacji, z etykietą *Działa od razu* w nagłówku.
+  Z uprawnieniem `customers:manage` to lista pól wyboru, po jednym na kanał, a każde zaznaczenie lub
+  odznaczenie jest zapisywane od razu — panel nie ma własnego przycisku Zapisz i nie jest częścią
+  zapisu strony. Podczas zapisu panel o tym informuje (*„Dodawanie kanału Trade…”*) i do jego końca nie
+  przyjmuje kolejnej zmiany; zmiana, której nie udało się zapisać, przywraca pole wyboru i podaje
+  powód. Bez tego uprawnienia — lista tylko do odczytu. Nieaktywne kanały są oznaczone *(nieaktywny)*,
+  a domyślny kanał systemowy ma etykietę. Odznaczenie ostatniego kanału jest odrzucane: *„Organizacja
+  musi mieć przypisany co najmniej jeden kanał sprzedaży.”* Usunięcie kanału nie wymaga potwierdzenia:
+  ponowne zaznaczenie go przywraca.
   Każdy dodany lub usunięty kanał zapisuje jeden wpis w dzienniku audytu. Zmiana obowiązuje od razu na
   serwerze, który ją zapisał, a na każdym innym serwerze w ciągu 30 sekund.
 - **Nowa organizacja** — przycisk na liście organizacji i akcja w palecie poleceń (⌘K / Ctrl+K),
@@ -785,6 +799,7 @@ edycji.
 | --- | --- | --- | --- |
 | `organizations.moderation.mode` | wyliczenie `string` | `'manual'` | `manual` ⇒ pending_verification; `auto` ⇒ active od razu po rejestracji |
 | `organizations.notifications.new_registration_recipients` | tablica `json` | `[]` | Adresy e-mail powiadamiane o nowej organizacji |
+| `organizations.hierarchy.credit_inheritance_mode` | wyliczenie `string` | `'shared_pool'` | `shared_pool` \| `independent_default`: jak oddział bez własnego limitu kredytowego korzysta z limitu organizacji nadrzędnej (zob. *Hierarchia organizacji*) |
 | `organizations.registration.registry_lookup_enabled` | `boolean` | `false` | Pobieranie danych firmy z rejestru przy rejestracji (zobacz wyżej) |
 | `organizations.registration.registry_lookup_pl_sources` | wyliczenie `string` | `'gus_mf'` | Rejestry odpytywane o polski NIP: `gus_mf` \| `gus` \| `mf` |
 | `organizations.registration.gus_credentials` | `credential_ref` | `''` | Dane dostępowe GUS REGON (typ `organizations_gus_bir`) |
@@ -1312,6 +1327,45 @@ uruchamiają polecenia `customer_account.change_role` /
 i unieważnienie zaproszenia — `organization_invitation.create` /
 `organization_invitation.revoke`. Każde jest audytowane względem organizacji,
 z członkiem lub operatorem, który działał.
+
+## Jeden przycisk Zapisz na ekranie organizacji
+
+Ekran organizacji (`/organizations/:id`) ma **jeden przycisk Zapisz**, w nagłówku strony. Obejmuje
+każde ustawienie na ekranie, które się edytuje, a nie wykonuje:
+
+- własne ustawienia organizacji — status, status VAT, adresy e-mail potwierdzeń zamówień, strategię
+  realizacji, ograniczenia (dozwolone metody płatności, metody dostawy i magazyny) oraz pola
+  niestandardowe. Nie zapisują się już przy zmianie, przy opuszczeniu pola ani własnym przyciskiem;
+- panele dodawane przez inne moduły, każdy, gdy jego moduł jest włączony: **domyślne ustawienia
+  zamówień** (Szybkie zamówienia), **tryb prezentacji ceny** (Cenniki) i **negocjację cen** w
+  zapytaniach ofertowych (Zapytania ofertowe).
+
+Zapisz pokazuje „Zapisz”, gdy nie ma nic do zapisania, i „Zapisz 3 zmiany”, gdy jest, licząc razem
+własne zmiany organizacji i zmiany paneli.
+
+- **Najpierw wszystko jest sprawdzane.** Jeśli którakolwiek część zostanie odrzucona, nic nie jest
+  zapisywane, a wszystkie zmiany zostają; podsumowanie nad sekcjami wymienia każdą część z jej
+  problemami, z przyciskiem **Pokaż**, który do niej przechodzi.
+- **Najpierw zapisywana jest organizacja**, jedną zmianą zawierającą tylko to, co zmieniono — a zaraz
+  po niej ograniczenia, jeśli się zmieniły. Potem panele, jeden po drugim.
+- **Jeśli ktoś inny zmienił organizację od chwili otwarcia ekranu**, nic nie jest zapisywane: ekran
+  wczytuje aktualne wartości, odrzuca wszystkie niezapisane zmiany na stronie i o tym informuje.
+  Żaden panel nie jest zapisywany.
+- **Jeśli organizacja zostanie zapisana, a panel nie**, podsumowanie mówi, co zapisano, a czego nie
+  („Zapisano: Organizacja. Nie zapisano: Domyślne ustawienia zamówień — *powód*”). Panel, którego nie
+  zapisano, zachowuje zmiany, a kolejne Zapisz zapisuje tylko to, co nadal czeka.
+- **Moduł wyłączony**, gdy jego panel ma niezapisane zmiany: panel znika, jego zmiany są odrzucane, a
+  ekran o tym informuje.
+- **Opuszczenie strony** — link w inne miejsce panelu albo zamknięcie lub odświeżenie karty
+  przeglądarki — z niezapisanymi zmianami wymaga potwierdzenia.
+
+Bez `customers:manage` własne ustawienia organizacji są tylko do odczytu, a ekran pokazuje Zapisz
+tylko wtedy, gdy któryś z paneli możesz zmienić.
+
+**Co działa od razu.** Działania na organizacji nie są częścią zapisu. Są zapisywane w chwili użycia
+i nie ruszają niezapisanych zmian. Każda taka sekcja ma etykietę **Działa od razu**: zapraszanie i
+bezpośrednie dodawanie członków, lista członków, hierarchia, moderacja (zatwierdzenie, odrzucenie,
+blokada, odblokowanie), walidacja VAT, kanały sprzedaży, role i opiekunowie handlowi.
 
 ## Wpisy audytu
 

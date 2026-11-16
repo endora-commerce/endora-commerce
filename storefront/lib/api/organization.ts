@@ -85,11 +85,13 @@ export async function inviteMember(
 export async function acceptInvitation(
   token: string,
   payload: { password: string; firstName: string; lastName: string },
+  ctx?: RequestContext,
 ): Promise<AcceptInvitationResponse['data']> {
   const result = await apiMutate<AcceptInvitationResponse['data']>({
     method: 'POST',
     path: `/api/v1/organizations/invitations/${encodeURIComponent(token)}/accept`,
     body: payload,
+    ...(ctx ? { ctx } : {}),
   });
   if (!result.data) {
     throw new Error('Accept invitation returned no data.');

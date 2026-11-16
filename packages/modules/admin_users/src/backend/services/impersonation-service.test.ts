@@ -52,13 +52,17 @@ function build() {
     cookieValue: 'imp-1.raw',
     expiresAt: new Date('2026-11-06T12:00:00.000Z'),
   }));
-  const record = vi.fn(async () => {});
-  const em = { findOne: async () => ({ id: ADMIN_ID }) } as unknown as EntityManager;
+  // Issue #470 — the start is recorded within the reason store's transaction.
+  const record = vi.fn(() => ({}));
+  const em = {
+    findOne: async () => ({ id: ADMIN_ID }),
+    transactional: async <T>(fn: (tx: unknown) => Promise<T>) => fn({ create: () => ({ id: 'reason-1' }) }),
+  } as unknown as EntityManager;
   const service = new ImpersonationService(
     () => em,
     { createSession } as unknown as AuthSessionPort,
     customerAccounts,
-    { record } as unknown as AuditPort,
+    { recordWithin: record } as unknown as AuditPort,
   );
   const start = (customerAccountId: string, organizationId: string | null) =>
     service.start({

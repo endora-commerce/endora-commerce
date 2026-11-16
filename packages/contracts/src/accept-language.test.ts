@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAcceptLanguage } from './accept-language.js';
+import { parseAcceptLanguage, weightedAcceptLanguage } from './accept-language.js';
 
 /**
  * The q-weighted `Accept-Language` parse (feature 083, R9; moved here by issue #397
@@ -64,5 +64,29 @@ describe('parseAcceptLanguage — a q-weighted list, bounded (R9)', () => {
   it('caps after weighting, so a heavy tag written last survives the cap', () => {
     const filler = Array.from({ length: 15 }, (_unused, i) => `t${i};q=0.1`).join(',');
     expect(parseAcceptLanguage(`${filler},pl;q=0.9`)[0]).toBe('pl');
+  });
+});
+
+/**
+ * Issue #1011 — the same parse with its weights, for a consumer that has to tell `q=0`
+ * ("not acceptable", RFC 9110) from an ordinary tag: the storefront's locale redirect.
+ */
+describe('weightedAcceptLanguage — the parse with its weights', () => {
+  it('answers each tag with its q, in the order parseAcceptLanguage answers the tags', () => {
+    const header = 'en;q=0.2, pl;q=0.9, de;q=0, *';
+    expect(weightedAcceptLanguage(header)).toEqual([
+      { tag: '*', q: 1 },
+      { tag: 'pl', q: 0.9 },
+      { tag: 'en', q: 0.2 },
+      { tag: 'de', q: 0 },
+    ]);
+    expect(weightedAcceptLanguage(header).map((entry) => entry.tag)).toEqual(parseAcceptLanguage(header));
+  });
+
+  it('applies the same bounds and drops a malformed q', () => {
+    expect(weightedAcceptLanguage('de;q=,pl')).toEqual([{ tag: 'pl', q: 1 }]);
+    const filler = Array.from({ length: 15 }, (_unused, i) => `t${i};q=0.1`).join(',');
+    expect(weightedAcceptLanguage(filler)).toHaveLength(10);
+    expect(weightedAcceptLanguage(undefined)).toEqual([]);
   });
 });

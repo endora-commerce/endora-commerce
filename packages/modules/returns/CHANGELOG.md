@@ -1,5 +1,216 @@
 # @endora-commerce/mod-returns
 
+## 0.111.0
+
+### Minor Changes
+
+- d14a4fd: **Personal → company conversion.** An operator can turn a personal (B2C) organization into a company in place: same id, orders, carts, addresses and channels, now with a company name, legal name, tax ID, registered address and VAT status.
+
+  - **Command** `organization.convert_to_company` — one transaction. The tax ID is normalised and checked against the active tax-ID scope. The organization keeps its status; it is stamped approved by the operator when it never was. Its member stays its Administrator, and the conversion is refused when that is not so. `personalAccountId` is cleared and `convertedToCompanyAt` set. The audit records only which fields changed (`changedFields`), whether the approval was stamped, and the scope. Refusals: `409 ORGANIZATION_CONVERSION_REFUSED` (`not_personal`, `deleted`, `owner_not_administrator`; new in `ERROR_CODES`) and `409 ORGANIZATION_TAX_ID_EXISTS`. There is no reverse.
+  - **Admin API** `POST /api/v1/admin/organizations/:id/convert-to-company` (`adminOrganizationConvertToCompanyBodySchema`) under the new permission `organizations:convert-to-company`. With `validateTaxId: true` — which also needs `customers:manage`, the VAT validation's own permission — a VAT validation runs **after** the conversion commits; its outcome is returned as `vatValidation`, and a failing provider does not undo the conversion. The admin conversion form offers _Validate the tax ID after converting_ (ticked by default) only to an operator holding `customers:manage` and sends `validateTaxId: false` otherwise, so the default form is never refused `403`.
+  - **Port** `organizationCommandPort` (`OrganizationCommandPort.convertToCompany`) for admin routes and server code, never for a customer-facing route. **It checks no permission**: the caller is the gate. It runs with the ambient actor and runs no VAT validation.
+  - **Event** `organization.converted_to_company.v1` `{ eventId, occurredAt, organizationId, convertedAt }`, dispatched once on commit (`OrganizationConvertedToCompanyEvent`).
+  - **Returns** — a return of an order placed while the organization was personal is still a consumer withdrawal after a later conversion (`organizationWasConsumerAt`). The `isPersonalOrganization` dependency of the returns services takes the order's placement time as an optional second argument.
+  - To move the converted company's only member out, give a second member the Administrator role first, as for any company.
+
+- 15f5bca: Issue #470 (D-288) — return-case audit entries hold no amount and no free-text reason. A return case is `@OrgScoped`, and the platform audit log is read under `audit_log:read` without Organization reach.
+
+  - `return.settled` no longer records `amount`, `charges` (each charge's cap and approved amount), `recomputedDefaults` (line, from, to) or `lineCeilings` (line, default, ceiling). It records `refundedCharges` (charge kinds), `recomputedDefaultItemIds` and `ceilingBoundItemIds` instead. `resolutionType`, `currency`, `settlementState`, `correctiveInvoice` and the withdrawal flags stay.
+  - `return.status_changed` no longer records `reason`. It records `hasReason`. The reason is still passed to the status events. It is no longer stored anywhere.
+  - Audit entries written before the upgrade are not rewritten (owner ruling O-4).
+
+  **Behaviour change on upgrade.** On the platform **Audit log** screen and in `audit_logs read`, new return entries show no amounts, and a status change no longer shows the reason typed with it. See _Return amounts and reasons leave the platform audit log_ in the upgrade guide.
+
+- 1c3366d: Thirteen `returns` refusals have error codes of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #625, part of #86). **A caller that matches on
+  `VALIDATION_FAILED`, or on the reason in `details.code`, now sees the specific code.** The HTTP
+  status is unchanged. Until now the buyer and the operator read the thrower's English sentence
+  whatever language they asked for, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Route                                                                              | Was                                                                                                      | Is                                           | `details`                                                                    |
+  | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------- |
+  | `POST /api/v1/returns`                                                             | `422 VALIDATION_FAILED`, `details.code` `order_not_completing`                                           | `422 RETURN_ORDER_NOT_ELIGIBLE`              | `orderId`                                                                    |
+  | `POST /api/v1/returns`                                                             | `422 VALIDATION_FAILED`, `details.code` `qty_exceeds_returnable`                                         | `422 RETURN_QUANTITY_EXCEEDS_RETURNABLE`     | `orderItemId`, `requested`, `remaining`                                      |
+  | `POST /api/v1/returns`, a reason that exists but is switched off                   | `422 VALIDATION_FAILED`, `details.code` `unknown_reason`                                                 | `422 RETURN_REASON_INACTIVE`                 | `reasonId`                                                                   |
+  | `POST /api/v1/returns/:id/comments`, `POST /api/v1/admin/returns/:id/comments`     | `409 VALIDATION_FAILED`, `details.code` `case_terminal`                                                  | `409 RETURN_COMMENTS_CLOSED`                 | `returnCaseId`, `statusCode`                                                 |
+  | `POST /api/v1/returns/:id/select-delivery-method`, a finished case                 | `409 VALIDATION_FAILED`, `details.code` `case_terminal`                                                  | `409 RETURN_CASE_CLOSED`                     | `returnCaseId`, `statusCode`                                                 |
+  | `POST /api/v1/returns/:id/select-delivery-method`, a method not offered            | `422 VALIDATION_FAILED`, `details.code` `method_not_allowed`                                             | `422 RETURN_DELIVERY_METHOD_UNAVAILABLE`     | `returnDeliveryMethodId`                                                     |
+  | `POST /api/v1/admin/returns/:id/settlement`                                        | `409 VALIDATION_FAILED`, `details.code` `settlement_in_progress`                                         | `409 RETURN_SETTLEMENT_IN_PROGRESS`          | `orderId`                                                                    |
+  | `POST /api/v1/admin/returns/:id/settlement`, a line                                | `422 VALIDATION_FAILED`, `details.code` `refund_exceeds_paid`                                            | `422 RETURN_REFUND_EXCEEDS_PAID`             | `returnCaseItemId`, `requested`, `maximum` (two-decimal strings), `currency` |
+  | `POST /api/v1/admin/returns/:id/settlement`, the delivery or the payment surcharge | `422 VALIDATION_FAILED`, `details.code` `refund_exceeds_paid`                                            | `422 RETURN_REFUND_EXCEEDS_PAID`             | `code: 'delivery'` or `'surcharge'`, `requested`, `maximum`, `currency`      |
+  | `POST /api/v1/admin/returns/:id/settlement`                                        | `502 VALIDATION_FAILED`, message = the gateway's `failureReason`, `details.code` `gateway_refund_failed` | `502 RETURN_REFUND_GATEWAY_FAILED`           | `settlementState`, `failureReason`, `providerDetails`                        |
+  | `POST /api/v1/admin/returns/statuses`                                              | `409 VALIDATION_FAILED`, _Status "X" already exists._                                                    | `409 RETURN_STATUS_CODE_TAKEN`               | `statusCode`                                                                 |
+  | `PATCH /api/v1/admin/returns/statuses/:code`                                       | `409 VALIDATION_FAILED`, _Cannot mark "X" terminal while it has outgoing transitions._                   | `409 RETURN_STATUS_TERMINAL_HAS_TRANSITIONS` | `code: 'mark_terminal'`, `statusCode`, `outgoingCount`                       |
+  | `PUT /api/v1/admin/returns/transitions`                                            | `422 VALIDATION_FAILED`, _Terminal status "X" cannot have outgoing transitions._                         | `422 RETURN_STATUS_TERMINAL_HAS_TRANSITIONS` | `code: 'add_transition'`, `statusCode`, `toStatusCode`                       |
+  | `DELETE /api/v1/admin/returns/statuses/:code`                                      | `409 VALIDATION_FAILED`, _The initial status cannot be deleted._                                         | `409 RETURN_STATUS_NOT_DELETABLE`            | `code: 'initial'`, `statusCode`                                              |
+  | `DELETE /api/v1/admin/returns/statuses/:code`                                      | `409 VALIDATION_FAILED`, _Cannot delete status "X" while N case(s) use it._                              | `409 RETURN_STATUS_IN_USE`                   | `statusCode`, `caseCount`                                                    |
+
+  The status code travels as `details.statusCode`, because `details.code` is the slot for a
+  refusal's token. The gateway's own words are `details.failureReason` and never the sentence. An
+  unknown order line or return line, a reason id that names nothing (`unknown_reason`), a missing
+  refund payment method, a blank rejection reason and a transition naming a status that does not
+  exist stay `VALIDATION_FAILED`. The thirteen codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `returns` manifest, and the module's documentation
+  page lists them. No setting, permission or migration changes.
+
+- 42a9a4b: One sales-representative reach rule on every admin surface (issue #305, owner ruling 2026-11-07). A sales representative reaches every Organization not governed by another representative — the ones assigned to them (with `organizations:rollup`, their subtrees, the nearest assignment winning) and every Organization nobody is assigned to. `adminTenantScopePort` answers that reach as its complement, computed in one statement per request (`SalesRepAssignmentService.reachOf`), so the tenant-scoped reads and writes of every module, the Organizations list and its pickers, admin search and the Organization screens answer by the same rule. Every module that read the reach as a list of assigned ids now reads it through the platform's helpers.
+
+  `mod-orders`: `resolveAdminOrdersScope` answers `{ allowAll: boolean }` (was `{ allowAll: false, allowedOrganizationIds }`); the list's reach is the ambient tenant context's. `mod-customers`: `ResolveModerationActor` answers `{ adminUserId, isPlatformAdmin }` (was with `allowedOrganizationIds`).
+
+  **Behaviour change on upgrade.** Every sales representative gains the tenant data of every unassigned Organization — members, customers, orders, invoices, carts, returns, quote requests and customer-level settings — and, since no representative can be assigned to a personal Organization, of every B2C customer (confirmed by the owner on 2026-11-08). The Organizations list, its pickers and admin search stop showing Organizations assigned to other representatives. A sales representative with no assignment used to be treated as a platform administrator by the quick-order default-preference routes; they now manage only the Organizations they reach, and a write naming an Organization that does not exist answers `404 NOT_FOUND`. The read-only query in _Upgrading an instance_ ("One sales-representative reach rule on every surface") counts, per representative, what they gain and what leaves their lists.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- fc4585c: The return detail screen's **Reject** action asks for the rejection reason in a dialog instead of
+  the browser's `window.prompt()` (issue #311). The reason is a required, multi-line field: an empty
+  or whitespace-only reason, or one over 2000 characters, is refused in the dialog before anything is
+  sent, and the reason is sent trimmed. **Reject** is destructive and shows a busy state while the
+  request runs; an error from the server is shown in the dialog with the reason kept. Cancel and
+  Escape close the dialog and return focus to **Reject**. Every string is in the `returns` bundle in
+  English and Polish. No API change.
+- 4efb051: The module page lists the attachment route and documents that a consumer withdrawal is judged at the order's placement, also after a personal organization becomes a company. Documentation only.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [52831b7]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+  - @endora-commerce/email-components@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

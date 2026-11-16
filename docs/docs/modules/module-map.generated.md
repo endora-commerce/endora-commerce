@@ -25,13 +25,13 @@ of the platform, not of what happens to be written.
 | [Feedback](./admin-feedback.md) | Administrators send feedback from the admin to the makers of Endora Commerce, relayed as one e-mail and stored nowhere | @endora-commerce/mod-admin-feedback |
 | `admin_notifications` | _no page yet_ | @endora-commerce/mod-admin-notifications |
 | [Admin roles](./admin_roles.md) | Admin role definitions + per-module Permissions | @endora-commerce/mod-admin-roles |
-| [Global search](./admin-search.md) | Global search in the admin — find organizations, customers, orders, quote requests, sales opportunities, products and categories from the command palette, with configurable searchable fields | @endora-commerce/mod-admin-search |
+| [Global search](./admin-search.md) | Global search in the admin — find organizations, customers, orders, quote requests, sales opportunities, products, categories, projects and tasks from the command palette, with configurable searchable fields | @endora-commerce/mod-admin-search |
 | [Admin users](./admin_users.md) | Platform Administrator accounts + impersonation | @endora-commerce/mod-admin-users |
 | [Analytics](./analytics.md) | Storefront event ingest + admin aggregation + optional GA4 forwarder | @endora-commerce/mod-analytics |
 | [API keys](./api_keys.md) | Bearer-token integration credentials | @endora-commerce/mod-api-keys |
 | [Assets library](./assets-library/index.md) | Central digital-asset library with pluggable storage adapters, stable file URLs and permalinks, in-place file replacement, soft-delete with a retention sweep, and reference-protection guards | @endora-commerce/mod-assets-library |
 | [Audit log](./audit_logs.md) | Sensitive-action audit trail | @endora-commerce/mod-audit-logs |
-| [Authentication](./auth.md) | Customer + admin sessions, password hashing, TOTP | @endora-commerce/mod-auth |
+| [Authentication](./auth.md) | Customer and admin sessions, session last-seen tracking and the admin and customer route guards | @endora-commerce/mod-auth |
 | [Blog](./blog/index.md) | Editorial Posts with Page Builder bodies, taxonomy (Categories + Tags), and storefront feeds | @endora-commerce/mod-blog |
 | [Carts](./carts.md) | Customer shopping cart with anonymous→logged-in merge | @endora-commerce/mod-carts |
 | [Catalog](./catalog.md) | Products, variants, categories, attributes, sales channels | @endora-commerce/mod-catalog |
@@ -56,7 +56,7 @@ of the platform, not of what happens to be written.
 | [Import / export](./import_export.md) | CSV import / export for bulk-edit entities | @endora-commerce/mod-import-export |
 | [Inventory](./inventory.md) | Stock levels, reservations, availability notifications | @endora-commerce/mod-inventory |
 | [Invoice ledger](./invoice-ledger.md) | Shared vendor mutex, numbering and KSeF routing, and durable invoice deliveries for ledger adapters. | @endora-commerce/mod-invoice-ledger |
-| [Invoices](./invoices.md) | PDF invoice / proforma generation + asset linkage | @endora-commerce/mod-invoices |
+| [Invoices](./invoices.md) | VAT invoices, proformas and corrective invoices issued against orders, with PDFs rendered from document templates | @endora-commerce/mod-invoices |
 | [Languages](./languages.md) | Pool of supported BCP-47 language tags + translation-fallback helper | @endora-commerce/mod-languages |
 | [LinkedIn Ads](./linkedin-ads.md) | LinkedIn Insight Tag per sales channel, reporting storefront actions against Campaign Manager conversion rules | @endora-commerce/mod-linkedin-ads |
 | [Megamenu](./megamenu/index.md) | Configurable navigation tree with per-channel + per-language bindings | @endora-commerce/mod-megamenu |

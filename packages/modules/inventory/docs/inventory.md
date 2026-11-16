@@ -31,10 +31,11 @@ channel with that warehouse via the new
 
 ## Settings (Module Settings)
 
-Seven keys under the `inventory` group:
+Nine keys under the `inventory` group:
 
 | Code | Type | Default | Notes |
 | --- | --- | --- | --- |
+| `inventory.enabled` | boolean | `true` | The module's activation control (platform-wide); off keeps every warehouse, stock row and pending notification |
 | `inventory.display_mode` | string | `band` | Storefront display: `exact` / `band` / `available_or_not` |
 | `inventory.fulfilment_strategy` | string | `default_first` | `any` / `default_first` / `lowest_stock_first` / `highest_stock_first` / `defined_order` |
 | `inventory.fulfilment_strategy_warehouse_order` | json | `[]` | Walk order for `defined_order` strategy |
@@ -42,6 +43,7 @@ Seven keys under the `inventory` group:
 | `inventory.global_threshold_medium` | number | `20` | At-or-above for "medium" |
 | `inventory.global_threshold_low` | number | `1` | At-or-above for "low"; below is out-of-stock |
 | `inventory.low_stock_alert_recipient_email` | string | `''` | Empty falls back to env `INVENTORY_LOW_STOCK_RECIPIENT` |
+| `inventory.allow_negative_stock` | boolean | `false` | The global backorder gate, per sales channel: while `false`, no product accepts an order below its available stock whatever its `backorderEnabled` flag |
 
 ## Public surface
 
@@ -78,7 +80,7 @@ permission repairs each found in a module page.
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/storefront/inventory/display-mode` | anonymous | Which display mode the request's sales channel uses |
-| `GET /api/v1/storefront/inventory/stock/:id` | anonymous | Per-product stock with cumulative on-hand summed only over the caller's channel-bound warehouses (narrowed further by the caller's Organization warehouse allow-list when one is set); `404` for a product the caller may not see |
+| `GET /api/v1/storefront/inventory/stock/:id` | anonymous | Per-product stock with cumulative on-hand summed only over the caller's channel-bound warehouses (narrowed further by the caller's Organization warehouse allow-list when one is set); `404` for a product the caller may not see, judged at the request's channel and language (the `Accept-Language` tags heaviest `q` first, each matched against the channel's languages, else its default) |
 | `POST /api/v1/storefront/inventory/notify-when-available` | anonymous or signed-in | Subscribe an e-mail address (in the body) to a back-in-stock signal |
 | `POST /api/v1/catalog/products/:id/notify-when-available` | signed-in customer | Subscribe the customer's own e-mail address to a back-in-stock signal |
 
@@ -123,10 +125,10 @@ a production access log or the deployment owner confirms nothing calls it.
 
 ## Per-product flags
 
-Five new fields live on `products` and ride through `PATCH /api/v1/admin/catalog/products/:id`:
+Five new fields live on `products` and ride through `PATCH /api/v1/admin/catalog/products/:id`; the product editor's Inventory tab stages them and writes them with the editor's one Save, in `changes.product` of `PUT /api/v1/admin/catalog/products/:id/scoped-values`:
 
 - `manageStock` (default `true`) — when `false`, the storefront treats the product as always available and the cart/order paths skip reservation entirely.
-- `backorderEnabled` (default `false`) — when `true`, zero-stock checkout is accepted; the resulting `stock_allocations` row is flagged `is_backorder = true`.
+- `backorderEnabled` (default `false`) — when `true` and `inventory.allow_negative_stock` is on for the channel, zero-stock checkout is accepted; the resulting `stock_allocations` row is flagged `is_backorder = true`.
 - `lowStockThreshold` — optional integer; when null the product is exempt from low-stock alerts.
 - `fulfilmentStrategy` — per-product override of the global strategy.
 - `fulfilmentStrategyWarehouseOrder` — when the strategy is `defined_order`, the ordered list of warehouse UUIDs to walk.
@@ -151,13 +153,13 @@ Five strategies live in `fulfilment-strategy-resolver.ts`:
 | `highest_stock_first` | Pick the warehouse with the largest `available` (lex tie-break) |
 | `defined_order` | Walk the configured warehouse-id list in order; first sufficient wins |
 
-When `backorderEnabled = true`, all five strategies allow the line to go through with the residual flagged as a backorder against the first-choice warehouse.
+When `backorderEnabled = true` (and `inventory.allow_negative_stock` is on), all five strategies allow the line to go through with the residual flagged as a backorder against the first-choice warehouse.
 
 The order-placement path writes one `stock_allocations` row per order item. Cancelling the order gives that stock back: the release decrements `stock_levels.reserved` per allocation and stamps `released_at`. What starts it, and what happens when it cannot complete, is the next section.
 
 ## Reserve / release contract
 
-`OrderService.placeOrder` opens a `SELECT … FOR UPDATE` per `(product_id, variant_id, warehouse_id)` row inside the placement transaction. The default warehouse is resolved from `warehouse_channel_assignments` for the order's sales channel. Concurrent placers serialise; the loser raises `409 STOCK_UNAVAILABLE` unless `backorderEnabled = true` on the product, in which case the line goes through with `is_backorder = true`.
+`OrderService.placeOrder` opens a `SELECT … FOR UPDATE` per `(product_id, variant_id, warehouse_id)` row inside the placement transaction. The default warehouse is resolved from `warehouse_channel_assignments` for the order's sales channel. Concurrent placers serialise; the loser raises `409 STOCK_UNAVAILABLE` unless `backorderEnabled = true` on the product and `inventory.allow_negative_stock` is on for the channel, in which case the line goes through with `is_backorder = true`.
 
 A cancellation owes the release as a **follow-up**. The `orders` module records it in the same transaction as the cancelled status, attempts it in the same request, and retries it from a background sweep until it completes — so a release that fails no longer leaves a cancelled order holding stock with nothing able to give it back. The credit-limit release is recorded beside it and the two are independent: one failing does not hold the other. The `orders` module's page describes follow-ups, the notice on the admin order page and the operator command that repairs orders stranded by an earlier version.
 

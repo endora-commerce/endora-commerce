@@ -516,7 +516,10 @@ bez pamięci podręcznej, więc zmiana obowiązuje od następnego żądania.
 
 **Kto ją widzi i zmienia.** Obie kontrolki to panele na ekranach organizacji i klienta, widoczne
 dla ról z `customers:read`; zmiana wartości wymaga `customers:manage`, a bez niego kontrolka panelu
-jest nieaktywna. Rola, która ma `customers:manage`, ale **nie** ma `customers:read`, nie widzi
+jest nieaktywna. Panele nie mają własnego zapisu: wybór wartości czeka na zapis, a
+zapisuje go jeden przycisk Zapisz ekranu, po własnych zmianach organizacji lub klienta. Opuszczenie
+strony z niezapisaną wartością wymaga potwierdzenia. Na ekranie klienta wiersz „Obowiązuje: …” jest
+ukryty, gdy zmiana czeka na zapis, bo opisuje zapisaną wartość. Rola, która ma `customers:manage`, ale **nie** ma `customers:read`, nie widzi
 panelu. Opiekun handlowy sięga tylko do organizacji, które może widzieć; każdy inny identyfikator
 dostaje `404`. Organizacja bez przypisanego opiekuna handlowego jest widoczna dla każdego opiekuna
 (zob. *Model widoczności*), więc każdy opiekun może zmienić jej blokadę — a od zgłoszenia #305 także
@@ -593,6 +596,15 @@ Zapytania ofertowe przyjmują pola niestandardowe, definiowane na ekranie **Pola
 Pola te podążają za tym modułem: gdy `quote_requests` jest wyłączony, nie są tam wyświetlane, nie
 można ich tworzyć ani edytować i nie zwraca ich API definicji; pola, ich opcje i zapisane wartości
 są zachowane i wracają bez zmian po ponownym włączeniu modułu.
+
+**Na ekranie tworzenia zapytania ofertowego** operator z uprawnieniem `custom_fields:read` wypełnia
+pola niestandardowe zapytania, wysyłane jako `customFieldValues` w `POST /api/v1/admin/quote-requests`.
+Są sprawdzane według reguł administratora, zanim zapytanie dostanie numer i cokolwiek zostanie
+zapisane, a każde pole zapytania oznaczone jako `required` jest wymagane także wtedy, gdy żądanie nie
+wysyła żadnych wartości; odmowa to `422 CUSTOM_FIELD_VALUE_INVALID` (wpisy `details` `{ path, issue }`),
+pokazywana przy wskazanym polu, i nic nie powstaje. Wpis audytu `quote_request.create_on_behalf`
+podaje zapisane klucze (`changedCustomFields`), nigdy wartości. Zgłoszenie składane przez samego
+kupującego się nie zmienia.
 
 ### Wartości przenoszone do zapytania i z niego
 

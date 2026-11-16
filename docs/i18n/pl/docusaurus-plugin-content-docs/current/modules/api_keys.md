@@ -21,8 +21,9 @@ partnera dla przestrzeni `/api/v1/external/*`, którą w pełni opisuje przewodn
 | `DELETE /api/v1/admin/api-keys/:id` | administrator | Unieważnienie |
 
 Wywołania z zewnątrz uwierzytelniają się nagłówkiem `Authorization: Bearer sk_live_…`.
-`requireApiKey(scope)` i `requireBoundApiKey(scope)` to pre-handlery Fastify udostępniane przez
-plugin `api_keys`; trasy są nimi chronione (`requireApiKey('catalog:write')`,
+`requireApiKey(scope)` i `requireBoundApiKey(scope)` to pre-handlery Fastify, które moduł
+`api_keys` udostępnia jako porty (dlatego trasa innego modułu odpowiada `503 MODULE_DISABLED`, gdy
+ten moduł jest wyłączony); trasy są nimi chronione (`requireApiKey('catalog:write')`,
 `requireBoundApiKey('orders:write')` itd.).
 
 ## Wyliczenie zakresów

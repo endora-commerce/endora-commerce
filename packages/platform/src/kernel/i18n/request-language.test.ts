@@ -99,6 +99,18 @@ describe('createRequestLanguageResolver — the ladder always answers (B1, B3)',
     expect(await resolve(unsetAdmin)).toBe('en');
   });
 
+  it('answers a signed-in buyer in the header language, whatever the account stores (#652, D-292)', async () => {
+    // The account's `preferredLanguage` governs messages composed outside a
+    // request; the resolver has no dependency through which to read it, and a
+    // buyer is never asked about.
+    const resolve = createRequestLanguageResolver({ adminPreferredLanguage: neverAsked });
+    const request = requestWith({
+      actor: { kind: 'customer', customerAccountId: 'c-pl', preferredLanguage: 'pl-PL' },
+      headers: { 'accept-language': 'en-GB' },
+    });
+    expect(await resolve(request)).toBe('en');
+  });
+
   it('takes the buyer arm for an impersonating admin (B6)', async () => {
     // An admin impersonating a customer presents as `ActorCustomer` and is
     // looking at the storefront, so the storefront's ladder is the right one.

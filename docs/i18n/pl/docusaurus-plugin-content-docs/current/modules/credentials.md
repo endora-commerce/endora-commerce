@@ -34,6 +34,9 @@ typy:
 - **Email adapter** — dostawcy **SMTP**, **Amazon SES** i **SendGrid**. Każdy dostawca ma własny
   zestaw pól z dokładnie jednym sekretem (SMTP `password`, SES `secretAccessKey`, SendGrid `apiKey`).
 
+Inne moduły dodają własne typy, gdy są włączone — na przykład dane dostępowe rejestru GUS REGON
+modułu `organizations` i miejsca dostarczania feedów modułu `product_feeds`.
+
 Wybrany typ i dostawca decydują, jakie pola pokazuje formularz.
 
 ### Tworzenie konfiguracji
@@ -127,13 +130,18 @@ konkretnego `typeCode` / `providerCode` — znaczenie dostawcy zna kod, który z
 
 ### Rejestracja nowego typu (punkt rozszerzenia)
 
-Typ rejestruje się podczas instalacji dowolnego modułu, przez singleton wspólny dla całego procesu —
-**bez zmiany rdzenia modułu credentials** (bezpieczne także dla modułów nakładkowych):
+Typ rejestruje się w kompozycji dowolnego modułu, przy starcie, przez port
+`configurationTypeRegistry` (`ConfigurationTypeRegistryPort` w `@endora-commerce/contracts`) —
+**bez zmiany rdzenia modułu credentials** (bezpieczne także dla modułów nakładkowych). Zadeklaruj tę
+krawędź w manifeście — w `dependencies` albo jako wpis `nonBindingDependencies` rodzaju
+`contributes-to` wskazujący `configurationTypeRegistry`, jak robi to `organizations`; tak rejestrują
+swoje typy `organizations` i `product_feeds`:
 
 ```ts
-import { configurationTypeRegistry } from '@core/modules/credentials/services/registry-singleton.js';
+import type { ConfigurationTypeRegistryPort } from '@endora-commerce/contracts';
 
-configurationTypeRegistry.register({
+ctx.onBoot(() => {
+  lazyPort<ConfigurationTypeRegistryPort>(ctx, 'configurationTypeRegistry').register({
   code: 'sms_gateway',
   label: 'SMS Gateway',
   ownerModule: 'my_module',
@@ -147,6 +155,7 @@ configurationTypeRegistry.register({
       ],
     },
   ],
+  });
 });
 ```
 

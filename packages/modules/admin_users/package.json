@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-admin-users",
-  "version": "0.110.0",
+  "version": "0.111.0",
   "type": "module",
   "sideEffects": false,
   "description": "Admin user accounts, sessions, and impersonation flows.",
@@ -84,6 +84,7 @@
     "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@endora-commerce/test-kit": "workspace:*",
     "@fastify/cookie": "^11.0.2",
     "@fastify/type-provider-zod": "^1.0.0",
     "@mikro-orm/core": "^6.6.13",

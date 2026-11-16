@@ -57,6 +57,7 @@ list, which is why the tables keep their old names.
 | `price_list_precedence` | The versioned precedence: twelve cell codes, `category_before_attribute`, `depth_mode`, `state`. Version 1 = HY is installed active; there is no write path yet. |
 | `price_profiles`, `price_profile_prices`, `price_profile_stale_products` | The price surface and its refresh marks (below). |
 | `price_display_mode_overrides` | Display modes per organization, category and product. |
+| `price_list_value_changes`, `price_list_row_value_changes` | A book's own price-change history (issue #470): one row per Command that changed values — action, actor, time, the changed header values and the line count — and one line per price row it added, changed or removed, with the row's selection, quantity window and both sides of its price. Both are `@RuleScoped` like the book and cascade from it, so deleting a book deletes its history. Today only `priceBookRowWritePort` writes them (below). |
 | `cart_items.price_source` (`carts`), `order_items.price_source` (`orders`) | Which tier priced a line: `agreed`, `base`, `catalogue`, `buyer`, `sale`; `null` for a line priced before the release. |
 
 A product carries no price of its own: a product's price is its rows in the base book of each
@@ -397,9 +398,20 @@ before its start, `active` otherwise), so a book moved to a future start is `sch
 sweep starts it — and marks the price surface — at its instant; a draft and an expired book keep
 their status.
 
+**Table maintenance after bulk writes (issue #409).** A price-book row batch (the grid's save and
+its CSV import), a base-price write (`priceBookWritePort`, the PIM price import) and a book
+duplicate ask the BullMQ queue `price_lists.table-maintenance` for a `VACUUM (ANALYZE)` of
+`price_list_matrix_entries` and `price_list_product_lines`: a job delayed by one minute and
+deduplicated per table, so a burst of writes costs one vacuum per table. Its consumer runs one job
+at a time in a process that consumes queues and stops with the module; the write never waits for
+the request or fails on it. Without a worker, autovacuum remains the fallback.
+
 ## Admin API
 
 Base path `/api/v1/admin/price-books`. Reads need `price_lists:read`, writes `price_lists:write`.
+Product, category and attribute labels in the answers are in `?lang=` when it is given, otherwise in
+the operator's own language, `request.responseLanguage()` — the admin's stored preference, the
+language the admin panel renders in (issue #1011).
 Schemas are in `packages/contracts/src/price-books.ts`. Every write is one `CommandBus.run` with one
 audit entry on `objectType: 'price_list'` holding the state before and after; the audited actions
 are `price_list.create`, `update`, `channels_replace`, `activate`, `draftify`, `expire`,
@@ -421,6 +433,7 @@ are `price_list.create`, `update`, `channels_replace`, `activate`, `draftify`, `
 | `PUT /:id/rows` | One batch, one audited command: `{ expectedVersion, mode: 'merge' \| 'replace', upsert, delete }`, at most 5 000 rows. A row names its selection by ids (`selection`) or by natural key (`key`: `productSku`, `variantSku`, `categoryPath`, `attribute { key, valueCode }`). A row without an id whose selection and `minQuantity` equal a stored row's replaces it. |
 | `PUT /:id/rows?dryRun=true` | The same body, writing nothing: `{ version, resolved, diff { added, changed, removed, unchangedCount }, errors }`. Confirm by sending the same body without `dryRun`, with the version the preview answered. |
 | `GET /base-prices?productId=`, `PUT /base-prices/:productId` | A product's base prices per currency, `{ byCurrency: { CODE: { product: Tier[], variants: { [variantId]: VariantBaseRow \| null } } } }`; one command across currencies, creating a currency's base book on first use. A sales representative is `403` on the write. |
+| `PUT /base-prices/:productId?dryRun=true` | The same body, every rule of the write applied and nothing written — no Command, no audit entry: `{ data: { valid: true } }`, or the refusal the write would answer. The product editor's Save calls it before it writes anything. |
 | `GET /targets/organizations?search=` or `?ids=`, `…/customer-groups`, `…/categories`, `…/attributes`, `…/sales-channels?currency=`, `…/currencies` | The pickers. Organizations are filtered to the caller's scope; attributes are only the eligible `isPriceRule` ones, with their options. |
 | `POST /resolve` | The explanation: `{ salesChannelId?, currencyCode?, buyer { organizationId?, customerAccountId? }, lines [{ key, productId, variantId?, quantity }] }` (≤ 200 lines; no channel = the system default channel). Each line: `price { amount, currency, source, compareAt? }` or `null`, and `explanation { tier, cell, bookId, bookName, rowId, reference, precedenceVersion, candidates[] }`. An organization or customer the caller may not see answers the same `404` as an unknown one. A book outside the caller's scope (a representative meeting a parent organization's book through the chain, say) is not identified: when it set the price, the price, `tier`, `cell` and `reference` stay and `bookId`, `bookName` and `rowId` are `null`; as a runner-up it is left out of `candidates` before the list is cut to ten, so it takes no visible runner-up's place. |
 | `GET /precedence` | The active version: `version`, `cells`, `categoryBeforeAttribute`, `depthMode`, `preset`. |
@@ -472,7 +485,11 @@ offer.
 | `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | For the viewer (the session's organization and customer, else a guest): `resolvedPrice { basePrice, salePrice, baseListId, saleListId, displayMode, currencyCode, quantityBracket, source, compareAt, listPrice? }`. `basePrice` is the viewer's **regular** price — buyer, catalogue or base — and `salePrice` is set only when a sale is charged; `listPrice` only when `pricing.show_list_price` is on and the everyone price is above the price charged. Amounts are decimal strings (`{ amount, currency }`). A product no book prices for the viewer is **unpriced**: `baseListId`, `basePrice` and `quantityBracket` are all `null`, never an empty-string id (`resolvedPriceEngineSchema` in `packages/contracts/src/price-lists.ts` holds the three to null together or set together). A product whose display mode is `none` for the viewer answers the same way, with `salePrice`, `saleListId`, `source` and `compareAt` `null`, no `listPrice` and `displayMode: 'none'` (issue #491). |
 | `GET /api/v1/storefront/pricing/display-mode/:productId` | The display mode alone. |
 
-Both are resolved for the viewer and derive it through one function. A response resolved for an
+Both are resolved for the viewer and derive it through one function. Both first ask whether the
+product is available at the request's sales channel and language, and answer `404` when it is not;
+the language is the request's `Accept-Language` tags heaviest `q` first, each matched against the
+channel's languages (exactly, then by base language), else the channel's default —
+`requestScopeLanguage` from `@endora-commerce/contracts` (issue #1011). A response resolved for an
 organization carries `Cache-Control: private, no-store`; the anonymous one is unstamped. Catalogue
 listings and search hits carry the same answer in `ProductSummary.resolvedPrice`, so the storefront
 does not call `resolved-price` per card.

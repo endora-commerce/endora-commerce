@@ -1,5 +1,0 @@
----
-'@endora-commerce/mod-quick-order': patch
----
-
-**The quick-order type-ahead and the buyer's build to a quote request read `Accept-Language` as a q-weighted list matched against the sales channel's languages** (issue #1011). `GET /api/v1/quick-order/search` and `POST /api/v1/quick-order/build` with target `quote_request` took the header's first tag alone as the language a product's availability is judged in, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` asked about English and `de-DE, pl;q=0.5` about the channel default: a product available only in Polish was not found by the type-ahead, and a build naming it was refused with `404`. The language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. The type-ahead's hit names follow the same language. A request without the header behaves as before.

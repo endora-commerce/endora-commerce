@@ -6,7 +6,7 @@ description: Customer postal addresses with default-per-kind invariant
 # Addresses (`addresses`)
 
 Customer postal addresses scoped to an Organization. Each address has a
-`kind` (`shipping`, `billing`, `delivery`) and a per-kind default flag.
+`kind` (`delivery` or `billing`) and a per-kind default flag.
 
 This is **every customer's one address book**: a company's, and an
 individual's personal organization's. Checkout offers and saves to it, and the
@@ -21,7 +21,7 @@ separate personal address book `customers` used to keep is retired.
 | `GET /api/v1/organizations/mine/addresses` | List own Organization's addresses |
 | `POST /api/v1/organizations/mine/addresses` | Create; `isDefault=true` atomically demotes the previous default of the same kind |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | Update |
-| `DELETE /api/v1/organizations/mine/addresses/:id` | Delete (rejected if referenced by an order via `409 ADDRESS_IN_USE`) |
+| `DELETE /api/v1/organizations/mine/addresses/:id` | Delete (`204`). A soft delete: orders placed to the address keep their own snapshot of it |
 
 The routes are served by `organizations`. Creating, updating and deleting need
 the **`addresses.manage`** organization permission, which this module declares
@@ -46,14 +46,24 @@ address of the organization, including the ones already deleted (`-` for the
 recipient, street, city and postal code; no phone; not default; the country
 kept), soft-deletes it (a deleted address keeps its deletion date) and writes one
 `address.anonymized` audit entry per address, with no actor. The entry records
-only the organization, the kind and whether the address was already deleted. An
-address already blanked is skipped, so a second call changes nothing.
+only the kind, whether the address was already deleted and when it was blanked.
+An address already blanked is skipped, so a second call changes nothing.
 `customers`' retention sweep calls it when it scrubs an individual's personal
 organization. Orders keep their own address snapshots.
 
 `addressReadPort.listIdsForOrganization(organizationId, { includeDeleted })`
 lists the ids of the organization's addresses, the deleted ones too when
 `includeDeleted` is `true`.
+
+## Audit log
+
+Creating, updating, deleting and anonymizing an address each write one entry to
+the platform audit log, recorded against the address by id. Everybody holding
+`audit_log:read` reads that log, whatever organizations they may see, so an
+entry records names, not values (issue #470): the kind of address and the names
+of the fields that changed (`changedFields`, for example `['phone', 'street']`).
+It never holds the recipient, the street, the city, the postal code, the phone
+or the organization's id. Entries written before this rule are not rewritten.
 
 ## Entities
 

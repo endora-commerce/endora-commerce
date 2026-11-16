@@ -182,8 +182,8 @@ Weights are advisory but reviewers expect new actions to land in the appropriate
 ## Icon allowlist
 
 Allowed icon names are an enum in `packages/contracts/src/admin-actions.ts`. Adding a new
-icon is a one-line PR that edits both the enum and the admin shell's `icon-map.ts`
-(`@endora-commerce/admin-shell`, `src/lib/admin-actions/icon-map.ts`).
+icon is a one-line PR that edits both the enum and the admin design system's `icon-map.ts`
+(`@endora-commerce/admin-kit`, `src/lib/admin-actions/icon-map.ts`).
 
 ## Which actions exist
 

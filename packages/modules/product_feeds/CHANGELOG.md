@@ -1,5 +1,213 @@
 # @endora-commerce/mod-product-feeds
 
+## 0.111.0
+
+### Minor Changes
+
+- 37532da: Issue #414 — a product feed can now be pinned to a price book in the Admin UI. The _Prices_ section of a feed's _Settings_ tab carries a _Price book_ picker: _No price book_ (catalogue prices), then the price books in the feed's currency that would publish for the feed now, then — disabled, with the reason beside the name — the ones that would not (not active, outside its dates, not on the feed's sales channel, not for everyone). The book the feed is already pinned to stays selectable whatever its state, its reason is stated under the field, and saving the other settings no longer resends an unchanged pin, so a pin to a deleted book does not block them.
+
+  - **`@endora-commerce/contracts`** adds `productFeedPriceBookOptionSchema` (`id`, `name`, `isBase`, `unpublishableReason` — a `pinnedPriceBookUnpublishableReasonSchema` value or `null`), its type `ProductFeedPriceBookOption`, and `productFeedPriceBookOptionsResponseSchema`.
+  - **`@endora-commerce/mod-product-feeds`** adds `GET /api/v1/admin/product-feeds/:id/price-book-options`, gated on `product_feeds:read` and `price_lists:read`: every book in the feed's currency plus the pinned one whatever its currency, each with the answer `namedListPublishability` gives for the feed's channel and currency. Without `price_lists:read` the picker is shown disabled and says which permission it needs. The _pinned book no longer exists_ warning now points at the Settings tab instead of the API.
+  - **`@endora-commerce/mod-price-lists`** — its documentation no longer says a feed can be pinned only through the API.
+
+  Additive; no migration.
+
+- c55dcf5: The feed form's three state refusals have error codes of their own instead of `VALIDATION_FAILED`,
+  and a sentence in English and Polish (issue #631, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for these refusals now sees the specific code.** The HTTP status is unchanged.
+  Until now each was answered with an English `field: message` text in every language, because the
+  error envelope never replaces the message of `VALIDATION_FAILED`, and the allowed currencies were
+  written into that text.
+
+  | Route                                                                                                                         | Was                                                                                                                                 | Is                                      | `details`                                                                                  |
+  | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
+  | `POST /api/v1/admin/product-feeds`, `PATCH /api/v1/admin/product-feeds/:id`                                                   | `400 VALIDATION_FAILED`, _"languageCode: is not an active language on this installation"_ (the language exists but is switched off) | `400 PRODUCT_FEED_LANGUAGE_INACTIVE`    | `field: "languageCode"`, `languageCode`                                                    |
+  | `POST /api/v1/admin/product-feeds`, `PATCH /api/v1/admin/product-feeds/:id`                                                   | `400 VALIDATION_FAILED`, _"currencyCode: is not offered by this sales channel (…)"_                                                 | `400 PRODUCT_FEED_CURRENCY_NOT_OFFERED` | `field: "currencyCode"`, `currencyCode`, `salesChannelId`, `allowed` (comma-joined string) |
+  | `POST /api/v1/admin/product-feeds`, `PATCH /api/v1/admin/product-feeds/:id`, `POST /api/v1/admin/product-feeds/:id/duplicate` | `400 VALIDATION_FAILED`, _"slug: is already used by another feed"_                                                                  | `400 PRODUCT_FEED_SLUG_TAKEN`           | `field: "slug"`, `slug`                                                                    |
+
+  A language code that names no language at all stays `400 VALIDATION_FAILED` with
+  `details.field: "languageCode"`; its message is now _"languageCode: no such language"_. A refused
+  HTTP delivery URL also stays `VALIDATION_FAILED` with `details.reason: "delivery_target_refused"`.
+  The three codes are members of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the
+  `product_feeds` manifest, and the module's documentation page names them. No setting, permission or
+  migration changes.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 4b35acd: Development dependency `basic-ftp` raised from 6.2.1 to 6.2.4, the release that fixes GHSA-5pm8-86m8-9m6r (an MLSD listing fact named `__proto__` failed the listing) and GHSA-r4jh-29pc-gfqr (control characters in a password or resumed-download path could terminate the process; a rejected `PASS` error included the password). The peer range stays `^6`; a host that installs `basic-ftp` itself should resolve 6.2.4 or later.
+- 2e603f7: Admin screens confirm destructive and consequential actions in the kit's `ConfirmDialog` rather
+  than the browser's `window.confirm()` (issue #313). This covers deleting, revoking, removing and
+  resetting across these modules, switching a module off on the Modules screen, undoing a bulk
+  edit, making a sales channel the default, and preparing a customer's basket from a quote. The
+  dialog names the action on its confirm button (for example _Delete_, _Revoke_, _Unassign_), and a
+  destructive question opens with focus on Cancel.
+
+  The three native `alert()` calls are now notices on the page: deleting an attachment type that is
+  still in use (`catalog`), unassigning a channel's default warehouse (`inventory`), and activating a
+  megamenu binding that replaces another (`megamenu`, announced through a live region). Renaming a
+  setting group (`settings`) uses a one-field dialog instead of `prompt()`. Removing a colour from
+  the page builder's palette (`page-builder-admin`) is confirmed inline in its row, because the
+  palette is already a modal.
+
+  Several of these questions were untranslated English literals. They are now bundle keys in
+  English and Polish: the country, currency and language deletes (`dictionaries`), the e-mail block
+  and template deletes (`transactional_emails`), the setting-group delete and rename and the setting
+  reset (`settings`), and the sales-channel delete and rebind questions (`sales_channels`). The
+  assets-library folder delete no longer says "OK = … / Cancel = …". `mod-i18n` adds
+  `common.confirm.title` and the subscription-cancel button labels.
+
+  Two native dialogs stay on purpose: the unsaved-changes navigation guard
+  (`use-unsaved-changes-prompt`), which has to answer synchronously inside the click it intercepts,
+  and the settings screen's discard-on-channel-switch guard, which is the same kind of guard. They
+  will be replaced together in a later change.
+
+- ae1cedf: Feed template and run-issue replies are described by their contract (issue #599, section 6):
+
+  - `feedTemplateSchema` declares `fieldCount` (optional). Every template reply has answered it: the list, the detail, create, update, duplicate and import. The admin template list, the start-from page and the create-feed page read it, and the contract did not declare it.
+  - `feedTemplateListResponseSchema` makes `pagination` optional. `GET /api/v1/admin/feed-templates` answers the whole list as `{ data }` and has never sent `pagination`, which the schema required.
+  - New `feedTemplateSaveWarningSchema` / `FeedTemplateSaveWarning` and `feedTemplateUpdateResponseSchema` / `FeedTemplateUpdateResponse` describe `PUT /api/v1/admin/feed-templates/:id`, which answers `warnings` beside `data`. New inferred types `FeedTemplateResponse`, `FeedTemplateListResponse`, `ImportFeedTemplateResponse` and `FeedRunIssueListResponse` cover the existing schemas.
+  - `mod-product-feeds` builds template, template-field and run-issue replies as the contract's `FeedTemplate`, `FeedTemplateField` and `FeedRunIssue` instead of `Record<string, unknown>`. The template and run-issue routes declare their reply types. The admin API module's `FeedTemplateFieldDto` and `TemplateSaveWarning` are now aliases of the contract types instead of hand-written copies. Nothing on the wire changes.
+
+- 51b4e5c: Documentation only: the page names the price-book picker's route, its permissions and what it answers, in English and Polish.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

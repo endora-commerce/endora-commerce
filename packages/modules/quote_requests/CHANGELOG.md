@@ -1,5 +1,469 @@
 # @endora-commerce/mod-quote-requests
 
+## 0.111.0
+
+### Minor Changes
+
+- aa3e255: The `quote_request_operator_submitted` and `quote_request_operator_resubmitted` e-mails link into
+  the admin panel (issue #1204, spec 179 OQ-1). With `ADMIN_BASE_URL` set, they send the new
+  variable `quote.adminUrl`. That is `<ADMIN_BASE_URL>/quote-requests/<id>`, the address of the bell
+  entry. The default templates, in English and Polish, show an **Open the quote request** /
+  **Otwórz zapytanie ofertowe** button to it. With `ADMIN_BASE_URL` unset the variable is not sent
+  and the button is left out. A relative or guessed link is never sent. A customised template that
+  does not name `quote.adminUrl` renders as before. The manifest declares the variable for the
+  template editor.
+- f39d37f: The admin create on behalf accepts custom-field values (`specs/175-buyer-input-custom-fields/`).
+
+  - `POST /api/v1/admin/quote-requests` validates `customFieldValues` with the administrator's rules before the request is numbered or anything is written, and stores them on the new quote request; a refusal answers the existing `422 CUSTOM_FIELD_VALUE_INVALID` (`details` entries `{ path, issue }`) and creates nothing, and the `quote_request.create_on_behalf` audit after-state names the stored keys, sorted, as `changedCustomFields` — never their values. The create on behalf now enforces `required` quote-request definitions, **also when the request sends no values**. A buyer's own submission is unchanged. With the module switched off the route answers as absent, as before.
+  - The create-quote-request screen embeds the custom-field panel (shown with `custom_fields:read`), sends its bag as `customFieldValues` and shows a refusal at the field it names (read through `@endora-commerce/admin-kit`'s `customFieldErrorsOf`).
+  - The manifest exports `customFieldWrites`: the create on behalf and the update `PATCH /api/v1/admin/quote-requests/:id`.
+
+- 1ea60b3: Quote request changes now reach the buyer's storefront notification centre (issue #238,
+  `specs/179-rfq-and-customer-notifications/` WP-08). A new delivery channel, `customer_in_app`,
+  writes one entry per recipient into the `customer_notifications` module through its published
+  `customerNotificationRecordPort`.
+
+  - **Who gets an entry.** The requester and every member of the request's Organization who may
+    open it, at every change except completion. The buyer whose own action caused the change
+    (submitting, re-submitting, accepting or rejecting an offer) gets the e-mail but no entry.
+  - **What it says.** One sentence that names the request by number only, with a link to the
+    request's storefront page (`/quote-requests/<id>`). The sentence is stored in English and as
+    the key `customerNotifications.<change>.title` of this module's bundle (new keys, en and pl),
+    and the centre translates it into the language the buyer reads in.
+  - **Where it shows.** On the request's own sales channel only, or on every channel when the
+    request has none. The entry belongs to the request's Organization.
+  - **Delivery.** The worker writes the entry in the delivery record's own transaction, so it is
+    recorded exactly once. The 24-hour freshness window and the retry ladder are the same as for
+    the other channels. A recipient who has been deleted, blocked or anonymised, has left the
+    Organization or may no longer open the request is skipped (`skipped_no_recipient`).
+  - **Module off.** A new `degrades-without` edge on `customer_notifications`. While the centre is
+    switched off, quote requests keep working and the record closes as `skipped_module_off`. No
+    entry is written then or later, after the centre is switched back on.
+
+- eedda68: Quote request changes now push to the buyer's devices (issue #238, `specs/179-rfq-and-customer-notifications/` WP-10). A new delivery channel, `customer_push`, goes through `pwa`'s published `customerPushPort`. It is the last channel of the notification matrix to get a delivery, so every channel is now recorded.
+
+  - **Who gets a push.** The requester and every member of the request's Organization who may open it, at every change except completion. These are the same people the customer e-mail and the notification centre reach. The buyer whose own action caused the change (submitting, re-submitting, accepting or rejecting an offer) gets the e-mail but no push.
+  - **What it says.** The title is the new bundle key `customerPush.title` ("Quote request update", en and pl). The body is the notification centre's sentence, `customerNotifications.<change>.title`, which names the request by number only. Both are rendered in the request's sales channel default language, or the system default channel's for a request raised with none (Polish or English; English for any other language). The push opens `/quote-requests/<id>`.
+  - **Delivery.** The worker re-checks the recipient as it does for the centre. It then hands `pwa` the push with the delivery record's id as the idempotency key, so a retry after a crash writes no second push. `pwa`'s answer closes the record: `sent`; `skipped_preference` (quote updates turned off); `skipped_no_subscription` (no device on the channel); `skipped_no_recipient` (account gone); `skipped_deactivated` (push or quote pushes switched off for the channel). The 24-hour freshness window and the retry ladder are the same as for the other channels. The History shows each push's outcome.
+  - **Module off.** A new `degrades-without` edge on `pwa`. While `pwa` is switched off, quote requests keep working and the record closes as `skipped_module_off`. No push is sent then or later, after `pwa` is back.
+
+- ac56d6d: The admin _History_ of a quote request lists the notifications each entry sent (issue #238,
+  `specs/179-rfq-and-customer-notifications/` WP-06).
+
+  - **API.** `GET /api/v1/admin/quote-requests/:id/history` now returns a `deliveries` array on
+    every entry that has notification records. It still requires `rfqs:handle`. Each delivery has
+    the recipient (kind, id, and a display name read when the History is loaded, or `''` once the
+    person is gone), the channel, the status, the number of attempts, the last error and when it
+    closed. An entry with no records has no `deliveries` key. The buyer's
+    `GET /api/v1/quote-requests/:id` never returns any of this.
+  - **Admin screen.** Under such an entry, the History tab shows who was told, through which
+    channel, and the outcome: sent, pending, failed, or skipped with the reason. A failed delivery
+    shows its last error behind _Show error_.
+  - **Labels.** `rfq.detail.history.delivery.*` keys are added to the `core` bundle in English and
+    Polish.
+
+  Until the delivery worker ships in a later release, every new record shows as _Pending_.
+
+- 2b90026: Quote request notifications are delivered (issue #238,
+  `specs/179-rfq-and-customer-notifications/` WP-05). Until now the records were written and
+  nothing read them. A new worker delivers them through the admin bell and e-mail, and every
+  outcome is stored on the record and shown on the request's _History_.
+
+  - **Worker.** It runs on the BullMQ queue `quote_requests.notifications.deliver`, on a schedule
+    every minute and whenever a transition kicks it after committing. Each tick delivers up to 200
+    due records. Each record is delivered in its own transaction, locked
+    `for update skip locked`, so several worker processes can share the table. A tick with nothing
+    due opens no system scope. The consumer is registered through `ctx.worker`, so while
+    `quote_requests` is off nothing is delivered and the records stay `pending`.
+  - **Outcomes.** A record whose change is more than 24 hours old closes as `skipped_stale` and
+    nothing is sent. A record whose channel's module is off closes as `skipped_module_off`. A
+    recipient who no longer qualifies closes as `skipped_no_recipient`: an inactive administrator
+    or one without `rfqs:handle`, or a deleted, blocked or anonymised account, one that left the
+    Organization, or one that may no longer open the request. A failed attempt is retried after
+    1 minute, 5 minutes, 30 minutes and 2 hours. The fifth failure closes the record as `failed`
+    with its last error.
+  - **Admin bell.** Operators get a bell entry when a buyer submits or re-submits a request,
+    accepts or rejects an offer, and when a request expires. The entry names the request by number
+    only and links to its admin screen. It is written in the record's transaction, so it is
+    recorded exactly once. The entry's title uses the new keys `notifications.<change>.title` (en,
+    pl) of this module's bundle. A new `degrades-without` edge on `admin_notifications`: with the
+    bell off, quote requests keep working and nobody gets a bell entry.
+  - **E-mail.** Eleven new operator-editable e-mails, in English and Polish, in the
+    _Quote requests_ group. The buyer side gets one at every change except completion:
+    `quote_request_customer_submitted`, `_resubmitted`, `_offer_accepted`, `_offer_rejected`,
+    `_expired`, `_prepared`, `_revised`, `_approved` and `_canceled`. These are written in the
+    default language of the request's sales channel and link to the request on that channel's
+    storefront address (`sales_channels.storefront_url`). Without a storefront address there is no
+    link. The approval e-mail carries no PDF. Operators get `quote_request_operator_submitted` and
+    `quote_request_operator_resubmitted`, in their preferred admin language, with no link for now.
+    Each message uses the record's id as its message id, so a retry after a crash is refused by the
+    transport as a duplicate. An e-mail switched off on the templates screen closes its records as
+    `skipped_deactivated`. A platform with no mail server closes them as `skipped_no_transport` or
+    `skipped_logged`.
+
+  **Behaviour change on upgrade.** All eleven e-mails are switched on by default. From this release
+  on, buyers and the operators who handle their requests are e-mailed about quote request changes.
+  Switch off any e-mail you do not want on the e-mail templates screen before upgrading. The
+  customer notification centre and push notifications follow in later releases.
+
+- e0bc2b6: Quote request notification records name new recipients (issue #238,
+  `specs/179-rfq-and-customer-notifications/` WP-03). The records are still not delivered; the
+  delivery worker comes with a later release.
+
+  - **Buyer side.** The account that raised the request, and every member of its Organization who
+    may open the request on the storefront. Today that is a member holding the Organization's
+    _Administrator_ role. A member who holds only _Member_ rights and did not raise the request is
+    not recorded. Deleted, blocked and anonymised accounts are skipped. A requester who is also an
+    _Administrator_ is recorded once per channel. In a personal Organization only the requester is
+    recorded.
+  - **Operator side.** The administrator the request is assigned to, plus the representatives
+    assigned to the Organization. Each one is kept only while active and holding `rfqs:handle`. The
+    full-access role counts. When nobody remains, every active administrator holding `rfqs:handle`
+    is recorded. Before this change every administrator was recorded, whatever their permissions.
+  - The storefront check that lets a member see every quote request of their Organization uses the
+    same rule. It reads the Organization's _Administrator_ role through `organizationRoleReadPort`
+    and no longer asks `organizationPermissionPort.isAdministrator`. Who sees what is unchanged.
+
+  The module now resolves `organizationRoleReadPort` (`organizations`) and `permissionService`
+  (`admin_roles`). Both owners are already among its dependencies.
+
+- 8bab40b: Quote request notification records are redesigned (issue #238,
+  `specs/179-rfq-and-customer-notifications/` WP-02). The migration
+  `Migration20261113T081826QuoteRequestsNotificationsRedesign` drops the table
+  `quote_request_notification_events` and creates `quote_request_notifications`, which holds one
+  delivery record per history entry, recipient and channel. **The rows of the old table are
+  discarded.** Nothing ever delivered them, and none of them would still be sent under the 24-hour
+  limit. Its `down()` re-creates the old table, empty.
+
+  The entity `QuoteRequestNotificationEvent` is replaced by `QuoteRequestNotification`. Its channel
+  and status vocabularies are new: five channels (`customer_email`, `customer_in_app`,
+  `customer_push`, `admin_in_app`, `admin_email`) and a `pending` status with one closing status per
+  outcome.
+  `RfqNotificationService.enqueue(input, within?)` is replaced by `record(within, { change,
+sourceEvent, rfq, actor })`. It writes one record for each cell of the notification matrix and
+  writes only into the caller's EntityManager.
+
+  The channels each change records follow the notification matrix: the buyer's e-mail for every
+  change except completion, and the admin bell and admin e-mail where the matrix names the operator
+  side. A buyer now also gets a confirmation e-mail record for their own submission, re-submission,
+  acceptance or rejection. A request an operator prepares is announced from its `created` history
+  entry, no longer from the automatic note. A completed request records nothing. The recipients are
+  the same people as before. Nothing delivers the records yet; the delivery worker comes with a
+  later release.
+
+- 4e2ed36: Quote request notification records now commit in the same transaction as the change they announce
+  (issue #238, `specs/179-rfq-and-customer-notifications/` WP-04). If a transition fails, nothing it
+  wrote is kept: not the status change, not its history entries, not its revision and not its
+  records. If it commits, all of them are there. Before this change the status was committed first,
+  and the history entry and the records were written after it on connections of their own. A failure
+  in between left a changed request with no history entry or no records.
+
+  - Submitting, re-submitting and creating a request on a buyer's behalf write the request, its
+    lines, revision 1, its history entries and its records in one transaction.
+  - Accepting or rejecting an offer, and an operator's approval, cancellation or revision, write
+    their history entries, their revision (for a revision) and their records while holding the
+    request's row lock. The approval's optional note is written there too, so a failed approval
+    leaves no note.
+  - An order completing its quote request writes the status and the `completed` history entry in one
+    transaction. Completion still records no notification.
+
+  After each such commit the module adds one job to the BullMQ queue
+  `quote_requests.notifications.deliver` (fixed job id `quote_requests.notifications.kick`). The job
+  wakes the delivery worker of a later release. It is added without waiting, and a failure to add it
+  is logged at `warn` and never fails the transition. Without a module queue connection nothing is
+  added. Until the delivery worker ships, at most one such job waits in Redis.
+
+  `RfqRevisionService.record(input, within?)` accepts the caller's EntityManager. A
+  `transition-lock.ts` helper, `inTransaction(em, change)`, runs a write with no row to lock in one
+  transaction on `em`.
+
+- 577e94c: On the customer detail screen, the price-negotiation panel is part of the page's one Save (issue #407, `specs/180-one-save-zone-editors/` FR-060), as it already is on the organization detail screen. Choosing "As organization", "Allowed" or "Not allowed" no longer writes at once. It stages the part "Price negotiation", and the page's Save writes it through the same `PUT /api/v1/admin/customers/:id/quote-price-negotiation`. While a change is staged, the "Effective: …" line is hidden, because it describes the stored option; the Save's answer brings it back. A holder of `customers:read` without `customers:manage` still sees the value and stages nothing. Neither panel writes on change any more, so the panel's own "Saved." status and its string `negotiation.saved` (English and Polish) are removed.
+- 75027ef: On the organization detail screen, the price-negotiation panel is part of the page's one Save (issue #407, `specs/180-one-save-zone-editors/` WP-7). Ticking "Members may propose prices" no longer writes at once. It stages the part "Price negotiation" (`negotiation.partLabel`, English and Polish), and the page's Save writes it through the same `PUT /api/v1/admin/organizations/:id/quote-price-negotiation`. A holder of `customers:read` without `customers:manage` still sees the value and stages nothing.
+- 65f7abc: Issue #455 — a Project's _Linked records_ tab and its link picker name each record's status the way the record's own module names it, in the reader's language, instead of showing the stored code (`new`, `proposal`, `Pending`).
+
+  - **`@endora-commerce/contracts`** adds `statusName(code, language)` to `OpportunityReadPort` and `statusName(status, language)` to `QuoteRequestReadPort`, each answering a `Promise<string>`, and the optional `statusName` to `ProjectLinkSchema` beside `status`. A test double that implements either port in full needs the new method.
+  - **`@endora-commerce/mod-crm`** implements `OpportunityReadPort.statusName` by its own rule: the configured name in that language, else the status's default name, else the code.
+  - **`@endora-commerce/mod-quote-requests`** implements `QuoteRequestReadPort.statusName` in the wording its global-search results already use (a code outside the six statuses answers as it is), and each row of `GET /api/v1/admin/quote-requests` now also carries `statusName` in the response language.
+  - **`@endora-commerce/mod-projects`** serves `statusName` on `GET` and `POST /api/v1/admin/projects/:id/links` (an Order's name from `orderReadPort.findStatusDefinition`), and the admin tab and picker show it.
+
+  **On upgrade.** Nothing to migrate; `status` keeps answering the code.
+
+- a998fee: Issue #457 — a Project with many linked Quote Requests and Opportunities no longer reads them one at a time.
+
+  - **`@endora-commerce/contracts`** adds two batched reads to `QuoteRequestReadPort`: `findByIds(ids)`, which answers what `findById` answers for each id in one read (a missing, out-of-scope or malformed id is absent), and `amountsOf(quoteRequestIds)`, a `Map` keyed by quote id holding what `amountOf` answers for each (a quote `amountOf` answers `null` for has no entry). Every implementation of the port must provide both; consumers are unaffected.
+  - **`@endora-commerce/mod-quote-requests`** implements both under the caller's tenant scope: `findByIds` in one statement, `amountsOf` in two (the quotes, then their lines), whatever the number of ids.
+  - **`@endora-commerce/mod-projects`** reads a Project's linked Quote Requests through `findByIds` and `amountsOf`, and its linked Opportunities through `OpportunityReadPort.findByIds`, one batch per kind. `GET /api/v1/admin/projects/:id/links` now costs the same number of statements for one linked record of each kind as for many; what it shows is unchanged.
+
+- 7124778: Issue #470 (D-288): a quote request's audit entries carry names and structure, never its values. The platform audit log is one table read under `audit_log:read` without organization reach, so a tenant's quote data no longer reaches it.
+
+  - `quote_request.cancel` records `hasReason` instead of the free-text `reason`.
+  - `quote_request.modify` and `quote_request.create_on_behalf` record `groups` as one `{ lineCount }` per group, without the group's `name`.
+  - `quote_request.send_document` records `recipientCount` and `failedRecipientCount` instead of the `recipients` / `failedRecipients` addresses.
+  - `quote_request.prepare_customer_basket` no longer records `customerAccountId` (the request's tenant anchor). It keeps `cartId` and `itemCount`.
+  - `quote_request.custom_fields.carry` records the carried keys as `changedCustomFields` instead of the custom field values before and after.
+  - `QUOTE_REQUEST_AUDIT_KEYS` lists the keys a quote request audit state may hold, and a sentinel test holds the recorded states to it.
+  - No new value store: the values already live in the module's own revisions, history events and request row, which the request's **History** reads under its own visibility. Nothing read them back from the audit log. Audit entries written before the upgrade are not rewritten.
+
+  **Behaviour change on upgrade.** On the platform **Audit log** screen and in `audit_logs read`, new quote request entries show names and counts instead of values. The **History** tab is unchanged. See _Quote request values leave the platform audit log_ in the upgrade guide.
+
+- d4475e8: Only a sales representative is reach-scoped on the admin quote-request surfaces (issue #957, product-owner ruling 2026-11-08). The list, global search, the detail and history, every action, the create on a customer's behalf and the quote PDF used to narrow every role except `platform_admin` by the sales-representative assignment rule; a custom admin role holding `rfqs:handle` is now platform-wide there, as on every other surface. A sales representative's reach is unchanged.
+
+  `RfqAdminService.searchForAdmin(query)` no longer takes an `AdminContext`: the request's tenant scope is the whole of its visibility.
+
+  **Behaviour change on upgrade.** An administrator with a custom role holding `rfqs:handle` sees and handles the quote requests of every Organization, not only those assigned to them or to nobody.
+
+- 42a9a4b: One sales-representative reach rule on every admin surface (issue #305, owner ruling 2026-11-07). A sales representative reaches every Organization not governed by another representative — the ones assigned to them (with `organizations:rollup`, their subtrees, the nearest assignment winning) and every Organization nobody is assigned to. `adminTenantScopePort` answers that reach as its complement, computed in one statement per request (`SalesRepAssignmentService.reachOf`), so the tenant-scoped reads and writes of every module, the Organizations list and its pickers, admin search and the Organization screens answer by the same rule. Every module that read the reach as a list of assigned ids now reads it through the platform's helpers.
+
+  `mod-orders`: `resolveAdminOrdersScope` answers `{ allowAll: boolean }` (was `{ allowAll: false, allowedOrganizationIds }`); the list's reach is the ambient tenant context's. `mod-customers`: `ResolveModerationActor` answers `{ adminUserId, isPlatformAdmin }` (was with `allowedOrganizationIds`).
+
+  **Behaviour change on upgrade.** Every sales representative gains the tenant data of every unassigned Organization — members, customers, orders, invoices, carts, returns, quote requests and customer-level settings — and, since no representative can be assigned to a personal Organization, of every B2C customer (confirmed by the owner on 2026-11-08). The Organizations list, its pickers and admin search stop showing Organizations assigned to other representatives. A sales representative with no assignment used to be treated as a platform administrator by the quick-order default-preference routes; they now manage only the Organizations they reach, and a write naming an Organization that does not exist answers `404 NOT_FOUND`. The read-only query in _Upgrading an instance_ ("One sales-representative reach rule on every surface") counts, per representative, what they gain and what leaves their lists.
+
+- 8ae3f58: **Behaviour change: a line quantity has an upper bound, refused with a new error code, `LINE_QUANTITY_EXCEEDED`; and the quote request and return line arrays have a line-count bound** (issue #351). A quantity past the integer column it is stored in used to pass validation and answer `500`; it is now refused, in the reader's language.
+
+  New in `@endora-commerce/contracts`: `LINE_QUANTITY_MAX` (`1 000 000`, the same value as `ORDER_MINIMUM_MAX`, so the largest minimum stays orderable), `lineQuantitySchema` (a whole number in 1…`LINE_QUANTITY_MAX`), `boundedLineQuantity(schema)`, `isLineQuantityExceededIssue(issue)`, `LINE_QUANTITY_EXCEEDED` (also in `ERROR_CODES`) and `REQUEST_LINE_ITEMS_MAX` (`200`). `ADMIN_ORDER_MAX_ITEMS` and `QUICK_ORDER_BUILD_MAX_ITEMS` are now that constant under their own names; their value does not change.
+
+  **The new code.** Every request schema carrying a line quantity uses `lineQuantitySchema`: `addCartItemRequestSchema`, `updateCartItemRequestStrictSchema`, `createQuoteRequestSchema` / `patchQuoteRequestSchema` lines, `adminCreateQuoteRequestSchema` / `adminPatchQuoteRequestSchema` lines, `adminCreateOrderRequestSchema` / `adminOrderPreviewRequestSchema` items, `apiPlaceOrderRequestSchema` lines, `quickOrderBuildRequestSchema` items, `quickOrderOneClickRequestSchema`, `addShoppingListItemRequestSchema`, `updateShoppingListItemRequestSchema`, `createReturnCaseRequestSchema` lines, `catalogBulkPriceRequestSchema` lines, `cartSnapshotSchema` lines, and the packaging unit's `baseQuantity` in `createPackagingUnitRequestSchema` / `updatePackagingUnitRequestSchema`. A quantity past the bound is a Zod issue tagged `LINE_QUANTITY_EXCEEDED`. The error envelope in `@endora-commerce/platform` answers a request whose only failures are that issue with `400 LINE_QUANTITY_EXCEEDED` and a translated sentence (`@endora-commerce/mod-i18n` ships it in English and Polish), with `details` naming the field. A request that fails anything else as well stays `400 VALIDATION_FAILED`, with the issue among its details. `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices` parse their bodies themselves and keep answering `422 VALIDATION_FAILED`; the detail's `issue` there is `LINE_QUANTITY_EXCEEDED`.
+
+  `@endora-commerce/mod-carts`: two cases are refused with `422 LINE_QUANTITY_EXCEEDED`, `details: { quantity, maximum }`, and write nothing: an add onto an existing basket line whose sum would pass the bound, and a packaging-unit add whose pieces (`baseQuantity × units`) would pass it. This covers the single and batch add, reorder and shopping list to cart. Signing in sums the anonymous basket into the customer's and keeps a summed line at the bound instead of failing the sign-in. `updateCartItemRequestSchema` (the line edit) now accepts any quantity from `0` (remove) to the bound; it stopped at `999`.
+
+  **Line counts.** The line arrays of `adminCreateQuoteRequestSchema`, `adminPatchQuoteRequestSchema` and `createReturnCaseRequestSchema` are bounded at `REQUEST_LINE_ITEMS_MAX`, as the customer's quote request create and edit already were: one line more is `400 VALIDATION_FAILED`. The value is shared but the refusal is not. The order intakes (admin create and preview, `POST /api/v1/external/orders`) and the quick-order build keep refusing more than 200 items with `422 VALIDATION_FAILED`, `details: { code: 'too_many_items', maximum: 200 }`, and the basket's own cap stays `422 CART_LINE_CAP_EXCEEDED`.
+
+  `@endora-commerce/admin-kit`: `parsePositiveInt` returns `null` past `LINE_QUANTITY_MAX`, so the admin order and quote request create screens mark such a line invalid before sending it. `@endora-commerce/mod-quick-order`: an imported row past the bound, and every row of a duplicate whose sum passes it, is rejected as `quantity_invalid` instead of being recognised into a build that would be refused. `@endora-commerce/mod-quote-requests`: the Modify tab's quantity input carries the bound as its `max`.
+
+### Patch Changes
+
+- 4fd93ae: **A buyer's quote request judges its lines in the channel language `Accept-Language` asks for, read as a q-weighted list** (issue #1011). `POST /api/v1/quote-requests`, the draft edit `PATCH /api/v1/quote-requests/:id` and `POST /api/v1/quote-requests/:id/resubmit` took the header's first tag alone as the language a line's availability and snapshotted names are judged in, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` asked about English and `de-DE, pl;q=0.5` about the channel default, and a request naming a product available only in Polish was refused with `404`. The language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. The language messages are worded in is unchanged. A request without the header behaves as before.
+- f8382b4: `Migration20260503T141344QuoteRequestsWorkflow` now creates `organization_sales_rep_assignments`
+  with `create table if not exists`, and no longer creates the table's two indexes
+  `orgsa_admin_user_idx` and `orgsa_organization_idx` (issue #1033,
+  `specs/178-extensible-columns/` D-291 R-A8). The table belongs to `organizations`, which now
+  creates the table and both indexes itself. On a platform that migrated `organizations` first and
+  installs `quote_requests` later, this migration used to fail with
+  `relation "organization_sales_rep_assignments" already exists`. It now leaves the table and its
+  rows as they are. A database that has already applied the migration does not run it again. On a
+  fresh database the table ends up with the same columns, constraints and indexes as before.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- b918cf6: Readers of an organization's tax ID handle a personal organization, which has no tax ID since this release (`taxId: null`). An order placed by a personal organization carries no `billingAddress.taxId`, a quote document prints no tax ID for its buyer, and the push-audience organization picker shows no hint for it — each as before, now by data rather than by recognising the old placeholder. The demo composition finds the demo organisation by its tax ID with the tree's root first, as `organizationDetailsPort.findByTaxId` does, so a branch sharing that tax ID is never taken for it.
+- 307c5d5: `module:uninstall quote_requests --hard` no longer drops `organization_sales_rep_assignments` (`specs/178-extensible-columns/` D-291 R-A7). The table was created by `Migration20260503T141344QuoteRequestsWorkflow`, but `organizations` maps it and outlives `quote_requests`, so the migration's `down()` destroyed a live `organizations` table and its sales-representative assignments. The `drop table` is removed from that `down()`; no applied history changes.
+- 0f96ced: The module page's _Notifications_ section now documents what is delivered, to whom and when
+  (issue #238, `specs/179-rfq-and-customer-notifications/` WP-11), in English and Polish: the two
+  recipient sides, the change-by-channel table, what each channel carries, the eleven e-mails and
+  their variables, the 24-hour freshness limit, retries, switched-off e-mails and modules, the
+  deliveries on the request's _History_, and the recording and delivery worker for developers. The
+  _Background jobs_, _Data model_, _History_ and _Conversion to order_ sections are brought in line:
+  a completed request notifies nobody, and `quote_request_notifications` replaces
+  `quote_request_notification_events`.
+
+  **Upgrading to the release that ships quote request notification delivery** (the changes of
+  #238 taken together):
+
+  - The migration `20261113T081826_quote_requests_notifications_redesign.ts` drops
+    `quote_request_notification_events` and **discards its rows**. Nothing ever delivered them, and
+    none would still be sent under the 24-hour limit. Its `down()` re-creates the old table, empty.
+  - **Eleven new e-mails are switched on by default** — nine to the buyer side
+    (`quote_request_customer_submitted`, `_resubmitted`, `_offer_accepted`, `_offer_rejected`,
+    `_expired`, `_prepared`, `_revised`, `_approved`, `_canceled`) and two to operators
+    (`quote_request_operator_submitted`, `_resubmitted`). From the first change after the upgrade,
+    buyers and the operators who handle their requests are e-mailed. Switch off any you do not want
+    on the e-mail templates screen. Bell entries, storefront notification centre entries and quote
+    pushes start at the same time, each subject to its own module being on.
+  - The other #238 entries in these release notes were written one work package at a time; where
+    one says that delivery, the notification centre or push "follows in a later release", read it as
+    the order the work landed in. They all ship in this release.
+  - The buyer side's links point at `sales_channels.storefront_url`; set it per channel, or the
+    e-mails go out without a link.
+
+  **Follow-up, not in this release:** the two operator e-mails, `quote_request_operator_submitted`
+  and `quote_request_operator_resubmitted`, carry no link to the request in the Admin UI. They name
+  the request number, and the bell entry carries the link. The platform now offers the Admin UI's
+  address (`ADMIN_BASE_URL`, read through `configuredAdminBaseUrl()`, issue #185), and the `crm` and
+  `tasks` e-mails already use it. Adding the same link (`quote.adminUrl`) to these two e-mails is the
+  next step.
+
+- c684302: The buyer e-mails about a quote request now link to the request whenever the channel's storefront
+  address resolves: the channel's `sales_channels.storefront_url` setting, then the
+  `STOREFRONT_BASE_URL` environment variable when the setting is empty, blank, not registered or not
+  readable for the channel. This is how the setting defines itself and how `seo` and `product_feeds`
+  already read it. Before, an empty setting meant no link even with `STOREFRONT_BASE_URL` set. With
+  neither configured the e-mail still carries no link; no local development address is ever guessed.
+- 2e603f7: Admin screens confirm destructive and consequential actions in the kit's `ConfirmDialog` rather
+  than the browser's `window.confirm()` (issue #313). This covers deleting, revoking, removing and
+  resetting across these modules, switching a module off on the Modules screen, undoing a bulk
+  edit, making a sales channel the default, and preparing a customer's basket from a quote. The
+  dialog names the action on its confirm button (for example _Delete_, _Revoke_, _Unassign_), and a
+  destructive question opens with focus on Cancel.
+
+  The three native `alert()` calls are now notices on the page: deleting an attachment type that is
+  still in use (`catalog`), unassigning a channel's default warehouse (`inventory`), and activating a
+  megamenu binding that replaces another (`megamenu`, announced through a live region). Renaming a
+  setting group (`settings`) uses a one-field dialog instead of `prompt()`. Removing a colour from
+  the page builder's palette (`page-builder-admin`) is confirmed inline in its row, because the
+  palette is already a modal.
+
+  Several of these questions were untranslated English literals. They are now bundle keys in
+  English and Polish: the country, currency and language deletes (`dictionaries`), the e-mail block
+  and template deletes (`transactional_emails`), the setting-group delete and rename and the setting
+  reset (`settings`), and the sales-channel delete and rebind questions (`sales_channels`). The
+  assets-library folder delete no longer says "OK = … / Cancel = …". `mod-i18n` adds
+  `common.confirm.title` and the subscription-cancel button labels.
+
+  Two native dialogs stay on purpose: the unsaved-changes navigation guard
+  (`use-unsaved-changes-prompt`), which has to answer synchronously inside the click it intercepts,
+  and the settings screen's discard-on-channel-switch guard, which is the same kind of guard. They
+  will be replaced together in a later change.
+
+- 4d0a26d: Documentation only (issue #407). The shipped `docs/` pages, in English and Polish, now describe the one Save on every editor with zone panels. Each page says what Save covers, what is checked before anything is written, the order the parts are written in, what a partial save reports and that the next Save writes only the part that failed. It also says how the leave guard works and which sections carry the "Applies immediately" badge.
+
+  - catalog: "Editing a product at a scope" covers the base prices and the Inventory tab's product settings under Save, plus the actions that apply immediately. A new "Editing a category" section on the module page covers the category editor's Save.
+  - price_lists: the display-mode override saves with the organization and category editors. The base-price panel's **Discard changes** is described.
+  - organizations, customers: a section on each screen's one Save and its immediate actions.
+  - quick_order, quote_requests: their panels save with the host screen's Save.
+  - sales_channels: the edit page's Save and its count. Deactivate and Re-activate keep unsaved edits, and warehouse routing applies immediately.
+
+  No code, API or string changes.
+
+- 4efb051: The module page documents custom-field values on the admin Create quote request screen. Documentation only.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [52831b7]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+  - @endora-commerce/email-components@0.111.0
+  - @endora-commerce/page-builder-core@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

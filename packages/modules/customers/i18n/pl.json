@@ -39,6 +39,8 @@
   "detail.field.organization": "Organizacja",
   "detail.field.status": "Status",
   "detail.field.lastLogin": "Ostatnie logowanie",
+  "detail.field.emailLanguage": "Język wiadomości e-mail",
+  "detail.field.emailLanguageUnset": "Nie ustawiono — używany jest domyślny język sklepu",
   "detail.action.block": "Zablokuj",
   "detail.action.unblock": "Odblokuj",
   "detail.action.passwordReset": "Zresetuj hasło",
@@ -91,5 +93,6 @@
   "actions.openCustomers.keywords": "klienci, klient",
   "actions.onlineCustomers.keywords": "aktywni, klienci online",
   "errors.CUSTOMER_ADDRESS_BOOK_RETIRED": "Osobista książka adresowa została wycofana. Adresy są przechowywane w książce adresowej Twojej organizacji.",
+  "errors.PREFERRED_LANGUAGE_NOT_OFFERED": "Ten sklep nie oferuje tego języka.",
   "settingGroups.customers.name": "Klienci"
 }

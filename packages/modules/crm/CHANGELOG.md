@@ -1,5 +1,236 @@
 # @endora-commerce/mod-crm
 
+## 0.111.0
+
+### Minor Changes
+
+- 52831b7: The `crm_event_reminder` e-mail links into the admin panel (follow-up to issue #185). With
+  `ADMIN_BASE_URL` set, it sends the new variable `event.adminUrl`. That is
+  `<ADMIN_BASE_URL>/crm/opportunities/<opportunityId>?tab=events&event=<eventId>`, the address of
+  the bell entry. The default template, in English and Polish, shows an **Open the event** /
+  **Otwórz wydarzenie** button to it. With `ADMIN_BASE_URL` unset the variable is not sent and the
+  button is left out. A relative or guessed link is never sent. A customised template that does
+  not name `event.adminUrl` renders as before. The manifest declares the variable for the
+  template editor.
+- 65f7abc: Issue #455 — a Project's _Linked records_ tab and its link picker name each record's status the way the record's own module names it, in the reader's language, instead of showing the stored code (`new`, `proposal`, `Pending`).
+
+  - **`@endora-commerce/contracts`** adds `statusName(code, language)` to `OpportunityReadPort` and `statusName(status, language)` to `QuoteRequestReadPort`, each answering a `Promise<string>`, and the optional `statusName` to `ProjectLinkSchema` beside `status`. A test double that implements either port in full needs the new method.
+  - **`@endora-commerce/mod-crm`** implements `OpportunityReadPort.statusName` by its own rule: the configured name in that language, else the status's default name, else the code.
+  - **`@endora-commerce/mod-quote-requests`** implements `QuoteRequestReadPort.statusName` in the wording its global-search results already use (a code outside the six statuses answers as it is), and each row of `GET /api/v1/admin/quote-requests` now also carries `statusName` in the response language.
+  - **`@endora-commerce/mod-projects`** serves `statusName` on `GET` and `POST /api/v1/admin/projects/:id/links` (an Order's name from `orderReadPort.findStatusDefinition`), and the admin tab and picker show it.
+
+  **On upgrade.** Nothing to migrate; `status` keeps answering the code.
+
+- 1978586: Issue #470 (D-288) — a sales opportunity's audit entries carry names and structure, never its values. The platform audit log is one table read under `audit_log:read` without organization reach, so a tenant's opportunity data no longer reaches it.
+
+  - Every `crm.opportunity.*` Command now records the opportunity's number, status and other codes, the assignee and sales channel ids, dates, and `changedFields` / `changedCustomFields` (the sorted names of what changed). It no longer records the title, description, manual value, currency, contact person, organization, tag names, custom field values, a transition's or a skipped propagation's reason, an event's name or an attachment's file name.
+  - Those values go to a new CRM-owned table, `crm_opportunity_value_changes` (`CrmOpportunityValueChange`, scoped through the opportunity, `on delete cascade`). The same Command writes it, so it commits or rolls back with the audit entry, and the entry points at the row by `valueChangeId`. The migration `Migration20261109T163616CrmOpportunityValueChanges` creates it.
+  - `GET /api/v1/admin/crm/opportunities/:id/history` reads the values back from that table. It reads them by the opportunity's id, after the opportunity was loaded through the scoped EntityManager, and serves them in `before` / `after` in the shape the entries had before, so the response contract is unchanged. Custom field values, and now the names of changed custom fields, still go only to `custom_fields:read` holders.
+  - `CRM_AUDIT_KEYS` is the allowlist of keys a `crm.opportunity.*` audit state may hold. The audit snapshot and every Command's recorded state are tested against it, with a sentinel test per Command.
+  - Audit entries written before the upgrade are not rewritten.
+
+  **Behaviour change on upgrade.** On the platform **Audit log** screen and in `audit_logs read`, new CRM opportunity entries show field names instead of values. The opportunity's own **Change history** tab is unchanged. See _Opportunity values leave the platform audit log_ in the upgrade guide.
+
+- 48b2505: CRM analytics count days and months in the reporting time zone (issue #474): the
+  `analytics.reporting_time_zone` setting the `analytics` module owns, read through its
+  `reportingTimeZonePort`. A range runs from midnight of its first day to midnight after its last,
+  both in that zone, and the month a won opportunity is ranked in is that zone's month. The setting
+  defaults to `UTC`, in which every figure is what it was before. While `analytics` is switched off
+  the figures are counted in `UTC`; the manifest declares the new `degrades-without` edge on
+  `analytics`.
+
+  Every `GET /api/v1/admin/crm/analytics/*` answer adds `timeZone`, the zone it was counted in
+  (issue #475), beside `data`. The analytics screen names that zone under its filters and takes the
+  range presets (_This month_, …) from that zone's calendar instead of the browser's.
+
+  Upgrading: an instance whose operator has set the reporting time zone to anything but `UTC` sees
+  CRM figures counted in that zone from this release on.
+
+- ef9630f: Attaching a library file that is not private to an Opportunity has an error code of its own instead
+  of `VALIDATION_FAILED`, and a sentence in English and Polish (issue #639, part of #86). **A caller
+  that matches on `VALIDATION_FAILED` for this refusal now sees `CRM_ATTACHMENT_NOT_PRIVATE`.** The
+  HTTP status is unchanged. Until now it was answered with an English sentence in every language,
+  because the error envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                  | Was                                                                                                           | Is                               | `details`               |
+  | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | -------------------------------- | ----------------------- |
+  | `POST /api/v1/admin/crm/opportunities/:id/attachments` | `422 VALIDATION_FAILED`, _"An attachment must be a private file. Upload it to the media library as private."_ | `422 CRM_ATTACHMENT_NOT_PRIVATE` | `assetId`, `visibility` |
+
+  The code is named in parallel with `projects`' `PROJECT_ATTACHMENT_NOT_PRIVATE` (issue #634), as
+  `CRM_ATTACHMENT_TOO_LARGE` and `PROJECT_ATTACHMENT_TOO_LARGE` are. A file that is not in the media
+  library, or that the caller may not see, stays `422 VALIDATION_FAILED`, and so does an Event reminder
+  set in the past (`details.rule: 'reminder_in_past'`), which the event form words from its rule. The
+  code is a member of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `crm` manifest, and
+  the module's documentation page names it. No setting, permission or migration changes.
+
+- 42a9a4b: One sales-representative reach rule on every admin surface (issue #305, owner ruling 2026-11-07). A sales representative reaches every Organization not governed by another representative — the ones assigned to them (with `organizations:rollup`, their subtrees, the nearest assignment winning) and every Organization nobody is assigned to. `adminTenantScopePort` answers that reach as its complement, computed in one statement per request (`SalesRepAssignmentService.reachOf`), so the tenant-scoped reads and writes of every module, the Organizations list and its pickers, admin search and the Organization screens answer by the same rule. Every module that read the reach as a list of assigned ids now reads it through the platform's helpers.
+
+  `mod-orders`: `resolveAdminOrdersScope` answers `{ allowAll: boolean }` (was `{ allowAll: false, allowedOrganizationIds }`); the list's reach is the ambient tenant context's. `mod-customers`: `ResolveModerationActor` answers `{ adminUserId, isPlatformAdmin }` (was with `allowedOrganizationIds`).
+
+  **Behaviour change on upgrade.** Every sales representative gains the tenant data of every unassigned Organization — members, customers, orders, invoices, carts, returns, quote requests and customer-level settings — and, since no representative can be assigned to a personal Organization, of every B2C customer (confirmed by the owner on 2026-11-08). The Organizations list, its pickers and admin search stop showing Organizations assigned to other representatives. A sales representative with no assignment used to be treated as a platform administrator by the quick-order default-preference routes; they now manage only the Organizations they reach, and a write naming an Organization that does not exist answers `404 NOT_FOUND`. The read-only query in _Upgrading an instance_ ("One sales-representative reach rule on every surface") counts, per representative, what they gain and what leaves their lists.
+
+### Patch Changes
+
+- baa0dae: The custom-fields panel on the Opportunity, Project and Task Overview no longer clears stored values the operator did not touch (issue #1007). Each screen used to add a `null` for every stored key missing from the panel's bag before sending its `PATCH`, written when the panel reported a cleared field as `undefined`. The panel has reported a cleared field as `null` since issue #176, and leaves out every key it does not offer for editing (a `read` or `hidden` field, or a value with no definition) and, now, every key the operator did not change. The screens forward the panel's bag as it is, so a save writes the changed fields only and the server's merge keeps every other stored value.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- f39d37f: Each manifest exports `customFieldWrites` (`specs/175-buyer-input-custom-fields/`), the `CustomFieldWriteDeclaration[]` naming the admin routes that write its custom-field host's values: opportunity, project and task create (`POST`) and update (`PATCH …/:id`), and the customer values patch (`PATCH /api/v1/admin/customers/:id/custom-fields`). A type-only declaration read by `check:custom-field-writes`; no runtime behaviour changes.
+- 38f8f5b: The unread-message count of a Sales Opportunity now counts exactly the messages the _Messages_ tab lists: a message row marked deleted is no longer counted, and a read marker older than the instant unread messages started being counted no longer makes the messages before that instant unread again, so marking messages read only ever lowers the number (issue #222).
+- 54ae028: The permission inventory scanner (`scanEnforcedPermissionGates`) now reads
+  `hasAnyPermission(['a', 'b'])` as one gate site that carries every code in the array, in the same
+  way as `requireAdminAny([...])` (issue #458). It reads an array argument only up to the array's
+  closing bracket. If code after the array narrows it at runtime, as in `['a', 'b'].filter(f)`, the
+  scanner still reads `a` and `b`, and ignores any string in the narrowing. The `@@` document-list
+  gate in CRM and in Projects now uses `hasAnyPermission`, so the scanner checks all four codes in
+  each gate. Before, it marked them as runtime values and did not check them. Who can open the
+  `@@` list does not change.
+- 6bfd758: `@@` in an Opportunity's or a Project's text now opens the document list for a role that holds only the module's own codes (issue #498). `useCrmReferences` offers the `document` trigger to a `crm:write` holder whose role includes `crm:read`, and `useProjectReferences` to a `projects:write` holder whose role includes `projects:read`, because `GET /crm/lookups/documents` and `GET /projects/lookups/documents` already answer the module's own group (Opportunities, Projects) to every writer. Before, such a role kept `@@` as the characters it typed and was shown no _Insert document_ button, although the server had a group to offer it. A Projects group with nothing in it is an empty list, not a reason to hide `@@`. No API change.
+- 939c455: The attachment lists of Tasks, Projects and CRM Opportunities resolve every file's download link in one batched `assetReadPort.resolveUrls` read instead of one `assetsLibraryPort.getAsset` call per file (issue #545). The full asset detail asked every registered asset-reference descriptor about each attached file, so a list of N files issued about 12 × N reference statements. The links are unchanged: the same signed, expiring URL for a private file, with `download=1`. A host that composes these services itself must provide `resolveUrls` on the `assets` dependency (it is part of the published `AssetReadPort`).
+- 49b43de: **Breaking (0.x, so `minor`):** a sales representative's reach is no longer computed on every admin request (issue #955, owner ruling of 2026-11-10). `@endora-commerce/platform/tenancy` removes `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` — use `await orgInScope(id, ctx?)` and `await ruleInScope(ids, ctx?)`, or `const inScope = await orgScopeTest(ctx?)` for a synchronous predicate over rows you already hold — and `assignedOrganizationIdsForRanking(ctx?)` now returns a promise. They were removed rather than retyped because `if (!isOrgInScope(x))` over a promise is always false.
+
+  `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) replaces `excludedOrganizationIds` / `assignedOrganizationIds` with `loadReach(): Promise<{ excludedOrganizationIds, assignedOrganizationIds }>`, beside `excludedOrganizationsQuery`; the platform memoises it once per tenant context, and a failure rejects every helper that awaits it. `OrgConstraint`'s `excluded` arm and `AdminScopeInput` follow. `PreferenceActor`'s `salesperson.reaches(id)` returns `Promise<boolean>`, and `canManagePreference` (`quick_order`) is async. `adminTenantScopePort` (`organizations`) answers without calling `reachOf`. The listed modules move their call sites to the async helpers.
+
+- 93146d1: Resolving the references in a text no longer reads the reader's administrator record when the text mentions a Product (issue #963). The reference services of `crm`, `tasks` and `projects` still looked up the reader's preferred language and then discarded it, a leftover from per-locale product names: a Product is named by its single Global `name`. The labels shown do not change.
+- 4933779: The module's documentation page no longer lists global search among what the module does not do (opportunities are searched since the admin-search provider was added), names `findByIds` and `search` on `OpportunityReadPort`, and words a sales representative's view of opportunities and the Calendar by the organizations they reach. It says that CRM has no time-zone setting for events, rather than that the platform has none. English and Polish.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [52831b7]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+  - @endora-commerce/email-components@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

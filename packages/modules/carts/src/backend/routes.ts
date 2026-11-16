@@ -149,6 +149,11 @@ export interface CartsDeps {
     shoppingListId: string;
     /** The channel whose basket the lines go into — the request's. */
     salesChannelId: string;
+    /**
+     * Issue #1293 — the request's scope language (`CartActor.languageTag`), which
+     * the lines are judged in; absent, the channel's default language.
+     */
+    languageTag?: string;
   }) => Promise<{
     cartId: string;
     appendedLineCount: number;
@@ -855,7 +860,8 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       const result = await deps.cartConversionService.createCartFromQuoteRequest(
         request.params.quoteRequestId,
         actor.customer,
-        { language },
+        // Issue #1293 — the lines judged in the request's scope language.
+        { language, ...(actor.languageTag !== undefined ? { languageTag: actor.languageTag } : {}) },
       );
       return { data: result };
     },
@@ -879,6 +885,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         organizationId: actor.customer.organizationId,
         shoppingListId: request.params.shoppingListId,
         salesChannelId: actor.salesChannelId,
+        ...(actor.languageTag !== undefined ? { languageTag: actor.languageTag } : {}),
       });
       return { data: result };
     },

@@ -1553,11 +1553,24 @@ export interface OrderPlacementPort {
    * instead of their active basket, which the placement then never touches. The
    * working basket ends `completed` against the order, or is removed when the
    * placement is refused.
+   *
+   * `options.languageTag` (issue #1308) — the buyer request's scope language:
+   * the channel language its `Accept-Language` asks for
+   * (`requestScopeLanguage`). The basket's lines are judged for availability,
+   * and the order's lines named, at (the order's channel, `languageTag`
+   * resolved against that channel's own languages) — the language the same
+   * request's `CartWritePort.addItems` judged them in, so a line it admitted
+   * is not refused here for being off in the channel's default language.
+   * Absent: the language `options.language` names on the channel, else the
+   * channel's default, as before — the answer for a caller with no storefront
+   * request (an API-key order, an operator naming a customer's channel). The
+   * field is additive: an implementation outside this repository may ignore it
+   * and keep that behaviour.
    */
   placeOrder(
     ctx: OrderCustomerContext,
     req: PlaceOrderRequest,
-    options?: { language?: string; workingBasketId?: string },
+    options?: { language?: string; languageTag?: string; workingBasketId?: string },
   ): Promise<PlacedOrderRecord>;
 }
 

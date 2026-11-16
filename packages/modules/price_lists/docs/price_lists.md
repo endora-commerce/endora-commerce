@@ -257,6 +257,8 @@ visitors too**: a product overridden to *Gross only* shows its price to guests e
 whose anonymous mode is *None*, which makes it the one way to show a guest a price there. An
 organization override applies to that organization's signed-in buyers only. Display modes are set on
 *Pricing settings* and in the organization and category editors.
+In the organization and category editors the override is part of the editor's one Save: choosing a mode
+stages it, and the editor's Save writes it after the organization's or the category's own changes.
 
 A gross price on a product card, a list row or the product page is the net price at **that
 product's own VAT rate** for the viewer — the rate the cart and the order apply, from the tax rules
@@ -328,7 +330,9 @@ price and the runner-ups.
 | `price_lists:read` | the book list, every book's settings and prices, base prices, the price explainer, *Pricing settings* |
 | `price_lists:write` | creating, changing, activating, scheduling, duplicating, importing into and deleting books; base prices; display modes; the list-price switch. Adding product lines also uses the catalogue's product browser, so a role that edits books also needs `catalog:read` (the role editor on `/admin-roles` says so). |
 
-**Sales representatives** — administrators whose role limits them to their own organizations — see
+**Sales representatives** — administrators whose role limits them to the organizations they reach:
+those assigned to them (with `organizations:rollup`, their sub-organizations too) and every
+organization no representative is assigned to — see
 and edit only organization books whose **every** member is one of their organizations. Books for
 everyone, customer-group books and the base prices are read-only for them. A book naming any
 organization outside their scope does not exist for them: it is missing from the list, and its
@@ -349,15 +353,9 @@ administrator and the state before and after; *View history* on a book opens its
 - **The book list has no saved views**; its filters live in the address, so a filtered list can be
   bookmarked and shared (issue #408).
 - **Right after a large import**, the grid of a very large book (tens of thousands of lines) can take
-  slightly longer to page and search until the database has refreshed its statistics, which it does
-  on its own shortly afterwards (issue #409).
-- **The product editor's *Variants* tab shows no variants for an inactive product or one outside the
-  default sales channel**, because it reads them through the storefront read (issue #410). The
-  base-price panel is not affected: it reads every variant.
-- **The product editor's tab labels other than *Pricing* are in English** in the Polish admin
-  (issue #413).
-- **Screen readers announce the storefront's sale badge as "Request a quote"**; the visible text is
-  correct (issue #411).
+  slightly longer to page and search for about a minute: after a bulk write the module asks the
+  background workers to refresh the database's statistics for the price tables a minute later
+  (issue #409). Without the workers running, the database's own maintenance does it later.
 - **The sorted order lags a price change** by the background refresh — usually under a second, and
   up to about two and a half minutes for a change that reaches the whole catalogue (see *Where prices
   appear*); the prices on the cards never lag. Price sorting needs the platform's background workers running.

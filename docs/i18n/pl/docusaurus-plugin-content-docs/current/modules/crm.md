@@ -622,7 +622,7 @@ karcie handlowców — ta lista należy do modułu Organizacje, a opisana wyżej
 reguła tylko ją odczytuje.
 
 **Przypisanie nie decyduje o tym, kto widzi szansę.** Handlowiec ograniczony do
-wybranych organizacji widzi każdą szansę tych organizacji, niezależnie od tego,
+wybranych organizacji widzi każdą szansę organizacji, do których ma dostęp, niezależnie od tego,
 kto ją prowadzi — i nie widzi szansy innej organizacji, nawet jeśli jest do
 niego przypisana.
 
@@ -1100,7 +1100,7 @@ wydarzenia.
 
 ### Strefy czasowe
 
-Platforma nie ma ustawienia strefy czasowej, więc wydarzenie ma własną:
+CRM nie ma ustawienia strefy czasowej dla wydarzeń, więc wydarzenie ma własną:
 strefę czasową przeglądarki, z której je zapisano.
 
 - Wydarzenie **z godzinami** to jedna chwila, ta sama dla wszystkich. Każdy
@@ -1192,7 +1192,7 @@ poleceń jako **Kalendarz CRM**.
 | Kto | Co pokazuje Kalendarz |
 | --- | --- |
 | Administrator, który może zobaczyć **każdą** organizację | Wydarzenia każdej otwartej szansy. Przełącznik **Moje / Wszystkie** zawęża Kalendarz do szans przypisanych do tej osoby. Kalendarz otwiera się na *Wszystkie*, gdzie przy każdym wydarzeniu jest też podany handlowiec szansy. |
-| Administrator ograniczony do zbioru organizacji — handlowiec | Tylko wydarzenia szans **przypisanych do tej osoby**, w obrębie tych organizacji. Przełącznika nie ma. |
+| Administrator ograniczony do zbioru organizacji — handlowiec | Tylko wydarzenia szans **przypisanych do tej osoby**, w obrębie organizacji, do których ma dostęp. Przełącznika nie ma. |
 
 Kalendarz handlowca nigdy nie pokazuje więc szansy innej osoby, nawet z
 organizacji, którą mają wspólną — choć handlowiec może taką szansę otworzyć i
@@ -2335,7 +2335,7 @@ dwa opublikowane porty — nigdy przez tabele ani klasy CRM. Oba typy eksportuje
 
 | Nazwa w kontenerze | Typ | Co robi |
 | --- | --- | --- |
-| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByDocument(kind, documentId)` i `listOpenForOrganization(organizationId)`. Każda zwraca zwykłe wartości `OpportunityRecord` — id, numer, tytuł, organizację, kod i rodzaj statusu, osobę przypisaną, wartość, walutę, daty — albo `null` / pustą listę. `statusName(code, language)` nazywa status tak jak ekrany CRM: jego nazwą w tym języku, a w razie jej braku nazwą domyślną albo kodem. |
+| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByIds(ids)`, `findByDocument(kind, documentId)`, `listOpenForOrganization(organizationId)` i `search({ q, limit })` (numer lub tytuł, najwyżej 20). Każda zwraca zwykłe wartości `OpportunityRecord` — id, numer, tytuł, organizację, kod i rodzaj statusu, osobę przypisaną, wartość, walutę, daty — albo `null` / pustą listę. `statusName(code, language)` nazywa status tak jak ekrany CRM: jego nazwą w tym języku, a w razie jej braku nazwą domyślną albo kodem. |
 | `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` przeprowadza szansę przez skonfigurowany przepływ, razem ze strażnikami i zdarzeniami, i zwraca wynik jako wartość. |
 
 ```ts
@@ -2501,8 +2501,6 @@ Rzeczy, których operator może szukać, a których w tym wydaniu nie ma:
 - **Wydarzenia w innych miejscach modułu.** Wydarzenia nie są oferowane
   webhookom wychodzącym, nie pojawiają się w analityce i nie są polem karty na
   tablicy.
-- **Wyszukiwanie globalne.** Szanse znajduje się na ich liście i tablicy, a nie
-  przez wyszukiwarkę Admin UI.
 - **Zysk.** Każdy wskaźnik jest wartością; kosztów ani marży nie ma.
 
 ## Dane demonstracyjne

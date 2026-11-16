@@ -51,6 +51,8 @@ import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from '@en
 import { Migration20261027T160234AdminUsersAdminUserPreferences } from '@endora-commerce/mod-admin-users/migrations';
 import { Migration20261103T140300AdminUsersAuthorProfile } from '@endora-commerce/mod-admin-users/migrations';
 import { Migration20261114T002913AdminUsersPreferredLanguage } from '@endora-commerce/mod-admin-users/migrations';
+import { Migration20261115T190121AdminUsersImpersonationReasons } from '@endora-commerce/mod-admin-users/migrations';
+import { Migration20261116T131329AdminUsersImpersonationReasonAttribution } from '@endora-commerce/mod-admin-users/migrations';
 
 // ── analytics ───────────────────────────────────────────────────────────────
 import { Migration20260425T143139AnalyticsInit } from '@endora-commerce/mod-analytics/migrations';
@@ -206,6 +208,7 @@ import { Migration20260825T141659CustomerAccountsOrganizationRequired } from '@e
 import { Migration20260912T094701CustomerAccountsSalesChannelCustomerAccounts } from '@endora-commerce/mod-customer-accounts/migrations';
 import { Migration20261103T190132CustomerAccountsOrganizationRoleAssignment } from '@endora-commerce/mod-customer-accounts/migrations';
 import { Migration20261104T094540CustomerAccountsDropLegacyRoleColumn } from '@endora-commerce/mod-customer-accounts/migrations';
+import { Migration20261115T145934CustomerAccountsPreferredLanguage } from '@endora-commerce/mod-customer-accounts/migrations';
 
 // ── customer_notifications ──────────────────────────────────────────────────
 import { Migration20261113T082045CustomerNotificationsInit } from '@endora-commerce/mod-customer-notifications/migrations';
@@ -249,6 +252,7 @@ import { Migration20260818T081243InventoryStockAllocationOrderItemFk } from '@en
 import { Migration20260830T182139InventoryOrganizationAttribution } from '@endora-commerce/mod-inventory/migrations';
 import { Migration20260912T125716InventoryOrganizationWarehouses } from '@endora-commerce/mod-inventory/migrations';
 import { Migration20261115T065605InventoryAvailabilityNotificationScope } from '@endora-commerce/mod-inventory/migrations';
+import { Migration20261115T182156InventoryAvailabilityNotificationNotifiedStatus } from '@endora-commerce/mod-inventory/migrations';
 
 // ── invoice_ledger ──────────────────────────────────────────────────────────
 import { Migration20260908T125013InvoiceLedgerInit } from '@endora-commerce/mod-invoice-ledger/migrations';
@@ -488,6 +492,8 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('admin_users', Migration20261027T160234AdminUsersAdminUserPreferences),
   migration('admin_users', Migration20261103T140300AdminUsersAuthorProfile),
   migration('admin_users', Migration20261114T002913AdminUsersPreferredLanguage),
+  migration('admin_users', Migration20261115T190121AdminUsersImpersonationReasons),
+  migration('admin_users', Migration20261116T131329AdminUsersImpersonationReasonAttribution),
 
   // ── analytics ───────────────────────────────────────────────────────────────
   migration('analytics', Migration20260425T143139AnalyticsInit),
@@ -643,6 +649,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('customer_accounts', Migration20260912T094701CustomerAccountsSalesChannelCustomerAccounts),
   migration('customer_accounts', Migration20261103T190132CustomerAccountsOrganizationRoleAssignment),
   migration('customer_accounts', Migration20261104T094540CustomerAccountsDropLegacyRoleColumn),
+  migration('customer_accounts', Migration20261115T145934CustomerAccountsPreferredLanguage),
 
   // ── customer_notifications ──────────────────────────────────────────────────
   migration('customer_notifications', Migration20261113T082045CustomerNotificationsInit),
@@ -686,6 +693,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('inventory', Migration20260830T182139InventoryOrganizationAttribution),
   migration('inventory', Migration20260912T125716InventoryOrganizationWarehouses),
   migration('inventory', Migration20261115T065605InventoryAvailabilityNotificationScope),
+  migration('inventory', Migration20261115T182156InventoryAvailabilityNotificationNotifiedStatus),
 
   // ── invoice_ledger ──────────────────────────────────────────────────────────
   migration('invoice_ledger', Migration20260908T125013InvoiceLedgerInit),

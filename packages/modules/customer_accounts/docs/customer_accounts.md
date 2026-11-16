@@ -11,13 +11,19 @@ service; this module owns the customer-facing identity surface.
 
 ## Public surface
 
+The sign-in, password and reset routes are served by the `organizations` module over this
+module's services.
+
 | Verb + Path | Purpose |
 | --- | --- |
-| `POST /api/v1/auth/login` | Email + password (+ TOTP step if two-step verification is enabled) |
-| `POST /api/v1/auth/logout` | Destroy session |
+| `POST /api/v1/auth/customer/login` | E-mail + password. When a second factor is required it answers `mfaRequired` (with a `challengeId`) or `mfaSetupRequired` (with a `setupTicket`) and sets no session; the second step is the `mfa` module's `POST /api/v1/auth/customer/mfa/verify` |
+| `POST /api/v1/auth/customer/logout` | Destroy session |
 | `POST /api/v1/me/password` | Change password (rejects wrong `currentPassword`). A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `POST /api/v1/auth/password-reset/request` | Begin reset flow. A new link retires every earlier unused one, so only the newest e-mail works. Repeated requests for one address are limited (see below) |
 | `POST /api/v1/auth/password-reset/confirm` | Redeem reset token. A redeemed token signs the account out of **every** session, retires its other outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
+| `GET /api/v1/admin/customer-groups` | Admin: list customer groups (`customer_groups:read`) |
+| `PUT /api/v1/admin/customer-groups/:code` | Admin: create or update the group with that code — `name`, optional `description` (`customer_groups:write`) |
+| `DELETE /api/v1/admin/customer-groups/:id` | Admin: delete a customer group, `204` (`customer_groups:write`) |
 
 ## Limits on repeated attempts
 
@@ -140,20 +146,75 @@ never its values:
   and `hasBlockReason`, never the reason;
 - a custom-field change (`customer.custom_fields.update`) names the changed keys
   as `changedCustomFields`;
-- a role change records the role by id and kind, never a custom role's name.
+- a role change records the role by id and kind, never a custom role's name;
+- a preferred-language change (`customer_account.set_preferred_language`)
+  records `changedFields: ['preferredLanguage']` and where it came from as
+  `source` (`self_service` or `sign_in`), never the language.
 
 The account itself holds the values.
 
+## Preferred language
+
+Every account can record the language its owner reads, as
+`CustomerAccountRecord.preferredLanguage`: one language tag, spelled as the
+sales channel that captured it spells it (`pl-PL`, `en-US`), or `null` while it
+is not known. It is what e-mails composed for the account outside a request are
+meant to be written in. Inside a request nothing changes: the response language
+still follows the request's `Accept-Language` header.
+
+**Where it comes from.**
+
+- **At account creation**, from the creating request: its `Accept-Language`
+  header, resolved against the request's sales channel — the tags in order of
+  preference (`q`), each matched exactly or else by base language (`en` →
+  `en-US`); the first one the channel offers wins, else the channel's default
+  language. That
+  covers business registration, individual (B2C) registration, accepting an
+  invitation (the invitee's language, not the inviter's) and a first sign-in
+  through an external identity provider (the language of the page the sign-in
+  was started on). An account an operator creates on the organization panel
+  records none.
+- **At sign-in, only while it is unknown** — an account that predates the field,
+  or that an operator created. The language is taken once the password, the
+  block and the store access have been accepted, before any second factor is
+  asked for; a federated sign-in to an existing account is treated the same way.
+  A refused sign-in records nothing, an operator impersonating the customer
+  records nothing, and a sign-in never replaces a language the account already
+  has. If recording it fails, the sign-in still succeeds.
+- **The customer's own choice** on the storefront account page — the only thing
+  that replaces a stored language. See the `customers` module.
+
+**Reading it.** `customerAccountReadPort` returns the field on every record. A
+sender resolves it against the channel it renders for:
+`scopeLanguageOf(renderChannel, preferredLanguage)` — the exact language, else
+one of the same base language, else that channel's default. A language the
+channel no longer offers therefore falls back rather than failing, and nothing
+is migrated when a channel drops a language.
+
+**Writing it from another module.** `customerAccountPreferencePort` has two
+methods, both running the `customer_account.set_preferred_language` Command:
+`setPreferredLanguage(customerAccountId, tag)` stores the tag as given (the
+caller has checked it against the request's channel) and answers 404
+`NOT_FOUND` for an unknown account; `captureIfUnset(customerAccountId, tag)`
+writes only while the account has no language and otherwise does nothing — no
+write and no audit entry.
+
+**Personal data.** The language describes a person. It is never written into an
+audit entry, never logged, and the anonymisation sweep erases it with the name
+and the e-mail; an account anonymised before the field existed that still holds
+one is finished by the next sweep.
+
 ## Entities
 
-`CustomerAccount` (email, passwordHash, organizationRoleId), `PasswordResetToken`.
+`CustomerAccount` (email, passwordHash, organizationRoleId, preferredLanguage), `PasswordResetToken`.
 `organizationRoleId` names the account's organization role. The older two-value
 `role` (`organization_admin | regular_user`) is still kept in step with it while
 the platform moves off it, and will be removed.
 
 ## Extension points
 
-- **Password policy** — `password-hasher.ts` wraps argon2id; tune cost
+- **Password policy** — the platform's `password-hasher.ts`
+  (`packages/platform/src/kernel/crypto/`) wraps argon2id; tune cost
   parameters there.
 - **Backup codes and second factors** — not this module's. Customer and admin
   two-step verification is the `mfa` module's, over `mfa_enrolments`, served at

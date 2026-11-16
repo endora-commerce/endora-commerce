@@ -303,7 +303,7 @@ request**:
 | Admin adapter picker | `GET /api/v1/admin/delivery-methods/adapters` → `list` | the adapter is not offered as a choice |
 | Admin upsert guard | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | an explicitly supplied key nobody contributed is rejected (400) unless the row already carries it; a contributed one whose owner is off is accepted, because the read is presence-blind on purpose |
 | Order placement | `orders` re-validates the chosen method, then fires `onOrderCreated` | a method whose owner is off answers 503 `MODULE_DISABLED`; an unregistered one skips the hook |
-| Shipment generation | `ShipmentService.create` → `onShipmentCreated` | the adapter hook is skipped and the `Shipment` opens **`pending_manual`** naming the absent module — never plain `pending`, which would read as a shipment the carrier had accepted |
+| Shipment generation | `ShipmentService.createShipment` → `onShipmentCreated` | the adapter hook is skipped and the `Shipment` opens **`pending_manual`** naming the absent module — never plain `pending`, which would read as a shipment the carrier had accepted |
 | Order-confirmation e-mail | the method's `renderers.email` key | the platform default renderer is used |
 
 Two things follow, and they are the reason this section exists rather than being

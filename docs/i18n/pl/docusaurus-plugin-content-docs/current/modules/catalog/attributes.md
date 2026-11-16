@@ -25,6 +25,7 @@ Każdy atrybut ma:
 | `labelDefault` | Etykieta zastępcza, gdy dla aktywnego języka storefrontu lub panelu nie ma wpisu w `label`. |
 | `valueType` | Jedno z `string`, `number`, `boolean`, `price`, `date`, `select`, `multiselect`, `enum`, `page_builder`. |
 | `options[]` | Posortowana lista opcji do wyboru — tylko dla `select` / `multiselect` / `enum`. Zobacz [Listy opcji](#listy-opcji) niżej. |
+| `adminAccess` | **Dostęp w panelu**: `edit` (*Edytowalny*, domyślnie), `read` (*Tylko do odczytu*) albo `hidden` (*Ukryty*), zapisywany w definicji pola niestandardowego atrybutu i zwracany w każdej odpowiedzi z atrybutem. Zmienia wyłącznie panel administracyjny: nie ogranicza API, filtrów, eksportów ani dziennika audytu. Wymagany atrybut musi pozostać `edit` — każda inna wartość jest odrzucana z `400 VALIDATION_FAILED`, a edytor atrybutu nie udostępnia *Tylko do odczytu* ani *Ukryty*, dopóki atrybut jest wymagany. |
 
 Do tego flagi zachowania i pozycja liczbowa:
 
@@ -55,8 +56,8 @@ Do tego flagi zachowania i pozycja liczbowa:
 | `enum` | `value` opcji | Zapis taki sam jak `select`; w filtrach storefrontu i na stronie produktu wyświetla się jako zwarte przyciski zamiast listy rozwijanej. |
 | `page_builder` | jeden dokument Page Buildera na język, przechowywany poza `attribute_values` | **Treść Page Builder** — zobacz [Treść produktu](./product-content.md). |
 
-Zmiana `valueType` jest odrzucana z `attribute_type_change_unsafe`, gdy którykolwiek produkt ma
-wartość, której nowy typ nie potrafi przedstawić.
+Zmiana `valueType` jest odrzucana z `409 ATTRIBUTE_VALUE_TYPE_LOCKED`, gdy którykolwiek produkt ma
+wartość tego atrybutu; najpierw trzeba wyczyścić wartości.
 
 ### Treść Page Builder
 
@@ -105,14 +106,14 @@ Trasy administracyjne są chronione przez `catalog:read` (lista i odczyt) i `cat
 | `GET /api/v1/admin/catalog/attributes` | administrator | Lista atrybutów |
 | `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | administrator | Dane do listy wyboru — wszystkie atrybuty z żądaną flagą |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Odczyt jednego atrybutu |
-| `POST /api/v1/admin/catalog/attributes` | administrator | Utworzenie atrybutu (flagi i `options[]` bezpośrednio w treści dla typów wyboru) |
+| `POST /api/v1/admin/catalog/attributes` | administrator | Utworzenie atrybutu (flagi, `adminAccess` i `options[]` bezpośrednio w treści dla typów wyboru) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | administrator | Zmiana etykiet i natychmiastowa zmiana `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Ponownie emituje `attribute.updated.v1`. |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/usage` | administrator (`catalog:read`) | Co napotka usunięcie atrybutu: `{ attributeSetCount, productValueCount, productContentCount }` — zobacz [Usuwanie atrybutu](#usuwanie-atrybutu) |
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | administrator (`catalog:write`) | Usunięcie atrybutu dowolnego typu; odrzucane z `409`, dopóki zawiera go zestaw atrybutów albo produkt ma jego wartość — zobacz [Usuwanie atrybutu](#usuwanie-atrybutu) |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Lista opcji atrybutów select / enum / multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Dodanie opcji |
-| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Zmiana `label` / `labelDefault` / `isDefault` / `sortOrder` (wartości `value` opcji nie można zmienić) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Usunięcie; odrzucane z `409 ATTRIBUTE_OPTION_IN_USE`, dopóki którykolwiek produkt ma tę wartość |
+| `PATCH /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` | administrator | Zmiana `label` / `labelDefault` / `isDefault` / `sortOrder` (wartości `value` opcji nie można zmienić) |
+| `DELETE /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` | administrator | Usunięcie; odrzucane z `409 ATTRIBUTE_OPTION_IN_USE`, dopóki którykolwiek produkt ma tę wartość |
 
 Panel filtrów korzysta z `GET /api/v1/catalog/filters` (opisanego na stronie
 [katalogu](../catalog.md)) — ten endpoint wyznacza widoczne obecnie atrybuty filtrowalne w danym
@@ -260,7 +261,7 @@ znów je pokazuje.
 
 Wszystkie zmiany atrybutów i opcji przechodzą przez polecenia katalogu pod `/catalog/attributes` —
 ogólny ekran pól niestandardowych w panelu pokazuje definicje produktu tylko do odczytu i odrzuca
-zmiany z `409 host_managed`.
+zmiany z `409 CUSTOM_FIELD_HOST_MANAGED`.
 
 ## Emitowane zdarzenia
 

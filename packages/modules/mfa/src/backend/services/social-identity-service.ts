@@ -48,7 +48,14 @@ export interface SocialIdentityDeps {
    */
   autoCreateCustomer: (
     email: string,
-    context: { salesChannelId: string },
+    context: {
+      salesChannelId: string;
+      /**
+       * Issue #652 (D-292) — the language the new account records, already
+       * resolved against that channel. Absent, none.
+       */
+      preferredLanguage?: string | null;
+    },
   ) => Promise<SocialAccountMatch | null>;
   resolveAdminByEmail: (email: string) => Promise<{ id: string } | null>;
 }
@@ -68,6 +75,11 @@ export type SocialSignInResult =
 /** Where a customer's federated sign-in was started: the OAuth transaction's channel. */
 export interface CustomerSignInContext {
   salesChannelId: string | null;
+  /**
+   * Issue #652 (D-292) — the language of the page the sign-in was started on,
+   * resolved against that channel; what an account created here records.
+   */
+  preferredLanguage?: string | null;
 }
 
 export class SocialIdentityService {
@@ -103,7 +115,10 @@ export class SocialIdentityService {
       ) {
         return { ok: false, reason: 'sales_channel_sign_in_required' };
       }
-      account = await this.deps.autoCreateCustomer(identity.email, { salesChannelId });
+      account = await this.deps.autoCreateCustomer(identity.email, {
+        salesChannelId,
+        ...(context.preferredLanguage ? { preferredLanguage: context.preferredLanguage } : {}),
+      });
       if (!account) return { ok: false, reason: 'registration_disabled_in_channel' };
       created = true;
     }

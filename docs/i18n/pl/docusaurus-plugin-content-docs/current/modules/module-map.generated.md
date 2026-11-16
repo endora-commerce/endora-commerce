@@ -25,13 +25,13 @@ platformy, a nie tego, co akurat zostało opisane.
 | [Opinie](./admin-feedback.md) | Administratorzy wysyłają z panelu opinie twórcom Endora Commerce, przekazywane jako jeden e-mail i nigdzie nie zapisywane | @endora-commerce/mod-admin-feedback |
 | `admin_notifications` | _brak strony_ | @endora-commerce/mod-admin-notifications |
 | [Role administratorów](./admin_roles.md) | Role administratorów i uprawnienia poszczególnych modułów | @endora-commerce/mod-admin-roles |
-| [Wyszukiwanie globalne](./admin-search.md) | Wyszukiwanie globalne w panelu administracyjnym — znajdowanie organizacji, klientów, zamówień, zapytań ofertowych, szans sprzedażowych, produktów i kategorii z palety poleceń, z konfigurowalnymi polami wyszukiwania | @endora-commerce/mod-admin-search |
+| [Wyszukiwanie globalne](./admin-search.md) | Wyszukiwanie globalne w panelu administracyjnym — znajdowanie organizacji, klientów, zamówień, zapytań ofertowych, szans sprzedażowych, produktów, kategorii, projektów i zadań z palety poleceń, z konfigurowalnymi polami wyszukiwania | @endora-commerce/mod-admin-search |
 | [Administratorzy](./admin_users.md) | Konta administratorów platformy i logowanie jako klient | @endora-commerce/mod-admin-users |
 | [Analityka](./analytics.md) | Zbieranie zdarzeń ze storefrontu, zestawienia w panelu administracyjnym i opcjonalne przekazywanie do GA4 | @endora-commerce/mod-analytics |
 | [Klucze API](./api_keys.md) | Dane uwierzytelniające integracji w postaci tokenu bearer | @endora-commerce/mod-api-keys |
 | [Biblioteka zasobów](./assets-library/index.md) | Centralna biblioteka plików z wymiennymi adapterami przechowywania, stałymi adresami plików i stałymi linkami, podmianą pliku w miejscu, usuwaniem miękkim z okresowym czyszczeniem i ochroną przed usunięciem używanych plików | @endora-commerce/mod-assets-library |
 | [Dziennik audytu](./audit_logs.md) | Dziennik audytu wrażliwych operacji | @endora-commerce/mod-audit-logs |
-| [Uwierzytelnianie](./auth.md) | Sesje klientów i administratorów, hashowanie haseł, TOTP | @endora-commerce/mod-auth |
+| [Uwierzytelnianie](./auth.md) | Sesje klientów i administratorów, śledzenie ostatniej aktywności sesji oraz zabezpieczenia tras administratora i klienta | @endora-commerce/mod-auth |
 | [Blog](./blog/index.md) | Wpisy redakcyjne z treścią z Page Buildera, kategoriami i tagami oraz listami wpisów w storefroncie | @endora-commerce/mod-blog |
 | [Koszyki](./carts.md) | Koszyk klienta z łączeniem koszyka anonimowego z koszykiem po zalogowaniu | @endora-commerce/mod-carts |
 | [Katalog](./catalog.md) | Produkty, warianty, kategorie, atrybuty, kanały sprzedaży | @endora-commerce/mod-catalog |
@@ -56,7 +56,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [Import / eksport](./import_export.md) | Import i eksport CSV do masowej edycji encji | @endora-commerce/mod-import-export |
 | [Magazyn](./inventory.md) | Stany magazynowe, rezerwacje, powiadomienia o dostępności | @endora-commerce/mod-inventory |
 | [Księga faktur](./invoice-ledger.md) | Wspólna blokada dostawcy, numeracja i trasowanie KSeF oraz trwała wysyłka faktur dla adapterów księgi faktur. | @endora-commerce/mod-invoice-ledger |
-| [Faktury](./invoices.md) | Generowanie faktur i faktur proforma w PDF oraz powiązanie z plikami | @endora-commerce/mod-invoices |
+| [Faktury](./invoices.md) | Faktury VAT, faktury proforma i faktury korygujące wystawiane do zamówień, z plikami PDF renderowanymi z szablonów dokumentów | @endora-commerce/mod-invoices |
 | [Języki](./languages.md) | Lista obsługiwanych znaczników języków BCP-47 i reguła wartości zastępczej dla tłumaczeń | @endora-commerce/mod-languages |
 | [LinkedIn Ads](./linkedin-ads.md) | LinkedIn Insight Tag osobno dla każdego kanału sprzedaży, raportujący działania w storefroncie według reguł konwersji z Campaign Managera | @endora-commerce/mod-linkedin-ads |
 | [Megamenu](./megamenu/index.md) | Konfigurowalne drzewo nawigacji przypisywane osobno do każdej pary kanału i języka | @endora-commerce/mod-megamenu |

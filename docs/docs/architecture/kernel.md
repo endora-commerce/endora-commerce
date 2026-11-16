@@ -1289,7 +1289,7 @@ pnpm run cli search reindex
 
 # In a checkout of the Endora Commerce repository:
 pnpm --filter backend run cli -- --list
-pnpm --filter backend run cli -- search reindex  # or the alias: pnpm search:reindex
+pnpm --filter backend run cli -- search reindex  # or the alias: pnpm --filter backend run search:reindex
 ```
 
 The same tree walk and the same `detectHookExport` that carry `installHook`

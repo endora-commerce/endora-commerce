@@ -30,7 +30,9 @@ po prefiksie odpowiada na pytania „podrzędne X” i „nadrzędne X” — be
 - **Odczyt organizacji nadrzędnych** — `GET /api/v1/admin/organizations/:id/ancestors` zwraca
   łańcuch od najbliższej organizacji nadrzędnej do korzenia.
 - **Usunięcie jest zablokowane** — organizacji, która ma jakąkolwiek organizację podrzędną, nie
-  można usunąć (`409 has_children`), co zabezpiecza też klucz obcy `parent_id … ON DELETE RESTRICT`.
+  można usunąć (`DELETE /api/v1/admin/organizations/:id`, usunięcie miękkie z odpowiedzią `204`,
+  jest odrzucane z `409 ORGANIZATION_HAS_CHILDREN` i `details.code: 'has_children'`), co zabezpiecza
+  też klucz obcy `parent_id … ON DELETE RESTRICT`.
   Najpierw przenieś albo usuń organizacje podrzędne.
 
 Zmiana organizacji nadrzędnej działa **wstecz**: przynależność do poddrzewa, wgląd w strukturę i
@@ -92,7 +94,11 @@ organization descendants”).
   na poddrzewo przypisanego węzła. Organizacja podrzędna z **własnym** przypisaniem zastępuje
   odziedziczone dla swojego poddrzewa — wygrywa **najbliższe przypisanie w łańcuchu organizacji
   nadrzędnych**. Bez tego uprawnienia o organizacji decydują wyłącznie jej własne przypisania.
-- Użytkownik oddziału bez wglądu w strukturę widzi wyłącznie własną organizację.
+- Użytkownik oddziału bez wglądu w strukturę widzi wyłącznie własną organizację. Operator włącza
+  lub wyłącza wgląd w strukturę członka przez
+  `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/rollup`
+  (`{ subtreeRollupEnabled, expectedUpdatedAt? }`, `customers:manage`); zmiana jest zapisywana
+  w audycie jako `customer_account.admin_rollup_change`.
 
 Najbliższe przypisanie rozstrzyga na **każdym ekranie panelu** (zgłoszenie #305): na stronach
 organizacji, na liście organizacji i w polach wyboru, w wyszukiwarce panelu oraz przy każdym odczycie

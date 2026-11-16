@@ -1,5 +1,160 @@
 # @endora-commerce/mod-pwa
 
+## 0.111.0
+
+### Minor Changes
+
+- eedda68: `pwa` publishes `customerPushPort`, and quote request pushes now come from `quote_requests` instead of from `pwa`'s own event subscriptions (issue #238, `specs/179-rfq-and-customer-notifications/` WP-10).
+
+  - **New port `customerPushPort`** (`CustomerPushPort` in `@endora-commerce/contracts`). Another module pushes to one customer account with `push({ organizationId, customerAccountId, salesChannelId, category: 'quote', title, body, url, sourceKey })`, the text already rendered. The port applies the order status push's gates in the same order: channel (`null` = the system default), `pwa.push_enabled` and `pwa.push_quote_status_enabled`, account live and in the named Organization, the account's quote preference. It adds one more, an active device subscription on the channel. It then writes one push message under trigger `quote_request` with `source_event_id = sourceKey`. The answer is `enqueued` or the gate that stopped it: `skipped:switched_off`, `skipped:no_account`, `skipped:customer_preference` or `skipped:no_subscription`. A repeated `sourceKey` writes nothing and answers `enqueued`. While `pwa` is switched off the port refuses with `MODULE_DISABLED`. It is a producer only: delivery stays with the push-delivery worker.
+  - **Removed: the quote half of the automatic status pushes.** `pwa` no longer subscribes to `rfq.created_by_admin.v1`, `rfq.modified.v1`, `rfq.approved.v1`, `rfq.canceled.v1` or `rfq.expired.v1`. The status-push composer handles orders only, and its `degrades-without quote_requests` edge on `quoteRequestReadPort` is gone. `quote_requests` now declares `degrades-without pwa` and pushes through the new port, to the same people and on the same changes as its e-mails and notification-centre entries. A change is never pushed twice. The order status push is unchanged.
+  - **Who gets a quote push.** Before, only the requester was pushed to, and only for five operator-side changes. Now the requester and the members of their Organization who may open the request get a push, on every change `quote_requests` notifies about. Nobody is pushed about a change they made themselves. The _Quote updates_ preference and the per-channel `pwa.push_quote_status_enabled` switch still decide, and the quote switch is still not offered while Quote Requests is off.
+  - **Bundle keys removed:** `notification.quote.title` and `notification.quote.body.*` (en, pl). The sentence is now `quote_requests`' own. The description of `pwa.push_quote_status_enabled` and the `settings.field.statusPushHint` text now say who is notified.
+
+  Upgrade note: a deployment that relied on `pwa` reacting to `rfq.*` events gets the same quote pushes, and more of them. They now come from `quote_requests`' notification delivery worker, which records each push's outcome on the request's History. A push message written by the old subscription keeps its row. Its `source_event_id` is an event id, while the new ones carry the delivery record's id, so the two never collide.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- b918cf6: Readers of an organization's tax ID handle a personal organization, which has no tax ID since this release (`taxId: null`). An order placed by a personal organization carries no `billingAddress.taxId`, a quote document prints no tax ID for its buyer, and the push-audience organization picker shows no hint for it — each as before, now by data rather than by recognising the old placeholder. The demo composition finds the demo organisation by its tax ID with the tree's root first, as `organizationDetailsPort.findByTaxId` does, so a branch sharing that tax ID is never taken for it.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

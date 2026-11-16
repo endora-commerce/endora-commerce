@@ -4585,7 +4585,176 @@ wcześniej, przez pull requesty, które wprowadziły każdą zmianę. W chwili j
 nie była zaktualizowana poleceniem `pnpm run upgrade 0.110.0`; kolejność kroków i zmiany w
 storefroncie nie zostały wypróbowane.
 
-### Jedna reguła zasięgu przedstawiciela handlowego na wszystkich ekranach {#sales-rep-reach-one-rule}
+### Po aktualizacji do wydania 0.111.0 {#after-0-111-0}
+
+`pnpm run upgrade 0.111.0` przenosi pakiety wydania z `0.110.0` i stosuje jego migracje —
+dwadzieścia cztery dla modułów z wcześniejszych wydań (każda działa tam, gdzie zadeklarowano jej
+moduł) i jeszcze jedną dla nowego modułu `customer_notifications`, która działa dopiero wtedy, gdy
+instancja go zadeklaruje. **Najstarsza wersja, z której można aktualizować, to `0.100.0`**: na
+starszej bazie pierwsza migracja `organizations` odmawia działania i niczego nie zmienia. **Dwie
+migracje mogą odmówić działania na istniejących danych, a jedna blokuje tabelę na czas jej
+przepisania**, więc przed migracją przeczytaj [Numery NIP](#after-0-111-0-tax-ids). Poza tym wydanie
+wyprowadza wartości najemców z dziennika audytu platformy moduł po module, stosuje jedną regułę
+zasięgu przedstawiciela handlowego na wszystkich ekranach panelu, zapisuje język wiadomości e-mail
+każdego konta klienta, kończy logowanie przez Google i Microsoft na własnym hoście storefrontu,
+restartuje backend, który przestał odpowiadać, i dodaje centrum powiadomień kupującego. Kroki
+poniżej mówią, co zrobić i w jakiej kolejności; każdy wpis po nich jest samodzielny, więc przeczytaj
+te, które dotyczą używanych przez Ciebie części platformy.
+
+#### Co zrobić i w jakiej kolejności {#after-0-111-0-steps}
+
+Przed aktualizacją:
+
+1. **Sprawdź wersję, z której aktualizujesz.** Instancję starszą niż `0.100.0` najpierw zaktualizuj do
+   wydania `0.100.x`–`0.110.x` ([Numery NIP](#after-0-111-0-tax-ids)).
+2. **Znajdź organizacje, których numery NIP po normalizacji staną się jednym numerem**, i nadaj każdej
+   własny. `Migration20261110T183238OrganizationsTaxIdNormalise` odmawia działania i niczego nie
+   zmienia, dopóki takie zostają ([Numery NIP](#after-0-111-0-tax-ids)).
+3. **Zaplanuj okno serwisowe dla `organizations`.** `Migration20261110T135941OrganizationsTaxIdScope`
+   dodaje zapisywaną kolumnę generowaną, co przepisuje tabelę pod blokadą wyłączną.
+4. **Upewnij się, że rola uruchamiająca migracje może utworzyć rozszerzenie `btree_gist`**, albo utwórz
+   je raz jako superużytkownik: `create extension if not exists btree_gist;`. Instancja, która
+   uruchomiła `0.110.0`, już je ma.
+5. **Zatrzymaj wszystkie procesy poprzedniego wydania przed migracją**, API i workery. `quote_requests`
+   usuwa tabelę, do której poprzednie wydanie zapisuje, a `organizations` zezwala na pustą wartość
+   `organizations.tax_id` i przepisuje każdą wartość.
+
+Sama aktualizacja:
+
+6. **Uruchom `pnpm run upgrade 0.111.0`.** `setup` stosuje migracje moduł po module, w kolejności
+   zależności modułów, a migracje każdego modułu w kolejności ich znaczników czasu. Według modułów:
+
+   | Migracja | Moduł | Co robi |
+   | --- | --- | --- |
+   | `Migration20261110T140633CoreSchemaExtensionsLedger` | `core` | Tabela `schema_extensions`: kolumny i indeksy dodane przez zadeklarowane rozszerzenie schematu — zob. [Rozszerzenia schematu](#schema-extensions-instance-command) |
+   | `Migration20261112T124348CoreCommandOutbox` | `core` | Tabela `command_outbox`: dostarczenia hooków po zatwierdzeniu, które Command jest winien, dostarczane co najmniej raz |
+   | `Migration20261114T003519LanguagesDictionaryColumns` | `languages` | Tworzy `languages.native_label`, `is_rtl` i `fallback_code`, gdzie nie utworzyła ich starsza migracja innego modułu; na instancji, która je ma, nic się nie zmienia |
+   | `Migration20261114T002913AdminUsersPreferredLanguage` | `admin_users` | Tworzy `admin_users.preferred_language`, gdzie jej brakuje; na instancji, która ją ma, nic się nie zmienia |
+   | `Migration20261115T190121AdminUsersImpersonationReasons` | `admin_users` | Tabela `admin_impersonation_reasons`, pusta — zob. [Powody impersonacji](#impersonation-reason-store) |
+   | `Migration20261116T131329AdminUsersImpersonationReasonAttribution` | `admin_users` | Ograniczenie D-187 przypisania do organizacji na `admin_impersonation_reasons` (wiersz konta wskazuje jego organizację); obie kolumny są już `not null`, więc żaden wiersz go nie narusza |
+   | `Migration20261109T144721OrganizationsReachGovernor` | `organizations` | Tabela `organization_reach_governor`, wypełniona ze ścieżki każdej organizacji i przypisań przedstawicieli handlowych — zob. [Zasięg przedstawiciela](#sales-rep-reach-async-helpers) |
+   | `Migration20261110T135922OrganizationsPersonalTaxIdRemoval` | `organizations` | **Czyści zastępczy NIP każdej organizacji osobistej** i zapisuje jej konto w `personal_account_id`; odmawia poniżej `0.100.0` — zob. [Numery NIP](#after-0-111-0-tax-ids) |
+   | `Migration20261110T135941OrganizationsTaxIdScope` | `organizations` | Zapisywana kolumna generowana `organizations.root_id` (**przepisuje tabelę pod blokadą wyłączną**), `btree_gist` i zakres NIP instalacji, `global` |
+   | `Migration20261110T173752OrganizationsTaxIdWriteLock` | `organizations` | Wyzwalacz, dzięki któremu dwa zapisy jednego NIP-u wykonują się po kolei |
+   | `Migration20261110T183238OrganizationsTaxIdNormalise` | `organizations` | Przepisuje każdy NIP bez spacji i myślników, wielkimi literami; **odmawia, dopóki dwie organizacje miałyby jeden numer** |
+   | `Migration20261115T145934CustomerAccountsPreferredLanguage` | `customer_accounts` | Kolumna `customer_accounts.preferred_language` dopuszczająca pustą wartość, bez uzupełniania — zob. [Język wiadomości e-mail](#after-0-111-0-email-language) |
+   | `Migration20261106T094044CustomFieldsDefinitionCustomerInputAdminAccess` | `custom_fields` | Miejsca, w których kupujący podaje wartość pola dodatkowego, i dostęp w panelu; istniejące definicje zachowują się jak dotąd |
+   | `Migration20261114T000706CatalogCategoryMainImage` | `catalog` | Tworzy `categories.main_image_asset_id`, gdzie jej brakuje |
+   | `Migration20261110T073922PriceListsValueChanges` | `price_lists` | Tabela `price_list_value_changes`: własna historia cen zmienionych przez polecenia cennika |
+   | `Migration20261115T065605InventoryAvailabilityNotificationScope` | `inventory` | Kanał sprzedaży i język, w których zapisano subskrypcję powiadomienia o dostępności; starsze subskrypcje mają `NULL`, a ich e-mail zachowuje globalną nazwę produktu |
+   | `Migration20261115T182156InventoryAvailabilityNotificationNotifiedStatus` | `inventory` | Oznacza jako `notified` subskrypcje, które worker stanów zużył, ale zostawił jako `queued` |
+   | `Migration20261110T143322OrdersOrderExternalReferences` | `orders` | Tabela `order_external_references`, pusta |
+   | `Migration20261114T001851PaymentsProcessColumns` | `payments` | Tworzy `payments.provider_details`, `failure_reason` i `attempt_no`, gdzie ich brakuje |
+   | `Migration20261113T081826QuoteRequestsNotificationsRedesign` | `quote_requests` | **Usuwa `quote_request_notification_events`** (zapisywaną przy każdym przejściu, nieczytaną przez nic) i tworzy rekordy dostarczeń `quote_request_notifications`; żaden wiersz nie jest przenoszony |
+   | `Migration20261109T163616CrmOpportunityValueChanges` | `crm` | Tabela własnej historii wartości szansy sprzedażowej — zob. [Wartości szans](#crm-audit-names-only) |
+   | `Migration20261110T054810TasksValueChanges` | `tasks` | Tabela własnej historii wartości zadania — zob. [Wartości zadań](#tasks-audit-names-only) |
+   | `Migration20261114T145439ProjectsStageAlertInterrupted` | `projects` | Wynik `interrupted` dla alertu terminu etapu, którego przebieg się przerwał |
+   | `Migration20261114T153132ProjectsConfigurationVersions` | `projects` | Tokeny wersji, które odrzucają nieaktualną edycję konfiguracji projektu |
+
+   Zadeklarowanie `customer_notifications` dodaje `Migration20261113T082045CustomerNotificationsInit`,
+   która tworzy tylko własną tabelę modułu (krok 9).
+
+Po aktualizacji, zanim instancja znów przyjmie ruch:
+
+7. **Przenieś storefront.** Storefront skopiowany z wcześniejszego wydania nie ma tras przekazania
+   logowania federacyjnego, bez których każde logowanie klienta przez Google lub Microsoft jest
+   odrzucane ([Logowanie federacyjne](#federated-sign-in-storefront-handoff)), jednego przycisku
+   *Zapisz zmiany* listy zakupów, centrum powiadomień ani wiersza języka wiadomości e-mail na stronie
+   konta. Najkrótsza droga to przeniesienie storefrontu wydania w całości — `git diff v0.110.0 v0.111.0
+   -- storefront` w repozytorium platformy wypisuje każdą zmianę.
+8. **Ustaw `ADMIN_BASE_URL` na pełny adres panelu**, jeśli backend odmawia startu, wskazując tę zmienną,
+   albo jeśli instancja nie ma `mfa` i nigdy jej nie ustawiła ([Adres panelu](#admin-base-url-platform-input)).
+   W każdym kanale sprzedaży obsługiwanym na własnym hoście ustaw **Storefront URL** na ten host.
+
+W dowolnym momencie:
+
+9. **Zadeklaruj `customer_notifications`**, jeśli kupujący mają mieć centrum powiadomień w storefroncie
+   ([Dodawanie modułu nowego w wydaniu](#adding-a-new-module)). Zapytania ofertowe działają bez niego.
+10. **Uruchamiaj backend pod nadzorcą**: skopiuj `backend/scripts/supervise.mjs` i zmień polecenie
+    obrazu backendu ([Nadzorca backendu](#backend-supervisor)). Bez tego backend działa jak dotąd.
+11. **Własny kod**, który wywoływał `isOrgInScope` lub `ruleVisibleForScope`, dopasowywał wariant
+    `'set'` typu `OrgConstraint`, czytał `taxId` organizacji jako tekst, czytał wartości najemców
+    z dziennika audytu platformy, montował jedną z sześciu stref edytorów albo rozpoznawał odmowę po
+    ogólnym kodzie błędu, wymaga zmian opisanych w [Zmianach niezgodnych wstecz](#after-0-111-0-breaking).
+
+#### Numery NIP {#after-0-111-0-tax-ids}
+
+Cztery migracje `organizations` zmieniają sposób zapisu NIP-u (`specs/177-tax-id-scope/`):
+
+- **Organizacja osobista (B2C) nie ma NIP-u.** Miała 32-znakowy szesnastkowy numer zastępczy
+  utworzony z identyfikatora konta; migracja go czyści i zapisuje konto w `personal_account_id`.
+  Wiersz osobisty, którego NIP nie był takim numerem, jest czyszczony i zostaje bez powiązania, a ich
+  liczba jest zgłaszana jako komunikat. **Dokumenty zapisane przed aktualizacją nie są przepisywane**:
+  zamówienie, faktura, dokument oferty lub wpis audytu utworzony wcześniej dla organizacji osobistej
+  nadal pokazuje numer zastępczy. Zamówienia, które go zawierają, wypisze
+  `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$';`.
+- **Każdy NIP jest zapisywany bez spacji i myślników, wielkimi literami**, więc `526-025-09-95` i
+  `5260250995` to jeden numer. Migracja odmawia działania i niczego nie zmienia, dopóki dwie
+  organizacje miałyby jeden NIP po normalizacji; wypisuje do 50 takich grup. Znajdź je przed
+  aktualizacją i nadaj każdej organizacji własny NIP:
+
+  ```sql
+  select upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g')) as tax_id, array_agg(id)
+  from organizations where tax_id is not null group by 1 having count(*) > 1;
+  ```
+
+- **Instalacja ma zakres NIP**, po aktualizacji `global`: jeden NIP należy do jednej organizacji, jak
+  dotąd. Operator może przełączyć go na *per korzeń drzewa*, gdzie centrala i jej oddziały dzielą
+  jeden numer (zob. stronę modułu `organizations`). Dodanie `organizations.root_id` przepisuje tabelę
+  pod blokadą wyłączną.
+- **Najstarsza wersja, z której można aktualizować, to `0.100.0`.** Na bazie, która ma organizacje, ale
+  nie zastosowała `Migration20260825T141659CustomerAccountsOrganizationRequired` modułu
+  `customer_accounts` (pierwszy raz w `0.100.0`), pierwsza migracja odmawia działania.
+
+#### Język wiadomości e-mail {#after-0-111-0-email-language}
+
+Konto klienta zapisuje język, w którym czyta jego właściciel (zgłoszenie #652): z żądania, które je
+tworzy, oraz przy logowaniu, dopóki go nie ma; kupujący może go zmienić na stronie konta w
+storefroncie, a strona klienta w panelu pokazuje go tylko do odczytu. Istniejące konta zaczynają bez
+niego i uzupełniają go przy następnym logowaniu. To wydanie tylko go zapisuje: wiadomości
+transakcyjne nadal wychodzą w języku kanału. Storefront skopiowany z wcześniejszego wydania przekazuje
+język strony przy logowaniu i rejestracji dopiero po przeniesieniu (krok 7); do tego czasu konta
+zapisują domyślny język kanału.
+
+#### Zmiany niezgodne wstecz {#after-0-111-0-breaking}
+
+- **`taxId` organizacji ma typ `string | null`** (`organizationSchema.taxId`,
+  `OrganizationRecord.taxId`): organizacja osobista go nie ma. Kod, który czytał go jako tekst, obsługuje
+  `null`.
+- **`@endora-commerce/platform/tenancy` usuwa `isOrgInScope(id, ctx?)` i
+  `ruleVisibleForScope(ids, ctx?)`**: zasięg przedstawiciela handlowego jest ładowany na żądanie, a
+  pomocnicze funkcje zakresu są asynchroniczne — zob.
+  [Zasięg przedstawiciela ładowany na żądanie](#sales-rep-reach-async-helpers).
+- **Wariant `'set'` typu `OrgConstraint` został usunięty**: teraz to `{ kind: 'allowed', organizationIds }`,
+  obok nowego `{ kind: 'excluded', excludedOrganizationIds, assignedOrganizationIds }`.
+- **Wartości najemców znikają z dziennika audytu platformy** w modułach `crm`, `tasks`, `projects`,
+  `orders`, `customer_accounts`, `quote_requests`, `credit_limits`, `returns`, `invoices`, `newsletter`,
+  `organizations`, `quick_order`, `addresses`, `customers`, `forms` i `admin_users`: wpis podaje nazwy
+  pól zmienionych przez zapis i, tam gdzie moduł ją prowadzi, wskazuje własną historię wartości
+  modułu. Wpisy zapisane przed aktualizacją nie są przepisywane. Wpis każdego modułu poniżej mówi, co
+  i dokąd przeniesiono.
+- **Sześć stref panelu administracyjnego wymaga właściwości `saveSession`** (`ProductEditorZoneProps`,
+  `ProductEditorFieldZoneProps`, `CategoryEditorZoneProps`, `SalesChannelEditorZoneProps`,
+  `OrganizationDetailZoneProps`, `CustomerDetailZoneProps`; zgłoszenie #407): kod, który montuje jedną
+  z nich przez `<AdminZone>` lub `useAdminZone()`, przekazuje sesję zapisu gospodarza albo
+  `INERT_SAVE_SESSION` z `@endora-commerce/admin-kit/lib`. Wkład, który nie czyta tej właściwości, nie
+  wymaga zmian.
+- **Odmowy domenowe mają własne kody błędów** (zgłoszenie #86) w modułach `catalog`, `delivery_methods`,
+  `dictionaries`, `invoices`, `megamenu`, `newsletter`, `orders`, `payment_methods`, `payments`,
+  `price_lists`, `product_feeds`, `projects`, `promotions`, `quick_order`, `returns`, `shipments`,
+  `tasks`, `crm`, `transactional_emails`, `api_keys`, `import_export` i `invoice_ledger`: odmowa, która
+  odpowiadała `VALIDATION_FAILED` lub innym ogólnym kodem, odpowiada własnym kodem, z wartościami w
+  `details`. Wywołujący, który rozpoznawał ogólny kod, rozpoznaje nowy; `CHANGELOG.md` każdego modułu
+  dla 0.111.0 wymienia jego odmowy i ich kody.
+
+Ta sekcja została napisana 2026-11-16 na gałęzi wydania `release/version-0.111.0`, na podstawie
+changesetów wydania zestawionych z jego migracjami i manifestami; wpisy od *Jednej reguły zasięgu
+przedstawiciela handlowego na wszystkich ekranach* do *Logowania federacyjnego kończonego na własnym
+hoście storefrontu* zostały napisane wcześniej, przez pull requesty, które wprowadziły każdą zmianę.
+W chwili jej pisania żadna instancja nie była zaktualizowana poleceniem `pnpm run upgrade 0.111.0`;
+kolejność kroków nie została wypróbowana.
+
+#### Jedna reguła zasięgu przedstawiciela handlowego na wszystkich ekranach {#sales-rep-reach-one-rule}
 
 Wydanie z tą zmianą stosuje jedną regułę zasięgu przedstawicieli handlowych na każdym ekranie panelu
 (zgłoszenie #305). Przedstawiciel handlowy sięga do każdej organizacji, której **nie prowadzi inny
@@ -4658,7 +4827,7 @@ Nic nie jest migrowane i nic nie trzeba konfigurować; administratorzy platformy
    do niej dostęp. Organizacji osobistej nie można przypisać; ukrycie danych B2C przed
    przedstawicielami byłoby inną regułą i nie da się go skonfigurować.
 
-### Wymagania weryfikacji dwuetapowej klientów bez klucza szyfrowania {#customer-two-step-without-key}
+#### Wymagania weryfikacji dwuetapowej klientów bez klucza szyfrowania {#customer-two-step-without-key}
 
 Wydanie z tą zmianą rozszerza na wymagania wobec klientów to, co
 [Wymuszona weryfikacja dwuetapowa bez klucza szyfrowania](#admin-two-step-without-key) wprowadziła
@@ -4690,7 +4859,7 @@ uruchom backend ponownie, aby wymagania znów obowiązywały, albo wyłącz usta
 **Ustawieniach** i zdejmij polityki organizacji. Ustaw ten klucz, z którym utworzono rejestracje:
 rejestracji utworzonej innym kluczem nie da się nim sprawdzić.
 
-### Trasa pliku prywatnego zasobu odpowiada 404 bez podpisu {#private-asset-file-404}
+#### Trasa pliku prywatnego zasobu odpowiada 404 bez podpisu {#private-asset-file-404}
 
 Wydanie z tą zmianą sprawia, że publiczna trasa plików nie odróżnia już prywatnego zasobu od
 zasobu, który nie istnieje (zgłoszenie #542).
@@ -4714,7 +4883,7 @@ Kod porównujący z `ERROR_CODES.ASSET_ACCESS_DENIED` przestaje się kompilować
 porównuj z `ERROR_CODES.ASSET_NOT_FOUND`. Przy magazynie w chmurze dodaj nagłówek
 `X-Content-Type-Options: nosniff` przed bucketem, jak opisuje strona biblioteki zasobów.
 
-### Ostatni drugi składnik zostaje, gdy weryfikacja dwuetapowa jest wymagana {#last-factor-required}
+#### Ostatni drugi składnik zostaje, gdy weryfikacja dwuetapowa jest wymagana {#last-factor-required}
 
 Wydanie z tą zmianą zamyka lukę w wymaganiach weryfikacji dwuetapowej (zgłoszenie #935).
 Administrator albo klient, od którego polityka wymagała drugiego składnika, mógł wyłączyć jedyny,
@@ -4745,7 +4914,7 @@ konfigurację.
 dwuetapowej, powinien odczytywać `canDisable` zamiast zgadywać i obsługiwać
 `409 MFA_LAST_FACTOR_REQUIRED`.
 
-### Wartości szans sprzedażowych znikają z dziennika audytu platformy {#crm-audit-names-only}
+#### Wartości szans sprzedażowych znikają z dziennika audytu platformy {#crm-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać wartości szansy sprzedażowej w dzienniku audytu całej
 platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
@@ -4772,7 +4941,7 @@ dotyczyła zmiana szansy.
 dziennika audytu, odczytuje je z samej szansy albo z jej historii zmian
 (`GET /api/v1/admin/crm/opportunities/:id/history`).
 
-### Ograniczenie ilości w pozycji i liczby pozycji {#line-quantity-bound}
+#### Ograniczenie ilości w pozycji i liczby pozycji {#line-quantity-bound}
 
 Wydanie z tą zmianą ogranicza ilość w pozycji żądania do **1 000 000** — tyle samo, ile wynosi
 górna granica minimów zamówienia — na każdej ścieżce, która ją przyjmuje, a listy pozycji
@@ -4820,7 +4989,7 @@ Większa ilość przechodziła wcześniej walidację i kończyła się błędem 
 zapytania ofertowego operatora lub do zwrotów, musi podzielić żądanie, a integracja rozróżniająca
 kody błędów powinna obsłużyć `LINE_QUANTITY_EXCEEDED`.
 
-### Wartości zamówień znikają z dziennika audytu platformy {#orders-audit-names-only}
+#### Wartości zamówień znikają z dziennika audytu platformy {#orders-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać wartości zamówienia w dzienniku audytu całej platformy
 (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
@@ -4840,7 +5009,7 @@ względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego dotyc
 **Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
 dziennika audytu, odczytuje je z samego zamówienia (`GET /api/v1/admin/orders/:id`).
 
-### Wartości zadań znikają z dziennika audytu platformy {#tasks-audit-names-only}
+#### Wartości zadań znikają z dziennika audytu platformy {#tasks-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać wartości zadania w dzienniku audytu całej platformy
 (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
@@ -4866,7 +5035,7 @@ względu na to, co widzi, dlatego teraz mówi tylko, czego dotyczyła zmiana zad
 dziennika audytu, odczytuje je z samego zadania albo z jego historii
 (`GET /api/v1/admin/tasks/:id/history`).
 
-### Wartości kont klientów znikają z dziennika audytu platformy {#customer-accounts-audit-names-only}
+#### Wartości kont klientów znikają z dziennika audytu platformy {#customer-accounts-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać wartości konta klienta w dzienniku audytu całej platformy
 (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`, bez
@@ -4888,7 +5057,7 @@ względu na to, które organizacje widzi, dlatego teraz mówi tylko, czego dotyc
 **Po aktualizacji** nie trzeba nic robić. Raport lub eksport, który odczytywał te wartości z
 dziennika audytu, odczytuje je z samego konta (`GET /api/v1/admin/customers/:id`).
 
-### Tytuły projektów znikają z dziennika audytu platformy {#projects-title-out-of-audit}
+#### Tytuły projektów znikają z dziennika audytu platformy {#projects-title-out-of-audit}
 
 Wydanie z tą zmianą przestaje zapisywać tytuł projektu w dzienniku audytu całej platformy
 (zgłoszenie #470, decyzja właściciela z 2026-11-10: tytuł jest wartością). Wartość i wartości pól
@@ -4906,7 +5075,7 @@ niestandardowych projekty już wcześniej trzymały poza nim.
 
 **Po aktualizacji** nie trzeba nic robić.
 
-### Nazwy etapów, tytuły zadań i nazwy plików znikają z wpisów audytu projektów {#projects-stage-names-out-of-audit}
+#### Nazwy etapów, tytuły zadań i nazwy plików znikają z wpisów audytu projektów {#projects-stage-names-out-of-audit}
 
 Wydanie z tą zmianą przestaje zapisywać w dzienniku audytu całej platformy wolny tekst etapów
 projektu, zadań etapów i załączników (zgłoszenie #1226, D-288, decyzja właściciela z 2026-11-10:
@@ -4932,7 +5101,7 @@ tytuł jest wartością). Tytuł projektu już wcześniej z niego zniknął.
 **Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał nazwy etapów z dziennika audytu,
 odczytuje je z samego projektu (`GET /api/v1/admin/projects/:id`).
 
-### Wartości zapytań ofertowych znikają z dziennika audytu platformy {#quote-requests-audit-names-only}
+#### Wartości zapytań ofertowych znikają z dziennika audytu platformy {#quote-requests-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać wartości zapytania ofertowego w dzienniku audytu całej
 platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
@@ -4958,7 +5127,7 @@ dotyczyła zmiana zapytania.
 dziennika audytu, odczytuje je z historii zapytania
 (`GET /api/v1/admin/quote-requests/:id/history`).
 
-### Kwoty limitów kredytowych znikają z dziennika audytu platformy {#credit-limits-audit-names-only}
+#### Kwoty limitów kredytowych znikają z dziennika audytu platformy {#credit-limits-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać kwoty limitów kredytowych w dzienniku audytu całej
 platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma
@@ -4977,7 +5146,7 @@ platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każde
 **Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał przyznane kwoty z dziennika
 audytu, odczytuje je z samego limitu kredytowego.
 
-### Zasięg przedstawiciela handlowego jest wczytywany na żądanie; funkcje pomocnicze zakresu są asynchroniczne {#sales-rep-reach-async-helpers}
+#### Zasięg przedstawiciela handlowego jest wczytywany na żądanie; funkcje pomocnicze zakresu są asynchroniczne {#sales-rep-reach-async-helpers}
 
 Wydanie z tą zmianą przestaje wyznaczać zasięg przedstawiciela handlowego przy każdym żądaniu panelu
 (issue #955; rozstrzygnięcie właściciela z 2026-11-10). Filtr izolacji już teraz odczytuje zasięg jako
@@ -5006,7 +5175,7 @@ buforowane.
 i popraw błędy kompilacji. Nic więcej nie trzeba robić: migracja dostarczona ze zmianą zasięgu
 (`organization_reach_governor`) się nie zmienia.
 
-### Kwoty i powody zwrotów znikają z dziennika audytu platformy {#returns-audit-names-only}
+#### Kwoty i powody zwrotów znikają z dziennika audytu platformy {#returns-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać kwoty zwrotów i powody wpisywane wolnym tekstem w dzienniku
 audytu całej platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto
@@ -5028,7 +5197,7 @@ ma `audit_log:read`, bez względu na to, które organizacje widzi.
 **Po aktualizacji** sprawdź, czy ktoś nie polega na odczytywaniu powodów zmian statusu z ekranu
 Dziennik audytu (patrz wyżej).
 
-### Kwoty faktur znikają z dziennika audytu platformy {#invoices-audit-names-only}
+#### Kwoty faktur znikają z dziennika audytu platformy {#invoices-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać kwoty faktur w dzienniku audytu całej platformy
 (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez każdego, kto ma `audit_log:read`,
@@ -5046,7 +5215,7 @@ bez względu na to, które organizacje widzi.
 **Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał kwoty faktur z dziennika
 audytu, odczytuje je z samych faktur.
 
-### Polecenia rozszerzeń schematu działają w instancji {#schema-extensions-instance-command}
+#### Polecenia rozszerzeń schematu działają w instancji {#schema-extensions-instance-command}
 
 Wydanie z tą zmianą dodaje `module:schema-extensions` do szkieletu instancji, obok pięciu poleceń
 `module:*` (zgłoszenie #1036). W katalogu głównym instancji:
@@ -5086,7 +5255,7 @@ istnieje). `migrate` zatrzymuje się na pierwszej takiej instrukcji i wycofuje c
 `pnpm run module:schema-extensions audit-packages`, aby zobaczyć każdą instrukcję, której by
 odmówiło, i poproś autora pakietu o wydanie, które zamiast tego deklaruje swoje kolumny.
 
-### Katalog odczytuje cały nagłówek `Accept-Language` {#catalog-accept-language}
+#### Katalog odczytuje cały nagłówek `Accept-Language` {#catalog-accept-language}
 
 Wydanie z tą zmianą sprawia, że katalog odczytuje `Accept-Language` zgodnie z definicją tego
 nagłówka, jako listę języków z wagami (zgłoszenie #397). Publiczne API katalogu (`/api/v1/catalog/*`) i zewnętrzne API katalogu
@@ -5109,7 +5278,7 @@ wagą `;q=`.
 Integracja, która potrzebuje konkretnego języka, musi prosić o język oferowany przez kanał
 sprzedaży. Jeśli go brakuje, dodaj go do kanału na ekranie **Kanały sprzedaży**.
 
-### Adresy subskrybentów znikają z dziennika audytu platformy {#newsletter-audit-names-only}
+#### Adresy subskrybentów znikają z dziennika audytu platformy {#newsletter-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać adresy e-mail subskrybentów newslettera i powody wypisania
 w dzienniku audytu całej platformy (zgłoszenie #470). Ten dziennik to jedna tabela, czytana przez
@@ -5129,7 +5298,7 @@ każdego, kto ma `audit_log:read`, bez względu na to, co widzi.
 **Po aktualizacji** nie trzeba nic robić. Raport, który wyszukiwał subskrybentów po adresie w
 dzienniku audytu, wyszukuje ich na ekranie **Newsletter**.
 
-### Wartości edytowanej organizacji znikają z dziennika audytu platformy {#organization-admin-patch-audit-names-only}
+#### Wartości edytowanej organizacji znikają z dziennika audytu platformy {#organization-admin-patch-audit-names-only}
 
 Wydanie z tą zmianą przestaje zapisywać wartości organizacji w dzienniku audytu całej platformy,
 gdy operator ją edytuje (zgłoszenie #470, decyzja właściciela O-2: nazwa organizacji, jej NIP i
@@ -5152,7 +5321,7 @@ powody to wartości klienta). Ten dziennik to jedna tabela, czytana przez każde
 **Po aktualizacji** nie trzeba nic robić. Raport albo eksport, który odczytywał wartości
 organizacji z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`).
 
-### Pozostałe wpisy organizacji nie zapisują wartości w dzienniku audytu {#organizations-audit-names-only}
+#### Pozostałe wpisy organizacji nie zapisują wartości w dzienniku audytu {#organizations-audit-names-only}
 
 Wydanie, które wprowadza tę zmianę, przestaje zapisywać wartości w ogólnoplatformowym dzienniku
 audytu ze wszystkich pozostałych zapisów modułu `organizations` (zgłoszenie #470, decyzje
@@ -5188,7 +5357,7 @@ z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
 z dziennika audytu, odczytuje je z organizacji (`GET /api/v1/admin/organizations/:id`), jej
 członków i jej ról.
 
-### Domyślne ustawienia zamawiania nie zapisują organizacji ani konta w dzienniku audytu {#quick-order-preferences-audit-names-only}
+#### Domyślne ustawienia zamawiania nie zapisują organizacji ani konta w dzienniku audytu {#quick-order-preferences-audit-names-only}
 
 Wydanie, które wprowadza tę zmianę, przestaje zapisywać identyfikator organizacji albo konta
 klienta w ogólnoplatformowym dzienniku audytu przy zmianie domyślnych ustawień zamawiania
@@ -5211,7 +5380,97 @@ kiedy i co się zmieniło; nie podaje już, czyje to były ustawienia. Raport, k
 z `scopeId`, odczytuje aktualne ustawienia domyślne organizacji albo klienta z
 `GET /api/v1/quick-order/preferences?scope=…&scopeId=…`.
 
-### Adres panelu administracyjnego jest ustawieniem platformy {#admin-base-url-platform-input}
+#### Adresy organizacji znikają z dziennika audytu platformy {#addresses-audit-names-only}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać identyfikator organizacji
+w ogólnoplatformowym dzienniku audytu przy zapisach adresów organizacji, a wpis zmiany adresu
+podaje, co się zmieniło (zgłoszenie #470). Ten dziennik to jedna tabela, którą czyta każdy
+z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `address.create`,
+  `address.update`, `address.delete` lub `address.anonymized` nie zawiera już identyfikatora
+  organizacji. Wpis nadal jest przypisany do adresu po jego identyfikatorze.
+- `address.create` i `address.update` podają teraz nazwy pól w `changedFields` (przy zmianie tylko
+  te pola, których wartość się zmieniła) obok rodzaju adresu. Jak dotąd żaden z nich nie zawiera
+  odbiorcy, ulicy, miejscowości, kodu pocztowego ani telefonu.
+- Same adresy się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują identyfikator organizacji.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który znajdował wpisy adresów organizacji po
+`organizationId` w ich stanie, najpierw pobiera listę adresów organizacji
+(`GET /api/v1/organizations/mine/addresses` albo `addressReadPort.listIdsForOrganization`),
+a potem filtruje dziennik audytu po tych identyfikatorach.
+
+#### Wpisy wycofanej osobistej książki adresowej nie zawierają konta ani organizacji {#customers-address-audit-names-only}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać identyfikator konta klienta
+i identyfikator organizacji osobistej w ogólnoplatformowym dzienniku audytu we wpisach o wierszach
+wycofanej osobistej książki adresowej (zgłoszenie #470). Ten dziennik to jedna tabela, którą czyta
+każdy z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `customer_address.merge`,
+  `customer_address.merge_refused`, `customer_address.erased` lub `customer_address.anonymized` nie
+  zawiera już identyfikatora konta klienta, a wpis przeniesienia nie zawiera już identyfikatora
+  organizacji. Wpis nadal jest przypisany do wiersza po jego identyfikatorze. Przeniesienie nadal
+  wskazuje adres organizacji, do którego trafił wiersz (`mergedIntoAddressId`), a odmowa — kod
+  błędu.
+- Same wiersze, książka adresowa organizacji i zadanie wycofania się nie zmieniają.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują identyfikatory.
+
+**Po aktualizacji** nie trzeba nic robić. Usuwanie historii audytu klienta przez zadanie retencji
+znajduje te wpisy po identyfikatorach wierszy, a nie po ich stanie, więc zmiana go nie dotyczy.
+
+#### Tekst wyszukiwania eksportu zgłoszeń formularza znika z dziennika audytu platformy {#forms-export-audit-names-only}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać tekst wyszukiwania eksportu zgłoszeń
+formularza w ogólnoplatformowym dzienniku audytu (zgłoszenie #470). Ten dziennik to jedna tabela,
+którą czyta każdy z uprawnieniem `audit_log:read`, niezależnie od tego, które organizacje widzi,
+a tekst wyszukiwania to to, co wpisał pracownik — często adres e-mail zgłaszającego albo fragment
+jego odpowiedzi.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `forms.entries.export` nie
+  zawiera już `filter.q`. Gdy eksport był filtrowany tekstem wyszukiwania, `filter` zapisuje
+  `hasQuery: true` oraz `queryLength`, czyli liczbę wpisanych znaków. Formularz, statusy, daty
+  zgłoszenia, kanał sprzedaży i liczba wierszy są zapisywane jak dotąd.
+- Sam eksport się nie zmienia.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują tekst wyszukiwania.
+
+**Po aktualizacji** nie trzeba nic robić. Dziennik audytu nadal podaje, kto wyeksportował
+zgłoszenia którego formularza, kiedy, z jakimi filtrami i ile wierszy; nie podaje już, czego
+szukano.
+
+#### Powody logowania jako klient i organizacje znikają z dziennika audytu platformy {#impersonation-reason-store}
+
+Wydanie, które wprowadza tę zmianę, przestaje zapisywać w ogólnoplatformowym dzienniku audytu
+powód, który administrator podaje przy logowaniu jako klient, oraz organizację, z której je
+rozpoczęto (zgłoszenie #470). Ten dziennik to jedna tabela, którą czyta każdy z uprawnieniem
+`audit_log:read`, niezależnie od tego, które organizacje widzi. Wydanie dodaje jedną tabelę,
+`admin_impersonation_reasons`, którą tworzy krok migracji aktualizacji.
+
+**Zmiana zachowania po aktualizacji:**
+
+- Na ekranie **Dziennik audytu** i w `audit_logs read` nowy wpis `impersonation.start` nie
+  zawiera już `reason` ani `organizationId`. Zapisuje `hasReason`, `reasonLength`, gdy podano
+  powód, `organizationScoped` (czy logowanie rozpoczęto z ekranu organizacji) oraz
+  `valueChangeId`, czyli identyfikator wiersza `admin_impersonation_reasons`, w którym jest powód.
+  Wpis nadal jest przypisany do konta klienta i do administratora, który rozpoczął logowanie.
+- Sam powód jest przechowywany w `admin_impersonation_reasons` i zapisywany w tej samej transakcji
+  co wpis audytu. Żaden ekran jeszcze go nie pokazuje.
+- Gdy konto klienta zostaje zanonimizowane, jego powody logowania jako klient są usuwane, a wpis
+  `impersonation.reasons_erase` podaje, ile ich było.
+- Rozpoczynanie i kończenie logowania jako klient działa jak dotąd.
+- Wpisy zapisane przed aktualizacją nie są przepisywane: zachowują powód i organizację.
+
+**Po aktualizacji** nie trzeba nic robić. Raport, który odczytywał powód z dziennika audytu,
+odczytuje go z `admin_impersonation_reasons` po `valueChangeId` wpisu.
+
+#### Adres panelu administracyjnego jest ustawieniem platformy {#admin-base-url-platform-input}
 
 Wydanie, które wprowadza tę zmianę, czyni `ADMIN_BASE_URL` — adres panelu administracyjnego —
 zmienną środowiskową platformy zamiast modułu `mfa` (zgłoszenie #185), dzięki czemu każdy moduł,
@@ -5245,7 +5504,7 @@ który wysyła e-maile do administratora, a nie tylko `mfa`, może z niej budowa
    Własny moduł, który deklarował `ADMIN_BASE_URL` w polu `env` swojego manifestu, usuwa tę
    deklarację: należy ona do platformy, a `check:env-inputs` zgłasza moduł, który ją deklaruje.
 
-### Backend, który przestaje odpowiadać, jest restartowany {#backend-supervisor}
+#### Backend, który przestaje odpowiadać, jest restartowany {#backend-supervisor}
 
 Wydanie, które wprowadza tę zmianę, uruchamia backend pod procesem nadzorującym, tak jak storefront
 od wersji 0.109.0 (zgłoszenie #596). Docker restartuje kontener, który się **zakończył**, nigdy
@@ -5289,7 +5548,7 @@ niedostępny, dopóki ktoś go nie zrestartował.
 
 Bez tych zmian backend działa jak dotąd, bez nadzoru.
 
-### Logowanie federacyjne kończy się na własnym hoście sklepu {#federated-sign-in-storefront-handoff}
+#### Logowanie federacyjne kończy się na własnym hoście sklepu {#federated-sign-in-storefront-handoff}
 
 Wydanie, które zawiera tę zmianę, sprawia, że logowanie przez Google i Microsoft działa w sklepie
 także wtedy, gdy API jest obsługiwane z innego hosta (issue #1279). Dostawca wraca na host API, a

@@ -58,6 +58,7 @@ rozwinięcie dawnego cennika, dlatego tabele zachowały stare nazwy.
 | `price_list_precedence` | Wersjonowana kolejność: dwanaście kodów komórek, `category_before_attribute`, `depth_mode`, `state`. Wersja 1 = HY jest instalowana jako aktywna; ścieżki zapisu jeszcze nie ma. |
 | `price_profiles`, `price_profile_prices`, `price_profile_stale_products` | Powierzchnia cen i jej znaczniki odświeżenia (niżej). |
 | `price_display_mode_overrides` | Tryby prezentacji dla organizacji, kategorii i produktu. |
+| `price_list_value_changes`, `price_list_row_value_changes` | Własna historia zmian cen cennika (zgłoszenie #470): jeden wiersz na każde polecenie, które zmieniło wartości — akcja, autor, czas, zmienione wartości nagłówka i liczba linii — i jedna linia na każdy wiersz ceny, który dodało, zmieniło lub usunęło, z wyborem wiersza, jego przedziałem ilości i obiema stronami ceny. Obie są `@RuleScoped` jak cennik i usuwane kaskadowo razem z nim, więc usunięcie cennika usuwa jego historię. Na razie zapisuje je tylko `priceBookRowWritePort` (niżej). |
 | `cart_items.price_source` (`carts`), `order_items.price_source` (`orders`) | Który krok wycenił pozycję: `agreed`, `base`, `catalogue`, `buyer`, `sale`; `null` dla pozycji wycenionej przed tym wydaniem. |
 
 Produkt nie ma własnej ceny: cena produktu to jego wiersze w cenniku cen bazowych każdej waluty. Pola
@@ -413,10 +414,21 @@ jak aktywacja (`expired` po końcu, `scheduled` przed początkiem, `active` w po
 więc cennik przesunięty na przyszły początek jest `scheduled`, a aktualizacja statusów uruchamia go — i
 oznacza powierzchnię cen — w chwili początku; szkic i cennik wygasły zachowują swój stan.
 
+**Utrzymanie tabel po zapisach zbiorczych (zgłoszenie #409).** Partia wierszy cennika (zapis siatki
+i jej import CSV), zapis cen bazowych (`priceBookWritePort`, import cen z PIM) i duplikat cennika
+proszą kolejkę BullMQ `price_lists.table-maintenance` o `VACUUM (ANALYZE)` tabel
+`price_list_matrix_entries` i `price_list_product_lines`: zadanie opóźnione o minutę i
+deduplikowane dla każdej tabeli, więc seria zapisów kosztuje jedno odkurzanie na tabelę. Jego
+konsument wykonuje jedno zadanie naraz w procesie, który obsługuje kolejki, i zatrzymuje się razem z
+modułem; zapis nigdy na to nie czeka ani nie kończy się z tego powodu błędem. Bez procesu w tle
+zapasowym rozwiązaniem pozostaje autovacuum.
+
 ## API administracyjne
 
 Ścieżka bazowa `/api/v1/admin/price-books`. Odczyty wymagają `price_lists:read`, zapisy —
-`price_lists:write`. Schematy są w `packages/contracts/src/price-books.ts`. Każdy zapis to jedno
+`price_lists:write`. Etykiety produktów, kategorii i atrybutów w odpowiedziach są w języku `?lang=`,
+gdy go podano, a w przeciwnym razie w języku operatora, `request.responseLanguage()` — zapisanym
+języku administratora, w którym wyświetla się panel (zgłoszenie #1011). Schematy są w `packages/contracts/src/price-books.ts`. Każdy zapis to jedno
 `CommandBus.run` z jednym wpisem audytu na `objectType: 'price_list'`, zawierającym stan przed zmianą
 i po niej; audytowane akcje to `price_list.create`, `update`, `channels_replace`, `activate`,
 `draftify`, `expire`, `duplicate`, `delete`, `rows_replace`, `base_prices_set` i
@@ -438,6 +450,7 @@ i po niej; audytowane akcje to `price_list.create`, `update`, `channels_replace`
 | `PUT /:id/rows` | Jedna partia, jedno audytowane polecenie: `{ expectedVersion, mode: 'merge' \| 'replace', upsert, delete }`, najwyżej 5 000 wierszy. Wiersz wskazuje wybór identyfikatorami (`selection`) albo kluczem naturalnym (`key`: `productSku`, `variantSku`, `categoryPath`, `attribute { key, valueCode }`). Wiersz bez id, którego wybór i `minQuantity` są równe zapisanemu wierszowi, zastępuje go. |
 | `PUT /:id/rows?dryRun=true` | Ta sama treść, bez zapisu: `{ version, resolved, diff { added, changed, removed, unchangedCount }, errors }`. Zatwierdzenie to ta sama treść bez `dryRun`, z wersją zwróconą przez podgląd. |
 | `GET /base-prices?productId=`, `PUT /base-prices/:productId` | Ceny bazowe produktu w każdej walucie, `{ byCurrency: { CODE: { product: Tier[], variants: { [variantId]: VariantBaseRow \| null } } } }`; jedno polecenie dla wszystkich walut, tworzące cennik cen bazowych waluty przy pierwszym użyciu. Handlowiec dostaje przy zapisie `403`. |
+| `PUT /base-prices/:productId?dryRun=true` | Ta sama treść; stosowana jest każda reguła zapisu i nic nie jest zapisywane — bez polecenia i bez wpisu audytu: `{ data: { valid: true } }` albo odmowa, którą dałby zapis. Przycisk Zapisz edytora produktu wywołuje to przed zapisaniem czegokolwiek. |
 | `GET /targets/organizations?search=` albo `?ids=`, `…/customer-groups`, `…/categories`, `…/attributes`, `…/sales-channels?currency=`, `…/currencies` | Listy wyboru. Organizacje są zawężone do zakresu wywołującego; atrybuty to tylko kwalifikujące się atrybuty z `isPriceRule`, z ich opcjami. |
 | `POST /resolve` | Wyjaśnienie: `{ salesChannelId?, currencyCode?, buyer { organizationId?, customerAccountId? }, lines [{ key, productId, variantId?, quantity }] }` (≤ 200 pozycji; bez kanału = domyślny kanał systemu). Każda pozycja: `price { amount, currency, source, compareAt? }` albo `null` oraz `explanation { tier, cell, bookId, bookName, rowId, reference, precedenceVersion, candidates[] }`. Organizacja albo klient, których wywołujący nie może zobaczyć, dają ten sam `404` co nieznane. Cennik spoza zakresu wywołującego (na przykład cennik organizacji nadrzędnej, do którego handlowiec dociera przez łańcuch organizacji) nie jest wskazywany: jeśli to on ustalił cenę, cena, `tier`, `cell` i `reference` zostają, a `bookId`, `bookName` i `rowId` mają wartość `null`; jako przegrany kandydat jest pomijany w `candidates` przed przycięciem listy do dziesięciu, więc nie zajmuje miejsca widocznego kandydata. |
 | `GET /precedence` | Aktywna wersja: `version`, `cells`, `categoryBeforeAttribute`, `depthMode`, `preset`. |
@@ -491,7 +504,11 @@ organizacje (`403` dla innego typu, także przy `PATCH`), wskazujące co najmnie
 | `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | Dla oglądającego (organizacja i klient z sesji, w przeciwnym razie gość): `resolvedPrice { basePrice, salePrice, baseListId, saleListId, displayMode, currencyCode, quantityBracket, source, compareAt, listPrice? }`. `basePrice` to **regularna** cena oglądającego — kupującego, katalogowa albo bazowa — a `salePrice` jest ustawiona tylko wtedy, gdy naliczana jest cena promocyjna; `listPrice` — tylko przy włączonym `pricing.show_list_price`, gdy cena dla wszystkich jest wyższa od naliczanej. Kwoty są tekstami dziesiętnymi (`{ amount, currency }`). Produkt, którego żaden cennik nie wycenia dla oglądającego, jest **bez ceny**: `baseListId`, `basePrice` i `quantityBracket` mają wszystkie wartość `null`, nigdy pusty identyfikator (`resolvedPriceEngineSchema` w `packages/contracts/src/price-lists.ts` wymaga, by te trzy były razem `null` albo razem ustawione). Produkt, którego tryb prezentacji dla oglądającego wynosi `none`, odpowiada tak samo, z `salePrice`, `saleListId`, `source` i `compareAt` równymi `null`, bez `listPrice` i z `displayMode: 'none'` (zgłoszenie #491). |
 | `GET /api/v1/storefront/pricing/display-mode/:productId` | Sam tryb prezentacji. |
 
-Obie są wyceniane dla oglądającego, którego wyznacza jedna funkcja. Odpowiedź wyceniona dla
+Obie są wyceniane dla oglądającego, którego wyznacza jedna funkcja. Obie najpierw sprawdzają, czy
+produkt jest dostępny w kanale sprzedaży i języku żądania, i odpowiadają `404`, gdy nie jest; językiem
+są tagi `Accept-Language` żądania od największej wagi `q`, każdy dopasowany do języków kanału
+(dokładnie, a potem po języku podstawowym), w przeciwnym razie język domyślny kanału —
+`requestScopeLanguage` z `@endora-commerce/contracts` (zgłoszenie #1011). Odpowiedź wyceniona dla
 organizacji ma `Cache-Control: private, no-store`; anonimowa nie jest oznaczana. Listy katalogu i
 wyniki wyszukiwania niosą tę samą odpowiedź w `ProductSummary.resolvedPrice`, więc storefront nie
 wywołuje `resolved-price` dla każdej karty.

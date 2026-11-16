@@ -255,6 +255,8 @@ interface ShoppingListBridgeService {
     listId: string,
     itemIds: string[] | undefined,
     salesChannelId: string,
+    /** Issue #1293 — the request's scope language the lines are judged in. */
+    options?: { languageTag?: string },
   ): Promise<{
     added: number;
     /** Feature 155 — `reason` and, on `below_minimum`, the `minimum` the line missed. */
@@ -826,7 +828,7 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
     ): Promise<{ id: string; organizationId: string | null; blocked: boolean } | null>;
     autoCreate(
       email: string,
-      context: { salesChannelId: string | null },
+      context: { salesChannelId: string | null; preferredLanguage?: string | null },
     ): Promise<{ id: string; organizationId: string | null } | null>;
   } =>
     (
@@ -837,7 +839,7 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
           ): Promise<{ id: string; organizationId: string | null; blocked: boolean } | null>;
           autoCreate(
             email: string,
-            context: { salesChannelId: string | null },
+            context: { salesChannelId: string | null; preferredLanguage?: string | null },
           ): Promise<{ id: string; organizationId: string | null } | null>;
         };
       }
@@ -845,7 +847,7 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
 
   const mfaSocialResolvers = {
     resolveCustomerByEmail: (email: string) => customerSocialLogin().resolveByEmail(email),
-    autoCreateCustomer: (email: string, context: { salesChannelId: string }) =>
+    autoCreateCustomer: (email: string, context: { salesChannelId: string; preferredLanguage?: string | null }) =>
       customerSocialLogin().autoCreate(email, context),
     resolveAdminByEmail: async (email: string) => {
       // The claim's spelling is the identity provider's, and the row holds the
@@ -1153,6 +1155,7 @@ async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<v
           input.shoppingListId,
           undefined,
           input.salesChannelId,
+          input.languageTag !== undefined ? { languageTag: input.languageTag } : {},
         );
         // Map ShoppingListService.convertToCart's shape onto the carts
         // module's uniform return shape across the three conversions — the

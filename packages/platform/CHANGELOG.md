@@ -1,5 +1,280 @@
 # @endora-commerce/platform
 
+## 0.111.0
+
+### Minor Changes
+
+- 1937bed: `./lifecycle` exports `runInstanceSchemaExtensionsCommand({ ormConfig })` (issue #1036): `module:schema-extensions list | drop | audit-packages` for a tree that ships no generated index — an instance. It builds the same runtime as this repository's entry point from the instance's own `mikro-orm.config.js` alone: the ORM opened on first use, the "still declared" set `drop` refuses to touch read from what that configuration recorded (and refused, not read as empty, when it recorded nothing), the installed packages for `audit-packages` discovered as the instance's `migrate` discovers them, `schema_extension.drop` through a Command Bus, the system scope, the escape-hatch audit writer and diagnostics on stderr. It opens no Redis connection and resolves no manifest set.
+- 3f95d1c: **`beforeCommit` command hooks** (`specs/176-command-hooks-outbox/` P2, `contracts/command-hooks-api.md`).
+
+  - **`ModuleContext.commandHooks(entries)`** registers hooks on actions another module declared hookable; each entry's `data` is typed by the ref it names. The module id is stamped by the context; registration resolves nothing and refuses once composition is sealed.
+  - **`CommandBus`** runs the present hooks of a declared action after the owner's `run` and before its audit entry, on the same transaction, actor and `em`. A hook may run children through `ctx.run`, veto by throwing an `HttpError` (the whole Command rolls back), and name what it wrote with `ctx.noteAuditChanges(fields)` — merged as names into the owner's one entry under `stateAfter.extensions.<moduleId>.changedFields`. Notes force the entry: an owner answering `skipAudit` while a hook noted a write still records one, with `stateBefore: null` and `stateAfter: { extensions }`. A hook whose module is switched off is skipped per call. New refusals: `422 COMMAND_EXTENSION_UNCLAIMED` for an `extensions` key no present hook module claims (before any write), `500 COMMAND_HOOK_CYCLE` for an action reappearing in its own hook chain or a ninth level, `500 COMMAND_HOOK_DATA_MISSING` for a hooked Command without `hookData`.
+  - **`Command`** gains optional `hookData(result)`, `outboxData(result)` and `extensions`. A Command whose action nobody hooks behaves exactly as before.
+  - **`./commands`** publishes `CommandHookContext`, `BeforeCommitHook`, `CommandHookEntry`, `AfterCommitContext`, `AfterCommitHandler`, `CommandHookRefusal`, `currentCommandHookOrigin` / `CommandHookOrigin`, and the seven composition refusals (`UndeclaredHookableActionError`, `HookPhaseNotOfferedError`, `DuplicateHookableActionError`, `DuplicateCommandHookError`, `HookOwnerNotDependedOnError`, `UnorderedCommandHooksError`, `CommandHookOrderContradictionError`).
+  - **Composition** (`./composition`): `CommandHookRegistry`, `hookableActionsFrom(manifests)` and `moduleDependencyClosureFrom(manifests)`. `composeModules` takes `commandHookRegistry` and `commandHooks` and seals the registry after the decoration drain, before boot hooks; `composeApp` wires both and takes `commandHookOrder` from the deployment's declaration. A root that passes no registry runs no hooks, and `ctx.commandHooks` refuses there.
+  - **`GET /api/v1/admin/command-hooks`** (`_lifecycle`, behind `platform.modules.read`): every declared action and every hook at its position, with live module presence.
+  - **`afterCommit` is not delivered yet.** The types ship so a ref names both phases, but registering an `afterCommit` handler is refused until the transactional outbox lands, rather than accepting a handler nothing would call.
+
+- 27834f3: **`afterCommit` handlers, delivered through a transactional outbox** (`specs/176-command-hooks-outbox/` P3, `contracts/outbox-and-admin-api.md`).
+
+  - **`ctx.commandHooks` now accepts `phase: 'afterCommit'`.** Registering one used to throw. A handler receives `AfterCommitContext` — `messageId` (its idempotency key), `attempt`, the action and object, `organizationId`, the owner's `data`, and `causation` (the actor and request id recorded at commit). It runs after the owner's commit, at least once, in a scope pinned to the row's Organization (`single-org`, the system as actor), with the recorded request id as the scope's, so a Command it runs records the request that caused it. Handlers on one action are not ordered against each other and need no `commandHookOrder` entry.
+  - **`CommandBus`** writes one `command_outbox` row per present `afterCommit` handler on the Command's own transaction, after the audit entry and the buffered event; a rolled-back Command writes none, and a handler whose module is off gets none. The row's data is the owner's `outboxData`, refused with a 500 that names the offending keys (never the values) unless every value is a scalar or an array of scalars, with strings at most 128 characters and no whitespace or `@`. A hooked Command without `outboxData` is refused `500 COMMAND_HOOK_DATA_MISSING`, as one without `hookData` already was. After a commit that wrote rows, the bus enqueues a deduplicated wake-up and does not wait for it; a Redis failure there is swallowed.
+  - **New core migration** `Migration20261112T124348CoreCommandOutbox` creates the kernel-owned, platform-global `command_outbox` table. Run `migrate` on upgrade.
+  - **The drain** is a BullMQ job scheduler (`command_outbox.drain`, every 10 s) plus the wake-up, attached by `_lifecycle` through `ctx.worker` wherever the process runs workers. It claims with `for update skip locked` under a five-minute lease and skips, for the next reclaim, any claimed row whose turn comes after that lease ran out, retries with backoff `min(30 s · 2^(n-1), 1 h)`, and dead-letters after 10 attempts. A row whose handler module is off waits without spending an attempt; one whose module no longer registers the handler is dead-lettered `hook-unregistered`. A failure is stored as a code and a class, never its message. Delivered rows are purged after 7 days and dead rows after 90.
+  - **`PermanentOutboxFailure`** (`./commands`): throw it from a handler to dead-letter the row at once with its code.
+  - **`module:uninstall --hard <module>`** deletes that module's `command_outbox` rows. A soft uninstall keeps them.
+  - **`./composition`** gains `createCommandOutboxWake`, `CommandOutboxEntry`, `PostgresOutboxStore`, `drainCommandOutbox` and `runCommandOutboxDrainTick` for composition roots and their tests. `CommandBusOptions` gains `outboxWake`.
+  - The in-process `EventBus` and its subscribers are unchanged.
+
+- 190986e: **Operator routes over the command outbox** (`specs/176-command-hooks-outbox/` P4, FR-040, FR-041).
+
+  - **`GET /api/v1/admin/command-outbox?status=dead|pending|in_flight&limit=&cursor=`**, behind the new permission `platform.command_outbox.read`: one page of rows in a status (dead by default), keyset-paginated by the row's `sequence`, newest first. A row is served as its action, object, Organization id, handler (`hookModule`, `hookId`), status, attempts, last failure code and class, and dates. Its `data` is never served.
+  - **`POST /api/v1/admin/command-outbox/:id/retry`**, behind the new permission `platform.command_outbox.manage` (which `requires` `.read`): runs the audited Command `command_outbox.retry`, which puts a dead row back to `pending`, due now, with its attempts reset, and records `{ status: 'dead' } → { status: 'pending' }`. It answers `404 NOT_FOUND` for an unknown id and `409 COMMAND_OUTBOX_NOT_DEAD` for a row that is not dead.
+  - Both mount beside `GET /api/v1/admin/command-hooks`, so a composition with no command-hook registry serves neither. Grant the two codes to the admin roles that should see and retry dead deliveries; until then only the platform administrator does.
+  - **`GET /api/v1/admin/command-hooks`** now answers `position: null` for an `afterCommit` handler (see `@endora-commerce/contracts`).
+  - `_lifecycle` declares the two permissions and two ⌘K actions, labelled in English and Polish: `open-command-hooks` (`/platform/command-hooks`, behind `platform.modules.read`) and `open-command-outbox` (`/platform/command-hooks/outbox`, behind `platform.command_outbox.read`).
+
+- 8a4ca9c: **A package migration that writes another module's table now fails `migrate`** (`specs/178-extensible-columns/` FR-070, OD-17). Every migration of an installed package (origin `external`) runs inside a foreign-schema guard: each statement it hands to `addSql` or `execute` — knex builders by their rendered SQL, `do $$ … $$` blocks, function bodies and PL/pgSQL `execute` strings by their text — and every write through `getEntityManager()` (flush change sets, `insert*`, `upsert*`, `native*`, `execute`) is classified, and DDL or DML on a table the package's module does not own is refused with `ForeignSchemaWriteError` (`foreign-schema-write`, naming package, migration, table and statement); the whole run rolls back. Allowed: the module's own tables (mapped by its entities, or created by its migrations and mapped by no other module's entity), the platform's tables, DDL on a table the same migration creates, `update <host> set <own x_<module>_ columns>` on a host the module declares extension columns on, and the first-party R2 writes in `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` (new on `./migrations`, generated from `check:module-boundary`'s ledger) — so an instance installing this platform's own modules migrates as before.
+
+  **Before upgrading**, run `module:schema-extensions audit-packages` (new verb, `runSchemaExtensionsCommand`) — in an instance root `pnpm run module:schema-extensions audit-packages` (issue #1036; an instance created before this release adds the command as described in _Upgrading an instance_): it applies the same classification to every installed package's migrations without executing them, lists each statement that would be refused and exits 65 when there is one. `./db` publishes `sqlWriteTargets`, `guardExternalMigration`, `dryRunStatements`, `auditForeignSchemaWrites` and `ForeignSchemaWriteError`; `configuredMigrationsFrom` accepts `foreignWriteExemptions`.
+
+  Hardened after review: the guard also refuses `create|alter|drop policy … on` a foreign table, a PL/pgSQL `execute` of a computed string (`format(…)`, a variable — unattributable, so refused), entity-manager query builders, `getConnection().execute`, forks and `transactional` callbacks writing a foreign table, and the entity manager's raw `getKnex()`; a `create table if not exists` on a table another module's entity maps licenses no DDL on it; a back-fill may set only the exact columns its module declares. Discovery refuses two modules' declarations resolving to one physical column or index name (`physical-name-collision`) and the keys `id` / `organizationId`. Dry runs (the guard's own-table discovery, `audit-packages`) cannot reach the database through `this.getKnex()` or `this.driver`. `module:schema-extensions drop --confirm` re-reads the planned rows under a lock inside the Command and aborts when one stopped being orphaned. Orphan marking at migrate runs only when the declaration context describes the ORM being migrated. The boot verifier names an unmigrated database and gives the restoring statement for an applied element dropped by hand.
+
+  D-291 R-A6: a package migration may not drop, truncate or `alter … drop` a table another module's entity maps — in `up()` or `down()`, whatever the same migration created — so a hard uninstall cannot take another module's table with it (`ForeignSchemaWriteError` carries `direction`). The only exemption is a first-party D-226 bridge, derived by `composer:generate` into `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` as a `bridge` entry (`kind`, `direction`); today that is `inventory`'s `organization_warehouses`. In an instance, hard-uninstalling a module whose own historical `down()` would destroy another module's schema is now refused.
+
+  D-291 R-A7: a `down()` destruction of a table another module owns is allowed when that owner cannot be present as the revert runs — it depends on the reverting module, the reverting module is core, or both are non-deactivatable — for every author, through one predicate published on `./db` as `reverseEdgeClause` / `requiredModulesOf` (also `dependencyClosureOf`). `PackageSchemaContribution` gains `nonDeactivatable`; `configuredMigrationsFrom` accepts `requiredModules`. First-party sites are also rendered as `derived-down` exemption entries with their `clause`, so no first-party module's hard uninstall is refused.
+
+- c7ec2fa: Declared extension columns on core tables — the platform mechanism (`specs/178-extensible-columns/`). An installed module package may now declare additive `x_<moduleId>_*` columns on `organizations`, the one extensible host rolled out in this release (`SCHEMA_EXTENSION_ROLLOUT = ['organizations']`); a declaration on any other host is refused at discovery as `schema_extension_invalid (host-not-extensible)`, naming the extensible hosts. A deployment that declares no extension migrates, boots and behaves exactly as before.
+
+  - `./kernel`: `defineColumnExtension(decl)` (typed, frozen, validated at import), `columnExtensionSchema` / `columnExtensionPatchSchema` (Zod), `extensionColumns(decl, em)` — `get`, `load`, `set`, UPDATE-only, gated on the declaring module's presence (`ModuleDisabledError` when off), writes only inside a transaction, `set` returns `{ changedFields }` (names, never values) — and the errors `SchemaExtensionInvalidError`, `ExtensionHostRowNotFoundError`, `ExtensionWriteOutsideCommandError`, `ExtensionProjectionWriteError`, `ExtensionValueCorruptError`.
+  - An installed package declares extensions as a `schemaExtensions` array exported from its `./backend` subpath; `packageSchemaContributionsUnder` reads it and applies the package rules (module id, host dependency, one declaration per host). `PackageSchemaContribution` gains `schemaExtensions`.
+  - New platform table `schema_extensions` (core migration `Migration20261110T140633CoreSchemaExtensionsLedger`, entity `SchemaExtensionElement` on `./composition`).
+  - `MigrationOrigin` gains `'generated'`; the stamp `10000101T000000` is reserved for the platform's generated schema-extension step and refused on anything else (`MigrationOrderError` code `reserved-stamp`). `configuredMigrationsFrom` merges one generated step per declaring module, at the head of its block.
+  - `mikroOrmConfigFrom` always sets `discovery.checkDuplicateTableNames: false` together with a duplicate-table rule of its own that admits only the platform's projections of validated declarations, and refuses every other second mapping of a table by name (`DuplicateTableMappingError`).
+  - `./db`: `migrateUpVerified(orm)` — used by `migrate up` / `fresh` and lifecycle `install` — runs the migrations and the verifier in one transaction when anything is declared (a bare `migrator.up()` otherwise); `composeApp` verifies at boot (`SchemaExtensionDriftError`). Host seams for tests and composition roots: `createColumnExtension`, `extensionColumnsWithPresence`, `createSchemaExtensionReads`, `verifySchemaExtensions`, `inspectSchemaExtensions`, `EXTENSIBLE_HOSTS`, `SCHEMA_EXTENSION_ROLLOUT`.
+  - The kernel container gains `schemaExtensionReads` (extension attributes on admin reads; `organizations` attaches them on `?extensions=`).
+  - `./lifecycle`: `runSchemaExtensionsCommand` — `module:schema-extensions list` and the audited `drop <moduleId> [--key] [--confirm]` (`schema_extension.drop`). Hard-uninstalling a declaring module keeps its columns (ledger rows `orphaned`); hard-uninstalling a host marks its rows `dropped`.
+  - `migrateUpVerified` also, inside the same transaction: prunes migration-history rows that carry the reserved generated stamp and are not in the current list (each logged at `info`; no other row is touched), and marks `orphaned` the `applied` ledger rows of a module with no discovered declaration at all — a package removed without `uninstall --hard` — so `module:schema-extensions drop` can clean up after it. Boot stays read-only. A deployment with nothing of the kind to clean up still runs a bare `migrator.up()`.
+
+- a2d306f: `ADMIN_BASE_URL`, the admin panel's address, is now a platform input (issue #185). It is declared
+  in `PLATFORM_ENVIRONMENT_INPUTS` (`@endora-commerce/platform/env`) as an optional, platform-owned
+  address of the admin read by the backend, so an instance's `.env.example` lists it whether or not
+  `mfa` is installed.
+
+  `@endora-commerce/platform/kernel` exports `configuredAdminBaseUrl()`, the one reader any module
+  links into the admin panel through. It returns the configured address without trailing slashes
+  (`https://shop.example.com/admin`), or `null` when the variable is unset or blank; a caller omits
+  the link on `null`:
+
+  ```ts
+  import { configuredAdminBaseUrl } from '@endora-commerce/platform/kernel';
+
+  const base = configuredAdminBaseUrl();
+  const link = base === null ? null : `${base}/tasks/mine`;
+  ```
+
+  `composeApp()` refuses to boot, in every environment, when the variable is set but is not an
+  absolute `http`/`https` URL with a host and without a query or fragment. It throws
+  `AdminBaseUrlMalformedError`, whose message names the variable, its value and the rule.
+  A module that declared `ADMIN_BASE_URL` in its manifest's `env` removes the declaration;
+  `check:env-inputs` reports it as a module declaring a platform input.
+
+- 49b43de: **Breaking (0.x, so `minor`):** a sales representative's reach is no longer computed on every admin request (issue #955, owner ruling of 2026-11-10). `@endora-commerce/platform/tenancy` removes `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` — use `await orgInScope(id, ctx?)` and `await ruleInScope(ids, ctx?)`, or `const inScope = await orgScopeTest(ctx?)` for a synchronous predicate over rows you already hold — and `assignedOrganizationIdsForRanking(ctx?)` now returns a promise. They were removed rather than retyped because `if (!isOrgInScope(x))` over a promise is always false.
+
+  `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) replaces `excludedOrganizationIds` / `assignedOrganizationIds` with `loadReach(): Promise<{ excludedOrganizationIds, assignedOrganizationIds }>`, beside `excludedOrganizationsQuery`; the platform memoises it once per tenant context, and a failure rejects every helper that awaits it. `OrgConstraint`'s `excluded` arm and `AdminScopeInput` follow. `PreferenceActor`'s `salesperson.reaches(id)` returns `Promise<boolean>`, and `canManagePreference` (`quick_order`) is async. `adminTenantScopePort` (`organizations`) answers without calling `reachOf`. The listed modules move their call sites to the async helpers.
+
+- 5f8eede: The `excluded-set` tenant filter no longer ships the excluded organizations into each statement (issue #955, architect ruling of 2026-11-09). `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) gains a required `excludedOrganizationsQuery: { sql, params }` — the owner's uncorrelated `SELECT` of one uuid column — and `AdminScopeInput`, `TenantContext` and `OrgConstraint`'s `excluded` arm (`@endora-commerce/platform/tenancy`) carry it. An `excluding` scope or an `excluded` constraint without it is refused (`resolveTenantContext`, `orgConstraintFor`, `orgConstraintForAdminScope` throw), never read as "nothing excluded".
+
+  Both global filters and `orgScopeWhere(field)` render it as `{ [field]: { $ne: null, $nin: <query builder> } }` — `field is not null and field not in (<S>)` (was `{ [field]: { $ne: null, $nin: [...ids] } }`); `orgScopeSql(column)` renders `(column is not null and column not in (<S>))` with S's parameters (was `column <> all(?::uuid[])` with one array literal). Code that passes these fragments to the entity manager or into SQL needs no change; a test that builds an `excluded` constraint by hand must add the query.
+
+- 42a9a4b: A new tenant mode, `excluded-set`: every organization **except** a named set, for a sales representative's reach (issue #305). `AdminTenantScope` (`@endora-commerce/contracts`) gains the member `{ allowAll: false, reach: 'excluding', excludedOrganizationIds, assignedOrganizationIds }`; `resolveTenantContext` maps it to the new mode, whose filter is `organizationId IS NOT NULL AND organizationId NOT IN (excluded)` on the row's own column, for `@OrgScoped` and for `@CustomerScoped` entities that carry the column (those that do not are refused, as under `allowed-set`). A customer or a bound API key is refused an `excluded-set` context.
+
+  **Breaking: `OrgConstraint`'s `'set'` arm is removed.** It is `{ kind: 'allowed', organizationIds }` now (was `{ kind: 'set', organizationIds }`), beside the new `{ kind: 'excluded', excludedOrganizationIds, assignedOrganizationIds }`. A `constraint.kind === 'set'` comparison no longer compiles, deliberately: read the constraint through the helpers instead of its ids. `orgScopeWhere`, `isOrgInScope` and `ruleVisibleForScope` handle every arm and now also accept an `OrgConstraint` in place of a context; new on `@endora-commerce/platform/tenancy` are `orgScopeWhere` (now exported), `orgScopeSql(columnSql)` (one array parameter, for raw SQL), `reachesNoOrganization`, `assignedOrganizationIdsForRanking` and `orgConstraintForAdminScope(scope)`.
+
+  `PreferenceActor` (`@endora-commerce/contracts`): the `salesperson` member is `{ kind: 'salesperson', reaches(organizationId) }` (was `{ kind: 'salesperson', assignedOrganizationIds }`).
+
+- 8ae3f58: **Behaviour change: a line quantity has an upper bound, refused with a new error code, `LINE_QUANTITY_EXCEEDED`; and the quote request and return line arrays have a line-count bound** (issue #351). A quantity past the integer column it is stored in used to pass validation and answer `500`; it is now refused, in the reader's language.
+
+  New in `@endora-commerce/contracts`: `LINE_QUANTITY_MAX` (`1 000 000`, the same value as `ORDER_MINIMUM_MAX`, so the largest minimum stays orderable), `lineQuantitySchema` (a whole number in 1…`LINE_QUANTITY_MAX`), `boundedLineQuantity(schema)`, `isLineQuantityExceededIssue(issue)`, `LINE_QUANTITY_EXCEEDED` (also in `ERROR_CODES`) and `REQUEST_LINE_ITEMS_MAX` (`200`). `ADMIN_ORDER_MAX_ITEMS` and `QUICK_ORDER_BUILD_MAX_ITEMS` are now that constant under their own names; their value does not change.
+
+  **The new code.** Every request schema carrying a line quantity uses `lineQuantitySchema`: `addCartItemRequestSchema`, `updateCartItemRequestStrictSchema`, `createQuoteRequestSchema` / `patchQuoteRequestSchema` lines, `adminCreateQuoteRequestSchema` / `adminPatchQuoteRequestSchema` lines, `adminCreateOrderRequestSchema` / `adminOrderPreviewRequestSchema` items, `apiPlaceOrderRequestSchema` lines, `quickOrderBuildRequestSchema` items, `quickOrderOneClickRequestSchema`, `addShoppingListItemRequestSchema`, `updateShoppingListItemRequestSchema`, `createReturnCaseRequestSchema` lines, `catalogBulkPriceRequestSchema` lines, `cartSnapshotSchema` lines, and the packaging unit's `baseQuantity` in `createPackagingUnitRequestSchema` / `updatePackagingUnitRequestSchema`. A quantity past the bound is a Zod issue tagged `LINE_QUANTITY_EXCEEDED`. The error envelope in `@endora-commerce/platform` answers a request whose only failures are that issue with `400 LINE_QUANTITY_EXCEEDED` and a translated sentence (`@endora-commerce/mod-i18n` ships it in English and Polish), with `details` naming the field. A request that fails anything else as well stays `400 VALIDATION_FAILED`, with the issue among its details. `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices` parse their bodies themselves and keep answering `422 VALIDATION_FAILED`; the detail's `issue` there is `LINE_QUANTITY_EXCEEDED`.
+
+  `@endora-commerce/mod-carts`: two cases are refused with `422 LINE_QUANTITY_EXCEEDED`, `details: { quantity, maximum }`, and write nothing: an add onto an existing basket line whose sum would pass the bound, and a packaging-unit add whose pieces (`baseQuantity × units`) would pass it. This covers the single and batch add, reorder and shopping list to cart. Signing in sums the anonymous basket into the customer's and keeps a summed line at the bound instead of failing the sign-in. `updateCartItemRequestSchema` (the line edit) now accepts any quantity from `0` (remove) to the bound; it stopped at `999`.
+
+  **Line counts.** The line arrays of `adminCreateQuoteRequestSchema`, `adminPatchQuoteRequestSchema` and `createReturnCaseRequestSchema` are bounded at `REQUEST_LINE_ITEMS_MAX`, as the customer's quote request create and edit already were: one line more is `400 VALIDATION_FAILED`. The value is shared but the refusal is not. The order intakes (admin create and preview, `POST /api/v1/external/orders`) and the quick-order build keep refusing more than 200 items with `422 VALIDATION_FAILED`, `details: { code: 'too_many_items', maximum: 200 }`, and the basket's own cap stays `422 CART_LINE_CAP_EXCEEDED`.
+
+  `@endora-commerce/admin-kit`: `parsePositiveInt` returns `null` past `LINE_QUANTITY_MAX`, so the admin order and quote request create screens mark such a line invalid before sending it. `@endora-commerce/mod-quick-order`: an imported row past the bound, and every row of a duplicate whose sum passes it, is rejected as `quantity_invalid` instead of being recognised into a build that would be refused. `@endora-commerce/mod-quote-requests`: the Modify tab's quantity input carries the bound as its `max`.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- cffa0bf: A manifest action can declare the admin API route its screen opens on (issue #1088). `ModuleActionSchema` (`@endora-commerce/contracts`) gains an optional `entryApiRoute`, a path under `/api/v1/admin/` written as the route registers it; nothing reads it at runtime and existing manifests are unchanged. `check:action-route-permissions` (`@endora-commerce/cli/rules/action-route-permissions.js`) compares `requiredPermission` against that route alone, at a new `declared` resolution level, instead of reconstructing an entry route from `targetRoute`; a declared route that no registration answers is reported `unresolvable` rather than replaced by the reconstruction. Declare it only where the reconstruction picks the wrong route: a screen served by an API its admin path does not name. `_lifecycle`'s `open-command-outbox` declares `GET /api/v1/admin/command-outbox`, and `import_export`'s two actions declare `GET /api/v1/admin/import-export/entities`, so their three ledger entries in the repository host are gone. The admin-actions module documentation (English and Polish) describes the field.
+- 644739b: Cross-process cache subscribers no longer send `SUBSCRIBE` while their ioredis client is still in its handshake (issue #1096). In the `connect` state ioredis wrote the command straight to the socket; when its reply arrived before the ready check's `INFO`, ioredis refused that `INFO`, re-opened the connection, and a message published during the reconnect was lost. The new `subscribeWhenReady(client, ...channels)` in `@endora-commerce/platform/kernel` (with its structural type `HandshakeAwareSubscriber`) waits out the handshake and then subscribes. It rejects as `subscribe` does, including when the connection ends mid-handshake. The module-registry cache, the sales-channel access cache, the `custom_fields` definition cache and the `price_lists` pricing generation now subscribe through it. The cradle type `PricingGenerationSubscriber` in `price_lists` now extends `HandshakeAwareSubscriber`, so it also requires `status`, `once` and `removeListener`. The composition's ioredis subscriber already has them. Nothing else changes for a caller.
+- 4ecb155: Issue #1269 — `POST /api/v1/admin/command-outbox/:id/retry` answers an id that is not a uuid with `404 NOT_FOUND`, the same answer as for an unknown id, as every other id route does (issue #781's malformed-id contract). It answered `400 VALIDATION_FAILED`.
+
+  - **`@endora-commerce/contracts`**: `CommandOutboxRetryParamsSchema` accepts any string as `id`; it used to refuse a value that is not a uuid.
+  - **`@endora-commerce/platform`**: the retry route checks the id's shape itself and answers `404` before the database is read.
+
+  **On upgrade.** Nothing to migrate. A caller that relied on the `400` for a malformed id gets `404`.
+
+- 1acf873: `admin_users` now creates `admin_users.preferred_language` itself, in the new
+  `Migration20261114T002913AdminUsersPreferredLanguage` (issue #611). Until now only `_i18n`'s
+  `Migration20260507T091405I18nAdminI18nInit` created it, although the column belongs to
+  `admin_users`' `AdminUser` entity. That migration keeps its class name and no longer names
+  `admin_users` in `up()` or `down()`. The new migration uses `add column if not exists` with the
+  same type, so a database that has already applied the old migration does not change.
+  `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `_i18n` writing `admin_users`.
+- edf46c9: `catalog` now creates `categories.main_image_asset_id`, its `categories_main_image_fk` foreign
+  key to `assets` and `categories_main_image_asset_id_index` itself, in the new
+  `Migration20261114T000706CatalogCategoryMainImage` (issue #611). Until now only
+  `assets_library`'s `Migration20260505T102206AssetsLibraryInit` created them, although the column
+  belongs to `catalog`'s `Category` entity. That migration keeps its class name and no longer
+  names `categories` in `up()` or `down()`. The new migration uses `if not exists` and a
+  `pg_constraint` check, so a database that has already applied the old migration does not change.
+  Its `down()` is empty: the `categories` rows outlive `catalog`, so a hard uninstall keeps their
+  main images. `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `assets_library` writing
+  `categories`.
+- ef656f9: `languages` now creates `languages.native_label`, `is_rtl`, `fallback_code` and the
+  `languages_fallback_fk` self-reference itself, in the new
+  `Migration20261114T003519LanguagesDictionaryColumns` (issue #611). Until now only
+  `dictionaries`' `Migration20260506T112634DictionariesDictionaryInit` created them, although they
+  belong to `languages`' `Language` entity. That migration keeps its class name and no longer alters
+  `languages` in `up()` or `down()`. The new migration uses `if not exists` and a `pg_constraint`
+  check with the same types, defaults and constraint name, so a database that has already applied
+  the old migration does not change. `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists
+  `dictionaries` writing `languages`. The `currencies` columns the same `dictionaries` migration adds
+  stay where they are: `currencies` does not create its own table yet.
+- 71ec1f8: `payments` now creates `payments.provider_details`, `failure_reason` and `attempt_no` itself, in
+  the new `Migration20261114T001851PaymentsProcessColumns` (issue #611). Until now only
+  `payment_methods`' `Migration20260611T140353PaymentMethodsAdapter` created them, although they
+  belong to `payments`' `Payment` entity. That migration keeps its class name and no longer names
+  `payments` in `up()` or `down()`. The new migration uses `add column if not exists` with the same
+  types and default, so a database that has already applied the old migration does not change. Its
+  `down()` is empty: the `payments` table is created by the platform and its rows outlive the
+  module. `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `payment_methods` writing
+  `payments`.
+- de28088: `AuditRedactionPort.redact` now finishes a target with more than 1,000 ids in one call: it looks the target's rows up 1,000 object ids at a time and still writes exactly one `audit.redacted` row per call (issue #959). Before, a subject with more than 1,000 addresses, in its personal organisation or in the retired personal book, was refused on every retention-sweep tick and never anonymised. `AUDIT_REDACTION_MAX_IDS_PER_TARGET` (`@endora-commerce/platform/kernel`) is now 10,000, a sanity limit rather than a batch size; a target above it is still refused. No other signature changes.
+- 9aff446: Issue #997 — an audit entry written through `CommandBus.run` now carries the remote IP address, user agent and request id of the request in flight, the same three fields a direct `auditLogService.record` call takes from the request (`request.ip`, the `user-agent` header, `request.id`). Before, the composed bus had no request-metadata resolver, so every bus-written entry had all three `null`, and a write moved onto the bus (Principle XIII) silently lost its IP.
+
+  - `CommandBus` reads the metadata from the ambient platform scope by default; the request-scope hook fills it, and a worker, CLI, boot, interval or system scope leaves it empty. A scope opened inside a request answers for itself, so a worker scope never inherits a request's values, and concurrent requests never see each other's. `CommandBusOptions.getRequestMeta` still overrides the default.
+  - The IP is `request.ip`, so it follows the server's `trustedProxy` setting exactly as the direct path does: the socket peer unless a deployment names the proxy hop it trusts.
+
+  **Behaviour change on upgrade.** Audit rows written by Commands during an HTTP request gain `ip_address`, `user_agent` and `request_id`. Rows written before the upgrade stay as they are, and rows written outside a request still carry none. Nothing in the schema changes.
+
+- 65cdd0e: **Behaviour change for API clients: the catalogue now reads `Accept-Language` as a q-weighted list matched against the sales channel's languages** (issue #397). The public catalogue (`/api/v1/catalog/*`) and the external catalogue (`/api/v1/external/catalog/*`) used to take the header's first entry verbatim, `;q=` parameter included. They now take the tags in descending `q`, match each against the channel's languages (exactly, then by base language, so `pl` reaches a `pl-PL` channel language), use the first tag the channel serves, and fall back to the channel's default language when it serves none. So `Accept-Language: en;q=0.1, pl-PL;q=0.9` is answered in Polish (it was English), `pl` on a `pl-PL` channel hits the `pl-PL` values and overrides directly, and a language the channel does not offer (one that is still stored on a category name, an attribute label or an asset alt text, for example) is no longer served: the response uses the channel default. A client that wants a language must ask for one the channel offers. A request with no `Accept-Language` header behaves as before.
+
+  New in `@endora-commerce/contracts`: `parseAcceptLanguage(header)`, which returns the header's tags heaviest `q` first, bounded to 512 characters and 10 tags. It moved here from the platform's internal `kernel/i18n/request-language.ts`, which now imports it. Also new: `requestScopeLanguage(channel, header)`, the header form of `scopeLanguageOf`. Prefer it to `scopeLanguageOf(channel, firstLanguageTag(header))`.
+
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/contracts@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

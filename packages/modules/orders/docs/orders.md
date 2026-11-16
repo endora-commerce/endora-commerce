@@ -18,7 +18,7 @@ Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
 | `POST /api/v1/orders` | customer | Place order from active Cart |
 | `GET /api/v1/orders` | customer | List orders: own orders, or the Organization's with `orders.view_organization` (see below) |
 | `GET /api/v1/orders/:id` | customer | Order detail |
-| `GET /api/v1/orders/:id/invoice` | customer | Download invoice PDF |
+| `GET /api/v1/orders/:id/invoice` | customer | Older invoice download: a minimal PDF of the order's first invoice (`404 INVOICE_NOT_READY` until it is ready); the template-rendered PDF is the `invoices` module's `…/invoices/:invoiceId/pdf` |
 | `GET /api/v1/admin/orders` | admin | List every order (cross-organization) |
 | `GET /api/v1/admin/orders/:id` | admin | Order detail (bypasses customer scope) |
 | `POST /api/v1/admin/orders/:id/status` | admin | Status transition (audited) |
@@ -583,6 +583,16 @@ line's quantity minus 1) and the group of the new line — the line's own by
 default — and adds a line of the same product with that quantity, reducing the
 original. This is how one product goes into two groups: for example 5 pieces in
 *Hall A* and 3 in *Hall B*. Each line is priced at its own quantity.
+
+**Custom fields.** With `custom_fields:read` the screen shows the order's custom
+fields, and their values are sent as `customFieldValues`. `POST
+/api/v1/admin/orders` checks them with the administrator's rules before the
+working basket or any address is written, and enforces every `required` order
+field even when the request sends no values; a refusal is
+`422 CUSTOM_FIELD_VALUE_INVALID` (`details` entries `{ path, issue }`), shown at
+the field it names, and no order is created. The values are written with the
+order, over any carried from a quote request, and the `order.place_on_behalf`
+audit entry names their keys (`changedCustomFields`), never their values.
 
 ## Custom-field values carried into an order
 

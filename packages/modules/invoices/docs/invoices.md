@@ -1,29 +1,47 @@
 ---
 title: Invoices
-description: PDF invoice / proforma generation + asset linkage
+description: VAT invoices, proformas and corrective invoices issued against orders, with PDFs rendered from document templates
 ---
 
 # Invoices (`invoices`)
 
-Generates proforma and final invoice PDFs, registers them under the
-`assets` module, and links them from the originating Order.
+Issues VAT invoices, proformas and corrective invoices against an Order, and
+renders their PDFs on demand from the invoice document template. ERP-imported
+sale documents (`origin: erp_import`, including `wz` dispatch notes) are listed
+beside them.
 
 ## Public surface
 
-Admin list is gated by `orders:read`.
+Admin routes are gated by the module's own codes: `invoices:read` for reading
+and downloading, `invoices:write` for issuing, regenerating and e-mailing.
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/orders/:id/invoice` | customer | Download invoice PDF (404 `INVOICE_NOT_READY` until status='ready'; binary Content-Type once ready). Admin uses the same endpoint via the storefront origin to re-download. |
-| `GET /api/v1/admin/invoices` | admin | List all invoices with `filter[status]` / `filter[orderId]`; default limit 50, capped at 200; newest first, paged by the opaque `pagination.cursor` passed back as `?cursor=` |
+| `GET /api/v1/admin/invoices` | admin (`invoices:read`) | List with `filter[status]`, `filter[kind]`, `filter[orderId]`, `filter[orderNumber]`, `filter[salesChannelId]`, `filter[issuedFrom]` / `filter[issuedTo]`, `filter[totalMin]` / `filter[totalMax]`; default limit 50, capped at 200; newest first, paged by the opaque `pagination.cursor` passed back as `?cursor=` |
+| `GET /api/v1/admin/invoices/:id` | admin (`invoices:read`) | Invoice detail |
+| `GET /api/v1/admin/invoices/:id/pdf` | admin (`invoices:read`) | Download the PDF, rendered on demand |
+| `POST /api/v1/admin/orders/:orderId/invoices` | admin (`invoices:write`) | Issue a VAT invoice or a proforma (`kind`, optional `saleDate`, `paymentDueDate`); `201` with the invoice and the e-mail outcome |
+| `POST /api/v1/admin/invoices/:id/regenerate-pdf` | admin (`invoices:write`) | Re-run the render to surface a template error; stores nothing |
+| `POST /api/v1/admin/invoices/:id/send-email` | admin (`invoices:write`) | (Re)send the invoice e-mail, optionally choosing `mode` (`attachment` / `link`) |
+| `GET /api/v1/orders/:id/invoices` | customer | The ready invoices of an order the customer may see |
+| `GET /api/v1/orders/:id/invoices/:invoiceId/pdf` | customer | Download one of them; `404 NOT_FOUND` until it is `ready` |
+| `GET /api/v1/account/organization/invoices` | customer | The Organization's ERP-imported sale documents, with their attachments |
+| `GET /api/v1/orders/:id/invoice` | customer | Older single-invoice download, registered by `orders`: `404 INVOICE_NOT_READY` until the order's invoice is `ready`, then a minimal PDF (number and total), not the template layout. Use `…/invoices/:invoiceId/pdf` |
 
 ## Generation flow
 
-`invoice-service.ts#generate()` runs after `order.confirmed`: pulls the
-Order + items + buyer Address snapshot, renders a PDF via a small,
-dependency-light renderer, persists the bytes through the `assets` module,
-and writes the asset id back onto the Order. Failures emit
-`invoice.generation_failed.v1` for an admin retry queue.
+An invoice is issued by an operator, or automatically: when an order reaches
+the status named in `invoices.auto_issue.trigger_status` (empty by default,
+which means manual issuance only), the subscriber on `order.status_changed.v1`
+(`services/auto-issue-reactor.ts`) issues one VAT invoice per order. It is
+idempotent and best-effort: a failed automatic attempt is logged and leaves
+manual issuance available. Issuance snapshots the order's lines into
+`invoice_lines`, draws the number and emits `invoice.issued.v1` (a correction
+emits `invoice.corrected.v1`). With `invoices.email.send_on_issue` on (off by
+default) the invoice e-mail goes out, carrying the PDF as an attachment or a
+link to the customer panel (`invoices.email.delivery_mode`, default
+`attachment`). The PDF is not stored: every download is rendered from the
+document template (see *PDF templates*).
 
 ### Unit prices and line values
 
@@ -158,8 +176,10 @@ setting of the totals block, and the row can be hidden there).
 
 ## Entities
 
-`Invoice` (number, issued/dated timestamps, asset reference,
-`type ∈ {proforma, final}`).
+`Invoice` (number, `kind ∈ {invoice, proforma, correction, wz}`,
+`status ∈ {pending, ready, cancelled}`, `origin ∈ {platform, erp_import}`,
+issued/sale/due dates, currency and totals; immutable once `ready`, changed only
+by a correction).
 
 `InvoiceLine` (an immutable snapshot of one line at issuance). Its `lineKind`
 says what the line is: `goods`, `delivery`, `payment_surcharge` or `discount`

@@ -1,5 +1,156 @@
 # @endora-commerce/cli
 
+## 0.111.0
+
+### Minor Changes
+
+- 1937bed: `endora new instance` wires `module:schema-extensions` as the sixth operator command (issue #1036): `backend/src/module-commands/schema-extensions.ts`, a `module:schema-extensions` script in the backend member and in the root, and a README line. In the instance root, `pnpm run module:schema-extensions list` shows the declared extension columns and orphaned ones, `pnpm run module:schema-extensions drop <moduleId> [--key <key>] [--confirm]` removes orphaned ones as an audited Command, and `pnpm run module:schema-extensions audit-packages` lists what the foreign-schema guard would refuse without executing anything. An existing instance adds the four-line file and the two scripts by hand (_Upgrading an instance_, "The schema-extension commands run in the instance").
+- cffa0bf: A manifest action can declare the admin API route its screen opens on (issue #1088). `ModuleActionSchema` (`@endora-commerce/contracts`) gains an optional `entryApiRoute`, a path under `/api/v1/admin/` written as the route registers it; nothing reads it at runtime and existing manifests are unchanged. `check:action-route-permissions` (`@endora-commerce/cli/rules/action-route-permissions.js`) compares `requiredPermission` against that route alone, at a new `declared` resolution level, instead of reconstructing an entry route from `targetRoute`; a declared route that no registration answers is reported `unresolvable` rather than replaced by the reconstruction. Declare it only where the reconstruction picks the wrong route: a screen served by an API its admin path does not name. `_lifecycle`'s `open-command-outbox` declares `GET /api/v1/admin/command-outbox`, and `import_export`'s two actions declare `GET /api/v1/admin/import-export/entities`, so their three ledger entries in the repository host are gone. The admin-actions module documentation (English and Polish) describes the field.
+- f39d37f: New rule `custom-field-writes` (`specs/175-buyer-input-custom-fields/`), exported from `./rules/custom-field-writes.js`: a custom-field host's literal `customFieldWrites` manifest export is read as source and held to the routes the module registers and to the built contracts' body schemas. Nine findings — `entity-type-undeclared`, `create-without-values`, `update-without-values`, `declared-route-missing`, `undeclared-write-route`, `exemption-without-reason`, `surface-without-contract`, `surface-without-test` and `computed-declaration`. `endora check` lists it as a `package`-scope rule whose package host is pending. The route reader of `./rules/action-route-permissions.js` gains an optional `pathPrefix` (default `/api/v1/admin`) and records each registration's `schema.body` identifier as `body`.
+- 3f95d1c: **`command-hook` divergence kind** (`specs/176-command-hooks-outbox/` FR-026). `endora generate` records each `ctx.commandHooks` entry of a deployment's overlay modules as `command-hook:<module>:<action>#<id>`, on rung 2 beside interceptors, and asks a reason for each in the deployment's `divergence.ts`. The action is read from a published ref (`ORGANIZATION_HOOKABLE_ACTIONS.register`), a `hookableAction('…')` call or a literal `{ action: '…' }`; any other spelling is a `computed-subject` finding. An instance's report states that it does not attribute a hooked action to its owner. The rung-2 cost sentence now names hookable actions too.
+- 8a4ca9c: New rule `check:extensible-tables` (`specs/178-extensible-columns/` FR-072), at `@endora-commerce/cli/rules/extensible-tables.js` and hosted by `endora check` for a module package that owns an extensible table: in an `up()` of such a module's migration, `drop table`, `alter table … rename to`, `create table … as select … from`, `insert into … select * from` or `select * into … from` on an extensible table (`extensible-table-rebuild`), and — in the repository host — a custom-field binding whose owner is not the table's (`binding-owner-mismatch`). `sqlTableAccesses` now records a table a statement reads before it writes as a write, and reads the writes inside `do $$ … $$` blocks and `create function|procedure` bodies, which `check:module-boundary`'s R2 did not see before; one previously hidden R2 write in this repository is now ledgered.
+- 498b99b: `endora new instance` scaffolds the backend under a supervising parent (issue #596), so a backend that is alive but no longer answering is restarted, as the storefront has been since #152. The instance gains `backend/scripts/supervise.mjs`, carried byte for byte from the platform repository's copy (the CLI's build writes it into `dist/backend-supervisor.mjs`, and `prepack` refuses a tarball without it). `deploy/Dockerfile.backend` now ends in `CMD ["node", "scripts/supervise.mjs", "dist/index.js"]`, and the `backend` service of every compose example sets `init: true` and `stop_grace_period: 30s`, which leaves the supervisor's 25 s kill grace room for the queue consumers to drain. The supervisor probes `/api/v1/_health` and counts any HTTP status as an answer; it is tuned with the optional `BACKEND_SUPERVISOR_*` variables. `backend-migrate`, `backend-install` and a `node dist/worker.js` worker tier keep their own commands, unsupervised. The scaffolded storefront's `scripts/supervise.mjs` is the same file with the storefront's profile; its behaviour is unchanged. An existing instance copies the file and edits its Dockerfile and compose service by hand (_Upgrading an instance_, "A backend that stops answering is restarted").
+
+### Patch Changes
+
+- 4c4c869: `requireModuleLayout` (`@endora-commerce/cli/lib/module-roots.js`) now refuses with exit 2 when a module package's emitted manifest is older than its `src/manifest.ts` (issue #104). The layout is read out of the generated manifest index, which imports every package's built manifest, so a check resolving it without a rebuild answered about the previous build; six checks called `refuseStaleEmittedArtefacts` themselves and the rest did not. Every check that resolves the module layout now inherits the refusal, which names the stale package and asks for `pnpm run build:packages`. A caller that resolves the layout with `resolveModuleLayout` directly is unchanged.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- cbbf070: `check:platform-surface` now reads a module's test files (`*.test.ts`, `*.test.tsx`) and judges them on which subpaths of `@endora-commerce/platform` they name: a host-internal subpath such as `./composition` is `host-internal-subpath`, an undeclared one `unpublished-subpath` (issue #114). Test files are not asked the symbol question and do not count toward the host-dependent coverage floor. `endora check` over a module package applies the same rule to the package's tests. New exports from `@endora-commerce/cli/rules/platform-surface.js`: `isPlatformSurfaceTestSource` and `collectPlatformSurfaceTestSources`.
+- e135ccc: `endora new module --worker` emits a queue whose `removeOnComplete` / `removeOnFail` default job options carry an `age` bound beside the `count` bound (issue #1248): one day for a completed job, seven days for a failed one. The emitted comment says why the age alone does not empty a quiet queue, and that a queue whose jobs carry personal data also needs a scheduled `queue.clean`.
+- 4d7b141: The instance scaffold's `backend/src/migrate.ts` migrates through `migrateUpVerified(orm)` instead of a bare `orm.getMigrator().up()`, so an instance's `pnpm run setup` gets the verified run of declared extension columns (one transaction, the verifier before commit, generated-step history pruning, orphan marking of vanished packages). An existing instance should apply the same one-line change to its own `backend/src/migrate.ts`.
+- 027aba4: The command-coverage rule (`@endora-commerce/cli/rules/command-coverage.js`, run by
+  `endora check` and by `check:command-coverage`) counts `upsert` and `upsertMany` as writes
+  (issue #352). Like `create` and `remove`, they count only when called on an EntityManager
+  (`em`, `tx`, `this.em()`, …), because `upsert` is also an ordinary service method name.
+  A method whose only write is `em.upsert(…)` or `em.upsertMany(…)` outside `CommandBus.run`
+  is now reported as an unaudited write, and a `command-coverage-ignore:` comment on it is no
+  longer reported as stale. A module package that upserts outside a Command now has to run the
+  write through a Command, record an audit entry, or add a `command-coverage-ignore: <reason>`
+  comment.
+
+  `mod-assets-library`: the two upserts this found, the cleanup-ledger `record` and the
+  hard-delete job's permalink release, carry a `command-coverage-ignore` comment (storage and
+  retention bookkeeping with no operator behind it and nothing to undo). No behaviour change.
+
+- 1daba64: `endora --help` now lists every sidebar section `new module --admin` accepts, read from
+  `AdminNavSectionNameSchema` in `@endora-commerce/contracts` — the set the flag is validated
+  against — instead of a hand-written list that had gone stale and omitted `crm` and `work`.
+- d290897: `check:port-catches` (`@endora-commerce/cli/rules/port-catches.js`) attributes a call through a door's method per receiver rather than by the method's name (issue #459). A key whose every value is a closure that only uses a port on the way to data, such as `{ find: (id) => port.findById(id) }`, is no longer reached by any call that merely spells it. Previously `em.find(…)` inside an unrelated `commandBus.run` callback read as the door's `find`, and a `catch` around the Command was reported as swallowing the door owner's gate. Such a call now reaches the key through the holder its receiver resolves to, or through the holder an argument resolves to under the key the call names, so `commandBus.run(command)` is judged against the `run` of the Command actually passed, wherever it was built. A key that holds the port itself, an alias or an accessor still answers by name, and so does a property read. On this repository the population drops from 304 to 278 sites, none of them a violation, and one ledgered `catalog` artefact (`product-page-revalidation.ts:keysOf`) is retired.
+- 01e73d1: `endora dev` no longer waits out the whole 10 s grace when a layer fails. A group signal
+  reaches only the processes in the group when it is sent, so a process a layer started just
+  after the polite stop (for example the script `pnpm run` had not spawned yet) kept running until
+  the forced stop. `superviseDev` now repeats SIGTERM to the layers still running every 250 ms
+  during the grace; SIGKILL still comes only once the grace is up.
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/contracts@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

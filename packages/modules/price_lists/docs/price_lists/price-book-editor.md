@@ -245,6 +245,8 @@ module. It is available once the product has been created.
   it would refuse stops the whole Save and is reported on the panel. If the product is saved but the
   base prices are not, the editor says so and the next Save writes only the base prices. An invalid
   value is reported on its field.
+  **Discard changes** on the panel resets the base prices to their saved values and leaves the rest
+  of the product's changes alone.
 - **Open the base prices** opens the base book's grid; **Why this price?** opens the explainer for
   this product.
 
@@ -294,9 +296,18 @@ there.
   order with an example each, whether a category line wins over an attribute value line, and a note
   that changing the precedence arrives in a later release. Nothing on it can be changed.
 
+An organization's or a category's override can also be set where that record is edited — the
+*Price display mode* row this module contributes to the organization screen and the category editor.
+There the row has no save of its own: choosing a mode stages it, the editor's one Save counts it and
+writes it after the organization's or the category's own changes, and leaving with it unsaved asks
+first. If the organization or category is refused, the mode is not written; if only the mode fails,
+the editor says so and its next Save writes only the mode.
+
 ## Sales representatives
 
-A sales representative works in the same screens with these differences:
+A sales representative works in the same screens with these differences. *Their organizations* are
+the organizations they reach: those assigned to them (with `organizations:rollup`, their
+sub-organizations too) and every organization no representative is assigned to.
 
 - The list shows organization books whose every member is one of their organizations, and the books
   for everyone and for customer groups. A book naming any other organization is missing from the

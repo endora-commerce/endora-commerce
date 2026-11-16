@@ -9,7 +9,7 @@ vi.mock('@endora-commerce/platform/kernel', async (importOriginal) => ({
   currentSalesChannel: () => channelState.current,
 }));
 
-const { availableRecords, basketScopeLanguage, firstLanguageTag } = await import('./cart-availability.js');
+const { availableRecords, basketScopeLanguage } = await import('./cart-availability.js');
 
 /**
  * Feature 163 (FR-006, FR-007, QA checkpoint B) — which (channel, language,
@@ -76,20 +76,5 @@ describe('availableRecords', () => {
     const out = await availableRecords(p, records, { channelId: null, languageCode: null, audience: AUDIENCE });
     expect(out).toHaveLength(3);
     expect(p.filterAvailable).not.toHaveBeenCalled();
-  });
-});
-
-describe('firstLanguageTag', () => {
-  it.each([
-    ['de-DE,en;q=0.8', 'de-DE'],
-    ['de;q=0.9, en', 'de'],
-    ['  pl-PL  ', 'pl-PL'],
-    ['', undefined],
-    [undefined, undefined],
-  ])('%j -> %j', (header, expected) => {
-    expect(firstLanguageTag(header)).toBe(expected);
-  });
-  it('reads the first element of a repeated header', () => {
-    expect(firstLanguageTag(['en-GB', 'de'])).toBe('en-GB');
   });
 });

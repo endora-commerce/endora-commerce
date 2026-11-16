@@ -144,6 +144,10 @@ preview need only the session.
 values of attributes flagged **`quick_searchable`** (an independent boolean on
 `product_attributes`, toggled in the admin Attributes manager). Values of
 non-flagged attributes never match. Session-gated; channel-scoped.
+Availability and the hits' names follow the request's language: `Accept-Language`
+is read as a q-weighted list matched against the sales channel's languages,
+else the channel's default. The build, and one-click buy, judge their products
+in the same language.
 
 ### 3. Default ordering preferences
 
@@ -169,8 +173,15 @@ re-check (active / org-allowed / address exists → otherwise dropped to null).
 - A default address is always one of the Organization's own addresses — the
   only address book a customer has.
 - Admin: `/api/v1/admin/quick-order/preferences` — a platform admin manages any
-  scope; a salesperson only their assigned organizations and those orgs'
-  customers. Every change is audited.
+  scope; a salesperson only the organizations they reach (their assigned ones
+  and every organization no other representative is assigned to) and those
+  orgs' customers; a write naming an organization that does not exist answers
+  `404 NOT_FOUND`. Every change is audited.
+  In the admin the defaults are a panel on the organization screen and on the customer screen,
+  and the panel has no Save of its own: a change is staged, counted by that screen's one Save and
+  written by it after the organization's or customer's own changes. If the panel's write fails
+  while the rest was saved, the screen says so, the defaults stay unsaved, and the next Save
+  writes only them.
 
 ### 4. Reorder
 

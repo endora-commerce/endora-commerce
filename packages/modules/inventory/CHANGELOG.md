@@ -1,5 +1,207 @@
 # @endora-commerce/mod-inventory
 
+## 0.111.0
+
+### Minor Changes
+
+- 020c3aa: The sales-channel editor's Save now covers the panels contributed to `sales_channel.editor.after` (issue #407, `specs/180-one-save-zone-editors/` WP-9).
+
+  **mod-sales-channels:**
+  - The edit screen of an existing channel runs a save session, one per channel, and passes it to `sales_channel.editor.after`. A panel that takes part in it needs no change to this screen. The create form runs none and is unchanged.
+  - The identity form's Save reads "Save" or "Save n changes", counting the form's own changed fields plus every panel's. It does nothing while there is nothing to save.
+  - Save writes the channel first, then the panels. If the channel write is refused (a version conflict, a validation error), no panel is written. If a panel fails after the channel saved, the screen reports what was saved and what was not; the next Save writes only what is left.
+  - Leaving the page through a link, reloading or closing the browser tab with unsaved changes now asks first; the form had no such prompt before. Cancel discards every change and returns to the list without asking, as before.
+  - `ChannelIdentityForm` takes three optional props for this: `participantChangeCount`, `onChangeCountChange` and `summary`. Without them it behaves as before.
+  - New strings in English and Polish: `channelEditor.save.hostPartLabel` and `channelEditor.save.failed`.
+
+  **mod-inventory:**
+  - The warehouse routing panel on the sales-channel editor stays immediate: assigning, unassigning and making a warehouse the default still apply at once. Its heading now carries `@endora-commerce/admin-kit`'s "Applies immediately" badge while those actions are offered.
+
+### Patch Changes
+
+- e72d21d: **The storefront stock read and the notify-when-available subscriptions read `Accept-Language` as a q-weighted list matched against the sales channel's languages** (issue #1011). `GET /api/v1/storefront/inventory/stock/:id`, `POST /api/v1/storefront/inventory/notify-when-available` and the signed-in customer's notify route took the header's first tag alone as the language a product's availability is judged in, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` asked about English and `de-DE, pl;q=0.5` about the channel default, and a product available only in Polish answered `404`. The language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. A subscription is stamped with that language, so the back-in-stock e-mail names the product in it (#696). A request without the header behaves as before.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- e283396: **The back-in-stock e-mail is the editable template, in the subscriber's language.** The stock worker that `inventory.adjusted.v1` triggers sent a fixed English plain-text message. It now sends the `availability_back_in_stock` transactional e-mail (the "Back in stock notification" in the e-mail builder), as the restock fan-out already did. Both render it in the sales channel and language the subscription recorded (issue #696): the channel's override for that language, else the global override, else the shipped English or Polish default. A subscription without a recorded channel, or whose channel was deleted, is rendered on the system-default channel in its default language.
+
+  - An operator who switches the e-mail off stops it: the subscriptions are consumed and nothing is sent. The fixed English text is sent only when no template definition exists for the code.
+
+- 8a4aae1: **A back-in-stock subscription the stock worker notified now reads as notified.** `AvailabilityWorker.dispatchForStockIncrease` — the sender `inventory.adjusted.v1` triggers — stamped only `notifiedAt` on a subscription it had consumed, so the row kept `status = 'queued'` and showed as still waiting in the admin back-in-stock list, its status filter and its counts. It now writes `status = 'notified'` beside `notifiedAt`, as `AvailabilityNotificationService.processRestockedFanOut` always did — also when the operator has the e-mail switched off and the subscription is consumed without a message. A subscription whose account no longer exists is closed as `cancelled`, as in the fan-out.
+
+  - A migration corrects the rows the worker already left behind: every `availability_notifications` row with `notified_at` set and `status = 'queued'` becomes `notified`. Its `down()` changes nothing, because the corrected rows can no longer be told apart from rows notified correctly.
+
+- 2e603f7: Admin screens confirm destructive and consequential actions in the kit's `ConfirmDialog` rather
+  than the browser's `window.confirm()` (issue #313). This covers deleting, revoking, removing and
+  resetting across these modules, switching a module off on the Modules screen, undoing a bulk
+  edit, making a sales channel the default, and preparing a customer's basket from a quote. The
+  dialog names the action on its confirm button (for example _Delete_, _Revoke_, _Unassign_), and a
+  destructive question opens with focus on Cancel.
+
+  The three native `alert()` calls are now notices on the page: deleting an attachment type that is
+  still in use (`catalog`), unassigning a channel's default warehouse (`inventory`), and activating a
+  megamenu binding that replaces another (`megamenu`, announced through a live region). Renaming a
+  setting group (`settings`) uses a one-field dialog instead of `prompt()`. Removing a colour from
+  the page builder's palette (`page-builder-admin`) is confirmed inline in its row, because the
+  palette is already a modal.
+
+  Several of these questions were untranslated English literals. They are now bundle keys in
+  English and Polish: the country, currency and language deletes (`dictionaries`), the e-mail block
+  and template deletes (`transactional_emails`), the setting-group delete and rename and the setting
+  reset (`settings`), and the sales-channel delete and rebind questions (`sales_channels`). The
+  assets-library folder delete no longer says "OK = … / Cancel = …". `mod-i18n` adds
+  `common.confirm.title` and the subscription-cancel button labels.
+
+  Two native dialogs stay on purpose: the unsaved-changes navigation guard
+  (`use-unsaved-changes-prompt`), which has to answer synchronously inside the click it intercepts,
+  and the settings screen's discard-on-channel-switch guard, which is the same kind of guard. They
+  will be replaced together in a later change.
+
+- 577e94c: The product editor, the customer and organization detail screens and the sales-channel editor's warehouse routing panel draw their "Applies immediately" badges with `@endora-commerce/admin-kit`'s `ImmediateBadge` instead of a local copy each (issue #407). The badge looks and reads the same. The module strings it replaces are removed in English and Polish: `productEditor.immediate.badge` (catalog), `detail.immediate.badge` (customers, organizations) and `warehouses.channel.immediateBadge` (inventory).
+- 848847d: **The back-in-stock e-mail names the product as the buyer saw it.** A subscription made through `POST /api/v1/storefront/inventory/notify-when-available` or `POST /api/v1/catalog/products/:id/notify-when-available` now records the resolved sales channel of the request and the language resolved from its `Accept-Language` against that channel's languages. When the product is back in stock, the e-mail names it by its effective name at that channel and language — the channel × language name, else the channel name, else the global name — read through catalog's `catalogProductAvailabilityPort.effectiveTexts`.
+
+  - **Migration** `Migration20261115T065605InventoryAvailabilityNotificationScope` adds the nullable columns `availability_notifications.sales_channel_id` (foreign key to `sales_channels`, `on delete set null`) and `availability_notifications.language_code`. Nothing is backfilled: a subscription made before the upgrade, or whose channel is later deleted, keeps the global name it was going to get.
+  - Only the product name follows the subscription. The rest of the message is worded as before. Operator low-stock alerts keep the global name.
+
+- 51b4e5c: Documentation only: the page lists `inventory.enabled` and `inventory.allow_negative_stock`, says where the product editor saves the stock settings and how the storefront stock read picks its language, in English and Polish.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [52831b7]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+  - @endora-commerce/email-components@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

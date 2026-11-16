@@ -1,28 +1,44 @@
 ---
 title: Faktury
-description: Generowanie faktur i faktur proforma w PDF oraz powiązanie z plikami
+description: Faktury VAT, faktury proforma i faktury korygujące wystawiane do zamówień, z plikami PDF renderowanymi z szablonów dokumentów
 ---
 
 # Faktury (`invoices`)
 
-Generuje faktury proforma i faktury końcowe w PDF, rejestruje je w module `assets` i wiąże z
-zamówieniem, z którego pochodzą.
+Wystawia faktury VAT, faktury proforma i faktury korygujące do zamówienia oraz renderuje ich pliki
+PDF na żądanie z szablonu dokumentu faktury. Obok nich wyświetlane są dokumenty sprzedaży
+zaimportowane z ERP (`origin: erp_import`, w tym dokumenty WZ).
 
 ## API publiczne
 
-Lista w panelu administracyjnym jest chroniona przez `orders:read`.
+Trasy administracyjne są chronione własnymi kodami modułu: `invoices:read` do odczytu i pobierania,
+`invoices:write` do wystawiania, ponownego generowania i wysyłki e-mailem.
 
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/orders/:id/invoice` | klient | Pobranie faktury PDF (404 `INVOICE_NOT_READY`, dopóki status nie jest `ready`; potem odpowiedź binarna z odpowiednim Content-Type). Administrator pobiera fakturę ponownie przez ten sam endpoint, pod adresem storefrontu. |
-| `GET /api/v1/admin/invoices` | administrator | Lista wszystkich faktur z `filter[status]` / `filter[orderId]`; domyślnie 50, najwyżej 200; od najnowszych, stronicowana nieprzezroczystym `pagination.cursor` przekazywanym z powrotem jako `?cursor=` |
+| `GET /api/v1/admin/invoices` | administrator (`invoices:read`) | Lista z `filter[status]`, `filter[kind]`, `filter[orderId]`, `filter[orderNumber]`, `filter[salesChannelId]`, `filter[issuedFrom]` / `filter[issuedTo]`, `filter[totalMin]` / `filter[totalMax]`; domyślnie 50, najwyżej 200; od najnowszych, stronicowana nieprzezroczystym `pagination.cursor` przekazywanym z powrotem jako `?cursor=` |
+| `GET /api/v1/admin/invoices/:id` | administrator (`invoices:read`) | Szczegóły faktury |
+| `GET /api/v1/admin/invoices/:id/pdf` | administrator (`invoices:read`) | Pobranie pliku PDF renderowanego na żądanie |
+| `POST /api/v1/admin/orders/:orderId/invoices` | administrator (`invoices:write`) | Wystawienie faktury VAT albo proformy (`kind`, opcjonalnie `saleDate`, `paymentDueDate`); `201` z fakturą i wynikiem wysyłki e-maila |
+| `POST /api/v1/admin/invoices/:id/regenerate-pdf` | administrator (`invoices:write`) | Ponowne renderowanie, które ujawnia błąd szablonu; niczego nie zapisuje |
+| `POST /api/v1/admin/invoices/:id/send-email` | administrator (`invoices:write`) | (Ponowna) wysyłka e-maila z fakturą, opcjonalnie z wyborem `mode` (`attachment` / `link`) |
+| `GET /api/v1/orders/:id/invoices` | klient | Gotowe faktury zamówienia, które klient może zobaczyć |
+| `GET /api/v1/orders/:id/invoices/:invoiceId/pdf` | klient | Pobranie jednej z nich; `404 NOT_FOUND`, dopóki nie jest `ready` |
+| `GET /api/v1/account/organization/invoices` | klient | Dokumenty sprzedaży organizacji zaimportowane z ERP, wraz z załącznikami |
+| `GET /api/v1/orders/:id/invoice` | klient | Starsze pobieranie pojedynczej faktury, rejestrowane przez moduł `orders`: `404 INVOICE_NOT_READY`, dopóki faktura zamówienia nie jest `ready`, potem uproszczony PDF (numer i kwota), a nie układ z szablonu. Używaj `…/invoices/:invoiceId/pdf` |
 
 ## Generowanie
 
-`invoice-service.ts#generate()` uruchamia się po `order.confirmed`: pobiera zamówienie, pozycje i
-zapisaną kopię adresu kupującego, generuje PDF lekkim mechanizmem bez ciężkich zależności, zapisuje
-plik przez moduł `assets` i zapisuje identyfikator pliku w zamówieniu. Błędy emitują
-`invoice.generation_failed.v1` do kolejki ponowień w panelu administracyjnym.
+Fakturę wystawia operator albo system: gdy zamówienie osiągnie status wskazany w
+`invoices.auto_issue.trigger_status` (domyślnie pusty, czyli tylko wystawianie ręczne), subskrybent
+`order.status_changed.v1` (`services/auto-issue-reactor.ts`) wystawia jedną fakturę VAT na
+zamówienie. Działa idempotentnie i bez gwarancji: nieudana próba automatyczna jest zapisywana w logu
+i pozostawia możliwość wystawienia ręcznego. Wystawienie zapisuje kopię pozycji zamówienia w
+`invoice_lines`, pobiera numer i emituje `invoice.issued.v1` (korekta emituje
+`invoice.corrected.v1`). Przy włączonym `invoices.email.send_on_issue` (domyślnie wyłączone) wysyłany
+jest e-mail z fakturą, z plikiem PDF w załączniku albo z linkiem do panelu klienta
+(`invoices.email.delivery_mode`, domyślnie `attachment`). Plik PDF nie jest przechowywany: każde
+pobranie jest renderowane z szablonu dokumentu (zobacz *Szablony PDF*).
 
 ### Ceny jednostkowe i wartości pozycji
 
@@ -144,7 +160,9 @@ bloku podsumowania i tam można ten wiersz ukryć).
 
 ## Encje
 
-`Invoice` (numer, daty wystawienia i dokumentu, odwołanie do pliku, `type ∈ {proforma, final}`).
+`Invoice` (numer, `kind ∈ {invoice, proforma, correction, wz}`, `status ∈ {pending, ready, cancelled}`,
+`origin ∈ {platform, erp_import}`, daty wystawienia, sprzedaży i płatności, waluta i sumy; niezmienna
+od statusu `ready`, zmieniana wyłącznie korektą).
 
 `InvoiceLine` (niezmienny zapis jednej pozycji z chwili wystawienia). Jej `lineKind`
 mówi, czym jest pozycja: `goods`, `delivery`, `payment_surcharge` lub `discount` na

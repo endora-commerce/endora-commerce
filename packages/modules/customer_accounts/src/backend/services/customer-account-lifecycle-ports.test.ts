@@ -220,3 +220,31 @@ describe('CustomerAccountLifecycleWriteService.anonymize — finishing an earlie
   });
 });
 
+
+describe('CustomerAccountLifecycleWriteService.anonymize — the preferred language (#652, D-292)', () => {
+  it('erases the preferred language with the rest of the personal data, and records no tag', async () => {
+    const { service, account, audited } = harness();
+    Object.assign(account, { preferredLanguage: 'pl-PL' });
+
+    await service.anonymize(ACCOUNT_ID);
+
+    expect(account.preferredLanguage).toBeNull();
+    expect(audited).toHaveLength(1);
+    expect(JSON.stringify([audited[0]!.stateBefore, audited[0]!.stateAfter])).not.toContain('pl-PL');
+  });
+
+  it('finishes an account anonymised before #652 that still holds a language, once and unannounced', async () => {
+    const { service, account, audited, emitted } = harness();
+    const anonymizedAt = new Date('2026-05-06T07:08:09Z');
+    Object.assign(account, { anonymizedAt, customFieldValues: {}, blockReason: null, preferredLanguage: 'en-US' });
+
+    await service.anonymize(ACCOUNT_ID);
+    await service.anonymize(ACCOUNT_ID);
+
+    expect(account.preferredLanguage).toBeNull();
+    expect(account.anonymizedAt).toBe(anonymizedAt);
+    expect(audited).toHaveLength(1);
+    expect(JSON.stringify([audited[0]!.stateBefore, audited[0]!.stateAfter])).not.toContain('en-US');
+    expect(emitted).toEqual([]);
+  });
+});

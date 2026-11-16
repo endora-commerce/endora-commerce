@@ -568,7 +568,11 @@ every request, uncached, so a change applies to the next request.
 
 **Who sees and changes it.** Both controls are panels on the organization and
 customer screens, shown to roles with `customers:read`; changing a value needs
-`customers:manage`, and the panel's control is disabled without it. A role that
+`customers:manage`, and the panel's control is disabled without it. The panels
+have no save of their own: choosing a value stages it, and the screen's one Save writes it, after
+the organization's or the customer's own changes. Leaving the page with it unsaved asks first. On
+the customer screen the "Effective: …" line is hidden while a change is unsaved, because it describes
+the stored value. A role that
 holds `customers:manage` but **not** `customers:read` sees no panel. A sales
 representative reaches only the organizations they may see; any other id
 answers `404`. An organization with no assigned sales representative is visible
@@ -653,6 +657,14 @@ Quote requests take custom fields, defined on **Custom fields**. They follow thi
 `quote_requests` is switched off its fields are not listed there, cannot be created or edited and
 are not offered by the definitions API; the fields, their options and the stored values are kept
 and come back unchanged when the module is switched on again.
+
+**On the Create quote request screen** an operator holding `custom_fields:read` fills the request's
+custom fields, sent as `customFieldValues` on `POST /api/v1/admin/quote-requests`. They are checked
+with the administrator's rules before the request is numbered or anything is written, and every
+`required` quote-request field is enforced even when the request sends no values; a refusal is
+`422 CUSTOM_FIELD_VALUE_INVALID` (`details` entries `{ path, issue }`), shown at the field it names,
+and nothing is created. The `quote_request.create_on_behalf` audit entry names the stored keys
+(`changedCustomFields`), never their values. A buyer's own submission is unchanged.
 
 ### Values carried into and out of a request
 

@@ -278,7 +278,8 @@ i znów pokazuje rekord, gdy jego moduł wróci.
 dziesięciu przypomnień, każde **o określonej dacie i godzinie** albo **przed
 terminem** — 15 minut, godzinę, dzień, dwa dni albo tydzień przed — dla siebie
 i dowolnych osób przypisanych do zadania. W tej chwili każdy odbiorca dostaje
-jedno powiadomienie w dzwonku i jeden e-mail z nazwą zadania i odnośnikiem.
+jedno powiadomienie w dzwonku, z odnośnikiem, i jeden e-mail z nazwą zadania
+(zob. *Odnośniki w e-mailach*).
 Przypomnienie przed terminem przesuwa się razem z terminem i jest wysyłane
 ponownie w nowej chwili; gdy termin zostanie usunięty, przypomnienie też jest
 usuwane, a historia zadania o tym mówi. Nic nie jest wysyłane odbiorcy, który
@@ -588,7 +589,7 @@ Kontrakt, którego deskryptor przestrzega:
 
 **Przebieg porządkujący.** Właściciel kontekstu usuwa zadania usuwanego rekordu
 przez `taskWritePort.deleteInContext` — ale tylko wtedy, gdy moduł Zadania jest
-włączony. To, co usunięto przy wyłączonym module, znajduje trzeci przebieg
+włączony. To, co usunięto przy wyłączonym module, znajduje ostatni przebieg
 workera `tasks-reminders`, uruchamiany najwyżej co **piętnaście minut**: dla
 każdego **obecnego** właściciela implementującego `existingContexts` czyta
 różne konteksty, które wskazują jego zadania, po 500 naraz, i pyta o nie
@@ -653,8 +654,9 @@ może już dostać powiadomienia — jako `skipped`; żadne z nich niczego nie
 wysyła. Podsumowanie zajmuje dzień każdego subskrybenta, zanim wyśle
 `tasks_daily_digest`, więc wychodzi najwyżej raz dziennie.
 
-Wszystkie trzy przebiegi — przypomnienia co minutę, podsumowanie i przebieg
-porządkujący najwyżej co piętnaście minut — działają w jednym harmonogramie
+Wszystkie cztery przebiegi — przebieg strefy czasowej (zob. *Ustawienia ogólne*),
+a po nim przypomnienia co minutę, podsumowanie i przebieg porządkujący najwyżej
+co piętnaście minut — działają w jednym harmonogramie
 zadań BullMQ `tasks-reminders`, podpinanym przez `ctx.worker` tylko w procesie,
 który uruchamia workery. Takt najpierw ustala obecność modułu, potem zadaje
 jednobitowe pytanie każdego przebiegu poza zakresem tenanta i wchodzi

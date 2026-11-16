@@ -72,6 +72,13 @@ describe('customers off-state (Constitution XVII)', () => {
           payload: {},
         },
         { url: '/api/v1/me/customer', headers: channel },
+        // Issue #652 (D-292) — the buyer's e-mail-language write is this module's route.
+        {
+          method: 'PATCH',
+          url: '/api/v1/me/customer/preferred-language',
+          headers: channel,
+          payload: { preferredLanguage: 'en-US' },
+        },
         // Issue #756 — the read the registration page renders from.
         { url: '/api/v1/storefront/settings/customer-registration', headers: channel },
         // `specs/173-b2c-address-book-merge/` — the retired book's 410 stub is

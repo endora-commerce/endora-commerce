@@ -11,13 +11,19 @@ po stronie klienta.
 
 ## API publiczne
 
+Trasy logowania, hasła i resetu obsługuje moduł `organizations`, korzystając z usług tego
+modułu.
+
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `POST /api/v1/auth/login` | E-mail i hasło (oraz krok TOTP, gdy włączona jest weryfikacja dwuetapowa) |
-| `POST /api/v1/auth/logout` | Zakończenie sesji |
+| `POST /api/v1/auth/customer/login` | E-mail i hasło. Gdy wymagany jest drugi składnik, odpowiada `mfaRequired` (z `challengeId`) lub `mfaSetupRequired` (z `setupTicket`) i nie ustawia sesji; drugi krok to `POST /api/v1/auth/customer/mfa/verify` modułu `mfa` |
+| `POST /api/v1/auth/customer/logout` | Zakończenie sesji |
 | `POST /api/v1/me/password` | Zmiana hasła (odrzuca błędne `currentPassword`). Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `POST /api/v1/auth/password-reset/request` | Rozpoczęcie resetu hasła. Nowy link unieważnia wszystkie wcześniejsze niewykorzystane, więc działa tylko ten z najnowszej wiadomości. Powtarzane żądania dla jednego adresu są ograniczane (zob. niżej) |
 | `POST /api/v1/auth/password-reset/confirm` | Użycie tokenu resetu hasła. Wykorzystanie tokenu wylogowuje konto ze **wszystkich** sesji, unieważnia pozostałe niewykorzystane tokeny resetu i wycofuje każde rozpoczęte, a niedokończone logowanie. |
+| `GET /api/v1/admin/customer-groups` | Panel: lista grup klientów (`customer_groups:read`) |
+| `PUT /api/v1/admin/customer-groups/:code` | Panel: utworzenie lub aktualizacja grupy o tym kodzie — `name`, opcjonalnie `description` (`customer_groups:write`) |
+| `DELETE /api/v1/admin/customer-groups/:id` | Panel: usunięcie grupy klientów, `204` (`customer_groups:write`) |
 
 ## Ograniczanie powtarzanych prób
 
@@ -139,21 +145,76 @@ nigdy jego wartości:
 - zmiana pól niestandardowych (`customer.custom_fields.update`) wymienia
   zmienione klucze jako `changedCustomFields`;
 - zmiana roli zapisuje rolę przez identyfikator i rodzaj, nigdy nazwę roli
-  niestandardowej.
+  niestandardowej;
+- zmiana preferowanego języka (`customer_account.set_preferred_language`)
+  zapisuje `changedFields: ['preferredLanguage']` i jej źródło jako `source`
+  (`self_service` albo `sign_in`), nigdy sam język.
 
 Wartości przechowuje samo konto.
 
+## Preferowany język
+
+Każde konto może zapisać język, w którym czyta jego właściciel, jako
+`CustomerAccountRecord.preferredLanguage`: jeden znacznik języka, zapisany tak,
+jak zapisuje go kanał sprzedaży, który go przechwycił (`pl-PL`, `en-US`), albo
+`null`, dopóki nie jest znany. W tym języku mają być pisane e-maile tworzone dla
+konta poza żądaniem. Wewnątrz żądania nic się nie zmienia: język odpowiedzi
+nadal wynika z nagłówka `Accept-Language` żądania.
+
+**Skąd się bierze.**
+
+- **Przy tworzeniu konta** — z żądania, które je tworzy: nagłówek
+  `Accept-Language`, dopasowany do kanału sprzedaży żądania — znaczniki w
+  kolejności preferencji (`q`), każdy dokładnie albo według języka bazowego
+  (`en` → `en-US`); wygrywa pierwszy, który kanał oferuje, a w ostateczności
+  domyślny język kanału.
+  Dotyczy to rejestracji firmy, rejestracji klienta indywidualnego (B2C),
+  przyjęcia zaproszenia (język zaproszonego, nie zapraszającego) i pierwszego
+  logowania przez zewnętrznego dostawcę tożsamości (język strony, na której
+  logowanie rozpoczęto). Konto utworzone przez operatora w panelu organizacji
+  nie zapisuje żadnego.
+- **Przy logowaniu, tylko dopóki jest nieznany** — dla konta sprzed wprowadzenia
+  tego pola albo utworzonego przez operatora. Język jest zapisywany po
+  zaakceptowaniu hasła, blokady i dostępu do sklepu, zanim padnie pytanie o drugi
+  składnik; logowanie przez dostawcę tożsamości do istniejącego konta działa tak
+  samo. Odrzucone logowanie niczego nie zapisuje, operator działający w imieniu
+  klienta niczego nie zapisuje, a logowanie nigdy nie zastępuje języka, który
+  konto już ma. Jeśli zapis się nie powiedzie, logowanie i tak się udaje.
+- **Wybór samego klienta** na stronie konta w sklepie — jedyne, co zastępuje
+  zapisany język. Zob. moduł `customers`.
+
+**Odczyt.** `customerAccountReadPort` zwraca to pole w każdym rekordzie. Nadawca
+dopasowuje je do kanału, dla którego tworzy wiadomość:
+`scopeLanguageOf(renderChannel, preferredLanguage)` — dokładnie ten język, w
+przeciwnym razie język o tym samym języku bazowym, a w ostateczności domyślny
+język tego kanału. Język, którego kanał już nie oferuje, prowadzi więc do języka
+zastępczego zamiast do błędu, a gdy kanał wycofuje język, niczego się nie
+migruje.
+
+**Zapis z innego modułu.** `customerAccountPreferencePort` ma dwie metody i obie
+wykonują polecenie `customer_account.set_preferred_language`:
+`setPreferredLanguage(customerAccountId, tag)` zapisuje znacznik w otrzymanej
+postaci (wywołujący sprawdził go względem kanału żądania) i odpowiada 404
+`NOT_FOUND` dla nieznanego konta; `captureIfUnset(customerAccountId, tag)`
+zapisuje tylko wtedy, gdy konto nie ma języka, a w przeciwnym razie nic nie
+robi — bez zapisu i bez wpisu audytu.
+
+**Dane osobowe.** Język opisuje osobę. Nigdy nie trafia do wpisu audytu ani do
+logów, a anonimizacja usuwa go razem z imieniem, nazwiskiem i adresem e-mail;
+konto zanonimizowane przed wprowadzeniem tego pola, które nadal go ma, kończy
+najbliższe przejście anonimizacji.
+
 ## Encje
 
-`CustomerAccount` (e-mail, passwordHash, organizationRoleId), `PasswordResetToken`.
+`CustomerAccount` (e-mail, passwordHash, organizationRoleId, preferredLanguage), `PasswordResetToken`.
 `organizationRoleId` wskazuje rolę konta w organizacji. Starsze, dwuwartościowe
 pole `role` (`organization_admin | regular_user`) jest nadal utrzymywane zgodnie
 z nią, dopóki platforma z niego nie zrezygnuje, i zostanie usunięte.
 
 ## Punkty rozszerzenia
 
-- **Polityka haseł** — `password-hasher.ts` opakowuje argon2id; tam dostosowuje się parametry
-  kosztu.
+- **Polityka haseł** — `password-hasher.ts` platformy (`packages/platform/src/kernel/crypto/`)
+  opakowuje argon2id; tam dostosowuje się parametry kosztu.
 - **Kody zapasowe i drugie składniki uwierzytelniania** — nie należą do tego modułu. Weryfikację dwuetapową klientów
   i administratorów obsługuje moduł `mfa`, na tabeli `mfa_enrolments`, udostępniony pod
   `/api/v1/account/mfa/*`; kody odzyskiwania to tam jednorazowe wiersze. Zastąpiony szkielet, na

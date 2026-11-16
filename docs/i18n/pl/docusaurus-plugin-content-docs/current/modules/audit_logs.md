@@ -24,8 +24,22 @@ Wymaga uprawnienia `audit_log:read`.
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/admin/audit-log` | Zapytanie do dziennika. Filtry: `filter[actor]`, `filter[customer]`, `filter[action]`, `filter[objectType]`, `filter[objectId]`. Domyślnie `limit=100`, najwyżej 500. Każdy wiersz zawiera od razu JSON `stateBefore` / `stateAfter`, aby przeglądarka w panelu mogła pokazać różnice obok siebie bez drugiego zapytania. Wiersz zawiera też `actorCustomerAccountId` i `actorCustomerLabel` — etykietę klienta w dzienniku audytu: osobę w postaci *Imię Nazwisko (e-mail)*, a gdy konto nie ma imienia ani nazwiska — sam adres e-mail. Klient, pod którego podszywa się administrator, jest opisywany tak samo. |
+| `GET /api/v1/admin/audit-log/recent-activity` | Kanał ostatniej aktywności na pulpicie (`limit` 1–12) |
+| `GET /api/v1/admin/audit-log/recent-activity/visibility` | Które moduły trafiają do tego kanału — tu zamiast tego wymagane jest `platform.modules.activate` |
+| `POST /api/v1/admin/audit-log/recent-activity/visibility/:moduleId` | Pokazanie lub ukrycie wpisów jednego modułu w kanale (`{ visible }`), z uprawnieniem `platform.modules.activate` |
+
+Ten sam dziennik odczytuje się z hosta poleceniem CLI `audit_logs read`
+(`pnpm --filter backend run audit:read -- [--actor] [--action] [--object-type] [--object-id] …`).
 
 ## Zapisywanie
+
+**Co zawiera wpis.** Dziennik to jedna tabela całej platformy, odczytywana z uprawnieniem
+`audit_log:read` bez zasięgu organizacji, więc wpis o rekordzie dzierżawcy (organizacji, koncie
+klienta, adresie, limicie kredytowym, logowaniu jako klient itp.) zawiera nazwy i strukturę,
+nigdy wartości: identyfikatory, kody, wartości logiczne, daty, liczności oraz `changedFields` /
+`changedCustomFields`, posortowane nazwy tego, co się zmieniło. Wartości takie jak nazwy, adresy
+e-mail, numery NIP, kwoty i powody zostają w samym rekordzie. Wpisy zapisane, zanim moduł przyjął
+tę zasadę, nie są przepisywane. Zasadę opisuje `specs/conventions/audit-state.md`.
 
 `AuditPort.record({ ... })` jest wywoływany przy każdej wrażliwej zmianie: zmianie ceny w katalogu,
 zmianie roli, korekcie limitu kredytowego, zmianie statusu zamówienia lub płatności „w imieniu”
@@ -79,7 +93,7 @@ przywrócić.
 
 **W przeglądarce dziennika.** Przeglądarka dziennika audytu w panelu pokazuje usuniętą wartość jako
 *Usunięto*, a ostatnia aktywność na pulpicie nigdy nie pokazuje znacznika jako nazwy. Surowy JSON,
-polecenie CLI `audit:read` i każdy eksport pokazują zapisany `"[erased]"`.
+polecenie CLI `audit_logs read` i każdy eksport pokazują zapisany `"[erased]"`.
 
 Ten zapis należy do właściciela tabeli. To `AuditRedactionPort` platformy, zarejestrowany jako
 `auditRedactionService` obok `auditLogService`

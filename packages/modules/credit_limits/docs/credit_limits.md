@@ -35,6 +35,11 @@ order of the Organization when their organization role holds
 `orders.view_organization` (the Administrator role holds it implicitly).
 The admin routes always list every reservation.
 
+Every listed reservation carries `orderBusinessId`, its order's customer-facing number (`null`
+for an order the `orders` module did not return), on the customer's route and on the three admin
+views. The admin credit-limit screen shows that number in its reservation table, linked to the
+order.
+
 ## Concurrency model
 
 `CreditLimitService.reserve()` opens a `SELECT … FOR UPDATE` on the
@@ -96,6 +101,6 @@ amounts they were written with.
 ## Extension points
 
 - **Release reasons** — `releaseByOrder(reason)` accepts
-  `'invoice_paid'` and `'order_cancelled'` today. New reasons (e.g.
+  `'invoice_paid'`, `'order_cancelled'` and `'admin_revocation'` today. New reasons (e.g.
   `'manual_override'`) are added by extending the enum and wiring the
   caller.

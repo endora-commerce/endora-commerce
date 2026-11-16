@@ -130,13 +130,16 @@ async function loginAction(formData: FormData): Promise<void> {
   const email = (formData.get('email') as string) ?? '';
   const password = (formData.get('password') as string) ?? '';
   const next = sanitiseNext((formData.get('next') as string) ?? '/account');
+  // Issue #1323 — the context carries the page language as `Accept-Language`, from which
+  // the backend records the account's e-mail language while it has none.
+  const { ctx } = await getServerContext();
 
   // Only the network/auth call is wrapped — the `redirect()` calls below must
   // stay OUTSIDE the try, otherwise Next's `NEXT_REDIRECT` control-flow throw
   // is caught here and re-routed into the error branch, blanking the page.
   let result;
   try {
-    result = await loginCustomer({ email, password });
+    result = await loginCustomer({ email, password }, ctx);
   } catch (err) {
     // Issue #745 — a code travels, never the backend's sentence.
     return await localeRedirect(`/login?error=${signInErrorParam(err, 'LOGIN_FAILED')}&next=${encodeURIComponent(next)}`);

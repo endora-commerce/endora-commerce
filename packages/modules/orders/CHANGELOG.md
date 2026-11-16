@@ -1,5 +1,253 @@
 # @endora-commerce/mod-orders
 
+## 0.111.0
+
+### Minor Changes
+
+- e9df6b5: Issue #1030 — a module that hands orders to another system (an ERP, a warehouse system, a fulfilment connector) can now record that system's number for an order, where the hand-over stands, and the other system's words on a refusal, **on the order**, through a new published port.
+
+  - **`@endora-commerce/contracts`** adds `OrderExternalReferencePort`, registered as `orderExternalReferencePort` (also exported as `ORDER_EXTERNAL_REFERENCE_PORT`), with `set(orderId, system, { state, reference?, message? })`, `get(orderId, system)`, `listForOrder(orderId)` and `findOrderIds(system, reference)`. Beside it: `OrderExternalReference`, `OrderExternalReferenceState` and `ORDER_EXTERNAL_REFERENCE_STATES` (`pending`, `synced`, `error`), `orderExternalReferenceSystemSchema`, `orderExternalReferenceWriteSchema`, `ORDER_EXTERNAL_REFERENCE_MESSAGE_MAX` (1000) and `ORDER_EXTERNAL_REFERENCE_MAX` (255). `adminOrderDetailSchema` gains `externalReferences` (`AdminOrderExternalReference[]`), which defaults to `[]` so a reply from an older server still parses.
+  - **`@endora-commerce/mod-orders`** implements the port. Each change is one Command, `order.external_reference.set`, audited with the calling actor; a write that changes nothing records nothing and does not move `updatedAt`. An order the caller cannot see is refused `404 ORDER_NOT_FOUND`; a malformed system key, state, reference or message `400 VALIDATION_FAILED`. Entries are org-scoped and outlive the module that wrote them. The admin order page shows an _External systems_ section (system, reference, state badge, message; an empty state when none has reported), `GET /api/v1/admin/orders/:id` carries the entries, and the admin orders list's search (`q`) also matches a reference fragment, case-insensitively.
+
+  **On upgrade.** Migration `20261110T143322_orders_order_external_references` creates the empty `order_external_references` table. Nothing existing changes; buyer-facing reads do not carry the entries.
+
+- f39d37f: The admin order create accepts custom-field values (`specs/175-buyer-input-custom-fields/`).
+
+  - `POST /api/v1/admin/orders` validates `customFieldValues` with the administrator's rules before the working basket or any inline address is written; a refusal answers the existing `422 CUSTOM_FIELD_VALUE_INVALID` (`details` entries `{ path, issue }`) and creates no order. The validated bag is stored on the new order by the placement, in its transaction, and the `order.place_on_behalf` audit after-state names its keys, sorted, as `changedCustomFields` — never the values (`specs/conventions/audit-state.md`). The admin create now enforces `required` order definitions, **also when the request sends no values**. Storefront checkout, one-click and API intake placements are unchanged.
+  - `OrderService.placeOrder` gains the option `customFieldValues` (an already-validated bag, this module's own admin create path only), written over values carried from a quote request.
+  - _New order_ embeds the custom-field panel (shown with `custom_fields:read`), sends its bag as `customFieldValues` and shows a refusal at the field it names (read through `@endora-commerce/admin-kit`'s `customFieldErrorsOf`).
+  - The manifest exports `customFieldWrites`: the order create and the values patch `PATCH /api/v1/admin/orders/:id/custom-fields`.
+
+- 7642cb7: Issue #470 (D-288): an order's audit entries carry names and structure, never its values. The platform audit log is one table read under `audit_log:read` without organization reach, so a tenant's order data no longer reaches it.
+
+  - `order.custom_fields.update` and `order.custom_fields.carry` record the changed custom field keys as `changedCustomFields` instead of the custom field values before and after.
+  - `order.place_on_behalf` no longer records the order's `total` and `currency`, and its `groups` hold each group's `lineCount` without the group's `name`.
+  - `order.place_via_api_key` no longer records `organizationId` and `customerAccountId` (the order's tenant anchor). It keeps `apiKeyId` and `businessId`.
+  - `ORDER_AUDIT_KEYS` lists the keys an Order audit state may hold, and a sentinel test per audited write holds it to that list.
+  - No order history reads values back from the audit log, so no value store is added: the order row holds the values. Audit entries written before the upgrade are not rewritten.
+
+  **Behaviour change on upgrade.** On the platform **Audit log** screen and in `audit_logs read`, new order entries show field names instead of values. See _Order values leave the platform audit log_ in the upgrade guide.
+
+- fc08f90: The admin's order-status configuration and the external API order intake answer their refusals
+  with error codes of their own instead of `VALIDATION_FAILED`, and a sentence in English and Polish
+  (issue #627, part of #86; the slice #621 left). **A caller that matches on `VALIDATION_FAILED`, or
+  an API integration retrying on `details.code` `intake_busy`, now sees the specific code.** The HTTP
+  status is unchanged. Until now an operator working in Polish read English, because the error
+  envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                        | Was                                                                                    | Is                                          | `details`                                               |
+  | -------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
+  | `POST /api/v1/admin/orders/statuses`         | `409 VALIDATION_FAILED`, _Status "X" already exists._                                  | `409 ORDER_STATUS_CODE_TAKEN`               | `statusCode`                                            |
+  | `PATCH /api/v1/admin/orders/statuses/:code`  | `409 VALIDATION_FAILED`, _Cannot mark "X" terminal while it has outgoing transitions._ | `409 ORDER_STATUS_TERMINAL_HAS_TRANSITIONS` | `code: 'mark_terminal'`, `statusCode`, `outgoingCount`  |
+  | `PUT /api/v1/admin/orders/transitions`       | `422 VALIDATION_FAILED`, _Terminal status "X" cannot have outgoing transitions._       | `422 ORDER_STATUS_TERMINAL_HAS_TRANSITIONS` | `code: 'add_transition'`, `statusCode`, `toStatusCode`  |
+  | `DELETE /api/v1/admin/orders/statuses/:code` | `409 VALIDATION_FAILED`, _The initial status cannot be deleted._                       | `409 ORDER_STATUS_NOT_DELETABLE`            | `code: 'initial'`, `statusCode`                         |
+  | `DELETE /api/v1/admin/orders/statuses/:code` | `409 VALIDATION_FAILED`, _System status "X" cannot be deleted._                        | `409 ORDER_STATUS_NOT_DELETABLE`            | `code: 'system'`, `statusCode`                          |
+  | `DELETE /api/v1/admin/orders/statuses/:code` | `409 VALIDATION_FAILED`, _Cannot delete status "X" while N order(s) use it._           | `409 ORDER_STATUS_IN_USE`                   | `statusCode`, `orderCount`                              |
+  | `POST /api/v1/external/orders`               | `422 VALIDATION_FAILED`, _One or more order lines were refused._                       | `422 ORDER_INTAKE_LINES_REFUSED`            | unchanged: the per-line array of `{ path, issue, sku }` |
+  | `POST /api/v1/external/orders`               | `409 VALIDATION_FAILED`, `details.code` `intake_busy`                                  | `409 ORDER_INTAKE_BUSY`                     | none                                                    |
+
+  The status code travels as `details.statusCode`, because `details.code` is the slot for a
+  refusal's token. The intake's per-line array keeps its shape, so an integration reading each
+  line's `issue` needs no change beyond the code; its sentence names no count, since only scalar
+  `details` fill a sentence. A transition naming a status that does not exist stays
+  `VALIDATION_FAILED`. The six codes are members of `ERROR_CODES` in `@endora-commerce/contracts`,
+  declared by the `orders` manifest; the module's documentation page and the API access page list
+  them. No setting, permission or migration changes.
+
+- 42a9a4b: One sales-representative reach rule on every admin surface (issue #305, owner ruling 2026-11-07). A sales representative reaches every Organization not governed by another representative — the ones assigned to them (with `organizations:rollup`, their subtrees, the nearest assignment winning) and every Organization nobody is assigned to. `adminTenantScopePort` answers that reach as its complement, computed in one statement per request (`SalesRepAssignmentService.reachOf`), so the tenant-scoped reads and writes of every module, the Organizations list and its pickers, admin search and the Organization screens answer by the same rule. Every module that read the reach as a list of assigned ids now reads it through the platform's helpers.
+
+  `mod-orders`: `resolveAdminOrdersScope` answers `{ allowAll: boolean }` (was `{ allowAll: false, allowedOrganizationIds }`); the list's reach is the ambient tenant context's. `mod-customers`: `ResolveModerationActor` answers `{ adminUserId, isPlatformAdmin }` (was with `allowedOrganizationIds`).
+
+  **Behaviour change on upgrade.** Every sales representative gains the tenant data of every unassigned Organization — members, customers, orders, invoices, carts, returns, quote requests and customer-level settings — and, since no representative can be assigned to a personal Organization, of every B2C customer (confirmed by the owner on 2026-11-08). The Organizations list, its pickers and admin search stop showing Organizations assigned to other representatives. A sales representative with no assignment used to be treated as a platform administrator by the quick-order default-preference routes; they now manage only the Organizations they reach, and a write naming an Organization that does not exist answers `404 NOT_FOUND`. The read-only query in _Upgrading an instance_ ("One sales-representative reach rule on every surface") counts, per representative, what they gain and what leaves their lists.
+
+### Patch Changes
+
+- 70fdc8d: **A buyer's clone of an order into a quote request judges its lines in the channel language `Accept-Language` asks for, read as a q-weighted list** (issue #1011). `POST /api/v1/orders/:id/clone-to-quote` took the header's first tag alone, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` asked about English and `de-DE, pl;q=0.5` about the channel default, and an order holding a product available only in Polish could not be cloned (`404`). The language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. The language messages are worded in is unchanged. A request without the header behaves as before.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 8e7f794: **One-click buy judges its product in the request's language** (issue #1308). `POST /api/v1/quick-order/one-click` wrote its line into the working basket and placed the order without the request's scope language, so the product was asked about at the sales channel's default language whatever the buyer browsed in: a product switched off in the default language but on in the buyer's was refused with `404 PRODUCT_NOT_FOUND`. The route now passes the channel language `Accept-Language` asks for, resolved through `requestScopeLanguage` as `POST /api/v1/cart/items` does since #1011, to `CartWritePort.addItems` and `OrderPlacementPort.placeOrder` through their new `languageTag`; `mod-carts` honours it on the port, and `mod-orders` judges the working basket and names the order's lines in it. A request without the header behaves as before.
+- b918cf6: Readers of an organization's tax ID handle a personal organization, which has no tax ID since this release (`taxId: null`). An order placed by a personal organization carries no `billingAddress.taxId`, a quote document prints no tax ID for its buyer, and the push-audience organization picker shows no hint for it — each as before, now by data rather than by recognising the old placeholder. The demo composition finds the demo organisation by its tax ID with the tree's root first, as `organizationDetailsPort.findByTaxId` does, so a branch sharing that tax ID is never taken for it.
+- aec841a: Response contracts for replies #128's survey did not reach (issue #599, sections 3–5):
+
+  - `@endora-commerce/contracts` publishes `adminCustomerListResponseSchema` / `AdminCustomerListResponse` for `GET /api/v1/admin/customers`. The rows were already described; the `meta: { page, pageSize, total }` envelope was not.
+  - `GET /api/v1/cart/upsells` now answers `unitPrice: null` on every row, as `upsellProductSchema` declares. The key used to be absent. The strip resolves no price, and the storefront shows its "no price" label either way. `CartUpsellCandidate` in `@endora-commerce/mod-carts` is now the contract's `UpsellProduct`.
+  - `mod-orders` builds order comments as the contract's `OrderComment`, so a key the contract does not declare is a compile error. The customer reply still leaves out `authorAdminUserId` and `systemNote`. The admin customer list route now returns the contract's `AdminCustomerListResponse` type.
+
+- 888758a: The admin orders list no longer applies a sales representative's reach twice per statement (issue #955): `orderListScopeFor()` with no argument — the ambient scope — answers `where: {}`, because the `@OrgScoped` filter already carries that predicate. With an explicit constraint (`orderListPort.list(query, { allowedOrganizationIds })`) it still narrows; `sql` (for the knex search) and `empty` are unchanged.
+- 49b43de: **Breaking (0.x, so `minor`):** a sales representative's reach is no longer computed on every admin request (issue #955, owner ruling of 2026-11-10). `@endora-commerce/platform/tenancy` removes `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` — use `await orgInScope(id, ctx?)` and `await ruleInScope(ids, ctx?)`, or `const inScope = await orgScopeTest(ctx?)` for a synchronous predicate over rows you already hold — and `assignedOrganizationIdsForRanking(ctx?)` now returns a promise. They were removed rather than retyped because `if (!isOrgInScope(x))` over a promise is always false.
+
+  `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) replaces `excludedOrganizationIds` / `assignedOrganizationIds` with `loadReach(): Promise<{ excludedOrganizationIds, assignedOrganizationIds }>`, beside `excludedOrganizationsQuery`; the platform memoises it once per tenant context, and a failure rejects every helper that awaits it. `OrgConstraint`'s `excluded` arm and `AdminScopeInput` follow. `PreferenceActor`'s `salesperson.reaches(id)` returns `Promise<boolean>`, and `canManagePreference` (`quick_order`) is async. `adminTenantScopePort` (`organizations`) answers without calling `reachOf`. The listed modules move their call sites to the async helpers.
+
+- 4efb051: The module page documents custom-field values on the admin Create order screen and describes the older `GET /api/v1/orders/:id/invoice` download accurately. Documentation only.
+- ca24e44: Issue #399 — `PATCH /api/v1/admin/orders/:id/custom-fields` no longer drops a value another writer of the order's custom fields commits at the same moment. The route now reads the order `FOR UPDATE` inside its Command and merges the request into the bag it holds under that lock, so a concurrent writer — such as the system carry that fills an order's empty fields from its Sales Opportunity right after the order is created — is waited for and its value kept.
+
+  The request semantics are unchanged: keys the request leaves out are kept, a key sent empty (`null`, `''` or `[]`) clears an optional field and is refused for a required one, and the `order.custom_fields.update` audit entry carries the same before and after state as before, now read under the lock.
+
+- Updated dependencies [baa0dae]
+- Updated dependencies [fcfc995]
+- Updated dependencies [249305a]
+- Updated dependencies [e72d21d]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [48f21ff]
+- Updated dependencies [f8b29e1]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8a4aae1]
+- Updated dependencies [a859fae]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [52831b7]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [577e94c]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [020c3aa]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [96ac13d]
+- Updated dependencies [aed2d58]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [0822c59]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [848847d]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [b064fec]
+- Updated dependencies [4efb051]
+- Updated dependencies [51b4e5c]
+- Updated dependencies [51b4e5c]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/mod-carts@0.111.0
+  - @endora-commerce/mod-inventory@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+  - @endora-commerce/email-components@0.111.0
+  - @endora-commerce/mod-credit-limits@0.111.0
+  - @endora-commerce/mod-invoices@0.111.0
+  - @endora-commerce/mod-promotions@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

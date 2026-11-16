@@ -51,7 +51,7 @@ obu zwraca `undefined`.
 zmienia już utworzonych przesyłek; operator ponownie generuje przesyłkę
 (`POST /api/v1/admin/orders/:id/shipments`), co dodaje nową próbę i zleca ją przewoźnikowi.
 Reagowanie na zmianę ustawienia aktywacji oznaczałoby, że platforma bez niczyjej prośby zleca
-przewoźnikowi paczki, które operator mógł już obsłużyć ręcznie. Zakładka Delivery zamówienia
+przewoźnikowi paczki, które operator mógł już obsłużyć ręcznie. Zakładka Dostawa zamówienia
 pokazuje stan, powód i przycisk.
 
 Kiedyś istniał tu drugi endpoint, `POST .../shipments/retry`, i został usunięty: dodawał próbę n+1,
@@ -69,7 +69,8 @@ endpoint generowania dodaje kolejną próbę, odmawia dopiero po sukcesie
 | Zdarzenie | Co je wywołuje | Skutek |
 | --- | --- | --- |
 | `order_created` | Utworzenie zamówienia (storefront / panel / API) | Wywoływane jest `onOrderCreated` adaptera wysyłki. Adaptery offline nic nie robią; przesyłka **nie** powstaje w tym momencie. |
-| `shipment_created` | „Generate shipment” w panelu albo API | Powstaje przesyłka `pending` (`attemptNo = max+1`); wywoływane jest `onShipmentCreated` adaptera; emitowane jest `shipment.created.v1` ze stanem, w jakim powstał wiersz. Gdy modułu adaptera nie ma, wiersz powstaje jako `pending_manual`, a adapter nie jest wywoływany — zobacz wyżej. |
+| `shipment_created` | „Wygeneruj przesyłkę” w panelu albo API | Powstaje przesyłka `pending` (`attemptNo = max+1`); wywoływane jest `onShipmentCreated` adaptera; emitowane jest `shipment.created.v1` ze stanem, w jakim powstał wiersz. Gdy modułu adaptera nie ma, wiersz powstaje jako `pending_manual`, a adapter nie jest wywoływany — zobacz wyżej. |
+| `payment.received.v1` | Rozliczenie płatności za zamówienie | Gdy adapter wysyłki zamówienia na to pozwala (`shouldAutoCreateOnPaid()`), a ostatnia próba nie jest ani `pending`, ani `success`, przesyłka jest generowana jak wyżej. Best-effort: błąd adaptera nigdy nie blokuje rozliczenia i zostaje dla przycisku **Wygeneruj przesyłkę** operatora. |
 | `receive_shipment` | Wynik od przewoźnika lub adaptera | Przesyłka zostaje rozstrzygnięta; zamówienie przechodzi do `statusOnSuccess` / `statusOnFailure` metody dostawy; emitowane jest `shipment.received.v1` / `shipment.failed.v1`. |
 
 `receive_shipment` jest **idempotentne**: sukces po końcowym `success` niczego nie zmienia; porażka

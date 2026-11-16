@@ -290,7 +290,16 @@ export class InvitationService {
    */
   async acceptByToken(
     rawToken: string,
-    input: { password: string; firstName: string; lastName: string },
+    input: {
+      password: string;
+      firstName: string;
+      lastName: string;
+      /**
+       * Issue #652 (D-292) — the invitee's own language, from the accepting
+       * request and resolved against its channel. Absent, none.
+       */
+      preferredLanguage?: string | null;
+    },
   ): Promise<{ customerAccount: CustomerAccountRecord }> {
     const em = this.deps.emFactory();
     const tokenHash = sha256Hex(rawToken);
@@ -338,6 +347,7 @@ export class InvitationService {
       // Accepting an invitation implies a confirmed address: it was delivered
       // to that address.
       emailVerified: true,
+      preferredLanguage: input.preferredLanguage ?? null,
     });
     invitation.consumedAt = new Date();
     if (this.deps.auditLog) {

@@ -85,7 +85,7 @@ obligation are `specs/conventions/audit-state.md` in the repository (issue #470)
 A module can take part in **another module's write** without forking it, but only in a write
 the owning module has opened to hooks. The owner **declares** a Command action hookable: it
 publishes a typed reference in `@endora-commerce/contracts` and lists it in its manifest's
-`hookableActions`. `organizations` declares four (see its module page). Any module — a core
+`hookableActions`. `organizations` declares several; its module page lists them. Any module — a core
 module, a deployment's overlay module or an installed package — then registers a hook:
 
 ```ts

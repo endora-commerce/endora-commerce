@@ -28,6 +28,8 @@ import { Migration20260825T124801AdminUsersDropLegacyTwoFactorSecret } from './2
 import { Migration20261103T140300AdminUsersAuthorProfile } from './20261103T140300_admin_users_author_profile.js';
 import { Migration20261027T160234AdminUsersAdminUserPreferences } from './20261027T160234_admin_users_admin_user_preferences.js';
 import { Migration20261114T002913AdminUsersPreferredLanguage } from './20261114T002913_admin_users_preferred_language.js';
+import { Migration20261115T190121AdminUsersImpersonationReasons } from './20261115T190121_admin_users_impersonation_reasons.js';
+import { Migration20261116T131329AdminUsersImpersonationReasonAttribution } from './20261116T131329_admin_users_impersonation_reason_attribution.js';
 
 export const migrations = [
   Migration20260425T053028AdminUsersInit,
@@ -36,6 +38,8 @@ export const migrations = [
   Migration20261027T160234AdminUsersAdminUserPreferences,
   Migration20261103T140300AdminUsersAuthorProfile,
   Migration20261114T002913AdminUsersPreferredLanguage,
+  Migration20261115T190121AdminUsersImpersonationReasons,
+  Migration20261116T131329AdminUsersImpersonationReasonAttribution,
 ];
 
 export {
@@ -45,4 +49,6 @@ export {
   Migration20261027T160234AdminUsersAdminUserPreferences,
   Migration20261103T140300AdminUsersAuthorProfile,
   Migration20261114T002913AdminUsersPreferredLanguage,
+  Migration20261115T190121AdminUsersImpersonationReasons,
+  Migration20261116T131329AdminUsersImpersonationReasonAttribution,
 };

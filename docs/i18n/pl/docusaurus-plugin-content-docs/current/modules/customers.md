@@ -37,11 +37,23 @@ zamiast być wyłączane jako przypadek szczególny.
 - Domyślna metoda płatności i metoda dostawy. Adresy domyślne są odczytywane z książki organizacji,
   w której się je ustawia.
 - Zmiana hasła; historia własnych zamówień i zapytań ofertowych tylko do odczytu.
+- **Język wiadomości e-mail.** Strona konta (`/account`) pokazuje, pod
+  *Weryfikacją dwuetapową*, język, w którym piszemy e-maile do klienta — jako
+  listę języków sklepu nazwanych we własnym języku, z przyciskiem *Zapisz*.
+  Konto samo zapisuje język przy utworzeniu oraz, jeśli jeszcze go nie ma, przy
+  następnym logowaniu (zob. `customer_accounts`); tutaj klient go zmienia i tylko
+  to go zastępuje. Język, którego sklep nie oferuje, jest odrzucany
+  (`422 PREFERRED_LANGUAGE_NOT_OFFERED`). Jeśli zapisanego języka sklep już nie
+  oferuje, strona o tym informuje i wstępnie wybiera język, w którym wysyłamy
+  e-maile. W sklepie z jednym językiem, a także gdy ten moduł jest wyłączony,
+  wiersz tylko podaje język i nie oferuje wyboru.
 
 **Panel administracyjny (nadzór)**
 
 - Lista klientów (wyszukiwanie oraz filtry statusu, organizacji i grupy) i widok szczegółów z datą
-  utworzenia, grupą klientów, organizacją, stanem blokady i ostatnim logowaniem.
+  utworzenia, grupą klientów, organizacją, stanem blokady, ostatnim logowaniem i **językiem
+  wiadomości e-mail** klienta — tylko do odczytu, a gdy konto go nie ma: *Nie ustawiono — używany
+  jest domyślny język sklepu*. Widzą go pracownicy z `customers:read`; zmienić go może tylko klient.
 - Blokowanie i odblokowanie oraz usunięcie miękkie i przywrócenie, z uprawnieniami zależnymi od roli:
   administrator platformy może działać na każdym kliencie; poza nim uprawniony jest handlowiec
   przypisany do organizacji klienta. Organizacja osobista nigdy nie ma przypisanego handlowca, więc
@@ -62,6 +74,30 @@ zamiast być wyłączane jako przypadek szczególny.
   klientów (zastępuje grupę organizacji przy wyznaczaniu cen i promocji).
 - Panele zamówień, zapytań ofertowych i koszyków (bieżących i porzuconych), tylko do odczytu.
 - Widok „klienci online” oparty na ostatniej aktywności sesji.
+
+**Jeden przycisk Zapisz na ekranie klienta.** Ekran klienta (`/customers/:id`) ma jeden przycisk
+Zapisz w nagłówku (na wąskim ekranie zostaje pod ręką u dołu). Obejmuje **pola niestandardowe**
+klienta i panele dodawane przez inne moduły, każdy, gdy jego moduł jest włączony: **domyślne
+ustawienia zamówień** (Szybkie zamówienia) i nadpisanie **negocjacji cen** (Zapytania ofertowe).
+Żadne z nich nie zapisuje się już samo. Gdy jest coś do zapisania, przycisk pokazuje „Zapisz 2
+zmiany”.
+
+- Najpierw wszystko jest sprawdzane; jeśli którakolwiek część zostanie odrzucona, nic nie jest
+  zapisywane.
+- Najpierw zapisywane są pola niestandardowe. Jeśli zostaną odrzucone, żaden panel nie jest
+  zapisywany, a powód widać przy polu.
+- Jeśli pola niestandardowe zostaną zapisane, a panel nie, podsumowanie pod nagłówkiem mówi, co
+  zapisano, a czego nie („Zapisano: Klient. Nie zapisano: Domyślne ustawienia zamówień — *powód*”);
+  kolejne Zapisz zapisuje tylko panel.
+- Gdy zmiana negocjacji cen czeka na zapis, panel ukrywa wiersz „Obowiązuje: …”, który opisuje
+  zapisaną wartość; wraca on po zapisaniu zmiany.
+- Opuszczenie strony — link w inne miejsce panelu albo zamknięcie lub odświeżenie karty przeglądarki
+  — z niezapisanymi zmianami wymaga potwierdzenia.
+
+Zapisz widzi operator z `customers:manage` albo taki, który może zmienić któryś z paneli. **Akcje**
+(blokada / odblokowanie, reset hasła, reset weryfikacji dwuetapowej, logowanie jako klient,
+usunięcie / przywrócenie), przypisanie do **organizacji** i **Grupa klientów** nie są częścią zapisu:
+działają w chwili użycia, a każda z tych sekcji ma etykietę **Działa od razu**.
 
 ## Usuwanie i anonimizacja
 
@@ -174,7 +210,8 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | --- | --- | --- |
 | `POST /api/v1/customers/register` | anonimowy | Samodzielna rejestracja (zależna od ustawienia) |
 | `GET /api/v1/storefront/settings/customer-registration` | anonimowy | Czy samodzielna rejestracja jest dostępna (`allowRegistrationWithoutOrganization`) |
-| `GET /api/v1/me/customer` | klient | Własny profil z `organizationRole` i faktycznymi uprawnieniami `permissions` |
+| `GET /api/v1/me/customer` | klient | Własny profil z `organizationRole`, faktycznymi uprawnieniami `permissions` i `preferredLanguage` (`null`, dopóki nieznany) |
+| `PATCH /api/v1/me/customer/preferred-language` | klient | Treść `{ preferredLanguage }`: język wiadomości e-mail klienta. Język oferowany przez kanał sprzedaży żądania, dopasowany bez względu na wielkość liter i zapisany tak, jak zapisuje go kanał; odpowiedź `{ data: { preferredLanguage } }`. W przeciwnym razie `422 PREFERRED_LANGUAGE_NOT_OFFERED`. Audytowane jako `customer_account.set_preferred_language`, bez języka |
 | `POST /api/v1/me/customer/change-password` | klient | Zmiana hasła. Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `GET/POST /api/v1/me/customer/addresses` · `PATCH/DELETE .../:id` · `PUT .../:id/default` | klient | Wycofane: `410 CUSTOMER_ADDRESS_BOOK_RETIRED`. Używaj `/api/v1/organizations/mine/addresses` |
 | `GET /api/v1/me/customer/defaults` | klient | Domyślna metoda płatności i dostawy oraz adresy domyślne z książki organizacji |
@@ -189,6 +226,7 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | `POST /api/v1/admin/customers/:id/password-reset` | administrator | E-mail z linkiem do ustawienia hasła |
 | `POST/DELETE /api/v1/admin/customers/:id/organization` | administrator | Przypisanie do organizacji / odłączenie |
 | `PUT /api/v1/admin/customers/:id/customer-group` | administrator | Ustawienie / usunięcie grupy klientów |
+| `PATCH /api/v1/admin/customers/:id/custom-fields` | administrator | Scalenie wartości pól niestandardowych klienta (`customers:manage`); odrzucona wartość daje `422 CUSTOM_FIELD_VALUE_INVALID` i nic nie zapisuje |
 | `GET /api/v1/admin/customers/:id/addresses` | administrator | Tylko do odczytu: `{ organization, personal }` — książka organizacji oraz wiersze osobistej książki, których zadanie nie przeniosło, każdy z `mergeRefusal` |
 | `POST /api/v1/admin/customers/:id/addresses` | administrator | Wycofane: `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
 | `POST /api/v1/admin/customers/:id/vat-validate` | administrator | Walidacja numeru NIP/VAT |
