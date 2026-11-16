@@ -175,6 +175,9 @@ const SCREENS: Screen[] = [
     open: async () => {
       const { container } = mountBasePricePanel({ productId: P5, session: PLATFORM_ADMIN });
       await screen.findByRole('group', { name: 'PLN' });
+      // The editor's Save renders only once the panel has registered as a writable participant,
+      // which can land after the PLN group on a loaded runner (#1345): wait for the settled view.
+      await screen.findByRole('button', { name: /^Save/ });
       return container;
     },
     // Feature 180: the panel has no Save of its own; the view's one primary is the editor's
