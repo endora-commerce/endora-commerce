@@ -27,6 +27,7 @@ import type {
 import type { FetchLike } from '@endora-commerce/llm-client';
 import { resolveTranslationConfig } from './services/translation/capability.js';
 import { createMaxSourceCharactersValidator } from './services/translation/max-source-characters-validator.js';
+import { createDefaultShareImageValidator } from './services/default-share-image-validator.js';
 import { ContactFormService } from './services/contact-form/contact-form.service.js';
 import { createContactFormRecipientsValidator } from './services/contact-form/recipients-validator.js';
 import { registerCmsContactFormRoute } from './routes.storefront.js';
@@ -328,6 +329,9 @@ export function registerModule(ctx: ModuleContext): void {
           emFactory,
           commandBus,
           redis,
+          // Issue #544 — resolved per call: a save that newly stores an asset id
+          // asks whether the caller may see it in the library.
+          assets: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
           // Published on the bus rather than answered here, because this module
           // is not the only one caching CMS content: `megamenu` inlines a
           // block's tree into a menu payload and can learn that the block moved
@@ -617,6 +621,11 @@ export function registerModule(ctx: ModuleContext): void {
     // unprobed contribution hook.
     lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
       createContactFormRecipientsValidator(),
+    );
+    // Issue #544 — a newly set default sharing image the administrator may not
+    // see in the asset library is refused as a missing one.
+    lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
+      createDefaultShareImageValidator(lazyPort<AssetReadPort>(ctx, 'assetReadPort')),
     );
   });
 

@@ -655,6 +655,7 @@ export class SettingsAdminService {
         code: setting.code,
         ownerModuleId: setting.ownerModule,
         proposedValue: proposed,
+        currentValues: [setting.globalValue ?? setting.defaultValue, ...currentValues.map((value) => value.value)],
         projection,
         targetedChannelIds,
       });

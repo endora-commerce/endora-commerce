@@ -58,7 +58,12 @@ export const manifest = defineModuleManifest({
   //
   // Forward-looking convention: a new bridge table for module X is owned by X's
   // migration, so X → sales_channels covers it and no new exception is needed.
-  dependencies: ['dictionaries', 'settings'],
+  //
+  // `assets_library` is declared since issue #544 for a port, not for the
+  // foreign key above: a channel's logo is set only when `assetReadPort`
+  // answers that the administrator may see the file. The edge adds no order —
+  // `settings` already declares `assets_library` — and closes no cycle.
+  dependencies: ['assets_library', 'dictionaries', 'settings'],
   settings,
   // Feature 074 (Constitution XVII), test C2 — functional base, and named by
   // ruling 1. Channel scoping is structural: Principle XII is non-negotiable,

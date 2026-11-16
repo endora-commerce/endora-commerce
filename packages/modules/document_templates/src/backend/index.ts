@@ -91,6 +91,8 @@ export function registerModule(ctx: ModuleContext): void {
             // A kernel registration: no module edge, nothing to switch off.
             salesChannels: lazyPort<SalesChannelResolutionPort>(ctx, 'salesChannelResolutionPort'),
             renderer: documentRenderer,
+            // Issue #544 — `assets_library` is non-deactivatable; read per call.
+            assets: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
           }),
       )
       .singleton(),

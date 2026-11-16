@@ -20,6 +20,7 @@ import { PageBuilderRegistry, type PageBuilderBreakpointsResolver, type ColorPal
 import { reconcileSeededHooks } from './services/seed-hooks.js';
 import { resolvePageBuilderBreakpointsFromEnv } from '../manifest.js';
 import { CmsPageService, type ReservedSlugSegmentsResolver } from './services/cms-page-service.js';
+import type { CmsAssetVisibility } from './services/linkable-assets.js';
 import { CmsBlockService } from './services/cms-block-service.js';
 import { CmsTemplateService } from './services/cms-template-service.js';
 import { CmsReferenceRegistry } from './services/cms-reference-registry.js';
@@ -98,6 +99,12 @@ export interface CmsModuleOptions {
    * nothing.
    */
   revalidateStorefront?: (tags: string[]) => Promise<void>;
+  /**
+   * Issue #544 — `assets_library`'s visibility question, asked before a page,
+   * block or template save stores an asset id the record did not already hold.
+   * A composition that passes nothing refuses every such save.
+   */
+  assets?: CmsAssetVisibility;
 }
 
 export interface CmsModuleHandle {
@@ -178,6 +185,7 @@ export function cmsModule(options: CmsModuleOptions): {
     () => pageBuilderRegistry.knownNames(),
     invalidator,
     referenceRegistry,
+    options.assets,
   );
   const blockService = new CmsBlockService(
     options.emFactory,
@@ -185,6 +193,7 @@ export function cmsModule(options: CmsModuleOptions): {
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
     invalidator,
+    options.assets,
   );
   const templateService = new CmsTemplateService(
     options.emFactory,
@@ -192,6 +201,7 @@ export function cmsModule(options: CmsModuleOptions): {
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
     invalidator,
+    options.assets,
   );
   const hookService = new CmsHookService(options.emFactory, options.commandBus, invalidator);
   const storefrontResolver = new StorefrontResolver(options.emFactory, cache);

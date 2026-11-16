@@ -10,7 +10,8 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditState, CommandBus } from '@endora-commerce/platform/commands';
-import { walkUnknownComponents } from './content-tree-walker.js';
+import { walkAssetIds, walkUnknownComponents } from './content-tree-walker.js';
+import { assertAssetsLinkable, type CmsAssetVisibility } from './linkable-assets.js';
 import { assertAnchors } from './anchor-guard.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';
 import type { CmsContentInvalidator } from './cms-content-invalidator.js';
@@ -62,6 +63,8 @@ export class CmsBlockService {
     private readonly knownComponentNames: () => Iterable<string>,
     private readonly references: CmsReferenceRegistry,
     private readonly invalidator?: CmsContentInvalidator,
+    /** Issue #544 — asked before a save stores an asset id the block did not already hold. */
+    private readonly assets?: CmsAssetVisibility,
   ) {}
 
   /** What a block change reaches is `CmsContentInvalidator.blocksChanged`'s to say. */
@@ -231,6 +234,7 @@ export class CmsBlockService {
         this.assertVersion(row, version);
         // One anchor names one place in this language's tree (feature 163, R-8).
         assertAnchors({ [language]: data });
+        await assertAssetsLinkable(this.assets, walkAssetIds(data), walkAssetIds(row.content));
         invalidatedCode = row.code;
 
         const unknown = walkUnknownComponents(data, new Set(this.knownComponentNames()));

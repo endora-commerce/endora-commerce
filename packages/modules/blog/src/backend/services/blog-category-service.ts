@@ -15,7 +15,7 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import { assertCategoryLanguagesComplete } from './blog-language-completeness.js';
 import { forgetEntityUrls, redirectFormerSlug } from './blog-url-keys.js';
-import { assertLinkableAsset, type LinkableAssetReader } from './linkable-asset.js';
+import { assertLinkableAsset, assertLinkableContentAssets, type LinkableAssetReader } from './linkable-asset.js';
 import { assertSlugAvailable } from './blog-slug-collision.js';
 import type { BlogCacheService } from './blog-cache.js';
 
@@ -317,6 +317,8 @@ export class BlogCategoryService {
         );
       }
       this.assertVersion(existing.version, input.version);
+      // Issue #544 — an asset the description newly embeds must be one the caller may see.
+      await assertLinkableContentAssets(this.assets, input.description, existing.description);
       await tx.execute(
         `update blog_categories
             set description = ?::jsonb,

@@ -5,6 +5,7 @@ import {
   type AdminProductContent,
   type AdminProductContentLanguageStatus,
   type AdminProductContentList,
+  type AssetReadPort,
   type ProductContentEnvelope,
   uuidSchema,
   isUuidShape,
@@ -16,6 +17,7 @@ import { updateProductContentCommand } from '../commands/product-content-command
 import { Product } from '../entities/product.entity.js';
 import { ProductContentValue } from '../entities/product-content-value.entity.js';
 import type { CatalogAttributeView } from './catalog-attribute-read.service.js';
+import { requireLinkableContentAssets } from './linkable-asset.js';
 import {
   normalisePageBuilderEnvelope,
   pageBuilderEnvelopeBytes,
@@ -96,6 +98,12 @@ export class ProductContentService {
     private readonly emFactory: () => EntityManager,
     private readonly commandBus: CommandBus,
     private readonly attributeRead: ProductContentAttributeRead,
+    /**
+     * Issue #544 — `assets_library`'s visibility question, asked before a save
+     * stores an asset id the value did not already hold. A save that adds one
+     * without it fails closed.
+     */
+    private readonly assets?: Pick<AssetReadPort, 'visibleToCaller'>,
   ) {}
 
   /** `GET …/products/:id/content` — the cards: summaries only (research R-3). */
@@ -172,6 +180,14 @@ export class ProductContentService {
         ERROR_CODES.VALIDATION_FAILED,
         `Product content must not exceed ${PAGE_BUILDER_CONTENT_MAX_BYTES} bytes.`,
       );
+    }
+    if (normalised !== null) {
+      const current = await em.findOne(
+        ProductContentValue,
+        { productId, productAttributeId: member.attributeId },
+        { populate: ['content'] },
+      );
+      await requireLinkableContentAssets(this.assets, normalised, current?.content ?? null);
     }
     const stored = await this.commandBus.run(
       updateProductContentCommand({

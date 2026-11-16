@@ -19,6 +19,7 @@ import {
   type RenameDocumentTemplateBody,
   type SaveDocumentTemplateContentBody,
   type VersionedBody,
+  type AssetReadPort,
   isUuidShape,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -39,6 +40,7 @@ import { numberItems, withSampleValues } from '../rendering/items-table.js';
 import type { BlockDeclarations } from './block-declarations.js';
 import { buildDocumentBuilderConfig } from './builder-descriptor.js';
 import { assertEnvelopeLimits, assertLanguageAllowed, validateTree } from './content-validation.js';
+import { assertDocumentAssetsLinkable } from './linkable-assets.js';
 import type { TemplateReader, TemplateRow } from './template-resolver.js';
 
 /**
@@ -61,6 +63,11 @@ export interface DocumentTemplateServiceDeps {
   readonly declarations: BlockDeclarations;
   readonly salesChannels: SalesChannelResolutionPort;
   readonly renderer: DocumentRenderer;
+  /**
+   * Issue #544 — asked before a save stores, or a preview renders, an image
+   * the caller may not see in the asset library.
+   */
+  readonly assets: Pick<AssetReadPort, 'visibleToCaller'>;
 }
 
 function channelName(name: Record<string, string> | undefined): string | null {
@@ -288,6 +295,7 @@ export class DocumentTemplateService {
       languages,
       collections: this.deps.registry.collections(current.documentType).map((collection) => collection.key),
     });
+    await assertDocumentAssetsLinkable(this.deps.assets, tree, [current.content]);
     const { row } = await this.deps.commandBus.run(
       saveContentCommand({
         id,
@@ -335,6 +343,8 @@ export class DocumentTemplateService {
       languages,
       collections: this.deps.registry.collections(body.documentType).map((collection) => collection.key),
     });
+    // A preview renders the bytes for the caller, so every image it names is asked about.
+    await assertDocumentAssetsLinkable(this.deps.assets, tree, []);
     const result = await this.deps.renderer.render({
       documentType: body.documentType,
       salesChannelId: null,

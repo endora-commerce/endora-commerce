@@ -239,4 +239,36 @@ describe('settings — contributed write validators', () => {
       await db.rollbackTx();
     }
   });
+  it('hands over every value stored before the write, so a re-saved value is not a new one (issue #544)', async () => {
+    try {
+      await seed();
+      const em = db.em();
+      const [pinned] = await em.find(SalesChannel, {}, { orderBy: { code: 'asc' } });
+      const setting = await em.findOne(Setting, { code: CODE });
+      setting!.globalValue = 'stored globally';
+      em.create(SettingValue, { setting: setting!, salesChannel: pinned!, value: 'its own' });
+      await em.flush();
+
+      const seenAll = recorder();
+      const { service } = build(seenAll.validator);
+      await service.setValueForAllChannels(CODE, 'proposed globally', null, ACTOR);
+
+      const [input] = seenAll.seen;
+      expect([...(input!.currentValues ?? [])].sort()).toEqual(['its own', 'stored globally']);
+    } finally {
+      await db.rollbackTx();
+    }
+  });
+
+  it('reads the manifest default as the value in force when nothing is stored', async () => {
+    try {
+      await seed();
+      const seenAll = recorder();
+      const { service } = build(seenAll.validator);
+      await service.setValueForAllChannels(CODE, 'first write', null, ACTOR);
+      expect(seenAll.seen[0]!.currentValues).toEqual(['default']);
+    } finally {
+      await db.rollbackTx();
+    }
+  });
 });

@@ -10,6 +10,7 @@ import type {
   CustomerPushPort,
   OrderReadPort,
   OrganizationDetailsPort,
+  SettingWriteValidatorRegistryPort,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -20,6 +21,7 @@ import type {
 } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { pwaModule, type PwaModuleOptions, type PwaModuleResult } from './plugin.js';
+import { createIconAssetValidator } from './services/icon-asset-validator.js';
 import {
   createAssetUrlResolver,
   createChannelCodeResolver,
@@ -210,6 +212,17 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.subscribe('order.status_changed.v1', async (payload) => {
     await handlers().onOrderStatusChanged(payload);
+  });
+
+  /**
+   * Issue #544 — a newly set app icon the administrator may not see in the
+   * asset library is refused as a missing one. A contribution into `settings`'
+   * registry, which skips it while this module is off.
+   */
+  ctx.onBoot(() => {
+    lazyPort<SettingWriteValidatorRegistryPort>(ctx, 'settingWriteValidatorRegistry').register(
+      createIconAssetValidator(lazyPort<AssetReadPort>(ctx, 'assetReadPort')),
+    );
   });
 
   ctx.routes(async (app) => {
