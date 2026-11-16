@@ -1,5 +1,201 @@
 # @endora-commerce/mod-admin-users
 
+## 0.111.0
+
+### Minor Changes
+
+- 96ea07d: Issue #470 (D-288) — an impersonation's audit entry no longer carries the reason or the Organization. `impersonation.start` is recorded against a `@CustomerScoped` customer account, and the platform audit log is read under `audit_log:read` without Organization reach (`specs/conventions/audit-state.md` §2, §3).
+
+  - `impersonation.start` no longer records `reason` or `organizationId`. `stateAfter` is `{ hasReason, reasonLength?, organizationScoped, valueChangeId? }`: whether a reason was given and its length, whether the start named the account's Organization, and the id of the row that holds the reason.
+  - New table `admin_impersonation_reasons` (`ImpersonationReason`, `@CustomerScoped`; migration `Migration20261115T190121AdminUsersImpersonationReasons`) holds the reason, the account, its Organization and the administrator. One row per start that carried a reason, written in the same transaction as the audit entry and before the session is minted, so a start that fails at either write leaves neither row and no session. The service now writes the entry through `recordWithin` on that transaction instead of `record`.
+  - `customer_account.anonymized.v1` erases the account's reason rows and records `impersonation.reasons_erase` with the count. Before, the anonymisation's audit redaction erased the reason with the entry.
+  - `ADMIN_USERS_AUDIT_KEYS`, a constant in `src/backend/services/impersonation-audit-state.ts` (not on a published barrel), lists every key an impersonation audit state may hold, held by a sentinel test.
+  - No screen reads the stored reason yet. Audit entries written before the upgrade are not rewritten (owner ruling O-4).
+
+  **Behaviour change on upgrade.** See _Impersonation reasons and Organizations leave the platform audit log_ in the upgrade guide.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 2e603f7: Admin screens confirm destructive and consequential actions in the kit's `ConfirmDialog` rather
+  than the browser's `window.confirm()` (issue #313). This covers deleting, revoking, removing and
+  resetting across these modules, switching a module off on the Modules screen, undoing a bulk
+  edit, making a sales channel the default, and preparing a customer's basket from a quote. The
+  dialog names the action on its confirm button (for example _Delete_, _Revoke_, _Unassign_), and a
+  destructive question opens with focus on Cancel.
+
+  The three native `alert()` calls are now notices on the page: deleting an attachment type that is
+  still in use (`catalog`), unassigning a channel's default warehouse (`inventory`), and activating a
+  megamenu binding that replaces another (`megamenu`, announced through a live region). Renaming a
+  setting group (`settings`) uses a one-field dialog instead of `prompt()`. Removing a colour from
+  the page builder's palette (`page-builder-admin`) is confirmed inline in its row, because the
+  palette is already a modal.
+
+  Several of these questions were untranslated English literals. They are now bundle keys in
+  English and Polish: the country, currency and language deletes (`dictionaries`), the e-mail block
+  and template deletes (`transactional_emails`), the setting-group delete and rename and the setting
+  reset (`settings`), and the sales-channel delete and rebind questions (`sales_channels`). The
+  assets-library folder delete no longer says "OK = … / Cancel = …". `mod-i18n` adds
+  `common.confirm.title` and the subscription-cancel button labels.
+
+  Two native dialogs stay on purpose: the unsaved-changes navigation guard
+  (`use-unsaved-changes-prompt`), which has to answer synchronously inside the click it intercepts,
+  and the settings screen's discard-on-channel-switch guard, which is the same kind of guard. They
+  will be replaced together in a later change.
+
+- 91272e6: Admin user replies are described by their contract (issue #599, section 6):
+
+  - `adminUserSchema` in `@endora-commerce/contracts` now declares `preferredLanguage` (`string | null`, optional). `GET /api/v1/admin/me`, the admin-user list and detail, and the sign-in reply have answered it since feature 019, and the contract did not declare it. The field is optional, so a client that does not read it is unaffected.
+  - `@endora-commerce/contracts` publishes `adminLoginResponseSchema` / `AdminLoginResponse` for `POST /api/v1/auth/admin/login`: a `data` union on `status`, where `authenticated` carries `adminUser`, `mfaRequired` carries `challengeId` and `mfaSetupRequired` carries `setupTicket`.
+  - `mod-admin-users` builds every admin-user reply as the contract's `AdminUser` instead of `Record<string, unknown>`, and the sign-in handler returns `AdminLoginResponse`. Nothing on the wire changes.
+
+- 1acf873: `admin_users` now creates `admin_users.preferred_language` itself, in the new
+  `Migration20261114T002913AdminUsersPreferredLanguage` (issue #611). Until now only `_i18n`'s
+  `Migration20260507T091405I18nAdminI18nInit` created it, although the column belongs to
+  `admin_users`' `AdminUser` entity. That migration keeps its class name and no longer names
+  `admin_users` in `up()` or `down()`. The new migration uses `add column if not exists` with the
+  same type, so a database that has already applied the old migration does not change.
+  `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `_i18n` writing `admin_users`.
+- a3c088f: `admin_impersonation_reasons` gets the D-187 attribution check (`customer_account_id is null or organization_id is not null`), which the table was created without; a new migration adds it, and no existing row can violate it.
+- b064fec: Documentation only. The module page (English and Polish) lists `GET /api/v1/admin/me` and `POST /api/v1/admin/admin-users/:id/password`, names the impersonation permission and describes how the wildcard `*` is stored and who may write it.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

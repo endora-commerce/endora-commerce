@@ -1,5 +1,0 @@
----
-'@endora-commerce/mod-forms': patch
----
-
-**A public form is read and submitted in the channel language `Accept-Language` asks for, read as a q-weighted list** (issue #1011). `GET /api/v1/storefront/forms/:formId` and `POST /api/v1/storefront/forms/:formId/entries` tried the header's tags in the order written, ignoring their `q` weights, and matched each only exactly, so `Accept-Language: en-US;q=0.2, pl-PL;q=0.9` was English and `pl` fell back to the channel default on a `pl-PL` channel. Without an offered `?language=`, the language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. That language picks the form's texts, the confirmation page and the language an entry is stored with. An offered `?language=` still wins, an unoffered one is still passed over, and a request with neither behaves as before.

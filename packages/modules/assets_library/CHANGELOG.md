@@ -1,5 +1,223 @@
 # @endora-commerce/mod-assets-library
 
+## 0.111.0
+
+### Minor Changes
+
+- 73e8e8c: `assets_library` now publishes `ASSET_CHANGED_EVENT` (`'assets_library.asset_changed.v1'`, payload
+  `AssetChangedEvent { assetIds }`, both exported from `@endora-commerce/contracts`) after a
+  committed write that changes what an embedded asset renders as: a replace, a restore of the
+  previous version, a permalink set or removed, a soft delete, a restore, and an edit of the
+  filename, label, alt text, MIME type or visibility. A move between folders is not announced. The
+  event is dispatched in a bus scope and awaited, so the write answers once its subscribers have
+  run.
+
+  `CmsContentChange` gains a fifth member, `{ kind: 'assets'; assetIds }`. A consumer that switches
+  exhaustively over `kind` must handle it; `megamenu` ignores it, as it ignores templates and hooks.
+
+- 6b664cd: **Behaviour change for HTTP consumers** (issue #542): `GET /assets/file/<asset id>` now answers a request for a **private** asset that carries no signature, or an expired or invalid one, with `404 ASSET_NOT_FOUND` — the same status, code, body and headers as an id that names nothing. It answered `403 ASSET_ACCESS_DENIED`, which let anyone holding an id confirm that a private asset exists. The permalink form already answered `404`. A soft-deleted private asset answers `404` without a valid signature and `410 ASSET_GONE` with one, as before.
+
+  A client that branched on `403` / `ASSET_ACCESS_DENIED` from the file route to mean "exists but needs a signed link" must treat `404` as "missing or not visible without a signature" and obtain a signed URL (`GET /api/v1/admin/assets/:id/url`, or the URL `AssetsLibraryPort` hands out) as before.
+
+  **Removed export:** nothing raises `ASSET_ACCESS_DENIED` any more, so `ERROR_CODES.ASSET_ACCESS_DENIED` is removed from `@endora-commerce/contracts`, together with the module's manifest declaration and its `errors.ASSET_ACCESS_DENIED` translations. Code that compared an error's `code` against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles; drop the comparison, or compare against `ERROR_CODES.ASSET_NOT_FOUND` if the intent was "the file route refused this id".
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 2e603f7: Admin screens confirm destructive and consequential actions in the kit's `ConfirmDialog` rather
+  than the browser's `window.confirm()` (issue #313). This covers deleting, revoking, removing and
+  resetting across these modules, switching a module off on the Modules screen, undoing a bulk
+  edit, making a sales channel the default, and preparing a customer's basket from a quote. The
+  dialog names the action on its confirm button (for example _Delete_, _Revoke_, _Unassign_), and a
+  destructive question opens with focus on Cancel.
+
+  The three native `alert()` calls are now notices on the page: deleting an attachment type that is
+  still in use (`catalog`), unassigning a channel's default warehouse (`inventory`), and activating a
+  megamenu binding that replaces another (`megamenu`, announced through a live region). Renaming a
+  setting group (`settings`) uses a one-field dialog instead of `prompt()`. Removing a colour from
+  the page builder's palette (`page-builder-admin`) is confirmed inline in its row, because the
+  palette is already a modal.
+
+  Several of these questions were untranslated English literals. They are now bundle keys in
+  English and Polish: the country, currency and language deletes (`dictionaries`), the e-mail block
+  and template deletes (`transactional_emails`), the setting-group delete and rename and the setting
+  reset (`settings`), and the sales-channel delete and rebind questions (`sales_channels`). The
+  assets-library folder delete no longer says "OK = … / Cancel = …". `mod-i18n` adds
+  `common.confirm.title` and the subscription-cancel button labels.
+
+  Two native dialogs stay on purpose: the unsaved-changes navigation guard
+  (`use-unsaved-changes-prompt`), which has to answer synchronously inside the click it intercepts,
+  and the settings screen's discard-on-channel-switch guard, which is the same kind of guard. They
+  will be replaced together in a later change.
+
+- 027aba4: The command-coverage rule (`@endora-commerce/cli/rules/command-coverage.js`, run by
+  `endora check` and by `check:command-coverage`) counts `upsert` and `upsertMany` as writes
+  (issue #352). Like `create` and `remove`, they count only when called on an EntityManager
+  (`em`, `tx`, `this.em()`, …), because `upsert` is also an ordinary service method name.
+  A method whose only write is `em.upsert(…)` or `em.upsertMany(…)` outside `CommandBus.run`
+  is now reported as an unaudited write, and a `command-coverage-ignore:` comment on it is no
+  longer reported as stale. A module package that upserts outside a Command now has to run the
+  write through a Command, record an audit entry, or add a `command-coverage-ignore: <reason>`
+  comment.
+
+  `mod-assets-library`: the two upserts this found, the cleanup-ledger `record` and the
+  hard-delete job's permalink release, carry a `command-coverage-ignore` comment (storage and
+  retention bookkeeping with no operator behind it and nothing to undo). No behaviour change.
+
+- edf46c9: `catalog` now creates `categories.main_image_asset_id`, its `categories_main_image_fk` foreign
+  key to `assets` and `categories_main_image_asset_id_index` itself, in the new
+  `Migration20261114T000706CatalogCategoryMainImage` (issue #611). Until now only
+  `assets_library`'s `Migration20260505T102206AssetsLibraryInit` created them, although the column
+  belongs to `catalog`'s `Category` entity. That migration keeps its class name and no longer
+  names `categories` in `up()` or `down()`. The new migration uses `if not exists` and a
+  `pg_constraint` check, so a database that has already applied the old migration does not change.
+  Its `down()` is empty: the `categories` rows outlive `catalog`, so a hard uninstall keeps their
+  main images. `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `assets_library` writing
+  `categories`.
+- 6b664cd: Issue #815: a time-limited S3 or GCS URL for a private asset is now signed with the asset's stored type and the serving policy's disposition (S3 `ResponseContentType` / `ResponseContentDisposition`, GCS `responseType` / `responseDisposition`), and `?download=1` on the file route asks for an `attachment` there as it does on local storage. The bucket therefore answers with those headers whatever the object's metadata says. The change is internal to the module's storage adapters; no exported shape changes, and public URLs are unchanged.
+
+  A bucket response still cannot carry `X-Content-Type-Options: nosniff`; the module page now documents adding it at a CDN or load balancer in front of the bucket and serving the bucket from an origin that shares no cookies with the API or the admin.
+
+- 8fd9b71: Issue #991: a public file's `304 Not Modified` now carries `Cross-Origin-Resource-Policy: cross-origin`, as its `200` always did. The browser merges a 304's headers into the cached response, so the host's default `same-origin` replaced the 200's policy on revalidation and a storefront on another origin than the API saw its images blocked (`net::ERR_BLOCKED_BY_RESPONSE.NotSameOrigin`) — intermittently, only for addresses without `?v=`, which are `public, no-cache` and so revalidated. Private files still carry no such header.
+- c41cd09: Module documentation corrected against the code (English and Polish). `admin_search` lists the Projects and Tasks record types and their permissions. `admin_actions` names `@endora-commerce/admin-kit` as the home of the icon map. `cms`, `blog` and `megamenu` describe how `Accept-Language` is matched against the sales channel's languages, and `cms` says that a block or hook fetched by its code answers the assets it embeds. `assets_library` documents `Cross-Origin-Resource-Policy: cross-origin` on a public file's `200` and `304`. Documentation only; no behaviour changes.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

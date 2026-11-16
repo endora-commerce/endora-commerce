@@ -1,5 +1,953 @@
 # @endora-commerce/contracts
 
+## 0.111.0
+
+### Minor Changes
+
+- 3de70b4: New port `PriceBookRowWritePort` (container name `priceBookRowWritePort`, exported as `PRICE_BOOK_ROW_WRITE_PORT`, owner `price_lists`): a module — an ERP or PIM connector — can now write the rows of one product in one non-base price book (a customer-group, organization, catalogue or sale book) without an admin HTTP call. `replaceBookRows(bookId, productId, { product: BasePriceTier[], variants?: Record<variantId, VariantRowWrite | null> })` replaces the product's fixed tiers and the rows of the named variants and answers `BookProductRows`; `removeBookRows(bookId, productId)` removes them (a no-op when there are none); `bookRows(bookId, productId)` reads them, or `null`. Only rows the write shape can say are the port's: a row an administrator entered that it cannot say — a product-level percentage or amount, an adjustment limited to a quantity range — is neither replaced nor removed and keeps pricing; `bookRows` reports it with `complete: false`, and a tier that would overlap it, even one starting at the same quantity, is refused with `409 PRICE_BOOK_ROW_OVERLAP` naming it, never written over it. Each write goes through the admin row batch's rules and command, audited as `price_list.book_rows_set` or `price_list.book_rows_remove` with the caller's actor — the entry holds names, counts and a `valueChangeId`, never a price or a quantity; the prices go to the book's own price-change history (`price_list_value_changes`), written in the same Command — and bumps the pricing generation once, naming the book and the product; a write that changes nothing writes nothing. The port creates no book and changes no header. Base books are refused with the new error code `409 PRICE_BOOK_BASE_BOOK` (write base prices through `priceBookWritePort`, which is unchanged) and expired books with `409 PRICE_BOOK_EXPIRED`; both codes are added to `ERROR_CODES`, with the new schemas `bookProductRowsWriteSchema` and `bookProductRowsSchema` and the type `VariantRowWrite`. Additive (issue #1028).
+- 2ee4923: New port contract `OrganizationWritePort` (container name `organizationWritePort`, exported as `ORGANIZATION_WRITE_PORT`; owner `organizations`) with its input types `OrganizationWriteCreateInput`, `OrganizationWriteUpdatePatch` and `OrganizationWriteUpdateOptions`. It lets a module find, create and update an Organization's identity and contact fields, for example an ERP or CRM connector that synchronises a customer master. Additive.
+
+  - `findByTaxId(taxId): Promise<OrganizationRecord[]>` answers exactly what `OrganizationDetailsPort.findByTaxId` answers: the input is normalised with `normalizeTaxId`, and the result is every live holder, the tree's root first. It returns a list because in the `per-tree-root` tax-ID scope a head office and its branches share one tax ID. Use `OrganizationDetailsPort.resolveByTaxId` for the single match.
+  - `create(input): Promise<OrganizationRecord>` runs the `organization.create` Command that the admin create uses, with the same checks and the active tax-ID scope. It also accepts `legalName`, `customFieldValues` and `parentId`. `status` is `'active' | 'pending_verification'`.
+  - `update(id, patch, options?): Promise<OrganizationRecord>` runs a new `organization.update` Command over `name`, `legalName`, `vatStatus`, `registeredAddress` and `orderConfirmationEmails`. It refuses any other key, including the tax ID, whose correction is `OrganizationCommandPort.changeTaxId`. `options.expectedVersion` refuses a stale write.
+  - Refusals are `HttpError`s typed by `code`: `VALIDATION_FAILED`, `DICTIONARY_ENTRY_NOT_FOUND` / `DICTIONARY_ENTRY_INACTIVE`, `ORGANIZATION_TAX_ID_EXISTS`, `UNKNOWN_SALES_CHANNEL`, `CUSTOM_FIELD_VALUE_INVALID`, `ORGANIZATION_TREE_INVALID`, `NOT_FOUND`, `VERSION_CONFLICT` and `ORGANIZATION_WRITE_CONTENDED`. The actor is the caller's ambient tenant context.
+
+- e9df6b5: Issue #1030 — a module that hands orders to another system (an ERP, a warehouse system, a fulfilment connector) can now record that system's number for an order, where the hand-over stands, and the other system's words on a refusal, **on the order**, through a new published port.
+
+  - **`@endora-commerce/contracts`** adds `OrderExternalReferencePort`, registered as `orderExternalReferencePort` (also exported as `ORDER_EXTERNAL_REFERENCE_PORT`), with `set(orderId, system, { state, reference?, message? })`, `get(orderId, system)`, `listForOrder(orderId)` and `findOrderIds(system, reference)`. Beside it: `OrderExternalReference`, `OrderExternalReferenceState` and `ORDER_EXTERNAL_REFERENCE_STATES` (`pending`, `synced`, `error`), `orderExternalReferenceSystemSchema`, `orderExternalReferenceWriteSchema`, `ORDER_EXTERNAL_REFERENCE_MESSAGE_MAX` (1000) and `ORDER_EXTERNAL_REFERENCE_MAX` (255). `adminOrderDetailSchema` gains `externalReferences` (`AdminOrderExternalReference[]`), which defaults to `[]` so a reply from an older server still parses.
+  - **`@endora-commerce/mod-orders`** implements the port. Each change is one Command, `order.external_reference.set`, audited with the calling actor; a write that changes nothing records nothing and does not move `updatedAt`. An order the caller cannot see is refused `404 ORDER_NOT_FOUND`; a malformed system key, state, reference or message `400 VALIDATION_FAILED`. Entries are org-scoped and outlive the module that wrote them. The admin order page shows an _External systems_ section (system, reference, state badge, message; an empty state when none has reported), `GET /api/v1/admin/orders/:id` carries the entries, and the admin orders list's search (`q`) also matches a reference fragment, case-insensitively.
+
+  **On upgrade.** Migration `20261110T143322_orders_order_external_references` creates the empty `order_external_references` table. Nothing existing changes; buyer-facing reads do not carry the entries.
+
+- 3254098: **Correct a company organization's tax ID.** An operator can now fix a mistyped tax ID, or give a branch that was wrongly given its head office's tax ID one of its own, without deleting the organization: its id, members, roles and orders stay.
+
+  - **Command** `organization.tax_id.change` — one transaction. Only a live company organization: a personal one is refused `409 ORGANIZATION_TAX_ID_CHANGE_REFUSED` `not_company`, a soft-deleted one `deleted` (new in `ERROR_CODES`). The value is normalised and checked against the active tax-ID scope exactly as creation checks it (soft-deleted holders count), and a database refusal at the statement or at commit answers the same `409 ORGANIZATION_TAX_ID_EXISTS`. The VAT validation summary (`vatValidatedAt`, `vatValidationProvider`, `vatValidationOutcome`) is reset to never-validated; `vatStatus` is kept. The same value after normalisation changes nothing and records no audit entry. The audit records names only: `changedFields: ['taxId']`, `vatStatusReset`, the scope. Orders, invoices and quote documents already issued keep the tax ID they were issued with.
+  - **Admin API** `POST /api/v1/admin/organizations/:id/change-tax-id` (`adminOrganizationChangeTaxIdBodySchema`) under the new permission `organizations:change-tax-id`, answering `{ data, changed, vatValidation }`. With `validateTaxId: true` (which also needs `customers:manage`) a VAT validation runs after the change commits; its failure does not undo the change.
+  - **Port** `OrganizationCommandPort.changeTaxId(organizationId, { taxId })` for admin routes and server code, never for a customer-facing route. It runs with the ambient actor and runs no VAT validation.
+  - **Event** `organization.tax_id_changed.v1` `{ eventId, occurredAt, organizationId, changedAt }` (`OrganizationTaxIdChangedEvent`), dispatched once on commit; it carries neither the old nor the new tax ID.
+  - **Admin UI** — _Change tax ID_ on a company organization's page (a dialog starting on the stored tax ID, the conflict shown on the field), and _Change an organization's tax ID_ in the command palette (`/organizations/change-tax-id`: pick a company organization, then correct its tax ID). The tax-ID scope screen's warning and refusal now point to this action as the way back to _Global_ for a tax ID shared by mistake.
+
+- 7616ef1: `ORGANIZATION_HOOKABLE_ACTIONS` declares two more Organization writes, both phases (issue #1057, follow-up to `specs/176-command-hooks-outbox/`):
+
+  - `convertToCompany` — `organization.convert_to_company`, with `OrganizationConvertToCompanyHookData` (`organizationId`, `status`, `vatStatus`, `changedFields`, `approvalStamped`) and `OrganizationConvertToCompanyOutbox` (`organizationId`, `status`, `changedFields`);
+  - `changeTaxId` — `organization.tax_id.change`, with `OrganizationTaxIdChangeHookData` (`organizationId`, `changedFields`, `vatValidationReset`) and `OrganizationTaxIdChangeOutbox` (`organizationId`, `changedFields`).
+
+  Both data shapes carry ids, codes and field names only — never the tax ID, the name or the address.
+
+  `OrganizationCommandPort.convertToCompany` and `changeTaxId` take an optional third argument, the new `OrganizationCommandPortOptions` (`{ extensions? }`): extension input for the hook modules on the action. The two-argument calls are unchanged; an implementation of the port outside this repository gains the optional parameter.
+
+- cffa0bf: A manifest action can declare the admin API route its screen opens on (issue #1088). `ModuleActionSchema` (`@endora-commerce/contracts`) gains an optional `entryApiRoute`, a path under `/api/v1/admin/` written as the route registers it; nothing reads it at runtime and existing manifests are unchanged. `check:action-route-permissions` (`@endora-commerce/cli/rules/action-route-permissions.js`) compares `requiredPermission` against that route alone, at a new `declared` resolution level, instead of reconstructing an entry route from `targetRoute`; a declared route that no registration answers is reported `unresolvable` rather than replaced by the reconstruction. Declare it only where the reconstruction picks the wrong route: a screen served by an API its admin path does not name. `_lifecycle`'s `open-command-outbox` declares `GET /api/v1/admin/command-outbox`, and `import_export`'s two actions declare `GET /api/v1/admin/import-export/entities`, so their three ledger entries in the repository host are gone. The admin-actions module documentation (English and Polish) describes the field.
+- c58acd1: `POST /api/v1/shopping-lists/:id/convert-to-rfq` declares the reply it has always sent when nothing converts (issue #1159):
+
+  - `@endora-commerce/contracts`: `convertToRfqResponseSchema` declares `rfqId` as `uuidSchema.nullable()`, so `ConvertToRfqResponse.rfqId` is now `string | null`. The key is always present. A consumer must handle `null`: it means that no quote request was created or changed, because every selected item was skipped or none was selected. Read `skipped` for the reasons, and do not link to a quote request.
+  - `mod-shopping-lists`: the service's `ConvertToRfqResult` is now the contract's `ConvertToRfqResponse`, and the convert-to-RFQ handler declares `{ data: ConvertToRfqResponse }`. Typing only; nothing on the wire changes.
+
+- fc91398: New export `ChannelMemberIdListResponseSchema` (type `ChannelMemberIdListResponse`) describes what `GET /api/v1/admin/sales-channels/{code}/{entityType}` answers: `{ salesChannelCode, entityType, entityIds: uuid[], page, pageSize, total }`, unwrapped, with a 0-based `page` (issue #1160). `ChannelMembershipListResponseSchema` and `ChannelMembershipListResponse` are deprecated and unchanged: their `{ channels }` shape never described that route, and its comment no longer claims it. `ChannelMemberIdListResponseSchema` / `ChannelMemberIdListResponse` replace them; the deprecated pair is removed in the minor release after this one (issue #1162).
+- d2f179f: `CustomerSignInCompletionInput` gains the optional `salesChannelId` (`string | null`): the sales channel a customer sign-in belongs to when its request carries none, so only the signed-out basket of that store is merged. Absent or `null` keeps today's behaviour, the request's resolved channel. New constant `CART_MERGE_FLASH_COOKIE_NAME` (`'b2b_cart_merge_flash'`), the storefront's one-render "basket carried over" notice, now written by the backend too (issue #1188). Additive: no existing export changes.
+- 34b3387: **A shopping list's name and line quantities are written in one request** (issue #1251).
+
+  `@endora-commerce/contracts`: new `updateShoppingListRequestSchema` and its type `UpdateShoppingListRequest`, `{ name?, items?: [{ id, quantity }] }`. At least one of the two is required; each line appears at most once, at most `REQUEST_LINE_ITEMS_MAX` of them, and each quantity is a `lineQuantitySchema`. Every body `renameShoppingListRequestSchema` accepts is accepted by it, and that schema is unchanged.
+
+  `@endora-commerce/mod-shopping-lists`: `PATCH /api/v1/shopping-lists/:id` now takes that body, still behind `shopping_lists.create`. A body with only `name` renames, as before. With `items` it sets those lines' quantities together with the name, in one write: a line that is not on the list refuses the whole request with `404 NOT_FOUND` and changes nothing. `ShoppingListService.rename(ctx, listId, name)` is replaced by `ShoppingListService.update(ctx, listId, { name?, items? })`; a caller passing a name writes `update(ctx, listId, { name })`.
+
+  On the storefront a list's page has one _Save changes_ for the list's name and every quantity, instead of a rename form and a _Save_ per row. The conversions to the cart and to a quote request save what the buyer typed first and then convert those quantities. _Remove_ and _Clear list_ stay immediate.
+
+- e283396: `TemplateEmailPort.trySend` (container name `templateEmailPort`, owner `transactional_emails`) accepts the recipient's sales channel and language. Its input is now the exported type `TemplateEmailSendInput`, which adds two optional fields to the shape it had:
+
+  - `salesChannelId?: string | null` — render from that channel's content. Absent, `null`, or a channel that no longer resolves: the system-default channel.
+  - `language?: string | null` — render in that language. Absent or `null`: the resolved channel's default language, else `en-US`.
+
+  Additive: a caller that passes neither gets the system-default channel in its default language, as before.
+
+- ff7bd10: Issue #1270 — `quoteRequestSummarySchema` declares the optional `statusName`: a row's status named in the response language, which each row of `GET /api/v1/admin/quote-requests` has carried since issue #455 for another module's link picker. A strict parse of an admin list row with the published schema refused the key. Admin list only; the buyer list does not send it.
+
+  **On upgrade.** Nothing to migrate. `QuoteRequestSummary` gains the optional `statusName: string`.
+
+- 761d9c4: Issue #1279 — the federated customer sign-in hand-off, for storefronts served from another host than the API.
+
+  - `FEDERATED_SIGN_IN_COMPLETE_PATH` (`'/auth/federated/complete'`), the storefront landing route the customer OAuth callback sends the browser to with a single-use `?code=`, and `FEDERATED_SIGN_IN_HANDOFF_TTL_SECONDS` (`60`), how long that code can be redeemed.
+  - `customerFederatedSignInStartQuerySchema` — the customer `start` query: optional `next` (at most 2048 characters) and `salesChannel`, and the required `binding`, the lower-case hex SHA-256 of the secret the storefront keeps in its own binding cookie.
+  - `federatedSignInExchangeRequestSchema` (`.strict()`: `code` and the raw `binding` secret, both 43-character base64url) and `federatedSignInExchangeResponseSchema` — `{ data: { status: 'authenticated', redirectPath, cartMerge } }` with the session in `Set-Cookie`, or `{ data: { status: 'mfaRequired', challengeId, redirectPath } }`. `redirectPath` is root-relative and never `//`.
+  - `ERROR_CODES.MFA_FEDERATED_HANDOFF_INVALID`, the one refusal of the exchange.
+  - The types `CustomerFederatedSignInStartQuery`, `FederatedSignInExchangeRequest` and `FederatedSignInExchangeResponse`.
+
+- 8e7f794: **`CartWritePort.addItems` takes an optional `languageTag` in its `options`** (issue #1293): the buyer request's scope language, the channel language its `Accept-Language` asks for (`requestScopeLanguage`). The batch's lines are judged for availability, and a below-minimum line is named, at the basket's (channel, `languageTag` resolved against the channel's own languages), exactly as `POST /api/v1/cart/items` judges a line of the same request. The field is additive: a caller that does not pass it is answered in the channel's default language, as before, which remains the answer for a caller with no storefront request. An implementation of the port outside this repository may ignore the field and keep today's behaviour, or honour it by judging the lines in that language.
+- 8e7f794: **`OrderPlacementPort.placeOrder` takes an optional `languageTag` in its `options`** (issue #1308): the buyer request's scope language, the channel language its `Accept-Language` asks for (`requestScopeLanguage`). The basket's lines are judged for availability, and the order's lines named, at (the order's channel, `languageTag` resolved against that channel's own languages) — the language the same request's `CartWritePort.addItems` judged them in, so a line admitted there is not refused at placement for being off in the channel's default language. The field is additive and sits beside `language`, which stays the language a refusal is worded in: a caller that does not pass it is answered as before (the channel language `language` names, else the channel's default). An implementation of the port outside this repository may ignore the field and keep that behaviour.
+- f39d37f: Custom-field writes: buyer input, admin access and admin-create values (`specs/175-buyer-input-custom-fields/`). Everything is additive.
+
+  - New `custom-fields` exports: `customFieldInputSurfaceSchema` / `CustomFieldInputSurface` (`organization.register`), `customFieldAdminAccessSchema` / `CustomFieldAdminAccess` (`edit`, `read`, `hidden` — an admin-panel convenience, not access control), `inputSurfaceFieldSchema` / `InputSurfaceField` and `inputSurfaceFieldsResponseSchema` / `InputSurfaceFieldsResponse` (the public `GET /api/v1/custom-fields/input-surfaces/:surface` read), and the type `CustomFieldWriteDeclaration` a host's `customFieldWrites` manifest export satisfies.
+  - `customFieldDefinitionSchema` and `CustomFieldDefinitionRecord` gain `customerInput` and `adminAccess`; `createCustomFieldDefinitionSchema` defaults them to `[]` and `'edit'`; `updateCustomFieldDefinitionSchema` takes both as optional (absent = unchanged). A served definition without them no longer parses under `customFieldDefinitionSchema`.
+  - `customFieldEntityTypeInfoSchema` gains `customerInputSurfaces` (default `[]`).
+  - `customFieldValidationErrorSchema.code` gains `not_open_for_input` and `too_many_keys`; `CUSTOM_FIELD_DEFINITION_ERROR_CODES` gains `customer_input_unsupported`, `customer_input_audience`, `customer_input_value_type` and `admin_access_required`. A consumer switching exhaustively over either union has new cases.
+  - `CustomFieldValuePort` gains `validateForCustomerInput(entityType, values, surface, language?)`; an implementation of the port must add it. Each refusal's `message` is a sentence a buyer can read beside the field (never the key or the typed value), worded in `language` when given.
+  - Optional `customFieldValues` on `registerOrganizationRequestSchema`'s `organization` and `firstUser` (and so on `AdminOrganizationCreateBodySchema`), `adminDirectMemberToRoleRequestSchema`, `createCategoryRequestSchema`, `adminCreateOrderRequestSchema` and `adminCreateQuoteRequestSchema`; `CustomerAccountCreateInput` gains an optional, already-validated `customFieldValues`.
+  - The catalogue attribute API carries the backing definition's admin access: optional `adminAccess` on `createAttributeRequestSchema`, `updateAttributeRequestSchema` and `adminAttributeResponseSchema`, and an optional `adminAccess` on `CatalogAttributeView`.
+
+- 3f95d1c: **Command hooks: the platform-free half** (`specs/176-command-hooks-outbox/` P2).
+
+  - **`command-hooks.ts`** (re-exported from the package root): `hookableAction<TData, TOutbox>(action, objectType, phases)` builds a `HookableActionRef` an owner publishes for a Command it opens to hooks; `toHookableActionDeclaration(ref)` turns it into its manifest entry, validated by `HookableActionDeclarationSchema`. `CommandHookPhase` (`'beforeCommit' | 'afterCommit'`), `OutboxScalar` / `OutboxData` (audit-state list 1 only), `COMMAND_HOOK_ERROR_CODES`, `COMMAND_HOOK_MAX_DEPTH` (8), and the execution-plan response `CommandHookPlanResponseSchema` (`GET /api/v1/admin/command-hooks`).
+  - **`ERROR_CODES`** gains `COMMAND_EXTENSION_UNCLAIMED` (422), `COMMAND_HOOK_CYCLE` (500) and `COMMAND_HOOK_DATA_MISSING` (500).
+  - **`ModuleManifestSchema.hookableActions`** — optional list of declarations; `defineModuleManifest` refuses one action listed twice.
+  - **`DivergenceKind`** gains `'command-hook'`, with a `DivergenceDetail` of `{ kind: 'command-hook', phase, id }`; its report key is `command-hook:<module>:<action>#<id>`.
+  - **`DeploymentDivergenceDeclarationSchema.commandHookOrder`** — optional `Record<action, moduleId[]>` (two or more), the deployment's tie-break for two hook modules no dependency orders. Optional rather than defaulted, so an existing typed `divergence.ts` keeps compiling.
+  - **`ORGANIZATION_HOOKABLE_ACTIONS`** — `create`, `register`, `adminPatch` and `setCustomFieldValues`, both phases each, with `OrganizationCreateHookData`, `OrganizationRegisterHookData`, `OrganizationUpdateHookData` and the three `Organization*Outbox` types.
+  - **`OrganizationCustomFieldWritePort.setCustomFieldValues(organizationId, merge, options?)`** — new optional third argument `OrganizationCustomFieldWriteOptions` `{ extensions? }`, extension input for the command-hook modules on `organization.set_custom_field_values`. Existing two-argument calls are unchanged.
+
+- 695636f: New types for creating a customer account as a child Command
+  (`specs/176-command-hooks-outbox/` FR-002, FR-005):
+
+  - `CustomerAccountMemberCommandPort` (container name `customerAccountMemberCommandPort`, owner
+    `customer_accounts`) with `prepareCreate(input)`. It hashes the password and returns a
+    `PreparedCustomerAccountCreate`.
+  - `PreparedCustomerAccountCreate.command({ organizationId, organizationRoleId })` returns the
+    `customer_account.create` Command.
+  - `CustomerAccountCreateCommand` is that Command's structural type, assignable to and from the
+    platform's `Command<CustomerAccountRecord>`, like `CustomerAccountRoleChangeCommand`.
+  - `CustomerAccountCreatePreparation` is `CustomerAccountCreateInput` without `organizationId` and
+    `organizationRoleId`.
+
+  Additive. `CustomerAccountMemberWritePort` is unchanged.
+
+- 27834f3: **`outboxDataViolations(data)` and `OUTBOX_STRING_MAX_LENGTH`** (`specs/176-command-hooks-outbox/` P3, FR-031). The structural list-1 guard the Command Bus applies to an owner's `outboxData` before it writes a `command_outbox` row: it returns the sorted keys whose value is nested, not a finite number, longer than 128 characters or contains whitespace or an `@` (an e-mail address is the one personal datum shaped like a code), and never repeats the value. `@endora-commerce/test-kit`'s `expectHookableCommand` uses the same guard.
+- 190986e: **The command outbox operator API, and no position for an `afterCommit` handler** (`specs/176-command-hooks-outbox/` P4, FR-040).
+
+  - **`CommandHookPlanItemSchema.position` is now `number | null`.** A `beforeCommit` hook keeps its 1-based position; an `afterCommit` handler carries `null`, because each one is an outbox row delivered on its own and the outbox promises no order across rows. A consumer that read `position` as a number must handle `null` for `phase: 'afterCommit'` items.
+  - **New schemas** for `GET /api/v1/admin/command-outbox` and `POST /api/v1/admin/command-outbox/:id/retry`: `CommandOutboxStatusSchema` (`COMMAND_OUTBOX_STATUSES`), `COMMAND_OUTBOX_LISTED_STATUSES`, `CommandOutboxListQuerySchema` (`status` defaulting to `dead`, `limit` 1–`COMMAND_OUTBOX_PAGE_MAX`, an opaque `cursor`), `CommandOutboxListItemSchema` (names, ids, codes, counts and dates — never the row's `data`), `CommandOutboxListResponseSchema` (`{ items, nextCursor }`), `CommandOutboxRetryParamsSchema` and `CommandOutboxRetryResponseSchema` (`{ item }`), with their types.
+  - **`COMMAND_OUTBOX_FAILURE_CODES`** names the drain's own stored failure codes (`hook-unregistered`, `permanent-failure`, `handler-failed`), and **`commandOutboxFailureKey(code)`** the bundle key a stored code may be translated under besides `errors.<CODE>`: `commandOutbox.failure.<code>`. A hook module SHOULD translate every code it throws a `PermanentOutboxFailure` with there.
+  - **`ERROR_CODES.COMMAND_OUTBOX_NOT_DEAD`** — a retry of a row that is not dead (409).
+
+- d14a4fd: **Personal → company conversion.** An operator can turn a personal (B2C) organization into a company in place: same id, orders, carts, addresses and channels, now with a company name, legal name, tax ID, registered address and VAT status.
+
+  - **Command** `organization.convert_to_company` — one transaction. The tax ID is normalised and checked against the active tax-ID scope. The organization keeps its status; it is stamped approved by the operator when it never was. Its member stays its Administrator, and the conversion is refused when that is not so. `personalAccountId` is cleared and `convertedToCompanyAt` set. The audit records only which fields changed (`changedFields`), whether the approval was stamped, and the scope. Refusals: `409 ORGANIZATION_CONVERSION_REFUSED` (`not_personal`, `deleted`, `owner_not_administrator`; new in `ERROR_CODES`) and `409 ORGANIZATION_TAX_ID_EXISTS`. There is no reverse.
+  - **Admin API** `POST /api/v1/admin/organizations/:id/convert-to-company` (`adminOrganizationConvertToCompanyBodySchema`) under the new permission `organizations:convert-to-company`. With `validateTaxId: true` — which also needs `customers:manage`, the VAT validation's own permission — a VAT validation runs **after** the conversion commits; its outcome is returned as `vatValidation`, and a failing provider does not undo the conversion. The admin conversion form offers _Validate the tax ID after converting_ (ticked by default) only to an operator holding `customers:manage` and sends `validateTaxId: false` otherwise, so the default form is never refused `403`.
+  - **Port** `organizationCommandPort` (`OrganizationCommandPort.convertToCompany`) for admin routes and server code, never for a customer-facing route. **It checks no permission**: the caller is the gate. It runs with the ambient actor and runs no VAT validation.
+  - **Event** `organization.converted_to_company.v1` `{ eventId, occurredAt, organizationId, convertedAt }`, dispatched once on commit (`OrganizationConvertedToCompanyEvent`).
+  - **Returns** — a return of an order placed while the organization was personal is still a consumer withdrawal after a later conversion (`organizationWasConsumerAt`). The `isPersonalOrganization` dependency of the returns services takes the order's placement time as an optional second argument.
+  - To move the converted company's only member out, give a second member the Administrator role first, as for any company.
+
+- 86a92af: **Breaking: an organization's `taxId` is `string | null`.** A personal (B2C) organization has no tax ID; it used to carry a 32-character placeholder derived from its account id. `organizationSchema.taxId` is `z.string().nullable()` and `OrganizationRecord.taxId` is `string | null`. Was `organization.taxId.trim()`; now `organization.taxId?.trim() ?? ''`, or better `organizationCompanyTaxId(organization)`, which already answered `null` for a personal organization and now also accepts a `null` tax ID. Orders, invoices, quote documents and audit entries written before the upgrade are not rewritten.
+
+  - **Minimum version to upgrade from: 0.100.0.** The migration below refuses to run, and changes nothing, on a database that has not applied `customer_accounts`' `Migration20260825T141659CustomerAccountsOrganizationRequired` (first shipped in 0.100.0) while it holds organizations or a customer account with no organization. Upgrade such an installation to a 0.100.x–0.110.x release first, run `migrate`, then upgrade to this release. A fresh database is not affected.
+  - **Upgrade.** The migration `Migration20261110T135922OrganizationsPersonalTaxIdRemoval` clears the tax ID of every personal organization and records the customer account it was provisioned for in a new column, `organizations.personal_account_id` (taken from the old placeholder). A check, `organizations_tax_id_presence`, now refuses a personal organization with a tax ID and a company organization without one. A personal organization whose stored tax ID was not the placeholder (hand-made data) is cleared too and left without the link; the migration reports how many as a notice. Code that inserts personal organizations with a tax ID — fixtures, seeds, overlay modules — must write `null`.
+  - **Provisioning** is idempotent by that link instead of the tax ID (`PersonalOrganizationProvisionApi.provisionFor`, `PersonalOrganizationPort.provisionPersonalOrganization`); the unassign destination is still the account's own personal organization.
+  - **Tax-ID scope foundation.** `Migration20261110T135941OrganizationsTaxIdScope` adds a stored generated column `organizations.root_id` (the tree's root, from `path`) and the single-row table `organization_tax_id_policy`, seeded `global` — today's rule, unchanged. Adding the stored column rewrites `organizations` under an exclusive lock while it runs. The scope is switched only by the `organization.tax_id_scope.set` Command (see the tax-ID scope changeset).
+  - **Lookups.** `OrganizationDetailsPort` gains `findByTaxId(taxId, { includeDeleted? })` — every organization holding the tax ID, the tree's root first — and `resolveByTaxId(taxId)` → `{ kind: 'none' | 'one' | 'ambiguous' }`. Both normalise the input with the new `normalizeTaxId` (whitespace and dashes stripped, upper-cased). An implementation or test double of `OrganizationDetailsPort` must add both methods.
+  - **New contract shapes** for the coming tax-ID scope screen and personal → company conversion: `TaxIdScope` / `taxIdScopeSchema`, `adminTaxIdScopeSetBodySchema`, `adminTaxIdScopeResponseSchema`, `TaxIdResolution`, `adminOrganizationConvertToCompanyBodySchema` / `OrganizationConvertToCompanyInput`, `OrganizationConvertedToCompanyEvent`, `OrganizationRecord.convertedToCompanyAt`, and `AdminOrganizationCreateBodySchema.parentId` (optional). The conversion shapes are served by no route yet.
+  - **Returns.** `OrderReturnContext` gains a required `placedAt: Date` — an implementation of `OrderReturnContextPort` must fill it.
+  - **VAT validation** of an organization with no tax ID is refused `422 VALIDATION_FAILED` before any provider is called.
+
+  An operator who wants to review orders placed by personal organizations before the placeholder was hidden can find them with `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
+
+- ee2a111: **Tax-ID scope.** An installation chooses whether a tax ID belongs to one organization (`global`, the default and today's rule) or may be shared inside one organization tree (`per-tree-root`, so a head office and its branches carry the same tax ID). The database enforces both: `global` with the existing unique constraint `organizations_tax_id_unique`, `per-tree-root` with a deferred exclusion constraint `organizations_tax_id_one_tree` over the tree's root.
+
+  - **Command** `organization.tax_id_scope.set` (audit: `{ scope }` before and after) swaps the constraint and the policy row in one transaction. It briefly blocks writes to `organizations` while the new constraint is built. Setting the scope already in force records nothing and re-creates a missing constraint. Switching to `global` is refused `409 ORGANIZATION_TAX_ID_SCOPE_DUPLICATES` (`details: { code: 'shared_tax_ids', sharedTaxIdCount, examples }`, at most 20 examples) while any tax ID is on more than one organization, soft-deleted ones included. A tax ID cannot be changed from the admin, so once one is shared the way back to `global` is not available from the admin; the confirmation of a switch to `per-tree-root` says so.
+  - **Admin API** `GET` / `PUT /api/v1/admin/organizations/tax-id-scope` (`adminTaxIdScopeResponseSchema`, `adminTaxIdScopeSetBodySchema`), under the new permission `organizations:manage-tax-id-scope` and for an unscoped administrator only.
+  - **Admin create** `POST /api/v1/admin/organizations` accepts `parentId` and creates the organization as a branch in the same Command (unscoped administrators only, `403` otherwise; `404` for an unknown parent; the depth bound applies). In `per-tree-root` a branch may carry a tax ID its tree already holds. A tax ID the scope forbids is `409 ORGANIZATION_TAX_ID_EXISTS`, also when two creations race.
+  - **Moves** in `per-tree-root` that would put a shared tax ID into a second tree are refused `409 ORGANIZATION_TREE_INVALID` with `details.code = 'tax_id_shared_across_trees'` and `details.taxIds`.
+  - **Registration** refuses a tax ID that already resolves to an organization in both scopes, a branch's included, and answers a database refusal from either constraint with `409 ORGANIZATION_TAX_ID_EXISTS`.
+  - **Migration** `Migration20261110T173752OrganizationsTaxIdWriteLock` adds the row trigger `organizations_tax_id_write_lock` (on inserts and on updates of `tax_id` or `path`): two transactions writing the same tax ID take turns, so the second meets the first's committed row and is refused with a 409 rather than deadlocking against the organization reach rebuild. The lock is keyed by one of 256 buckets of the tax ID, so a transaction holds at most 256 such locks however many rows it writes; moves lock their subtree's buckets in ascending order first.
+  - **Tax IDs are stored normalised** — whitespace and dashes removed, upper-cased (`normalizeTaxId`). Registration and admin create store, check and answer the normalised form. `Migration20261110T183238OrganizationsTaxIdNormalise` rewrites existing rows and adds the check `organizations_tax_id_normalised`, which refuses any other form from any writer (fixtures, seeds and overlay code inserting organizations must write the normalised form). **It refuses to run, and changes nothing, when two organizations would hold one tax ID once normalised** where the scope forbids it (anywhere in `global`); its message lists up to 50 such groups. Find them before upgrading with:
+
+    ```sql
+    select upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g')) as normalised,
+           array_agg(id order by id) as organizations
+      from organizations where tax_id is not null
+     group by 1 having count(*) > 1;
+    ```
+
+    and give each organization its own tax ID first.
+
+  - **Contention.** The scope change takes the table's `access exclusive` lock up front, waiting at most 5 seconds. A write of organizations that loses a lock to a concurrent one — the scope change, or a racing writer (`40P01`, `55P03`) — answers `409 ORGANIZATION_WRITE_CONTENDED` (new in `ERROR_CODES`); retrying succeeds.
+  - **Tax IDs are validated after normalisation** where they enter: `registerOrganizationRequestSchema` (and so `AdminOrganizationCreateBodySchema`) now normalises the tax ID first and then requires 8 to 32 characters, so `--------` is refused with `400` and an over-long value is a `400`, not a `500`. The admin organization update accepts no tax ID; a tax ID cannot be changed after creation.
+  - **Search.** The admin organizations list's `q` and the global search match the tax ID in its normalised form, so `pl 526-025` finds `PL526025…`.
+  - **Boot** logs one error when the stored scope and the constraint present disagree; re-applying the scope repairs it.
+  - `ERROR_CODES.ORGANIZATION_TAX_ID_SCOPE_DUPLICATES` is new.
+
+- c7ec2fa: Declared extension columns (`specs/178-extensible-columns/`): `CUSTOM_FIELD_HOST_BINDINGS` — the one custom-field host binding registry (`table`, `valueColumn`, `ownerModuleId` per `SupportedEntityType`), moved here from `custom_fields` so the platform can derive its extensible host tables from it — plus `ExtensibleHostTable`, `EXTENSIBLE_HOST_TABLES`, `ExtensionsQuerySchema` (`?extensions=`, comma-separated module ids, at most eight) and `ExtensionAttributesSchema`. Additive; no existing schema changes.
+- bfa1ac4: `organizations` is an extensible host for declared extension columns (`specs/178-extensible-columns/` FR-051, FR-052). `GET /api/v1/admin/organizations/:id` and `GET /api/v1/admin/organizations` accept `?extensions=<moduleId>[,<moduleId>…]` (at most eight, `ExtensionsQuerySchema`) and then return `extensions` on every record: per named module that declares columns on `organizations` with `adminReads: true` and is present, its declared keys and values. A module that is switched off, not installed or not exposing the host is omitted without an error; a malformed parameter answers 400. Without the parameter both responses are byte-identical to before. `@endora-commerce/contracts` publishes the record shape as `adminOrganizationSchema` (`organizationSchema` plus optional `extensions`, `AdminOrganization`).
+- aaa50ff: Additive: `customerNotificationResponseSchema` (and its `CustomerNotificationResponse` type), the `{ data: CustomerNotification }` answer of the new `GET /api/v1/storefront/notifications/:id` (issue #238, `specs/179-rfq-and-customer-notifications/contracts/customer-notifications-storefront-api.md` §1).
+- 6e528ad: Contracts for quote request notification delivery and the buyer's notification centre (issue #238, `specs/179-rfq-and-customer-notifications/`). Additive only; nothing existing changes shape.
+
+  - New `customer-notifications.ts`, exported from the barrel: the `customerNotificationRecordPort` types (`CustomerNotificationRecordPort<EM>` with `record` / `recordWithin`, `RecordCustomerNotificationInput`, `CustomerNotificationMessage`, `CustomerNotificationRecord`) and the storefront API schemas `customerNotificationSchema` (strict), `customerNotificationListResponseSchema` and `customerNotificationUnreadCountResponseSchema`, with their inferred types.
+  - `pwa.ts`: the `customerPushPort` types — `CustomerPushPort`, `CustomerPushInput`, `CustomerPushCategory` (`'quote'`) and `CustomerPushOutcome`.
+  - `quote-requests.ts`: `quoteRequestDeliverySchema` (strict) with `quoteRequestDeliveryChannelSchema` and `quoteRequestDeliveryStatusSchema`, and an optional `deliveries` array on `quoteRequestHistoryEntrySchema`. A consumer that builds or reads history entries is unaffected; the field is only ever present on the admin history route.
+
+- 73e8e8c: `assets_library` now publishes `ASSET_CHANGED_EVENT` (`'assets_library.asset_changed.v1'`, payload
+  `AssetChangedEvent { assetIds }`, both exported from `@endora-commerce/contracts`) after a
+  committed write that changes what an embedded asset renders as: a replace, a restore of the
+  previous version, a permalink set or removed, a soft delete, a restore, and an edit of the
+  filename, label, alt text, MIME type or visibility. A move between folders is not announced. The
+  event is dispatched in a bus scope and awaited, so the write answers once its subscribers have
+  run.
+
+  `CmsContentChange` gains a fifth member, `{ kind: 'assets'; assetIds }`. A consumer that switches
+  exhaustively over `kind` must handle it; `megamenu` ignores it, as it ignores templates and hooks.
+
+- bf257b8: New port contract `CustomerSignInCompletionPort` (`complete(input)`), with `CustomerSignInCompletionInput` (`customerAccountId`, the request's `cookies`, a `log` with `error(details, message)`) and `CustomerSignInCompletion` (`cartMerge: CartMergeOutcomePublic | null`, `clearAnonymousCartCookie`). It is the post-sign-in step of a customer sign-in, the signed-out basket merge and the anonymous comparison adoption, for a route that establishes the customer session itself (issue #368). Additive: no existing export changes.
+- e435bad: New `basePricesDryRunResponseSchema` and `BasePricesDryRunResponse` (`{ data: { valid: true } }`), the answer of `PUT /api/v1/admin/price-books/base-prices/:productId?dryRun=true` (issue #407, `specs/180-one-save-zone-editors/contracts/base-prices-dry-run.md`).
+- 5c148de: Admin zones can now offer the host editor's save session (issue #407, `specs/180-one-save-zone-editors/`). The new `EditorSaveSessionHandle` (`{ readonly sessionId: string }`) is an opaque handle with no functions in its type. A required `saveSession: EditorSaveSessionHandle` prop is added to `ProductEditorZoneProps`, `ProductEditorFieldZoneProps`, `CategoryEditorZoneProps`, `SalesChannelEditorZoneProps`, `OrganizationDetailZoneProps` and `CustomerDetailZoneProps`. `ProductEditorSeoZoneProps` and every other zone are unchanged, so a contribution there that tries to join a Save fails the type-check.
+
+  This is a breaking change for anything that mounts one of these six zones: `<AdminZone>` and `useAdminZone()` calls must pass `saveSession`. A host that does not run a session yet can pass `INERT_SAVE_SESSION` from `@endora-commerce/admin-kit/lib`. Contributions that do not read the prop are unaffected.
+
+- 37532da: Issue #414 — a product feed can now be pinned to a price book in the Admin UI. The _Prices_ section of a feed's _Settings_ tab carries a _Price book_ picker: _No price book_ (catalogue prices), then the price books in the feed's currency that would publish for the feed now, then — disabled, with the reason beside the name — the ones that would not (not active, outside its dates, not on the feed's sales channel, not for everyone). The book the feed is already pinned to stays selectable whatever its state, its reason is stated under the field, and saving the other settings no longer resends an unchanged pin, so a pin to a deleted book does not block them.
+
+  - **`@endora-commerce/contracts`** adds `productFeedPriceBookOptionSchema` (`id`, `name`, `isBase`, `unpublishableReason` — a `pinnedPriceBookUnpublishableReasonSchema` value or `null`), its type `ProductFeedPriceBookOption`, and `productFeedPriceBookOptionsResponseSchema`.
+  - **`@endora-commerce/mod-product-feeds`** adds `GET /api/v1/admin/product-feeds/:id/price-book-options`, gated on `product_feeds:read` and `price_lists:read`: every book in the feed's currency plus the pinned one whatever its currency, each with the answer `namedListPublishability` gives for the feed's channel and currency. Without `price_lists:read` the picker is shown disabled and says which permission it needs. The _pinned book no longer exists_ warning now points at the Settings tab instead of the API.
+  - **`@endora-commerce/mod-price-lists`** — its documentation no longer says a feed can be pinned only through the API.
+
+  Additive; no migration.
+
+- bfdbeaf: Projects: optimistic concurrency for a Project's configuration (issue #449), additive. Two new tokens, neither of them the Project `version` that moves, closes, reopens and edits name — no write of the configuration moves that one, so a client that edits a Stage and then moves the Project with the version it read is served as before.
+
+  - **A Stage's own edits.** `ProjectStageSchema` gains `version`. `UpdateProjectStageBodySchema` (`PATCH …/stages/:stageId`) and `SetProjectStageTasksBodySchema` (`PUT …/stages/:stageId/tasks`) take an optional `version` — the Stage's; each write moves it. A body of `PATCH …/stages/:stageId` naming only `version` is still refused as having nothing to change.
+  - **The Project's sets.** `ProjectDetailSchema` gains `configurationVersion`. `CreateProjectStageBodySchema`, `ReorderProjectStagesBodySchema`, `SetProjectMovesBodySchema`, `SetProjectOrganizationsBodySchema` and `SetProjectMembersBodySchema` take an optional `configurationVersion`; each of those writes, and `DELETE …/stages/:stageId`, moves it. `SetProjectMovesResultSchema` gains `configurationVersion`, the value after the write.
+
+  Sent and stale, either token answers `409 PROJECT_CHANGED` and nothing is written; a body without it is served as before. Both start at 1 — a migration adds `project_stages.version` and `projects.configuration_version` with that default.
+
+  `PUT …/organizations` changes the set in one transaction: a failure part-way leaves it as it was. The audit trail still records one `projects.project.organization_add` or `projects.project.organization_remove` entry per Organization, now as child Commands of `projects.project.organizations_set`, which records no entry of its own. The Projects admin sends the Stage's version on a Stage or Stage Task edit and the Project's `configurationVersion` on adding and reordering Stages and on the workflow, and reads the Project again on a `409`.
+
+- 65f7abc: Issue #455 — a Project's _Linked records_ tab and its link picker name each record's status the way the record's own module names it, in the reader's language, instead of showing the stored code (`new`, `proposal`, `Pending`).
+
+  - **`@endora-commerce/contracts`** adds `statusName(code, language)` to `OpportunityReadPort` and `statusName(status, language)` to `QuoteRequestReadPort`, each answering a `Promise<string>`, and the optional `statusName` to `ProjectLinkSchema` beside `status`. A test double that implements either port in full needs the new method.
+  - **`@endora-commerce/mod-crm`** implements `OpportunityReadPort.statusName` by its own rule: the configured name in that language, else the status's default name, else the code.
+  - **`@endora-commerce/mod-quote-requests`** implements `QuoteRequestReadPort.statusName` in the wording its global-search results already use (a code outside the six statuses answers as it is), and each row of `GET /api/v1/admin/quote-requests` now also carries `statusName` in the response language.
+  - **`@endora-commerce/mod-projects`** serves `statusName` on `GET` and `POST /api/v1/admin/projects/:id/links` (an Order's name from `orderReadPort.findStatusDefinition`), and the admin tab and picker show it.
+
+  **On upgrade.** Nothing to migrate; `status` keeps answering the code.
+
+- a998fee: Issue #457 — a Project with many linked Quote Requests and Opportunities no longer reads them one at a time.
+
+  - **`@endora-commerce/contracts`** adds two batched reads to `QuoteRequestReadPort`: `findByIds(ids)`, which answers what `findById` answers for each id in one read (a missing, out-of-scope or malformed id is absent), and `amountsOf(quoteRequestIds)`, a `Map` keyed by quote id holding what `amountOf` answers for each (a quote `amountOf` answers `null` for has no entry). Every implementation of the port must provide both; consumers are unaffected.
+  - **`@endora-commerce/mod-quote-requests`** implements both under the caller's tenant scope: `findByIds` in one statement, `amountsOf` in two (the quotes, then their lines), whatever the number of ids.
+  - **`@endora-commerce/mod-projects`** reads a Project's linked Quote Requests through `findByIds` and `amountsOf`, and its linked Opportunities through `OpportunityReadPort.findByIds`, one batch per kind. `GET /api/v1/admin/projects/:id/links` now costs the same number of statements for one linked record of each kind as for many; what it shows is unchanged.
+
+- 20cda0c: Issue #461 — the Projects `@` list (`GET /api/v1/admin/projects/lookups/mentionable`) judges who may see the Project for every candidate administrator at once, instead of several reads per person.
+
+  - **`@endora-commerce/contracts`** adds `PermissionReadPort.resolveRoles(adminUserIds)` — a `Map` holding, for every id asked, what `resolveRole` answers — and `AdminTenantScopePort.resolveForAdmins(adminUserIds)` — a `Map` holding, for every id asked, the scope `resolveForAdmin` answers. Every implementation of these ports must provide the new method; consumers are unaffected.
+  - **`@endora-commerce/mod-admin-roles`** implements `resolveRoles` in two statements whatever the number of ids, and adds `holdersOf(adminUserIds, permission)` beside `hasPermission` on the `permissionService` container entry: the ids `hasPermission` answers yes for, refusing with `ADMIN_ROLE_REQUIRED` as `hasPermission` does when an active administrator asked holds no role.
+  - **`@endora-commerce/mod-organizations`** implements `resolveForAdmins` with the same rule as `resolveForAdmin` — one batched role read, and the roll-up question asked once for the sales representatives only. A failure of that question leaves every representative asked unresolved, holding no organization, as one call at a time would. `SalesRepAssignmentService` gains `hasRollupCapabilities(adminUserIds)`.
+  - **`@endora-commerce/mod-projects`** adds `ProjectAccess.canSeeAsMany(adminUserIds, projectId)`: the accounts, their roles and their reach each read once, and both visibility rules evaluated for everybody in one statement. `canSeeAs` is now that check for one person. The mentionable lookup asks it once; the people it offers, their order and the limit of 20 are unchanged.
+
+- 48b2505: Analytics figures name the time zone their days were counted in (issues #474, #475). Additive:
+  a reply without the field parses as before.
+
+  - `projectAnalyticsEnvelope` gains an optional `timeZone` (an IANA name, such as `Europe/Warsaw`
+    or `UTC`) beside `from`, `to`, `projectCount` and `excluded`, so every
+    `ProjectAnalytics*ResponseSchema` accepts it.
+  - New `opportunityAnalyticsEnvelope(data)` — `{ data, timeZone? }`. The five CRM analytics
+    response schemas (`OpportunityHandlingTimeResponseSchema`,
+    `OpportunityTimeInStatusResponseSchema`, `OpportunityRepEffectivenessResponseSchema`,
+    `TopOpportunitiesResponseSchema`, `OpportunityAverageValueResponseSchema`) are built with it;
+    `data` is unchanged.
+
+- c24bd3c: Issue #501 — bulk operations and language tags in the catalog admin.
+
+  - **Undo refusals have their own codes.** `POST /api/v1/admin/catalog/bulk-operations/:id/undo` used to refuse every case with `409 VERSION_CONFLICT`. It now answers `409 BULK_OPERATION_RUNNING` while the operation is pending or running, `409 BULK_OPERATION_ALREADY_REVERTED` once it has been undone, and `409 BULK_OPERATION_NOT_REVERSIBLE` when there is nothing it can restore. All three are added to `ERROR_CODES` in `@endora-commerce/contracts` (additive), declared by `catalog` and translated (en, pl). A client that matched `VERSION_CONFLICT` on this route should match the new codes. The admin still hides Undo until an operation completes.
+  - **"Unchanged" on the bulk operation detail page.** A product already in the requested state stays `succeeded` with empty `changedFields`, so the API contract is unchanged. The detail page now shows it as _Unchanged_ / _Bez zmian_, using the same rule as the bulk edit dialog's summary. The succeeded count is untouched.
+  - **Language tags in canonical case.** The scope map, the bulk status dialog's language list and the scope and URL-key messages show a language tag as stored (`de-DE`) instead of upper-cased (`DE-DE`). The scope map's language column headers opt out of the table header's upper-case style.
+
+- 6b664cd: **Behaviour change for HTTP consumers** (issue #542): `GET /assets/file/<asset id>` now answers a request for a **private** asset that carries no signature, or an expired or invalid one, with `404 ASSET_NOT_FOUND` — the same status, code, body and headers as an id that names nothing. It answered `403 ASSET_ACCESS_DENIED`, which let anyone holding an id confirm that a private asset exists. The permalink form already answered `404`. A soft-deleted private asset answers `404` without a valid signature and `410 ASSET_GONE` with one, as before.
+
+  A client that branched on `403` / `ASSET_ACCESS_DENIED` from the file route to mean "exists but needs a signed link" must treat `404` as "missing or not visible without a signature" and obtain a signed URL (`GET /api/v1/admin/assets/:id/url`, or the URL `AssetsLibraryPort` hands out) as before.
+
+  **Removed export:** nothing raises `ASSET_ACCESS_DENIED` any more, so `ERROR_CODES.ASSET_ACCESS_DENIED` is removed from `@endora-commerce/contracts`, together with the module's manifest declaration and its `errors.ASSET_ACCESS_DENIED` translations. Code that compared an error's `code` against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles; drop the comparison, or compare against `ERROR_CODES.ASSET_NOT_FOUND` if the intent was "the file route refused this id".
+
+- 91272e6: Admin user replies are described by their contract (issue #599, section 6):
+
+  - `adminUserSchema` in `@endora-commerce/contracts` now declares `preferredLanguage` (`string | null`, optional). `GET /api/v1/admin/me`, the admin-user list and detail, and the sign-in reply have answered it since feature 019, and the contract did not declare it. The field is optional, so a client that does not read it is unaffected.
+  - `@endora-commerce/contracts` publishes `adminLoginResponseSchema` / `AdminLoginResponse` for `POST /api/v1/auth/admin/login`: a `data` union on `status`, where `authenticated` carries `adminUser`, `mfaRequired` carries `challengeId` and `mfaSetupRequired` carries `setupTicket`.
+  - `mod-admin-users` builds every admin-user reply as the contract's `AdminUser` instead of `Record<string, unknown>`, and the sign-in handler returns `AdminLoginResponse`. Nothing on the wire changes.
+
+- eb4dbc6: API key replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `apiKeyListResponseSchema` / `ApiKeyListResponse` for `GET /api/v1/admin/api-keys`, a `data` array of `apiKeySchema` rows. The rows were already described, but the list envelope was not.
+  - `mod-api-keys` builds every key reply as the contract's `ApiKey` instead of `Record<string, unknown>`. The list handler returns `ApiKeyListResponse` and the create handler returns `{ data: CreateApiKeyResponse }`. The admin API keys page uses the contract's `ApiKeyListResponse` instead of a hand-written interface. Nothing on the wire changes.
+
+- e2669cd: Attribute-option admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `attributeOptionListResponseSchema` / `AttributeOptionListResponse` for `GET /api/v1/admin/catalog/attributes/:attributeId/options`, `{ data: { items: AttributeOption[] } }`. The rows (`attributeOptionSchema`) were already described, but the list envelope was not.
+  - `mod-catalog` builds every option reply as the contract's `AttributeOption` instead of `Record<string, unknown>`. The list handler returns `AttributeOptionListResponse`, and the create and patch handlers return `{ data: AttributeOption }`. Nothing on the wire changes.
+
+- aec841a: Response contracts for replies #128's survey did not reach (issue #599, sections 3–5):
+
+  - `@endora-commerce/contracts` publishes `adminCustomerListResponseSchema` / `AdminCustomerListResponse` for `GET /api/v1/admin/customers`. The rows were already described; the `meta: { page, pageSize, total }` envelope was not.
+  - `GET /api/v1/cart/upsells` now answers `unitPrice: null` on every row, as `upsellProductSchema` declares. The key used to be absent. The strip resolves no price, and the storefront shows its "no price" label either way. `CartUpsellCandidate` in `@endora-commerce/mod-carts` is now the contract's `UpsellProduct`.
+  - `mod-orders` builds order comments as the contract's `OrderComment`, so a key the contract does not declare is a compile error. The customer reply still leaves out `authorAdminUserId` and `systemNote`. The admin customer list route now returns the contract's `AdminCustomerListResponse` type.
+
+- da2b459: Credit limit replies are described by their contract (issue #599, section 6):
+
+  - `creditLimitViewSchema` in `@endora-commerce/contracts` now declares `organizationName` (`string | null`, optional). Every credit-limit reply has answered it (the admin roster, the organization detail, the grant and the adjustment, and `null` on the customer's `GET /api/v1/me/credit-limit`), and the contract did not declare it. The field is optional, so a client that does not read it is unaffected.
+  - `@endora-commerce/contracts` publishes `creditLimitListResponseSchema` / `CreditLimitListResponse` for `GET /api/v1/admin/credit-limits`, a `data` array of `creditLimitViewSchema` rows.
+  - `mod-credit-limits` builds every credit-limit reply as the contract's `CreditLimitView` instead of `Record<string, unknown>`, and each handler declares its reply type. The admin Credit Limits page uses the contract's `CreditLimitView` instead of a hand-written interface. Nothing on the wire changes.
+
+- 77904b3: Currency admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `currencyListResponseSchema` / `CurrencyListResponse` for `GET /api/v1/admin/currencies`, a `data` array of `currencySchema` rows. The rows were already described, but the list envelope was not.
+  - `mod-currencies` builds every currency reply as the contract's `Currency` instead of `Record<string, unknown>`. The list handler returns `CurrencyListResponse`, and the upsert and set-default handlers return `{ data: Currency }`. Nothing on the wire changes.
+
+- 4ab926c: Custom-field definition replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `customFieldDefinitionListResponseSchema` / `CustomFieldDefinitionListResponse` for `GET /api/v1/admin/custom-fields/definitions` and `customFieldEntityTypeListResponseSchema` / `CustomFieldEntityTypeListResponse` for `GET /api/v1/admin/custom-fields/entity-types`, each a `data` array of the rows that were already described. The list envelopes were not.
+  - `mod-custom-fields` builds every definition reply as the contract's `CustomFieldDefinitionDto` instead of `Record<string, unknown>`, and the list, detail, create, update and entity-types handlers declare their reply types. Nothing on the wire changes.
+
+- a3b1da5: Customer-group admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `customerGroupListResponseSchema` / `CustomerGroupListResponse` for `GET /api/v1/admin/customer-groups`, a `data` array of `customerGroupSchema` rows. The rows were already described, but the list envelope was not.
+  - `mod-customer-accounts` builds every customer-group reply as the contract's `CustomerGroup` instead of `Record<string, unknown>`. The list handler returns `CustomerGroupListResponse` and the upsert handler returns `{ data: CustomerGroup }`. The admin customer-groups client's `AdminCustomerGroup` is now an alias of the contract's `CustomerGroup` instead of a hand-written interface of the same shape. Nothing on the wire changes.
+
+- 28fc1c7: Dictionary admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `dictionaryTranslationListResponseSchema` / `DictionaryTranslationListResponse` for `GET /api/v1/admin/dictionary/translations/:entryType/:entryCode`, and `dictionaryOrphanRowSchema` / `DictionaryOrphanRow` with `dictionaryOrphanReportResponseSchema` / `DictionaryOrphanReportResponse` for `GET /api/v1/admin/dictionary/audit/orphans`. No schema described either reply before.
+  - `mod-dictionaries` builds every country, currency, language, language-country and translation reply as the contract's type (`Country`, `DictionaryCurrency`, `DictionaryLanguage`, `LanguageCountry`, `DictionaryTranslation`) instead of `Record<string, unknown>`, and each handler declares its reply type. The admin dictionary client and the orphan audit page use the contract types instead of hand-written interfaces. Nothing on the wire changes.
+
+- 2b12d58: `@endora-commerce/contracts` now publishes the invoice **list** replies (issue #599): `adminInvoiceListItemSchema` / `adminInvoiceListResponseSchema` for `GET /api/v1/admin/invoices`, `orderInvoiceListItemSchema` / `orderInvoiceListResponseSchema` for `GET /api/v1/orders/:id/invoices`, and `erpSaleDocumentListResponseSchema` for `GET /api/v1/account/organization/invoices` (rows: the existing `erpSaleDocumentListItemSchema`), each with its inferred type. The routes are typed with them.
+
+  Two drifts the new schemas surfaced are fixed in `@endora-commerce/mod-invoices`: an ERP-imported sale document without an order now answers `orderId: null` in the admin list (the key was absent), and `pagination.limit` is the page size asked for, an empty page included (it was the number of rows answered, `0` for an empty page, which `paginationSchema` refuses). The admin invoice list renders a dash for a document without an order instead of failing on it.
+
+- 9110863: Language and i18n-config replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `languageListResponseSchema` / `LanguageListResponse` for `GET /api/v1/admin/languages`, a `data` array of `languageSchema` rows. The rows were already described, but the list envelope was not.
+  - `mod-languages` builds its language rows as the contract's `Language` and its currency rows as the contract's `Currency`, instead of `Record<string, unknown>`. `GET /api/v1/i18n/config` returns `{ data: I18nConfigResponse }`, the admin list returns `LanguageListResponse`, and the upsert and set-default handlers return `{ data: Language }`. Nothing on the wire changes.
+
+- 2905024: Organization admin, member, invitation and registration replies are described by their contract (issue #599, section 1):
+
+  - `adminOrganizationSchema` in `@endora-commerce/contracts` now declares the keys every admin organization reply has answered: `legalName`, `orderConfirmationEmails`, `version`, `blockedReason`, `blockedAt`, `rejectedReason`, `rejectedAt`, `approvedAt`, `approvedByAdminUserId`, `vatValidation` (`outcome`, `provider`, `validatedAt`) and `customFieldValues`. This applies to the list, the detail and the answer of each write. The Admin UI's organization page reads these keys. They are optional, so a client that does not read them is unaffected.
+  - `@endora-commerce/contracts` publishes schemas for replies that had none: `adminOrganizationListResponseSchema` for `GET /api/v1/admin/organizations`; `adminOrganizationDetailSchema` for `GET /api/v1/admin/organizations/:id` (the Organization, its `members` and its `predefinedRoles`); `adminOrganizationMemberSchema` for the detail's member rows and the admin member writes; `organizationMemberSchema` and `organizationMemberListResponseSchema` for `GET /api/v1/organizations/mine/members` and the member role change; `organizationInvitationSchema` and `organizationInvitationListResponseSchema` for `GET /api/v1/organizations/mine/invitations`; `inviteMemberResponseSchema` for `POST /api/v1/organizations/mine/invitations`; and `acceptInvitationResponseSchema` for `POST /api/v1/organizations/invitations/:token/accept`. Each has its inferred type.
+  - `mod-organizations` builds these replies, and the registration reply, as the contract's types instead of `Record<string, unknown>` or an undeclared shape. The handlers declare their reply types. The Admin UI's organization page uses `AdminOrganizationDetail` and `AdminOrganizationMember` instead of hand-written interfaces. Nothing on the wire changes.
+
+- ae1cedf: Feed template and run-issue replies are described by their contract (issue #599, section 6):
+
+  - `feedTemplateSchema` declares `fieldCount` (optional). Every template reply has answered it: the list, the detail, create, update, duplicate and import. The admin template list, the start-from page and the create-feed page read it, and the contract did not declare it.
+  - `feedTemplateListResponseSchema` makes `pagination` optional. `GET /api/v1/admin/feed-templates` answers the whole list as `{ data }` and has never sent `pagination`, which the schema required.
+  - New `feedTemplateSaveWarningSchema` / `FeedTemplateSaveWarning` and `feedTemplateUpdateResponseSchema` / `FeedTemplateUpdateResponse` describe `PUT /api/v1/admin/feed-templates/:id`, which answers `warnings` beside `data`. New inferred types `FeedTemplateResponse`, `FeedTemplateListResponse`, `ImportFeedTemplateResponse` and `FeedRunIssueListResponse` cover the existing schemas.
+  - `mod-product-feeds` builds template, template-field and run-issue replies as the contract's `FeedTemplate`, `FeedTemplateField` and `FeedRunIssue` instead of `Record<string, unknown>`. The template and run-issue routes declare their reply types. The admin API module's `FeedTemplateFieldDto` and `TemplateSaveWarning` are now aliases of the contract types instead of hand-written copies. Nothing on the wire changes.
+
+- 6f0debc: Promotion admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes four envelopes whose rows were already described: `promotionListResponseSchema` / `PromotionListResponse` for `GET /api/v1/admin/promotions`, `promotionRuleListResponseSchema` / `PromotionRuleListResponse` for `GET /api/v1/admin/promotion-rules`, `promotionRuleDetailResponseSchema` / `PromotionRuleDetailResponse` for `GET /api/v1/admin/promotion-rules/:id` (the rule plus `usedBy`, the promotions referencing it), and `promotionCouponListResponseSchema` / `PromotionCouponListResponse` for `GET /api/v1/admin/promotions/:id/coupons`.
+  - `mod-promotions` builds its promotion, rule and coupon replies as the contract's `Promotion`, `PromotionRuleRecord` and `PromotionCouponDto` instead of `Record<string, unknown>`, and the handlers declare those reply types. The admin client's `Coupon` is now an alias of `PromotionCouponDto` instead of a hand-written interface of the same shape. Nothing on the wire changes.
+
+- d6e7a55: Settings admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `SettingGroupSummaryDtoSchema` / `SettingGroupSummaryDto` for the replies to `POST /api/v1/admin/settings/groups` and `PATCH /api/v1/admin/settings/groups/:code`, and `SettingGroupRowDtoSchema` / `SettingGroupRowDto` with `SettingGroupRowsResponseSchema` / `SettingGroupRowsResponse` for `GET /api/v1/admin/settings/groups`. No schema described these replies before. It also exports the `SettingsListResponse` and `SettingDetailResponse` types of the two schemas that were already published.
+  - `mod-settings` builds every setting and group reply as the contract's `SettingDto` / `SettingGroupDto` instead of `Record<string, unknown>`, and each handler declares its reply type. The admin `settingsClient` and the groups page use the contract types instead of hand-written interfaces, and `settingsClient.createGroup` / `updateGroup` now declare the summary they have always received. Nothing on the wire changes.
+
+- 62d3e2d: Shopping-list replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `shoppingListListResponseSchema` / `ShoppingListListResponse` for `GET /api/v1/shopping-lists`, a `data` array of `shoppingListSchema` rows. The rows were already described, but the list envelope was not.
+  - `mod-shopping-lists` builds every list reply as the contract's `ShoppingList` instead of `Record<string, unknown>`. The handlers declare `ShoppingListListResponse`, `{ data: ShoppingList }`, `{ data: DefaultShoppingListSummary }` and `{ data: ConvertToCartResponse }`. The storefront's shopping-list API module re-exports the contract types instead of hand-written copies. Nothing on the wire changes.
+
+- 0b2f558: Tax admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `taxListResponseSchema` / `TaxListResponse` for `GET /api/v1/admin/taxes`, a `data` array of `taxSchema` rows. The rows were already described, but the list envelope was not.
+  - `mod-taxes` builds every tax rule reply as the contract's `Tax` instead of `Record<string, unknown>`. The list handler returns `TaxListResponse`, the upsert handler returns `{ data: Tax }`, and the preview handler returns `{ data: ResolvedTax }`. Nothing on the wire changes.
+
+- dc9bbea: Webhook admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `webhookListResponseSchema` / `WebhookListResponse` for `GET /api/v1/admin/webhooks`, `createWebhookResponseSchema` / `CreateWebhookResponse` for `POST /api/v1/admin/webhooks` (the subscription plus its signing secret, answered this once), `webhookDeliveryListResponseSchema` / `WebhookDeliveryListResponse` for `GET /api/v1/admin/webhooks/deliveries`, and `webhookEventTypeListResponseSchema` / `WebhookEventTypeListResponse` for `GET /api/v1/admin/webhooks/event-types`. The rows were already described, but these envelopes were not.
+  - `mod-webhooks` builds every subscription and delivery reply as the contract's `Webhook` / `WebhookDelivery` instead of `Record<string, unknown>`, and each handler declares its reply type. The admin Webhooks page uses the contract types instead of hand-written interfaces. Nothing on the wire changes.
+
+- d0c5dc8: Customer accounts now carry the language their owner reads (issue #652). Additive.
+
+  - `CustomerAccountRecord.preferredLanguage: string | null` — one language tag, spelled as the sales channel that captured it spells it (`pl-PL`, `en-US`); `null` while unknown. Resolve it against the channel a message is rendered for with `scopeLanguageOf(renderChannel, record.preferredLanguage)`: the exact language, else one of the same base language, else that channel's default. A code that builds a `CustomerAccountRecord` by hand (a test fake, an adapter) must now set the field.
+  - `CustomerAccountCreateInput.preferredLanguage?` and `CustomerAccountStandaloneCreateInput.preferredLanguage?` — the language a new account records; absent or `null` stores none. `CustomerLoginInput.language?` — the sign-in request's language, stored only on an account that has none yet.
+  - New port contract `CustomerAccountPreferencePort` (container name `customerAccountPreferencePort`, owner `customer_accounts`): `setPreferredLanguage(customerAccountId, tag)` stores the account holder's choice and returns the record; `captureIfUnset(customerAccountId, tag)` writes only while the account has no language. `CustomerPreferredLanguageSource` names the two sources (`'self_service' | 'sign_in'`).
+  - `customerSelfProfileSchema` and `adminCustomerDetailSchema` gain a required, nullable `preferredLanguage`; `customerAccountSchema` gains an optional, nullable one (answered by `GET /api/v1/me`).
+  - New request and response schemas `patchCustomerPreferredLanguageBodySchema` (`{ preferredLanguage }`: a trimmed language tag of at most `CUSTOMER_PREFERRED_LANGUAGE_MAX_LENGTH` = 35 characters, not nullable) and `patchCustomerPreferredLanguageResponseSchema`, for `PATCH /api/v1/me/customer/preferred-language`.
+  - New error code `ERROR_CODES.PREFERRED_LANGUAGE_NOT_OFFERED` (422), owned by `customers`.
+
+- 61a6edf: A credit-limit reservation now carries its order's customer-facing number (issue #661).
+  `creditLimitViewSchema`'s `activeReservations[]` items gain an optional, nullable
+  `orderBusinessId: string | null`, the order's `businessId`. The customer's
+  `GET /api/v1/me/credit-limit` answers it for every listed reservation, from the one batched
+  `orderReadPort.findByIds` read the route now always makes (before, a holder of
+  `orders.view_organization` cost no order read); it is `null` for an order the read did not return.
+  The admin credit-limit views do not send it. The field is additive: a reader that ignores it, and a
+  view without it, are unaffected.
+- dd869ee: New port `EmailDeliveryAnonymizationPort` (container name `emailDeliveryAnonymizationPort`, owner `email`) with one method, `anonymizeForRecipient(recipient): Promise<number>`, and the constant `ANONYMIZED_EMAIL_RECIPIENT`: the customer-account anonymisation sweep's step that scrubs the delivery records of the e-mails sent to the account's address, answering how many records it changed (issue #928). Additive; nothing existing changes.
+- ff6b599: Issue #935 — an account's last second factor can no longer be switched off while a two-step requirement is in force for it.
+
+  - `POST /api/v1/admin/account/mfa/disable` and `POST /api/v1/account/mfa/disable` answer `409 MFA_LAST_FACTOR_REQUIRED` when the factor is the account's last one and a requirement applies: `mfa.admin.totp_enforced` or a role's `requiresTwoFactor` for an administrator, `mfa.storefront.totp_enforced` at the request's sales channel or the organization's policy for a customer. The requirement is read through `MfaPolicyResolver`, the reader the sign-in decision uses, so every source counts as it does at sign-in and none is stricter. The refusal comes before the code or password is checked, so it spends neither. Without `MFA_SECRET_ENCRYPTION_KEY` no requirement is in force (#930, #947, #948) and nothing is refused.
+  - `@endora-commerce/contracts` exports `ERROR_CODES.MFA_LAST_FACTOR_REQUIRED`, and `mfaStatusResponseSchema` gains `canDisable: boolean` and `disableBlockedReason` (`mfaDisableBlockedReasonSchema`, `'factor_required'` or `null`), the verdict the disable route enforces.
+  - `mfa` declares the code in its manifest and ships its sentence in EN and PL (`errors.MFA_LAST_FACTOR_REQUIRED`). The admin **Account security** screen hides the switch-off form while it is refused and says why (`security.disableBlocked.title`, `security.disableBlocked.body`); so does the storefront's account security page.
+  - `MfaEnrolmentService.countActiveFactors(subject)` answers how many active second factors the subject holds.
+
+  **Behaviour change on upgrade.** Switching one's own two-step verification off is refused where it used to succeed: for an administrator or a customer bound by one of the requirements above. An administrator's reset of somebody else's factor is unchanged. See _The last second factor stays while two-step verification is required_ in the upgrade guide.
+
+- ac65359: Issue #947 — the customer two-step requirements, `mfa.storefront.totp_enforced` and an organization's policy, follow #930's rules on an instance with no `MFA_SECRET_ENCRYPTION_KEY`, where no second factor can be enrolled.
+
+  - Turning `mfa.storefront.totp_enforced` on there, for every sales channel or for some, is refused with `409 MFA_ENFORCEMENT_UNAVAILABLE` (`details.reason: 'encryption_key_missing'`, `details.code: 'customer_encryption_key_missing'`), through `settings`' write-validator registry. A write of `true` is accepted only where the value was already `true` at every scope it targets; turning it off is always accepted.
+  - An organization's policy refuses the same off → on write in `MfaOrgPolicyService`, so `PUT /api/v1/account/organization/mfa-policy` and `POST /api/v1/admin/organizations/:organizationId/mfa-policy` refuse alike. Lifting a policy, and writing `true` over `true`, are accepted. Both routes are now registered without the key too; before, they answered 404 there, so a policy set while the key was configured could not be lifted.
+  - `MfaPolicyResolver` applies its `canEnrolSecondFactor` argument to customers as well: without the key neither the storefront setting nor an organization's policy is applied. Sign-in already asked no second factor of anybody there (#948).
+  - While the setting is on platform-wide or for any sales channel and the key is missing, its settings read carries `notice: { code: 'encryption_key_missing', … }`, shown as "Not in force: no encryption key" / "Nie obowiązuje: brak klucza szyfrowania". Every boot logs, at error level, the setting (with the sales channels it is on for) and the number of organizations whose policy requires a second factor.
+  - `@endora-commerce/contracts` exports `CUSTOMER_ENCRYPTION_KEY_MISSING` (`'customer_encryption_key_missing'`), the sentence token for customer-side refusals, beside `ENCRYPTION_KEY_MISSING`.
+  - New sentences in EN and PL: `errors.MFA_ENFORCEMENT_UNAVAILABLE.customer_encryption_key_missing` and `settingLabels.mfa.storefront.totp_enforced.notice.encryption_key_missing`.
+
+  **Behaviour change on upgrade.** On an instance without the key, turning the storefront setting or an organization's policy on is now refused, and both organization-policy routes exist where they used to answer 404. Customers already signed in on the password there (#948), so nobody's sign-in changes. Instances that have the key are unaffected. See _Customer two-step verification requirements without an encryption key_ in the upgrade guide.
+
+- 49b43de: **Breaking (0.x, so `minor`):** a sales representative's reach is no longer computed on every admin request (issue #955, owner ruling of 2026-11-10). `@endora-commerce/platform/tenancy` removes `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` — use `await orgInScope(id, ctx?)` and `await ruleInScope(ids, ctx?)`, or `const inScope = await orgScopeTest(ctx?)` for a synchronous predicate over rows you already hold — and `assignedOrganizationIdsForRanking(ctx?)` now returns a promise. They were removed rather than retyped because `if (!isOrgInScope(x))` over a promise is always false.
+
+  `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) replaces `excludedOrganizationIds` / `assignedOrganizationIds` with `loadReach(): Promise<{ excludedOrganizationIds, assignedOrganizationIds }>`, beside `excludedOrganizationsQuery`; the platform memoises it once per tenant context, and a failure rejects every helper that awaits it. `OrgConstraint`'s `excluded` arm and `AdminScopeInput` follow. `PreferenceActor`'s `salesperson.reaches(id)` returns `Promise<boolean>`, and `canManagePreference` (`quick_order`) is async. `adminTenantScopePort` (`organizations`) answers without calling `reachOf`. The listed modules move their call sites to the async helpers.
+
+- 5f8eede: The `excluded-set` tenant filter no longer ships the excluded organizations into each statement (issue #955, architect ruling of 2026-11-09). `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) gains a required `excludedOrganizationsQuery: { sql, params }` — the owner's uncorrelated `SELECT` of one uuid column — and `AdminScopeInput`, `TenantContext` and `OrgConstraint`'s `excluded` arm (`@endora-commerce/platform/tenancy`) carry it. An `excluding` scope or an `excluded` constraint without it is refused (`resolveTenantContext`, `orgConstraintFor`, `orgConstraintForAdminScope` throw), never read as "nothing excluded".
+
+  Both global filters and `orgScopeWhere(field)` render it as `{ [field]: { $ne: null, $nin: <query builder> } }` — `field is not null and field not in (<S>)` (was `{ [field]: { $ne: null, $nin: [...ids] } }`); `orgScopeSql(column)` renders `(column is not null and column not in (<S>))` with S's parameters (was `column <> all(?::uuid[])` with one array literal). Code that passes these fragments to the entity manager or into SQL needs no change; a test that builds an `excluded` constraint by hand must add the query.
+
+- 44529a4: New port contract `OrganizationCustomFieldWritePort` (container name `organizationCustomFieldWritePort`, owner `organizations`): the server-side write of an Organization's custom-field values, for a subscriber, an overlay module or an integration worker. Additive.
+
+  - `setCustomFieldValues(organizationId, merge): Promise<OrganizationRecord>`, where `merge: (current: Record<string, unknown>) => Promise<Record<string, unknown>>`. It has the same semantics as `CustomerAccountLifecycleWritePort.setCustomFieldValues`.
+  - The owner runs the caller's `merge` between its load and its write, as one Command with one audit row. It does **not** validate: call `CustomFieldValuePort.validateAndMerge` inside `merge`. A throwing `merge` writes nothing and its error propagates unchanged. An unknown or deleted Organization throws `404 NOT_FOUND` before `merge` runs.
+  - The actor is the ambient tenant context's. A subscriber on `organization.registered.v1` records none (the system). The write runs after registration commits, not inside it.
+
+- af88938: Issue #992: a CMS hook (`GET /api/v1/cms/hooks/by-code`) and a block fetched by its code (`GET /api/v1/cms/blocks/by-code`) now answer `assets`, the details of the library assets their trees embed, as a page (`/cms/pages/by-slug`) always has. Without it the storefront rendered every library image of a hook or a standalone block — the header and footer hooks of the root layout, a footer logo — at a bare `/assets/file/<id>`, which is `public, no-cache` and so revalidated on every visit, where the same image in a page's content is served `immutable` at its `?v=` URL.
+
+  The map is resolved the way a page's is since #685: one batched read for every block of the hook, never a read per block or per image, and only when the answer is not already cached. `@endora-commerce/contracts` adds `assets` to `cmsResolvedHookSchema` and a new `cmsResolvedBlockByCodeSchema` (`CmsResolvedBlockByCode`), `cmsResolvedBlockSchema` extended with it; both are optional, so an answer cached before this release still parses and reads as no assets. `cmsResolvedBlockSchema` itself, which a page's `embeds.blocks` also uses, is unchanged.
+
+- 42a9a4b: A new tenant mode, `excluded-set`: every organization **except** a named set, for a sales representative's reach (issue #305). `AdminTenantScope` (`@endora-commerce/contracts`) gains the member `{ allowAll: false, reach: 'excluding', excludedOrganizationIds, assignedOrganizationIds }`; `resolveTenantContext` maps it to the new mode, whose filter is `organizationId IS NOT NULL AND organizationId NOT IN (excluded)` on the row's own column, for `@OrgScoped` and for `@CustomerScoped` entities that carry the column (those that do not are refused, as under `allowed-set`). A customer or a bound API key is refused an `excluded-set` context.
+
+  **Breaking: `OrgConstraint`'s `'set'` arm is removed.** It is `{ kind: 'allowed', organizationIds }` now (was `{ kind: 'set', organizationIds }`), beside the new `{ kind: 'excluded', excludedOrganizationIds, assignedOrganizationIds }`. A `constraint.kind === 'set'` comparison no longer compiles, deliberately: read the constraint through the helpers instead of its ids. `orgScopeWhere`, `isOrgInScope` and `ruleVisibleForScope` handle every arm and now also accept an `OrgConstraint` in place of a context; new on `@endora-commerce/platform/tenancy` are `orgScopeWhere` (now exported), `orgScopeSql(columnSql)` (one array parameter, for raw SQL), `reachesNoOrganization`, `assignedOrganizationIdsForRanking` and `orgConstraintForAdminScope(scope)`.
+
+  `PreferenceActor` (`@endora-commerce/contracts`): the `salesperson` member is `{ kind: 'salesperson', reaches(organizationId) }` (was `{ kind: 'salesperson', assignedOrganizationIds }`).
+
+- 8ae3f58: **Behaviour change: a line quantity has an upper bound, refused with a new error code, `LINE_QUANTITY_EXCEEDED`; and the quote request and return line arrays have a line-count bound** (issue #351). A quantity past the integer column it is stored in used to pass validation and answer `500`; it is now refused, in the reader's language.
+
+  New in `@endora-commerce/contracts`: `LINE_QUANTITY_MAX` (`1 000 000`, the same value as `ORDER_MINIMUM_MAX`, so the largest minimum stays orderable), `lineQuantitySchema` (a whole number in 1…`LINE_QUANTITY_MAX`), `boundedLineQuantity(schema)`, `isLineQuantityExceededIssue(issue)`, `LINE_QUANTITY_EXCEEDED` (also in `ERROR_CODES`) and `REQUEST_LINE_ITEMS_MAX` (`200`). `ADMIN_ORDER_MAX_ITEMS` and `QUICK_ORDER_BUILD_MAX_ITEMS` are now that constant under their own names; their value does not change.
+
+  **The new code.** Every request schema carrying a line quantity uses `lineQuantitySchema`: `addCartItemRequestSchema`, `updateCartItemRequestStrictSchema`, `createQuoteRequestSchema` / `patchQuoteRequestSchema` lines, `adminCreateQuoteRequestSchema` / `adminPatchQuoteRequestSchema` lines, `adminCreateOrderRequestSchema` / `adminOrderPreviewRequestSchema` items, `apiPlaceOrderRequestSchema` lines, `quickOrderBuildRequestSchema` items, `quickOrderOneClickRequestSchema`, `addShoppingListItemRequestSchema`, `updateShoppingListItemRequestSchema`, `createReturnCaseRequestSchema` lines, `catalogBulkPriceRequestSchema` lines, `cartSnapshotSchema` lines, and the packaging unit's `baseQuantity` in `createPackagingUnitRequestSchema` / `updatePackagingUnitRequestSchema`. A quantity past the bound is a Zod issue tagged `LINE_QUANTITY_EXCEEDED`. The error envelope in `@endora-commerce/platform` answers a request whose only failures are that issue with `400 LINE_QUANTITY_EXCEEDED` and a translated sentence (`@endora-commerce/mod-i18n` ships it in English and Polish), with `details` naming the field. A request that fails anything else as well stays `400 VALIDATION_FAILED`, with the issue among its details. `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices` parse their bodies themselves and keep answering `422 VALIDATION_FAILED`; the detail's `issue` there is `LINE_QUANTITY_EXCEEDED`.
+
+  `@endora-commerce/mod-carts`: two cases are refused with `422 LINE_QUANTITY_EXCEEDED`, `details: { quantity, maximum }`, and write nothing: an add onto an existing basket line whose sum would pass the bound, and a packaging-unit add whose pieces (`baseQuantity × units`) would pass it. This covers the single and batch add, reorder and shopping list to cart. Signing in sums the anonymous basket into the customer's and keeps a summed line at the bound instead of failing the sign-in. `updateCartItemRequestSchema` (the line edit) now accepts any quantity from `0` (remove) to the bound; it stopped at `999`.
+
+  **Line counts.** The line arrays of `adminCreateQuoteRequestSchema`, `adminPatchQuoteRequestSchema` and `createReturnCaseRequestSchema` are bounded at `REQUEST_LINE_ITEMS_MAX`, as the customer's quote request create and edit already were: one line more is `400 VALIDATION_FAILED`. The value is shared but the refusal is not. The order intakes (admin create and preview, `POST /api/v1/external/orders`) and the quick-order build keep refusing more than 200 items with `422 VALIDATION_FAILED`, `details: { code: 'too_many_items', maximum: 200 }`, and the basket's own cap stays `422 CART_LINE_CAP_EXCEEDED`.
+
+  `@endora-commerce/admin-kit`: `parsePositiveInt` returns `null` past `LINE_QUANTITY_MAX`, so the admin order and quote request create screens mark such a line invalid before sending it. `@endora-commerce/mod-quick-order`: an imported row past the bound, and every row of a duplicate whose sum passes it, is rejected as `quantity_invalid` instead of being recognised into a build that would be refused. `@endora-commerce/mod-quote-requests`: the Modify tab's quantity input carries the bound as its `max`.
+
+- 65cdd0e: **Behaviour change for API clients: the catalogue now reads `Accept-Language` as a q-weighted list matched against the sales channel's languages** (issue #397). The public catalogue (`/api/v1/catalog/*`) and the external catalogue (`/api/v1/external/catalog/*`) used to take the header's first entry verbatim, `;q=` parameter included. They now take the tags in descending `q`, match each against the channel's languages (exactly, then by base language, so `pl` reaches a `pl-PL` channel language), use the first tag the channel serves, and fall back to the channel's default language when it serves none. So `Accept-Language: en;q=0.1, pl-PL;q=0.9` is answered in Polish (it was English), `pl` on a `pl-PL` channel hits the `pl-PL` values and overrides directly, and a language the channel does not offer (one that is still stored on a category name, an attribute label or an asset alt text, for example) is no longer served: the response uses the channel default. A client that wants a language must ask for one the channel offers. A request with no `Accept-Language` header behaves as before.
+
+  New in `@endora-commerce/contracts`: `parseAcceptLanguage(header)`, which returns the header's tags heaviest `q` first, bounded to 512 characters and 10 tags. It moved here from the platform's internal `kernel/i18n/request-language.ts`, which now imports it. Also new: `requestScopeLanguage(channel, header)`, the header form of `scopeLanguageOf`. Prefer it to `scopeLanguageOf(channel, firstLanguageTag(header))`.
+
+### Patch Changes
+
+- ee0698d: `weightedAcceptLanguage(header)` is the shared `Accept-Language` parse with its weights kept (issue #1011). It returns `{ tag, q }` entries in the order and under the bounds `parseAcceptLanguage` uses (512 characters, ten tags after weighting, a malformed `q` drops its tag), and `parseAcceptLanguage` is now defined on top of it. It is for a reader that has to tell a tag at `q=0`, which RFC 9110 calls "not acceptable", from an ordinary one. The storefront's unprefixed-URL redirect (feature 167) is that reader: it now uses this parse instead of its own, so it picks up those bounds and reads `q` case-insensitively. It still never redirects to a `q=0` tag or to `*`. The module has no imports, so the edge middleware can import it as `@endora-commerce/contracts/accept-language` without pulling in the schemas.
+- 9c8efbe: **`Accept-Language` has one parser** (issue #1011). `LocaleService.resolveRequestLocale` in `languages` is removed. It had no caller and carried a private copy of the header parser, so the module documentation (English and Polish) no longer describes it. A request's content language is resolved against its sales channel by `requestScopeLanguage` from `@endora-commerce/contracts`, and its message language by `request.responseLanguage()`. In `@endora-commerce/contracts`, the doc comment on `CreateForCustomerOptions.languageTag` now says what the quote-request customer routes pass, which is the channel language from `requestScopeLanguage`, no longer the first tag. In the storefront, the outage notice and the web-app manifest read the header through `parseAcceptLanguage` instead of a private parser: the same q-ordering, the 512-character and ten-tag bounds, and a tag with a malformed `q` (`pl;q=`) dropped instead of read as `q=1`.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- feaa40b: The admin credit-limit views now answer each reservation's order number (issue #1178).
+  `GET /api/v1/admin/credit-limits`, `GET /api/v1/admin/organizations/:id/credit-limit` and
+  `PATCH /api/v1/admin/organizations/:id/credit-limit` fill `activeReservations[].orderBusinessId`
+  — the field `creditLimitViewSchema` gained in issue #661 — with the order's `businessId`, or
+  `null` for an order `orders` did not return. Each reply makes one batched
+  `orderReadPort.findByIds` read, the list included: the reservations of every listed limit are
+  read together, never once per limit, and a reply with no reservation reads nothing. The admin
+  credit-limit screen shows that number in its reservation table, linked to the admin order, in
+  place of the first eight characters of the order id; the short id remains only for a server that
+  sends no number. The module's admin entry now imports `react-router-dom`, declared as an optional
+  peer. `@endora-commerce/contracts` changes only the field's documentation.
+- d16b343: The two refusals that feature 172 added for Page Builder content attributes have error codes of
+  their own instead of `VALIDATION_FAILED`, and a sentence in English and Polish that names the
+  values in `details` (issue #1218, part of #86). **A caller that matches on `VALIDATION_FAILED` for
+  these refusals, or reads `details` as a list of `{ path, issue }` on the update, now sees the
+  specific code and an object.** No status changes: both stay as they were (`409` and `400`).
+
+  | Route                                                                                                             | Was                                                                                              | Is                                                      | `details`                                             |
+  | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | ----------------------------------------------------- |
+  | `PATCH /api/v1/admin/catalog/attributes/:idOrKey` (type changed to or from `page_builder`)                        | `409 VALIDATION_FAILED`, `The value type of a Page Builder content attribute cannot be changed.` | `409 ATTRIBUTE_VALUE_TYPE_LOCKED`, token `page_builder` | `attributeKey`                                        |
+  | `PATCH /api/v1/admin/catalog/attributes/:idOrKey` (a stored content attribute switches on a setting it holds off) | `400 VALIDATION_FAILED`, `details: [{ path, issue }]` per setting                                | `400 CONTENT_ATTRIBUTE_CAPABILITY_LOCKED`               | `attributeKey`, `capabilities` (the settings, joined) |
+
+  On create, where the request itself names the `page_builder` type, a locked setting stays
+  `400 VALIDATION_FAILED` with one detail per setting. The other sites features 172 and 174 added
+  were reviewed and keep their answers: the content size ceiling, an unknown attribute set or
+  category, a malformed scope, URL key or import call stay `VALIDATION_FAILED`, and the scoped
+  editor's refusals already have codes. `CONTENT_ATTRIBUTE_CAPABILITY_LOCKED` is a new member of
+  `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `catalog` manifest, which also
+  declares the token `page_builder` on `ATTRIBUTE_VALUE_TYPE_LOCKED`; the module's documentation
+  lists both. No setting, permission or migration changes.
+
+- 4ecb155: Issue #1269 — `POST /api/v1/admin/command-outbox/:id/retry` answers an id that is not a uuid with `404 NOT_FOUND`, the same answer as for an unknown id, as every other id route does (issue #781's malformed-id contract). It answered `400 VALIDATION_FAILED`.
+
+  - **`@endora-commerce/contracts`**: `CommandOutboxRetryParamsSchema` accepts any string as `id`; it used to refuse a value that is not a uuid.
+  - **`@endora-commerce/platform`**: the retry route checks the id's shape itself and answers `404` before the database is read.
+
+  **On upgrade.** Nothing to migrate. A caller that relied on the `400` for a malformed id gets `404`.
+
+- eedda68: `CustomerPushPort` (`pwa.ts`) is now registered: `pwa` provides it under the container name `customerPushPort`, which its doc comment now states (issue #238, `specs/179-rfq-and-customer-notifications/` WP-10). No type changes.
+- 036865c: Documentation only: the doc comments of `category.editor.after` and `CategoryEditorZoneProps` now say the zone is mounted at the end of the category editor's form, before its Save row (issue #407). The zone name and its props are unchanged.
+- cd05402: The four packages now declare `sideEffects` in `package.json`, so a bundler can drop the modules a consumer imports through a barrel but never uses:
+
+  - `@endora-commerce/contracts`: `false`. Its modules build Zod schemas, constants and pure helpers, and none of them does anything when it is imported.
+  - `@endora-commerce/cms-components`: `["*.css"]`, so `@endora-commerce/cms-components/styles.css` imported from JavaScript is still kept.
+  - `@endora-commerce/email-components`: `["*.css"]`, for the published `tailwind.css`.
+  - `@endora-commerce/page-builder-admin`: `["*.css", "./dist/email/EmailEditorPane.js"]`. The e-mail editor pane imports the CMS and Puck stylesheets, so it is kept.
+
+  The exported API does not change, and a consumer does not need to change anything. In this repository's admin build, the JavaScript loaded with the entry page shrank from 931.6 kB to 649.6 kB (gzip: 266.1 kB to 193.4 kB), and in the storefront build the first-load JavaScript of the CMS, catalogue, product and checkout pages shrank by 73 to 79 kB per page (`/` 729 kB to 650 kB, `/checkout` 271 kB to 198 kB). The stylesheets are the same.
+
+- 7a3673f: `catalog` refusals that the stored state makes have error codes of their own instead of
+  `VALIDATION_FAILED`, and a sentence in English and Polish that names the values in `details`
+  (issue #624, part of #86). **A caller that matches on `VALIDATION_FAILED`, or on a token in the
+  message (`sku_in_use`, `option_in_use`, `missing_required_attribute_values`), now sees the specific
+  code.** Two statuses move, marked below. Until now the operator read the English message or the
+  machine token whatever their language, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Route                                                                                                                   | Was                                                                                                         | Is                                                                                                              | `details`                                                                  |
+  | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+  | `POST /api/v1/admin/catalog/attributes`                                                                                 | `409 VALIDATION_FAILED`, `Attribute key "<key>" already exists.`                                            | `409 ATTRIBUTE_KEY_TAKEN`                                                                                       | `attributeKey`                                                             |
+  | `PATCH /api/v1/admin/catalog/attributes/:idOrKey` (type change)                                                         | `409 VALIDATION_FAILED`, the custom-fields message                                                          | `409 ATTRIBUTE_VALUE_TYPE_LOCKED`                                                                               | `attributeKey`                                                             |
+  | `PATCH /api/v1/admin/catalog/attributes/:idOrKey` (`displayAsSlider` on a stored non-numeric type)                      | `400 VALIDATION_FAILED`, `displayAsSlider is only valid for …`                                              | `400 ATTRIBUTE_SLIDER_NOT_SUPPORTED`                                                                            | `attributeKey`, `valueType`                                                |
+  | `DELETE /api/v1/admin/catalog/attributes/:idOrKey`                                                                      | `409 VALIDATION_FAILED`, `Attribute is still referenced by N attribute set(s) …` / `… N product(s) …`       | `409 ATTRIBUTE_IN_USE`, token `attribute_sets` / `products`                                                     | `attributeKey`, `attributeSetCount` / `productCount`                       |
+  | `POST /api/v1/admin/catalog/attributes/:attributeId/options`                                                            | `409 VALIDATION_FAILED` (duplicate value, second default), `400 VALIDATION_FAILED` (type takes no options)  | `409 ATTRIBUTE_OPTION_VALUE_TAKEN`, `409 ATTRIBUTE_DEFAULT_OPTION_TAKEN`, `400 ATTRIBUTE_OPTIONS_NOT_SUPPORTED` | `attributeKey`, `value` / `valueType`                                      |
+  | `PATCH /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` (`isDefault`)                                   | **`400`** `VALIDATION_FAILED`                                                                               | **`409`** `ATTRIBUTE_DEFAULT_OPTION_TAKEN`, as on create                                                        | `attributeKey`, `value`                                                    |
+  | `DELETE /api/v1/admin/catalog/attributes/:attributeId/options/:optionId`                                                | `409 VALIDATION_FAILED`, `option_in_use: N product(s) …`                                                    | `409 ATTRIBUTE_OPTION_IN_USE`, token `products`                                                                 | `attributeKey`, `value`, `productCount`                                    |
+  | `PATCH /api/v1/admin/catalog/products/:id` (`sku`)                                                                      | **`400`** `VALIDATION_FAILED`, `sku_in_use { conflictingProductId / conflictingVariantId, conflictingSku }` | **`409`** `SKU_ALREADY_EXISTS`, as on create; token `held_by_product` / `held_by_variant`                       | `sku`, `conflictingProductId` / `conflictingVariantId`                     |
+  | `PATCH /api/v1/admin/catalog/products/:id` (attribute set or values)                                                    | `400 VALIDATION_FAILED`, `missing_required_attribute_values: <keys>`                                        | `400 ATTRIBUTE_VALUES_REQUIRED`                                                                                 | `attributeKeys` (joined)                                                   |
+  | `POST`, `PATCH /api/v1/admin/catalog/products[/:id]`, `PATCH …/products/:id/scopes` (minimum on a type that takes none) | `422 VALIDATION_FAILED`                                                                                     | `422 MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE`                                                                 | `field: 'minOrderQuantity'` (kept), `productType`; per channel `channelId` |
+  | `POST /api/v1/admin/catalog/products/:productId/variants` (parent not configurable)                                     | `400 VALIDATION_FAILED`                                                                                     | `400 PRODUCT_TYPE_MISMATCH`, token `variants_need_configurable`                                                 | `productId`, `productType`                                                 |
+  | `POST /api/v1/admin/catalog/products/:id/grouped-items` (the group itself)                                              | `400 VALIDATION_FAILED`                                                                                     | `400 SELF_LINK_NOT_ALLOWED`, token `grouped`                                                                    | `productId`                                                                |
+  | `POST /api/v1/admin/catalog/products/:id/grouped-items` (child already in the group)                                    | `409 VALIDATION_FAILED`                                                                                     | `409 GROUPED_ITEM_ALREADY_EXISTS`                                                                               | `parentProductId`, `childProductId`, `childSku`                            |
+  | `POST`, `PATCH /api/v1/admin/catalog/categories[/:id]` (slug a sibling holds)                                           | `409 VALIDATION_FAILED`                                                                                     | `409 CATEGORY_SLUG_TAKEN`                                                                                       | `slug`, `parentCategoryId`                                                 |
+  | `DELETE /api/v1/admin/catalog/categories/:id` (subcategories left)                                                      | `409 VALIDATION_FAILED`                                                                                     | `409 CATEGORY_HAS_CHILDREN`                                                                                     | `categoryId`, `childCount`                                                 |
+  | `PATCH /api/v1/admin/catalog/categories/:id` (beneath a descendant)                                                     | `409 VALIDATION_FAILED`                                                                                     | `409 CATEGORY_MOVE_CYCLE`                                                                                       | `categoryId`, `parentCategoryId`                                           |
+
+  The product editor already reads `SKU_ALREADY_EXISTS` onto the SKU field, so a rename onto a taken
+  SKU is now shown there too. Malformed requests stay `VALIDATION_FAILED`: an invalid key, option
+  value or SKU, options or a slider on a type the same request names, a value out of range, an
+  unknown attribute set or category, a reorder list that does not match. Fourteen codes are new
+  members of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `catalog` manifest with
+  the tokens above; the module's documentation lists them. No setting, permission or migration
+  changes.
+
+- 1c3366d: Thirteen `returns` refusals have error codes of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #625, part of #86). **A caller that matches on
+  `VALIDATION_FAILED`, or on the reason in `details.code`, now sees the specific code.** The HTTP
+  status is unchanged. Until now the buyer and the operator read the thrower's English sentence
+  whatever language they asked for, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Route                                                                              | Was                                                                                                      | Is                                           | `details`                                                                    |
+  | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------- |
+  | `POST /api/v1/returns`                                                             | `422 VALIDATION_FAILED`, `details.code` `order_not_completing`                                           | `422 RETURN_ORDER_NOT_ELIGIBLE`              | `orderId`                                                                    |
+  | `POST /api/v1/returns`                                                             | `422 VALIDATION_FAILED`, `details.code` `qty_exceeds_returnable`                                         | `422 RETURN_QUANTITY_EXCEEDS_RETURNABLE`     | `orderItemId`, `requested`, `remaining`                                      |
+  | `POST /api/v1/returns`, a reason that exists but is switched off                   | `422 VALIDATION_FAILED`, `details.code` `unknown_reason`                                                 | `422 RETURN_REASON_INACTIVE`                 | `reasonId`                                                                   |
+  | `POST /api/v1/returns/:id/comments`, `POST /api/v1/admin/returns/:id/comments`     | `409 VALIDATION_FAILED`, `details.code` `case_terminal`                                                  | `409 RETURN_COMMENTS_CLOSED`                 | `returnCaseId`, `statusCode`                                                 |
+  | `POST /api/v1/returns/:id/select-delivery-method`, a finished case                 | `409 VALIDATION_FAILED`, `details.code` `case_terminal`                                                  | `409 RETURN_CASE_CLOSED`                     | `returnCaseId`, `statusCode`                                                 |
+  | `POST /api/v1/returns/:id/select-delivery-method`, a method not offered            | `422 VALIDATION_FAILED`, `details.code` `method_not_allowed`                                             | `422 RETURN_DELIVERY_METHOD_UNAVAILABLE`     | `returnDeliveryMethodId`                                                     |
+  | `POST /api/v1/admin/returns/:id/settlement`                                        | `409 VALIDATION_FAILED`, `details.code` `settlement_in_progress`                                         | `409 RETURN_SETTLEMENT_IN_PROGRESS`          | `orderId`                                                                    |
+  | `POST /api/v1/admin/returns/:id/settlement`, a line                                | `422 VALIDATION_FAILED`, `details.code` `refund_exceeds_paid`                                            | `422 RETURN_REFUND_EXCEEDS_PAID`             | `returnCaseItemId`, `requested`, `maximum` (two-decimal strings), `currency` |
+  | `POST /api/v1/admin/returns/:id/settlement`, the delivery or the payment surcharge | `422 VALIDATION_FAILED`, `details.code` `refund_exceeds_paid`                                            | `422 RETURN_REFUND_EXCEEDS_PAID`             | `code: 'delivery'` or `'surcharge'`, `requested`, `maximum`, `currency`      |
+  | `POST /api/v1/admin/returns/:id/settlement`                                        | `502 VALIDATION_FAILED`, message = the gateway's `failureReason`, `details.code` `gateway_refund_failed` | `502 RETURN_REFUND_GATEWAY_FAILED`           | `settlementState`, `failureReason`, `providerDetails`                        |
+  | `POST /api/v1/admin/returns/statuses`                                              | `409 VALIDATION_FAILED`, _Status "X" already exists._                                                    | `409 RETURN_STATUS_CODE_TAKEN`               | `statusCode`                                                                 |
+  | `PATCH /api/v1/admin/returns/statuses/:code`                                       | `409 VALIDATION_FAILED`, _Cannot mark "X" terminal while it has outgoing transitions._                   | `409 RETURN_STATUS_TERMINAL_HAS_TRANSITIONS` | `code: 'mark_terminal'`, `statusCode`, `outgoingCount`                       |
+  | `PUT /api/v1/admin/returns/transitions`                                            | `422 VALIDATION_FAILED`, _Terminal status "X" cannot have outgoing transitions._                         | `422 RETURN_STATUS_TERMINAL_HAS_TRANSITIONS` | `code: 'add_transition'`, `statusCode`, `toStatusCode`                       |
+  | `DELETE /api/v1/admin/returns/statuses/:code`                                      | `409 VALIDATION_FAILED`, _The initial status cannot be deleted._                                         | `409 RETURN_STATUS_NOT_DELETABLE`            | `code: 'initial'`, `statusCode`                                              |
+  | `DELETE /api/v1/admin/returns/statuses/:code`                                      | `409 VALIDATION_FAILED`, _Cannot delete status "X" while N case(s) use it._                              | `409 RETURN_STATUS_IN_USE`                   | `statusCode`, `caseCount`                                                    |
+
+  The status code travels as `details.statusCode`, because `details.code` is the slot for a
+  refusal's token. The gateway's own words are `details.failureReason` and never the sentence. An
+  unknown order line or return line, a reason id that names nothing (`unknown_reason`), a missing
+  refund payment method, a blank rejection reason and a transition naming a status that does not
+  exist stay `VALIDATION_FAILED`. The thirteen codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `returns` manifest, and the module's documentation
+  page lists them. No setting, permission or migration changes.
+
+- ea965bb: The newsletter admin refusals have error codes of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #626, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for these refusals now sees the specific code.** The HTTP status is unchanged.
+  Until now each was answered with an English sentence in every language, because the error
+  envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                                         | Was                                                                                                     | Is                                        | `details`                |
+  | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------ |
+  | `PUT /api/v1/admin/newsletter/automations/:id` (automation active)            | `422 VALIDATION_FAILED`, _"Pause the automation before editing."_                                       | `422 NEWSLETTER_AUTOMATION_ACTIVE`        | `automationId`, `status` |
+  | `PUT /api/v1/admin/newsletter/campaigns/:id` (not draft or scheduled)         | `422 VALIDATION_FAILED`, _"Only draft/scheduled campaigns can be edited."_                              | `422 NEWSLETTER_CAMPAIGN_NOT_EDITABLE`    | `campaignId`, `status`   |
+  | `POST /api/v1/admin/newsletter/campaigns/:id/send` (no sending provider)      | `422 VALIDATION_FAILED`, _"No sending provider configured."_, `details.code: "provider_not_configured"` | `422 NEWSLETTER_PROVIDER_NOT_CONFIGURED`  | none                     |
+  | `POST /api/v1/admin/newsletter/campaigns/:id/cancel` (not draft or scheduled) | `422 VALIDATION_FAILED`, _"Only draft/scheduled campaigns can be cancelled."_                           | `422 NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE` | `campaignId`, `status`   |
+  | `POST /api/v1/admin/newsletter/custom-fields` (key exists)                    | `409 VALIDATION_FAILED`, _"Field key already exists."_                                                  | `409 NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN`   | `key`                    |
+  | `POST /api/v1/admin/newsletter/blocks` (code exists)                          | `409 VALIDATION_FAILED`, _"Block code already exists."_                                                 | `409 NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN`   | `blockCode`              |
+  | `DELETE /api/v1/admin/newsletter/blocks/:id` (system block)                   | `422 VALIDATION_FAILED`, _"System blocks cannot be deleted."_                                           | `422 NEWSLETTER_EMAIL_BLOCK_SYSTEM`       | `blockId`, `blockCode`   |
+  | `POST /api/v1/admin/newsletter/tags` (code exists)                            | `409 VALIDATION_FAILED`, _"Tag code already exists."_                                                   | `409 NEWSLETTER_TAG_CODE_TAKEN`           | `tagCode`                |
+  | `DELETE /api/v1/admin/newsletter/tags/:id` (used by a campaign or automation) | `409 VALIDATION_FAILED`, _"Tag is used by a campaign or automation."_, `details.code: "tag_in_use"`     | `409 NEWSLETTER_TAG_IN_USE`               | `tagId`, `tagCode`       |
+
+  The `provider_not_configured` and `tag_in_use` tokens are gone: each was the only reason under its
+  code. A block's or a tag's own code travels as `blockCode` or `tagCode`, because the envelope reads
+  `details.code` as a refusal token. The nine codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `newsletter` manifest, and the module's documentation
+  page lists them. An automation with invalid steps (`automation_invalid`) and a sign-up naming an
+  unknown sales channel stay `VALIDATION_FAILED`. No setting, permission or migration changes.
+
+- fc08f90: The admin's order-status configuration and the external API order intake answer their refusals
+  with error codes of their own instead of `VALIDATION_FAILED`, and a sentence in English and Polish
+  (issue #627, part of #86; the slice #621 left). **A caller that matches on `VALIDATION_FAILED`, or
+  an API integration retrying on `details.code` `intake_busy`, now sees the specific code.** The HTTP
+  status is unchanged. Until now an operator working in Polish read English, because the error
+  envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                        | Was                                                                                    | Is                                          | `details`                                               |
+  | -------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
+  | `POST /api/v1/admin/orders/statuses`         | `409 VALIDATION_FAILED`, _Status "X" already exists._                                  | `409 ORDER_STATUS_CODE_TAKEN`               | `statusCode`                                            |
+  | `PATCH /api/v1/admin/orders/statuses/:code`  | `409 VALIDATION_FAILED`, _Cannot mark "X" terminal while it has outgoing transitions._ | `409 ORDER_STATUS_TERMINAL_HAS_TRANSITIONS` | `code: 'mark_terminal'`, `statusCode`, `outgoingCount`  |
+  | `PUT /api/v1/admin/orders/transitions`       | `422 VALIDATION_FAILED`, _Terminal status "X" cannot have outgoing transitions._       | `422 ORDER_STATUS_TERMINAL_HAS_TRANSITIONS` | `code: 'add_transition'`, `statusCode`, `toStatusCode`  |
+  | `DELETE /api/v1/admin/orders/statuses/:code` | `409 VALIDATION_FAILED`, _The initial status cannot be deleted._                       | `409 ORDER_STATUS_NOT_DELETABLE`            | `code: 'initial'`, `statusCode`                         |
+  | `DELETE /api/v1/admin/orders/statuses/:code` | `409 VALIDATION_FAILED`, _System status "X" cannot be deleted._                        | `409 ORDER_STATUS_NOT_DELETABLE`            | `code: 'system'`, `statusCode`                          |
+  | `DELETE /api/v1/admin/orders/statuses/:code` | `409 VALIDATION_FAILED`, _Cannot delete status "X" while N order(s) use it._           | `409 ORDER_STATUS_IN_USE`                   | `statusCode`, `orderCount`                              |
+  | `POST /api/v1/external/orders`               | `422 VALIDATION_FAILED`, _One or more order lines were refused._                       | `422 ORDER_INTAKE_LINES_REFUSED`            | unchanged: the per-line array of `{ path, issue, sku }` |
+  | `POST /api/v1/external/orders`               | `409 VALIDATION_FAILED`, `details.code` `intake_busy`                                  | `409 ORDER_INTAKE_BUSY`                     | none                                                    |
+
+  The status code travels as `details.statusCode`, because `details.code` is the slot for a
+  refusal's token. The intake's per-line array keeps its shape, so an integration reading each
+  line's `issue` needs no change beyond the code; its sentence names no count, since only scalar
+  `details` fill a sentence. A transition naming a status that does not exist stays
+  `VALIDATION_FAILED`. The six codes are members of `ERROR_CODES` in `@endora-commerce/contracts`,
+  declared by the `orders` manifest; the module's documentation page and the API access page list
+  them. No setting, permission or migration changes.
+
+- d34fe02: Six `promotions` refusals have error codes of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #628, part of #86). **A caller that matches on
+  `VALIDATION_FAILED`, or on the token at the front of the message, now sees the specific code.** The
+  HTTP status is unchanged. Until now the reader saw the machine token, because the error envelope
+  never replaces the message of `VALIDATION_FAILED`, and the buyer refused at placement was shown the
+  promotion's id.
+
+  | Route                                                                         | Was                                                                                      | Is                                     | `details`                                                                        |
+  | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------- |
+  | `POST /api/v1/orders` (and every placement that finalizes promotion usage)    | `409 VALIDATION_FAILED`, `promotion_unavailable: usage limit reached for <promotion id>` | `409 PROMOTION_USAGE_LIMIT_REACHED`    | `promotionId`; with a coupon applied also `code: 'with_coupon'` and `couponCode` |
+  | `POST /api/v1/admin/promotions/:id/coupons`                                   | `409 VALIDATION_FAILED`, `coupon_code_taken: <code>`                                     | `409 PROMOTION_COUPON_CODE_TAKEN`      | `couponCode`                                                                     |
+  | `POST /api/v1/admin/promotions/:id/coupon-batches`                            | `400 VALIDATION_FAILED`, `coupon_space_exhausted: increase length or widen the format`   | `400 PROMOTION_COUPON_SPACE_EXHAUSTED` | `requested`, `generated`                                                         |
+  | `POST /api/v1/admin/promotion-rules`, `PUT /api/v1/admin/promotion-rules/:id` | `409 VALIDATION_FAILED`, `rule_name_taken: <name>`                                       | `409 PROMOTION_RULE_NAME_TAKEN`        | `name`                                                                           |
+  | `DELETE /api/v1/admin/promotion-rules/:id`                                    | `409 VALIDATION_FAILED`, `rule_in_use: referenced by N promotion(s)`                     | `409 PROMOTION_RULE_IN_USE`            | `ruleId`, `promotionCount`                                                       |
+  | `POST /api/v1/admin/promotions`, `PUT /api/v1/admin/promotions/:id`           | `400 VALIDATION_FAILED`, `attribute_not_promo_eligible: <key>`                           | `400 PROMOTION_ATTRIBUTE_NOT_ELIGIBLE` | `attributeKey`                                                                   |
+
+  The buyer's sentence names the coupon they applied, or speaks of the promotion without its name
+  when there was none; it never shows the promotion's id. The storefront's checkout failure page names
+  the new code instead of its generic failure. A batch larger than the generator's bound, an unknown
+  action type, rule or attribute, an operator the attribute's type does not allow and an option the
+  attribute does not have stay `VALIDATION_FAILED`. The six codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `promotions` manifest, and the module's documentation
+  page lists them. No setting, permission or migration changes.
+
+- 59b5246: A payment retry or settlement refused by the payment's own state has an error code of its own
+  instead of `VALIDATION_FAILED`, and a sentence in English and Polish (issue #630, part of #86).
+  **A caller that matches on `VALIDATION_FAILED` here now sees the specific code.** The HTTP status
+  is unchanged. Until now an operator working in Polish read English, because the error envelope
+  never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                                                     | Was                                                                                      | Is                                | `details`                                                            |
+  | ----------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------- |
+  | `POST /api/v1/admin/orders/:id/payments/retry` (and the buyer's retry past its own gates) | `409 VALIDATION_FAILED`, _Order is already paid; nothing to retry._                      | `409 PAYMENT_ALREADY_PAID`        | `code: 'retry'`, `orderId`, `paymentId`, `status`                    |
+  | the same                                                                                  | `409 VALIDATION_FAILED`, _This payment has been refunded; it cannot be retried._         | `409 PAYMENT_REFUNDED`            | `orderId`, `paymentId`, `status` (`refunded` / `partially_refunded`) |
+  | the same                                                                                  | `409 VALIDATION_FAILED`, _This order is settled out of band; there is nothing to retry._ | `409 PAYMENT_SETTLED_OUT_OF_BAND` | `orderId`, `paymentId`                                               |
+  | `POST /api/v1/payments/receive` with `outcome: "failure"`                                 | `409 VALIDATION_FAILED`, _Payment is already settled; it cannot be marked failed._       | `409 PAYMENT_ALREADY_PAID`        | `code: 'mark_failed'`, `orderId`, `paymentId`, `status`              |
+
+  A retry of a paid order and the ingress marking a paid payment failed refuse the same state from
+  two callers, so they share one code and the token picks the sentence. The storefront's order page
+  names the three codes when its pay-again lands on one. The three codes are members of
+  `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `payments` manifest, and the
+  module's documentation page lists them. No setting, permission or migration changes.
+
+- c55dcf5: The feed form's three state refusals have error codes of their own instead of `VALIDATION_FAILED`,
+  and a sentence in English and Polish (issue #631, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for these refusals now sees the specific code.** The HTTP status is unchanged.
+  Until now each was answered with an English `field: message` text in every language, because the
+  error envelope never replaces the message of `VALIDATION_FAILED`, and the allowed currencies were
+  written into that text.
+
+  | Route                                                                                                                         | Was                                                                                                                                 | Is                                      | `details`                                                                                  |
+  | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------ |
+  | `POST /api/v1/admin/product-feeds`, `PATCH /api/v1/admin/product-feeds/:id`                                                   | `400 VALIDATION_FAILED`, _"languageCode: is not an active language on this installation"_ (the language exists but is switched off) | `400 PRODUCT_FEED_LANGUAGE_INACTIVE`    | `field: "languageCode"`, `languageCode`                                                    |
+  | `POST /api/v1/admin/product-feeds`, `PATCH /api/v1/admin/product-feeds/:id`                                                   | `400 VALIDATION_FAILED`, _"currencyCode: is not offered by this sales channel (…)"_                                                 | `400 PRODUCT_FEED_CURRENCY_NOT_OFFERED` | `field: "currencyCode"`, `currencyCode`, `salesChannelId`, `allowed` (comma-joined string) |
+  | `POST /api/v1/admin/product-feeds`, `PATCH /api/v1/admin/product-feeds/:id`, `POST /api/v1/admin/product-feeds/:id/duplicate` | `400 VALIDATION_FAILED`, _"slug: is already used by another feed"_                                                                  | `400 PRODUCT_FEED_SLUG_TAKEN`           | `field: "slug"`, `slug`                                                                    |
+
+  A language code that names no language at all stays `400 VALIDATION_FAILED` with
+  `details.field: "languageCode"`; its message is now _"languageCode: no such language"_. A refused
+  HTTP delivery URL also stays `VALIDATION_FAILED` with `details.reason: "delivery_target_refused"`.
+  The three codes are members of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the
+  `product_feeds` manifest, and the module's documentation page names them. No setting, permission or
+  migration changes.
+
+- 3e7b0b6: The delivery-method shipment guard has error codes of its own instead of `VALIDATION_FAILED`,
+  and a sentence in English and Polish (issue #632, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for these refusals now sees the specific code.** The HTTP status is unchanged.
+  Until now each was answered with an English sentence in every language, because the error
+  envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                                         | Was                                                                                                                       | Is                                  | `details`                                                                                      |
+  | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------- |
+  | `DELETE /api/v1/admin/delivery-methods/:id`                                   | `409 VALIDATION_FAILED`, _"Cannot delete delivery method: N shipment(s) reference it. …"_                                 | `409 DELIVERY_METHOD_IN_USE`        | `code: "delete"`, `deliveryMethodId`, `deliveryMethodCode`, `shipmentCount`                    |
+  | `PUT /api/v1/admin/delivery-methods/:code` (adapter changed)                  | `409 VALIDATION_FAILED`, _"Cannot change the adapter of delivery method … N shipment(s) were created against it …"_       | `409 DELIVERY_METHOD_IN_USE`        | `code: "change_adapter"`, `deliveryMethodId`, `deliveryMethodCode`, `adapter`, `shipmentCount` |
+  | `DELETE /api/v1/admin/delivery-methods/:id`, `shipments` off                  | `409 VALIDATION_FAILED`, _"Cannot delete delivery method: the "shipments" module is switched off, …"_                     | `409 DELIVERY_METHOD_USAGE_UNKNOWN` | `code: "delete"`, `deliveryMethodId`, `module: "shipments"`                                    |
+  | `PUT /api/v1/admin/delivery-methods/:code` (adapter changed), `shipments` off | `409 VALIDATION_FAILED`, _"Cannot change the adapter of this delivery method: the "shipments" module is switched off, …"_ | `409 DELIVERY_METHOD_USAGE_UNKNOWN` | `code: "change_adapter"`, `deliveryMethodId`, `module: "shipments"`                            |
+
+  `details.code` is a token naming the refused write, and each token has its own sentence. The
+  method's own code travels as `deliveryMethodCode`, because `details.code` is the token. Both codes
+  are members of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `delivery_methods`
+  manifest, and the module's documentation page names them. No setting, permission or migration
+  changes.
+
+- d68aa70: The business refusals of invoice issuance and of corrective invoices have error codes of their
+  own instead of `VALIDATION_FAILED`, and a sentence in English and Polish (issue #633, part of #86).
+  **A caller that matches on `VALIDATION_FAILED`, or on the `details.code` tokens listed below, now
+  sees the specific code.** The HTTP status of each is unchanged. Until now each was answered with an
+  English sentence in every language, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Was                                                                                                      | Is                                                | `details`                                                                                                                                    |
+  | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `422 VALIDATION_FAILED`, _"Seller VAT/NIP and company data must be configured before issuing invoices."_ | `422 INVOICE_SELLER_DATA_MISSING`                 | `setting` (unchanged)                                                                                                                        |
+  | `422 VALIDATION_FAILED`, `details.code = "correction_currency_mismatch"`                                 | `422 INVOICE_CORRECTION_CURRENCY_MISMATCH`        | `requestedCurrency`, `invoiceCurrency` (was `originalCurrency`), `originalInvoiceId`; `details.code` is gone                                 |
+  | `400 VALIDATION_FAILED`, `details.code = "correction_total_exceeds_lines"`                               | `400 INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES`      | `total`, `linesTotal`, and `currency` (new); `details.code` is gone, except `"below_charges"` when the total is below the charges it credits |
+  | `422 VALIDATION_FAILED`, `details.code = "correction_exceeds_rate_remaining"`                            | `422 INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING`   | `taxRate`, `vatRatePercent`, `remaining`, and `currency` (new); `details.code` is gone                                                       |
+  | `422 VALIDATION_FAILED`, `details.code = "correction_exceeds_charge_remaining"`                          | `422 INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING` | `details.code` is now the charge (`"delivery"` or `"payment_surcharge"`), `chargeKind`, `remaining`, and `currency` (new)                    |
+
+  The seller refusal is answered by `POST /api/v1/admin/orders/:orderId/invoices` and by automatic
+  issuance; the four correction refusals by every caller of the corrective-invoice port, which is a
+  return settlement in this repository. The five codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `invoices` manifest, and the module's documentation
+  page names them. `@endora-commerce/mod-i18n` loses the sentence
+  `errors.VALIDATION_FAILED.correction_exceeds_rate_remaining`, which nothing could render: the
+  envelope never translates `VALIDATION_FAILED`. The sentence lives on, under the new code, in the
+  `invoices` bundle. No setting, permission or migration changes.
+
+- 0b991d6: Three `projects` refusals have error codes of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #634, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for these refusals now sees the specific code.** The HTTP status is unchanged.
+  Until now each was answered with an English sentence in every language, because the error envelope
+  never replaces the message of `VALIDATION_FAILED`, and the stage maximum was written into that text.
+
+  | Route                                                                               | Was                                                                                                           | Is                                   | `details`               |
+  | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ----------------------- |
+  | `POST /api/v1/admin/projects/:id/stages`                                            | `422 VALIDATION_FAILED`, _"A project has at most 50 stages."_                                                 | `422 PROJECT_STAGE_LIMIT`            | `projectId`, `maximum`  |
+  | `POST /api/v1/admin/projects/:id/attachments`                                       | `422 VALIDATION_FAILED`, _"An attachment must be a private file. Upload it to the media library as private."_ | `422 PROJECT_ATTACHMENT_NOT_PRIVATE` | `assetId`, `visibility` |
+  | `POST /api/v1/admin/projects/templates`, `PUT /api/v1/admin/projects/templates/:id` | `422 VALIDATION_FAILED`, _"An archived project role is not added to a template."_                             | `422 PROJECT_TEMPLATE_ROLE_ARCHIVED` | `roleId`                |
+
+  A project created with no stages, a file that is not in the media library and a template role that
+  is not a project role stay `422 VALIDATION_FAILED`. The three codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `projects` manifest, and the module's documentation
+  page names them. No setting, permission or migration changes.
+
+- 9af7a64: The payment-method delete guard has error codes of its own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #635, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for these refusals now sees the specific code.** The HTTP status is unchanged.
+  Until now each was answered with an English sentence in every language, because the error
+  envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                      | Was                                                                                               | Is                                 | `details`                                              |
+  | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------ |
+  | `DELETE /api/v1/admin/payment-methods/:id`                 | `409 VALIDATION_FAILED`, _"Cannot delete payment method: N payment(s) reference it. …"_           | `409 PAYMENT_METHOD_IN_USE`        | `paymentMethodId`, `paymentMethodCode`, `paymentCount` |
+  | `DELETE /api/v1/admin/payment-methods/:id`, `payments` off | `409 VALIDATION_FAILED`, _"Cannot delete payment method: the payments module is switched off, …"_ | `409 PAYMENT_METHOD_USAGE_UNKNOWN` | `paymentMethodId`, `module: "payments"`                |
+
+  The method's own code travels as `paymentMethodCode` rather than `code`, because the error
+  envelope reads `details.code` as a refusal token. Both codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `payment_methods` manifest, and the module's
+  documentation page names them. No setting, permission or migration changes.
+
+- ecbebe2: Two `price_lists` refusals have error codes of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #636, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for either of them now sees the specific code.** The HTTP status is unchanged.
+  Both were refused by the book's stored state, not by the request, and until now the reader got the
+  English literal, because the error envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Where                                                                                                      | Was                                                                                                                                                                                                | Is                                    | `details`                                               |
+  | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------- |
+  | `priceBookWritePort.replaceProductBaseTiers` (`PriceBookService.setBasePrices` keeping the variants' rows) | `400 VALIDATION_FAILED`, "The base prices were refused. A variant's percentage or amount adjustment needs the product's own base price in this currency.", `details` the `[{ path, issue }]` array | `400 PRICE_BOOK_BASE_PRICE_REQUIRED`  | `productId`, `currency`, and the same array as `issues` |
+  | `PriceBookService.replaceChannels` on a base book                                                          | `400 VALIDATION_FAILED`, "The channel set was refused. A base book is channel-independent and has no channel set."                                                                                 | `400 PRICE_BOOK_BASE_HAS_NO_CHANNELS` | `priceBookId`, `currency`                               |
+
+  `details` of `PRICE_BOOK_BASE_PRICE_REQUIRED` is now an object: a caller that read the issue array
+  directly finds it under `details.issues`.
+
+  `buyerLinePricePort.resolveForBuyer` with a `null` channel on an installation with no
+  system-default sales channel threw `400 VALIDATION_FAILED` "No default sales channel."; it now throws
+  the platform's `NoSystemDefaultChannel` (`500 INTERNAL`). No request causes that state and no buyer
+  can fix it: the boot reconciler guarantees a default channel, so a booted deployment never reaches
+  it.
+
+  The other refusals of the price-book service (a missing version, an empty channel set, an unknown
+  channel, `endsAt` not after `startsAt`, a malformed row plan) stay `VALIDATION_FAILED`. The two codes
+  are members of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `price_lists`
+  manifest, and the module's developer guide lists them. No setting, permission or migration changes.
+
+- e61a12b: The two shipment-state refusals have an error code of their own instead of `VALIDATION_FAILED`,
+  and a sentence in English and Polish (issue #637, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for these refusals now sees the specific code.** The HTTP status is unchanged.
+  Until now each was answered with an English literal in every language, because the error
+  envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                      | Was                                                                                        | Is                               | `details`                                                |
+  | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------- | -------------------------------------------------------- |
+  | `POST /api/v1/admin/orders/:id/shipments`                  | `409 VALIDATION_FAILED`, _"Order already has a successful shipment; nothing to generate."_ | `409 SHIPMENT_ALREADY_GENERATED` | `code: "generate"`, `orderId`, `shipmentId`              |
+  | `POST /api/v1/shipments/receive` with `outcome: "failure"` | `409 VALIDATION_FAILED`, _"Shipment is already generated; it cannot be marked failed."_    | `409 SHIPMENT_ALREADY_GENERATED` | `code: "mark_failed"`, `shipmentId`, `orderId`, `status` |
+
+  `details.code` is a token naming the refused write, and each token has its own sentence. The code
+  is a member of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `shipments` manifest
+  (the module's first error code), and the module's documentation page names it. No setting,
+  permission or migration changes.
+
+- d362c3c: Deleting a system email block or a system email template is refused with an error code of its own
+  instead of `VALIDATION_FAILED`, and a sentence in English and Polish (issue #638, part of #86). **A
+  caller that matches on `VALIDATION_FAILED` for these refusals now sees the specific code.** The HTTP
+  status is unchanged. Until now each was answered with an English sentence in every language,
+  because the error envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                     | Was                                                              | Is                                        | `details`                    |
+  | --------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------- | ---------------------------- |
+  | `DELETE /api/v1/admin/transactional-emails/blocks/:id`    | `409 VALIDATION_FAILED`, _"System blocks cannot be deleted."_    | `409 TRANSACTIONAL_EMAIL_SYSTEM_BLOCK`    | `blockId`, `blockCode`       |
+  | `DELETE /api/v1/admin/transactional-emails/templates/:id` | `409 VALIDATION_FAILED`, _"System templates cannot be deleted."_ | `409 TRANSACTIONAL_EMAIL_SYSTEM_TEMPLATE` | `templateId`, `templateCode` |
+
+  The row's own code travels as `blockCode` / `templateCode` rather than `code`, because the error
+  envelope reads `details.code` as a refusal token. Both codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `transactional_emails` manifest, and the module's
+  documentation page names them. No setting, permission or migration changes.
+
+- ef9630f: Attaching a library file that is not private to an Opportunity has an error code of its own instead
+  of `VALIDATION_FAILED`, and a sentence in English and Polish (issue #639, part of #86). **A caller
+  that matches on `VALIDATION_FAILED` for this refusal now sees `CRM_ATTACHMENT_NOT_PRIVATE`.** The
+  HTTP status is unchanged. Until now it was answered with an English sentence in every language,
+  because the error envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                  | Was                                                                                                           | Is                               | `details`               |
+  | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | -------------------------------- | ----------------------- |
+  | `POST /api/v1/admin/crm/opportunities/:id/attachments` | `422 VALIDATION_FAILED`, _"An attachment must be a private file. Upload it to the media library as private."_ | `422 CRM_ATTACHMENT_NOT_PRIVATE` | `assetId`, `visibility` |
+
+  The code is named in parallel with `projects`' `PROJECT_ATTACHMENT_NOT_PRIVATE` (issue #634), as
+  `CRM_ATTACHMENT_TOO_LARGE` and `PROJECT_ATTACHMENT_TOO_LARGE` are. A file that is not in the media
+  library, or that the caller may not see, stays `422 VALIDATION_FAILED`, and so does an Event reminder
+  set in the past (`details.rule: 'reminder_in_past'`), which the event form words from its rule. The
+  code is a member of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `crm` manifest, and
+  the module's documentation page names it. No setting, permission or migration changes.
+
+- b7a9c8e: The megamenu save refuses a free-URL asset item with an error code of its own instead of
+  `VALIDATION_FAILED`, and a sentence in English and Polish (issue #640, part of #86). **A caller that
+  matches on `VALIDATION_FAILED` for this refusal now sees the specific code.** The HTTP status is
+  unchanged. Until now it was answered with an English sentence in every language, because the error
+  envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                                                                        | Was                                                                                                                                           | Is                                   | `details` |
+  | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | --------- |
+  | `PUT /api/v1/admin/megamenu/menus/:id/items` (an `asset` item with `target.url` instead of `target.assetId`) | `400 VALIDATION_FAILED`, _"Free-URL asset items are not yet supported. Upload the asset to the Assets Library first and reference it by id."_ | `400 MEGAMENU_ASSET_URL_UNSUPPORTED` | `itemId`  |
+
+  The item is well-formed; what is missing is an import from a URL into the Assets Library, so the
+  refusal is not validation. `MEGAMENU_ASSET_URL_UNSUPPORTED` is a member of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `megamenu` manifest, and the module's documentation
+  page names it. The three tree rules about a tab's presentation, alignment and click behaviour stay
+  `VALIDATION_FAILED`, as `specs/168-megamenu-navigation-bar/` data-model §3 classes them. No setting,
+  permission or migration changes.
+
+- 75f89d2: One-click buy refused by the operator setting or the buyer's defaults has an error code of its own
+  instead of `VALIDATION_FAILED`, and a sentence in English and Polish for each reason (issue #641,
+  part of #86). **A caller that matches on `VALIDATION_FAILED` or on
+  `details.code: "one_click_unavailable"` for this refusal now sees the specific code.** The HTTP
+  status is unchanged. Until now it was answered with the English _"One-click buy is not
+  available."_ in every language, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Route                                                                                     | Was                                                                                               | Is                          | `details`                                                |
+  | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------------------- |
+  | `POST /api/v1/quick-order/one-click` (setting off for the channel)                        | `422 VALIDATION_FAILED`, `details: { code: "one_click_unavailable", reason: "setting_disabled" }` | `422 ONE_CLICK_UNAVAILABLE` | `code: "setting_disabled"`, `reason: "setting_disabled"` |
+  | `POST /api/v1/quick-order/one-click` (a default is missing or not offered in the channel) | `422 VALIDATION_FAILED`, `details: { code: "one_click_unavailable", reason: "missing_defaults" }` | `422 ONE_CLICK_UNAVAILABLE` | `code: "missing_defaults"`, `reason: "missing_defaults"` |
+
+  `details.code` is now the eligibility reason, so each reason reads as its own sentence, and
+  `details.reason` keeps the value a client may already branch on. `ONE_CLICK_UNAVAILABLE` is a
+  member of `ERROR_CODES` in `@endora-commerce/contracts` and the `quick_order` manifest's first
+  declared code, with the tokens `setting_disabled` and `missing_defaults`. The storefront's cart page
+  names the new code and both reasons where the product page's one-click action lands. The module's
+  documentation page names the code. No setting, permission or migration changes.
+
+- ca66684: Attaching a library file that is not private to a Task is refused under the module's own
+  attachment code instead of `VALIDATION_FAILED`, with a sentence in English and Polish (issue #642,
+  part of #86). **A caller that matches on `VALIDATION_FAILED` for this refusal now sees
+  `TASK_ATTACHMENT_REFUSED`.** The HTTP status is unchanged. Until now it was answered with an English
+  sentence in every language, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Route                                      | Was                                                                                                           | Is                            | `details`                                                               |
+  | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------- |
+  | `POST /api/v1/admin/tasks/:id/attachments` | `422 VALIDATION_FAILED`, _"An attachment must be a private file. Upload it to the media library as private."_ | `422 TASK_ATTACHMENT_REFUSED` | `code: 'not_private'`, `reason: 'not_private'`, `assetId`, `visibility` |
+
+  `not_private` is a new refusal token of the existing `TASK_ATTACHMENT_REFUSED`, declared in the
+  `tasks` manifest's `tokens`, so a caller already handling that code (`413` too large, `415` active
+  content) handles this one too. A file that is not in the media library, or that the caller may not
+  see, stays `422 VALIDATION_FAILED`, as does relating a Task to itself (`400`). The module's
+  documentation page names the refusal. No setting, permission or migration changes.
+
+- b6fd6df: Creating a country, currency or language whose code exists, and making an inactive one the
+  default, have error codes of their own instead of `VALIDATION_FAILED`, and a sentence in English and
+  Polish (issue #643, part of #86). **A caller that matches on `VALIDATION_FAILED` for these refusals
+  now sees the specific code.** The HTTP status is unchanged. Until now each was answered with an
+  English sentence in every language, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Route                                                                                                              | Was                                                                       | Is                                      | `details`                       |
+  | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------- | ------------------------------- |
+  | `POST /api/v1/admin/dictionary/countries` (code exists)                                                            | `409 VALIDATION_FAILED`, _"Country XX already exists."_                   | `409 DICTIONARY_ENTRY_CODE_TAKEN`       | `code: "country"`, `entryCode`  |
+  | `POST /api/v1/admin/dictionary/countries/:code/default` (inactive)                                                 | `409 VALIDATION_FAILED`, _"Cannot mark an inactive country as default."_  | `409 DICTIONARY_DEFAULT_ENTRY_INACTIVE` | `code: "country"`, `entryCode`  |
+  | `POST /api/v1/admin/dictionary/currencies` (code exists)                                                           | `409 VALIDATION_FAILED`, _"Currency XXX already exists."_                 | `409 DICTIONARY_ENTRY_CODE_TAKEN`       | `code: "currency"`, `entryCode` |
+  | `POST /api/v1/admin/dictionary/currencies/:code/default`, `POST /api/v1/admin/currencies/:code/default` (inactive) | `409 VALIDATION_FAILED`, _"Cannot mark an inactive currency as default."_ | `409 DICTIONARY_DEFAULT_ENTRY_INACTIVE` | `code: "currency"`, `entryCode` |
+  | `POST /api/v1/admin/dictionary/languages` (code exists)                                                            | `409 VALIDATION_FAILED`, _"Language xx already exists."_                  | `409 DICTIONARY_ENTRY_CODE_TAKEN`       | `code: "language"`, `entryCode` |
+  | `POST /api/v1/admin/dictionary/languages/:code/default`, `POST /api/v1/admin/languages/:code/default` (inactive)   | `409 VALIDATION_FAILED`, _"Cannot mark an inactive language as default."_ | `409 DICTIONARY_DEFAULT_ENTRY_INACTIVE` | `code: "language"`, `entryCode` |
+
+  `details.code` is a token naming the dictionary, and each token has its own sentence. The entry's
+  own code travels as `entryCode`, because the envelope reads `details.code` as the token. Both codes
+  are members of `ERROR_CODES` in `@endora-commerce/contracts` and are declared once, by the
+  `dictionaries` manifest, which owns the `DICTIONARY_*` family the three dictionaries share;
+  `currencies` and `languages` raise them. The documentation pages of all three modules name them.
+  The `decimalPlaces` range refusal of a currency update stays `VALIDATION_FAILED`. No setting,
+  permission or migration changes.
+
+- 6658f0f: A bound API key whose service account is blocked, deleted or anonymized is refused with an error
+  code of its own instead of `VALIDATION_FAILED`, and a sentence in English and Polish (issue #644,
+  part of #86). **A caller that matches on `VALIDATION_FAILED` for this refusal now sees the specific
+  code.** The HTTP status is unchanged. Until now all three branches of binding rule B3 shared one
+  English issue, _"Service account must be an active customer account of the bound organization."_,
+  in every language.
+
+  | Route                                                                                                                                      | Was                                                               | Is                                     | `details`                                                                                                                                   |
+  | ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `POST /api/v1/admin/api-keys` (the service account of the bound organization is blocked, deleted or anonymized, and nothing else is wrong) | `422 VALIDATION_FAILED`, one issue on `binding.customerAccountId` | `422 API_KEY_SERVICE_ACCOUNT_INACTIVE` | `code: "blocked"` or `code: "removed"` (deleted or anonymized), `field: "binding.customerAccountId"`, `customerAccountId`, `organizationId` |
+
+  When any other binding rule fails as well, the answer stays the aggregate `422 VALIDATION_FAILED`
+  and still lists the inactive account, now as _"Service account is blocked."_ or _"Service account
+  has been removed."_ An account that does not exist and an account of another organization stay
+  `VALIDATION_FAILED`, each with its own issue: _"Service account does not exist."_ and _"Service
+  account does not belong to the bound organization."_ The code is a member of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `api_keys` manifest with the tokens `blocked` and
+  `removed`, and the module's documentation page names it. No setting, permission or migration
+  changes.
+
+- 877477b: An import of an export-only entity is refused with an error code of its own instead of
+  `VALIDATION_FAILED`, and a sentence in English and Polish (issue #644, part of #86). **A caller
+  that matches on `VALIDATION_FAILED` for this refusal now sees the specific code.** The HTTP status
+  is unchanged. Until now the answer was the English _"Import is not supported for "orders"."_ in
+  every language, with the entity's machine slug inside the text.
+
+  | Route                                                                                 | Was                                                                  | Is                         | `details` |
+  | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | -------------------------- | --------- |
+  | `POST /api/v1/admin/import/:entity` for an export-only entity (`customers`, `orders`) | `405 VALIDATION_FAILED`, _"Import is not supported for "<entity>"."_ | `405 IMPORT_NOT_SUPPORTED` | `entity`  |
+
+  The sentence does not name the entity; the slug travels as `details.entity`. A profile of another
+  entity and a products file whose shape is wrong stay `VALIDATION_FAILED`. The code is a member of
+  `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `import_export` manifest, and the
+  module's documentation page names it. No setting, permission or migration changes.
+
+- 767d5de: A routing write that changes the numbering mode without `confirm: true` is refused with an error
+  code of its own instead of `VALIDATION_FAILED`, and a sentence in English and Polish (issue #644,
+  part of #86). **A caller that matches on `VALIDATION_FAILED` for this refusal now sees the specific
+  code.** The HTTP status is unchanged. Until now the answer was the English _"Confirm the numbering
+  mode change."_ in every language.
+
+  | Route                                                                                                                              | Was                                                             | Is                                                | `details`                                                       |
+  | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------- |
+  | `PUT /api/v1/admin/invoice-ledger/routing` (the submitted `numberingMode` differs from the stored one and `confirm` is not `true`) | `400 VALIDATION_FAILED`, _"Confirm the numbering mode change."_ | `400 INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED` | `field: "confirm"`, `from` (stored mode), `to` (submitted mode) |
+
+  The sentence does not name the modes; they travel as `details.from` and `details.to`. An override
+  naming an unknown sales channel stays `VALIDATION_FAILED`. The code is a member of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `invoice_ledger` manifest, and the module's
+  documentation page names it. No setting, permission or migration changes.
+
+- ac094f5: `orgCartDetailPayloadSchema`, `orgCartDetailResponseSchema` and their types `OrgCartDetailPayload` / `OrgCartDetailResponse` are deprecated (issue #657). They never described `GET /api/v1/organization/carts/:id`: the route has never answered the `cartFullPayloadSchema` fields or `auditEntries`, so a real reply fails them. Read the route with `orgCartDetailViewSchema` / `orgCartDetailViewResponseSchema` (types `OrgCartDetailView` / `OrgCartDetailViewResponse`), which the route is typed against since issue #650. The deprecated exports are unchanged and will be removed in the next breaking-change release.
+
 ## 0.110.0
 
 ### Minor Changes

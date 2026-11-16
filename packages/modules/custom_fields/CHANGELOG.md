@@ -1,5 +1,168 @@
 # @endora-commerce/mod-custom-fields
 
+## 0.111.0
+
+### Minor Changes
+
+- f39d37f: Buyer input, admin access and the public read of input surfaces (`specs/175-buyer-input-custom-fields/`).
+
+  - A definition carries `customerInput` (the buyer input surfaces its value may be supplied on — `organization.register` is the one surface, offered by the `organization` and `customer` entity types) and `adminAccess` (`edit`, `read` or `hidden` in the admin panel — a convenience, not access control: no API endpoint reads it). Both are audited with the definition, answered by the admin definitions read, and published on `CustomFieldDefinitionRecord`. The entity-types listing answers `customerInputSurfaces`.
+  - Four refusals, judged on the resulting definition at create, update and through the `apply*` seam, answer `422 CUSTOM_FIELD_DEFINITION_INVALID` with `details.code` / `details.reason` and `details.key`: `customer_input_unsupported`, `customer_input_audience`, `customer_input_value_type` and `admin_access_required`, each with an English and Polish sentence. `CustomFieldDefinitionApplyCreateInput` takes both attributes as optional.
+  - `customFieldValueService` gains `validateForCustomerInput(entityType, values, surface, language?)`: refuses (never drops) a key not open on the surface with `not_open_for_input`, more than 50 keys with `too_many_keys` before any definition is read, enforces `required` only among open fields, trims text and caps it at 1 000 characters, and otherwise applies the administrator's type rules. Each refusal's `message` names neither the key nor the typed value and, given the request's language, is this module's sentence for the code (`customFields.valueError.<code>`, English and Polish), resolved through `_i18n`'s `adminI18nService` — so the manifest now declares `_i18n` in `dependencies`.
+  - `CUSTOM_FIELD_VALUE_INVALID` has a sentence in both languages (`errors.CUSTOM_FIELD_VALUE_INVALID`), so the envelope's `message` of every host's custom-field refusal is translated in the request's language; the per-field `details` are unchanged on the admin paths.
+  - New anonymous route `GET /api/v1/custom-fields/input-surfaces/:surface` (`salesChannelAccess: 'open'`): the fields open on a surface per entity type, labels in the request language. A committed definition or option change of a type that offers a surface revalidates the storefront tag `custom-fields:input-surface:<surface>` when `STOREFRONT_BASE_URL` and `REVALIDATE_SECRET` are set.
+  - Migration `Migration20261106T094044CustomFieldsDefinitionCustomerInputAdminAccess` adds `customer_input` (jsonb, default `[]`) and `admin_access` (varchar, default `edit`) to `custom_field_definitions`; existing definitions read as open on no surface and editable.
+  - The definition editor offers both options: _Collect from the buyer at registration_ (one checkbox per surface the record type declares, disabled with its reason while the field is internal or holds Page Builder content) and _Admin access_ on every definition, with the sentence that it only changes the admin panel; read-only and hidden are unavailable while the field is required, and required while it is not editable. The definitions list marks the fields collected at registration and the read-only and hidden ones with a badge.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 644739b: Cross-process cache subscribers no longer send `SUBSCRIBE` while their ioredis client is still in its handshake (issue #1096). In the `connect` state ioredis wrote the command straight to the socket; when its reply arrived before the ready check's `INFO`, ioredis refused that `INFO`, re-opened the connection, and a message published during the reconnect was lost. The new `subscribeWhenReady(client, ...channels)` in `@endora-commerce/platform/kernel` (with its structural type `HandshakeAwareSubscriber`) waits out the handshake and then subscribes. It rejects as `subscribe` does, including when the connection ends mid-handshake. The module-registry cache, the sales-channel access cache, the `custom_fields` definition cache and the `price_lists` pricing generation now subscribe through it. The cradle type `PricingGenerationSubscriber` in `price_lists` now extends `HandshakeAwareSubscriber`, so it also requires `status`, `once` and `removeListener`. The composition's ioredis subscriber already has them. Nothing else changes for a caller.
+- c7ec2fa: The host storage binding reads `CUSTOM_FIELD_HOST_BINDINGS` from `@endora-commerce/contracts` instead of a module-internal copy (`specs/178-extensible-columns/` FR-010). Same tables, same columns; no behaviour change.
+- 4ab926c: Custom-field definition replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `customFieldDefinitionListResponseSchema` / `CustomFieldDefinitionListResponse` for `GET /api/v1/admin/custom-fields/definitions` and `customFieldEntityTypeListResponseSchema` / `CustomFieldEntityTypeListResponse` for `GET /api/v1/admin/custom-fields/entity-types`, each a `data` array of the rows that were already described. The list envelopes were not.
+  - `mod-custom-fields` builds every definition reply as the contract's `CustomFieldDefinitionDto` instead of `Record<string, unknown>`, and the list, detail, create, update and entity-types handlers declare their reply types. Nothing on the wire changes.
+
+- 51b4e5c: Documentation only: the page lists `CUSTOM_FIELD_NOT_FOUND`, `CUSTOM_FIELD_KEY_CONFLICT` and `CUSTOM_FIELD_HOST_MANAGED`, in English and Polish.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

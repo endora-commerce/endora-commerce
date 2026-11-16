@@ -1,5 +1,235 @@
 # @endora-commerce/mod-i18n
 
+## 0.111.0
+
+### Minor Changes
+
+- ac56d6d: The admin _History_ of a quote request lists the notifications each entry sent (issue #238,
+  `specs/179-rfq-and-customer-notifications/` WP-06).
+
+  - **API.** `GET /api/v1/admin/quote-requests/:id/history` now returns a `deliveries` array on
+    every entry that has notification records. It still requires `rfqs:handle`. Each delivery has
+    the recipient (kind, id, and a display name read when the History is loaded, or `''` once the
+    person is gone), the channel, the status, the number of attempts, the last error and when it
+    closed. An entry with no records has no `deliveries` key. The buyer's
+    `GET /api/v1/quote-requests/:id` never returns any of this.
+  - **Admin screen.** Under such an entry, the History tab shows who was told, through which
+    channel, and the outcome: sent, pending, failed, or skipped with the reason. A failed delivery
+    shows its last error behind _Show error_.
+  - **Labels.** `rfq.detail.history.delivery.*` keys are added to the `core` bundle in English and
+    Polish.
+
+  Until the delivery worker ships in a later release, every new record shows as _Pending_.
+
+- 8ae3f58: **Behaviour change: a line quantity has an upper bound, refused with a new error code, `LINE_QUANTITY_EXCEEDED`; and the quote request and return line arrays have a line-count bound** (issue #351). A quantity past the integer column it is stored in used to pass validation and answer `500`; it is now refused, in the reader's language.
+
+  New in `@endora-commerce/contracts`: `LINE_QUANTITY_MAX` (`1 000 000`, the same value as `ORDER_MINIMUM_MAX`, so the largest minimum stays orderable), `lineQuantitySchema` (a whole number in 1…`LINE_QUANTITY_MAX`), `boundedLineQuantity(schema)`, `isLineQuantityExceededIssue(issue)`, `LINE_QUANTITY_EXCEEDED` (also in `ERROR_CODES`) and `REQUEST_LINE_ITEMS_MAX` (`200`). `ADMIN_ORDER_MAX_ITEMS` and `QUICK_ORDER_BUILD_MAX_ITEMS` are now that constant under their own names; their value does not change.
+
+  **The new code.** Every request schema carrying a line quantity uses `lineQuantitySchema`: `addCartItemRequestSchema`, `updateCartItemRequestStrictSchema`, `createQuoteRequestSchema` / `patchQuoteRequestSchema` lines, `adminCreateQuoteRequestSchema` / `adminPatchQuoteRequestSchema` lines, `adminCreateOrderRequestSchema` / `adminOrderPreviewRequestSchema` items, `apiPlaceOrderRequestSchema` lines, `quickOrderBuildRequestSchema` items, `quickOrderOneClickRequestSchema`, `addShoppingListItemRequestSchema`, `updateShoppingListItemRequestSchema`, `createReturnCaseRequestSchema` lines, `catalogBulkPriceRequestSchema` lines, `cartSnapshotSchema` lines, and the packaging unit's `baseQuantity` in `createPackagingUnitRequestSchema` / `updatePackagingUnitRequestSchema`. A quantity past the bound is a Zod issue tagged `LINE_QUANTITY_EXCEEDED`. The error envelope in `@endora-commerce/platform` answers a request whose only failures are that issue with `400 LINE_QUANTITY_EXCEEDED` and a translated sentence (`@endora-commerce/mod-i18n` ships it in English and Polish), with `details` naming the field. A request that fails anything else as well stays `400 VALIDATION_FAILED`, with the issue among its details. `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices` parse their bodies themselves and keep answering `422 VALIDATION_FAILED`; the detail's `issue` there is `LINE_QUANTITY_EXCEEDED`.
+
+  `@endora-commerce/mod-carts`: two cases are refused with `422 LINE_QUANTITY_EXCEEDED`, `details: { quantity, maximum }`, and write nothing: an add onto an existing basket line whose sum would pass the bound, and a packaging-unit add whose pieces (`baseQuantity × units`) would pass it. This covers the single and batch add, reorder and shopping list to cart. Signing in sums the anonymous basket into the customer's and keeps a summed line at the bound instead of failing the sign-in. `updateCartItemRequestSchema` (the line edit) now accepts any quantity from `0` (remove) to the bound; it stopped at `999`.
+
+  **Line counts.** The line arrays of `adminCreateQuoteRequestSchema`, `adminPatchQuoteRequestSchema` and `createReturnCaseRequestSchema` are bounded at `REQUEST_LINE_ITEMS_MAX`, as the customer's quote request create and edit already were: one line more is `400 VALIDATION_FAILED`. The value is shared but the refusal is not. The order intakes (admin create and preview, `POST /api/v1/external/orders`) and the quick-order build keep refusing more than 200 items with `422 VALIDATION_FAILED`, `details: { code: 'too_many_items', maximum: 200 }`, and the basket's own cap stays `422 CART_LINE_CAP_EXCEEDED`.
+
+  `@endora-commerce/admin-kit`: `parsePositiveInt` returns `null` past `LINE_QUANTITY_MAX`, so the admin order and quote request create screens mark such a line invalid before sending it. `@endora-commerce/mod-quick-order`: an imported row past the bound, and every row of a duplicate whose sum passes it, is rejected as `quantity_invalid` instead of being recognised into a build that would be refused. `@endora-commerce/mod-quote-requests`: the Modify tab's quantity input carries the bound as its `max`.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- f8b29e1: **The admin invoice list pages by cursor, and an ERP WZ document has a label.**
+
+  - **Admin API** `GET /api/v1/admin/invoices` now answers what `adminInvoiceListResponseSchema`'s `pagination` block has always declared: `hasMore: true` and an opaque `cursor` while rows remain beyond the page, `cursor: null` and `hasMore: false` on the last one. Pass the cursor back as `?cursor=` with the same filters to read the next page. Rows are ordered newest `issuedAt` first, ties broken by id, so a page boundary never skips or repeats an invoice. A page is filled from the rows the caller's tenant scope lets it see, so a sales representative's page is never shortened by another organization's invoices. A cursor the route did not issue is refused `400 VALIDATION_FAILED`. It always answered `hasMore: false` before, so an instance with more invoices than one page could not reach the rest.
+  - **Admin UI** — the _Invoices_ list has a _Load more_ button while more rows exist, and the kind filter offers every kind, `wz` included.
+  - **i18n** — `invoices.kind.wz` ("goods dispatch note" / "dokument WZ") and `invoices.loadMore` in the `core` namespace, English and Polish. ERP-imported WZ rows showed the raw key `invoices.kind.wz` in the list, on the detail page and in the kind filter.
+
+- 3f95d1c: Declares and translates (en, pl) the three platform command-hook codes: `COMMAND_EXTENSION_UNCLAIMED`, `COMMAND_HOOK_CYCLE` and `COMMAND_HOOK_DATA_MISSING` (`specs/176-command-hooks-outbox/` P2).
+- 190986e: Declares and translates (en, pl) `COMMAND_OUTBOX_NOT_DEAD`, translates the command outbox's own failure codes (`commandOutbox.failure.hook-unregistered`, `.permanent-failure`, `.handler-failed`), and ships the _Command hooks_ screen's strings and its navigation label (`specs/176-command-hooks-outbox/` P4).
+- 2e603f7: Admin screens confirm destructive and consequential actions in the kit's `ConfirmDialog` rather
+  than the browser's `window.confirm()` (issue #313). This covers deleting, revoking, removing and
+  resetting across these modules, switching a module off on the Modules screen, undoing a bulk
+  edit, making a sales channel the default, and preparing a customer's basket from a quote. The
+  dialog names the action on its confirm button (for example _Delete_, _Revoke_, _Unassign_), and a
+  destructive question opens with focus on Cancel.
+
+  The three native `alert()` calls are now notices on the page: deleting an attachment type that is
+  still in use (`catalog`), unassigning a channel's default warehouse (`inventory`), and activating a
+  megamenu binding that replaces another (`megamenu`, announced through a live region). Renaming a
+  setting group (`settings`) uses a one-field dialog instead of `prompt()`. Removing a colour from
+  the page builder's palette (`page-builder-admin`) is confirmed inline in its row, because the
+  palette is already a modal.
+
+  Several of these questions were untranslated English literals. They are now bundle keys in
+  English and Polish: the country, currency and language deletes (`dictionaries`), the e-mail block
+  and template deletes (`transactional_emails`), the setting-group delete and rename and the setting
+  reset (`settings`), and the sales-channel delete and rebind questions (`sales_channels`). The
+  assets-library folder delete no longer says "OK = … / Cancel = …". `mod-i18n` adds
+  `common.confirm.title` and the subscription-cancel button labels.
+
+  Two native dialogs stay on purpose: the unsaved-changes navigation guard
+  (`use-unsaved-changes-prompt`), which has to answer synchronously inside the click it intercepts,
+  and the settings screen's discard-on-channel-switch guard, which is the same kind of guard. They
+  will be replaced together in a later change.
+
+- 577e94c: **`@endora-commerce/admin-kit/components`** adds `ImmediateBadge`, the one "Applies immediately" badge for the heading of a section whose controls write at once, outside the page's one Save (issue #407, `specs/180-one-save-zone-editors/` FR-061). Text with a decorative icon, drawn with the info tokens the product editor used. An optional `className` places it and is merged last, so a caller's spacing class replaces the badge's own. Its string is `saveSession.immediateBadge` in the `core` catalogue (English and Polish), which `@endora-commerce/mod-i18n` now ships.
+- 7bdf512: The `core` catalogue adds English and Polish strings for the save-session controls (issue #407): `saveSession.action.*` (the Save label, its plural count, "Saving…" and "No unsaved changes") and `saveSession.summary.*` (refused, partial and failed outcomes, per-part problem counts, "Saved:", "Not saved:" and "Show").
+- 5c148de: The product editor, the category editor, the sales-channel editor and the organization and customer detail screens now pass `saveSession: INERT_SAVE_SESSION` to their zones (issue #407). None of these editors runs a save session yet, so nothing changes for operators. The `core` catalogue adds the save-session notices and the "switched off" message in English and Polish (`saveSession.notice.moduleOff`, `saveSession.notice.crashed`, `saveSession.error.moduleOff`).
+- 1acf873: `admin_users` now creates `admin_users.preferred_language` itself, in the new
+  `Migration20261114T002913AdminUsersPreferredLanguage` (issue #611). Until now only `_i18n`'s
+  `Migration20260507T091405I18nAdminI18nInit` created it, although the column belongs to
+  `admin_users`' `AdminUser` entity. That migration keeps its class name and no longer names
+  `admin_users` in `up()` or `down()`. The new migration uses `add column if not exists` with the
+  same type, so a database that has already applied the old migration does not change.
+  `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `_i18n` writing `admin_users`.
+- d68aa70: The business refusals of invoice issuance and of corrective invoices have error codes of their
+  own instead of `VALIDATION_FAILED`, and a sentence in English and Polish (issue #633, part of #86).
+  **A caller that matches on `VALIDATION_FAILED`, or on the `details.code` tokens listed below, now
+  sees the specific code.** The HTTP status of each is unchanged. Until now each was answered with an
+  English sentence in every language, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Was                                                                                                      | Is                                                | `details`                                                                                                                                    |
+  | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `422 VALIDATION_FAILED`, _"Seller VAT/NIP and company data must be configured before issuing invoices."_ | `422 INVOICE_SELLER_DATA_MISSING`                 | `setting` (unchanged)                                                                                                                        |
+  | `422 VALIDATION_FAILED`, `details.code = "correction_currency_mismatch"`                                 | `422 INVOICE_CORRECTION_CURRENCY_MISMATCH`        | `requestedCurrency`, `invoiceCurrency` (was `originalCurrency`), `originalInvoiceId`; `details.code` is gone                                 |
+  | `400 VALIDATION_FAILED`, `details.code = "correction_total_exceeds_lines"`                               | `400 INVOICE_CORRECTION_TOTAL_EXCEEDS_LINES`      | `total`, `linesTotal`, and `currency` (new); `details.code` is gone, except `"below_charges"` when the total is below the charges it credits |
+  | `422 VALIDATION_FAILED`, `details.code = "correction_exceeds_rate_remaining"`                            | `422 INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING`   | `taxRate`, `vatRatePercent`, `remaining`, and `currency` (new); `details.code` is gone                                                       |
+  | `422 VALIDATION_FAILED`, `details.code = "correction_exceeds_charge_remaining"`                          | `422 INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING` | `details.code` is now the charge (`"delivery"` or `"payment_surcharge"`), `chargeKind`, `remaining`, and `currency` (new)                    |
+
+  The seller refusal is answered by `POST /api/v1/admin/orders/:orderId/invoices` and by automatic
+  issuance; the four correction refusals by every caller of the corrective-invoice port, which is a
+  return settlement in this repository. The five codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `invoices` manifest, and the module's documentation
+  page names them. `@endora-commerce/mod-i18n` loses the sentence
+  `errors.VALIDATION_FAILED.correction_exceeds_rate_remaining`, which nothing could render: the
+  envelope never translates `VALIDATION_FAILED`. The sentence lives on, under the new code, in the
+  `invoices` bundle. No setting, permission or migration changes.
+
+- 51b4e5c: Documentation only: the page points at the admin runtime in `@endora-commerce/admin-kit/i18n`, the language enum in `platform-language.ts`, and says that `admin_users` creates `preferred_language`, in English and Polish.
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

@@ -1,5 +1,212 @@
 # @endora-commerce/mod-tasks
 
+## 0.111.0
+
+### Minor Changes
+
+- 52831b7: The Task e-mails link into the admin panel (follow-up to issue #185). With `ADMIN_BASE_URL` set:
+
+  - `tasks_task_reminder` sends `task.adminUrl` (`<ADMIN_BASE_URL>/tasks/<taskId>`). The default
+    template shows an **Open the task** / **Otwórz zadanie** button to it.
+  - `tasks_daily_digest` sends `digest.adminUrl` (`<ADMIN_BASE_URL>/tasks/mine`) and an `adminUrl`
+    on each item of `digest.tasks` (`<ADMIN_BASE_URL>/tasks/<taskId>`). In the default template
+    each listed task's number and title link to the task, and an **Open My tasks** /
+    **Otwórz Moje zadania** button opens _My tasks_.
+
+  With `ADMIN_BASE_URL` unset none of these variables is sent. The digest lines are then plain text
+  and the buttons are left out. A customised template that does not name the variables renders as
+  before. `TaskDigestEntry` gains a required `taskId`.
+
+- c0a6d85: Issue #470 (D-288; owner ruling O-1, 2026-11-10: a title is a value) — a task's audit entries carry names and structure, never its values. The platform audit log is one table read under `audit_log:read` without regard to what the reader may see.
+
+  - `tasks.task.create`, `tasks.task.update`, `tasks.task.status_change`, `tasks.task.delete`, `tasks.task.custom_fields_change` and `tasks.attachment.add` no longer record the title, the context note, custom field values or an attachment's file name. They record `changedFields` / `changedCustomFields` and a `valueChangeId` instead. `TASKS_AUDIT_KEYS` is the snapshot's allowlist.
+  - The values go to a new table owned by the Tasks module, `task_value_changes` (`TaskValueChange`, `@RuleScoped` like the task, `on delete cascade`). The same Command writes it. The migration `Migration20261110T054810TasksValueChanges` creates it.
+  - `GET /api/v1/admin/tasks/:id/history` reads the values back by the task's own id, after `findVisibleRow`, and serves them in the shape entries had before. A context the reader may not see is still blanked, its note included.
+  - The history serves custom field values, and the names of changed custom fields, only to a `custom_fields:read` holder (owner ruling 2026-11-10; feature 162 P2 = a, as CRM and Projects). `OwnerReadChecks` gains `customFields`.
+  - Audit entries written before the upgrade are not rewritten (owner ruling O-4).
+
+  **Behaviour change on upgrade.** On the platform **Audit log** screen and in `audit_logs read`, new task entries show field names instead of values. The task's own **History** tab is unchanged, except that custom field values now need `custom_fields:read` there. See _Task values leave the platform audit log_ in the upgrade guide.
+
+- 23e8b43: Changing `tasks.time_zone` now re-derives what Tasks counted in the old zone (issue #505), by any
+  write path — the Tasks _General settings_ screen, `PUT /api/v1/admin/tasks/settings/time-zone`
+  or the generic settings write:
+
+  - a relative reminder on a Task with a due date alone counts from 09:00 of that date in the new
+    zone; its delivery rows go, so it fires again at the new moment;
+  - `due_on` of a Task with a due time becomes that time's date in the new zone.
+
+  The work is a new first pass of the `tasks-reminders` tick, so it lands within a minute. Each Task
+  changed gets one `tasks.task.update` audit entry with `reason: 'time_zone_changed'`, its `dueOn`
+  before and after and `remindersMoved`. New exports: `TaskTimeZoneRederiveService`
+  (`services/time-zone-rederive-service.ts`), `rederiveTaskDueCommand` and
+  `TASKS_REDERIVE_SCOPE_REASON`. `TasksRemindersJobDeps` gains a required `rederive` pass, and
+  `followDueMoment` now answers how many relative reminders it moved.
+
+- ca66684: Attaching a library file that is not private to a Task is refused under the module's own
+  attachment code instead of `VALIDATION_FAILED`, with a sentence in English and Polish (issue #642,
+  part of #86). **A caller that matches on `VALIDATION_FAILED` for this refusal now sees
+  `TASK_ATTACHMENT_REFUSED`.** The HTTP status is unchanged. Until now it was answered with an English
+  sentence in every language, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Route                                      | Was                                                                                                           | Is                            | `details`                                                               |
+  | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------- |
+  | `POST /api/v1/admin/tasks/:id/attachments` | `422 VALIDATION_FAILED`, _"An attachment must be a private file. Upload it to the media library as private."_ | `422 TASK_ATTACHMENT_REFUSED` | `code: 'not_private'`, `reason: 'not_private'`, `assetId`, `visibility` |
+
+  `not_private` is a new refusal token of the existing `TASK_ATTACHMENT_REFUSED`, declared in the
+  `tasks` manifest's `tokens`, so a caller already handling that code (`413` too large, `415` active
+  content) handles this one too. A file that is not in the media library, or that the caller may not
+  see, stays `422 VALIDATION_FAILED`, as does relating a Task to itself (`400`). The module's
+  documentation page names the refusal. No setting, permission or migration changes.
+
+### Patch Changes
+
+- baa0dae: The custom-fields panel on the Opportunity, Project and Task Overview no longer clears stored values the operator did not touch (issue #1007). Each screen used to add a `null` for every stored key missing from the panel's bag before sending its `PATCH`, written when the panel reported a cleared field as `undefined`. The panel has reported a cleared field as `null` since issue #176, and leaves out every key it does not offer for editing (a `read` or `hidden` field, or a value with no definition) and, now, every key the operator did not change. The screens forward the panel's bag as it is, so a save writes the changed fields only and the server's merge keeps every other stored value.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- f39d37f: Each manifest exports `customFieldWrites` (`specs/175-buyer-input-custom-fields/`), the `CustomFieldWriteDeclaration[]` naming the admin routes that write its custom-field host's values: opportunity, project and task create (`POST`) and update (`PATCH …/:id`), and the customer values patch (`PATCH /api/v1/admin/customers/:id/custom-fields`). A type-only declaration read by `check:custom-field-writes`; no runtime behaviour changes.
+- 939c455: The attachment lists of Tasks, Projects and CRM Opportunities resolve every file's download link in one batched `assetReadPort.resolveUrls` read instead of one `assetsLibraryPort.getAsset` call per file (issue #545). The full asset detail asked every registered asset-reference descriptor about each attached file, so a list of N files issued about 12 × N reference statements. The links are unchanged: the same signed, expiring URL for a private file, with `download=1`. A host that composes these services itself must provide `resolveUrls` on the `assets` dependency (it is part of the published `AssetReadPort`).
+- 93146d1: Resolving the references in a text no longer reads the reader's administrator record when the text mentions a Product (issue #963). The reference services of `crm`, `tasks` and `projects` still looked up the reader's preferred language and then discarded it, a leftover from per-locale product names: a Product is named by its single Global `name`. The labels shown do not change.
+- 4933779: The module's documentation page counts the four passes of the `tasks-reminders` tick, the time-zone pass included, and says a reminder e-mail carries its link only when `ADMIN_BASE_URL` is set. English and Polish.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [52831b7]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+  - @endora-commerce/email-components@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

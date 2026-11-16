@@ -1,5 +1,246 @@
 # @endora-commerce/mod-customer-accounts
 
+## 0.111.0
+
+### Minor Changes
+
+- f39d37f: Account custom-field values at creation (`specs/175-buyer-input-custom-fields/`).
+
+  - `CustomerAccountMemberWritePort.create` stores `CustomerAccountCreateInput.customFieldValues` as given (`{}` when absent). The bag is already validated by the caller through custom_fields' value port — the registration surface or the admin member create — and is not re-validated here.
+
+- 695636f: An account's creation is now the `customer_account.create` Command (`specs/176-command-hooks-outbox/`
+  FR-002, FR-004).
+
+  - A new port, `customerAccountMemberCommandPort`, prepares it. `prepareCreate(input)` hashes the
+    password before any transaction and returns a builder whose `.command({ organizationId,
+organizationRoleId })` a caller runs as a child of its own Command through `ctx.run`.
+  - `customerAccountMemberWritePort.create` keeps its contract. It now runs the same Command through
+    the Command Bus, so the bus writes the `customer_account.create` audit entry. The action, the
+    object and the audit state are unchanged, and the port's own hand-written entry is removed. The
+    entry now also carries the request id, IP address and user agent.
+  - `CustomerAccountMemberWriteService`'s fourth constructor argument is now
+    `{ commandBus, roles? }`. `create` refuses without a bus instead of writing unaudited. Only a
+    hand-built service is affected: the composed port is wired as before.
+
+- 32384c9: Issue #470 (D-288): a customer account's audit entries carry names and structure, never its values. The platform audit log is one table read under `audit_log:read` without organization reach, so a tenant's account data no longer reaches it.
+
+  - `customer_account.update_profile` records `changedFields` instead of the e-mail and the names before and after.
+  - `customer_account.create`, `.register_standalone` and `.register_social` record `changedFields` (the fields the account was created with), `organizationRoleId` and `emailVerified` instead of the e-mail and the organization.
+  - `customer_account.organization_assigned`, `.organization_unassigned` and `.attach_organization` record the move as `changedFields: ['organizationId', 'organizationRoleId']` with the role ids, without the organization ids (the tenant anchor).
+  - `customer_account.blocked` and `.unblocked` record `hasBlockReason` instead of `blockReason`.
+  - `customer.custom_fields.update` records `changedCustomFields` instead of the custom field values before and after.
+  - `customer_account.change_role`, `.remove_member` and `.promote_organization_admin` record the role as `{ id, kind }`, without a custom role's name.
+  - `CUSTOMER_ACCOUNT_AUDIT_KEYS` lists the keys an account audit state may hold, and a sentinel test per write holds it to that list.
+  - No history reads an account's values back from the audit log, so no value store is added: the account row holds the values. Audit entries written before the upgrade are not rewritten.
+
+  **Behaviour change on upgrade.** On the platform **Audit log** screen and in `audit_logs read`, new customer account entries show field names instead of values. See _Customer account values leave the platform audit log_ in the upgrade guide.
+
+- d0c5dc8: A customer account records the language its owner reads (issue #652). New column `customer_accounts.preferred_language` (`varchar(35)`, nullable, not backfilled); run your migrations.
+
+  - **Captured at creation** from the creating request's `Accept-Language` header, resolved against the request's sales channel by `requestScopeLanguage` (q-weighted) — business and individual registration, invitation accept and a first federated sign-in. An operator's direct create records none.
+  - **Filled at sign-in while unknown.** A password sign-in stores the request's language once the password, the block and the store access have been accepted, before any second factor; it never replaces a language the account already has, and a failed capture is logged without failing the sign-in. A refused sign-in and an impersonation store nothing.
+  - **New port `customerAccountPreferencePort`** (`CustomerAccountPreferencePort`): `setPreferredLanguage` for the account holder's own choice and `captureIfUnset` for a sign-in. Both run the new `customer_account.set_preferred_language` Command, whose audit entry is `{ changedFields: ['preferredLanguage'], source }` and never contains the language. A write that changes nothing writes no audit entry.
+  - `customerSocialLoginPort.autoCreate` accepts `context.preferredLanguage`.
+  - The anonymisation sweep erases the language. An account anonymised earlier that still holds one is listed as due and finished by the next sweep, without a second announcement.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 2e603f7: Admin screens confirm destructive and consequential actions in the kit's `ConfirmDialog` rather
+  than the browser's `window.confirm()` (issue #313). This covers deleting, revoking, removing and
+  resetting across these modules, switching a module off on the Modules screen, undoing a bulk
+  edit, making a sales channel the default, and preparing a customer's basket from a quote. The
+  dialog names the action on its confirm button (for example _Delete_, _Revoke_, _Unassign_), and a
+  destructive question opens with focus on Cancel.
+
+  The three native `alert()` calls are now notices on the page: deleting an attachment type that is
+  still in use (`catalog`), unassigning a channel's default warehouse (`inventory`), and activating a
+  megamenu binding that replaces another (`megamenu`, announced through a live region). Renaming a
+  setting group (`settings`) uses a one-field dialog instead of `prompt()`. Removing a colour from
+  the page builder's palette (`page-builder-admin`) is confirmed inline in its row, because the
+  palette is already a modal.
+
+  Several of these questions were untranslated English literals. They are now bundle keys in
+  English and Polish: the country, currency and language deletes (`dictionaries`), the e-mail block
+  and template deletes (`transactional_emails`), the setting-group delete and rename and the setting
+  reset (`settings`), and the sales-channel delete and rebind questions (`sales_channels`). The
+  assets-library folder delete no longer says "OK = … / Cancel = …". `mod-i18n` adds
+  `common.confirm.title` and the subscription-cancel button labels.
+
+  Two native dialogs stay on purpose: the unsaved-changes navigation guard
+  (`use-unsaved-changes-prompt`), which has to answer synchronously inside the click it intercepts,
+  and the settings screen's discard-on-channel-switch guard, which is the same kind of guard. They
+  will be replaced together in a later change.
+
+- a3b1da5: Customer-group admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `customerGroupListResponseSchema` / `CustomerGroupListResponse` for `GET /api/v1/admin/customer-groups`, a `data` array of `customerGroupSchema` rows. The rows were already described, but the list envelope was not.
+  - `mod-customer-accounts` builds every customer-group reply as the contract's `CustomerGroup` instead of `Record<string, unknown>`. The list handler returns `CustomerGroupListResponse` and the upsert handler returns `{ data: CustomerGroup }`. The admin customer-groups client's `AdminCustomerGroup` is now an alias of the contract's `CustomerGroup` instead of a hand-written interface of the same shape. Nothing on the wire changes.
+
+- b064fec: Documentation only. The module page (English and Polish) names the customer sign-in routes as served (`/api/v1/auth/customer/login` and `/logout`, by `organizations`), the customer-group admin routes and where the password hasher lives.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [0e16877]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [f8382b4]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [8abfd03]
+- Updated dependencies [7616ef1]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [fc16db9]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [ecbf12a]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [990e457]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [5c148de]
+- Updated dependencies [577e94c]
+- Updated dependencies [4d0a26d]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [75027ef]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [d1cbf57]
+- Updated dependencies [1774bf5]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [5f8eede]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [b064fec]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/mod-organizations@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

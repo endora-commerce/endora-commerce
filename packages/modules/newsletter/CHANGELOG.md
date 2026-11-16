@@ -1,5 +1,192 @@
 # @endora-commerce/mod-newsletter
 
+## 0.111.0
+
+### Minor Changes
+
+- be58eed: Issue #470 (D-288) — subscriber audit entries hold no e-mail address and no free-text reason. A subscriber is `@CustomerScoped`, and the platform audit log is read under `audit_log:read` without that reach.
+
+  - `newsletter_subscribe` / `newsletter_resubscribe` no longer record `email`. They keep `status` and `source`.
+  - `newsletter_unsubscribe` records `hasReason` instead of `reason`. The reason stays on the subscriber (`unsubscribeReason`) and its suppression.
+  - A bounce or complaint suppression records only the reason code.
+  - `newsletter_delete` records the subscriber's `status` instead of its `email`.
+  - Entries name the subscriber by `objectId`. A suppression of an address with no subscriber still uses the address as `objectId`, unchanged.
+  - Audit entries written before the upgrade are not rewritten (owner ruling O-4).
+
+  **Behaviour change on upgrade.** On the platform **Audit log** screen and in `audit_logs read`, new newsletter entries show no addresses or reasons. See _Subscriber addresses leave the platform audit log_ in the upgrade guide.
+
+- ea965bb: The newsletter admin refusals have error codes of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #626, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for these refusals now sees the specific code.** The HTTP status is unchanged.
+  Until now each was answered with an English sentence in every language, because the error
+  envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Route                                                                         | Was                                                                                                     | Is                                        | `details`                |
+  | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------ |
+  | `PUT /api/v1/admin/newsletter/automations/:id` (automation active)            | `422 VALIDATION_FAILED`, _"Pause the automation before editing."_                                       | `422 NEWSLETTER_AUTOMATION_ACTIVE`        | `automationId`, `status` |
+  | `PUT /api/v1/admin/newsletter/campaigns/:id` (not draft or scheduled)         | `422 VALIDATION_FAILED`, _"Only draft/scheduled campaigns can be edited."_                              | `422 NEWSLETTER_CAMPAIGN_NOT_EDITABLE`    | `campaignId`, `status`   |
+  | `POST /api/v1/admin/newsletter/campaigns/:id/send` (no sending provider)      | `422 VALIDATION_FAILED`, _"No sending provider configured."_, `details.code: "provider_not_configured"` | `422 NEWSLETTER_PROVIDER_NOT_CONFIGURED`  | none                     |
+  | `POST /api/v1/admin/newsletter/campaigns/:id/cancel` (not draft or scheduled) | `422 VALIDATION_FAILED`, _"Only draft/scheduled campaigns can be cancelled."_                           | `422 NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE` | `campaignId`, `status`   |
+  | `POST /api/v1/admin/newsletter/custom-fields` (key exists)                    | `409 VALIDATION_FAILED`, _"Field key already exists."_                                                  | `409 NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN`   | `key`                    |
+  | `POST /api/v1/admin/newsletter/blocks` (code exists)                          | `409 VALIDATION_FAILED`, _"Block code already exists."_                                                 | `409 NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN`   | `blockCode`              |
+  | `DELETE /api/v1/admin/newsletter/blocks/:id` (system block)                   | `422 VALIDATION_FAILED`, _"System blocks cannot be deleted."_                                           | `422 NEWSLETTER_EMAIL_BLOCK_SYSTEM`       | `blockId`, `blockCode`   |
+  | `POST /api/v1/admin/newsletter/tags` (code exists)                            | `409 VALIDATION_FAILED`, _"Tag code already exists."_                                                   | `409 NEWSLETTER_TAG_CODE_TAKEN`           | `tagCode`                |
+  | `DELETE /api/v1/admin/newsletter/tags/:id` (used by a campaign or automation) | `409 VALIDATION_FAILED`, _"Tag is used by a campaign or automation."_, `details.code: "tag_in_use"`     | `409 NEWSLETTER_TAG_IN_USE`               | `tagId`, `tagCode`       |
+
+  The `provider_not_configured` and `tag_in_use` tokens are gone: each was the only reason under its
+  code. A block's or a tag's own code travels as `blockCode` or `tagCode`, because the envelope reads
+  `details.code` as a refusal token. The nine codes are members of `ERROR_CODES` in
+  `@endora-commerce/contracts`, declared by the `newsletter` manifest, and the module's documentation
+  page lists them. An automation with invalid steps (`automation_invalid`) and a sign-up naming an
+  unknown sales channel stay `VALIDATION_FAILED`. No setting, permission or migration changes.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 4933779: The module's documentation page describes the sending provider as it works: the SMTP connection is an Email adapter credential chosen in `newsletter.email_credentials`, the provider screen holds the sender and send rate, and without a credential campaign e-mail goes to the console sink rather than being refused with `NEWSLETTER_PROVIDER_NOT_CONFIGURED`. Deactivating a subscriber is listed among the audited actions. English and Polish.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [52831b7]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+  - @endora-commerce/email-components@0.111.0
+  - @endora-commerce/page-builder-admin@0.111.0
+  - @endora-commerce/page-builder-core@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

@@ -1,5 +1,216 @@
 # @endora-commerce/admin-kit
 
+## 0.111.0
+
+### Minor Changes
+
+- f39d37f: `CustomFieldValuesPanel` honours a definition's admin access (`specs/175-buyer-input-custom-fields/`).
+
+  - A `read` definition renders as its label and stored value (a dash when there is none) with no input; a `hidden` one is not rendered. A panel whose every definition is `hidden` renders nothing, as for an entity type with no definitions.
+  - **The bag handed to `save` and to `onChange` now carries the keys of `edit` definitions only.** A stored `read` or `hidden` value, and a key with no definition, are no longer in it; every in-tree host sends the bag as a patch to a merging endpoint, which keeps an absent key, so a panel save no longer overwrites a value it did not let the operator edit — including one an integration wrote after the page loaded.
+  - A refusal for a non-`edit` field — passed in `fieldErrors`, or answered by the host's `save` in a `CUSTOM_FIELD_VALUE_INVALID` envelope — is shown at the top of the panel with the field's label and level and a pointer to the Custom fields screen. New `core` keys: `customFields.adminAccess.read`, `customFields.adminAccess.hidden`, `customFields.nonEditableRefusal`, `customFields.value.yes`, `customFields.value.no`.
+  - Admin access is a panel convenience, not access control: no API endpoint reads it.
+  - New export `customFieldErrorsOf(error)` from `./components`, beside the panel: a `422 CUSTOM_FIELD_VALUE_INVALID` `ApiError` as the panel's `fieldErrors` (definition key → sentence), `null` for any other failure. Every host create screen reads a refusal through it.
+
+- f5caa4e: **Convert to company in the Admin UI.** A personal organization's page offers _Convert to company_ to holders of `organizations:convert-to-company`. A dialog asks for the company name, an optional legal name, the tax ID (spaces and dashes removed as you leave the field), the registered address, the VAT status and whether to validate the tax ID afterwards. It reports the validation's outcome; the organization page then shows its members and roles. _Convert personal organization_ (`/organizations/convert-to-company`, also from ⌘K and from the Organizations list's header menu) does the same in two steps, starting from a picker of personal organizations. `GET /api/v1/admin/organizations` accepts `filter[isPersonal]=true|false` with `includePersonal=true`.
+
+  - **admin-kit:** `OrganizationPicker` takes an optional `kind` — `'company'` (default, unchanged), `'personal'` or `'any'`; `useOrganizationsQuery` takes the same option, and `OrganizationPickerKind` is exported.
+
+- 2e603f7: `@endora-commerce/admin-kit/components` exports `ConfirmDialog` and `useConfirmDialog`
+  (with `ConfirmDialogProps`, `ConfirmOptions` and `UseConfirmDialog`), the design-system
+  replacement for the browser's `window.confirm()` (issue #313).
+
+  `useConfirmDialog()` returns `{ confirm, confirmDialog }`. Render `confirmDialog` once in the
+  screen, then replace `if (!window.confirm(message)) return;` with:
+
+  ```tsx
+  if (!(await confirm({ message, confirmLabel: t('common.action.delete'), destructive: true })))
+    return;
+  ```
+
+  `confirm` resolves `true` on the confirm button and `false` on Cancel, Escape, the scrim, or when
+  the screen unmounts. `title`, `confirmLabel` and `cancelLabel` default to the `core` bundle's
+  `common.confirm.title`, `common.action.confirm` and `common.action.cancel`. A `destructive`
+  question styles the confirm button as destructive and opens with focus on Cancel. Any other
+  question opens with focus on the confirm button. Focus returns to the opener on close.
+  `ConfirmDialog` is the controlled form, with `busy` and `error`, for a screen that keeps the
+  dialog open while its own request runs. Both are built on `ModalDialog` and render into
+  `document.body` through a portal, so a call site inside a table row does not nest a `<div>` in
+  a `<tbody>`.
+
+  `react-dom` (`^19.0.0`) is now a peer dependency, for `createPortal`. Any app that renders the
+  admin already has it.
+
+- 577e94c: **`@endora-commerce/admin-kit/components`** adds `ImmediateBadge`, the one "Applies immediately" badge for the heading of a section whose controls write at once, outside the page's one Save (issue #407, `specs/180-one-save-zone-editors/` FR-061). Text with a decorative icon, drawn with the info tokens the product editor used. An optional `className` places it and is merged last, so a caller's spacing class replaces the badge's own. Its string is `saveSession.immediateBadge` in the `core` catalogue (English and Polish), which `@endora-commerce/mod-i18n` now ships.
+- e435bad: Save-session additions, needed by the first editor to adopt the session (issue #407):
+
+  - `SaveParticipantHandlers.validate` and `save` now receive the participant's saved state as a third argument, `baseline`, so a part can check and write only what changed. Handlers that take two arguments keep working.
+  - `useSaveSession()` returns `zoneOf(partId)`, the zone a participant rendered in, or `null` for a host-owned section. A host uses it to take the operator to the part from the summary's "Show" without naming the contributing module.
+  - Fix: a panel that remounts while its read is still in flight no longer discards the draft the session kept for it.
+
+- 7bdf512: **`@endora-commerce/admin-kit/components`** adds the two generic controls for an editor's save session (issue #407, `specs/180-one-save-zone-editors/contracts/save-participation.md` §5):
+
+  - **`SaveSessionActions`** (`hostCount`, `canSave`, `saving`, `onSave`, optional `describedBy`). This is the one Save for a host that has no Save of its own. It renders inside `StickyFormActions` and reads "Save" or "Save n changes", counting the host's changes plus every participant's. It is inert while there is nothing to save or a save is running. It is shown when the host record or any participant is writable.
+  - **`SaveSessionSummary`** (`outcome`, `notices`, `onShow(partId)`). This renders a `SaveOutcome` part by part:
+    - a refusal lists each part with its number of problems;
+    - a partial save says what was saved and what was not, with the reason;
+    - a failed save says nothing was saved;
+    - a full save is announced in a polite live region only.
+      Each part with a problem has a "Show" button, which calls `onShow`. Focus moves to the summary's heading when an outcome arrives. Discarded-change notices are listed below.
+
+  `CustomFieldValuesPanel` takes an optional `saveSession`. With one, the panel joins the page's one Save as a host-owned section and renders no Save button of its own. The page Save writes it through the host's `save`, and a refused write shows at the field. Without `saveSession`, the panel works exactly as before.
+
+- 5c148de: **`@endora-commerce/admin-kit/lib`** adds the save session (issue #407, `specs/180-one-save-zone-editors/contracts/save-participation.md`). It lets the panels contributed to an editor's zones save with the editor's one Save:
+
+  - `SaveSessionProvider` (`resetKey`, optional `hostModule`) wraps a host editor. A new `resetKey` starts an empty session.
+  - `useSaveSession()` is the host side. It returns `handle` (pass it as the zones' `saveSession` prop), `dirtyCount`, `hasWritableParticipant`, `dirtyParticipants()`, `discardAll()`, `clearOutcome()`, `saving`, `notices`, `lastOutcome` and `run(hostPart, { stopOnFailure? })`.
+  - `useSaveParticipant(handle, { key, label, writable, loaded }, { changeCount, validate, save })` is the contributor side. Drafts are held by the session, so they survive the panel unmounting. The participant's id is `${module}:${key}`, and its module comes from the zone contribution that rendered it. Outside a zone, the provider's `hostModule` owns it. A participant whose module is switched off or whose contribution crashes is dropped with a notice. A `503 MODULE_DISABLED` from its write is reported as switched off.
+  - `runSave(parts, options)` is the pure orchestrator. It validates every part first and writes nothing if any part refuses. It then writes the parts in order: a blocking part that fails stops the run, and a non-blocking part that fails is recorded while the rest still run. `hasIssues` is exported beside it.
+  - `INERT_SAVE_SESSION` is the handle for a mount with no live session. A participant given it keeps a local draft and takes part in no Save.
+
+  Types: `SavePart`, `SaveContext`, `ParticipantIssues`, `SaveOutcome`, `SaveOutcomePart`, `SavePartResult`, `RunSaveOptions`, `SaveParticipantHandlers`, `SaveParticipantSpec`, `SaveParticipant`, `ParticipantStatus`, `SaveSessionValue`, `SaveSessionProviderProps`. `<AdminZone>` now tells each contribution which module and zone it renders in, and `ZoneErrorBoundary` reports a crashing contribution to the live sessions.
+
+- 0beb869: `CustomFieldValuesPanel` takes an optional `readOnly` prop (issue #407, `specs/180-one-save-zone-editors/` WP-7). With it, every field is shown as its value with no input, the way an `edit`-level definition is shown at `read`, and nothing reaches the bag. Without it the panel is unchanged. The organization detail uses it for an operator without `customers:manage`, whose page Save would never write the custom fields.
+- 54ae028: `useAuth()` now returns `hasAnyPermission(codes: readonly string[]): boolean` (issue #458). It
+  answers `true` when the signed-in admin holds any one of `codes` (a `'*'` role holds every code),
+  and `false` for an empty list. Use it instead of `codes.some((code) => hasPermission(code))`, and
+  write the codes as a literal array at the call: the permission inventory in
+  `@endora-commerce/mod-admin-roles` reads that literal, so each code is checked. A test that mocks
+  `useAuth()` for a component that calls `hasAnyPermission` must add it to the mock.
+- 8ae3f58: **Behaviour change: a line quantity has an upper bound, refused with a new error code, `LINE_QUANTITY_EXCEEDED`; and the quote request and return line arrays have a line-count bound** (issue #351). A quantity past the integer column it is stored in used to pass validation and answer `500`; it is now refused, in the reader's language.
+
+  New in `@endora-commerce/contracts`: `LINE_QUANTITY_MAX` (`1 000 000`, the same value as `ORDER_MINIMUM_MAX`, so the largest minimum stays orderable), `lineQuantitySchema` (a whole number in 1…`LINE_QUANTITY_MAX`), `boundedLineQuantity(schema)`, `isLineQuantityExceededIssue(issue)`, `LINE_QUANTITY_EXCEEDED` (also in `ERROR_CODES`) and `REQUEST_LINE_ITEMS_MAX` (`200`). `ADMIN_ORDER_MAX_ITEMS` and `QUICK_ORDER_BUILD_MAX_ITEMS` are now that constant under their own names; their value does not change.
+
+  **The new code.** Every request schema carrying a line quantity uses `lineQuantitySchema`: `addCartItemRequestSchema`, `updateCartItemRequestStrictSchema`, `createQuoteRequestSchema` / `patchQuoteRequestSchema` lines, `adminCreateQuoteRequestSchema` / `adminPatchQuoteRequestSchema` lines, `adminCreateOrderRequestSchema` / `adminOrderPreviewRequestSchema` items, `apiPlaceOrderRequestSchema` lines, `quickOrderBuildRequestSchema` items, `quickOrderOneClickRequestSchema`, `addShoppingListItemRequestSchema`, `updateShoppingListItemRequestSchema`, `createReturnCaseRequestSchema` lines, `catalogBulkPriceRequestSchema` lines, `cartSnapshotSchema` lines, and the packaging unit's `baseQuantity` in `createPackagingUnitRequestSchema` / `updatePackagingUnitRequestSchema`. A quantity past the bound is a Zod issue tagged `LINE_QUANTITY_EXCEEDED`. The error envelope in `@endora-commerce/platform` answers a request whose only failures are that issue with `400 LINE_QUANTITY_EXCEEDED` and a translated sentence (`@endora-commerce/mod-i18n` ships it in English and Polish), with `details` naming the field. A request that fails anything else as well stays `400 VALIDATION_FAILED`, with the issue among its details. `POST /api/v1/external/orders` and `POST /api/v1/external/catalog/prices` parse their bodies themselves and keep answering `422 VALIDATION_FAILED`; the detail's `issue` there is `LINE_QUANTITY_EXCEEDED`.
+
+  `@endora-commerce/mod-carts`: two cases are refused with `422 LINE_QUANTITY_EXCEEDED`, `details: { quantity, maximum }`, and write nothing: an add onto an existing basket line whose sum would pass the bound, and a packaging-unit add whose pieces (`baseQuantity × units`) would pass it. This covers the single and batch add, reorder and shopping list to cart. Signing in sums the anonymous basket into the customer's and keeps a summed line at the bound instead of failing the sign-in. `updateCartItemRequestSchema` (the line edit) now accepts any quantity from `0` (remove) to the bound; it stopped at `999`.
+
+  **Line counts.** The line arrays of `adminCreateQuoteRequestSchema`, `adminPatchQuoteRequestSchema` and `createReturnCaseRequestSchema` are bounded at `REQUEST_LINE_ITEMS_MAX`, as the customer's quote request create and edit already were: one line more is `400 VALIDATION_FAILED`. The value is shared but the refusal is not. The order intakes (admin create and preview, `POST /api/v1/external/orders`) and the quick-order build keep refusing more than 200 items with `422 VALIDATION_FAILED`, `details: { code: 'too_many_items', maximum: 200 }`, and the basket's own cap stays `422 CART_LINE_CAP_EXCEEDED`.
+
+  `@endora-commerce/admin-kit`: `parsePositiveInt` returns `null` past `LINE_QUANTITY_MAX`, so the admin order and quote request create screens mark such a line invalid before sending it. `@endora-commerce/mod-quick-order`: an imported row past the bound, and every row of a duplicate whose sum passes it, is rejected as `quantity_invalid` instead of being recognised into a build that would be refused. `@endora-commerce/mod-quote-requests`: the Modify tab's quantity input carries the bound as its `max`.
+
+### Patch Changes
+
+- baa0dae: `CustomFieldValuesPanel` hands its host only the custom-field keys the operator changed (issue #1007). Until now the bag given to `save` and `onChange` carried every `edit`-level key the panel had loaded, so saving the order custom-fields panel wrote an unchanged, stale value over one another writer had changed after the page loaded, even though `PATCH /api/v1/admin/orders/:id/custom-fields` merges per key.
+
+  - The bag now holds the `edit`-level keys whose value differs from the one the panel loaded. A cleared field is still in it, as `null` (an empty string for text, an empty array for a multiselect); a field edited back to its loaded value is not.
+  - With its own Save, the panel compares against what its last successful save wrote, so a second save does not send the first one's keys again. A refused save keeps them.
+  - Under a page Save (`saveSession`), the save session's baseline is the comparison point.
+  - A host that forwards the bag as it is needs no change. A host that fills in the keys missing from the bag (as cleared, for example) must stop doing so: a missing key now means "unchanged", and filling it in clears a value the operator did not touch.
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 097b599: Save session fix (issue #1271): an edit made in the moment between a panel's read landing and the session being seeded with it is no longer dropped. `useSaveParticipant`'s `setDraft` now seeds a participant that has no entry yet from the current render's read before it records the draft; an entry that already exists is not re-seeded, so a Save's newer baseline is kept.
+- d591709: Save session fix (issue #407): an edit made right after a participant became writable is no longer dropped. `useSaveParticipant`'s `setDraft` now applies the current render's `writable` and label before it records the draft, instead of waiting for an effect.
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/contracts@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

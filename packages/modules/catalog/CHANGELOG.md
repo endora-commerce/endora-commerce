@@ -1,5 +1,343 @@
 # @endora-commerce/mod-catalog
 
+## 0.111.0
+
+### Minor Changes
+
+- d16b343: The two refusals that feature 172 added for Page Builder content attributes have error codes of
+  their own instead of `VALIDATION_FAILED`, and a sentence in English and Polish that names the
+  values in `details` (issue #1218, part of #86). **A caller that matches on `VALIDATION_FAILED` for
+  these refusals, or reads `details` as a list of `{ path, issue }` on the update, now sees the
+  specific code and an object.** No status changes: both stay as they were (`409` and `400`).
+
+  | Route                                                                                                             | Was                                                                                              | Is                                                      | `details`                                             |
+  | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | ----------------------------------------------------- |
+  | `PATCH /api/v1/admin/catalog/attributes/:idOrKey` (type changed to or from `page_builder`)                        | `409 VALIDATION_FAILED`, `The value type of a Page Builder content attribute cannot be changed.` | `409 ATTRIBUTE_VALUE_TYPE_LOCKED`, token `page_builder` | `attributeKey`                                        |
+  | `PATCH /api/v1/admin/catalog/attributes/:idOrKey` (a stored content attribute switches on a setting it holds off) | `400 VALIDATION_FAILED`, `details: [{ path, issue }]` per setting                                | `400 CONTENT_ATTRIBUTE_CAPABILITY_LOCKED`               | `attributeKey`, `capabilities` (the settings, joined) |
+
+  On create, where the request itself names the `page_builder` type, a locked setting stays
+  `400 VALIDATION_FAILED` with one detail per setting. The other sites features 172 and 174 added
+  were reviewed and keep their answers: the content size ceiling, an unknown attribute set or
+  category, a malformed scope, URL key or import call stay `VALIDATION_FAILED`, and the scoped
+  editor's refusals already have codes. `CONTENT_ATTRIBUTE_CAPABILITY_LOCKED` is a new member of
+  `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `catalog` manifest, which also
+  declares the token `page_builder` on `ATTRIBUTE_VALUE_TYPE_LOCKED`; the module's documentation
+  lists both. No setting, permission or migration changes.
+
+- f39d37f: Product attributes carry an admin access (`specs/175-buyer-input-custom-fields/`, FR-036). `POST` and `PATCH /api/v1/admin/catalog/attributes` accept an optional `adminAccess` (`edit`, `read` or `hidden`), passed to the backing custom-field definition through the apply seam, and every attribute response answers it (`edit` by default). A required attribute that is not `edit` is refused with `400 VALIDATION_FAILED`. The attributes screen offers the selector on create and edit, with the sentence that it only changes the admin panel, and keeps read-only and hidden unavailable while the attribute is required.
+- f39d37f: The admin category create accepts custom-field values (`specs/175-buyer-input-custom-fields/`).
+
+  - `POST /api/v1/admin/catalog/categories` validates `customFieldValues` with the administrator's rules inside the `category.create` Command and stores them on the new category; a refusal answers the existing `422 CUSTOM_FIELD_VALUE_INVALID` (`details` entries `{ path, issue }`) and creates nothing, and the audit after-state carries the stored values. The create now enforces `required` category definitions, **also when the request sends no values** — a deployment with a required category field must supply it on every category create through this route or `catalogCategoryWritePort.create`.
+  - The category tree's create and edit forms embed the custom-field panel (shown with `custom_fields:read`): the create sends its bag in the `POST`, the edit in the same `PATCH /api/v1/admin/catalog/categories/:id` as the rest of the form, and a refusal is shown at the field it names (read through `@endora-commerce/admin-kit`'s `customFieldErrorsOf`).
+  - The manifest exports `customFieldWrites`: the category create and update, and the `product` create and update exemption (a product's values are catalog attribute values, written by the attribute surfaces).
+
+- 98cbe0f: The product editor's Inventory tab now saves its product-row settings with the editor's one Save (issue #407, owner ruling OQ-7 = B): stock management, backorders, the low-stock threshold and its mode, and the fulfilment strategy.
+
+  - These settings are staged as Global changes and counted by the editor's Save.
+  - They are written in its `PUT …/scoped-values` call, in `changes.product`, instead of through `PATCH …/products/:id`. The tab now reads them from the editor's scoped read.
+  - The tab's _Save threshold_ and fulfilment _Save_ buttons are removed.
+  - Changing the threshold mode no longer saves on its own.
+  - Per-warehouse stock levels and thresholds still save immediately, under an "Applies immediately" badge on the _Stock by warehouse_ table. The tab's _Stock_ heading no longer carries the badge.
+  - `ProductInventoryTab` takes an optional `editable` prop.
+  - The unused `inventoryTab.*.saved` and `inventoryTab.lowStock.success` strings are removed.
+
+- e435bad: The product editor's one Save now covers the panels contributed to its zones (issue #407, `specs/180-one-save-zone-editors/`).
+
+  **mod-catalog:**
+  - The editor runs a save session keyed on the scope it opened, and passes the session to every product-editor zone except SEO.
+  - Save counts the product's staged changes plus every panel's.
+  - Save writes the product's own changes first and the panels after, each through its own module.
+  - If a panel's write fails after the product saved, the editor reports what was saved and what was not, and the next Save writes only what is left.
+  - One guard covers every unsaved change on the page, including a scope switch. The browser's leave prompt covers panel changes too.
+  - Save is shown to an operator who may write the product or any panel.
+  - The Pricing tab heading no longer says "Applies immediately".
+  - The editor context carries `saveSession`.
+
+  **mod-price-lists:**
+  - The product's base-price panel saves with the product editor's Save. It no longer has a _Save prices_ button or a leave prompt of its own.
+  - `PUT /api/v1/admin/price-books/base-prices/:productId?dryRun=true` runs every rule of the write and writes nothing (no Command, no audit entry). The editor's Save calls it before anything is written.
+  - The admin client gains `checkBasePrices(productId, body)`.
+  - The `basePrices.save`, `basePrices.saving` and `basePrices.status.*` strings are removed; `basePrices.partLabel` is added.
+
+- 036865c: The category editor's Save now covers the panels contributed to `category.editor.after` (issue #407, `specs/180-one-save-zone-editors/` WP-6).
+
+  **mod-catalog:**
+  - The category editor runs a save session, one per open category, and passes it to `category.editor.after`.
+  - The zone is mounted above the Save / Cancel row instead of below it.
+  - Save reads "Save" or "Save n changes", counting the category's own field changes plus every panel's. It does nothing while there is nothing to save.
+  - Save writes the category first, then the panels. If the category write is refused (a slug that is taken, an invalid custom field), no panel is written. If a panel fails after the category saved, the editor stays open and reports what was saved and what was not; the next Save writes only what is left.
+  - Opening another category with unsaved changes asks _Save and continue / Discard changes / Stay here_. Cancel discards every change without asking, as before. Leaving the page or closing the browser tab with unsaved changes asks too.
+  - A refresh of the tree after a write no longer unmounts the open editor.
+  - New strings in English and Polish: `categories.save.hostPartLabel` and `categories.guard.*`.
+
+  **mod-price-lists:**
+  - `DisplayModeOverrideRow` takes an optional `saveSession`. With one, changing the select stages the mode as the part "Price display mode" (`displayModeRow.partLabel`, English and Polish) and the host's Save writes it through the same `PUT /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId`. There is no write on change and no "saved" suffix. Without `saveSession` the row saves on change as before.
+  - The category editor contribution passes the editor's session, so the category's display mode saves with the category. The organization detail is unchanged for now.
+
+- e30c1cb: Issue #409 — after a bulk write, the owning module now runs `VACUUM (ANALYZE)` of the tables it wrote in the background, so the admin's index-only reads (the product list's ordered walk and search count, a price book's lines and searches) have fresh statistics and a visibility map before autovacuum's first pass, which for a write below autovacuum's scale factor may never come.
+
+  - **`@endora-commerce/mod-catalog`** adds the BullMQ queue `catalog.table-maintenance` and its consumer: a products import that wrote (`catalogBulkImportPort.importProducts`, not a dry run) asks for `products` and `product_variants`. `import_export` reaches it through that port and names no table.
+  - **`@endora-commerce/mod-price-lists`** adds `price_lists.table-maintenance`: a price-book row batch (the editor's save and its CSV import), a base-price write (`priceBookWritePort`, the PIM price import) and a book duplicate ask for `price_list_matrix_entries` and `price_list_product_lines`.
+
+  Each request is a job delayed by one minute and deduplicated by its table (BullMQ `deduplication` with `keepLastIfActive`), so a burst of writes costs one vacuum per table, and a write while one runs keeps exactly one follow-up. The consumers run one job at a time where the host consumes queues, stop with their module, and log a failure; the write itself never waits for or fails on the request. Without a worker nothing changes — autovacuum remains the fallback. No migration, no new dependency.
+
+- 7a3673f: `catalog` refusals that the stored state makes have error codes of their own instead of
+  `VALIDATION_FAILED`, and a sentence in English and Polish that names the values in `details`
+  (issue #624, part of #86). **A caller that matches on `VALIDATION_FAILED`, or on a token in the
+  message (`sku_in_use`, `option_in_use`, `missing_required_attribute_values`), now sees the specific
+  code.** Two statuses move, marked below. Until now the operator read the English message or the
+  machine token whatever their language, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Route                                                                                                                   | Was                                                                                                         | Is                                                                                                              | `details`                                                                  |
+  | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+  | `POST /api/v1/admin/catalog/attributes`                                                                                 | `409 VALIDATION_FAILED`, `Attribute key "<key>" already exists.`                                            | `409 ATTRIBUTE_KEY_TAKEN`                                                                                       | `attributeKey`                                                             |
+  | `PATCH /api/v1/admin/catalog/attributes/:idOrKey` (type change)                                                         | `409 VALIDATION_FAILED`, the custom-fields message                                                          | `409 ATTRIBUTE_VALUE_TYPE_LOCKED`                                                                               | `attributeKey`                                                             |
+  | `PATCH /api/v1/admin/catalog/attributes/:idOrKey` (`displayAsSlider` on a stored non-numeric type)                      | `400 VALIDATION_FAILED`, `displayAsSlider is only valid for …`                                              | `400 ATTRIBUTE_SLIDER_NOT_SUPPORTED`                                                                            | `attributeKey`, `valueType`                                                |
+  | `DELETE /api/v1/admin/catalog/attributes/:idOrKey`                                                                      | `409 VALIDATION_FAILED`, `Attribute is still referenced by N attribute set(s) …` / `… N product(s) …`       | `409 ATTRIBUTE_IN_USE`, token `attribute_sets` / `products`                                                     | `attributeKey`, `attributeSetCount` / `productCount`                       |
+  | `POST /api/v1/admin/catalog/attributes/:attributeId/options`                                                            | `409 VALIDATION_FAILED` (duplicate value, second default), `400 VALIDATION_FAILED` (type takes no options)  | `409 ATTRIBUTE_OPTION_VALUE_TAKEN`, `409 ATTRIBUTE_DEFAULT_OPTION_TAKEN`, `400 ATTRIBUTE_OPTIONS_NOT_SUPPORTED` | `attributeKey`, `value` / `valueType`                                      |
+  | `PATCH /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` (`isDefault`)                                   | **`400`** `VALIDATION_FAILED`                                                                               | **`409`** `ATTRIBUTE_DEFAULT_OPTION_TAKEN`, as on create                                                        | `attributeKey`, `value`                                                    |
+  | `DELETE /api/v1/admin/catalog/attributes/:attributeId/options/:optionId`                                                | `409 VALIDATION_FAILED`, `option_in_use: N product(s) …`                                                    | `409 ATTRIBUTE_OPTION_IN_USE`, token `products`                                                                 | `attributeKey`, `value`, `productCount`                                    |
+  | `PATCH /api/v1/admin/catalog/products/:id` (`sku`)                                                                      | **`400`** `VALIDATION_FAILED`, `sku_in_use { conflictingProductId / conflictingVariantId, conflictingSku }` | **`409`** `SKU_ALREADY_EXISTS`, as on create; token `held_by_product` / `held_by_variant`                       | `sku`, `conflictingProductId` / `conflictingVariantId`                     |
+  | `PATCH /api/v1/admin/catalog/products/:id` (attribute set or values)                                                    | `400 VALIDATION_FAILED`, `missing_required_attribute_values: <keys>`                                        | `400 ATTRIBUTE_VALUES_REQUIRED`                                                                                 | `attributeKeys` (joined)                                                   |
+  | `POST`, `PATCH /api/v1/admin/catalog/products[/:id]`, `PATCH …/products/:id/scopes` (minimum on a type that takes none) | `422 VALIDATION_FAILED`                                                                                     | `422 MIN_ORDER_QUANTITY_NOT_SUPPORTED_FOR_TYPE`                                                                 | `field: 'minOrderQuantity'` (kept), `productType`; per channel `channelId` |
+  | `POST /api/v1/admin/catalog/products/:productId/variants` (parent not configurable)                                     | `400 VALIDATION_FAILED`                                                                                     | `400 PRODUCT_TYPE_MISMATCH`, token `variants_need_configurable`                                                 | `productId`, `productType`                                                 |
+  | `POST /api/v1/admin/catalog/products/:id/grouped-items` (the group itself)                                              | `400 VALIDATION_FAILED`                                                                                     | `400 SELF_LINK_NOT_ALLOWED`, token `grouped`                                                                    | `productId`                                                                |
+  | `POST /api/v1/admin/catalog/products/:id/grouped-items` (child already in the group)                                    | `409 VALIDATION_FAILED`                                                                                     | `409 GROUPED_ITEM_ALREADY_EXISTS`                                                                               | `parentProductId`, `childProductId`, `childSku`                            |
+  | `POST`, `PATCH /api/v1/admin/catalog/categories[/:id]` (slug a sibling holds)                                           | `409 VALIDATION_FAILED`                                                                                     | `409 CATEGORY_SLUG_TAKEN`                                                                                       | `slug`, `parentCategoryId`                                                 |
+  | `DELETE /api/v1/admin/catalog/categories/:id` (subcategories left)                                                      | `409 VALIDATION_FAILED`                                                                                     | `409 CATEGORY_HAS_CHILDREN`                                                                                     | `categoryId`, `childCount`                                                 |
+  | `PATCH /api/v1/admin/catalog/categories/:id` (beneath a descendant)                                                     | `409 VALIDATION_FAILED`                                                                                     | `409 CATEGORY_MOVE_CYCLE`                                                                                       | `categoryId`, `parentCategoryId`                                           |
+
+  The product editor already reads `SKU_ALREADY_EXISTS` onto the SKU field, so a rename onto a taken
+  SKU is now shown there too. Malformed requests stay `VALIDATION_FAILED`: an invalid key, option
+  value or SKU, options or a slider on a type the same request names, a value out of range, an
+  unknown attribute set or category, a reorder list that does not match. Fourteen codes are new
+  members of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `catalog` manifest with
+  the tokens above; the module's documentation lists them. No setting, permission or migration
+  changes.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 2e603f7: Admin screens confirm destructive and consequential actions in the kit's `ConfirmDialog` rather
+  than the browser's `window.confirm()` (issue #313). This covers deleting, revoking, removing and
+  resetting across these modules, switching a module off on the Modules screen, undoing a bulk
+  edit, making a sales channel the default, and preparing a customer's basket from a quote. The
+  dialog names the action on its confirm button (for example _Delete_, _Revoke_, _Unassign_), and a
+  destructive question opens with focus on Cancel.
+
+  The three native `alert()` calls are now notices on the page: deleting an attachment type that is
+  still in use (`catalog`), unassigning a channel's default warehouse (`inventory`), and activating a
+  megamenu binding that replaces another (`megamenu`, announced through a live region). Renaming a
+  setting group (`settings`) uses a one-field dialog instead of `prompt()`. Removing a colour from
+  the page builder's palette (`page-builder-admin`) is confirmed inline in its row, because the
+  palette is already a modal.
+
+  Several of these questions were untranslated English literals. They are now bundle keys in
+  English and Polish: the country, currency and language deletes (`dictionaries`), the e-mail block
+  and template deletes (`transactional_emails`), the setting-group delete and rename and the setting
+  reset (`settings`), and the sales-channel delete and rebind questions (`sales_channels`). The
+  assets-library folder delete no longer says "OK = … / Cancel = …". `mod-i18n` adds
+  `common.confirm.title` and the subscription-cancel button labels.
+
+  Two native dialogs stay on purpose: the unsaved-changes navigation guard
+  (`use-unsaved-changes-prompt`), which has to answer synchronously inside the click it intercepts,
+  and the settings screen's discard-on-channel-switch guard, which is the same kind of guard. They
+  will be replaced together in a later change.
+
+- 5c148de: The product editor, the category editor, the sales-channel editor and the organization and customer detail screens now pass `saveSession: INERT_SAVE_SESSION` to their zones (issue #407). None of these editors runs a save session yet, so nothing changes for operators. The `core` catalogue adds the save-session notices and the "switched off" message in English and Polish (`saveSession.notice.moduleOff`, `saveSession.notice.crashed`, `saveSession.error.moduleOff`).
+- 577e94c: The product editor, the customer and organization detail screens and the sales-channel editor's warehouse routing panel draw their "Applies immediately" badges with `@endora-commerce/admin-kit`'s `ImmediateBadge` instead of a local copy each (issue #407). The badge looks and reads the same. The module strings it replaces are removed in English and Polish: `productEditor.immediate.badge` (catalog), `detail.immediate.badge` (customers, organizations) and `warehouses.channel.immediateBadge` (inventory).
+- 4d0a26d: Documentation only (issue #407). The shipped `docs/` pages, in English and Polish, now describe the one Save on every editor with zone panels. Each page says what Save covers, what is checked before anything is written, the order the parts are written in, what a partial save reports and that the next Save writes only the part that failed. It also says how the leave guard works and which sections carry the "Applies immediately" badge.
+
+  - catalog: "Editing a product at a scope" covers the base prices and the Inventory tab's product settings under Save, plus the actions that apply immediately. A new "Editing a category" section on the module page covers the category editor's Save.
+  - price_lists: the display-mode override saves with the organization and category editors. The base-price panel's **Discard changes** is described.
+  - organizations, customers: a section on each screen's one Save and its immediate actions.
+  - quick_order, quote_requests: their panels save with the host screen's Save.
+  - sales_channels: the edit page's Save and its count. Deactivate and Re-activate keep unsaved edits, and warehouse routing applies immediately.
+
+  No code, API or string changes.
+
+- 2d95d4a: `CatalogQueryService.listProducts` now refuses a price sort or a price range (`minPrice` /
+  `maxPrice`) with `400 PRICE_ORDERING_UNAVAILABLE` when the viewer's page-level display mode is
+  `none`, before it reads anything (issue #420). The public route already refused it; the service
+  now holds the rule itself, so a caller that skips the route cannot narrow a price range step by
+  step to infer prices the page withholds. A caller that has already resolved the mode for the
+  viewer may pass it as `CatalogQueryContext.pageDisplayMode`; otherwise the service resolves it.
+- c24bd3c: Issue #501 — bulk operations and language tags in the catalog admin.
+
+  - **Undo refusals have their own codes.** `POST /api/v1/admin/catalog/bulk-operations/:id/undo` used to refuse every case with `409 VERSION_CONFLICT`. It now answers `409 BULK_OPERATION_RUNNING` while the operation is pending or running, `409 BULK_OPERATION_ALREADY_REVERTED` once it has been undone, and `409 BULK_OPERATION_NOT_REVERSIBLE` when there is nothing it can restore. All three are added to `ERROR_CODES` in `@endora-commerce/contracts` (additive), declared by `catalog` and translated (en, pl). A client that matched `VERSION_CONFLICT` on this route should match the new codes. The admin still hides Undo until an operation completes.
+  - **"Unchanged" on the bulk operation detail page.** A product already in the requested state stays `succeeded` with empty `changedFields`, so the API contract is unchanged. The detail page now shows it as _Unchanged_ / _Bez zmian_, using the same rule as the bulk edit dialog's summary. The succeeded count is untouched.
+  - **Language tags in canonical case.** The scope map, the bulk status dialog's language list and the scope and URL-key messages show a language tag as stored (`de-DE`) instead of upper-cased (`DE-DE`). The scope map's language column headers opt out of the table header's upper-case style.
+
+- 86a6a0c: Issue #501 — three admin defects from the spec 163 acceptance walk. In ⌘K, `archived` (and the Polish `archiwum`) now ranks _Archived products_ first: `open-products` no longer carries those words and keeps the verbs it runs (`archive`, `restore`; Polish `archiwizuj`, `przywróć`). On the product list, the Type and Visibility cells and the Type chip's value now use the product editor's translated labels (`productEditor.type.*`, `productEditor.visibility.*`), and the Updated cell uses the new bundle keys `productsList.updated.{justNow,minutesAgo,hoursAgo,yesterday,daysAgo}`, with dates older than a week formatted in the admin's language. These cells used to be English in every language. On the product editor's scope map, body cells and row headers now have vertical padding, so their content no longer touches the next row's border.
+- e2669cd: Attribute-option admin replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `attributeOptionListResponseSchema` / `AttributeOptionListResponse` for `GET /api/v1/admin/catalog/attributes/:attributeId/options`, `{ data: { items: AttributeOption[] } }`. The rows (`attributeOptionSchema`) were already described, but the list envelope was not.
+  - `mod-catalog` builds every option reply as the contract's `AttributeOption` instead of `Record<string, unknown>`. The list handler returns `AttributeOptionListResponse`, and the create and patch handlers return `{ data: AttributeOption }`. Nothing on the wire changes.
+
+- edf46c9: `catalog` now creates `categories.main_image_asset_id`, its `categories_main_image_fk` foreign
+  key to `assets` and `categories_main_image_asset_id_index` itself, in the new
+  `Migration20261114T000706CatalogCategoryMainImage` (issue #611). Until now only
+  `assets_library`'s `Migration20260505T102206AssetsLibraryInit` created them, although the column
+  belongs to `catalog`'s `Category` entity. That migration keeps its class name and no longer
+  names `categories` in `up()` or `down()`. The new migration uses `if not exists` and a
+  `pg_constraint` check, so a database that has already applied the old migration does not change.
+  Its `down()` is empty: the `categories` rows outlive `catalog`, so a hard uninstall keeps their
+  main images. `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists `assets_library` writing
+  `categories`.
+- 3ba42a1: The product editor's Save now sits in the sticky scope bar (issue #717). At 1024 px and wider it
+  stays in view while an operator scrolls a long product, beside the channel and language it applies
+  to, instead of scrolling away with the page head; below 1024 px it is still the fixed bottom bar.
+  The editor renders exactly one Save at every width, carrying the staged-changes count as before,
+  and keyboard focus now reaches it after the scope controls and before the tabs. No export, route,
+  permission, API shape or translation key changed.
+- 51b4e5c: Documentation only: the module pages now give the attribute-option and attribute-set-preview routes as registered, list the bulk-operation routes with their undo refusal codes, describe category custom-field values on create and update, `PRICE_ORDERING_UNAVAILABLE`, the attribute admin access, `ATTRIBUTE_VALUE_TYPE_LOCKED` for a type change and `CUSTOM_FIELD_HOST_MANAGED`, in English and Polish.
+- 65cdd0e: **Behaviour change for API clients: the catalogue now reads `Accept-Language` as a q-weighted list matched against the sales channel's languages** (issue #397). The public catalogue (`/api/v1/catalog/*`) and the external catalogue (`/api/v1/external/catalog/*`) used to take the header's first entry verbatim, `;q=` parameter included. They now take the tags in descending `q`, match each against the channel's languages (exactly, then by base language, so `pl` reaches a `pl-PL` channel language), use the first tag the channel serves, and fall back to the channel's default language when it serves none. So `Accept-Language: en;q=0.1, pl-PL;q=0.9` is answered in Polish (it was English), `pl` on a `pl-PL` channel hits the `pl-PL` values and overrides directly, and a language the channel does not offer (one that is still stored on a category name, an attribute label or an asset alt text, for example) is no longer served: the response uses the channel default. A client that wants a language must ask for one the channel offers. A request with no `Accept-Language` header behaves as before.
+
+  New in `@endora-commerce/contracts`: `parseAcceptLanguage(header)`, which returns the header's tags heaviest `q` first, bounded to 512 characters and 10 tags. It moved here from the platform's internal `kernel/i18n/request-language.ts`, which now imports it. Also new: `requestScopeLanguage(channel, header)`, the header form of `scopeLanguageOf`. Prefer it to `scopeLanguageOf(channel, firstLanguageTag(header))`.
+
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [51b4e5c]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+  - @endora-commerce/mod-custom-fields@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

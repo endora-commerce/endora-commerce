@@ -1,5 +1,158 @@
 # @endora-commerce/mod-shopping-lists
 
+## 0.111.0
+
+### Minor Changes
+
+- 34b3387: **A shopping list's name and line quantities are written in one request** (issue #1251).
+
+  `@endora-commerce/contracts`: new `updateShoppingListRequestSchema` and its type `UpdateShoppingListRequest`, `{ name?, items?: [{ id, quantity }] }`. At least one of the two is required; each line appears at most once, at most `REQUEST_LINE_ITEMS_MAX` of them, and each quantity is a `lineQuantitySchema`. Every body `renameShoppingListRequestSchema` accepts is accepted by it, and that schema is unchanged.
+
+  `@endora-commerce/mod-shopping-lists`: `PATCH /api/v1/shopping-lists/:id` now takes that body, still behind `shopping_lists.create`. A body with only `name` renames, as before. With `items` it sets those lines' quantities together with the name, in one write: a line that is not on the list refuses the whole request with `404 NOT_FOUND` and changes nothing. `ShoppingListService.rename(ctx, listId, name)` is replaced by `ShoppingListService.update(ctx, listId, { name?, items? })`; a caller passing a name writes `update(ctx, listId, { name })`.
+
+  On the storefront a list's page has one _Save changes_ for the list's name and every quantity, instead of a rename form and a _Save_ per row. The conversions to the cart and to a quote request save what the buyer typed first and then convert those quantities. _Remove_ and _Clear list_ stay immediate.
+
+### Patch Changes
+
+- aab3cc1: **Saving to a shopping list and converting a list to a quote request read `Accept-Language` as a q-weighted list matched against the sales channel's languages** (issue #1011). `POST /api/v1/shopping-lists/:id/items` and `POST /api/v1/shopping-lists/:id/convert-to-rfq` took the header's first tag alone as the language a product's availability is judged in, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` asked about English and `de-DE, pl;q=0.5` about the channel default: a product available only in Polish could not be saved (`404`), and a conversion skipped it as `product_not_found`. The language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. A request without the header behaves as before.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- c58acd1: `POST /api/v1/shopping-lists/:id/convert-to-rfq` declares the reply it has always sent when nothing converts (issue #1159):
+
+  - `@endora-commerce/contracts`: `convertToRfqResponseSchema` declares `rfqId` as `uuidSchema.nullable()`, so `ConvertToRfqResponse.rfqId` is now `string | null`. The key is always present. A consumer must handle `null`: it means that no quote request was created or changed, because every selected item was skipped or none was selected. Read `skipped` for the reasons, and do not link to a quote request.
+  - `mod-shopping-lists`: the service's `ConvertToRfqResult` is now the contract's `ConvertToRfqResponse`, and the convert-to-RFQ handler declares `{ data: ConvertToRfqResponse }`. Typing only; nothing on the wire changes.
+
+- a859fae: **Every storefront route that fills the basket in a batch judges its lines in the request's language** (issue #1293). `POST /api/v1/quick-order/build` with target `cart`, `POST /api/v1/shopping-lists/:id/convert-to-cart`, `POST /api/v1/cart/from-shopping-list/:id` and `POST /api/v1/cart/from-quote-request/:id` reached the basket's batch add without the request's language, so every line was asked about at the sales channel's default language whatever the buyer browsed in: a product switched off in the default language but on in the buyer's was refused (`404` from quick order) or skipped (`product_not_found` / `not_purchasable` from the conversions). They now pass the channel language `Accept-Language` asks for, resolved through `requestScopeLanguage` as `POST /api/v1/cart/items` does since #1011, through `CartWritePort.addItems`' new `languageTag`; `mod-carts` honours it on the port and on its own conversion routes. A request without the header behaves as before.
+- 62d3e2d: Shopping-list replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `shoppingListListResponseSchema` / `ShoppingListListResponse` for `GET /api/v1/shopping-lists`, a `data` array of `shoppingListSchema` rows. The rows were already described, but the list envelope was not.
+  - `mod-shopping-lists` builds every list reply as the contract's `ShoppingList` instead of `Record<string, unknown>`. The handlers declare `ShoppingListListResponse`, `{ data: ShoppingList }`, `{ data: DefaultShoppingListSummary }` and `{ data: ConvertToCartResponse }`. The storefront's shopping-list API module re-exports the contract types instead of hand-written copies. Nothing on the wire changes.
+
+- 4efb051: The module page lists the clear-list route, documents `rfqId: null` on a conversion that converted nothing, and the request-language rule for availability. Documentation only.
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

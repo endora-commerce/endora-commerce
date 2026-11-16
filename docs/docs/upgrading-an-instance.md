@@ -4378,7 +4378,175 @@ earlier, by the pull requests that made each change. No instance had been upgrad
 `pnpm run upgrade 0.110.0` when it was written; the order of the steps and the storefront edits are
 untried.
 
-### One sales-representative reach rule on every surface {#sales-rep-reach-one-rule}
+### After upgrading to 0.111.0 {#after-0-111-0}
+
+`pnpm run upgrade 0.111.0` moves the packages of the release from `0.110.0` and applies its
+migrations — twenty-four for modules of earlier releases (each runs where its module is declared),
+and one more for the new `customer_notifications` module, which runs only once an instance declares
+it. **The minimum version to upgrade from is `0.100.0`**: on an older database the first
+`organizations` migration refuses to run and changes nothing. **Two migrations may refuse to run on
+existing data, and one locks a table for as long as it is rewritten**, so read
+[Tax IDs](#after-0-111-0-tax-ids) before you migrate. Beside them the release takes tenant values out
+of the platform audit log module by module, applies one reach rule for sales representatives on every
+admin surface, records each customer account's e-mail language, finishes Google and Microsoft sign-in
+on the storefront's own host, restarts a backend that stops answering, and adds the buyer's
+notification centre. The steps below say what to do, in order; each entry after them stands on its
+own, so read the ones for the parts of the platform you use.
+
+#### What to do, in order {#after-0-111-0-steps}
+
+Before the upgrade:
+
+1. **Check the version you upgrade from.** An instance below `0.100.0` upgrades to a `0.100.x`–`0.110.x`
+   release first ([Tax IDs](#after-0-111-0-tax-ids)).
+2. **Find the organizations whose tax IDs become one once normalised**, and give each its own tax ID.
+   `Migration20261110T183238OrganizationsTaxIdNormalise` refuses to run, and changes nothing, while
+   any remain ([Tax IDs](#after-0-111-0-tax-ids)).
+3. **Plan a maintenance window for `organizations`.** `Migration20261110T135941OrganizationsTaxIdScope`
+   adds a stored generated column, which rewrites the table under an exclusive lock.
+4. **Make sure the role that runs migrations may create the `btree_gist` extension**, or create it
+   once as a superuser: `create extension if not exists btree_gist;`. An instance that ran `0.110.0`
+   already has it.
+5. **Stop every process of the previous release before you migrate**, API and workers alike.
+   `quote_requests` drops a table the previous release writes, and `organizations` makes
+   `organizations.tax_id` nullable and rewrites every value.
+
+The upgrade itself:
+
+6. **Run `pnpm run upgrade 0.111.0`.** `setup` applies the migrations module by module, in the
+   order of the modules' dependencies, and each module's own in the order of their stamps. Grouped
+   by module:
+
+   | Migration | Module | What it does |
+   | --- | --- | --- |
+   | `Migration20261110T140633CoreSchemaExtensionsLedger` | `core` | Table `schema_extensions`: the columns and indexes a declared schema extension added — see [Schema extensions](#schema-extensions-instance-command) |
+   | `Migration20261112T124348CoreCommandOutbox` | `core` | Table `command_outbox`: the after-commit hook deliveries a Command owes, delivered at least once |
+   | `Migration20261114T003519LanguagesDictionaryColumns` | `languages` | Creates `languages.native_label`, `is_rtl` and `fallback_code` where an older migration of another module did not; nothing changes on an instance that has them |
+   | `Migration20261114T002913AdminUsersPreferredLanguage` | `admin_users` | Creates `admin_users.preferred_language` where it is missing; nothing changes on an instance that has it |
+   | `Migration20261115T190121AdminUsersImpersonationReasons` | `admin_users` | Table `admin_impersonation_reasons`, empty — see [Impersonation reasons](#impersonation-reason-store) |
+   | `Migration20261116T131329AdminUsersImpersonationReasonAttribution` | `admin_users` | The D-187 attribution check on `admin_impersonation_reasons` (an account's row names its Organization); both columns are already `not null`, so no row can violate it |
+   | `Migration20261109T144721OrganizationsReachGovernor` | `organizations` | Table `organization_reach_governor`, filled from every Organization's path and the sales-representative assignments — see [Sales-representative reach](#sales-rep-reach-async-helpers) |
+   | `Migration20261110T135922OrganizationsPersonalTaxIdRemoval` | `organizations` | **Clears the placeholder tax ID of every personal Organization**, records its account in `personal_account_id`; refuses below `0.100.0` — see [Tax IDs](#after-0-111-0-tax-ids) |
+   | `Migration20261110T135941OrganizationsTaxIdScope` | `organizations` | Stored generated column `organizations.root_id` (**rewrites the table under an exclusive lock**), `btree_gist`, and the installation's tax-ID scope, `global` |
+   | `Migration20261110T173752OrganizationsTaxIdWriteLock` | `organizations` | A trigger that makes two writers of one tax ID take turns |
+   | `Migration20261110T183238OrganizationsTaxIdNormalise` | `organizations` | Rewrites every tax ID without spaces and dashes, upper-cased; **refuses while two Organizations would share one** |
+   | `Migration20261115T145934CustomerAccountsPreferredLanguage` | `customer_accounts` | Nullable `customer_accounts.preferred_language`, not backfilled — see [E-mail language](#after-0-111-0-email-language) |
+   | `Migration20261106T094044CustomFieldsDefinitionCustomerInputAdminAccess` | `custom_fields` | The buyer input surfaces and admin access of a custom-field definition; existing definitions keep today's behaviour |
+   | `Migration20261114T000706CatalogCategoryMainImage` | `catalog` | Creates `categories.main_image_asset_id` where it is missing |
+   | `Migration20261110T073922PriceListsValueChanges` | `price_lists` | Table `price_list_value_changes`: a price book's own history of the prices its Commands changed |
+   | `Migration20261115T065605InventoryAvailabilityNotificationScope` | `inventory` | The sales channel and language a back-in-stock subscription was taken in; older subscriptions keep `NULL` and their e-mail keeps the Global product name |
+   | `Migration20261115T182156InventoryAvailabilityNotificationNotifiedStatus` | `inventory` | Marks `notified` the back-in-stock subscriptions the stock worker consumed but left `queued` |
+   | `Migration20261110T143322OrdersOrderExternalReferences` | `orders` | Table `order_external_references`, empty |
+   | `Migration20261114T001851PaymentsProcessColumns` | `payments` | Creates `payments.provider_details`, `failure_reason` and `attempt_no` where they are missing |
+   | `Migration20261113T081826QuoteRequestsNotificationsRedesign` | `quote_requests` | **Drops `quote_request_notification_events`** (written on every transition, read by nothing) and creates the delivery records `quote_request_notifications`; no rows are carried over |
+   | `Migration20261109T163616CrmOpportunityValueChanges` | `crm` | Table of an opportunity's own value history — see [Opportunity values](#crm-audit-names-only) |
+   | `Migration20261110T054810TasksValueChanges` | `tasks` | Table of a task's own value history — see [Task values](#tasks-audit-names-only) |
+   | `Migration20261114T145439ProjectsStageAlertInterrupted` | `projects` | An `interrupted` outcome for a Stage deadline alert whose pass died |
+   | `Migration20261114T153132ProjectsConfigurationVersions` | `projects` | Version tokens that refuse a stale edit of a Project's configuration |
+
+   Declaring `customer_notifications` adds `Migration20261113T082045CustomerNotificationsInit`, which
+   only creates the module's own table (step 9).
+
+After the upgrade, before the instance takes traffic again:
+
+7. **Bring the storefront over.** A storefront copied from an earlier release does not have the
+   federated sign-in hand-off routes, without which every customer Google or Microsoft sign-in is
+   refused ([Federated sign-in](#federated-sign-in-storefront-handoff)), the one *Save changes* of a
+   shopping list, the notification centre or the e-mail language row of the account page. The
+   shortest path is to bring over the release's storefront as a whole — `git diff v0.110.0 v0.111.0 --
+   storefront` in the platform repository lists every change.
+8. **Set `ADMIN_BASE_URL` to the panel's full address** if the backend refuses to boot naming it, or if
+   the instance has no `mfa` and never set it ([Admin panel address](#admin-base-url-platform-input)).
+   On every sales channel served on a host of its own, set **Storefront URL** to that host.
+
+Whenever it suits you:
+
+9. **Declare `customer_notifications`** if buyers should have a notification centre on the storefront
+   ([Adding a module that is new in a release](#adding-a-new-module)). Quote requests work without it.
+10. **Run the backend under its supervisor**: copy `backend/scripts/supervise.mjs` and change the
+    backend image's command ([Backend supervisor](#backend-supervisor)). Without it the backend runs
+    as before.
+11. **Code of your own** that called `isOrgInScope` or `ruleVisibleForScope`, matched
+    `OrgConstraint`'s `'set'` arm, read an Organization's `taxId` as a string, read tenant values
+    from the platform audit log, mounted one of six editor zones or matched a refusal on a generic
+    error code needs the changes in [Breaking changes](#after-0-111-0-breaking).
+
+#### Tax IDs {#after-0-111-0-tax-ids}
+
+Four `organizations` migrations change how a tax ID is stored (`specs/177-tax-id-scope/`):
+
+- **A personal (B2C) Organization has no tax ID.** It carried a 32-character hexadecimal placeholder
+  derived from its account id; the migration clears it and records the account in
+  `personal_account_id`. A personal row whose tax ID was not that placeholder is cleared and left
+  without a link, and how many is reported as a notice. **Documents written before the upgrade are not
+  rewritten**: an order, invoice, quote document or audit entry made for a personal Organization earlier
+  still shows the placeholder. Orders that carry one can be listed with
+  `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$';`.
+- **Every tax ID is stored without spaces and dashes, upper-cased**, so `526-025-09-95` and
+  `5260250995` are one tax ID. The migration refuses to run, and changes nothing, while two
+  Organizations would hold one tax ID once normalised; it lists up to 50 such groups. Find them before
+  upgrading and give each Organization its own tax ID:
+
+  ```sql
+  select upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g')) as tax_id, array_agg(id)
+  from organizations where tax_id is not null group by 1 having count(*) > 1;
+  ```
+
+- **The installation has a tax-ID scope**, `global` after the upgrade: one tax ID belongs to one
+  Organization, as before. An operator can switch it to *per tree root*, where a head office and its
+  branches share one (see the `organizations` module page). Adding `organizations.root_id` rewrites the
+  table under an exclusive lock.
+- **The minimum version to upgrade from is `0.100.0`.** On a database that has Organizations but has
+  not applied `customer_accounts`' `Migration20260825T141659CustomerAccountsOrganizationRequired`
+  (first shipped in `0.100.0`) the first migration refuses to run.
+
+#### E-mail language {#after-0-111-0-email-language}
+
+A customer account records the language its owner reads (issue #652): from the request that creates
+it, and at sign-in while it has none; the buyer can change it on the storefront's account page, and the
+admin customer page shows it read-only. Existing accounts start with none and fill in at their next
+sign-in. This release only records it: transactional e-mails still go out in the channel's language. A
+storefront copied from an earlier release forwards the page language on its sign-in and registration
+calls only once it is brought over (step 7); until then accounts record the channel's default language.
+
+#### Breaking changes {#after-0-111-0-breaking}
+
+- **An Organization's `taxId` is `string | null`** (`organizationSchema.taxId`,
+  `OrganizationRecord.taxId`): a personal Organization has none. Code that read it as a string handles
+  `null`.
+- **`@endora-commerce/platform/tenancy` removes `isOrgInScope(id, ctx?)` and
+  `ruleVisibleForScope(ids, ctx?)`**: a sales representative's reach is loaded on demand and the scope
+  helpers are asynchronous — see
+  [A sales representative's reach loads on demand](#sales-rep-reach-async-helpers).
+- **`OrgConstraint`'s `'set'` arm is removed**: it is `{ kind: 'allowed', organizationIds }`, beside the
+  new `{ kind: 'excluded', excludedOrganizationIds, assignedOrganizationIds }`.
+- **Tenant values leave the platform audit log** in `crm`, `tasks`, `projects`, `orders`,
+  `customer_accounts`, `quote_requests`, `credit_limits`, `returns`, `invoices`, `newsletter`,
+  `organizations`, `quick_order`, `addresses`, `customers`, `forms` and `admin_users`:
+  an entry names the fields a write changed and, where a module keeps one, points at the module's own
+  value history. Entries written before the upgrade are not rewritten. Each module's entry below says
+  what moved where.
+- **Six admin zones take a required `saveSession` prop** (`ProductEditorZoneProps`,
+  `ProductEditorFieldZoneProps`, `CategoryEditorZoneProps`, `SalesChannelEditorZoneProps`,
+  `OrganizationDetailZoneProps`, `CustomerDetailZoneProps`; issue #407): code that mounts one of them
+  through `<AdminZone>` or `useAdminZone()` passes the host's save session, or `INERT_SAVE_SESSION`
+  from `@endora-commerce/admin-kit/lib`. A contribution that does not read the prop is unaffected.
+- **Domain refusals get their own error codes** (issue #86) in `catalog`, `delivery_methods`,
+  `dictionaries`, `invoices`, `megamenu`, `newsletter`, `orders`, `payment_methods`, `payments`,
+  `price_lists`, `product_feeds`, `projects`, `promotions`, `quick_order`, `returns`, `shipments`,
+  `tasks`, `crm`, `transactional_emails`, `api_keys`, `import_export` and `invoice_ledger`: a refusal
+  that answered `VALIDATION_FAILED` or another generic code answers a code of its own, with its values
+  in `details`. A caller that matched the generic code matches the new one; each module's
+  `CHANGELOG.md` for 0.111.0 names its refusals and their codes.
+
+This section was written on 2026-11-16 against the release branch `release/version-0.111.0`, read
+from the changesets of the release against its migrations and manifests; the entries from
+*One sales-representative reach rule on every surface* to *Federated sign-in completes on the
+storefront's own host* were written earlier, by the pull requests that made each change. No instance
+had been upgraded with `pnpm run upgrade 0.111.0` when it was written; the order of the steps is
+untried.
+
+#### One sales-representative reach rule on every surface {#sales-rep-reach-one-rule}
 
 The release that ships this change applies one reach rule for sales representatives on every admin
 surface (issue #305). A sales representative reaches every Organization **not governed by another
@@ -4448,7 +4616,7 @@ Nothing is migrated and nothing needs configuring; platform administrators see n
    A personal Organization cannot be assigned; keeping B2C data from representatives would be a
    different rule, and is not configurable.
 
-### Customer two-step verification requirements without an encryption key {#customer-two-step-without-key}
+#### Customer two-step verification requirements without an encryption key {#customer-two-step-without-key}
 
 The release that ships this change extends to the customer requirements what
 [Enforced two-step verification without an encryption key](#admin-two-step-without-key) did for the
@@ -4477,7 +4645,7 @@ that the requirements apply again, or turn the storefront setting off in **Setti
 organizations' policies. Set the key the enrolments were made with: an enrolment made with another
 key cannot be checked with this one.
 
-### A private asset's file route answers 404 without a signature {#private-asset-file-404}
+#### A private asset's file route answers 404 without a signature {#private-asset-file-404}
 
 The release that ships this change stops the public file route from telling a private asset apart
 from one that does not exist (issue #542).
@@ -4500,7 +4668,7 @@ compares against `ERROR_CODES.ASSET_ACCESS_DENIED` no longer compiles: drop the 
 compare against `ERROR_CODES.ASSET_NOT_FOUND`. With cloud storage, add `X-Content-Type-Options:
 nosniff` in front of the bucket, as the assets library page describes.
 
-### The last second factor stays while two-step verification is required {#last-factor-required}
+#### The last second factor stays while two-step verification is required {#last-factor-required}
 
 The release that ships this change closes a gap in the two-step requirements (issue #935). An
 administrator or a customer whose policy required a second factor could switch their only one off
@@ -4529,7 +4697,7 @@ on their own security screen; the next sign-in then asked them to set it up agai
 verification off should read `canDisable` instead of guessing, and handle
 `409 MFA_LAST_FACTOR_REQUIRED`.
 
-### Opportunity values leave the platform audit log {#crm-audit-names-only}
+#### Opportunity values leave the platform audit log {#crm-audit-names-only}
 
 The release that ships this change stops writing a sales opportunity's values into the
 platform-wide audit log (issue #470). That log is one table, read by everybody holding
@@ -4555,7 +4723,7 @@ change touched and nothing more.
 values out of the audit log reads them from the opportunity, or from its history
 (`GET /api/v1/admin/crm/opportunities/:id/history`), instead.
 
-### Line quantities and line counts are bounded {#line-quantity-bound}
+#### Line quantities and line counts are bounded {#line-quantity-bound}
 
 The release that ships this change bounds the quantity of a request line at **1 000 000** — the
 same ceiling as the order minimums — on every route that takes one, and bounds the line lists of
@@ -4599,7 +4767,7 @@ validation and fail at the database with `500 INTERNAL`.
 operator's quote request or to returns, has to split the request, and one that branches on error
 codes should handle `LINE_QUANTITY_EXCEEDED`.
 
-### Order values leave the platform audit log {#orders-audit-names-only}
+#### Order values leave the platform audit log {#orders-audit-names-only}
 
 The release that ships this change stops writing an order's values into the platform-wide audit
 log (issue #470). That log is one table, read by everybody holding `audit_log:read` whichever
@@ -4619,7 +4787,7 @@ organizations they may see, so it now names what an order's change touched and n
 **After upgrading,** nothing has to be done. A report or an export that read these values out of
 the audit log reads them from the order (`GET /api/v1/admin/orders/:id`) instead.
 
-### Task values leave the platform audit log {#tasks-audit-names-only}
+#### Task values leave the platform audit log {#tasks-audit-names-only}
 
 The release that ships this change stops writing a task's values into the platform-wide audit log
 (issue #470). That log is one table, read by everybody holding `audit_log:read` whatever they may
@@ -4644,7 +4812,7 @@ see, so it now names what a task's change touched and nothing more.
 the audit log reads them from the task, or from its history (`GET /api/v1/admin/tasks/:id/history`),
 instead.
 
-### Customer account values leave the platform audit log {#customer-accounts-audit-names-only}
+#### Customer account values leave the platform audit log {#customer-accounts-audit-names-only}
 
 The release that ships this change stops writing a customer account's values into the
 platform-wide audit log (issue #470). That log is one table, read by everybody holding
@@ -4666,7 +4834,7 @@ touched and nothing more.
 **After upgrading,** nothing has to be done. A report or an export that read these values out of
 the audit log reads them from the account (`GET /api/v1/admin/customers/:id`) instead.
 
-### Project titles leave the platform audit log {#projects-title-out-of-audit}
+#### Project titles leave the platform audit log {#projects-title-out-of-audit}
 
 The release that ships this change stops writing a project's title into the platform-wide audit log
 (issue #470, owner ruling of 2026-11-10: a title is a value). Projects already kept the value and the
@@ -4684,7 +4852,7 @@ custom field values out of it.
 
 **After upgrading,** nothing has to be done.
 
-### Stage names, task titles and file names leave the project audit entries {#projects-stage-names-out-of-audit}
+#### Stage names, task titles and file names leave the project audit entries {#projects-stage-names-out-of-audit}
 
 The release that ships this change stops writing the free text of a project's stages, stage tasks
 and attachments into the platform-wide audit log (issue #1226, D-288, owner ruling of 2026-11-10: a
@@ -4710,7 +4878,7 @@ title is a value). The project's title already left it.
 **After upgrading,** nothing has to be done. A report that read stage names out of the audit log
 reads them from the project (`GET /api/v1/admin/projects/:id`) instead.
 
-### Quote request values leave the platform audit log {#quote-requests-audit-names-only}
+#### Quote request values leave the platform audit log {#quote-requests-audit-names-only}
 
 The release that ships this change stops writing a quote request's values into the platform-wide
 audit log (issue #470). That log is one table, read by everybody holding `audit_log:read`
@@ -4736,7 +4904,7 @@ nothing more.
 the audit log reads them from the quote request's history
 (`GET /api/v1/admin/quote-requests/:id/history`) instead.
 
-### Credit-limit amounts leave the platform audit log {#credit-limits-audit-names-only}
+#### Credit-limit amounts leave the platform audit log {#credit-limits-audit-names-only}
 
 The release that ships this change stops writing credit-limit amounts into the platform-wide audit
 log (issue #470). That log is one table, read by everybody holding `audit_log:read` whatever
@@ -4755,7 +4923,7 @@ Organizations they may see.
 **After upgrading,** nothing has to be done. A report that read granted amounts out of the audit log
 reads them from the credit limit instead.
 
-### A sales representative's reach loads on demand; the scope helpers are async {#sales-rep-reach-async-helpers}
+#### A sales representative's reach loads on demand; the scope helpers are async {#sales-rep-reach-async-helpers}
 
 The release that ships this change stops computing a sales representative's reach on every admin
 request (issue #955; owner ruling of 2026-11-10). The tenant filter already reads the reach as a
@@ -4783,7 +4951,7 @@ request. Nobody's reach changes, and nothing is cached.
 follow the compile errors. Nothing else needs doing: the migration that ships with the reach change
 (`organization_reach_governor`) is unchanged.
 
-### Return amounts and reasons leave the platform audit log {#returns-audit-names-only}
+#### Return amounts and reasons leave the platform audit log {#returns-audit-names-only}
 
 The release that ships this change stops writing return amounts and free-text reasons into the
 platform-wide audit log (issue #470). That log is one table, read by everybody holding
@@ -4805,7 +4973,7 @@ platform-wide audit log (issue #470). That log is one table, read by everybody h
 **After upgrading,** check whether anybody relies on reading transition reasons from the Audit log
 screen (see above).
 
-### Invoice amounts leave the platform audit log {#invoices-audit-names-only}
+#### Invoice amounts leave the platform audit log {#invoices-audit-names-only}
 
 The release that ships this change stops writing invoice amounts into the platform-wide audit log
 (issue #470). That log is one table, read by everybody holding `audit_log:read` whatever
@@ -4823,7 +4991,7 @@ Organizations they may see.
 **After upgrading,** nothing has to be done. A report that read invoice totals out of the audit log
 reads them from the invoices instead.
 
-### The schema-extension commands run in the instance {#schema-extensions-instance-command}
+#### The schema-extension commands run in the instance {#schema-extensions-instance-command}
 
 The release that ships this change adds `module:schema-extensions` to the instance scaffold, beside
 the five `module:*` commands (issue #1036). In the instance root:
@@ -4862,7 +5030,7 @@ file of your tree. Add it by hand, then run `pnpm run build:backend`:
 `pnpm run module:schema-extensions audit-packages` to see every statement it would refuse, and ask
 the package's author for a release that declares its columns instead.
 
-### The catalogue reads the whole `Accept-Language` header {#catalog-accept-language}
+#### The catalogue reads the whole `Accept-Language` header {#catalog-accept-language}
 
 The release that ships this change makes the catalogue read `Accept-Language` as the weighted
 list it is (issue #397). The public catalogue API (`/api/v1/catalog/*`) and the external
@@ -4884,7 +5052,7 @@ including any `;q=` weight.
 `Accept-Language`. One that needs a particular language must ask for a language the sales
 channel offers. Add the language to the channel in **Sales channels** if it is missing.
 
-### Subscriber addresses leave the platform audit log {#newsletter-audit-names-only}
+#### Subscriber addresses leave the platform audit log {#newsletter-audit-names-only}
 
 The release that ships this change stops writing newsletter subscribers' e-mail addresses and
 unsubscribe reasons into the platform-wide audit log (issue #470). That log is one table, read by
@@ -4904,7 +5072,7 @@ everybody holding `audit_log:read` whatever they may see.
 **After upgrading,** nothing has to be done. A report that looked subscribers up by address in the
 audit log looks them up on the **Newsletter** screen instead.
 
-### An Organization edit's values leave the platform audit log {#organization-admin-patch-audit-names-only}
+#### An Organization edit's values leave the platform audit log {#organization-admin-patch-audit-names-only}
 
 The release that ships this change stops writing an Organization's values into the platform-wide
 audit log when an operator edits it (issue #470, owner ruling O-2: the Organization's name, tax ID
@@ -4928,7 +5096,7 @@ and reasons are the tenant's values). That log is one table, read by everybody h
 values out of the audit log reads them from the Organization (`GET /api/v1/admin/organizations/:id`)
 instead.
 
-### Every other organizations entry leaves its values out of the audit log {#organizations-audit-names-only}
+#### Every other organizations entry leaves its values out of the audit log {#organizations-audit-names-only}
 
 The release that ships this change stops writing values into the platform-wide audit log from
 every remaining `organizations` write (issue #470, owner rulings O-1 and O-2: an Organization's
@@ -4962,7 +5130,7 @@ read by everybody holding `audit_log:read` whatever Organizations they may see.
 the audit log reads them from the Organization (`GET /api/v1/admin/organizations/:id`), its members
 and its roles instead.
 
-### Default ordering preferences leave the Organization and the account out of the audit log {#quick-order-preferences-audit-names-only}
+#### Default ordering preferences leave the Organization and the account out of the audit log {#quick-order-preferences-audit-names-only}
 
 The release that ships this change stops writing the Organization's or the customer account's id
 into the platform-wide audit log when a default ordering preference changes (issue #470). That log
@@ -4984,7 +5152,7 @@ when, and what changed; it no longer says whose preference it was. A report that
 `scopeId` reads an Organization's or a customer's current defaults from
 `GET /api/v1/quick-order/preferences?scope=…&scopeId=…` instead.
 
-### Organization addresses leave the platform audit log {#addresses-audit-names-only}
+#### Organization addresses leave the platform audit log {#addresses-audit-names-only}
 
 The release that ships this change stops writing the Organization's id into the platform-wide
 audit log from Organization address writes, and makes an address update say what changed
@@ -5007,7 +5175,7 @@ by the `organizationId` in their state lists the Organization's addresses first
 (`GET /api/v1/organizations/mine/addresses`, or `addressReadPort.listIdsForOrganization`) and
 filters the audit log by those ids.
 
-### Retired personal address book entries leave out the account and the Organization {#customers-address-audit-names-only}
+#### Retired personal address book entries leave out the account and the Organization {#customers-address-audit-names-only}
 
 The release that ships this change stops writing the customer account's id and the personal
 Organization's id into the platform-wide audit log from the entries about rows of the retired
@@ -5027,7 +5195,7 @@ personal address book (issue #470). That log is one table, read by everybody hol
 **After upgrading,** nothing has to be done. The retention sweep's erasure of a customer's audit
 history finds these entries by the row ids, not by their state, so it is unaffected.
 
-### A form entry export's search text leaves the platform audit log {#forms-export-audit-names-only}
+#### A form entry export's search text leaves the platform audit log {#forms-export-audit-names-only}
 
 The release that ships this change stops writing the search text of a form entry export into the
 platform-wide audit log (issue #470). That log is one table, read by everybody holding
@@ -5046,7 +5214,7 @@ typed — often a submitter's e-mail address or a phrase from their answers.
 **After upgrading,** nothing has to be done. The audit log still says who exported which form's
 entries, when, with which filters and how many rows; it no longer says what was searched for.
 
-### Impersonation reasons and Organizations leave the platform audit log {#impersonation-reason-store}
+#### Impersonation reasons and Organizations leave the platform audit log {#impersonation-reason-store}
 
 The release that ships this change stops writing the reason an administrator gives for
 impersonating a customer, and the Organization the impersonation was started from, into the
@@ -5071,7 +5239,7 @@ platform-wide audit log (issue #470). That log is one table, read by everybody h
 **After upgrading,** nothing has to be done. A report that read the reason out of the audit log
 reads it from `admin_impersonation_reasons` by the entry's `valueChangeId`.
 
-### The admin panel's address is a platform input {#admin-base-url-platform-input}
+#### The admin panel's address is a platform input {#admin-base-url-platform-input}
 
 The release that ships this change makes `ADMIN_BASE_URL` — the admin panel's address — an input
 of the platform instead of the `mfa` module's (issue #185), so every module that e-mails an
@@ -5104,7 +5272,7 @@ administrator can link into the panel from it, not only `mfa`.
    address without a trailing slash, or `null` when it is unset — omit the link then. A module of your own that declared `ADMIN_BASE_URL` in its manifest's `env` removes the
    declaration: the platform owns it, and `check:env-inputs` reports a module declaring it.
 
-### A backend that stops answering is restarted {#backend-supervisor}
+#### A backend that stops answering is restarted {#backend-supervisor}
 
 The release that ships this change runs the backend under a supervising parent, as the storefront
 has run since 0.109.0 (issue #596). Docker restarts a container that **exits**, never one that is
@@ -5146,7 +5314,7 @@ only *unhealthy*, so a backend process that was alive but no longer answered —
 
 Without these edits the backend runs as before, unsupervised.
 
-### Federated sign-in completes on the storefront's own host {#federated-sign-in-storefront-handoff}
+#### Federated sign-in completes on the storefront's own host {#federated-sign-in-storefront-handoff}
 
 The release that ships this change makes Google and Microsoft sign-in work on the storefront when
 the API is served from another host (issue #1279). The provider returns to the API host, and the
