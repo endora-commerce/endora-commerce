@@ -14,8 +14,9 @@ Organization becomes its Administrator (see *Roles* below).
 Routes marked *org administrator* are reserved to a member holding the
 organization's Administrator role, checked server-side through
 `organizationPermissionPort.isAdministrator` and refused with
-`403 FORBIDDEN`; no permission grants them (see *Roles* below). Admin routes
-(`/api/v1/admin/*`) are gated by `customers:manage`.
+`403 FORBIDDEN`; no permission grants them (see *Roles* below). Admin reads
+(`GET /api/v1/admin/*`) accept `customers:read` or `customers:manage`, and admin
+writes need `customers:manage`, unless a row names another code.
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
@@ -25,7 +26,7 @@ organization's Administrator role, checked server-side through
 | `POST /api/v1/auth/customer/logout` | customer | Destroy session |
 | `POST /api/v1/auth/password-reset/request` | anon | Always 202 (defends against account enumeration) |
 | `POST /api/v1/auth/password-reset/confirm` | anon | Redeem the emailed reset token. A redeemed token signs the account out of **every** session, retires its other outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
-| `GET /api/v1/me` | customer | Current customer (with `organizationRole` and `permissions`) + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer |
+| `GET /api/v1/me` | customer | Current customer (with `organizationRole`, `permissions` and `preferredLanguage`, `null` while unknown) + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer |
 | `POST /api/v1/me/password` | customer | Change password (rejects wrong `currentPassword`). A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `GET /api/v1/organizations/mine/members` | org administrator | List members, each with its `organizationRole` |
 | `DELETE /api/v1/organizations/mine/members/:id` | org administrator | Remove member (last-administrator guard) |
@@ -48,10 +49,14 @@ organization's Administrator role, checked server-side through
 | `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. `404 NOT_FOUND` for an Organization outside a sales representative's reach (see below the table), as for one that does not exist |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:manage`) | Replace the assigned channels (`{ salesChannelIds }`, at least one); `404 NOT_FOUND` outside a sales representative's reach, as for the read |
 | `GET /api/v1/admin/organizations/:id` | admin | Org + member roster (`updatedAt`, members include `lastLoginAt` and `organizationRole`; `predefinedRoles` names the Administrator and Member roles) |
-| `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` / `vatStatus` and merge custom-field values (`customFieldValues`); optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale. One audit entry, `organization.admin_patch`, written with the change: the status, VAT and fulfilment-strategy codes before and after, and the names of the changed fields (`changedFields`) and custom fields (`changedCustomFields`) — never the name, the order-confirmation e-mails or a custom-field value |
+| `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` / `vatStatus` / `orderConfirmationEmails` / `fulfilmentStrategy` (with `fulfilmentStrategyWarehouseOrder`) and merge custom-field values (`customFieldValues`); optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale. One audit entry, `organization.admin_patch`, written with the change: the status, VAT and fulfilment-strategy codes before and after, and the names of the changed fields (`changedFields`) and custom fields (`changedCustomFields`) — never the name, the order-confirmation e-mails or a custom-field value |
+| `DELETE /api/v1/admin/organizations/:id` | admin (`customers:manage`) | Soft-delete (`204`); refused `409 ORGANIZATION_HAS_CHILDREN` while it has a sub-organization (see *Organization hierarchy*) |
+| `GET /api/v1/admin/organizations/:id/addresses` | admin | The Organization's address book |
 | `POST /api/v1/admin/organizations/:id/members/invite` | admin | Invite by email (`{ email, roleId? }`, Member by default; platform-scope) |
 | `POST /api/v1/admin/organizations/:id/members` | admin | Direct-create member with password (`roleId?`, Member by default) and the account's custom-field values (`customFieldValues`) |
 | `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | admin | Assign a role (`{ roleId, expectedUpdatedAt? }`) |
+| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/rollup` | admin | Turn the member's roll-up across descendants on or off (`{ subtreeRollupEnabled, expectedUpdatedAt? }`) |
+| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Edit a member's `firstName`, `lastName` or `email` (at least one; `expectedUpdatedAt?` → `409 VERSION_CONFLICT` when stale) |
 | `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Soft-remove member (last-administrator guard) |
 | `POST /api/v1/admin/organizations/:id/recover-admin-access` | admin | Break-glass — give an existing member the Administrator role |
 
@@ -72,8 +77,10 @@ tax-ID scope and enforced by the database (see *Tax IDs* below).
 ## Events emitted
 
 `organization.registered.v1`, `organization.verified.v1`,
-`organization.suspended.v1`, `organization.member_invited.v1`,
-`organization.member_role_changed.v1`, `organization.converted_to_company.v1`
+`organization.status_changed.v1` (`{ organizationId, newStatus }`, after an
+approval, rejection, block or unblock),
+`organization_role.permissions_changed.v1` (`{ organizationId, roleId, added,
+removed }`, after a role's permissions change), `organization.converted_to_company.v1`
 (`OrganizationConvertedToCompanyEvent`: `{ eventId, occurredAt, organizationId,
 convertedAt }` — no name and no tax ID; dispatched once, after the conversion
 commits), `organization.tax_id_changed.v1` (`OrganizationTaxIdChangedEvent`:
@@ -83,12 +90,16 @@ correction to the value already stored).
 
 ## Extension points
 
-- **Verification dispatch** — `email-verification-service.ts` exposes a
-  pluggable mailer interface; swap the dev-mode console mailer for a real
-  SMTP/SendGrid driver in production composition.
-- **Last-admin guard** — codified in `role-service.ts#changeRole` and
-  `invitation-service.ts#revoke`; add new "must keep at least one admin"
-  call sites here.
+- **Verification dispatch** — the registration route sends the verification
+  e-mail through the `email_verification` template when one is defined, and
+  otherwise through the composed `emailMailer` (`EmailMailerPort`, the `email`
+  module's); `SMTP_URL` (or `SMTP_HOST` + `SMTP_PORT`) decides whether that is
+  SMTP or the console logger.
+- **Last-admin guard** — codified in the `customer_accounts` Commands
+  `customer-account-change-role.command.ts` and
+  `customer-account-remove-member.command.ts`, and in this module's
+  `organization-invitation-revoke.command.ts`; add new "must keep at least one
+  admin" call sites there.
 - **Custom-field values from server-side code** — the published
   `organizationCustomFieldWritePort` (see *Setting custom-field values from
   server-side code* below).
@@ -814,6 +825,7 @@ so it is a migration of `name_search`, not an edit.
 | --- | --- | --- | --- |
 | `organizations.moderation.mode` | `string` enum | `'manual'` | `manual` ⇒ pending_verification; `auto` ⇒ active on registration |
 | `organizations.notifications.new_registration_recipients` | `json` array | `[]` | E-mail recipients for new-Organization notifications |
+| `organizations.hierarchy.credit_inheritance_mode` | `string` enum | `'shared_pool'` | `shared_pool` \| `independent_default`: how a branch with no credit limit of its own draws on an ancestor's (see *Organization hierarchy*) |
 | `organizations.registration.registry_lookup_enabled` | `boolean` | `false` | The registry lookup at registration (see above) |
 | `organizations.registration.registry_lookup_pl_sources` | `string` enum | `'gus_mf'` | Registries asked for a Polish NIP: `gus_mf` \| `gus` \| `mf` |
 | `organizations.registration.gus_credentials` | `credential_ref` | `''` | The GUS REGON credential (type `organizations_gus_bir`) |
@@ -1376,6 +1388,47 @@ run the `customer_account.change_role` / `customer_account.remove_member`
 Commands of `customer_accounts`; creating and revoking an invitation run
 `organization_invitation.create` / `organization_invitation.revoke`. Each is
 audited against the organization, naming the member or the operator who acted.
+
+## One Save on the organization screen
+
+The organization screen (`/organizations/:id`) has **one Save**, in the page header. It covers
+every setting on the screen that is edited rather than acted on:
+
+- the organization's own settings — status, VAT status, order-confirmation e-mails, fulfilment
+  strategy, the restrictions (the allowed payment methods, delivery methods and warehouses) and
+  custom fields. They no longer save on change, when you leave a field, or through
+  a button of their own;
+- the panels other modules contribute, each while its module is on: the **ordering defaults**
+  (Quick order), the **price display mode** (Price lists) and **price negotiation** on quote
+  requests (Quote requests).
+
+Save reads "Save" while there is nothing to save and "Save 3 changes" once there is, counting the
+organization's own changes and the panels' together.
+
+- **Everything is checked first.** If any part is refused, nothing is written and every change
+  stays; a summary above the sections lists each part with its problems, with **Show** to move to
+  it.
+- **The organization is written first**, as one change carrying only what you changed — and the
+  restrictions right after it, when they changed. Then the panels, one after another.
+- **If someone else changed the organization since you opened it**, nothing is saved: the screen
+  reloads the latest values, discards every unsaved change on the page, and says so. No panel is
+  written.
+- **If the organization is saved and a panel is not**, the summary names what was saved and what
+  was not ("Saved: Organization. Not saved: Ordering defaults — *reason*"). The failed panel keeps
+  its changes, and the next Save writes only what is still unsaved.
+- **A module switched off** while its panel holds changes: the panel goes, its changes are
+  discarded, and the screen says so.
+- **Leaving the page** — a link elsewhere in the admin, or closing or reloading the browser tab —
+  with unsaved changes asks first.
+
+Without `customers:manage` the organization's own settings are shown read-only, and the screen
+shows Save only when one of the panels is one you may change.
+
+**What applies immediately.** Actions on the organization are not part of the Save. They are
+written the moment you use them, and leave the unsaved changes as they are. Each such section
+carries an **Applies immediately** badge: inviting and directly adding members, the member list,
+the hierarchy, moderation (approve, reject, block, unblock), VAT validation, the sales channels,
+the roles and the sales representatives.
 
 ## Audit entries
 

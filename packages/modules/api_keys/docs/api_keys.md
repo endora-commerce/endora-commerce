@@ -22,8 +22,9 @@ namespace, which the *Partner API access* integration guide documents in full.
 
 External calls authenticate by sending `Authorization: Bearer sk_live_…`.
 `requireApiKey(scope)` and `requireBoundApiKey(scope)` are Fastify
-pre-handlers exposed by the `api_keys` plugin; route surfaces gate themselves
-with them (`requireApiKey('catalog:write')`,
+pre-handlers that the `api_keys` module provides as ports (so a route of another
+module answers `503 MODULE_DISABLED` while this module is off); route surfaces
+gate themselves with them (`requireApiKey('catalog:write')`,
 `requireBoundApiKey('orders:write')`, etc.).
 
 ## Scope enum

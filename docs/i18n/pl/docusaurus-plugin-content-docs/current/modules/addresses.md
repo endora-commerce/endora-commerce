@@ -5,8 +5,8 @@ description: Adresy pocztowe klientów, z najwyżej jednym adresem domyślnym ka
 
 # Adresy (`addresses`)
 
-Adresy pocztowe klientów, przypisane do organizacji. Każdy adres ma rodzaj `kind` (`shipping`,
-`billing`, `delivery`) oraz flagę adresu domyślnego dla tego rodzaju.
+Adresy pocztowe klientów, przypisane do organizacji. Każdy adres ma rodzaj `kind` (`delivery` lub
+`billing`) oraz flagę adresu domyślnego dla tego rodzaju.
 
 To **jedyna książka adresowa każdego klienta**: książka firmy albo organizacji osobistej klienta
 indywidualnego. Kasa proponuje adresy z niej i do niej zapisuje nowe, a sklep pokazuje ją klientowi
@@ -21,7 +21,7 @@ została wycofana.
 | `GET /api/v1/organizations/mine/addresses` | Lista adresów własnej organizacji |
 | `POST /api/v1/organizations/mine/addresses` | Utworzenie; `isDefault=true` w tej samej operacji zdejmuje flagę z poprzedniego domyślnego adresu tego rodzaju |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | Aktualizacja |
-| `DELETE /api/v1/organizations/mine/addresses/:id` | Usunięcie (odrzucane, gdy adres jest używany przez zamówienie — `409 ADDRESS_IN_USE`) |
+| `DELETE /api/v1/organizations/mine/addresses/:id` | Usunięcie (`204`). Usunięcie miękkie: zamówienia złożone na ten adres zachowują własną kopię adresu |
 
 Trasy obsługuje moduł `organizations`. Tworzenie, aktualizacja i usuwanie wymagają uprawnienia
 organizacji **`addresses.manage`**, które deklaruje ten moduł (*Zarządzanie adresami organizacji*):

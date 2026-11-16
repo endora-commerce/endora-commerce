@@ -11,13 +11,19 @@ po stronie klienta.
 
 ## API publiczne
 
+Trasy logowania, hasła i resetu obsługuje moduł `organizations`, korzystając z usług tego
+modułu.
+
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `POST /api/v1/auth/login` | E-mail i hasło (oraz krok TOTP, gdy włączona jest weryfikacja dwuetapowa) |
-| `POST /api/v1/auth/logout` | Zakończenie sesji |
+| `POST /api/v1/auth/customer/login` | E-mail i hasło. Gdy wymagany jest drugi składnik, odpowiada `mfaRequired` (z `challengeId`) lub `mfaSetupRequired` (z `setupTicket`) i nie ustawia sesji; drugi krok to `POST /api/v1/auth/customer/mfa/verify` modułu `mfa` |
+| `POST /api/v1/auth/customer/logout` | Zakończenie sesji |
 | `POST /api/v1/me/password` | Zmiana hasła (odrzuca błędne `currentPassword`). Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `POST /api/v1/auth/password-reset/request` | Rozpoczęcie resetu hasła. Nowy link unieważnia wszystkie wcześniejsze niewykorzystane, więc działa tylko ten z najnowszej wiadomości. Powtarzane żądania dla jednego adresu są ograniczane (zob. niżej) |
 | `POST /api/v1/auth/password-reset/confirm` | Użycie tokenu resetu hasła. Wykorzystanie tokenu wylogowuje konto ze **wszystkich** sesji, unieważnia pozostałe niewykorzystane tokeny resetu i wycofuje każde rozpoczęte, a niedokończone logowanie. |
+| `GET /api/v1/admin/customer-groups` | Panel: lista grup klientów (`customer_groups:read`) |
+| `PUT /api/v1/admin/customer-groups/:code` | Panel: utworzenie lub aktualizacja grupy o tym kodzie — `name`, opcjonalnie `description` (`customer_groups:write`) |
+| `DELETE /api/v1/admin/customer-groups/:id` | Panel: usunięcie grupy klientów, `204` (`customer_groups:write`) |
 
 ## Ograniczanie powtarzanych prób
 
@@ -207,8 +213,8 @@ z nią, dopóki platforma z niego nie zrezygnuje, i zostanie usunięte.
 
 ## Punkty rozszerzenia
 
-- **Polityka haseł** — `password-hasher.ts` opakowuje argon2id; tam dostosowuje się parametry
-  kosztu.
+- **Polityka haseł** — `password-hasher.ts` platformy (`packages/platform/src/kernel/crypto/`)
+  opakowuje argon2id; tam dostosowuje się parametry kosztu.
 - **Kody zapasowe i drugie składniki uwierzytelniania** — nie należą do tego modułu. Weryfikację dwuetapową klientów
   i administratorów obsługuje moduł `mfa`, na tabeli `mfa_enrolments`, udostępniony pod
   `/api/v1/account/mfa/*`; kody odzyskiwania to tam jednorazowe wiersze. Zastąpiony szkielet, na

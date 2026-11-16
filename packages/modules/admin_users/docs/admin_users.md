@@ -16,10 +16,12 @@ User + role CRUD is gated by the `admin_users:manage` permission.
 | --- | --- |
 | `POST /api/v1/auth/admin/login` | Admin login (two-step verification challenge if Role requires it). Repeated wrong passwords are throttled: 429 `ADMIN_AUTHENTICATION_THROTTLED` with `Retry-After` — see below |
 | `POST /api/v1/auth/admin/logout` | Destroy admin session |
+| `GET /api/v1/admin/me` | The signed-in administrator, with their role, permissions and Admin UI preferences; any admin session, no permission code |
 | `PATCH /api/v1/admin/me` | The signed-in administrator edits their own first and last name and changes their own password; no permission code is needed. A new `password` must come with `currentPassword`: without it the request is refused with 400 `VALIDATION_FAILED`, with a wrong one with 403 `CURRENT_PASSWORD_INVALID`, with a new password equal to the current one with 400 `NEW_PASSWORD_UNCHANGED`, and a refused request changes nothing — not the name either. An accepted password change signs out every other session of the account (see *Sessions and password changes*). Repeated wrong current passwords are throttled like wrong passwords at sign-in (429 `ADMIN_AUTHENTICATION_THROTTLED`) |
 | `GET /api/v1/admin/admin-users` | List admin users (deleted rows filtered) |
 | `POST /api/v1/admin/admin-users` | Create admin user. `adminRoleId` is required: an account with no role is refused with 400 `ADMIN_USER_ROLE_REQUIRED`. Rejects dup email with `EMAIL_ALREADY_REGISTERED` |
 | `PATCH /api/v1/admin/admin-users/:id` | Update name / role assignment / status; it sets no password — a `password` field is refused with 400 `VALIDATION_FAILED`. A role can be changed for another, never cleared: `adminRoleId: null` is refused with 400 `ADMIN_USER_ROLE_REQUIRED`. Setting `status: 'inactive'` signs the account out of every session |
+| `POST /api/v1/admin/admin-users/:id/password` | Set another administrator's password; signs the account out of every session (see *Sessions and password changes*) |
 | `DELETE /api/v1/admin/admin-users/:id` | Soft delete (sets `deletedAt` + `status='inactive'`) and signs the account out of every session |
 | `GET /api/v1/admin/admin-roles` | List roles with their permission arrays |
 | `PUT /api/v1/admin/admin-roles/:code` | Upsert role by code; unknown permissions return 400 `VALIDATION_FAILED`. Turning `requiresTwoFactor` on is refused with 409 `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR` while MFA is off or has no encryption key; the answer carries `signedOutAdministrators` (see *Roles that require two-step verification*) |
@@ -29,7 +31,7 @@ User + role CRUD is gated by the `admin_users:manage` permission.
 | `GET /api/v1/admin/me/preferences` | The signed-in administrator's own Admin UI preferences; no permission code is needed (see *Admin UI preferences*) |
 | `PATCH /api/v1/admin/me/preferences` | Change one or more of them; an invalid body is refused with 400 `VALIDATION_FAILED` and nothing is written |
 | `POST /api/v1/admin/me/preferences/legacy-import` | The one-time carry-over of the browser's page sizes; never overwrites a stored value |
-| `POST /api/v1/admin/organizations/:id/impersonate` | Begin impersonation; writes `impersonation.start` audit row before issuing the cookie |
+| `POST /api/v1/admin/organizations/:id/impersonate` | Begin impersonation (`customers:impersonate`); writes `impersonation.start` audit row before issuing the cookie |
 | `POST /api/v1/admin/impersonation/end` | Restore the original admin session |
 
 ## What `admin_users:manage` reaches
@@ -494,8 +496,9 @@ screen shows a stored reason yet.
 *Impersonation model*.
 
 `AdminRole` (code, display name, JSONB `permissions[]`,
-`requiresTwoFactor`). The wildcard `*` is bootstrap-only and rejected by
-the upsert route.
+`requiresTwoFactor`). The wildcard `*` grants every permission; a list holding
+it is stored as exactly `['*']`, and only a holder of `*` may write it (see *What
+`admin_users:manage` reaches*).
 
 ## Extension points
 

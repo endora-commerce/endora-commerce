@@ -39,6 +39,10 @@ types ship out of the box:
   Each provider has its own field set with exactly one secret field
   (SMTP `password`, SES `secretAccessKey`, SendGrid `apiKey`).
 
+Other modules contribute their own types while they are on — for example the
+`organizations` module's GUS REGON registry credentials and the `product_feeds`
+module's feed delivery targets.
+
 The type and provider you pick decide which fields the form shows.
 
 ### Creating a configuration
@@ -138,13 +142,18 @@ provider meaning lives with the consumer.
 
 ### Registering a new type (the extension point)
 
-Register from any module's install path via the process-wide singleton — **no
-change to the credentials core** is required (overlay-safe):
+Register from any module's composition, at boot, through the `configurationTypeRegistry`
+port (`ConfigurationTypeRegistryPort` in `@endora-commerce/contracts`) — **no change to the
+credentials core** is required (overlay-safe). Declare the edge in your manifest — in
+`dependencies`, or as a `nonBindingDependencies` entry of kind `contributes-to` naming
+`configurationTypeRegistry`, as `organizations` does; `organizations` and `product_feeds`
+register their types this way:
 
 ```ts
-import { configurationTypeRegistry } from '@core/modules/credentials/services/registry-singleton.js';
+import type { ConfigurationTypeRegistryPort } from '@endora-commerce/contracts';
 
-configurationTypeRegistry.register({
+ctx.onBoot(() => {
+  lazyPort<ConfigurationTypeRegistryPort>(ctx, 'configurationTypeRegistry').register({
   code: 'sms_gateway',
   label: 'SMS Gateway',
   ownerModule: 'my_module',
@@ -158,6 +167,7 @@ configurationTypeRegistry.register({
       ],
     },
   ],
+  });
 });
 ```
 

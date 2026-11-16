@@ -31,7 +31,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [Klucze API](./api_keys.md) | Dane uwierzytelniające integracji w postaci tokenu bearer | @endora-commerce/mod-api-keys |
 | [Biblioteka zasobów](./assets-library/index.md) | Centralna biblioteka plików z wymiennymi adapterami przechowywania, stałymi adresami plików i stałymi linkami, podmianą pliku w miejscu, usuwaniem miękkim z okresowym czyszczeniem i ochroną przed usunięciem używanych plików | @endora-commerce/mod-assets-library |
 | [Dziennik audytu](./audit_logs.md) | Dziennik audytu wrażliwych operacji | @endora-commerce/mod-audit-logs |
-| [Uwierzytelnianie](./auth.md) | Sesje klientów i administratorów, hashowanie haseł, TOTP | @endora-commerce/mod-auth |
+| [Uwierzytelnianie](./auth.md) | Sesje klientów i administratorów, śledzenie ostatniej aktywności sesji oraz zabezpieczenia tras administratora i klienta | @endora-commerce/mod-auth |
 | [Blog](./blog/index.md) | Wpisy redakcyjne z treścią z Page Buildera, kategoriami i tagami oraz listami wpisów w storefroncie | @endora-commerce/mod-blog |
 | [Koszyki](./carts.md) | Koszyk klienta z łączeniem koszyka anonimowego z koszykiem po zalogowaniu | @endora-commerce/mod-carts |
 | [Katalog](./catalog.md) | Produkty, warianty, kategorie, atrybuty, kanały sprzedaży | @endora-commerce/mod-catalog |

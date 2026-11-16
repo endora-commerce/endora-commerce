@@ -94,3 +94,23 @@ answered `400 MFA_FEDERATED_HANDOFF_INVALID`, and the storefront shows its
 
 The Admin UI is not affected: it talks to the backend directly, so its session
 belongs to the backend's host and the callback sets it there.
+
+## Requiring a second factor
+
+A second factor is required of an administrator by `mfa.admin.totp_enforced` or by a role that
+requires two-step verification, and of a customer by `mfa.storefront.totp_enforced` at the
+request's sales channel or by their organization's policy. Sign-in and the rules below read the
+requirement the same way.
+
+- **The last factor stays.** While a requirement applies, switching off one's own last second
+  factor (`POST /api/v1/admin/account/mfa/disable`, `POST /api/v1/account/mfa/disable`) is refused
+  with `409 MFA_LAST_FACTOR_REQUIRED`, before the code or password is checked. The status route
+  (`GET …/mfa/status`) answers `canDisable` and `disableBlockedReason` (`factor_required`), and the
+  admin **Account security** screen and the storefront's account security page hide the switch-off
+  form and say why. An administrator's reset of somebody else's factor is not affected.
+- **No encryption key, no requirement.** Without `MFA_SECRET_ENCRYPTION_KEY` no second factor can
+  be set up, so no requirement is in force and nothing above is refused. Turning a requirement on
+  there — either setting, or an organization's policy — is refused with
+  `409 MFA_ENFORCEMENT_UNAVAILABLE`; turning one off is always accepted. A setting that is on
+  while the key is missing shows *Not in force: no encryption key*, and every boot logs it at
+  error level.
