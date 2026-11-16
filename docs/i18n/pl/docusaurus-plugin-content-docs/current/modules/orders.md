@@ -18,7 +18,7 @@ Trasy administracyjne są chronione przez `orders:read` (odczyt) i `orders:write
 | `POST /api/v1/orders` | klient | Złożenie zamówienia z aktywnego koszyka |
 | `GET /api/v1/orders` | klient | Lista zamówień: własne albo całej organizacji z uprawnieniem `orders.view_organization` (zob. niżej) |
 | `GET /api/v1/orders/:id` | klient | Szczegóły zamówienia |
-| `GET /api/v1/orders/:id/invoice` | klient | Pobranie faktury PDF |
+| `GET /api/v1/orders/:id/invoice` | klient | Starsze pobieranie faktury: uproszczony PDF pierwszej faktury zamówienia (`404 INVOICE_NOT_READY`, dopóki nie jest gotowa); PDF renderowany z szablonu udostępnia moduł `invoices` pod `…/invoices/:invoiceId/pdf` |
 | `GET /api/v1/admin/orders` | administrator | Lista wszystkich zamówień (we wszystkich organizacjach) |
 | `GET /api/v1/admin/orders/:id` | administrator | Szczegóły zamówienia (bez ograniczenia do klienta) |
 | `POST /api/v1/admin/orders/:id/status` | administrator | Zmiana statusu (audytowana) |
@@ -545,6 +545,15 @@ pozycję*. Pyta on o ilość do przeniesienia na nową pozycję (od 1 do ilości
 nowej pozycji — domyślnie tę samą — po czym dodaje pozycję tego samego produktu z tą ilością,
 zmniejszając pierwotną. Tak jeden produkt trafia do dwóch grup: na przykład 5 sztuk do *Hali A* i 3
 do *Hali B*. Każda pozycja jest wyceniana według własnej ilości.
+
+**Pola niestandardowe.** Przy uprawnieniu `custom_fields:read` ekran pokazuje pola niestandardowe
+zamówienia, a ich wartości są wysyłane jako `customFieldValues`. `POST /api/v1/admin/orders`
+sprawdza je według reguł administratora, zanim zapisze koszyk roboczy lub jakikolwiek adres, i
+wymaga każdego pola zamówienia oznaczonego jako `required`, także gdy żądanie nie wysyła żadnych
+wartości; odmowa to `422 CUSTOM_FIELD_VALUE_INVALID` (wpisy `details` `{ path, issue }`), pokazywana
+przy wskazanym polu, a zamówienie nie powstaje. Wartości są zapisywane razem z zamówieniem, ponad
+wartościami przeniesionymi z zapytania ofertowego, a wpis audytu `order.place_on_behalf` podaje ich
+klucze (`changedCustomFields`), nigdy wartości.
 
 ## Wartości pól niestandardowych przeniesione do zamówienia
 

@@ -22,6 +22,7 @@ Trasy administracyjne są chronione przez `returns:read` (odczyt) i `returns:wri
 | `GET /api/v1/returns/:id` | klient | Szczegóły sprawy (tylko komentarze widoczne dla klienta) |
 | `POST /api/v1/returns/:id/comments` | klient | Odpowiedź w sprawie |
 | `POST /api/v1/returns/:id/select-delivery-method` | klient | Wybór metody dostawy zwrotu |
+| `POST /api/v1/returns/:id/attachments` | klient | Dołączenie pliku do sprawy |
 | `POST /api/v1/returns/:id/cancel` | klient | Wycofanie sprawy |
 | `GET /api/v1/returns/reasons` | klient | Aktywne powody do formularza w storefroncie |
 | `GET /api/v1/admin/returns` | administrator | Lista spraw z filtrowaniem i wyszukiwaniem oraz licznikami dla każdego statusu |
@@ -296,7 +297,9 @@ odróżnia taką sprawę od każdego innego zwrotu i rozlicza ją zgodnie z tym.
   w chwili zgłoszenia sprawy, a szczegóły sprawy podają ją jako `consumerWithdrawal`; widok sprawy w
   panelu administracyjnym oznacza ją jako **Odstąpienie konsumenta**. Zwrot organizacji osobistej
   zgłoszony po okresie karencji jest zwrotem handlowym na zasadach sklepu i nic z poniższego go nie
-  dotyczy. Przedsiębiorca na jednoosobowej działalności kupujący przez organizację firmową może mieć
+  dotyczy. O tym, czy organizacja jest *osobista*, decyduje chwila złożenia zamówienia: zamówienie
+  złożone, gdy organizacja była osobista, pozostaje zamówieniem konsumenta także po tym, jak operator
+  przekształci tę organizację w firmę. Przedsiębiorca na jednoosobowej działalności kupujący przez organizację firmową może mieć
   to samo prawo (art. 38a); platforma nie potrafi tego rozpoznać, więc taką sprawę operator prowadzi
   ręcznie.
 - **Sprawy zgłoszone przed tym wydaniem** nie mają odpowiedzi (`consumerWithdrawal: null`) i są

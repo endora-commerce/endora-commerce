@@ -76,6 +76,7 @@ shipment's `status` for `mark_failed`. Until issue #637 both refusals were
 | --- | --- | --- |
 | `order_created` | Order created (storefront / admin / API) | The shipping adapter's `onOrderCreated` fires. Offline adapters are no-ops; **no** Shipment is opened here. |
 | `shipment_created` | Admin "Generate shipment" / API | A `pending` Shipment is opened (`attemptNo = max+1`); the adapter's `onShipmentCreated` runs; `shipment.created.v1` is emitted, carrying the state the row opened in. With the adapter's module absent the row opens `pending_manual` and no adapter is called — see above. |
+| `payment.received.v1` | A payment for the order settles | When the order's shipping adapter opts in (`shouldAutoCreateOnPaid()`) and the latest attempt is neither `pending` nor `success`, a shipment is generated as above. Best-effort: an adapter failure never blocks settlement and is left to the operator's **Generate shipment** button. |
 | `receive_shipment` | Carrier/adapter ingress | The Shipment is resolved; the Order moves to the method's `statusOnSuccess` / `statusOnFailure`; `shipment.received.v1` / `shipment.failed.v1` is emitted. |
 
 `receive_shipment` is **idempotent**: a success after a terminal `success` is a

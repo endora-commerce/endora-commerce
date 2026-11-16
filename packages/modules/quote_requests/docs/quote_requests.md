@@ -658,6 +658,14 @@ Quote requests take custom fields, defined on **Custom fields**. They follow thi
 are not offered by the definitions API; the fields, their options and the stored values are kept
 and come back unchanged when the module is switched on again.
 
+**On the Create quote request screen** an operator holding `custom_fields:read` fills the request's
+custom fields, sent as `customFieldValues` on `POST /api/v1/admin/quote-requests`. They are checked
+with the administrator's rules before the request is numbered or anything is written, and every
+`required` quote-request field is enforced even when the request sends no values; a refusal is
+`422 CUSTOM_FIELD_VALUE_INVALID` (`details` entries `{ path, issue }`), shown at the field it names,
+and nothing is created. The `quote_request.create_on_behalf` audit entry names the stored keys
+(`changedCustomFields`), never their values. A buyer's own submission is unchanged.
+
 ### Values carried into and out of a request
 
 A quote request field can carry its value on, and an opportunity field can carry its value into a

@@ -187,6 +187,13 @@ trwałym zapisem**, a nie dostarczanie gwarantowane: nie ma kolejki ponowień an
 biznesowym a wywołaniem transportu przepada. Tabela nie ma jeszcze ekranu w panelu administracyjnym
 — odczytuje się ją bezpośrednio z bazy danych.
 
+Gdy konto klienta jest anonimizowane, moduł `customers` prosi moduł `email`
+(`emailDeliveryAnonymizationPort`) o wyczyszczenie każdego zapisu zaadresowanego na adres tego
+konta, porównywany bez rozróżniania wielkości liter: odbiorca zostaje zastąpiony znacznikiem
+anonimizacji, a temat, koperta i treść błędu serwera pocztowego są usuwane; identyfikator
+wiadomości, kod e-maila, status, powód, kanał sprzedaży, odwołanie do dokumentu i czas próby
+zostają. Każdy wyczyszczony zapis dostaje jeden wpis audytu `email_delivery.anonymized`.
+
 ## Uprawnienia
 
 - `transactional_emails:read` — przeglądanie e-maili, bloków, szablonów, oznakowania marki i podglądu.
@@ -197,7 +204,14 @@ biznesowym a wywołaniem transportu przepada. Tabela nie ma jeszcze ekranu w pan
 
 Przez ten mechanizm przechodzą wszystkie wcześniejsze e-maile transakcyjne: zamówienia (potwierdzenie,
 komentarz, ponowne zamówienie, zamówienie utworzone przez administratora), zwroty (zaakceptowany,
-odrzucony), organizacje (weryfikacja, zaproszenie, nowa rejestracja) oraz magazyn (niski stan,
+odrzucony), organizacje (weryfikacja, zaproszenie, nowa rejestracja, zatwierdzenie, odrzucenie) oraz magazyn (niski stan,
 ponowna dostępność). Zarejestrowano też dwa nowe e-maile wysyłane przez subskrybentów zdarzeń:
 płatności (`payment_status_changed`, przy otrzymaniu lub niepowodzeniu płatności) i przesyłki
 (`shipment_created`, przy utworzeniu przesyłki).
+
+Inne moduły rejestrują własne: koszyki (`cart_approval_requested`, `cart_approved`,
+`cart_rejected`), faktury (`invoice_issued`), zapytania ofertowe (`quote_request_pdf` oraz
+jedenaście e-maili powiadomień `quote_request_customer_*` / `quote_request_operator_*`), CRM
+(`crm_event_reminder`), projekty (`projects_stage_deadline_alert`) i zadania
+(`tasks_task_reminder`, `tasks_daily_digest`). To, które z nich widać w danej instancji, zależy od
+zainstalowanych modułów.
