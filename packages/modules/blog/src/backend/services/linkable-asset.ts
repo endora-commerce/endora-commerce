@@ -26,8 +26,10 @@ export async function assertLinkableAsset(assets: LinkableAssetReader | undefine
 
 /**
  * Refuse a Page Builder save — a post's content, a category's description —
- * that newly adds an asset id the caller may not see, a missing id included,
- * with the main image's answer (issue #544, owner ruling 2026-10-30, option a).
+ * that newly adds an asset id the caller may not see, a missing id included
+ * (issue #544, owner ruling 2026-10-30, option a), with `assets_library`'s own
+ * answer for a hidden file — `ASSET_NOT_FOUND` naming the id, as the CMS and
+ * the other modules answer it (issue #1359, Q2).
  * Both are unrestricted references: an id they store is listed in the library
  * for every reader.
  *
@@ -47,7 +49,7 @@ export async function assertLinkableContentAssets(
   );
   if (refused === undefined) return;
   if (!assets) throw new Error('blog: the asset read port is not wired — content cannot link an asset.');
-  throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Asset ${refused} not found.`);
+  throw new HttpError(404, ERROR_CODES.ASSET_NOT_FOUND, `Asset ${refused} not found.`, { assetId: refused });
 }
 
 /**

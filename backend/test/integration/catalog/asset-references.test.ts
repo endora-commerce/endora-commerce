@@ -45,6 +45,22 @@ function countingEmFactory(emFactory: () => EntityManager): { emFactory: () => E
   };
 }
 
+/** A Page Builder envelope holding `underFoo` under keys no renderer reads, and the other two under `*AssetId` keys. */
+function keyedTree(underFoo: string, underIcon: string, underMainImage: string): unknown {
+  return {
+    schema_version: 1,
+    languages: {
+      'en-US': {
+        root: { props: { foo: underFoo } },
+        content: [
+          { type: 'cms.Button', props: { label: underFoo, iconAssetId: underIcon } },
+          { type: 'cms.Card', props: { items: [{ mainImageAssetId: underMainImage, caption: underFoo }] } },
+        ],
+      },
+    },
+  };
+}
+
 describe('catalog asset references — attribution and batching (feature 166, R-6)', () => {
   let h: BackendServerHandle;
   const adminCookie = { b2b_session: 'stub-admin-session' };
@@ -173,7 +189,7 @@ describe('catalog asset references — attribution and batching (feature 166, R-
         categoryId,
         `r6-both-${categoryId.slice(0, 8)}`,
         x,
-        JSON.stringify({ schema_version: 1, languages: { 'en-US': { root: { props: { image: x } }, content: [] } } }),
+        JSON.stringify({ schema_version: 1, languages: { 'en-US': { root: { props: { imageAssetId: x } }, content: [] } } }),
       ],
     );
     const registry = new AssetReferenceRegistry();
@@ -185,6 +201,29 @@ describe('catalog asset references — attribution and batching (feature 166, R-
     const hits = (await Promise.all(unrestricted.map((d) => d.findReferences([x, randomUUID()])))).flat();
     expect(hits).toHaveLength(2);
     for (const hit of hits) expect(hit.assetId).toBe(x);
+  });
+
+  // Issue #1359 — only a string under a key ending in `assetId` is a
+  // reference: the rule every renderer reads embeds by (`walkAssetIds`). An id
+  // under any other key is never rendered, so it protects nothing and makes
+  // nothing visible.
+  it('counts an id in category content under a key ending in assetId, never under another key (issue #1359)', async () => {
+    const underFoo = randomUUID();
+    const underIcon = randomUUID();
+    const underMainImage = randomUUID();
+    const categoryId = randomUUID();
+    await h.orm.em.getConnection().execute(
+      `insert into categories (id, name, slug, content, created_at, updated_at)
+       values (?, '{"en-US":"i1359"}'::jsonb, ?, ?::jsonb, now(), now())`,
+      [categoryId, `i1359-${categoryId.slice(0, 8)}`, JSON.stringify(keyedTree(underFoo, underIcon, underMainImage))],
+    );
+    const registry = new AssetReferenceRegistry();
+    registerCatalogAssetReferences(registry, () => h.em());
+    const out = await registry.findReferencesMany([underFoo, underIcon, underMainImage]);
+    expect(out.get(underFoo)).toEqual([]);
+    for (const id of [underIcon, underMainImage]) {
+      expect(out.get(id)).toEqual([expect.objectContaining({ kind: 'category_content', entityId: categoryId, assetId: id })]);
+    }
   });
 
   // Feature 172 (`specs/172-product-content-attributes/`, FR-062, FR-063, US6 #5,
@@ -264,6 +303,27 @@ describe('catalog asset references — attribution and batching (feature 166, R-
       expect((del.json() as { error: { details: Array<{ path: string }> } }).error.details).toEqual([
         expect.objectContaining({ path: 'product_content' }),
       ]);
+    });
+
+    it('counts an id under a key ending in assetId, never under another key (issue #1359)', async () => {
+      const underFoo = randomUUID();
+      const underIcon = randomUUID();
+      const underMainImage = randomUUID();
+      const productId = await createProduct('KEYS');
+      const key = await contentAttributeOn(productId);
+      await embed(productId, key, await seedAsset());
+      // Written past the save's own check, which already reads only `assetId` keys.
+      await h.orm.em.getConnection().execute(
+        `update product_content_values set content = ?::jsonb where product_id = ?`,
+        [JSON.stringify(keyedTree(underFoo, underIcon, underMainImage)), productId],
+      );
+      const registry = new AssetReferenceRegistry();
+      registerCatalogAssetReferences(registry, () => h.em(), h.catalogAttributeRead);
+      const out = await registry.findReferencesMany([underFoo, underIcon, underMainImage]);
+      expect(out.get(underFoo)).toEqual([]);
+      for (const id of [underIcon, underMainImage]) {
+        expect(out.get(id)).toEqual([expect.objectContaining({ kind: 'product_content', entityId: productId, assetId: id })]);
+      }
     });
 
     it('does not report a soft-deleted product’s content (FR-062)', async () => {
