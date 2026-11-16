@@ -7,7 +7,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { StoredRow } from './price-book-batch.js';
-import { selectionKey, type RuleIssue } from './price-book-rules.js';
+import { selectionKey, type PlannedRow, type RuleIssue } from './price-book-rules.js';
 
 /**
  * Issue #1028 — the pure steps of `priceBookRowWritePort`: a module's write of
@@ -217,17 +217,17 @@ export interface RowValueLine {
 
 /**
  * The price-change history lines of one batch (issue #470, D-288; owner ruling
- * O-3): a row that kept its coordinate — selection and quantity window — and
- * moved its price is one `changed` line; a row whose coordinate moved is one
- * `removed` and one `added` line. Only rows that differ appear. Ordered by
+ * O-3): a row that kept its coordinate — selection and quantity window, start
+ * and end — and moved its price is one `changed` line; a row whose coordinate
+ * moved is one `removed` and one `added` line. Only rows that differ appear. Ordered by
  * selection, then window start, so a history reads as the book does.
  */
 export function rowValueLines(plan: {
-  added: readonly StoredRow[];
-  changed: ReadonlyArray<{ before: StoredRow; after: StoredRow }>;
-  removed: readonly StoredRow[];
+  added: readonly PlannedRow[];
+  changed: ReadonlyArray<{ before: PlannedRow; after: PlannedRow }>;
+  removed: readonly PlannedRow[];
 }): RowValueLine[] {
-  const coordinate = (r: StoredRow) => ({
+  const coordinate = (r: PlannedRow) => ({
     variantId: r.variantId,
     productId: r.productId,
     categoryId: r.categoryId,
@@ -236,23 +236,29 @@ export function rowValueLines(plan: {
     minQuantity: r.minQuantity,
     maxQuantity: r.maxQuantity,
   });
-  const side = (r: StoredRow | null, prefix: 'before' | 'after') => ({
+  const side = (r: PlannedRow | null, prefix: 'before' | 'after') => ({
     [`${prefix}PriceType`]: r ? r.priceType : null,
     [`${prefix}Amount`]: r ? r.amount : null,
     [`${prefix}Percent`]: r ? r.percent : null,
   });
-  const line = (kind: RowValueLine['kind'], before: StoredRow | null, after: StoredRow | null): RowValueLine =>
+  const line = (kind: RowValueLine['kind'], before: PlannedRow | null, after: PlannedRow | null): RowValueLine =>
     ({ kind, ...coordinate((after ?? before)!), ...side(before, 'before'), ...side(after, 'after') }) as RowValueLine;
   const lines: RowValueLine[] = [...plan.added.map((r) => line('added', null, r)), ...plan.removed.map((r) => line('removed', r, null))];
   for (const { before, after } of plan.changed) {
-    if (selectionKey(before) === selectionKey(after) && before.maxQuantity === after.maxQuantity) {
+    // The admin batch replaces a row by its id too, so a changed row may have moved its start.
+    if (
+      selectionKey(before) === selectionKey(after) &&
+      before.minQuantity === after.minQuantity &&
+      before.maxQuantity === after.maxQuantity
+    ) {
       lines.push(line('changed', before, after));
     } else {
       lines.push(line('removed', before, null), line('added', null, after));
     }
   }
-  return lines.sort(
-    (a, b) =>
-      selectionKey(a).localeCompare(selectionKey(b)) || a.minQuantity - b.minQuantity || a.kind.localeCompare(b.kind),
-  );
+  // An ordinal order, not a locale's: deterministic, and a 10 000-line import sorts in milliseconds.
+  const ordinal = (x: string, y: string): number => (x < y ? -1 : x > y ? 1 : 0);
+  const keyed = lines.map((line) => ({ line, key: selectionKey(line) }));
+  keyed.sort((a, b) => ordinal(a.key, b.key) || a.line.minQuantity - b.line.minQuantity || ordinal(a.line.kind, b.line.kind));
+  return keyed.map(({ line }) => line);
 }
