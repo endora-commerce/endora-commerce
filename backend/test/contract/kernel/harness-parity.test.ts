@@ -1,4 +1,13 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -90,12 +99,25 @@ const REPO_ROOT = resolve(BACKEND_ROOT, '..');
 /** Directories that hold no source of ours, or hold a second copy of it. */
 const PRUNED = new Set(['node_modules', 'dist', 'build', '.turbo', 'i18n', 'docs', 'coverage']);
 
+/**
+ * `check-module-boundary.test.ts` writes ledger shards into a
+ * `ledger-shard-fixture-*` directory under `backend/test/unit/scripts/` and
+ * deletes it again, in a parallel worker; it has to sit there for its shards to
+ * resolve as real ones. Walking into it raced to ENOENT (#1344). It is pruned
+ * by name rather than by tolerating ENOENT, because that is narrower: the one
+ * directory known never to hold a root is skipped, and a file that vanishes
+ * anywhere else in the walk still throws.
+ */
+const TEMP_FIXTURE_PREFIX = 'ledger-shard-fixture-';
+
 function sourceFilesUnder(dir: string, extensions: readonly string[]): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!PRUNED.has(entry.name)) found.push(...sourceFilesUnder(full, extensions));
+      if (!PRUNED.has(entry.name) && !entry.name.startsWith(TEMP_FIXTURE_PREFIX)) {
+        found.push(...sourceFilesUnder(full, extensions));
+      }
     } else if (extensions.some((extension) => entry.name.endsWith(extension))) {
       found.push(full);
     }
@@ -1081,8 +1103,9 @@ describe('T076 — what one composition costs, before the 555× multiplier', () 
     // reach it.
     const composition = codeOnly(harnessComposition);
     const guards = [...composition.matchAll(/options\.exercisePubSub === true/g)].length;
-    const subscribes = [...composition.matchAll(/\.(subscribe|start)\(redisSubscriber|redisSubscriber\.subscribe\(/g)]
-      .length;
+    const subscribes = [
+      ...composition.matchAll(/\.(subscribe|start)\(redisSubscriber|redisSubscriber\.subscribe\(/g),
+    ].length;
     expect(guards).toBe(2);
     expect(subscribes).toBe(0);
   });
@@ -1460,7 +1483,10 @@ function drainableModuleValueImportDeclarations(source: string, fileName: string
   const drainablePerSpecifier = new Map<string, boolean>();
   for (const [key, specifier] of moduleValueImports(source, fileName)) {
     const permanent = ROOT_MODULE_VALUE_IMPORTS[key]?.permanent === true;
-    drainablePerSpecifier.set(specifier, (drainablePerSpecifier.get(specifier) ?? false) || !permanent);
+    drainablePerSpecifier.set(
+      specifier,
+      (drainablePerSpecifier.get(specifier) ?? false) || !permanent,
+    );
   }
   return [...drainablePerSpecifier.values()].filter(Boolean).length;
 }
@@ -1888,7 +1914,11 @@ function guardedSeamsOf(sourceFile: ts.SourceFile, optional: ReadonlySet<string>
     if (!ts.isVariableDeclaration(node)) return;
     const initializer = node.initializer;
     if (initializer === undefined) return;
-    if (ts.isIdentifier(initializer) && initializer.text === 'options' && ts.isObjectBindingPattern(node.name)) {
+    if (
+      ts.isIdentifier(initializer) &&
+      initializer.text === 'options' &&
+      ts.isObjectBindingPattern(node.name)
+    ) {
       for (const element of node.name.elements) {
         const field = element.propertyName ?? element.name;
         if (ts.isIdentifier(field) && ts.isIdentifier(element.name) && optional.has(field.text)) {
@@ -2002,7 +2032,10 @@ function moduleSourceFiles(): Map<string, readonly string[]> {
     const root = dirname(entry.manifestPath);
     const src = join(root, 'src');
     const base = existsSync(src) ? src : root;
-    perModule.set(entry.manifest.id, existsSync(base) ? sourceFilesUnder(base, ['.ts', '.js']) : []);
+    perModule.set(
+      entry.manifest.id,
+      existsSync(base) ? sourceFilesUnder(base, ['.ts', '.js']) : [],
+    );
   }
   return perModule;
 }
@@ -2040,6 +2073,29 @@ function seamUsers(seam: string): string[] {
 }
 
 describe('112 — every composition root mounts every seam the composed list uses', () => {
+  it('does not walk into the ledger-shard temp fixture another test file writes (#1344)', () => {
+    // A root-shaped file inside a `ledger-shard-fixture-*` directory must not be
+    // read at all: in the real tree that directory is created and deleted by a
+    // parallel worker, and reading it is what raced to ENOENT.
+    const tree = mkdtempSync(join(tmpdir(), 'harness-parity-walk-'));
+    try {
+      const rootShaped = [
+        "import { MODULES } from './composition.generated.js';",
+        'composeModules(MODULES, { interceptors: [] });',
+        '',
+      ].join('\n');
+      mkdirSync(join(tree, 'ledger-shard-fixture-x'));
+      mkdirSync(join(tree, 'plain'));
+      writeFileSync(join(tree, 'ledger-shard-fixture-x', 'payments.ts'), rootShaped);
+      writeFileSync(join(tree, 'plain', 'root.ts'), rootShaped);
+      expect(compositionRootsIn([tree]).map((root) => root.path)).toEqual([
+        relative(REPO_ROOT, join(tree, 'plain', 'root.ts')),
+      ]);
+    } finally {
+      rmSync(tree, { recursive: true, force: true });
+    }
+  });
+
   it('derives the root population, and it is more than the two pinned above', () => {
     // The floor is a broken-walk detector and it is also SC-004's second half:
     // narrowing this population back to the two roots T075/T076 pin is the
@@ -2104,7 +2160,7 @@ describe('112 — every composition root mounts every seam the composed list use
     expect(
       unmountable,
       `These seams refuse an option \`ComposeModulesOptions\` has no member for, so no root ` +
-        'can mount them. The composer is what forwards a root\'s options into a module ' +
+        "can mount them. The composer is what forwards a root's options into a module " +
         'context; add the field there, or the refusal is unreachable.',
     ).toEqual([]);
   });
