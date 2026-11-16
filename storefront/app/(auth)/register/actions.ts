@@ -71,7 +71,7 @@ async function lookupOrEmpty(values: Pick<RegisterFormValues, 'taxId' | 'country
 
 export async function registerFormAction(previous: RegisterFormState, formData: FormData): Promise<RegisterFormState> {
   const values = valuesFromFormData(formData);
-  const { locale } = await getServerContext();
+  const { locale, ctx } = await getServerContext();
   const customFields = customFieldsFromFormData(formData, await getRegistrationCustomFields({ locale }));
   if (formData.get('intent') === 'lookup') {
     return applyLookupOutcome({ ...previous, values, customFields: customFields.typed }, await lookupOrEmpty(values));
@@ -79,28 +79,33 @@ export async function registerFormAction(previous: RegisterFormState, formData: 
 
   const registryLookupId = lookupIdFromFormData(formData);
   try {
-    await registerOrganization({
-      organization: {
-        name: values.organizationName,
-        taxId: values.taxId,
-        registeredAddress: {
-          street: values.street,
-          city: values.city,
-          postalCode: values.postalCode,
-          country: values.country,
+    await registerOrganization(
+      {
+        organization: {
+          name: values.organizationName,
+          taxId: values.taxId,
+          registeredAddress: {
+            street: values.street,
+            city: values.city,
+            postalCode: values.postalCode,
+            country: values.country,
+          },
+          ...(customFields.request.organization ? { customFieldValues: customFields.request.organization } : {}),
         },
-        ...(customFields.request.organization ? { customFieldValues: customFields.request.organization } : {}),
+        firstUser: {
+          email: values.email,
+          password: (formData.get('password') as string | null) ?? '',
+          firstName: values.firstName,
+          lastName: values.lastName,
+          ...(customFields.request.customer ? { customFieldValues: customFields.request.customer } : {}),
+        },
+        acceptedTermsVersion: (formData.get('acceptedTermsVersion') as string | null) ?? '2025-01',
+        ...(registryLookupId ? { registryLookupId } : {}),
       },
-      firstUser: {
-        email: values.email,
-        password: (formData.get('password') as string | null) ?? '',
-        firstName: values.firstName,
-        lastName: values.lastName,
-        ...(customFields.request.customer ? { customFieldValues: customFields.request.customer } : {}),
-      },
-      acceptedTermsVersion: (formData.get('acceptedTermsVersion') as string | null) ?? '2025-01',
-      ...(registryLookupId ? { registryLookupId } : {}),
-    });
+      // Issue #1323 — carries the page language, from which the backend records the account's
+      // e-mail language.
+      ctx,
+    );
   } catch (err) {
     if (err instanceof StorefrontApiError) {
       return refusedRegistration(
