@@ -23,6 +23,7 @@ Admin routes are gated by `returns:read` (read) / `returns:write` (mutations).
 | `GET /api/v1/returns/:id` | customer | Case detail (customer-visible comments only) |
 | `POST /api/v1/returns/:id/comments` | customer | Reply on a case |
 | `POST /api/v1/returns/:id/select-delivery-method` | customer | Choose a return delivery method |
+| `POST /api/v1/returns/:id/attachments` | customer | Attach a file to the case |
 | `POST /api/v1/returns/:id/cancel` | customer | Withdraw the case |
 | `GET /api/v1/returns/reasons` | customer | Active reasons for the storefront form |
 | `GET /api/v1/admin/returns` | admin | List/filter/search cases + per-status counts |
@@ -337,7 +338,9 @@ settles it accordingly.
   case detail reports it as `consumerWithdrawal`; the admin case view marks the
   case **Consumer withdrawal**. A personal Organization's return filed after the
   grace is a commercial return under the shop's own policy, and nothing below
-  applies to it. A sole trader buying through a company Organization may have
+  applies to it. *Personal* is judged at the moment the order was placed: an
+  order placed while the Organization was personal stays a consumer's after an
+  operator converts that Organization to a company. A sole trader buying through a company Organization may have
   the same right under Polish law (art. 38a); the platform cannot tell, so an
   operator handles such a case by hand.
 - **Cases filed before this release** carry no answer (`consumerWithdrawal:

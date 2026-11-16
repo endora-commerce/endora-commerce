@@ -5,18 +5,20 @@ description: Payment driver dispatch + settlement events
 
 # Payments (`payments`)
 
-Payment driver dispatch + settlement events. The module owns the driver
-port (`gateway-adapter-port.ts`) and concrete in-tree drivers; per-vendor
-adapters live in dedicated integration modules.
+Payment driver dispatch + settlement events. The module owns the `Payment`
+record and the four built-in payment adapters
+(`src/backend/adapters/built-in-adapters.ts`), which it contributes to the
+`payment_methods` module's `paymentAdapterRegistry`; per-vendor
+adapters live in dedicated gateway modules.
 
 ## Drivers
 
-| Driver | Behaviour |
+| Adapter key | Behaviour |
 | --- | --- |
-| `bank-transfer-driver.ts` | Returns `NextAction.kind='awaiting_transfer'`; settlement happens out-of-band when the operator marks the order paid |
-| `pickup-driver.ts` | `NextAction.kind='none'` for cash-on-pickup |
-| `credit-limit-driver.ts` | Calls `CreditLimitService.reserve` inside the order-placement transaction |
-| `gateway-adapter-port.ts` | Interface stub for external gateways; per-vendor implementations live outside the core |
+| `bank_transfer` | Returns `NextAction.kind='awaiting_transfer'` with an `ORDER-…` reference; settlement happens out-of-band when the operator marks the order paid |
+| `pickup` | `NextAction.kind='none'` for cash-on-pickup |
+| `credit_limit` | `NextAction.kind='none'`; the reservation itself is made by `orders` (`order-service.ts#placeOrder()` calls `credit_limits`' `CreditLimitService.reserve`) inside the order-placement transaction |
+| `gateway` | Placeholder returning `NextAction.kind='none'`; a gateway module registers its own adapter that returns the redirect |
 
 ## Public surface
 
@@ -49,7 +51,7 @@ back in full, so what an operator may write into it is bounded by our schema
 rather than by the caller's payload. Gateway integrations build the payload in
 code and are not subject to that bound.
 
-Beyond the routes, orders consume the drivers via
+Beyond the routes, orders dispatch to the adapters via
 `order-service.ts#placeOrder()`, and admin payment-status mutations go through
 `/api/v1/admin/orders/:id/payment-status`, which `orders` owns.
 
@@ -93,8 +95,9 @@ webhooks.
 
 ## Extension points
 
-- **New gateway** — implement `gateway-adapter-port.ts`, register the
-  driver in the composition root, expose a configuration through the
-  `integrations` module.
-- **Fraud / 3DS hooks** — slot in front of the driver's `reserve` call
+- **New gateway** — ship a module that implements `PaymentAdapter` and
+  contributes it to `paymentAdapterRegistry` from its boot hook, as described
+  on the `payment_methods` module's page (*Build your own payment-method
+  module*).
+- **Fraud / 3DS hooks** — slot in front of the adapter's start call
   before the order-placement transaction commits.

@@ -56,7 +56,7 @@ of the platform, not of what happens to be written.
 | [Import / export](./import_export.md) | CSV import / export for bulk-edit entities | @endora-commerce/mod-import-export |
 | [Inventory](./inventory.md) | Stock levels, reservations, availability notifications | @endora-commerce/mod-inventory |
 | [Invoice ledger](./invoice-ledger.md) | Shared vendor mutex, numbering and KSeF routing, and durable invoice deliveries for ledger adapters. | @endora-commerce/mod-invoice-ledger |
-| [Invoices](./invoices.md) | PDF invoice / proforma generation + asset linkage | @endora-commerce/mod-invoices |
+| [Invoices](./invoices.md) | VAT invoices, proformas and corrective invoices issued against orders, with PDFs rendered from document templates | @endora-commerce/mod-invoices |
 | [Languages](./languages.md) | Pool of supported BCP-47 language tags + translation-fallback helper | @endora-commerce/mod-languages |
 | [LinkedIn Ads](./linkedin-ads.md) | LinkedIn Insight Tag per sales channel, reporting storefront actions against Campaign Manager conversion rules | @endora-commerce/mod-linkedin-ads |
 | [Megamenu](./megamenu/index.md) | Configurable navigation tree with per-channel + per-language bindings | @endora-commerce/mod-megamenu |

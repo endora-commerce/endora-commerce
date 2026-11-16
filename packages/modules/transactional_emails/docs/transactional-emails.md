@@ -194,6 +194,14 @@ operator action, and a message lost between the business write and the transport
 call is lost. There is no admin screen over the table yet — it is read from the
 database.
 
+When a customer account is anonymised, the `customers` module asks `email`
+(`emailDeliveryAnonymizationPort`) to scrub every record addressed to that
+account's address, compared case-insensitively: the recipient becomes the
+anonymised marker and the subject, the envelope and the transport's error text
+are cleared, while the message id, email code, status, reason, sales channel,
+document reference and attempt time stay. Each scrubbed record gets one
+`email_delivery.anonymized` audit entry.
+
 ## Permissions
 
 - `transactional_emails:read` — view emails, blocks, templates, branding, preview.
@@ -203,7 +211,15 @@ database.
 
 All pre-existing transactional emails route through this mechanism: orders
 (confirmation, comment, reorder, admin-created), returns (authorized, rejected),
-organizations (verification, invitation, new-registration), and inventory
+organizations (verification, invitation, new-registration, approved, rejected), and inventory
 (low-stock, back-in-stock). Two net-new emails are also registered and dispatched
 via event subscribers: payments (`payment_status_changed`, on payment
 received/failed) and shipments (`shipment_created`, on shipment created).
+
+Other modules register their own: carts (`cart_approval_requested`,
+`cart_approved`, `cart_rejected`), invoices (`invoice_issued`), quote requests
+(`quote_request_pdf` and the eleven `quote_request_customer_*` /
+`quote_request_operator_*` notification emails), CRM (`crm_event_reminder`),
+projects (`projects_stage_deadline_alert`) and tasks (`tasks_task_reminder`,
+`tasks_daily_digest`). Which of them an instance lists depends on the modules it
+has installed.

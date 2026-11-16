@@ -597,6 +597,15 @@ Pola te podążają za tym modułem: gdy `quote_requests` jest wyłączony, nie 
 można ich tworzyć ani edytować i nie zwraca ich API definicji; pola, ich opcje i zapisane wartości
 są zachowane i wracają bez zmian po ponownym włączeniu modułu.
 
+**Na ekranie tworzenia zapytania ofertowego** operator z uprawnieniem `custom_fields:read` wypełnia
+pola niestandardowe zapytania, wysyłane jako `customFieldValues` w `POST /api/v1/admin/quote-requests`.
+Są sprawdzane według reguł administratora, zanim zapytanie dostanie numer i cokolwiek zostanie
+zapisane, a każde pole zapytania oznaczone jako `required` jest wymagane także wtedy, gdy żądanie nie
+wysyła żadnych wartości; odmowa to `422 CUSTOM_FIELD_VALUE_INVALID` (wpisy `details` `{ path, issue }`),
+pokazywana przy wskazanym polu, i nic nie powstaje. Wpis audytu `quote_request.create_on_behalf`
+podaje zapisane klucze (`changedCustomFields`), nigdy wartości. Zgłoszenie składane przez samego
+kupującego się nie zmienia.
+
 ### Wartości przenoszone do zapytania i z niego
 
 Pole zapytania ofertowego może przekazywać swoją wartość dalej, a pole szansy sprzedażowej — do
