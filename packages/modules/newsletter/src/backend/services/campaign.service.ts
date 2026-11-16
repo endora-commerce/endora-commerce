@@ -131,7 +131,13 @@ export class NewsletterCampaignService {
     const campaign = await this.load(em, id);
     this.assertVersion(campaign, expectedVersion);
     if (!(await this.deps.isProviderConfigured())) {
-      throw new HttpError(422, ERROR_CODES.NEWSLETTER_PROVIDER_NOT_CONFIGURED, 'No sending provider configured.');
+      // Issue #1334: on production this is "no usable e-mail credential"; a
+      // development or test instance answers configured through the console sink.
+      throw new HttpError(
+        422,
+        ERROR_CODES.NEWSLETTER_PROVIDER_NOT_CONFIGURED,
+        'No usable e-mail credential is chosen for the newsletter.',
+      );
     }
 
     const now = Date.now();
