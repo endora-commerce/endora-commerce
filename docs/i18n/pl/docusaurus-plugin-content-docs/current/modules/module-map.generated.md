@@ -56,7 +56,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [Import / eksport](./import_export.md) | Import i eksport CSV do masowej edycji encji | @endora-commerce/mod-import-export |
 | [Magazyn](./inventory.md) | Stany magazynowe, rezerwacje, powiadomienia o dostępności | @endora-commerce/mod-inventory |
 | [Księga faktur](./invoice-ledger.md) | Wspólna blokada dostawcy, numeracja i trasowanie KSeF oraz trwała wysyłka faktur dla adapterów księgi faktur. | @endora-commerce/mod-invoice-ledger |
-| [Faktury](./invoices.md) | Generowanie faktur i faktur proforma w PDF oraz powiązanie z plikami | @endora-commerce/mod-invoices |
+| [Faktury](./invoices.md) | Faktury VAT, faktury proforma i faktury korygujące wystawiane do zamówień, z plikami PDF renderowanymi z szablonów dokumentów | @endora-commerce/mod-invoices |
 | [Języki](./languages.md) | Lista obsługiwanych znaczników języków BCP-47 i reguła wartości zastępczej dla tłumaczeń | @endora-commerce/mod-languages |
 | [LinkedIn Ads](./linkedin-ads.md) | LinkedIn Insight Tag osobno dla każdego kanału sprzedaży, raportujący działania w storefroncie według reguł konwersji z Campaign Managera | @endora-commerce/mod-linkedin-ads |
 | [Megamenu](./megamenu/index.md) | Konfigurowalne drzewo nawigacji przypisywane osobno do każdej pary kanału i języka | @endora-commerce/mod-megamenu |
