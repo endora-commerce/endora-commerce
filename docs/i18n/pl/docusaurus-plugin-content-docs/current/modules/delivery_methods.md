@@ -279,7 +279,7 @@ dodawane **raz, podczas kompozycji**. Każdy odczyt następuje **później, w tr
 | Wybór adaptera w panelu | `GET /api/v1/admin/delivery-methods/adapters` → `list` | adapter nie jest dostępny do wyboru |
 | Zabezpieczenie zapisu w panelu | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | jawnie podany klucz, którego nikt nie dodał, jest odrzucany (400), chyba że wiersz już go ma; klucz dodany przez wyłączony moduł jest akceptowany, bo ten odczyt celowo nie sprawdza obecności |
 | Składanie zamówienia | `orders` ponownie sprawdza wybraną metodę, a potem wywołuje `onOrderCreated` | metoda, której właściciel jest wyłączony, odpowiada 503 `MODULE_DISABLED`; dla niezarejestrowanej hook jest pomijany |
-| Generowanie przesyłki | `ShipmentService.create` → `onShipmentCreated` | hook adaptera jest pomijany, a `Shipment` powstaje w stanie **`pending_manual`** z nazwą nieobecnego modułu — nigdy w zwykłym `pending`, które wyglądałoby na przyjęte przez przewoźnika |
+| Generowanie przesyłki | `ShipmentService.createShipment` → `onShipmentCreated` | hook adaptera jest pomijany, a `Shipment` powstaje w stanie **`pending_manual`** z nazwą nieobecnego modułu — nigdy w zwykłym `pending`, które wyglądałoby na przyjęte przez przewoźnika |
 | E-mail z potwierdzeniem zamówienia | klucz `renderers.email` metody | używany jest szablon domyślny platformy |
 
 Wynikają z tego dwie rzeczy i dlatego ta sekcja istnieje, a nie jest pozostawiona domysłom. Po

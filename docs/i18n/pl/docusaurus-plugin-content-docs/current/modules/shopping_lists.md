@@ -25,8 +25,9 @@ Wszystkie endpointy wymagają zalogowanej sesji klienta i są ograniczone do par
 | `POST /api/v1/shopping-lists/:id/items` | Dodanie pozycji |
 | `PATCH /api/v1/shopping-lists/:id/items/:itemId` | Zmiana ilości lub notatki |
 | `DELETE /api/v1/shopping-lists/:id/items/:itemId` | Usunięcie pozycji |
+| `DELETE /api/v1/shopping-lists/:id/items` | Wyczyszczenie listy (usunięcie wszystkich pozycji) |
 | `POST /api/v1/shopping-lists/:id/convert-to-cart` | Dodanie pozycji do aktywnego koszyka; pozycje zarchiwizowane są pomijane i zgłaszane |
-| `POST /api/v1/shopping-lists/:id/convert-to-rfq` | Dodanie pozycji do szkicu zapytania ofertowego; zwraca `rfqId`, aby można było przejść bezpośrednio do szkicu |
+| `POST /api/v1/shopping-lists/:id/convert-to-rfq` | Dodanie pozycji do szkicu zapytania ofertowego; zwraca `rfqId`, aby można było przejść bezpośrednio do szkicu, albo `rfqId: null`, gdy nic nie zostało zamienione (każda wybrana pozycja została pominięta albo nie wybrano żadnej) i żadne zapytanie ofertowe nie powstało ani się nie zmieniło |
 
 Oba przeniesienia przyjmują opcjonalne pole `itemIds: string[]` w treści żądania. Pusta lub
 brakująca tablica oznacza „przenieś wszystkie pozycje z listy”.
@@ -97,7 +98,12 @@ Produkt, którego kupujący nie może już zobaczyć albo którego kanał nie pu
 jako `product_not_found` — dokładnie tak jak usunięty produkt, bez nazwy i bez minimum. Każda inna
 pozycja jest nadal dodawana; zamiana nie jest wycofywana.
 
-Odpowiedź HTTP to zawsze `200 OK` z `{ added, skipped }`, aby interfejs mógł pokazać przyjazny
+Dostępność jest oceniana w języku żądania: `Accept-Language` jest czytany jako lista z wagami `q`
+i dopasowywany do języków kanału sprzedaży (dokładnie, potem po języku bazowym), a w braku
+dopasowania obowiązuje język domyślny kanału. Ta sama zasada dotyczy zapisywania pozycji na liście
+(`POST …/:id/items`).
+
+Odpowiedź HTTP to zawsze `200 OK` z `{ shoppingListId, added, skipped }` (oraz `rfqId` przy zapytaniu ofertowym), aby interfejs mógł pokazać przyjazny
 komunikat zamiast traktować częściowy wynik jako błąd.
 
 ## Encje

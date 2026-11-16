@@ -15,7 +15,7 @@ Vendor adapter modules own the HTTP to their vendor. This module calls no vendor
 - A vendor adapter module adds its connection tab when that adapter is on.
 - Routing (Endora vs vendor numbering, native vs vendor KSeF) is a confirmed write. A write that changes the stored numbering mode without `confirm: true` is refused with `400 INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED` (`details.field: "confirm"`, `from`, `to`), and the operator reads the sentence in their own language. This also happens when another operator changed the mode after the page loaded. The code was `400 VALIDATION_FAILED` until issue #644.
 - Switching a vendor adapter off hides its tab. Delivery history on this module stays.
-- Switching Invoice ledger off on `/platform/modules` also switches off every active adapter. Adapters cannot be switched on again until the ledger is on. Switching the ledger back on leaves adapters off.
+- Invoice ledger cannot be switched off on `/platform/modules`: it is non-deactivatable, because its registry is what refuses a second vendor adapter while one is already active (`INVOICE_LEDGER_VENDOR_ALREADY_ACTIVE`). Switch the active adapter off first to change vendors.
 
 ## Engineers
 

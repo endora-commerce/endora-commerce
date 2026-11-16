@@ -129,6 +129,9 @@ Pliki `.xlsx` są odczytywane przez **`exceljs`** (tylko w backendzie, w osobnym
 oznaczonych jako **`quick_searchable`** (osobna flaga logiczna w `product_attributes`, przełączana w
 zarządzaniu atrybutami w panelu). Wartości atrybutów bez tej flagi nigdy nie są dopasowywane.
 Wymaga sesji; ograniczone do kanału sprzedaży.
+Dostępność i nazwy wyników zależą od języka żądania: `Accept-Language` jest czytany jako lista z
+wagami `q` dopasowywana do języków kanału sprzedaży, a w braku dopasowania obowiązuje język domyślny
+kanału. W tym samym języku oceniane są produkty przy budowaniu i przy zakupie jednym kliknięciem.
 
 ### 3. Domyślne preferencje zamawiania
 
@@ -151,7 +154,7 @@ nadal dopuszczalna (aktywna, dozwolona dla organizacji, adres istnieje — w prz
   w organizacji: …” albo „Brak ustawienia organizacji”).
 - Domyślny adres jest zawsze jednym z adresów organizacji — jedynej książki adresowej klienta.
 - Panel: `/api/v1/admin/quick-order/preferences` — administrator platformy zarządza dowolnym
-  zakresem, a handlowiec tylko przypisanymi organizacjami i ich klientami. Każda zmiana jest
+  zakresem, a handlowiec tylko organizacjami w swoim zasięgu (przypisanymi mu oraz każdą, do której nie jest przypisany żaden inny handlowiec) i ich klientami; zapis wskazujący nieistniejącą organizację otrzymuje `404 NOT_FOUND`. Każda zmiana jest
   audytowana.
   W panelu administracyjnym domyślne ustawienia są panelem na ekranie organizacji i na ekranie
   klienta, a panel nie ma własnego przycisku zapisu: zmiana czeka na zapis, liczy ją jeden przycisk

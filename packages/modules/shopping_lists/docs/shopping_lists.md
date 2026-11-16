@@ -25,8 +25,9 @@ the `(customer, organization)` pair on the session.
 | `POST /api/v1/shopping-lists/:id/items` | Add an item |
 | `PATCH /api/v1/shopping-lists/:id/items/:itemId` | Update quantity / note |
 | `DELETE /api/v1/shopping-lists/:id/items/:itemId` | Remove |
+| `DELETE /api/v1/shopping-lists/:id/items` | Clear the list (remove every item) |
 | `POST /api/v1/shopping-lists/:id/convert-to-cart` | Add items to the active cart; archived rows are skipped + reported |
-| `POST /api/v1/shopping-lists/:id/convert-to-rfq` | Add items to the draft RFQ; returns the `rfqId` for deep-linking |
+| `POST /api/v1/shopping-lists/:id/convert-to-rfq` | Add items to the draft RFQ; returns the `rfqId` for deep-linking, or `rfqId: null` when nothing converted (every selected item skipped, or none selected) and no quote request was created or changed |
 
 The two converters accept an optional `itemIds: string[]` body. Empty or
 missing array means "convert every item on the list".
@@ -109,7 +110,12 @@ is skipped as `product_not_found` — exactly like a deleted product, with no
 name or minimum. Every other line is still added; the conversion is not rolled
 back.
 
-The HTTP response is always `200 OK` with `{ added, skipped }` so the UI
+Availability is judged in the request's language: `Accept-Language` is read
+as a q-weighted list and matched against the sales channel's languages
+(exactly, then by base language), else the channel's default. The same rule
+applies when an item is saved to a list (`POST …/:id/items`).
+
+The HTTP response is always `200 OK` with `{ shoppingListId, added, skipped }` (plus `rfqId` for a quote request) so the UI
 can show a friendly message rather than treating the partial result as
 an error.
 

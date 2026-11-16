@@ -5,18 +5,19 @@ description: Obsługa sterowników płatności i zdarzenia rozliczeń
 
 # Płatności (`payments`)
 
-Obsługa sterowników płatności i zdarzenia rozliczeń. Moduł jest właścicielem portu sterownika
-(`gateway-adapter-port.ts`) i wbudowanych sterowników; adaptery poszczególnych dostawców znajdują
-się w osobnych modułach integracyjnych.
+Obsługa sterowników płatności i zdarzenia rozliczeń. Moduł jest właścicielem rekordu `Payment`
+i czterech wbudowanych adapterów płatności (`src/backend/adapters/built-in-adapters.ts`), które
+przekazuje do `paymentAdapterRegistry` modułu `payment_methods`; adaptery poszczególnych dostawców
+znajdują się w osobnych modułach bramek płatności.
 
 ## Sterowniki
 
-| Sterownik | Zachowanie |
+| Klucz adaptera | Zachowanie |
 | --- | --- |
-| `bank-transfer-driver.ts` | Zwraca `NextAction.kind='awaiting_transfer'`; rozliczenie następuje poza systemem, gdy operator oznaczy zamówienie jako opłacone |
-| `pickup-driver.ts` | `NextAction.kind='none'` przy płatności przy odbiorze |
-| `credit-limit-driver.ts` | Wywołuje `CreditLimitService.reserve` w transakcji składania zamówienia |
-| `gateway-adapter-port.ts` | Interfejs dla zewnętrznych bramek płatności; implementacje poszczególnych dostawców są poza rdzeniem |
+| `bank_transfer` | Zwraca `NextAction.kind='awaiting_transfer'` z referencją `ORDER-…`; rozliczenie następuje poza systemem, gdy operator oznaczy zamówienie jako opłacone |
+| `pickup` | `NextAction.kind='none'` przy płatności przy odbiorze |
+| `credit_limit` | `NextAction.kind='none'`; samą rezerwację wykonuje moduł `orders` (`order-service.ts#placeOrder()` wywołuje `CreditLimitService.reserve` modułu `credit_limits`) w transakcji składania zamówienia |
+| `gateway` | Zaślepka zwracająca `NextAction.kind='none'`; moduł bramki płatności rejestruje własny adapter, który zwraca przekierowanie |
 
 ## API publiczne
 
@@ -47,7 +48,7 @@ Treść żądania przyjęcia rozliczenia ogranicza `providerDetails` do płaskie
 co operator może w niej zapisać, ogranicza nasz schemat, a nie treść przesłana przez wywołującego.
 Integracje bramek płatności budują te dane w kodzie i to ograniczenie ich nie dotyczy.
 
-Poza tymi trasami sterowniki są używane przez zamówienia, przez `order-service.ts#placeOrder()`, a
+Poza tymi trasami zamówienia wywołują adaptery przez `order-service.ts#placeOrder()`, a
 zmiany statusu płatności w panelu administracyjnym przechodzą przez
 `/api/v1/admin/orders/:id/payment-status`, którego właścicielem jest `orders`.
 
@@ -87,7 +88,8 @@ procesie szyny zdarzeń; żadne z nich nie jest dostarczane do webhooków wychod
 
 ## Punkty rozszerzenia
 
-- **Nowa bramka płatności** — zaimplementuj `gateway-adapter-port.ts`, zarejestruj sterownik w
-  composition root i udostępnij konfigurację przez moduł `integrations`.
-- **Ochrona przed nadużyciami i 3DS** — wstaw je przed wywołaniem `reserve` sterownika, zanim
+- **Nowa bramka płatności** — dostarcz moduł, który implementuje `PaymentAdapter` i przekazuje go
+  do `paymentAdapterRegistry` w swoim hooku startowym, jak opisuje strona modułu `payment_methods`
+  (*Jak zbudować własny moduł metody płatności*).
+- **Ochrona przed nadużyciami i 3DS** — wstaw je przed wywołaniem startu płatności przez adapter, zanim
   zostanie zatwierdzona transakcja składania zamówienia.
