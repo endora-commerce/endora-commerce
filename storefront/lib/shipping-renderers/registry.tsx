@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { DeliveryMethodSummary } from '../api/methods';
 import { tForLocale } from '../i18n/messages';
+import { methodName } from '../checkout/method-name';
 
 /**
  * Storefront shipping-method renderer registry (feature 035, FR-016/FR-017).
@@ -28,10 +29,6 @@ export interface ShippingMethodRenderProps {
 
 export type ShippingMethodRenderer = (props: ShippingMethodRenderProps) => ReactNode;
 
-function pickName(name: Record<string, string>): string {
-  return name.default ?? name['en-US'] ?? name.en ?? Object.values(name)[0] ?? '';
-}
-
 export const DefaultShippingMethodRenderer: ShippingMethodRenderer = ({
   method,
   defaultChecked,
@@ -46,7 +43,7 @@ export const DefaultShippingMethodRenderer: ShippingMethodRenderer = ({
         value={method.id}
         defaultChecked={defaultChecked}
       />{' '}
-      {pickName(method.name)}
+      {methodName(method.name, locale)}
       {method.cost.amount > 0 ? (
         <span className="muted">{` — ${method.cost.amount.toFixed(2)} ${method.cost.currency}`}</span>
       ) : (

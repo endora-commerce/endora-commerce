@@ -43,6 +43,22 @@ describe('PaymentMethods section (SSR)', () => {
     expect(html).toContain('+5.00 PLN');
   });
 
+  /**
+   * Issue #1324 — the name is a per-language record; the row shows the page
+   * language's entry, the way `/preferences` does, and falls back when the page
+   * language has none.
+   */
+  it('shows the method name in the page language on a pl-PL page', () => {
+    const name = { 'en-US': 'Bank transfer', 'pl-PL': 'Przelew bankowy' };
+    const pl = renderToString(<PaymentMethods methods={[method({ name })]} locale="pl-PL" />);
+    expect(pl).toContain('Przelew bankowy');
+    expect(pl).not.toContain('Bank transfer');
+    const en = renderToString(<PaymentMethods methods={[method({ name })]} locale="en-US" />);
+    expect(en).toContain('Bank transfer');
+    const de = renderToString(<PaymentMethods methods={[method({ name })]} locale="de-DE" />);
+    expect(de).toContain('Bank transfer');
+  });
+
   it('shows the empty state when no method is eligible', () => {
     const html = renderToString(<PaymentMethods methods={[]} />);
     expect(html).toContain('No payment method is available');
