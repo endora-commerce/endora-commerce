@@ -25,7 +25,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [Opinie](./admin-feedback.md) | Administratorzy wysyłają z panelu opinie twórcom Endora Commerce, przekazywane jako jeden e-mail i nigdzie nie zapisywane | @endora-commerce/mod-admin-feedback |
 | `admin_notifications` | _brak strony_ | @endora-commerce/mod-admin-notifications |
 | [Role administratorów](./admin_roles.md) | Role administratorów i uprawnienia poszczególnych modułów | @endora-commerce/mod-admin-roles |
-| [Wyszukiwanie globalne](./admin-search.md) | Wyszukiwanie globalne w panelu administracyjnym — znajdowanie organizacji, klientów, zamówień, zapytań ofertowych, szans sprzedażowych, produktów i kategorii z palety poleceń, z konfigurowalnymi polami wyszukiwania | @endora-commerce/mod-admin-search |
+| [Wyszukiwanie globalne](./admin-search.md) | Wyszukiwanie globalne w panelu administracyjnym — znajdowanie organizacji, klientów, zamówień, zapytań ofertowych, szans sprzedażowych, produktów, kategorii, projektów i zadań z palety poleceń, z konfigurowalnymi polami wyszukiwania | @endora-commerce/mod-admin-search |
 | [Administratorzy](./admin_users.md) | Konta administratorów platformy i logowanie jako klient | @endora-commerce/mod-admin-users |
 | [Analityka](./analytics.md) | Zbieranie zdarzeń ze storefrontu, zestawienia w panelu administracyjnym i opcjonalne przekazywanie do GA4 | @endora-commerce/mod-analytics |
 | [Klucze API](./api_keys.md) | Dane uwierzytelniające integracji w postaci tokenu bearer | @endora-commerce/mod-api-keys |
