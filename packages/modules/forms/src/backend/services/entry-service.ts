@@ -23,6 +23,7 @@ import {
   deleteEntryCommand,
   markEntryReadCommand,
 } from './entry-commands.js';
+import { filterAuditState } from './entry-audit-state.js';
 import { entriesCsv, exportColumns, type ExportCursor, type ExportEntry } from './entry-export.js';
 import { formEntryNotFound, formNotFound } from './forms-errors.js';
 
@@ -121,17 +122,6 @@ function plainText(html: string): string {
     .replace(/<[^>]*>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-/** The filter as its audit state records it: the values the caller chose, never a result. */
-function filterAuditState(filter: EntryFilter): Record<string, unknown> {
-  const state: Record<string, unknown> = {};
-  if (filter.status && filter.status.length > 0) state['status'] = [...filter.status];
-  if (filter.submittedFrom) state['submittedFrom'] = filter.submittedFrom;
-  if (filter.submittedTo) state['submittedTo'] = filter.submittedTo;
-  if (filter.salesChannelId) state['salesChannelId'] = filter.salesChannelId;
-  if (filter.q) state['q'] = filter.q;
-  return state;
 }
 
 export class EntryService {
@@ -290,8 +280,9 @@ export class EntryService {
 }
 
 /**
- * `forms.entries.export` — the audit of an export (FR-053): the form, the filter the caller chose
- * and how many rows their scope holds; never a value of any row.
+ * `forms.entries.export` — the audit of an export (FR-053): the form, the filter's shape (codes,
+ * dates, channel id, whether a query was given) and how many rows their scope holds; never a value
+ * of any row, and never the query's text (issue #470, `entry-audit-state.ts`).
  */
 function exportEntriesCommand(formId: string, filter: EntryFilter): Command<number> {
   return {

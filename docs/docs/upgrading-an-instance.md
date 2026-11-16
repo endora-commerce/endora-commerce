@@ -5027,6 +5027,25 @@ personal address book (issue #470). That log is one table, read by everybody hol
 **After upgrading,** nothing has to be done. The retention sweep's erasure of a customer's audit
 history finds these entries by the row ids, not by their state, so it is unaffected.
 
+### A form entry export's search text leaves the platform audit log {#forms-export-audit-names-only}
+
+The release that ships this change stops writing the search text of a form entry export into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whatever Organizations they may see, and the search text is whatever the employee
+typed — often a submitter's e-mail address or a phrase from their answers.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `forms.entries.export` entry no
+  longer carries `filter.q`. When the export was filtered by a search text, `filter` records
+  `hasQuery: true` and `queryLength`, the number of characters typed. The form, the statuses, the
+  submission dates, the sales channel and the row count are recorded as before.
+- The export itself is unchanged.
+- Entries recorded before the upgrade are not rewritten: they keep the search text.
+
+**After upgrading,** nothing has to be done. The audit log still says who exported which form's
+entries, when, with which filters and how many rows; it no longer says what was searched for.
+
 ### Impersonation reasons and Organizations leave the platform audit log {#impersonation-reason-store}
 
 The release that ships this change stops writing the reason an administrator gives for
