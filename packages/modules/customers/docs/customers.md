@@ -57,8 +57,9 @@ switched off by a special case.
 
 - Customer list (search + status/organization/group filters) and a detail view
   showing creation date, customer group, organization, blocked status, last
-  login and the customer's **e-mail language** — read-only, and *Not set — the
-  store's default language is used* while the account has none. Staff with
+  login and the customer's **e-mail language** — read-only, named in the
+  admin's language with the tag beside it (for example *English (US)* `en-US`),
+  and *Not set — the store's default language is used* while the account has none. Staff with
   `customers:read` see it; only the customer changes it.
 - Block / unblock and soft-delete / restore, with role-based authority: a
   Platform Administrator may act on anyone; otherwise the authorized salesperson
@@ -74,7 +75,13 @@ switched off by a special case.
   Administrator: blocking or deleting that customer is allowed.
 - Impersonation; audited as `impersonation.start` / `impersonation.end`. The
   answer names the customer's `organizationRole`, and the impersonation acts
-  with exactly that customer's organization permissions.
+  with exactly that customer's organization permissions. On the customer
+  detail, *Impersonate* first asks for an optional reason (for example a ticket
+  number), stored with the session record rather than in the audit log. Once the
+  support session starts, the screen links to the storefront, where you act as
+  the customer in the same browser, and offers *End support session*; the
+  storefront's banner ends it too. While that session is open the screen offers
+  no second start. A refused start is shown in the dialog.
 - Admin-triggered password reset (emails a set-password link).
 - NIP/VAT validation (VIES / Biała lista port).
 - Organization assign, and detach-from-organization, which moves the customer to

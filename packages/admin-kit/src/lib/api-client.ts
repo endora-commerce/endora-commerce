@@ -111,6 +111,16 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
 export const apiBaseUrl: string =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:3001';
 
+/**
+ * The storefront origin, for a screen that sends the operator there — the
+ * customer detail's impersonation hand-off (issue #1328). Published for
+ * {@link apiBaseUrl}'s reason, and read verbatim for the same one; the default
+ * is the storefront's development port, as `admin/.env.example` sets it.
+ */
+export const storefrontBaseUrl: string = (
+  (import.meta.env.VITE_STOREFRONT_BASE_URL as string | undefined) ?? 'http://localhost:3000'
+).replace(/\/+$/, '');
+
 const inner = createApiClient({ baseUrl: apiBaseUrl });
 
 type Listener = () => void;
