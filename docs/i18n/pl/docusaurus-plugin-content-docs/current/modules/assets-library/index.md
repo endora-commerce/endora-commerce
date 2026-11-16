@@ -323,6 +323,10 @@ Co trasa pliku odpowiada w zależności od żądania:
   są za każdym razem weryfikowane ponownie, a adresy osadzenia wydawane przez platformę zawierają
   nowe `v`.
 - Niepodpisane żądanie warunkowe do pliku prywatnego nigdy nie dostaje `304`.
+- Odpowiedzi `200` i `304` pliku publicznego zawierają
+  `Cross-Origin-Resource-Policy: cross-origin`, więc storefront albo panel na innym adresie
+  źródłowym niż API może go osadzić, także po ponownej walidacji. Odpowiedź dla pliku prywatnego
+  tego nagłówka nie zawiera.
 - Roczna odpowiedź `immutable` na `?v=<bieżąca>` jest gwarantowana tylko w miarę możliwości, gdy
   trwa podmiana: żądanie, które trafi w krótkie okno przed zatwierdzeniem podmiany, może zostać
   zapisane w pamięci podręcznej z nowymi bajtami pod starym znacznikiem.

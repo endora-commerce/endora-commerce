@@ -272,7 +272,8 @@ wpisanego w formularz.
   z odpowiedzi.
 
 Każda zmiana — formularza, statusu zgłoszenia, notatki, usunięcie, eksport — jest zapisywana
-w dzienniku zdarzeń bez odpowiedzi.
+w dzienniku zdarzeń bez odpowiedzi. Eksport zapisuje swoje filtry, ale nie tekst wyszukiwania:
+tylko to, że go użyto, i jego długość.
 
 ### Zgłoszenia a organizacje {#entries-and-organisations}
 

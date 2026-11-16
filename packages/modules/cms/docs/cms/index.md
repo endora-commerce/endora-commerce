@@ -1391,8 +1391,8 @@ page render.
 | Method | Path                              | Returns                                                        |
 | ------ | --------------------------------- | -------------------------------------------------------------- |
 | GET    | `/pages/by-slug?slug=…&language=…`| Resolved Page with `embeds.blocks`, `embeds.templates`, assets. `slug` takes the page's whole public path in any of its languages; a nested page's own slug also resolves.|
-| GET    | `/blocks/by-code?code=…&language=…`| Resolved Block (single, channel-filtered, active-only).       |
-| GET    | `/hooks/by-code?code=…&language=…`| Ordered active Block list for the named Hook.                  |
+| GET    | `/blocks/by-code?code=…&language=…`| Resolved Block (single, channel-filtered, active-only), with the assets its tree embeds. |
+| GET    | `/hooks/by-code?code=…&language=…`| Ordered active Block list for the named Hook, with the assets its blocks embed. |
 
 The resolved Page also carries `path` (its public path in the channel and the
 served language), `url` (that path as the storefront links it, under the
@@ -1409,7 +1409,10 @@ channel, with `cache-control: public, max-age=60`.
 
 Channel resolution prefers the `X-Sales-Channel` header, then falls back
 to the system-default channel. Language resolution prefers `?language=`,
-then `Accept-Language`, then the channel's configured default.
+then `Accept-Language`, then the channel's configured default. `Accept-Language`
+is read as a q-weighted list: the tags in descending `q`, each matched against the
+channel's languages (exactly, then by base language, so `pl` reaches `pl-PL`); the
+first one the channel offers wins.
 
 ## Storefront resolution + Redis cache
 

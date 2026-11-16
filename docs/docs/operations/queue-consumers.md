@@ -101,7 +101,7 @@ queue:
   threshold (50 products). The admin request persists a `pending`
   `BulkOperation` row, enqueues its id, and returns `202` immediately.
 - **`search_reindex`** — a full Meilisearch re-index (the CLI
-  `pnpm search:reindex` equivalent), enqueued automatically when an attribute's
+  `pnpm run cli search reindex` equivalent), enqueued automatically when an attribute's
   `searchable` flag is flipped.
 
 The consumer claims a row by flipping it `pending → running` with a conditional

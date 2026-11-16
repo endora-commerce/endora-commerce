@@ -20,9 +20,10 @@ internals.
 
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/search/suggest?q=…&limit=N` | storefront (no auth) | Typeahead popup feed; returns up to `limit` `ProductSummary` rows ordered by Meilisearch relevance |
+| `GET /api/v1/search/suggest?q=…&limit=N` | storefront (no auth) | Typeahead popup feed; returns up to `limit` `ProductSummary` rows ordered by Meilisearch relevance, searched and named in the request language: the `Accept-Language` tags heaviest `q` first, each matched to the channel's languages (exactly, then by base language), else the channel's default |
 | `POST /api/v1/search/record` | storefront (no auth) | Fire-and-forget analytics ingest; persists one verbatim row in `search_phrase_records` per committed search |
-| `POST /api/v1/admin/search/llm/toggle` | admin (`search:write`) | Cross-setting-validating wrapper around `search.llm.enabled`; refuses to enable when any embedder.* field is empty for any targeted channel |
+| `POST /api/v1/admin/search/llm/toggle` | admin (`search:write`) | Cross-setting-validating wrapper around `search.llm.enabled`; refuses to enable with `400 LLM_CONFIG_INCOMPLETE` when the embedder credential does not supply a Base URL, API key and model for every targeted channel |
+| `POST /api/v1/admin/search/reindex` | admin (`search:write`) | The admin **Reindex products** action: rebuilds every sales-channel index now and answers a per-run summary; `503 SEARCH_BACKEND_UNAVAILABLE` when Meilisearch is down or refuses the call |
 
 The full search results page reuses `GET /api/v1/catalog/products?q=…` —
 catalog owns that contract, and the storefront `/search` route just
@@ -30,19 +31,20 @@ re-exports `CatalogPage`. There is no parallel results-page contract.
 
 ## Settings
 
-Six knobs live under the `search` group, registered by
+Seven settings live under the `search` group, registered by
 `packages/modules/search/src/manifest.ts`:
 
 | Code | Type | Default | Purpose |
 | --- | --- | --- | --- |
+| `search.enabled` | `boolean` | `true` | The module's activation control (platform-wide): switches the popup, the result feed, the analytics ingest, the admin LLM and reindex screens and the indexer off; nothing is dropped |
 | `search.popup.suggestion_count` | `number` | `8` | How many products the storefront popup shows; `0` suppresses the popup but committed search still navigates |
 | `search.popup.minimum_query_length` | `number` | `3` | Minimum characters before the storefront fires a suggest request and before the recorder persists a row |
 | `search.llm.enabled` | `boolean` | `false` | Enables Meilisearch's hybrid lexical + semantic search on this channel |
-| `search.llm.embedder_url` | `string` | `""` | OpenAI-compatible embedder endpoint URL (used by Meilisearch) |
-| `search.llm.embedder_api_key` | `string` | `""` | Embedder API key (admin UI masks the input) |
-| `search.llm.embedder_model` | `string` | `""` | Embedder model identifier (e.g. `text-embedding-3-small`) |
+| `search.llm.embedder_credentials` | `credential_ref` (`llm`) | `""` | A reusable LLM credential configuration (Credentials screen); its Base URL, API key and model are the embedder's OpenAI-compatible endpoint, key and model (e.g. `text-embedding-3-small`). Required to enable LLM-augmented search |
+| `search.reindex_interval_minutes` | `number` | `10` | How often the worker rebuilds every channel index; `0` disables the periodic sweep (manual reindex stays available) |
+| `search.index_task_timeout_seconds` | `number` | `120` | How long to wait for one Meilisearch indexing task before reporting it as still running; giving up does not cancel the task |
 
-All six are sales-channel-scoped via the existing Settings model. The
+The popup and LLM settings are sales-channel-scoped via the existing Settings model. The
 storefront popup reads its count + threshold per request via the
 universal getter (`SettingsService.get`); on any read error (cache
 miss, `SettingNotRegistered`) the suggest service falls back to the
@@ -57,16 +59,17 @@ makes it work against any OpenAI-compatible endpoint (OpenAI itself,
 Azure OpenAI, Ollama's OpenAI shim, …).
 
 The toggle wrapper (`POST /api/v1/admin/search/llm/toggle`) refuses to
-flip `enabled=true` for any channel whose three embedder.* fields
-aren't all populated. The error envelope's `details[]` lists
-every missing `(channelCode, settingCode)` pair so the admin UI can
-highlight the gaps.
+flip `enabled=true` (`400 LLM_CONFIG_INCOMPLETE`) for any channel whose
+`search.llm.embedder_credentials` reference does not supply all three of
+Base URL, API key and model. The error envelope's `details[]` lists
+every gap as `<channelCode>.search.llm.embedder_credentials` with the
+missing part, so the admin UI can highlight it.
 
 The reactor (in `SearchEventSubscriber`) is belt-and-braces: a power
 user PUTting `search.llm.enabled=true` directly through the generic
 Settings admin route (bypassing the wrapper) does **not** poison
 Meilisearch — the reactor warn-logs and leaves the index alone if the
-embedder.* triplet is incomplete.
+embedder credential is incomplete.
 
 Disabling never refuses; the reactor calls `index.resetEmbedders()` so
 the channel falls back to plain lexical ranking.
@@ -238,7 +241,7 @@ Since product data scopes (`specs/163-product-data-scopes/`) a product can be sw
 
 - a channel member is indexed when it is on in **at least one** language of the channel; archived and deleted products are on in none;
 - each document carries `liveLanguages` (the channel languages it is on in), `publishFromMs` / `publishUntilMs` (the effective window in epoch milliseconds; `0` and `Number.MAX_SAFE_INTEGER` when open), and the channel-effective `visibility` and `allowedOrganizationIds`. All five are filterable attributes;
-- a query adds a filter for the request language (the first `Accept-Language` tag matched to the channel's languages, else its default), the window at the moment of the query, and the caller's audience, so a page is cut from available hits only. The allow-list is a filter input and is never retrieved into a response;
+- a query adds a filter for the request language (the `Accept-Language` tags heaviest `q` first, each matched to the channel's languages — exactly, then by base language — the first one the channel offers, else its default), the window at the moment of the query, and the caller's audience, so a page is cut from available hits only. The allow-list is a filter input and is never retrieved into a response;
 - hydration asks `catalog` again (`filterAvailable`) for every hit, so a stale document cannot show a product that is no longer available.
 
 About a minute after the first start following the upgrade, the worker process brings every existing channel index's settings up to date without a reindex: the five availability fields become filterable, so queries keep being answered by the index instead of falling back to PostgreSQL. It reads the settings of each index once per start and changes them only where one is missing. A document indexed before this change still has none of the new fields and is served as before. **After upgrading, run one reindex per sales channel** (the `search_reindex` bulk operation or the reindex CLI below) so the window and per-language filters become exact.
@@ -321,8 +324,8 @@ The body is `packages/modules/search/src/backend/cli/reindex.ts`.
 - `backend/test/integration/search/event-subscriber.test.ts` (existing) — catalog-event-driven indexing.
 - `backend/test/integration/search/catalog-via-meilisearch.test.ts` (existing) — env-flag-dispatched read path.
 - `backend/test/integration/search/sort-order.test.ts` (6 cases) — each of the four sorts served by Meilisearch (`x-search-backend` is the load-bearing assertion: Postgres answers all four, so the order alone cannot tell a served page from a fallback), the declared `sortableAttributes`, and the absence of the indexed `price`.
-- `backend/test/unit/search/search-sort-attributes.test.ts` (4 cases) — `buildSort` emits only fields `SORTABLE_ATTRIBUTES` declares.
-- `backend/test/unit/search/search-degrade-observability.test.ts` (3 cases) — a refused query names the engine's error code and is reported once; an unreachable one is not reported twice.
+- `src/backend/services/search-sort-attributes.test.ts` (4 cases, in this module's package) — `buildSort` emits only fields `SORTABLE_ATTRIBUTES` declares.
+- `src/backend/services/search-degrade-observability.test.ts` (3 cases, in this module's package) — a refused query names the engine's error code and is reported once; an unreachable one is not reported twice.
 
 The last two need no services; the rest run against real Postgres +
 real Meilisearch.

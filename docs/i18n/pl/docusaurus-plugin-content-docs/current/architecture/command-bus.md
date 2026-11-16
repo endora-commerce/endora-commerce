@@ -89,7 +89,7 @@ wartości. Regułę i obowiązek testowy opisuje w repozytorium `specs/conventio
 Moduł może brać udział w **zapisie innego modułu** bez jego forkowania, ale tylko w zapisie, który
 moduł-właściciel otworzył dla hooków. Właściciel **deklaruje** akcję polecenia jako dostępną dla
 hooków: publikuje typowaną referencję w `@endora-commerce/contracts` i wymienia ją w
-`hookableActions` swojego manifestu. `organizations` deklaruje cztery (zob. stronę modułu). Każdy
+`hookableActions` swojego manifestu. `organizations` deklaruje kilka; wymienia je strona modułu. Każdy
 moduł — moduł rdzenia, moduł nakładki wdrożenia albo zainstalowany pakiet — rejestruje wtedy hook:
 
 ```ts

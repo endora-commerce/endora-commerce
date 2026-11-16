@@ -602,7 +602,7 @@ Organizations module, and the rule above only reads it.
 
 **The assignee does not decide who can see an opportunity.** A sales
 representative restricted to certain organizations sees every opportunity of
-those organizations, whoever holds it — and does not see an opportunity of
+the organizations they reach, whoever holds it — and does not see an opportunity of
 another organization even when it is assigned to them.
 
 In the Admin UI:
@@ -1053,7 +1053,7 @@ closing or reopening.
 
 ### Time zones
 
-The platform has no time-zone setting, so an event carries its own: the time
+CRM has no time-zone setting for events, so an event carries its own: the time
 zone of the browser it was saved from.
 
 - A **timed** event is one moment, the same for everybody. Each reader sees it
@@ -1141,7 +1141,7 @@ opens for a role that holds `crm:read`, and is in the command palette as
 | Who | What the Calendar shows |
 | --- | --- |
 | An administrator who may see **every** organization | The events of every open opportunity. A **Mine / All** switch narrows the Calendar to the opportunities assigned to them. It opens on *All*, where each event also names the opportunity's assignee. |
-| An administrator restricted to a set of organizations — a sales representative | Only the events of opportunities **assigned to them**, within those organizations. There is no switch. |
+| An administrator restricted to a set of organizations — a sales representative | Only the events of opportunities **assigned to them**, within the organizations they reach. There is no switch. |
 
 A sales representative's Calendar therefore never shows a colleague's
 opportunity, even one in an organization they share — although they can open
@@ -2242,7 +2242,7 @@ classes. Both types are exported by `@endora-commerce/contracts`.
 
 | Container name | Type | What it does |
 | --- | --- | --- |
-| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByDocument(kind, documentId)` and `listOpenForOrganization(organizationId)`. Each answers plain `OpportunityRecord` values — id, number, title, organization, status code and kind, assignee, value, currency, dates — or `null` / an empty list. `statusName(code, language)` names a status as CRM's screens do: its name in that language, else its default name, else the code. |
+| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByIds(ids)`, `findByDocument(kind, documentId)`, `listOpenForOrganization(organizationId)` and `search({ q, limit })` (number or title, at most 20). Each answers plain `OpportunityRecord` values — id, number, title, organization, status code and kind, assignee, value, currency, dates — or `null` / an empty list. `statusName(code, language)` names a status as CRM's screens do: its name in that language, else its default name, else the code. |
 | `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` moves an opportunity through the configured workflow, guards and events included, and answers what happened as a value. |
 
 ```ts
@@ -2404,8 +2404,6 @@ Things an operator may look for and will not find in this release:
 - **A time-zone setting.** The calendar follows each reader's browser.
 - **Events elsewhere in the module.** Events are not offered to outbound
   webhooks, do not appear in analytics, and are not a field of a board card.
-- **Global search.** Opportunities are found on their own list and board, not
-  through the Admin UI's search.
 - **Profit.** Every figure is a value; there is no cost or margin.
 
 ## Demo data

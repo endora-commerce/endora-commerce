@@ -7,7 +7,8 @@ description: Produkty, warianty, kategorie, atrybuty, kanały sprzedaży
 # Katalog (`catalog`)
 
 Katalog produktów: produkty (Products), warianty (ProductVariants), kategorie (Categories), atrybuty
-(ProductAttributes) i kanały sprzedaży (SalesChannels). Odpowiada za wszystkie ścieżki odczytu, z
+(ProductAttributes) oraz ustawienia produktów w poszczególnych kanałach sprzedaży (sam kanał
+sprzedaży należy do platformy). Odpowiada za wszystkie ścieżki odczytu, z
 których korzysta storefront, oraz za edycję katalogu w panelu administracyjnym.
 
 ## API publiczne
@@ -36,6 +37,8 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `POST /api/v1/admin/catalog/products/:id/archive` | administrator (`catalog:write`) | Archiwizacja jednego produktu — zob. *Status produktu i archiwizacja* |
 | `POST /api/v1/admin/catalog/products/:id/restore` | administrator (`catalog:write`) | Przywrócenie jednego zarchiwizowanego produktu |
 | `GET`, `POST /api/v1/admin/catalog/products/list-views`; `PATCH`, `DELETE …/list-views/:id` | administrator | Zapisane widoki listy produktów — zob. *Zapisane widoki* niżej |
+| `GET /api/v1/admin/catalog/bulk-operations`, `GET …/bulk-operations/:id` | administrator (`catalog:read`) | Operacje zbiorcze w tle i wynik jednej operacji dla każdego produktu |
+| `POST /api/v1/admin/catalog/bulk-operations/:id/undo` | administrator (`catalog:write`) | Cofnięcie zakończonej operacji zbiorczej; odrzucane z `409 BULK_OPERATION_RUNNING`, dopóki operacja czeka lub trwa, `409 BULK_OPERATION_ALREADY_REVERTED`, gdy została już cofnięta, i `409 BULK_OPERATION_NOT_REVERSIBLE`, gdy nie ma czego przywrócić (do issue #501 wszystkie trzy były `409 VERSION_CONFLICT`) |
 | `GET /api/v1/admin/catalog/attributes` | administrator | Lista atrybutów |
 | `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | administrator | Dane do listy wyboru — wszystkie atrybuty z żądaną flagą |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Odczyt jednego atrybutu |
@@ -45,12 +48,12 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Usunięcie atrybutu dowolnego typu; odrzucane z `409`, dopóki zawiera go zestaw atrybutów albo nieusunięty produkt ma jego wartość (na produkcie, w kanale sprzedaży lub na wariancie) |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Lista opcji atrybutów typu select/enum/multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Dodanie opcji |
-| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Zmiana label / labelDefault / isDefault / sortOrder (wartości `value` opcji nie można zmienić) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Usunięcie; odrzucane z `409 ATTRIBUTE_OPTION_IN_USE`, dopóki którykolwiek produkt ma tę wartość |
-| `POST /api/v1/admin/catalog/attribute-set-preview` | administrator | Podgląd, które atrybuty będą edytowalne, a które ukryte, gdy operator zmieni zestaw atrybutów produktu |
+| `PATCH /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` | administrator | Zmiana label / labelDefault / isDefault / sortOrder (wartości `value` opcji nie można zmienić) |
+| `DELETE /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` | administrator | Usunięcie; odrzucane z `409 ATTRIBUTE_OPTION_IN_USE`, dopóki którykolwiek produkt ma tę wartość |
+| `POST /api/v1/admin/catalog/products/:id/attribute-set-preview` | administrator (`catalog:write`) | Podgląd, które atrybuty będą edytowalne, a które ukryte, gdy operator zmieni zestaw atrybutów produktu |
 | `GET /api/v1/admin/catalog/categories` | administrator | Płaska lista, z której panel buduje drzewo |
-| `POST /api/v1/admin/catalog/categories` | administrator | Utworzenie (kategoria nadrzędna musi istnieć); slug, który ma już kategoria siostrzana, daje `409 CATEGORY_SLUG_TAKEN` (`details.slug`, `parentCategoryId`), przy tworzeniu i przy aktualizacji |
-| `PATCH /api/v1/admin/catalog/categories/:id` | administrator | Aktualizacja; przy zmianie kategorii nadrzędnej sprawdzany jest łańcuch nowej kategorii nadrzędnej, aby odrzucić cykle (`409 CATEGORY_MOVE_CYCLE`, `details.categoryId`, `parentCategoryId`) |
+| `POST /api/v1/admin/catalog/categories` | administrator | Utworzenie (kategoria nadrzędna musi istnieć); slug, który ma już kategoria siostrzana, daje `409 CATEGORY_SLUG_TAKEN` (`details.slug`, `parentCategoryId`), przy tworzeniu i przy aktualizacji. `customFieldValues` są sprawdzane według definicji pól niestandardowych kategorii i zapisywane razem z kategorią; odrzucona wartość daje `422 CUSTOM_FIELD_VALUE_INVALID` (wpisy `details` `{ path, issue }`) i nic nie jest tworzone. **Wymagane** pole kategorii jest egzekwowane przy każdym utworzeniu, także gdy żądanie nie przesyła żadnych wartości |
+| `PATCH /api/v1/admin/catalog/categories/:id` | administrator | Aktualizacja (także `customFieldValues`, odrzucanych jak przy tworzeniu); przy zmianie kategorii nadrzędnej sprawdzany jest łańcuch nowej kategorii nadrzędnej, aby odrzucić cykle (`409 CATEGORY_MOVE_CYCLE`, `details.categoryId`, `parentCategoryId`) |
 | `DELETE /api/v1/admin/catalog/categories/:id` | administrator | Usunięcie miękkie; odrzucane z `409 CATEGORY_HAS_CHILDREN` (`details.categoryId`, `childCount`), gdy odwołuje się do niej aktywna kategoria podrzędna |
 | `GET /api/v1/admin/catalog/categories/:id/content` | administrator | Treść strony kategorii — jeden dokument Page Buildera na język ([Treść strony kategorii](./catalog/category-content.md)) |
 | `PUT /api/v1/admin/catalog/categories/:id/content` | administrator | Zastąpienie treści strony kategorii; `null` ją czyści |
@@ -200,7 +203,7 @@ Na stronie modułu `price_lists` opisano, jak wybierana jest cena, którą płac
   są odczytywane produkty powiązane z wpisem na blogu.
 - **Gdy tryb wyświetlania cen oglądającego to *Żaden*** — na przykład dla niezalogowanego
   odwiedzającego w kanale, który ukrywa ceny do czasu zalogowania — lista i szczegóły produktu nie
-  zawierają kwoty, a sortowanie i zakres cen są dla tej strony odrzucane. Kanały sprzedaży nie mają
+  zawierają kwoty, a sortowanie i zakres cen są dla tej strony odrzucane z `400 PRICE_ORDERING_UNAVAILABLE`. Kanały sprzedaży nie mają
   już własnej flagi widoczności cen: o tym, co widzi każdy oglądający, decyduje tryb wyświetlania.
 - **Ceny brutto liczone są według stawki VAT danego produktu.** Każdy produkt na liście i w
   szczegółach produktu zawiera `vatRate` — stawkę VAT, którą oglądający płaci za ten produkt, jako
@@ -266,7 +269,7 @@ licząc razem własne zmiany kategorii i tryb prezentacji.
 
 ## Encje
 
-`Product`, `ProductVariant`, `Category`, `ProductAttribute`, `SalesChannel`, tabele łączące
+`Product`, `ProductVariant`, `Category`, `ProductAttribute` (encja `SalesChannel` należy do platformy), tabele łączące
 `product_categories`, `sales_channel_products`, `product_assets` oraz `ProductListSavedView`
 (`product_list_saved_views`, zapisane widoki listy produktów).
 
@@ -683,7 +686,7 @@ powyższy endpoint zachowuje swoją postać — ale model przechowywania i włas
   które tworzą, aktualizują lub usuwają definicję i rozszerzenie razem w jednej transakcji (z jednym
   wpisem audytu), korzystając z transakcyjnego API zapisu eksportowanego przez `custom_fields`.
   Ogólny ekran pól niestandardowych w panelu pokazuje definicje produktu tylko do odczytu i odrzuca
-  zmiany z `409 host_managed`.
+  zmiany z `409 CUSTOM_FIELD_HOST_MANAGED`.
 - **Migracja `20260723T230401_catalog_attributes_on_custom_fields.ts`** jednorazowo połączyła oba modele w jednej
   transakcji: utworzyła po jednej definicji dla każdego dawnego atrybutu (klucz, etykiety,
   przełożony typ wartości, wymagalność, deterministyczna kolejność), przeniosła wiersze

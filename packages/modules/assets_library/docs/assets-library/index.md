@@ -355,6 +355,10 @@ What the file route answers, by request:
   the permalink: both are revalidated every time, and the embed URLs the
   platform hands out carry the new `v`.
 - An unsigned conditional request on a private asset never receives `304`.
+- A public asset's `200` and `304` both carry
+  `Cross-Origin-Resource-Policy: cross-origin`, so a storefront or admin on
+  another origin than the API can embed it, also after revalidation. A private
+  asset's answer does not carry it.
 - The one-year `immutable` answer on `?v=<current>` is best effort while a
   replace is running: a request that arrives in the brief window before the
   replace commits can be cached with the new bytes under the old marker.

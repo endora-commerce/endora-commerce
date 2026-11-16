@@ -295,7 +295,7 @@ carries `mainImageUrl`, `primaryCategoryName` (the category chip) and `url`
 
 All four:
 
-- read the resolved channel + language from request headers (`x-sales-channel`, `x-blog-language` / `accept-language`);
+- read the resolved channel + language from request headers (`x-sales-channel`, `x-blog-language` / `accept-language`); `x-blog-language` wins, and `accept-language` is read as a q-weighted list matched against the channel's languages (exactly, then by base language), else the channel's default language;
 - read `blog.*` settings from the channel-aware Settings service;
 - return `404 BLOG_DISABLED` (or `BLOG_POST_NOT_FOUND` / `BLOG_TAG_NOT_FOUND`) when the resolved scope has no matching content — except `/posts`, which answers an empty list;
 - ride the [`BlogCacheService`](#cache-strategy) Redis read-through.

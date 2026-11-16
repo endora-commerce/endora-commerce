@@ -316,7 +316,9 @@ tryb.
 
 ## Handlowcy
 
-Handlowiec pracuje na tych samych ekranach, z tymi różnicami:
+Handlowiec pracuje na tych samych ekranach, z tymi różnicami. *Jego organizacje* to organizacje, do
+których sięga: przypisane do niego (z `organizations:rollup` także ich organizacje podrzędne) i każda
+organizacja, do której nie jest przypisany żaden handlowiec.
 
 - Lista pokazuje cenniki organizacji, w których każdy odbiorca jest jedną z jego organizacji, oraz
   cenniki dla wszystkich i dla grup klientów. Cennika wskazującego jakąkolwiek inną organizację nie

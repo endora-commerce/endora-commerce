@@ -17,6 +17,11 @@ Analytics 4.
 | `POST /api/v1/analytics/events` | storefront / panel (bez uwierzytelniania) | Przyjęcie porcji zdarzeń (≤ 100) |
 | `GET /api/v1/admin/analytics/summary` | administrator (`analytics:read`) | Sumy dla każdego typu i rozbicie dzienne w zadanym okresie |
 
+Moduł włącza się i wyłącza ustawieniem `analytics.enabled` (domyślnie włączone, zmieniane na
+ekranie **Moduły**, `/platform/modules`). Gdy jest wyłączony, żadne zdarzenie nie jest
+przyjmowane, pulpity i ich API znikają, a nic nie jest przekazywane do GA4; zebrane już zdarzenia
+zostają i wracają po ponownym włączeniu.
+
 ## Typy zdarzeń
 
 Schemat Zod na wejściu przyjmuje stały zbiór:
@@ -36,14 +41,23 @@ Walidacja pojedynczego zdarzenia w usłudze nadal działa, gdy pole `properties`
 zawartość — takie zdarzenia trafiają do tablicy `rejected` w odpowiedzi, a reszta porcji zostaje
 zapisana.
 
-Endpoint zwraca `202 Accepted` z `{ accepted, rejected[] }`. Każdy zapisany wiersz zawiera
-`X-Request-Id` z żądania, co pozwala powiązać wpisy w różnych logach.
+Endpoint zwraca `202 Accepted` z `{ data: { accepted, rejected[] } }`. Każdy zapisany wiersz
+zawiera `X-Request-Id` z żądania, co pozwala powiązać wpisy w różnych logach.
+
+To, kto wysłał porcję i w którym kanale sprzedaży, ustala serwer dla danego żądania: konto
+i organizację zalogowanego klienta (dla każdego innego wywołującego — żadne) oraz kanał
+sprzedaży żądania. Pola `customerAccountId`, `organizationId` i `salesChannelId`, które zdarzenie
+może nadal zawierać, są przyjmowane i pomijane. Jeden adres klienta może wysłać 60 porcji na
+minutę; powyżej tego endpoint odpowiada `429`.
 
 ## Zestawienia
 
 `AnalyticsQueryService.summary({ from, to, salesChannelId? })` wykonuje dwa zapytania ograniczone
 do okresu (sumy według typu oraz dzienne sumy według typu), korzystając z indeksów `(occurred_at)`
-i `(type, occurred_at)`. Pulpit nigdy nie pyta o nieograniczony zakres.
+i `(type, occurred_at)`. Pulpit nigdy nie pyta o nieograniczony zakres. Oba liczą tylko
+zdarzenia organizacji, które odczytujący może zobaczyć: dla administratora z ograniczonym
+dostępem do organizacji — przedstawiciela handlowego — zdarzenia organizacji, do których ma
+dostęp, i żadnego zdarzenia bez organizacji.
 
 ## Przekazywanie do GA4
 

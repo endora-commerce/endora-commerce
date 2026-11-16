@@ -483,7 +483,7 @@ taka istnieje. W klonie repozytorium Endora Commerce to samo polecenie ma posta�
 
 ## Reguły kolejności
 
-`orderMigrations()` (`backend/src/db/migration-order.ts`) to czysta funkcja: te same dane wejściowe,
+`orderMigrations()` (`packages/platform/src/db/migration-order.ts`) to czysta funkcja: te same dane wejściowe,
 ten sam wynik, bez bazy danych, bez zegara, bez środowiska. Wynikowa kolejność to połączenie
 **dwóch bloków**.
 

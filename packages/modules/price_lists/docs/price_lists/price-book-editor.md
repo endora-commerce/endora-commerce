@@ -305,7 +305,9 @@ the editor says so and its next Save writes only the mode.
 
 ## Sales representatives
 
-A sales representative works in the same screens with these differences:
+A sales representative works in the same screens with these differences. *Their organizations* are
+the organizations they reach: those assigned to them (with `organizations:rollup`, their
+sub-organizations too) and every organization no representative is assigned to.
 
 - The list shows organization books whose every member is one of their organizations, and the books
   for everyone and for customer groups. A book naming any other organization is missing from the

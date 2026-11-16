@@ -385,6 +385,9 @@ audytuje wartości inaczej z jego powodu.
 
 | Status | Kod | Kiedy | `details` |
 | --- | --- | --- | --- |
+| `404` | `CUSTOM_FIELD_NOT_FOUND` | pole nie istnieje | — |
+| `409` | `CUSTOM_FIELD_KEY_CONFLICT` | utworzenie pola z kluczem, którego typ rekordu już używa | — |
+| `409` | `CUSTOM_FIELD_HOST_MANAGED` | utworzenie, zmiana lub usunięcie pola typu rekordu, którym zarządza inny moduł (produkty, w **Katalog → Atrybuty**), albo typu, którego moduł jest wyłączony | — |
 | `409` | `CUSTOM_FIELD_OPTION_IN_USE` | usunięcie opcji, którą ma jeszcze któryś rekord | `value`, `label` — zapisana wartość i domyślna etykieta opcji |
 | `409` | `CUSTOM_FIELD_VALUE_TYPE_LOCKED` | zmiana typu wartości pola, gdy rekordy mają wartości | `key` |
 | `409` | `CUSTOM_FIELD_STORED_VALUES_EXIST` | utworzenie pola widocznego dla *Klienta* pod kluczem, którego wartości zostawiło na rekordach usunięte pole — najpierw utwórz je jako wewnętrzne | `key` |
