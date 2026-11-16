@@ -45,6 +45,24 @@ import { PLATFORM_VERSION } from './platform-version.js';
  * subpath for a route nobody imports would widen the host surface for nothing.
  */
 
+/**
+ * The bound on every probe, in milliseconds — issue #1337.
+ *
+ * `docs/docs/operations/health-endpoint.md` asks each probe to be cheap and
+ * bounded at 200 ms; the database ping had no bound at all, so a hung database
+ * held `/api/v1/_health` open, and the backend supervisor (#596) counts a probe
+ * request that is not answered as a failure of the process rather than of its
+ * dependency. Past the bound the dependency is reported down and the endpoint
+ * answers 503, the same as for a probe that throws.
+ *
+ * It is applied in `runCheck`, around every probe, so a probe added to the list
+ * is bounded without remembering to bound itself. A probe that can cancel its
+ * own work is still given the same budget (the Meilisearch fetch aborts its
+ * request): the race only stops the endpoint waiting, it does not stop a
+ * `select 1` that the pool has already sent.
+ */
+export const HEALTH_PROBE_TIMEOUT_MS = 200;
+
 export interface HealthDeps {
   pingDatabase: () => Promise<boolean>;
   pingRedis: () => Promise<boolean>;
@@ -88,7 +106,7 @@ export function platformHealthProbes(sources: HealthProbeSources): HealthDeps {
       sources.redis !== undefined && (await sources.redis.ping()) === 'PONG',
     pingMeilisearch: async () => {
       const base = process.env['MEILISEARCH_URL'] ?? 'http://localhost:7700';
-      const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(2000) });
+      const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(HEALTH_PROBE_TIMEOUT_MS) });
       return res.ok;
     },
   };
@@ -141,9 +159,15 @@ export async function registerHealthRoutes(app: FastifyInstance, deps: HealthDep
 }
 
 async function runCheck(fn: () => Promise<boolean>): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const timedOut = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), HEALTH_PROBE_TIMEOUT_MS);
+  });
   try {
-    return await fn();
+    return await Promise.race([fn(), timedOut]);
   } catch {
     return false;
+  } finally {
+    clearTimeout(timer);
   }
 }
