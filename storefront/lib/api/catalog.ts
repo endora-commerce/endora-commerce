@@ -318,9 +318,21 @@ export async function getCategoryPageContent(
   }
 }
 
-export async function getFilters(ctx: RequestContext): Promise<FilterDefinition[]> {
+/**
+ * The filter panel's definitions and counts. Issue #1326 — with a text query
+ * the counts are counted over the products that query matches, so a search
+ * page shows the counts of its own result set; without one, over the whole
+ * catalogue the channel offers.
+ */
+export async function getFilters(
+  ctx: RequestContext,
+  narrowing: { q?: string | undefined } = {},
+): Promise<FilterDefinition[]> {
+  const params = new URLSearchParams();
+  // As `listProducts` sends it, so the two count and list the same match.
+  if (narrowing.q?.trim()) params.set('q', narrowing.q);
   const res = await apiGet<{ data: FilterDefinition[] }>(
-    '/api/v1/catalog/filters',
+    withQuery('/api/v1/catalog/filters', params),
     ctx,
     { revalidate: 300, tags: ['catalog:filters'] },
   );

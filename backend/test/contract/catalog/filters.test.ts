@@ -53,4 +53,73 @@ describe('GET /api/v1/catalog/filters — filterable attributes only', () => {
     // Seed data includes an attribute `internal_sku_notes` that is searchable but not filterable.
     expect(keys).not.toContain('internal_sku_notes');
   });
+
+  /**
+   * Issue #1326 — `?q=` counts over the products the text query matches. The
+   * Postgres arm is pinned here (the index's arm hands this same service the
+   * ids it matched — `test/unit/catalog/public-filters-query.test.ts`).
+   */
+  describe('narrowed by a text query', () => {
+    const HEADERS = { 'x-sales-channel': 'pl_retail' };
+    let originalBackend: string | undefined;
+
+    beforeAll(() => {
+      originalBackend = process.env['CATALOG_SEARCH_BACKEND'];
+      process.env['CATALOG_SEARCH_BACKEND'] = 'postgres';
+    });
+
+    afterAll(() => {
+      if (originalBackend === undefined) delete process.env['CATALOG_SEARCH_BACKEND'];
+      else process.env['CATALOG_SEARCH_BACKEND'] = originalBackend;
+    });
+
+    it('offers no facet at all for a query nothing matches', async () => {
+      const res = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/catalog/filters?q=${encodeURIComponent('łożysko-zzz-no-such-product')}`,
+        headers: HEADERS,
+      });
+      expect(res.statusCode).toBe(200);
+      expect((res.json() as { data: FilterDef[] }).data).toEqual([]);
+    });
+
+    it('counts no option above the number of products the query lists', async () => {
+      const all = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/products?limit=1', headers: HEADERS });
+      const sku = (all.json() as { data: { sku: string }[] }).data[0]?.sku;
+      expect(sku, 'the seed lists no product').toBeDefined();
+
+      const listed = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/catalog/products?limit=200&q=${encodeURIComponent(sku!)}`,
+        headers: HEADERS,
+      });
+      const matched = (listed.json() as { data: unknown[] }).data.length;
+      expect(matched).toBeGreaterThan(0);
+
+      const narrowed = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/catalog/filters?q=${encodeURIComponent(sku!)}`,
+        headers: HEADERS,
+      });
+      expect(narrowed.statusCode).toBe(200);
+      const unfiltered = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters', headers: HEADERS });
+
+      const counts = (body: string): Map<string, number> =>
+        new Map(
+          (JSON.parse(body) as { data: FilterDef[] }).data.flatMap((f) =>
+            (f.options ?? []).map((o) => [`${f.attributeKey}=${o.value}`, o.count] as const),
+          ),
+        );
+      const narrowedCounts = counts(narrowed.body);
+      const unfilteredCounts = counts(unfiltered.body);
+      for (const [option, count] of narrowedCounts) {
+        expect(count, option).toBeLessThanOrEqual(matched);
+        expect(count, option).toBeLessThanOrEqual(unfilteredCounts.get(option) ?? 0);
+      }
+      const total = (m: Map<string, number>): number => [...m.values()].reduce((a, b) => a + b, 0);
+      expect(total(narrowedCounts), 'the counts were taken over the whole catalogue').toBeLessThan(
+        total(unfilteredCounts),
+      );
+    });
+  });
 });

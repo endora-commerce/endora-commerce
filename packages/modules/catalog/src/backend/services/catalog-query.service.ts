@@ -270,6 +270,17 @@ export interface ListingCardReads {
   minOrderQuantityByProduct: Map<string, number | null>;
 }
 
+/**
+ * Issue #1326 — what narrows the filter panel's counts to a listing's result
+ * set; see `CatalogQueryService.getFilterDefinitions`.
+ */
+export interface FilterNarrowing {
+  /** The listing's text query, matched as the Postgres listing matches it. */
+  q?: string | undefined;
+  /** The products the search index matched; `[]` is an empty result set. */
+  ids?: readonly string[] | undefined;
+}
+
 export interface ListProductsParams {
   q?: string | undefined;
   /**
@@ -2821,10 +2832,34 @@ export class CatalogQueryService {
   // Filters
   // ------------------------------------------------------------------
 
-  async getFilterDefinitions(ctx: CatalogQueryContext): Promise<FilterDefinition[]> {
+  /**
+   * The storefront filter panel: every filterable attribute with its options
+   * and counts, or its range. Issue #1326 — `narrowing` restricts the products
+   * counted to a listing's result set: `q`, the listing's own text match, or
+   * `ids`, the products the search index matched for it (an empty list is an
+   * empty result set, not "no restriction"). Without it, the whole catalogue
+   * this caller may reach in the channel.
+   */
+  async getFilterDefinitions(
+    ctx: CatalogQueryContext,
+    narrowing: FilterNarrowing = {},
+  ): Promise<FilterDefinition[]> {
     const em = this.emFactory();
     const channel = ctx.resolvedChannel;
     const attrs = await this.#requireAttributeRead().listByFlag('isFilterable');
+    const effective = this.#overrideContext(channel, ctx.preferredLanguage);
+    const matched: ListingCondition[] = [];
+    if (narrowing.ids !== undefined) {
+      const ids = [...narrowing.ids];
+      matched.push(
+        ids.length === 0
+          ? { sql: () => 'false', params: [] }
+          : { sql: (alias) => `${alias}.id in (${ids.map(() => '?').join(',')})`, params: ids },
+      );
+    }
+    if (narrowing.q !== undefined && narrowing.q.trim().length > 0) {
+      matched.push(await this.#textSearchCondition(narrowing.q, ctx, effective));
+    }
 
     // Build option / range facets by scanning Products available in the
     // channel. Issue #227 — a facet count is a disclosure too. "Brass (3)" on a
@@ -2834,15 +2869,17 @@ export class CatalogQueryService {
     // the rule's own word on each row; the `raw()` key is made in the
     // expression that executes it.
     const scope = this.#availabilityScope(ctx);
-    const narrowing = this.#availabilityNarrowing(scope);
+    const availability = this.#availabilityNarrowing(scope);
     const products = await em.find(Product, {
-      $and: [{ deletedAt: null }, { [raw(narrowing.sql, narrowing.params)]: [] }],
+      $and: [
+        { deletedAt: null },
+        ...[availability, ...matched].map((c) => ({ [raw(c.sql, c.params)]: [] })),
+      ],
     });
     const visibleIds = await this.#availableAmong(em, products, scope, true);
     const visible = products.filter((p) => visibleIds.has(p.id));
     // Feature 163 (FR-017 b) — counts over the effective values a card shows at
     // (channel, language): #384's walk over this channel's override rows.
-    const effective = this.#overrideContext(channel, ctx.preferredLanguage);
     const scopeOf = new Map(attrs.map((a) => [a.key, a.scopeLevels]));
     const overrides = await loadChannelOverridesByProduct(em, visible.map((p) => p.id), channel.id);
     const valuesOf = new Map<string, Record<string, unknown>>();
