@@ -376,10 +376,19 @@ export async function registerOrderRoutes(
           },
         );
       }
+      // Issue #1320 — the basket is judged in the channel language the
+      // request's `Accept-Language` asks for (`requestScopeLanguage`), the one
+      // `POST /cart/items` judged its lines in. A content language, so not
+      // `request.responseLanguage()`, which words the messages: a channel
+      // language the interface does not offer (`de-DE` with only en/pl) used to
+      // be judged at the channel's default here.
+      const header = request.headers['accept-language'];
+      const languageTag =
+        header === undefined || header.length === 0 ? undefined : requestScopeLanguage(requestChannel, header);
       const order = await orderService.placeOrder(
         ctx,
         { ...body, salesChannelId: requestChannel.id },
-        { language: await request.responseLanguage() },
+        { language: await request.responseLanguage(), ...(languageTag ? { languageTag } : {}) },
       );
       reply.status(201);
       return { data: await serializeForBuyer(order, ctx.customerAccountId) };
