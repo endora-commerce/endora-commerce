@@ -1466,9 +1466,11 @@ never a custom role's name or description.
   and whether a block or rejection reason is set (`hasBlockedReason`,
   `hasRejectedReason`); the reason itself is on the organization's page.
 - **`customer_account.admin_create`**, **`.admin_profile_update`**,
-  **`.admin_rollup_change`**, **`.admin_remove`** — the member's role by id, its
-  roll-up, e-mail-confirmed and two-factor flags and, after a change, the names
-  of what changed (`email`, `firstName`, `lastName`, …).
+  **`.admin_remove`** — the member's role by id, its roll-up, e-mail-confirmed
+  and two-factor flags and, after a change, the names of what changed (`email`,
+  `firstName`, `lastName`, …).
+- **`customer_account.set_subtree_rollup`** — the member's roll-up flag before
+  and after.
 - **`organization_invitation.create`**, **`.revoke`** — the invitation's id and
   its role by id and kind. **`organization.invite_accept`** — the new account
   and its role by id.
