@@ -2,7 +2,7 @@
   "adminRoles.permission.admin_search:configure": "Configure global search",
   "nav.configuration.label": "Global search",
   "actions.openGlobalSearch.label": "Open global search",
-  "actions.openGlobalSearch.description": "Search orders, quote requests, opportunities, organizations, customers, products and categories",
+  "actions.openGlobalSearch.description": "Search orders, quote requests, opportunities, organizations, customers, products, categories, projects and tasks",
   "actions.openConfiguration.label": "Configure global search",
   "actions.openConfiguration.description": "Choose which fields each record type is searched by",
   "page.configuration.title": "Global search",
