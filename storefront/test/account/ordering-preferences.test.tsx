@@ -45,6 +45,9 @@ function me(): MeResult {
       permissions: ['carts.create'],
       emailVerifiedAt: '2026-01-01T00:00:00.000Z',
       twoFactorEnabled: false,
+      preferredLanguage: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     },
     organization: {
       id: 'org-1',
@@ -54,6 +57,12 @@ function me(): MeResult {
       vatStatus: 'vat_payer',
       isPersonal: who === 'personal',
       registeredAddress: { street: 'Main 1', city: 'Krakow', postalCode: '30-001', country: 'PL' },
+      legalName: null,
+      version: 1,
+      canTransact: true,
+      moderationMessage: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     },
     impersonation: null,
   };

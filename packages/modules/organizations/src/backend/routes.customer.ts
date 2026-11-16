@@ -11,6 +11,8 @@ import {
   type CustomerAccountReadPort,
   type CustomerAccountRecord,
   type CustomerAuthPort,
+  type CustomerMeOrganization,
+  type CustomerMeResponse,
   type OrganizationPermissionGuardRequest,
   type OrganizationPermissionPort,
   type OrganizationRoleReadPort,
@@ -93,7 +95,7 @@ export async function registerOrganizationsCustomerRoutes(
   app.get(
     '/api/v1/me',
     { preHandler: requireCustomer },
-    async (request) => {
+    async (request): Promise<CustomerMeResponse> => {
       const ctx = deps.resolveCustomerActorOptionalOrg(request);
       const em = deps.emFactory();
       const customer = await deps.customerAccountRead.findById(ctx.customerAccountId);
@@ -233,7 +235,10 @@ function serializeAddress(a: {
   };
 }
 
-function serializeCustomer(c: CustomerAccountRecord) {
+/** `GET /api/v1/me`'s account without the session's role fields, which the handler adds (issue #599). */
+function serializeCustomer(
+  c: CustomerAccountRecord,
+): Omit<CustomerMeResponse['data']['customerAccount'], 'organizationRole' | 'permissions'> {
   return {
     id: c.id,
     organizationId: c.organizationId,
@@ -249,7 +254,7 @@ function serializeCustomer(c: CustomerAccountRecord) {
   };
 }
 
-function serializeOrganization(o: Organization, moderationMessage: string | null) {
+function serializeOrganization(o: Organization, moderationMessage: string | null): CustomerMeOrganization {
   return {
     id: o.id,
     name: o.name,

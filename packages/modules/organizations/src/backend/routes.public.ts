@@ -27,6 +27,7 @@ import {
   type OrganizationPermissionPort,
   type OrganizationRoleReadPort,
   type CustomerAccount,
+  type CustomerSignInResponse,
   type Organization as OrganizationView,
   type RegisterOrganizationResponse,
 } from '@endora-commerce/contracts';
@@ -203,7 +204,7 @@ export async function registerOrganizationsPublicRoutes(
     // Feature 154 — reachable whatever the sales-channel access rule decides:
     // signing in is how a visitor of a closed store gets in.
     { schema: { body: customerLoginRequestSchema }, config: { salesChannelAccess: 'open' } },
-    async (request, reply) => {
+    async (request, reply): Promise<CustomerSignInResponse> => {
       const body = customerLoginRequestSchema.parse(request.body);
       const channelId = currentSalesChannel()?.id ?? null;
       // The storefront forwards the browser's known-device cookie with the

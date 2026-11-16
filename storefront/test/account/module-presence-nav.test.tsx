@@ -59,6 +59,9 @@ function session(
       permissions,
       emailVerifiedAt: '2026-01-01T00:00:00.000Z',
       twoFactorEnabled: false,
+      preferredLanguage: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     },
     organization: {
       id: 'org-1',
@@ -68,6 +71,12 @@ function session(
       vatStatus: 'vat_payer',
       isPersonal,
       registeredAddress: { street: 'Main 1', city: 'Gdansk', postalCode: '80-001', country: 'PL' },
+      legalName: null,
+      version: 1,
+      canTransact: true,
+      moderationMessage: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     },
     impersonation: null,
   };
