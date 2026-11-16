@@ -40,6 +40,9 @@ function me(): MeResult {
       permissions: ['carts.create', 'carts.approve', 'carts.order_without_approval', 'addresses.manage'],
       emailVerifiedAt: '2026-01-01T00:00:00.000Z',
       twoFactorEnabled: false,
+      preferredLanguage: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
     },
     organization:
       kind === 'none'
@@ -52,6 +55,12 @@ function me(): MeResult {
             vatStatus: 'vat_payer',
             isPersonal: kind === 'personal',
             registeredAddress: { street: 'Main 1', city: 'Gdańsk', postalCode: '80-001', country: 'PL' },
+            legalName: null,
+            version: 1,
+            canTransact: true,
+            moderationMessage: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
           },
     impersonation: null,
   };

@@ -1,4 +1,4 @@
-import type { CartMergeOutcomePublic } from '@endora-commerce/contracts';
+import type { CartMergeOutcomePublic, CustomerSignInResponse } from '@endora-commerce/contracts';
 import { apiMutate } from './mutations';
 import type { RequestContext } from './client';
 import { knownDeviceCookieHeader, rememberKnownDevice, signInCookieHeader } from '../session';
@@ -82,27 +82,6 @@ export interface LoginCustomerPayload {
   password: string;
 }
 
-interface LoginCustomerResponseData {
-  /** Feature 042 — two-step login discriminator. */
-  status: 'authenticated' | 'mfaRequired' | 'mfaSetupRequired';
-  challengeId?: string;
-  setupTicket?: string;
-  customerAccount?: {
-    id: string;
-    email: string;
-    organizationId: string;
-    role: string;
-    twoFactorEnabled: boolean;
-  };
-  /**
-   * Result of the anonymous-cart → customer-cart merge that ran inside
-   * this login (feature 037-cart-merge-on-login). `null` / absent when
-   * the request carried no `b2b_cart_anon` cookie; `outcome: 'noop'`
-   * when the cookie was supplied but had no observable effect.
-   */
-  cartMerge?: CartMergeOutcomePublic | null;
-}
-
 export type LoginCustomerResult =
   | {
       status: 'authenticated';
@@ -116,7 +95,7 @@ export async function loginCustomer(
   payload: LoginCustomerPayload,
   ctx?: RequestContext,
 ): Promise<LoginCustomerResult> {
-  const result = await apiMutate<LoginCustomerResponseData>({
+  const result = await apiMutate<CustomerSignInResponse['data']>({
     method: 'POST',
     path: '/api/v1/auth/customer/login',
     body: payload,
@@ -128,10 +107,10 @@ export async function loginCustomer(
   await rememberKnownDevice(result.setCookie);
   const data = result.data!;
   if (data.status === 'mfaRequired') {
-    return { status: 'mfaRequired', challengeId: data.challengeId! };
+    return { status: 'mfaRequired', challengeId: data.challengeId };
   }
   if (data.status === 'mfaSetupRequired') {
-    return { status: 'mfaSetupRequired', setupTicket: data.setupTicket! };
+    return { status: 'mfaSetupRequired', setupTicket: data.setupTicket };
   }
   // The session cookie comes back in Set-Cookie; persisted via setSessionCookie.
   return {

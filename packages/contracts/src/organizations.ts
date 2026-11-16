@@ -375,6 +375,11 @@ export type CartMergeOutcomePublic = z.infer<typeof cartMergeOutcomePublicSchema
  * login carries an anonymous-cart cookie; `null` when no anon cookie was
  * supplied; `outcome: 'noop'` when the cookie was supplied but had no
  * observable effect (no anon cart, or the anon cart was empty).
+ *
+ * @deprecated It declares no `status`, names only part of the account and
+ * refuses the two second-step answers (issue #599). Use
+ * {@link customerSignInResponseSchema}; this export stays until the next
+ * breaking-change release.
  */
 export const customerLoginResponseSchema = z.object({
   data: z.object({
@@ -391,6 +396,7 @@ export const customerLoginResponseSchema = z.object({
     cartMerge: cartMergeOutcomePublicSchema.nullable().optional(),
   }),
 });
+/** @deprecated Use {@link CustomerSignInResponse} (issue #599). */
 export type CustomerLoginResponse = z.infer<typeof customerLoginResponseSchema>;
 
 /**
@@ -529,6 +535,64 @@ export const registerOrganizationResponseSchema = z.object({
   emailVerificationSent: z.boolean(),
 });
 export type RegisterOrganizationResponse = z.infer<typeof registerOrganizationResponseSchema>;
+
+/**
+ * The signed-in buyer's Organization as `GET /api/v1/me` answers it (issue
+ * #599): the published Organization plus the keys that reply has always
+ * carried.
+ */
+export const customerMeOrganizationSchema = organizationSchema.extend({
+  /** Feature 051 — always answered here; the storefront gates its organization screens on it. */
+  isPersonal: z.boolean(),
+  legalName: z.string().nullable(),
+  /** The optimistic-concurrency token the Organization's own writes check. */
+  version: z.number().int().nonnegative(),
+  /** Feature 026 — `status === 'active'`, so the storefront need not re-implement the rule. */
+  canTransact: z.boolean(),
+  /**
+   * Feature 026 — a customer-safe explanation of the current status, in the
+   * response language; `null` while the Organization is `active`.
+   */
+  moderationMessage: z.string().nullable(),
+});
+export type CustomerMeOrganization = z.infer<typeof customerMeOrganizationSchema>;
+
+/**
+ * `GET /api/v1/me` — the signed-in buyer (issue #599). `organization` is `null`
+ * when the session resolves no Organization; `impersonation` is set while an
+ * administrator impersonates the buyer.
+ */
+export const customerMeResponseSchema = z.object({
+  data: z.object({
+    customerAccount: customerAccountSchema.extend({
+      /** Issue #652 (D-292) — always answered here; `null` while unknown. */
+      preferredLanguage: z.string().nullable(),
+    }),
+    organization: customerMeOrganizationSchema.nullable(),
+    impersonation: z.object({ impersonatorAdminUserId: uuidSchema }).nullable(),
+  }),
+});
+export type CustomerMeResponse = z.infer<typeof customerMeResponseSchema>;
+
+/**
+ * `POST /api/v1/auth/customer/login` — the first sign-in step (issue #599).
+ * Only `authenticated` sets the session cookie and names the account;
+ * `cartMerge` is present when the request carried a guest basket the merge
+ * acted on. The other two arms hand the client the opaque ticket its second
+ * step takes.
+ */
+export const customerSignInResponseSchema = z.object({
+  data: z.discriminatedUnion('status', [
+    z.object({
+      status: z.literal('authenticated'),
+      customerAccount: customerAccountSchema,
+      cartMerge: cartMergeOutcomePublicSchema.optional(),
+    }),
+    z.object({ status: z.literal('mfaRequired'), challengeId: z.string().min(1) }),
+    z.object({ status: z.literal('mfaSetupRequired'), setupTicket: z.string().min(1) }),
+  ]),
+});
+export type CustomerSignInResponse = z.infer<typeof customerSignInResponseSchema>;
 
 // --- Admin organization replies (issue #599) --------------------------------
 

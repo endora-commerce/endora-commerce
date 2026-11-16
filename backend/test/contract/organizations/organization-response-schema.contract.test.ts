@@ -34,8 +34,8 @@ const CUSTOMER = { cookies: { b2b_session: 'stub-customer-session' } };
  * with a type the schema refuses, a required field not answered, and a key no
  * schema declares all red this file.
  *
- * `GET /api/v1/me` is not here: issue #652 is changing that reply, and it is
- * covered once that lands.
+ * `GET /api/v1/me` and the password sign-in are in
+ * `session-response-schema.contract.test.ts`.
  *
  * The only rows written are this file's own: one invitation (and the account
  * that accepts it) on the seeded Organization, and one registered Organization.
