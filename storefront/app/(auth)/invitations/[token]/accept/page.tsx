@@ -97,13 +97,12 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
   const redirectWithError = async (code: InvitationAcceptCode): Promise<never> =>
     await localeRedirect(`/invitations/${encodeURIComponent(token)}/accept?error=${code}`);
 
+  // Issue #1323 — the page language travels as `Accept-Language`: the backend records the new
+  // account's e-mail language from it.
+  const { ctx } = await getServerContext();
   let email: string;
   try {
-    const { customerAccount } = await acceptInvitation(token, {
-      password,
-      firstName,
-      lastName,
-    });
+    const { customerAccount } = await acceptInvitation(token, { password, firstName, lastName }, ctx);
     email = customerAccount.email;
   } catch (err) {
     return await redirectWithError(INVITATION_ACCEPT_ERRORS.failureCode(err, 'INVITATION_FAILED'));
@@ -113,7 +112,7 @@ async function acceptInvitationAction(formData: FormData): Promise<void> {
   // (architect ruling on #822). Each redirect sits outside a `try`, since a redirect is thrown.
   let login: Awaited<ReturnType<typeof loginCustomer>>;
   try {
-    login = await loginCustomer({ email, password });
+    login = await loginCustomer({ email, password }, ctx);
   } catch (err) {
     return await localeRedirect(`/login?error=${signInErrorParam(err, 'SIGN_IN_TO_CONTINUE')}`);
   }
