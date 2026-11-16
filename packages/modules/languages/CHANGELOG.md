@@ -1,5 +1,178 @@
 # @endora-commerce/mod-languages
 
+## 0.111.0
+
+### Minor Changes
+
+- b6fd6df: Creating a country, currency or language whose code exists, and making an inactive one the
+  default, have error codes of their own instead of `VALIDATION_FAILED`, and a sentence in English and
+  Polish (issue #643, part of #86). **A caller that matches on `VALIDATION_FAILED` for these refusals
+  now sees the specific code.** The HTTP status is unchanged. Until now each was answered with an
+  English sentence in every language, because the error envelope never replaces the message of
+  `VALIDATION_FAILED`.
+
+  | Route                                                                                                              | Was                                                                       | Is                                      | `details`                       |
+  | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------- | ------------------------------- |
+  | `POST /api/v1/admin/dictionary/countries` (code exists)                                                            | `409 VALIDATION_FAILED`, _"Country XX already exists."_                   | `409 DICTIONARY_ENTRY_CODE_TAKEN`       | `code: "country"`, `entryCode`  |
+  | `POST /api/v1/admin/dictionary/countries/:code/default` (inactive)                                                 | `409 VALIDATION_FAILED`, _"Cannot mark an inactive country as default."_  | `409 DICTIONARY_DEFAULT_ENTRY_INACTIVE` | `code: "country"`, `entryCode`  |
+  | `POST /api/v1/admin/dictionary/currencies` (code exists)                                                           | `409 VALIDATION_FAILED`, _"Currency XXX already exists."_                 | `409 DICTIONARY_ENTRY_CODE_TAKEN`       | `code: "currency"`, `entryCode` |
+  | `POST /api/v1/admin/dictionary/currencies/:code/default`, `POST /api/v1/admin/currencies/:code/default` (inactive) | `409 VALIDATION_FAILED`, _"Cannot mark an inactive currency as default."_ | `409 DICTIONARY_DEFAULT_ENTRY_INACTIVE` | `code: "currency"`, `entryCode` |
+  | `POST /api/v1/admin/dictionary/languages` (code exists)                                                            | `409 VALIDATION_FAILED`, _"Language xx already exists."_                  | `409 DICTIONARY_ENTRY_CODE_TAKEN`       | `code: "language"`, `entryCode` |
+  | `POST /api/v1/admin/dictionary/languages/:code/default`, `POST /api/v1/admin/languages/:code/default` (inactive)   | `409 VALIDATION_FAILED`, _"Cannot mark an inactive language as default."_ | `409 DICTIONARY_DEFAULT_ENTRY_INACTIVE` | `code: "language"`, `entryCode` |
+
+  `details.code` is a token naming the dictionary, and each token has its own sentence. The entry's
+  own code travels as `entryCode`, because the envelope reads `details.code` as the token. Both codes
+  are members of `ERROR_CODES` in `@endora-commerce/contracts` and are declared once, by the
+  `dictionaries` manifest, which owns the `DICTIONARY_*` family the three dictionaries share;
+  `currencies` and `languages` raise them. The documentation pages of all three modules name them.
+  The `decimalPlaces` range refusal of a currency update stays `VALIDATION_FAILED`. No setting,
+  permission or migration changes.
+
+### Patch Changes
+
+- 9c8efbe: **`Accept-Language` has one parser** (issue #1011). `LocaleService.resolveRequestLocale` in `languages` is removed. It had no caller and carried a private copy of the header parser, so the module documentation (English and Polish) no longer describes it. A request's content language is resolved against its sales channel by `requestScopeLanguage` from `@endora-commerce/contracts`, and its message language by `request.responseLanguage()`. In `@endora-commerce/contracts`, the doc comment on `CreateForCustomerOptions.languageTag` now says what the quote-request customer routes pass, which is the channel language from `requestScopeLanguage`, no longer the first tag. In the storefront, the outage notice and the web-app manifest read the header through `parseAcceptLanguage` instead of a private parser: the same q-ordering, the 512-character and ten-tag bounds, and a tag with a malformed `q` (`pl;q=`) dropped instead of read as `q=1`.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 9110863: Language and i18n-config replies are described by their contract (issue #599, section 6):
+
+  - `@endora-commerce/contracts` publishes `languageListResponseSchema` / `LanguageListResponse` for `GET /api/v1/admin/languages`, a `data` array of `languageSchema` rows. The rows were already described, but the list envelope was not.
+  - `mod-languages` builds its language rows as the contract's `Language` and its currency rows as the contract's `Currency`, instead of `Record<string, unknown>`. `GET /api/v1/i18n/config` returns `{ data: I18nConfigResponse }`, the admin list returns `LanguageListResponse`, and the upsert and set-default handlers return `{ data: Language }`. Nothing on the wire changes.
+
+- ef656f9: `languages` now creates `languages.native_label`, `is_rtl`, `fallback_code` and the
+  `languages_fallback_fk` self-reference itself, in the new
+  `Migration20261114T003519LanguagesDictionaryColumns` (issue #611). Until now only
+  `dictionaries`' `Migration20260506T112634DictionariesDictionaryInit` created them, although they
+  belong to `languages`' `Language` entity. That migration keeps its class name and no longer alters
+  `languages` in `up()` or `down()`. The new migration uses `if not exists` and a `pg_constraint`
+  check with the same types, defaults and constraint name, so a database that has already applied
+  the old migration does not change. `FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS` no longer lists
+  `dictionaries` writing `languages`. The `currencies` columns the same `dictionaries` migration adds
+  stay where they are: `currencies` does not create its own table yet.
+- 51b4e5c: Documentation only: the page lists the language columns this module now creates itself, in English and Polish.
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

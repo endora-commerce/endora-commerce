@@ -1,5 +1,152 @@
 # @endora-commerce/test-kit
 
+## 0.111.0
+
+### Minor Changes
+
+- 27679b3: **`@endora-commerce/test-kit/module`** (issue #1072): `composeModuleForTest({ module: { id, version?, registerModule }, values? })` composes one module the way a composition root does, with no server and no database. It creates a root container, registers the supplied values (and the handle's `eventBus`), and runs the module's `registerModule` against a fresh context and registration sink. It returns `{ container, context, registrations, eventBus, registryCache, dispose }`. `registryCache.setEnabled(ids)` sets the presence that the module's subscriptions and ports are gated on. `dispose()` unsubscribes the module and leaves nothing enabled. Module packages' own unit tests use it instead of the host-internal `@endora-commerce/platform/composition` subpath. The platform primitives it is built from are not re-exported.
+- cbea900: **`@endora-commerce/test-kit/module`** adds request-scope helpers (issue #1072). `installRequestScope(app, { buildTenantContext })` mounts the platform's real per-request scope hook on a test's own Fastify app, so that every handler runs inside the tenant context the mapping derives for its request. A rejected mapping fails the request. `tenantFor(actor, adminScope?)` returns the tenant context the platform derives for a customer, admin or API-key actor. `systemTenant(reason?)` returns the system context, and its reason defaults to `test`. The actor and admin-scope types are exported as `TestTenantActor` and `TestAdminScope`. The platform primitives behind these helpers are not re-exported.
+- 3f95d1c: **`@endora-commerce/test-kit/command-hooks`** (`specs/176-command-hooks-outbox/` T027, T036): `expectHookableCommand(command, ref, { result?, sentinels? })` fails a Command declared hookable that does not match its ref or supplies no `hookData` / `outboxData` for its declared phases, and — given a result — outbox data that is not scalars or arrays of scalars or that carries a sentinel. `recordingCommandHooks()` builds recording `beforeCommit` entries for a fixture hook module, and `sealedCommandHookRegistry(...)` seals a registry the way `composeModules` does, for a unit test running a Command on a real `CommandBus` with `{ hooks }`. `composeTestServer` wires the registry as `composeApp` does and takes `commandHookOrder`.
+- 27834f3: **The outbox, in the shared test server** (`specs/176-command-hooks-outbox/` P3).
+
+  - `composeTestServer` builds the outbox wake-up on its Redis and hands it to the `CommandBus`, as `composeApp` does; no worker consumes it, so a test drives the drain itself. `TestServerHandle` gains `closeOutboxWake`, which `teardownTestServer` calls before the Redis connection goes.
+  - `expectHookableCommand` now holds outbox data to the bus's own guard (`outboxDataViolations`): a string with whitespace or an `@` in it or longer than 128 characters now fails, as a nested object already did.
+
+- 26a6224: Issue #470 — a new `./audit` subpath with `expectNoAuditValues(entries, sentinels)` and `findAuditValues(entries, sentinels)`, the sentinel assertion of the audit-state rule (D-288): for a tenant-scoped record the platform audit log carries names and structure, never values.
+
+  - `expectNoAuditValues` fails with a `node:assert` `AssertionError` that lists every place a sentinel appears in `stateBefore` / `stateAfter` (or `before` / `after`): at any depth, as an object key, in another case, or a number written as a decimal string.
+  - It also fails when it is given no entry, so a Command that skipped its audit cannot pass, and it refuses an empty sentinel list or an empty string sentinel.
+  - No new dependency: the helper uses `node:assert` only and needs no test runner.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- a365cc3: `composeTestServer` mirrors `composeApp` for declared extension columns (`specs/178-extensible-columns/`): it verifies the declarations against the database right after opening the ORM (no statement when nothing is declared) and registers `schemaExtensionReads`, so a host route's `?extensions=` resolves in a test composition as it does in production.
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

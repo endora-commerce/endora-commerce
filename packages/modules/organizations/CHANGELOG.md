@@ -1,5 +1,368 @@
 # @endora-commerce/mod-organizations
 
+## 0.111.0
+
+### Minor Changes
+
+- 2ee4923: Publishes `organizationWritePort` (`OrganizationWritePort` in `@endora-commerce/contracts`), so another module can find Organizations by tax ID, create one and update its identity fields without calling the admin HTTP API. Resolve it with `lazyPort` and declare `organizations` in your manifest `dependencies`.
+
+  - `create` runs the existing `organization.create` Command through the same wrapper as the admin create, so a tax ID the active scope refuses answers `409 ORGANIZATION_TAX_ID_EXISTS`. When a `legalName` is given, the Command stores it and its audit entry names `legalName` among `changedFields`. The admin create (`POST /api/v1/admin/organizations`) does not send one, and its behaviour and audit entry are unchanged.
+  - `update` runs the new `organization.update` Command. Its audit entry records the VAT status before and after and the sorted names of the changed fields, never their values. An update that changes nothing writes nothing, records nothing and does not move the version. `PATCH /api/v1/admin/organizations/:id` is unchanged.
+
+- 3254098: **Correct a company organization's tax ID.** An operator can now fix a mistyped tax ID, or give a branch that was wrongly given its head office's tax ID one of its own, without deleting the organization: its id, members, roles and orders stay.
+
+  - **Command** `organization.tax_id.change` — one transaction. Only a live company organization: a personal one is refused `409 ORGANIZATION_TAX_ID_CHANGE_REFUSED` `not_company`, a soft-deleted one `deleted` (new in `ERROR_CODES`). The value is normalised and checked against the active tax-ID scope exactly as creation checks it (soft-deleted holders count), and a database refusal at the statement or at commit answers the same `409 ORGANIZATION_TAX_ID_EXISTS`. The VAT validation summary (`vatValidatedAt`, `vatValidationProvider`, `vatValidationOutcome`) is reset to never-validated; `vatStatus` is kept. The same value after normalisation changes nothing and records no audit entry. The audit records names only: `changedFields: ['taxId']`, `vatStatusReset`, the scope. Orders, invoices and quote documents already issued keep the tax ID they were issued with.
+  - **Admin API** `POST /api/v1/admin/organizations/:id/change-tax-id` (`adminOrganizationChangeTaxIdBodySchema`) under the new permission `organizations:change-tax-id`, answering `{ data, changed, vatValidation }`. With `validateTaxId: true` (which also needs `customers:manage`) a VAT validation runs after the change commits; its failure does not undo the change.
+  - **Port** `OrganizationCommandPort.changeTaxId(organizationId, { taxId })` for admin routes and server code, never for a customer-facing route. It runs with the ambient actor and runs no VAT validation.
+  - **Event** `organization.tax_id_changed.v1` `{ eventId, occurredAt, organizationId, changedAt }` (`OrganizationTaxIdChangedEvent`), dispatched once on commit; it carries neither the old nor the new tax ID.
+  - **Admin UI** — _Change tax ID_ on a company organization's page (a dialog starting on the stored tax ID, the conflict shown on the field), and _Change an organization's tax ID_ in the command palette (`/organizations/change-tax-id`: pick a company organization, then correct its tax ID). The tax-ID scope screen's warning and refusal now point to this action as the way back to _Global_ for a tax ID shared by mistake.
+
+- 7616ef1: `organization.convert_to_company` and `organization.tax_id.change` are hookable (issue #1057): the manifest lists both refs, and both Commands supply `hookData` and `outboxData` and accept `extensions`. A hook on either is handed ids, codes and field names only, never the tax ID.
+
+  - A tax-ID correction to the same value still runs its hooks, with `changedFields: []`. It records no audit entry unless a hook noted a write; then it records one, `stateBefore: null` and `stateAfter: { extensions }`, naming only the hook's fields.
+  - `organizationCommandPort.convertToCompany(id, input, { extensions })` and `changeTaxId(id, input, { extensions })` forward extension input; a key no present hook module claims answers `422 COMMAND_EXTENSION_UNCLAIMED` before anything is written. No HTTP body carries it.
+
+- f39d37f: Custom-field values at registration and on the admin creates (`specs/175-buyer-input-custom-fields/`).
+
+  - `POST /api/v1/organizations/register` passes the request's language to the value port, so each refusal's `message` is worded for the buyer in it (the code stays on the wire beside it).
+  - `POST /api/v1/organizations/register` accepts `organization.customFieldValues` (stored on the Organization) and `firstUser.customFieldValues` (stored on the first account). Both groups are validated on the `organization.register` surface through custom_fields' `validateForCustomerInput` **before the first write**; every refusal of both is answered in one `422 CUSTOM_FIELD_VALUE_INVALID` whose `details` entries carry `field` (prefixed `organization.` / `firstUser.`; the group alone for `too_many_keys`), `code` and `message`, plus `path` / `issue` repeating them. Without a composed value port every supplied key is refused `not_open_for_input`; a registration that sends no values behaves as before. The `organization.register` audit entry gains `changedCustomFields`: the supplied keys, prefixed `organization.` / `firstUser.` and sorted — never values (`specs/conventions/audit-state.md`).
+  - `POST /api/v1/admin/organizations` validates `customFieldValues` with the administrator's rules inside the `organization.create` Command (a refusal creates nothing; the audit after-state names the stored keys as `changedCustomFields`, never their values), and `POST /api/v1/admin/organizations/:id/members` validates the member's `customFieldValues` before the account is written and names their keys as `changedCustomFields` in the `customer_account.admin_create` audit row. Both now enforce `required` definitions at creation.
+  - _New organization_ and the member direct-create form embed the custom-field panel (shown with `custom_fields:read`), send its bag as `customFieldValues` and show a refusal at the field it names.
+  - The manifest exports `customFieldWrites`: the Organization create and update, the member direct-create, the member profile update (`PATCH /api/v1/admin/organizations/:id/members/:customerAccountId`, a customer update whose values are `customers`' values patch), the invitation exemption and the two buyer-input entries of `organization.register`.
+  - The create screens read a refusal through `@endora-commerce/admin-kit`'s `customFieldErrorsOf` instead of a copy of their own.
+
+- 3f95d1c: **Four Organization writes are hookable** (`specs/176-command-hooks-outbox/` FR-024): `organization.create`, `organization.register`, `organization.admin_patch` and `organization.set_custom_field_values`, both phases, listed in the manifest's `hookableActions` from `ORGANIZATION_HOOKABLE_ACTIONS`. Each Command supplies `hookData` (the uncommitted `OrganizationRecord` plus the channels, the first account, or the names of what changed — never the registration's verification token) and list-1 `outboxData`, and accepts `extensions` from a server-side caller; `organizationCustomFieldWritePort.setCustomFieldValues` forwards `{ extensions }` (an unclaimed key answers `422 COMMAND_EXTENSION_UNCLAIMED`). No HTTP body carries `extensions` yet. A hook's noted changes appear in the Organization's audit entry as names under `extensions.<moduleId>.changedFields`; `ORGANIZATION_AUDIT_KEYS` lists `extensions`. With no hook module installed nothing changes.
+- f5caa4e: **Convert to company in the Admin UI.** A personal organization's page offers _Convert to company_ to holders of `organizations:convert-to-company`. A dialog asks for the company name, an optional legal name, the tax ID (spaces and dashes removed as you leave the field), the registered address, the VAT status and whether to validate the tax ID afterwards. It reports the validation's outcome; the organization page then shows its members and roles. _Convert personal organization_ (`/organizations/convert-to-company`, also from ⌘K and from the Organizations list's header menu) does the same in two steps, starting from a picker of personal organizations. `GET /api/v1/admin/organizations` accepts `filter[isPersonal]=true|false` with `includePersonal=true`.
+
+  - **admin-kit:** `OrganizationPicker` takes an optional `kind` — `'company'` (default, unchanged), `'personal'` or `'any'`; `useOrganizationsQuery` takes the same option, and `OrganizationPickerKind` is exported.
+
+- d14a4fd: **Personal → company conversion.** An operator can turn a personal (B2C) organization into a company in place: same id, orders, carts, addresses and channels, now with a company name, legal name, tax ID, registered address and VAT status.
+
+  - **Command** `organization.convert_to_company` — one transaction. The tax ID is normalised and checked against the active tax-ID scope. The organization keeps its status; it is stamped approved by the operator when it never was. Its member stays its Administrator, and the conversion is refused when that is not so. `personalAccountId` is cleared and `convertedToCompanyAt` set. The audit records only which fields changed (`changedFields`), whether the approval was stamped, and the scope. Refusals: `409 ORGANIZATION_CONVERSION_REFUSED` (`not_personal`, `deleted`, `owner_not_administrator`; new in `ERROR_CODES`) and `409 ORGANIZATION_TAX_ID_EXISTS`. There is no reverse.
+  - **Admin API** `POST /api/v1/admin/organizations/:id/convert-to-company` (`adminOrganizationConvertToCompanyBodySchema`) under the new permission `organizations:convert-to-company`. With `validateTaxId: true` — which also needs `customers:manage`, the VAT validation's own permission — a VAT validation runs **after** the conversion commits; its outcome is returned as `vatValidation`, and a failing provider does not undo the conversion. The admin conversion form offers _Validate the tax ID after converting_ (ticked by default) only to an operator holding `customers:manage` and sends `validateTaxId: false` otherwise, so the default form is never refused `403`.
+  - **Port** `organizationCommandPort` (`OrganizationCommandPort.convertToCompany`) for admin routes and server code, never for a customer-facing route. **It checks no permission**: the caller is the gate. It runs with the ambient actor and runs no VAT validation.
+  - **Event** `organization.converted_to_company.v1` `{ eventId, occurredAt, organizationId, convertedAt }`, dispatched once on commit (`OrganizationConvertedToCompanyEvent`).
+  - **Returns** — a return of an order placed while the organization was personal is still a consumer withdrawal after a later conversion (`organizationWasConsumerAt`). The `isPersonalOrganization` dependency of the returns services takes the order's placement time as an optional second argument.
+  - To move the converted company's only member out, give a second member the Administrator role first, as for any company.
+
+- 86a92af: **Breaking: an organization's `taxId` is `string | null`.** A personal (B2C) organization has no tax ID; it used to carry a 32-character placeholder derived from its account id. `organizationSchema.taxId` is `z.string().nullable()` and `OrganizationRecord.taxId` is `string | null`. Was `organization.taxId.trim()`; now `organization.taxId?.trim() ?? ''`, or better `organizationCompanyTaxId(organization)`, which already answered `null` for a personal organization and now also accepts a `null` tax ID. Orders, invoices, quote documents and audit entries written before the upgrade are not rewritten.
+
+  - **Minimum version to upgrade from: 0.100.0.** The migration below refuses to run, and changes nothing, on a database that has not applied `customer_accounts`' `Migration20260825T141659CustomerAccountsOrganizationRequired` (first shipped in 0.100.0) while it holds organizations or a customer account with no organization. Upgrade such an installation to a 0.100.x–0.110.x release first, run `migrate`, then upgrade to this release. A fresh database is not affected.
+  - **Upgrade.** The migration `Migration20261110T135922OrganizationsPersonalTaxIdRemoval` clears the tax ID of every personal organization and records the customer account it was provisioned for in a new column, `organizations.personal_account_id` (taken from the old placeholder). A check, `organizations_tax_id_presence`, now refuses a personal organization with a tax ID and a company organization without one. A personal organization whose stored tax ID was not the placeholder (hand-made data) is cleared too and left without the link; the migration reports how many as a notice. Code that inserts personal organizations with a tax ID — fixtures, seeds, overlay modules — must write `null`.
+  - **Provisioning** is idempotent by that link instead of the tax ID (`PersonalOrganizationProvisionApi.provisionFor`, `PersonalOrganizationPort.provisionPersonalOrganization`); the unassign destination is still the account's own personal organization.
+  - **Tax-ID scope foundation.** `Migration20261110T135941OrganizationsTaxIdScope` adds a stored generated column `organizations.root_id` (the tree's root, from `path`) and the single-row table `organization_tax_id_policy`, seeded `global` — today's rule, unchanged. Adding the stored column rewrites `organizations` under an exclusive lock while it runs. The scope is switched only by the `organization.tax_id_scope.set` Command (see the tax-ID scope changeset).
+  - **Lookups.** `OrganizationDetailsPort` gains `findByTaxId(taxId, { includeDeleted? })` — every organization holding the tax ID, the tree's root first — and `resolveByTaxId(taxId)` → `{ kind: 'none' | 'one' | 'ambiguous' }`. Both normalise the input with the new `normalizeTaxId` (whitespace and dashes stripped, upper-cased). An implementation or test double of `OrganizationDetailsPort` must add both methods.
+  - **New contract shapes** for the coming tax-ID scope screen and personal → company conversion: `TaxIdScope` / `taxIdScopeSchema`, `adminTaxIdScopeSetBodySchema`, `adminTaxIdScopeResponseSchema`, `TaxIdResolution`, `adminOrganizationConvertToCompanyBodySchema` / `OrganizationConvertToCompanyInput`, `OrganizationConvertedToCompanyEvent`, `OrganizationRecord.convertedToCompanyAt`, and `AdminOrganizationCreateBodySchema.parentId` (optional). The conversion shapes are served by no route yet.
+  - **Returns.** `OrderReturnContext` gains a required `placedAt: Date` — an implementation of `OrderReturnContextPort` must fill it.
+  - **VAT validation** of an organization with no tax ID is refused `422 VALIDATION_FAILED` before any provider is called.
+
+  An operator who wants to review orders placed by personal organizations before the placeholder was hidden can find them with `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
+
+- 990e457: **Tax-ID scope screen.** _Organizations → Tax-ID scope_ (`/organizations/tax-id-scope`, also from ⌘K, _Tax-ID scope_) shows the scope in force, what each scope means, and how many tax IDs are shared, and switches it after a confirmation. If the switch to Global is refused, the screen lists the shared tax IDs with links to their organizations; if the database does not enforce the scope in force, it offers to apply it again. It is shown to holders of `organizations:manage-tax-id-scope` and reached from the Organizations list's header menu. _New organization_ gains an optional parent organization for unscoped administrators, so a branch can be created under its head office.
+- ee2a111: **Tax-ID scope.** An installation chooses whether a tax ID belongs to one organization (`global`, the default and today's rule) or may be shared inside one organization tree (`per-tree-root`, so a head office and its branches carry the same tax ID). The database enforces both: `global` with the existing unique constraint `organizations_tax_id_unique`, `per-tree-root` with a deferred exclusion constraint `organizations_tax_id_one_tree` over the tree's root.
+
+  - **Command** `organization.tax_id_scope.set` (audit: `{ scope }` before and after) swaps the constraint and the policy row in one transaction. It briefly blocks writes to `organizations` while the new constraint is built. Setting the scope already in force records nothing and re-creates a missing constraint. Switching to `global` is refused `409 ORGANIZATION_TAX_ID_SCOPE_DUPLICATES` (`details: { code: 'shared_tax_ids', sharedTaxIdCount, examples }`, at most 20 examples) while any tax ID is on more than one organization, soft-deleted ones included. A tax ID cannot be changed from the admin, so once one is shared the way back to `global` is not available from the admin; the confirmation of a switch to `per-tree-root` says so.
+  - **Admin API** `GET` / `PUT /api/v1/admin/organizations/tax-id-scope` (`adminTaxIdScopeResponseSchema`, `adminTaxIdScopeSetBodySchema`), under the new permission `organizations:manage-tax-id-scope` and for an unscoped administrator only.
+  - **Admin create** `POST /api/v1/admin/organizations` accepts `parentId` and creates the organization as a branch in the same Command (unscoped administrators only, `403` otherwise; `404` for an unknown parent; the depth bound applies). In `per-tree-root` a branch may carry a tax ID its tree already holds. A tax ID the scope forbids is `409 ORGANIZATION_TAX_ID_EXISTS`, also when two creations race.
+  - **Moves** in `per-tree-root` that would put a shared tax ID into a second tree are refused `409 ORGANIZATION_TREE_INVALID` with `details.code = 'tax_id_shared_across_trees'` and `details.taxIds`.
+  - **Registration** refuses a tax ID that already resolves to an organization in both scopes, a branch's included, and answers a database refusal from either constraint with `409 ORGANIZATION_TAX_ID_EXISTS`.
+  - **Migration** `Migration20261110T173752OrganizationsTaxIdWriteLock` adds the row trigger `organizations_tax_id_write_lock` (on inserts and on updates of `tax_id` or `path`): two transactions writing the same tax ID take turns, so the second meets the first's committed row and is refused with a 409 rather than deadlocking against the organization reach rebuild. The lock is keyed by one of 256 buckets of the tax ID, so a transaction holds at most 256 such locks however many rows it writes; moves lock their subtree's buckets in ascending order first.
+  - **Tax IDs are stored normalised** — whitespace and dashes removed, upper-cased (`normalizeTaxId`). Registration and admin create store, check and answer the normalised form. `Migration20261110T183238OrganizationsTaxIdNormalise` rewrites existing rows and adds the check `organizations_tax_id_normalised`, which refuses any other form from any writer (fixtures, seeds and overlay code inserting organizations must write the normalised form). **It refuses to run, and changes nothing, when two organizations would hold one tax ID once normalised** where the scope forbids it (anywhere in `global`); its message lists up to 50 such groups. Find them before upgrading with:
+
+    ```sql
+    select upper(regexp_replace(tax_id, '[[:space:]-]', '', 'g')) as normalised,
+           array_agg(id order by id) as organizations
+      from organizations where tax_id is not null
+     group by 1 having count(*) > 1;
+    ```
+
+    and give each organization its own tax ID first.
+
+  - **Contention.** The scope change takes the table's `access exclusive` lock up front, waiting at most 5 seconds. A write of organizations that loses a lock to a concurrent one — the scope change, or a racing writer (`40P01`, `55P03`) — answers `409 ORGANIZATION_WRITE_CONTENDED` (new in `ERROR_CODES`); retrying succeeds.
+  - **Tax IDs are validated after normalisation** where they enter: `registerOrganizationRequestSchema` (and so `AdminOrganizationCreateBodySchema`) now normalises the tax ID first and then requires 8 to 32 characters, so `--------` is refused with `400` and an over-long value is a `400`, not a `500`. The admin organization update accepts no tax ID; a tax ID cannot be changed after creation.
+  - **Search.** The admin organizations list's `q` and the global search match the tax ID in its normalised form, so `pl 526-025` finds `PL526025…`.
+  - **Boot** logs one error when the stored scope and the constraint present disagree; re-applying the scope repairs it.
+  - `ERROR_CODES.ORGANIZATION_TAX_ID_SCOPE_DUPLICATES` is new.
+
+- bfa1ac4: `organizations` is an extensible host for declared extension columns (`specs/178-extensible-columns/` FR-051, FR-052). `GET /api/v1/admin/organizations/:id` and `GET /api/v1/admin/organizations` accept `?extensions=<moduleId>[,<moduleId>…]` (at most eight, `ExtensionsQuerySchema`) and then return `extensions` on every record: per named module that declares columns on `organizations` with `adminReads: true` and is present, its declared keys and values. A module that is switched off, not installed or not exposing the host is omitted without an error; a malformed parameter answers 400. Without the parameter both responses are byte-identical to before. `@endora-commerce/contracts` publishes the record shape as `adminOrganizationSchema` (`organizationSchema` plus optional `extensions`, `AdminOrganization`).
+- 75027ef: The organization detail screen now has one Save for the whole page (issue #407, `specs/180-one-save-zone-editors/` WP-7).
+
+  **mod-organizations:**
+  - The screen runs a save session, one per organization, and passes it to `organization.detail.after`. The Save button sits in the page header (a sticky bar at the bottom on narrow screens). It reads "Save" or "Save n changes" and does nothing while there is nothing to save.
+  - Status, VAT status, order-confirmation e-mails, fulfilment strategy, restrictions and custom fields no longer save on change, on blur or through their own Save buttons. They are staged and written by the page's Save: first one `PATCH /api/v1/admin/organizations/:id` with `expectedUpdatedAt`, carrying only the fields that changed, then, if the allow-lists changed, the `PUT …/restrictions` with the version the `PATCH` returned. After that come the panels, in zone order.
+  - If either write answers `VERSION_CONFLICT`, no panel is written. The organization is reloaded, every unsaved change on the page (the screen's and every panel's) is discarded, and the screen says so. If a panel fails after the organization saved, a summary reports what was saved and what was not, and the next Save writes only what is left.
+  - Members (invite, direct add, role, edit, remove), hierarchy, moderation, VAT validation, sales channels, roles and sales representatives still apply immediately. Each of these sections now carries an "Applies immediately" badge.
+  - Leaving the page with unsaved changes asks first.
+  - An operator without `customers:manage` sees status, VAT status, e-mails, fulfilment strategy, restrictions and custom fields read-only. The page's Save would never write them for that operator.
+  - New strings in English and Polish: `detail.save.hostPartLabel` and `detail.save.conflict`. The badge is `@endora-commerce/admin-kit`'s `ImmediateBadge`.
+
+  **mod-price-lists:**
+  - The organization detail's display-mode panel passes that screen's session, so the display mode is saved by the page's Save instead of on change. No host is left without a session, so `DisplayModeOverrideRow` now requires `saveSession`, and its save-on-change branch and its "saved" suffix are gone.
+
+- 20cda0c: Issue #461 — the Projects `@` list (`GET /api/v1/admin/projects/lookups/mentionable`) judges who may see the Project for every candidate administrator at once, instead of several reads per person.
+
+  - **`@endora-commerce/contracts`** adds `PermissionReadPort.resolveRoles(adminUserIds)` — a `Map` holding, for every id asked, what `resolveRole` answers — and `AdminTenantScopePort.resolveForAdmins(adminUserIds)` — a `Map` holding, for every id asked, the scope `resolveForAdmin` answers. Every implementation of these ports must provide the new method; consumers are unaffected.
+  - **`@endora-commerce/mod-admin-roles`** implements `resolveRoles` in two statements whatever the number of ids, and adds `holdersOf(adminUserIds, permission)` beside `hasPermission` on the `permissionService` container entry: the ids `hasPermission` answers yes for, refusing with `ADMIN_ROLE_REQUIRED` as `hasPermission` does when an active administrator asked holds no role.
+  - **`@endora-commerce/mod-organizations`** implements `resolveForAdmins` with the same rule as `resolveForAdmin` — one batched role read, and the roll-up question asked once for the sales representatives only. A failure of that question leaves every representative asked unresolved, holding no organization, as one call at a time would. `SalesRepAssignmentService` gains `hasRollupCapabilities(adminUserIds)`.
+  - **`@endora-commerce/mod-projects`** adds `ProjectAccess.canSeeAsMany(adminUserIds, projectId)`: the accounts, their roles and their reach each read once, and both visibility rules evaluated for everybody in one statement. `canSeeAs` is now that check for one person. The mentionable lookup asks it once; the people it offers, their order and the limit of 20 are unchanged.
+
+- d1cbf57: Issue #470 (D-288, owner ruling O-2) — the `organization.admin_patch` audit entry (`PATCH /api/v1/admin/organizations/:id`) holds field names, not values. The Organization is the tenant, and its name, tax ID, reasons and custom field values are that tenant's values; the platform audit log is read under `audit_log:read` without Organization reach.
+
+  - The entry no longer records the Organization's snapshot (name, legal name, tax ID, registered address, order-confirmation e-mails, block and rejection reasons, custom field values).
+  - `stateBefore` holds the `status`, `vatStatus` and `fulfilmentStrategy` codes. `stateAfter` holds the same codes after the write, `changedFields` (the sorted names of the changed columns) and `changedCustomFields` (the sorted keys of the changed custom fields).
+  - The request, the response, the `409 VERSION_CONFLICT` and the `422 CUSTOM_FIELD_VALUE_INVALID` envelope are unchanged. There is still one entry per PATCH.
+  - Audit entries written before the upgrade are not rewritten (owner ruling O-4).
+
+  **Behaviour change on upgrade.** On the platform **Audit log** screen and in `audit_logs read`, new `organization.admin_patch` entries show no Organization values. See _An Organization edit's values leave the platform audit log_ in the upgrade guide.
+
+- 1774bf5: Issue #470 (D-288, owner rulings O-1 and O-2) — every remaining `organizations` audit entry holds names and structure, not values. The platform audit log is read under `audit_log:read` without Organization reach, so an Organization's name, tax ID, address and reasons, a member's or invitee's e-mail and names, and a custom role's name and description stay out of it.
+
+  - `organization.create` and `organization.register` no longer record the name, tax ID or registered address; `changedFields` names the fields the Organization was created with. The status, VAT status (create), sales channels and parent stay, and so do `changedCustomFields` and `registryLookup`.
+  - `organization.delete` records `status`, `vatStatus`, `isPersonal`, `parentId` and `version` instead of the full Organization.
+  - `organization.approved`, `.rejected`, `.blocked` and `.unblocked` record `hasBlockedReason` / `hasRejectedReason` instead of the reasons, and no longer repeat the Organization's id in their state.
+  - `customer_account.admin_create`, `.admin_profile_update`, `.admin_rollup_change` and `.admin_remove` record the member's `organizationRoleId`, `subtreeRollupEnabled`, `emailVerified` and `twoFactorEnabled` and, after a change, `changedFields`. They no longer record the e-mail, names or the Organization's id.
+  - `organization_invitation.create` and `.revoke` record `invitationId` and `role: { id, kind }`. They no longer record the invitee's e-mail or a custom role's name. `organization.invite_accept` no longer records the e-mail.
+  - `organization_role.create`, `.update` and `.delete` record `role: { id, kind, permissions }`. An update adds `changedFields` (`name`, `description`, `permissions`). A custom role's name and description are no longer recorded.
+  - Audit entries written before the upgrade are not rewritten (owner ruling O-4).
+
+  **Behaviour change on upgrade.** On the platform **Audit log** screen and in `audit_logs read`, new entries from these writes show no Organization, member, invitation or role values. See _Every other organizations entry leaves its values out of the audit log_ in the upgrade guide.
+
+- d0c5dc8: Business registration (`POST /api/v1/organizations/register`) and invitation accept (`POST /api/v1/organizations/invitations/:token/accept`) record the request's language on the new account, resolved against the request's sales channel; an invitation records the invitee's language, not the inviter's. The customer sign-in (`POST /api/v1/auth/customer/login`) passes the request's language so that an account without one gets it (issue #652). `GET /api/v1/me` answers `customerAccount.preferredLanguage`. `RegistrationService.registerOrganization` accepts `context.preferredLanguage` and `InvitationService.acceptByToken` accepts `input.preferredLanguage`.
+- 5f8eede: A sales representative's reach is read from a new table, `organization_reach_governor` (issue #955): for each organization, the nearest ancestor-or-self that carries a sales-representative assignment. Migration `20261109T144721_organizations_reach_governor` creates it, backfills it, and keeps it current through statement-level triggers on `organizations` and `organization_sales_rep_assignments`, inside the transaction of every write — the admin Commands, the assignment service, the demo reset and raw SQL alike — under one transaction-scoped advisory lock. It also adds `organizations_reach_excluded(admin_user_id, rollup)`, the one definition of a representative's excluded set: `SalesRepAssignmentService.reachOf` reads it, and `adminTenantScopePort` answers it as `excludedOrganizationsQuery`, which the tenant filter renders as a subquery. The rule is unchanged (`canSeeOrganization`), and nothing is cached.
+
+  **Operations.** A data-only restore with `--disable-triggers` leaves the table stale; run `select organizations_reach_governor_rebuild(null);` afterwards. Every assignment write, organization insert and tree move now serialises on one advisory lock until its transaction commits.
+
+- 49b43de: **Breaking (0.x, so `minor`):** a sales representative's reach is no longer computed on every admin request (issue #955, owner ruling of 2026-11-10). `@endora-commerce/platform/tenancy` removes `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` — use `await orgInScope(id, ctx?)` and `await ruleInScope(ids, ctx?)`, or `const inScope = await orgScopeTest(ctx?)` for a synchronous predicate over rows you already hold — and `assignedOrganizationIdsForRanking(ctx?)` now returns a promise. They were removed rather than retyped because `if (!isOrgInScope(x))` over a promise is always false.
+
+  `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) replaces `excludedOrganizationIds` / `assignedOrganizationIds` with `loadReach(): Promise<{ excludedOrganizationIds, assignedOrganizationIds }>`, beside `excludedOrganizationsQuery`; the platform memoises it once per tenant context, and a failure rejects every helper that awaits it. `OrgConstraint`'s `excluded` arm and `AdminScopeInput` follow. `PreferenceActor`'s `salesperson.reaches(id)` returns `Promise<boolean>`, and `canManagePreference` (`quick_order`) is async. `adminTenantScopePort` (`organizations`) answers without calling `reachOf`. The listed modules move their call sites to the async helpers.
+
+- 44529a4: Custom-field values from server-side code, and the admin Organization edit on the Command Bus.
+
+  - Publishes `organizationCustomFieldWritePort` (`OrganizationCustomFieldWritePort` in `@endora-commerce/contracts`). Resolve it with `lazyPort` and declare `organizations` in your manifest `dependencies`. Each call runs one `organization.set_custom_field_values` Command, whose audit entry names the custom-field keys that changed (`changedCustomFields`) and carries none of their values. Writing `organizations.custom_field_values` directly is not a supported alternative.
+  - `PATCH /api/v1/admin/organizations/:id` now runs as one `organization.admin_patch` Command. The `expectedUpdatedAt` check, the column changes and the custom-field merge share one transaction, and the audit entry is written in that same transaction rather than after the flush. The request, the response, the `409 VERSION_CONFLICT` and the `422 CUSTOM_FIELD_VALUE_INVALID` envelope are unchanged. A refused value still writes nothing, including the other columns in the same request. There is still one entry per PATCH, under the same action; its payload records the names of the changed fields only (see the #470 admin-patch changeset). That entry no longer carries the request's `X-Request-Id` (the Command Bus does not stamp one, as on every other Command).
+
+- 42a9a4b: One sales-representative reach rule on every admin surface (issue #305, owner ruling 2026-11-07). A sales representative reaches every Organization not governed by another representative — the ones assigned to them (with `organizations:rollup`, their subtrees, the nearest assignment winning) and every Organization nobody is assigned to. `adminTenantScopePort` answers that reach as its complement, computed in one statement per request (`SalesRepAssignmentService.reachOf`), so the tenant-scoped reads and writes of every module, the Organizations list and its pickers, admin search and the Organization screens answer by the same rule. Every module that read the reach as a list of assigned ids now reads it through the platform's helpers.
+
+  `mod-orders`: `resolveAdminOrdersScope` answers `{ allowAll: boolean }` (was `{ allowAll: false, allowedOrganizationIds }`); the list's reach is the ambient tenant context's. `mod-customers`: `ResolveModerationActor` answers `{ adminUserId, isPlatformAdmin }` (was with `allowedOrganizationIds`).
+
+  **Behaviour change on upgrade.** Every sales representative gains the tenant data of every unassigned Organization — members, customers, orders, invoices, carts, returns, quote requests and customer-level settings — and, since no representative can be assigned to a personal Organization, of every B2C customer (confirmed by the owner on 2026-11-08). The Organizations list, its pickers and admin search stop showing Organizations assigned to other representatives. A sales representative with no assignment used to be treated as a platform administrator by the quick-order default-preference routes; they now manage only the Organizations they reach, and a write naming an Organization that does not exist answers `404 NOT_FOUND`. The read-only query in _Upgrading an instance_ ("One sales-representative reach rule on every surface") counts, per representative, what they gain and what leaves their lists.
+
+### Patch Changes
+
+- 0e16877: **The verification link a business registration e-mails follows the channel language `Accept-Language` asks for, read as a q-weighted list** (issue #1011). `POST /api/v1/organizations/register` put the link under the language prefix of the header's first tag alone, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` linked to the English page and `de-DE, pl;q=0.5` to the channel default. The language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. A request without the header, or outside a sales channel, behaves as before.
+- f8382b4: `organizations` now creates its own `organization_sales_rep_assignments` table (issue #1033,
+  `specs/178-extensible-columns/` D-291 R-A8). Until now only `quote_requests` created it, so a
+  platform that composed `organizations` without `quote_requests` failed on
+  `Migration20261109T144721OrganizationsReachGovernor`, whose triggers name the table. That
+  migration's `up()` now begins with `create table if not exists` and `create index if not exists`
+  for the table and its two indexes, with the same columns, constraint names and index names as
+  before. The two indexes are now created only here. No new migration is added and no migration class is renamed. A database that has already
+  applied the migration does not run it again and does not change.
+- 8abfd03: `@endora-commerce/mod-organizations` now publishes a development-only `./test-support` subpath
+  (issue #1056). It exports `volatileTables`, which lists `organization_sales_rep_assignments` and
+  `organization_reach_governor`. A test harness that collects module test support with
+  `@endora-commerce/test-kit/support`'s `collectVolatileTables` now empties both tables between
+  test files. Before this change, sales-rep assignments written by one test file were still there
+  in later files, so those files saw a different sales-rep reach. Runtime code, migrations and the
+  other exports are unchanged.
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- fc16db9: The organization-role cache no longer sends `SUBSCRIBE` while its ioredis subscriber connection is still in its handshake (issue #1147, a follow-up to #1096). `OrganizationRoleCache.start` now subscribes through `subscribeWhenReady` from `@endora-commerce/platform/kernel`, as the module-registry, sales-channel access, custom-field definition and pricing generation caches already do, so a role-change announcement published during boot is no longer lost to a forced reconnect. The structural type `OrganizationRoleSubscriber` now extends `HandshakeAwareSubscriber`, so it also requires `status`, `once` and `removeListener`; the composition's ioredis subscriber already has them.
+- d2f179f: `customerSignInCompletionPort` honours the new optional `salesChannelId` of its input and hands it to the post-sign-in hook: the `onLogin` option's argument gains the optional `salesChannelId`, the channel whose signed-out basket a sign-in merges when its request carries none (issue #1188). A composition's `organizationsLoginHook` should merge on `salesChannelId ?? <request channel>`; one that ignores it keeps merging on the request's channel. The password sign-in is unchanged.
+- ecbf12a: The sales-channels panel on the organization detail applies each change immediately (issue #1305). It used to hold the ticked channels as a draft behind its own **Save sales channels** button, a second Save beside the page's one Save (spec 180, SC-001), although the panel is an immediate action.
+
+  - Ticking or unticking a channel writes the assignment at once, through the same `PUT /api/v1/admin/organizations/:id/sales-channels` and with the same audit rows; the panel has no Save button and adds nothing to the page Save's count.
+  - While a write is in flight the channel being changed is marked busy, a status line announces it, and no further tick is taken until it finishes. A write that fails puts the checkbox back and names the channel and the reason.
+  - Unticking the last channel is refused in the panel, with the existing _"An organization must be assigned at least one sales channel."_ message, and writes nothing.
+  - The catalogue keys `salesChannels.save`, `salesChannels.saving`, `salesChannels.saved` and `salesChannels.saveError` are removed; `salesChannels.adding`, `salesChannels.removing`, `salesChannels.added`, `salesChannels.removed` and `salesChannels.toggleError` are added, in English and Polish.
+
+- 695636f: Storefront self-registration (`POST /api/v1/organizations/register`) is now one transaction
+  (`specs/176-command-hooks-outbox/` US1). It runs as the `organization.register` Command, and the
+  first account is `customer_accounts`' `customer_account.create`, run as its child through
+  `ctx.run`.
+
+  What this writes now commits together or not at all: the Organization, its sales-channel binding,
+  the first account, the registry-lookup validation row, the e-mail verification token, both audit
+  entries and both events (`organization.registered.v1`, `customer_account.created.v1`). Before, the
+  Organization committed on its own. A failure after that point, such as a racing e-mail address or
+  a failing token insert, left an Organization with no administrator, and the same tax ID could not
+  be registered again.
+
+  The request, the response, the status codes and the error codes are unchanged. That includes
+  `409 ORGANIZATION_TAX_ID_EXISTS` from either tax-ID scope's constraint, mapped around the Command
+  Bus for `per-tree-root`'s deferred one.
+
+  **Audit log, for upgraders.** The `organization.register` entry keeps its names-only state: the
+  status, `changedFields`, `changedCustomFields` and the registry lookup's codes. It is now written
+  by the Command Bus, so it carries the request id, IP address and user agent, the same request id
+  as the account's `customer_account.create` entry. Entries written before the upgrade are not
+  rewritten.
+
+  **For code that builds `RegistrationService` by hand.** The constructor now takes one options
+  object: `{ emFactory, commandBus, events, accounts: { read, commands }, dictionaryValidator?,
+channelMembership?, registryLookup?, customFieldValues? }`. `accounts.commands` is the
+  `customerAccountMemberCommandPort`. It no longer takes an audit port. The module's plugin option
+  `customerAccountCommands` carries the port, and the module's own composition wires it.
+
+- bf257b8: `organizations` publishes `customerSignInCompletionPort` (`CustomerSignInCompletionPort`), the post-sign-in step its password sign-in runs: the contributed `organizationsLoginHook` merges the signed-out basket and adopts the anonymous comparison. The password route now runs the same function, so its answer and its `b2b_cart_anon` handling are unchanged (issue #368).
+- 5c148de: The product editor, the category editor, the sales-channel editor and the organization and customer detail screens now pass `saveSession: INERT_SAVE_SESSION` to their zones (issue #407). None of these editors runs a save session yet, so nothing changes for operators. The `core` catalogue adds the save-session notices and the "switched off" message in English and Polish (`saveSession.notice.moduleOff`, `saveSession.notice.crashed`, `saveSession.error.moduleOff`).
+- 577e94c: The product editor, the customer and organization detail screens and the sales-channel editor's warehouse routing panel draw their "Applies immediately" badges with `@endora-commerce/admin-kit`'s `ImmediateBadge` instead of a local copy each (issue #407). The badge looks and reads the same. The module strings it replaces are removed in English and Polish: `productEditor.immediate.badge` (catalog), `detail.immediate.badge` (customers, organizations) and `warehouses.channel.immediateBadge` (inventory).
+- 4d0a26d: Documentation only (issue #407). The shipped `docs/` pages, in English and Polish, now describe the one Save on every editor with zone panels. Each page says what Save covers, what is checked before anything is written, the order the parts are written in, what a partial save reports and that the next Save writes only the part that failed. It also says how the leave guard works and which sections carry the "Applies immediately" badge.
+
+  - catalog: "Editing a product at a scope" covers the base prices and the Inventory tab's product settings under Save, plus the actions that apply immediately. A new "Editing a category" section on the module page covers the category editor's Save.
+  - price_lists: the display-mode override saves with the organization and category editors. The base-price panel's **Discard changes** is described.
+  - organizations, customers: a section on each screen's one Save and its immediate actions.
+  - quick_order, quote_requests: their panels save with the host screen's Save.
+  - sales_channels: the edit page's Save and its count. Deactivate and Re-activate keep unsaved edits, and warehouse routing applies immediately.
+
+  No code, API or string changes.
+
+- 2905024: Organization admin, member, invitation and registration replies are described by their contract (issue #599, section 1):
+
+  - `adminOrganizationSchema` in `@endora-commerce/contracts` now declares the keys every admin organization reply has answered: `legalName`, `orderConfirmationEmails`, `version`, `blockedReason`, `blockedAt`, `rejectedReason`, `rejectedAt`, `approvedAt`, `approvedByAdminUserId`, `vatValidation` (`outcome`, `provider`, `validatedAt`) and `customFieldValues`. This applies to the list, the detail and the answer of each write. The Admin UI's organization page reads these keys. They are optional, so a client that does not read them is unaffected.
+  - `@endora-commerce/contracts` publishes schemas for replies that had none: `adminOrganizationListResponseSchema` for `GET /api/v1/admin/organizations`; `adminOrganizationDetailSchema` for `GET /api/v1/admin/organizations/:id` (the Organization, its `members` and its `predefinedRoles`); `adminOrganizationMemberSchema` for the detail's member rows and the admin member writes; `organizationMemberSchema` and `organizationMemberListResponseSchema` for `GET /api/v1/organizations/mine/members` and the member role change; `organizationInvitationSchema` and `organizationInvitationListResponseSchema` for `GET /api/v1/organizations/mine/invitations`; `inviteMemberResponseSchema` for `POST /api/v1/organizations/mine/invitations`; and `acceptInvitationResponseSchema` for `POST /api/v1/organizations/invitations/:token/accept`. Each has its inferred type.
+  - `mod-organizations` builds these replies, and the registration reply, as the contract's types instead of `Record<string, unknown>` or an undeclared shape. The handlers declare their reply types. The Admin UI's organization page uses `AdminOrganizationDetail` and `AdminOrganizationMember` instead of hand-written interfaces. Nothing on the wire changes.
+
+- b064fec: Documentation only. The module page (English and Polish) lists the events the module actually emits, the admin delete, address, member-profile and member roll-up routes, which permissions the admin reads accept, the PATCH fields, the credit-inheritance setting and where the last-administrator guard and the verification e-mail live; the English page gets back its section on the organization screen's one Save. The hierarchy page names the delete route, its `ORGANIZATION_HAS_CHILDREN` refusal and the member roll-up route.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [52831b7]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+  - @endora-commerce/email-components@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes

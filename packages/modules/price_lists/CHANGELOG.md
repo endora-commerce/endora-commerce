@@ -1,5 +1,274 @@
 # @endora-commerce/mod-price-lists
 
+## 0.111.0
+
+### Minor Changes
+
+- 3de70b4: New port `PriceBookRowWritePort` (container name `priceBookRowWritePort`, exported as `PRICE_BOOK_ROW_WRITE_PORT`, owner `price_lists`): a module — an ERP or PIM connector — can now write the rows of one product in one non-base price book (a customer-group, organization, catalogue or sale book) without an admin HTTP call. `replaceBookRows(bookId, productId, { product: BasePriceTier[], variants?: Record<variantId, VariantRowWrite | null> })` replaces the product's fixed tiers and the rows of the named variants and answers `BookProductRows`; `removeBookRows(bookId, productId)` removes them (a no-op when there are none); `bookRows(bookId, productId)` reads them, or `null`. Only rows the write shape can say are the port's: a row an administrator entered that it cannot say — a product-level percentage or amount, an adjustment limited to a quantity range — is neither replaced nor removed and keeps pricing; `bookRows` reports it with `complete: false`, and a tier that would overlap it, even one starting at the same quantity, is refused with `409 PRICE_BOOK_ROW_OVERLAP` naming it, never written over it. Each write goes through the admin row batch's rules and command, audited as `price_list.book_rows_set` or `price_list.book_rows_remove` with the caller's actor — the entry holds names, counts and a `valueChangeId`, never a price or a quantity; the prices go to the book's own price-change history (`price_list_value_changes`), written in the same Command — and bumps the pricing generation once, naming the book and the product; a write that changes nothing writes nothing. The port creates no book and changes no header. Base books are refused with the new error code `409 PRICE_BOOK_BASE_BOOK` (write base prices through `priceBookWritePort`, which is unchanged) and expired books with `409 PRICE_BOOK_EXPIRED`; both codes are added to `ERROR_CODES`, with the new schemas `bookProductRowsWriteSchema` and `bookProductRowsSchema` and the type `VariantRowWrite`. Additive (issue #1028).
+- e435bad: The product editor's one Save now covers the panels contributed to its zones (issue #407, `specs/180-one-save-zone-editors/`).
+
+  **mod-catalog:**
+  - The editor runs a save session keyed on the scope it opened, and passes the session to every product-editor zone except SEO.
+  - Save counts the product's staged changes plus every panel's.
+  - Save writes the product's own changes first and the panels after, each through its own module.
+  - If a panel's write fails after the product saved, the editor reports what was saved and what was not, and the next Save writes only what is left.
+  - One guard covers every unsaved change on the page, including a scope switch. The browser's leave prompt covers panel changes too.
+  - Save is shown to an operator who may write the product or any panel.
+  - The Pricing tab heading no longer says "Applies immediately".
+  - The editor context carries `saveSession`.
+
+  **mod-price-lists:**
+  - The product's base-price panel saves with the product editor's Save. It no longer has a _Save prices_ button or a leave prompt of its own.
+  - `PUT /api/v1/admin/price-books/base-prices/:productId?dryRun=true` runs every rule of the write and writes nothing (no Command, no audit entry). The editor's Save calls it before anything is written.
+  - The admin client gains `checkBasePrices(productId, body)`.
+  - The `basePrices.save`, `basePrices.saving` and `basePrices.status.*` strings are removed; `basePrices.partLabel` is added.
+
+- 036865c: The category editor's Save now covers the panels contributed to `category.editor.after` (issue #407, `specs/180-one-save-zone-editors/` WP-6).
+
+  **mod-catalog:**
+  - The category editor runs a save session, one per open category, and passes it to `category.editor.after`.
+  - The zone is mounted above the Save / Cancel row instead of below it.
+  - Save reads "Save" or "Save n changes", counting the category's own field changes plus every panel's. It does nothing while there is nothing to save.
+  - Save writes the category first, then the panels. If the category write is refused (a slug that is taken, an invalid custom field), no panel is written. If a panel fails after the category saved, the editor stays open and reports what was saved and what was not; the next Save writes only what is left.
+  - Opening another category with unsaved changes asks _Save and continue / Discard changes / Stay here_. Cancel discards every change without asking, as before. Leaving the page or closing the browser tab with unsaved changes asks too.
+  - A refresh of the tree after a write no longer unmounts the open editor.
+  - New strings in English and Polish: `categories.save.hostPartLabel` and `categories.guard.*`.
+
+  **mod-price-lists:**
+  - `DisplayModeOverrideRow` takes an optional `saveSession`. With one, changing the select stages the mode as the part "Price display mode" (`displayModeRow.partLabel`, English and Polish) and the host's Save writes it through the same `PUT /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId`. There is no write on change and no "saved" suffix. Without `saveSession` the row saves on change as before.
+  - The category editor contribution passes the editor's session, so the category's display mode saves with the category. The organization detail is unchanged for now.
+
+- 75027ef: The organization detail screen now has one Save for the whole page (issue #407, `specs/180-one-save-zone-editors/` WP-7).
+
+  **mod-organizations:**
+  - The screen runs a save session, one per organization, and passes it to `organization.detail.after`. The Save button sits in the page header (a sticky bar at the bottom on narrow screens). It reads "Save" or "Save n changes" and does nothing while there is nothing to save.
+  - Status, VAT status, order-confirmation e-mails, fulfilment strategy, restrictions and custom fields no longer save on change, on blur or through their own Save buttons. They are staged and written by the page's Save: first one `PATCH /api/v1/admin/organizations/:id` with `expectedUpdatedAt`, carrying only the fields that changed, then, if the allow-lists changed, the `PUT …/restrictions` with the version the `PATCH` returned. After that come the panels, in zone order.
+  - If either write answers `VERSION_CONFLICT`, no panel is written. The organization is reloaded, every unsaved change on the page (the screen's and every panel's) is discarded, and the screen says so. If a panel fails after the organization saved, a summary reports what was saved and what was not, and the next Save writes only what is left.
+  - Members (invite, direct add, role, edit, remove), hierarchy, moderation, VAT validation, sales channels, roles and sales representatives still apply immediately. Each of these sections now carries an "Applies immediately" badge.
+  - Leaving the page with unsaved changes asks first.
+  - An operator without `customers:manage` sees status, VAT status, e-mails, fulfilment strategy, restrictions and custom fields read-only. The page's Save would never write them for that operator.
+  - New strings in English and Polish: `detail.save.hostPartLabel` and `detail.save.conflict`. The badge is `@endora-commerce/admin-kit`'s `ImmediateBadge`.
+
+  **mod-price-lists:**
+  - The organization detail's display-mode panel passes that screen's session, so the display mode is saved by the page's Save instead of on change. No host is left without a session, so `DisplayModeOverrideRow` now requires `saveSession`, and its save-on-change branch and its "saved" suffix are gone.
+
+- e30c1cb: Issue #409 — after a bulk write, the owning module now runs `VACUUM (ANALYZE)` of the tables it wrote in the background, so the admin's index-only reads (the product list's ordered walk and search count, a price book's lines and searches) have fresh statistics and a visibility map before autovacuum's first pass, which for a write below autovacuum's scale factor may never come.
+
+  - **`@endora-commerce/mod-catalog`** adds the BullMQ queue `catalog.table-maintenance` and its consumer: a products import that wrote (`catalogBulkImportPort.importProducts`, not a dry run) asks for `products` and `product_variants`. `import_export` reaches it through that port and names no table.
+  - **`@endora-commerce/mod-price-lists`** adds `price_lists.table-maintenance`: a price-book row batch (the editor's save and its CSV import), a base-price write (`priceBookWritePort`, the PIM price import) and a book duplicate ask for `price_list_matrix_entries` and `price_list_product_lines`.
+
+  Each request is a job delayed by one minute and deduplicated by its table (BullMQ `deduplication` with `keepLastIfActive`), so a burst of writes costs one vacuum per table, and a write while one runs keeps exactly one follow-up. The consumers run one job at a time where the host consumes queues, stop with their module, and log a failure; the write itself never waits for or fails on the request. Without a worker nothing changes — autovacuum remains the fallback. No migration, no new dependency.
+
+- 44ad9cd: Issue #470 (D-288; owner ruling O-3, 2026-11-10), first stage: the schema of a price book's own price-change history. The migration `Migration20261110T073922PriceListsValueChanges` creates two tables owned by the module, and the package's `entities` array registers their entities. Both are `@RuleScoped` like the book.
+
+  - `price_list_value_changes` (`PriceListValueChange`) holds one row per Command that changed a value: the action, the actor, the time, the changed header values and the line count. It is indexed on `(price_list_id, at desc, id desc)`.
+  - `price_list_row_value_changes` (`PriceListRowValueChange`) holds one line per price row the Command added, changed or removed. Each line has the row's selection and quantity window, and both sides of its price in the row's own types, `numeric(14,4)` and `numeric(7,2)`. It is keyed by `(change_id, seq)` and indexed on `(price_list_id, product_id, at desc)`.
+
+  Both tables cascade from their price book. Deleting a book deletes its price history (owner ruling, 2026-11-10). Lines also cascade from their change.
+
+  Nothing writes or reads the tables yet, and no behaviour changes. Price-book audit entries keep their current contents until a later stage of #470.
+
+- ecbebe2: Two `price_lists` refusals have error codes of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish (issue #636, part of #86). **A caller that matches on
+  `VALIDATION_FAILED` for either of them now sees the specific code.** The HTTP status is unchanged.
+  Both were refused by the book's stored state, not by the request, and until now the reader got the
+  English literal, because the error envelope never replaces the message of `VALIDATION_FAILED`.
+
+  | Where                                                                                                      | Was                                                                                                                                                                                                | Is                                    | `details`                                               |
+  | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------- |
+  | `priceBookWritePort.replaceProductBaseTiers` (`PriceBookService.setBasePrices` keeping the variants' rows) | `400 VALIDATION_FAILED`, "The base prices were refused. A variant's percentage or amount adjustment needs the product's own base price in this currency.", `details` the `[{ path, issue }]` array | `400 PRICE_BOOK_BASE_PRICE_REQUIRED`  | `productId`, `currency`, and the same array as `issues` |
+  | `PriceBookService.replaceChannels` on a base book                                                          | `400 VALIDATION_FAILED`, "The channel set was refused. A base book is channel-independent and has no channel set."                                                                                 | `400 PRICE_BOOK_BASE_HAS_NO_CHANNELS` | `priceBookId`, `currency`                               |
+
+  `details` of `PRICE_BOOK_BASE_PRICE_REQUIRED` is now an object: a caller that read the issue array
+  directly finds it under `details.issues`.
+
+  `buyerLinePricePort.resolveForBuyer` with a `null` channel on an installation with no
+  system-default sales channel threw `400 VALIDATION_FAILED` "No default sales channel."; it now throws
+  the platform's `NoSystemDefaultChannel` (`500 INTERNAL`). No request causes that state and no buyer
+  can fix it: the boot reconciler guarantees a default channel, so a booted deployment never reaches
+  it.
+
+  The other refusals of the price-book service (a missing version, an empty channel set, an unknown
+  channel, `endsAt` not after `startsAt`, a malformed row plan) stay `VALIDATION_FAILED`. The two codes
+  are members of `ERROR_CODES` in `@endora-commerce/contracts`, declared by the `price_lists`
+  manifest, and the module's developer guide lists them. No setting, permission or migration changes.
+
+- 42a9a4b: One sales-representative reach rule on every admin surface (issue #305, owner ruling 2026-11-07). A sales representative reaches every Organization not governed by another representative — the ones assigned to them (with `organizations:rollup`, their subtrees, the nearest assignment winning) and every Organization nobody is assigned to. `adminTenantScopePort` answers that reach as its complement, computed in one statement per request (`SalesRepAssignmentService.reachOf`), so the tenant-scoped reads and writes of every module, the Organizations list and its pickers, admin search and the Organization screens answer by the same rule. Every module that read the reach as a list of assigned ids now reads it through the platform's helpers.
+
+  `mod-orders`: `resolveAdminOrdersScope` answers `{ allowAll: boolean }` (was `{ allowAll: false, allowedOrganizationIds }`); the list's reach is the ambient tenant context's. `mod-customers`: `ResolveModerationActor` answers `{ adminUserId, isPlatformAdmin }` (was with `allowedOrganizationIds`).
+
+  **Behaviour change on upgrade.** Every sales representative gains the tenant data of every unassigned Organization — members, customers, orders, invoices, carts, returns, quote requests and customer-level settings — and, since no representative can be assigned to a personal Organization, of every B2C customer (confirmed by the owner on 2026-11-08). The Organizations list, its pickers and admin search stop showing Organizations assigned to other representatives. A sales representative with no assignment used to be treated as a platform administrator by the quick-order default-preference routes; they now manage only the Organizations they reach, and a write naming an Organization that does not exist answers `404 NOT_FOUND`. The read-only query in _Upgrading an instance_ ("One sales-representative reach rule on every surface") counts, per representative, what they gain and what leaves their lists.
+
+### Patch Changes
+
+- 0e14e9b: **The storefront pricing routes read `Accept-Language` as a q-weighted list matched against the sales channel's languages, and the admin price-book labels follow the operator's language** (issue #1011).
+
+  - `GET /api/v1/storefront/pricing/display-mode/:productId` and `GET /api/v1/storefront/products/:id/resolved-price` ask whether the product is available at the request's (channel, language). That language used to be the header's first tag alone, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` asked about English and `de-DE, pl;q=0.5` about the channel default, and a product available only in Polish answered `404`. It is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. A request without the header behaves as before.
+  - The admin price-book routes (`/api/v1/admin/price-books/...`: the attribute targets, rows, lines, resolution explanations and row writes) pick product, category and attribute labels in `?lang=` when it is given, as before, and otherwise in `request.responseLanguage()` — the admin's stored preferred language, the one the admin panel renders in and error messages are translated into. They used to take the first tag of the browser's `Accept-Language`, which the admin panel does not set, so an operator whose panel is in English could read Polish labels, and the reverse. An admin with no stored preference now gets English labels, where an exact English label exists.
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- 644739b: Cross-process cache subscribers no longer send `SUBSCRIBE` while their ioredis client is still in its handshake (issue #1096). In the `connect` state ioredis wrote the command straight to the socket; when its reply arrived before the ready check's `INFO`, ioredis refused that `INFO`, re-opened the connection, and a message published during the reconnect was lost. The new `subscribeWhenReady(client, ...channels)` in `@endora-commerce/platform/kernel` (with its structural type `HandshakeAwareSubscriber`) waits out the handshake and then subscribes. It rejects as `subscribe` does, including when the connection ends mid-handshake. The module-registry cache, the sales-channel access cache, the `custom_fields` definition cache and the `price_lists` pricing generation now subscribe through it. The cradle type `PricingGenerationSubscriber` in `price_lists` now extends `HandshakeAwareSubscriber`, so it also requires `status`, `once` and `removeListener`. The composition's ioredis subscriber already has them. Nothing else changes for a caller.
+- 4d0a26d: Documentation only (issue #407). The shipped `docs/` pages, in English and Polish, now describe the one Save on every editor with zone panels. Each page says what Save covers, what is checked before anything is written, the order the parts are written in, what a partial save reports and that the next Save writes only the part that failed. It also says how the leave guard works and which sections carry the "Applies immediately" badge.
+
+  - catalog: "Editing a product at a scope" covers the base prices and the Inventory tab's product settings under Save, plus the actions that apply immediately. A new "Editing a category" section on the module page covers the category editor's Save.
+  - price_lists: the display-mode override saves with the organization and category editors. The base-price panel's **Discard changes** is described.
+  - organizations, customers: a section on each screen's one Save and its immediate actions.
+  - quick_order, quote_requests: their panels save with the host screen's Save.
+  - sales_channels: the edit page's Save and its count. Deactivate and Re-activate keep unsaved edits, and warehouse routing applies immediately.
+
+  No code, API or string changes.
+
+- 37532da: Issue #414 — a product feed can now be pinned to a price book in the Admin UI. The _Prices_ section of a feed's _Settings_ tab carries a _Price book_ picker: _No price book_ (catalogue prices), then the price books in the feed's currency that would publish for the feed now, then — disabled, with the reason beside the name — the ones that would not (not active, outside its dates, not on the feed's sales channel, not for everyone). The book the feed is already pinned to stays selectable whatever its state, its reason is stated under the field, and saving the other settings no longer resends an unchanged pin, so a pin to a deleted book does not block them.
+
+  - **`@endora-commerce/contracts`** adds `productFeedPriceBookOptionSchema` (`id`, `name`, `isBase`, `unpublishableReason` — a `pinnedPriceBookUnpublishableReasonSchema` value or `null`), its type `ProductFeedPriceBookOption`, and `productFeedPriceBookOptionsResponseSchema`.
+  - **`@endora-commerce/mod-product-feeds`** adds `GET /api/v1/admin/product-feeds/:id/price-book-options`, gated on `product_feeds:read` and `price_lists:read`: every book in the feed's currency plus the pinned one whatever its currency, each with the answer `namedListPublishability` gives for the feed's channel and currency. Without `price_lists:read` the picker is shown disabled and says which permission it needs. The _pinned book no longer exists_ warning now points at the Settings tab instead of the API.
+  - **`@endora-commerce/mod-price-lists`** — its documentation no longer says a feed can be pinned only through the API.
+
+  Additive; no migration.
+
+- 49b43de: **Breaking (0.x, so `minor`):** a sales representative's reach is no longer computed on every admin request (issue #955, owner ruling of 2026-11-10). `@endora-commerce/platform/tenancy` removes `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` — use `await orgInScope(id, ctx?)` and `await ruleInScope(ids, ctx?)`, or `const inScope = await orgScopeTest(ctx?)` for a synchronous predicate over rows you already hold — and `assignedOrganizationIdsForRanking(ctx?)` now returns a promise. They were removed rather than retyped because `if (!isOrgInScope(x))` over a promise is always false.
+
+  `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) replaces `excludedOrganizationIds` / `assignedOrganizationIds` with `loadReach(): Promise<{ excludedOrganizationIds, assignedOrganizationIds }>`, beside `excludedOrganizationsQuery`; the platform memoises it once per tenant context, and a failure rejects every helper that awaits it. `OrgConstraint`'s `excluded` arm and `AdminScopeInput` follow. `PreferenceActor`'s `salesperson.reaches(id)` returns `Promise<boolean>`, and `canManagePreference` (`quick_order`) is async. `adminTenantScopePort` (`organizations`) answers without calling `reachOf`. The listed modules move their call sites to the async helpers.
+
+- 51b4e5c: Documentation only: the pages describe a sales representative's reach, the base-price dry run, the price-change history tables, the table maintenance after bulk writes and the label and storefront language rules, and drop three known limitations that are fixed, in English and Polish.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

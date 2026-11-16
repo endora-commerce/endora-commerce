@@ -1,5 +1,34 @@
 # create-endora-commerce
 
+## 0.111.0
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- Updated dependencies [1937bed]
+- Updated dependencies [4c4c869]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [cbbf070]
+- Updated dependencies [e135ccc]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [4d7b141]
+- Updated dependencies [027aba4]
+- Updated dependencies [1daba64]
+- Updated dependencies [d290897]
+- Updated dependencies [498b99b]
+- Updated dependencies [01e73d1]
+  - @endora-commerce/cli@0.111.0
+
 ## 0.110.0
 
 ### Patch Changes

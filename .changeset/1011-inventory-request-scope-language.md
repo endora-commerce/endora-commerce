@@ -1,5 +1,0 @@
----
-'@endora-commerce/mod-inventory': patch
----
-
-**The storefront stock read and the notify-when-available subscriptions read `Accept-Language` as a q-weighted list matched against the sales channel's languages** (issue #1011). `GET /api/v1/storefront/inventory/stock/:id`, `POST /api/v1/storefront/inventory/notify-when-available` and the signed-in customer's notify route took the header's first tag alone as the language a product's availability is judged in, so `Accept-Language: en;q=0.2, pl-PL;q=0.9` asked about English and `de-DE, pl;q=0.5` about the channel default, and a product available only in Polish answered `404`. The language is now resolved through `requestScopeLanguage` from `@endora-commerce/contracts`, as the catalogue does since #397: the tags in descending `q`, each matched against the channel's languages (exactly, then by base language), the first one the channel offers winning, else the channel's default. A subscription is stamped with that language, so the back-in-stock e-mail names the product in it (#696). A request without the header behaves as before.

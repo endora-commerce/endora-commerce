@@ -1,5 +1,207 @@
 # @endora-commerce/mod-customers
 
+## 0.111.0
+
+### Minor Changes
+
+- 172a6b9: The customer detail screen now has one Save for everything that waits to be saved (issue #407, `specs/180-one-save-zone-editors/` WP-8).
+
+  - The screen runs a save session, one per open customer, and passes it to `customer.detail.after`, so the panels contributed there save with the page.
+  - A Save button in the page head reads "Save" or "Save n changes", counting the edited custom fields plus every panel's changes. It does nothing while there is nothing to save, and it is not shown to an operator without `customers:manage` when no panel can be written.
+  - The custom fields no longer have a Save button of their own. Save writes them first, through the same `PATCH /api/v1/admin/customers/:id/custom-fields`, then the panels in zone order. If the custom-field write is refused, no panel is written and the refusal is shown at its field. If a panel fails after the custom fields saved, a summary at the top of the screen says what was saved and what was not; the next Save writes only what is left.
+  - Leaving the page or closing the browser tab with unsaved changes asks first.
+  - Block, unblock, password reset, two-step verification reset, impersonation, delete and restore, and the organization and customer-group assignments still apply at once. Their sections now carry an "Applies immediately" badge.
+  - New string in English and Polish: `detail.save.hostPartLabel`. The badge is `@endora-commerce/admin-kit`'s `ImmediateBadge`.
+
+- 06a23da: Issue #470 (D-288) — the retired personal address book's audit entries carry names, never the tenant anchor. A `CustomerAddress` is `@CustomerScoped`, and the platform audit log is read under `audit_log:read` without Organization reach.
+
+  - `customer_address.merge`, `customer_address.merge_refused`, `customer_address.erased` and `customer_address.anonymized` no longer record the customer account's id in `stateBefore`; it now holds `{ kind }` (plus `wasDeleted` for `.anonymized`). The entries are still recorded against the row (`objectId`).
+  - `customer_address.merge` and `.merge_refused` no longer record the personal Organization's id. A merge keeps `mergedIntoAddressId`, `deduplicated` and `wasDefault`; a refusal keeps `mergeRefusal`, the owner's error code. None of them records an address value, as before.
+  - `CUSTOMER_ADDRESS_AUDIT_KEYS`, a constant in `src/backend/services/customer-address-audit-state.ts` (not on a published barrel), lists every top-level key these states may hold, held by a sentinel test.
+  - No screen reads these values back from the audit log, so no value store is added. The retention sweep's audit-history erasure finds the entries by row id and is unaffected.
+  - Audit entries written before the upgrade are not rewritten (owner ruling O-4).
+
+  **Behaviour change on upgrade.** See _Retired personal address book entries leave out the account and the Organization_ in the upgrade guide.
+
+- d0c5dc8: The customer's e-mail language, on the account page and on the admin customer screen (issue #652).
+
+  - New route `PATCH /api/v1/me/customer/preferred-language`, body `{ preferredLanguage }`: the signed-in customer's own choice. A language the request's sales channel offers is matched without regard to case and stored as the channel spells it, answering `{ data: { preferredLanguage } }`; any other answers `422 PREFERRED_LANGUAGE_NOT_OFFERED` ("This store does not offer that language." / "Ten sklep nie oferuje tego języka."). The route is unavailable (`503 MODULE_DISABLED`) while the module is switched off.
+  - `GET /api/v1/me/customer` and `GET /api/v1/admin/customers/:id` answer `preferredLanguage` (`null` while unknown).
+  - `POST /api/v1/customers/register` records the registering request's language on the new account.
+  - The admin customer detail shows an _E-mail language_ row, read-only; _Not set — the store's default language is used_ while the account has none.
+
+- 42a9a4b: One sales-representative reach rule on every admin surface (issue #305, owner ruling 2026-11-07). A sales representative reaches every Organization not governed by another representative — the ones assigned to them (with `organizations:rollup`, their subtrees, the nearest assignment winning) and every Organization nobody is assigned to. `adminTenantScopePort` answers that reach as its complement, computed in one statement per request (`SalesRepAssignmentService.reachOf`), so the tenant-scoped reads and writes of every module, the Organizations list and its pickers, admin search and the Organization screens answer by the same rule. Every module that read the reach as a list of assigned ids now reads it through the platform's helpers.
+
+  `mod-orders`: `resolveAdminOrdersScope` answers `{ allowAll: boolean }` (was `{ allowAll: false, allowedOrganizationIds }`); the list's reach is the ambient tenant context's. `mod-customers`: `ResolveModerationActor` answers `{ adminUserId, isPlatformAdmin }` (was with `allowedOrganizationIds`).
+
+  **Behaviour change on upgrade.** Every sales representative gains the tenant data of every unassigned Organization — members, customers, orders, invoices, carts, returns, quote requests and customer-level settings — and, since no representative can be assigned to a personal Organization, of every B2C customer (confirmed by the owner on 2026-11-08). The Organizations list, its pickers and admin search stop showing Organizations assigned to other representatives. A sales representative with no assignment used to be treated as a platform administrator by the quick-order default-preference routes; they now manage only the Organizations they reach, and a write naming an Organization that does not exist answers `404 NOT_FOUND`. The read-only query in _Upgrading an instance_ ("One sales-representative reach rule on every surface") counts, per representative, what they gain and what leaves their lists.
+
+### Patch Changes
+
+- ed57923: Published tarballs no longer carry source maps (issue #107). Every package publishes `dist` and
+  not `src`, so each `.js.map` and `.d.ts.map` pointed at source files no consumer had; they were
+  about a third of a tarball's unpacked size. Each package's `files` list now ends with
+  `"!dist/**/*.map"`: `@endora-commerce/mod-quick-order` packs 69 files instead of 131 (243.6 kB
+  unpacked instead of 359.9 kB), and `@endora-commerce/test-kit` packs 25 instead of 47. The
+  compiled JavaScript, the type declarations and every other shipped file are unchanged, and so is
+  every export. A stack trace from an installed package now names the compiled `dist` file rather
+  than a source path that does not exist in the install.
+- f39d37f: Each manifest exports `customFieldWrites` (`specs/175-buyer-input-custom-fields/`), the `CustomFieldWriteDeclaration[]` naming the admin routes that write its custom-field host's values: opportunity, project and task create (`POST`) and update (`PATCH …/:id`), and the customer values patch (`PATCH /api/v1/admin/customers/:id/custom-fields`). A type-only declaration read by `check:custom-field-writes`; no runtime behaviour changes.
+- 5c148de: The product editor, the category editor, the sales-channel editor and the organization and customer detail screens now pass `saveSession: INERT_SAVE_SESSION` to their zones (issue #407). None of these editors runs a save session yet, so nothing changes for operators. The `core` catalogue adds the save-session notices and the "switched off" message in English and Polish (`saveSession.notice.moduleOff`, `saveSession.notice.crashed`, `saveSession.error.moduleOff`).
+- 577e94c: The product editor, the customer and organization detail screens and the sales-channel editor's warehouse routing panel draw their "Applies immediately" badges with `@endora-commerce/admin-kit`'s `ImmediateBadge` instead of a local copy each (issue #407). The badge looks and reads the same. The module strings it replaces are removed in English and Polish: `productEditor.immediate.badge` (catalog), `detail.immediate.badge` (customers, organizations) and `warehouses.channel.immediateBadge` (inventory).
+- 4d0a26d: Documentation only (issue #407). The shipped `docs/` pages, in English and Polish, now describe the one Save on every editor with zone panels. Each page says what Save covers, what is checked before anything is written, the order the parts are written in, what a partial save reports and that the next Save writes only the part that failed. It also says how the leave guard works and which sections carry the "Applies immediately" badge.
+
+  - catalog: "Editing a product at a scope" covers the base prices and the Inventory tab's product settings under Save, plus the actions that apply immediately. A new "Editing a category" section on the module page covers the category editor's Save.
+  - price_lists: the display-mode override saves with the organization and category editors. The base-price panel's **Discard changes** is described.
+  - organizations, customers: a section on each screen's one Save and its immediate actions.
+  - quick_order, quote_requests: their panels save with the host screen's Save.
+  - sales_channels: the edit page's Save and its count. Deactivate and Re-activate keep unsaved edits, and warehouse routing applies immediately.
+
+  No code, API or string changes.
+
+- aec841a: Response contracts for replies #128's survey did not reach (issue #599, sections 3–5):
+
+  - `@endora-commerce/contracts` publishes `adminCustomerListResponseSchema` / `AdminCustomerListResponse` for `GET /api/v1/admin/customers`. The rows were already described; the `meta: { page, pageSize, total }` envelope was not.
+  - `GET /api/v1/cart/upsells` now answers `unitPrice: null` on every row, as `upsellProductSchema` declares. The key used to be absent. The strip resolves no price, and the storefront shows its "no price" label either way. `CartUpsellCandidate` in `@endora-commerce/mod-carts` is now the contract's `UpsellProduct`.
+  - `mod-orders` builds order comments as the contract's `OrderComment`, so a key the contract does not declare is a compile error. The customer reply still leaves out `authorAdminUserId` and `systemNote`. The admin customer list route now returns the contract's `AdminCustomerListResponse` type.
+
+- dd869ee: The retention sweep now scrubs the delivery records of the e-mails sent to the anonymised account's address, through `email`'s `emailDeliveryAnonymizationPort`, after the carts step and before the history is erased and the account's own scrub, so an interrupted run is finished by the next one (issue #928). A subject that is already anonymised is not handed to the step: its address is already the account's marker. `CustomerDeletionService` takes the port as a new constructor argument after the carts port, and `CustomersModuleOptions` gains `emailDeliveryAnonymizationPort`.
+- 49b43de: **Breaking (0.x, so `minor`):** a sales representative's reach is no longer computed on every admin request (issue #955, owner ruling of 2026-11-10). `@endora-commerce/platform/tenancy` removes `isOrgInScope(id, ctx?)` and `ruleVisibleForScope(ids, ctx?)` — use `await orgInScope(id, ctx?)` and `await ruleInScope(ids, ctx?)`, or `const inScope = await orgScopeTest(ctx?)` for a synchronous predicate over rows you already hold — and `assignedOrganizationIdsForRanking(ctx?)` now returns a promise. They were removed rather than retyped because `if (!isOrgInScope(x))` over a promise is always false.
+
+  `AdminTenantScope`'s `excluding` member (`@endora-commerce/contracts`) replaces `excludedOrganizationIds` / `assignedOrganizationIds` with `loadReach(): Promise<{ excludedOrganizationIds, assignedOrganizationIds }>`, beside `excludedOrganizationsQuery`; the platform memoises it once per tenant context, and a failure rejects every helper that awaits it. `OrgConstraint`'s `excluded` arm and `AdminScopeInput` follow. `PreferenceActor`'s `salesperson.reaches(id)` returns `Promise<boolean>`, and `canManagePreference` (`quick_order`) is async. `adminTenantScopePort` (`organizations`) answers without calling `reachOf`. The listed modules move their call sites to the async helpers.
+
+- b064fec: Documentation only. The module page (English and Polish) lists `PATCH /api/v1/admin/customers/:id/custom-fields`.
+- Updated dependencies [baa0dae]
+- Updated dependencies [ee0698d]
+- Updated dependencies [9c8efbe]
+- Updated dependencies [3de70b4]
+- Updated dependencies [2ee4923]
+- Updated dependencies [e9df6b5]
+- Updated dependencies [1937bed]
+- Updated dependencies [3254098]
+- Updated dependencies [7616ef1]
+- Updated dependencies [ed57923]
+- Updated dependencies [cffa0bf]
+- Updated dependencies [644739b]
+- Updated dependencies [c58acd1]
+- Updated dependencies [fc91398]
+- Updated dependencies [feaa40b]
+- Updated dependencies [d2f179f]
+- Updated dependencies [d16b343]
+- Updated dependencies [34b3387]
+- Updated dependencies [e283396]
+- Updated dependencies [4ecb155]
+- Updated dependencies [ff7bd10]
+- Updated dependencies [097b599]
+- Updated dependencies [761d9c4]
+- Updated dependencies [8e7f794]
+- Updated dependencies [8e7f794]
+- Updated dependencies [f39d37f]
+- Updated dependencies [f39d37f]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [695636f]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [3f95d1c]
+- Updated dependencies [27834f3]
+- Updated dependencies [190986e]
+- Updated dependencies [f5caa4e]
+- Updated dependencies [d14a4fd]
+- Updated dependencies [86a92af]
+- Updated dependencies [ee2a111]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [bfa1ac4]
+- Updated dependencies [8a4ca9c]
+- Updated dependencies [c7ec2fa]
+- Updated dependencies [a2d306f]
+- Updated dependencies [aaa50ff]
+- Updated dependencies [6e528ad]
+- Updated dependencies [eedda68]
+- Updated dependencies [2e603f7]
+- Updated dependencies [73e8e8c]
+- Updated dependencies [bf257b8]
+- Updated dependencies [d591709]
+- Updated dependencies [577e94c]
+- Updated dependencies [e435bad]
+- Updated dependencies [7bdf512]
+- Updated dependencies [5c148de]
+- Updated dependencies [e435bad]
+- Updated dependencies [5c148de]
+- Updated dependencies [036865c]
+- Updated dependencies [0beb869]
+- Updated dependencies [37532da]
+- Updated dependencies [bfdbeaf]
+- Updated dependencies [65f7abc]
+- Updated dependencies [a998fee]
+- Updated dependencies [54ae028]
+- Updated dependencies [20cda0c]
+- Updated dependencies [48b2505]
+- Updated dependencies [c24bd3c]
+- Updated dependencies [6b664cd]
+- Updated dependencies [cd05402]
+- Updated dependencies [91272e6]
+- Updated dependencies [eb4dbc6]
+- Updated dependencies [e2669cd]
+- Updated dependencies [aec841a]
+- Updated dependencies [da2b459]
+- Updated dependencies [77904b3]
+- Updated dependencies [4ab926c]
+- Updated dependencies [a3b1da5]
+- Updated dependencies [28fc1c7]
+- Updated dependencies [2b12d58]
+- Updated dependencies [9110863]
+- Updated dependencies [2905024]
+- Updated dependencies [ae1cedf]
+- Updated dependencies [6f0debc]
+- Updated dependencies [d6e7a55]
+- Updated dependencies [62d3e2d]
+- Updated dependencies [0b2f558]
+- Updated dependencies [dc9bbea]
+- Updated dependencies [1acf873]
+- Updated dependencies [edf46c9]
+- Updated dependencies [ef656f9]
+- Updated dependencies [71ec1f8]
+- Updated dependencies [7a3673f]
+- Updated dependencies [1c3366d]
+- Updated dependencies [ea965bb]
+- Updated dependencies [fc08f90]
+- Updated dependencies [d34fe02]
+- Updated dependencies [59b5246]
+- Updated dependencies [c55dcf5]
+- Updated dependencies [3e7b0b6]
+- Updated dependencies [d68aa70]
+- Updated dependencies [0b991d6]
+- Updated dependencies [9af7a64]
+- Updated dependencies [ecbebe2]
+- Updated dependencies [e61a12b]
+- Updated dependencies [d362c3c]
+- Updated dependencies [ef9630f]
+- Updated dependencies [b7a9c8e]
+- Updated dependencies [75f89d2]
+- Updated dependencies [ca66684]
+- Updated dependencies [b6fd6df]
+- Updated dependencies [6658f0f]
+- Updated dependencies [877477b]
+- Updated dependencies [767d5de]
+- Updated dependencies [d0c5dc8]
+- Updated dependencies [ac094f5]
+- Updated dependencies [61a6edf]
+- Updated dependencies [dd869ee]
+- Updated dependencies [ff6b599]
+- Updated dependencies [ac65359]
+- Updated dependencies [49b43de]
+- Updated dependencies [5f8eede]
+- Updated dependencies [de28088]
+- Updated dependencies [44529a4]
+- Updated dependencies [af88938]
+- Updated dependencies [9aff446]
+- Updated dependencies [42a9a4b]
+- Updated dependencies [8ae3f58]
+- Updated dependencies [65cdd0e]
+  - @endora-commerce/admin-kit@0.111.0
+  - @endora-commerce/contracts@0.111.0
+  - @endora-commerce/platform@0.111.0
+
 ## 0.110.0
 
 ### Minor Changes
