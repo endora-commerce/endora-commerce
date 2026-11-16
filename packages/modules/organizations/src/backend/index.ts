@@ -1225,6 +1225,7 @@ export function registerModule(ctx: ModuleContext): void {
           listAssignedOrganizationIds: (adminUserId) =>
             assignments.listAssignedOrganizationIds(adminUserId),
           listForOrganization: (organizationId) => assignments.listForOrganization(organizationId),
+          listOrganizationIdsWithAssignments: () => assignments.listOrganizationIdsWithAssignments(),
           assign: (input) => assignments.assign(input),
           unassign: (input) => assignments.unassign(input),
         };

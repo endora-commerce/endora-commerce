@@ -357,5 +357,17 @@ describe('Linked records — status names (issue #455)', () => {
     const quote = await screen.findByRole('option', { name: /QR-1/ });
     expect(quote).toHaveTextContent('Oczekujące');
     expect(quote).not.toHaveTextContent('Pending');
+
+    // Issue #317 — the quote request list is paged: the picker asks for one
+    // bounded page, as it does of the orders list, rather than for every request.
+    const quoteListPaths = getSpy.mock.calls
+      .map(([path]) => String(path))
+      .filter((path) => path.startsWith('/api/v1/admin/quote-requests?'));
+    expect(quoteListPaths.length).toBeGreaterThan(0);
+    for (const path of quoteListPaths) {
+      const params = new URLSearchParams(path.split('?')[1]);
+      expect(params.get('page')).toBe('1');
+      expect(params.get('pageSize')).toBe('20');
+    }
   });
 });

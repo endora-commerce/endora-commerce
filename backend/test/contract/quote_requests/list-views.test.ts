@@ -84,7 +84,8 @@ describe('Quote Request saved views — names, ownership and the gate (spec 147)
 
   /** Replays a view's captured filters on the list, as the page does, and answers the ids returned. */
   async function replay(who: Who, filters: Record<string, unknown>): Promise<string[]> {
-    const params = new URLSearchParams();
+    // The largest page (issue #317): these cases are about the reach, not the paging.
+    const params = new URLSearchParams({ pageSize: '200' });
     if (typeof filters['scope'] === 'string') params.set('assignmentScope', filters['scope']);
     if (typeof filters['organizationId'] === 'string') params.set('organizationId', filters['organizationId']);
     const res = await h.app.inject({ method: 'GET', url: `${LIST_URL}?${params.toString()}`, ...who });

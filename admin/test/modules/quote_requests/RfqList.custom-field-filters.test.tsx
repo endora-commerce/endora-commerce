@@ -107,6 +107,30 @@ function rfq(n: number) {
 const ALL_ROWS = Array.from({ length: 30 }, (_, i) => rfq(i + 1));
 const NARROWED = ALL_ROWS.slice(0, 23);
 
+/**
+ * What the server answers since issue #317: the matching rows newest change
+ * first, cut to the page asked for, with the total.
+ */
+function serverPage<T extends { updatedAt: string; id: string }>(path: string, matching: readonly T[]) {
+  const params = new URLSearchParams(path.split('?')[1]);
+  const page = Number(params.get('page') ?? '1');
+  const pageSize = Number(params.get('pageSize') ?? '25');
+  const ordered = [...matching].sort(
+    (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || a.id.localeCompare(b.id),
+  );
+  return {
+    data: ordered.slice((page - 1) * pageSize, page * pageSize),
+    pagination: {
+      page,
+      pageSize,
+      total: matching.length,
+      limit: pageSize,
+      hasMore: page * pageSize < matching.length,
+      nextCursor: null,
+    },
+  };
+}
+
 let offered: CustomFieldListFilterField[] = [SOURCE];
 let refuse: string | null = null;
 let fieldsAnswer: () => Promise<unknown> = async () => ({ data: offered });
@@ -144,7 +168,7 @@ beforeEach(() => {
       if (invalidKey !== null && decodeURIComponent(path).includes(invalidKey)) {
         throw new ApiError(400, { error: { code: 'VALIDATION_FAILED', message: 'Request failed validation.' } } as never);
       }
-      return { data: filtered ? NARROWED : ALL_ROWS };
+      return serverPage(path, filtered ? NARROWED : ALL_ROWS);
     }
     return { data: [] };
   });

@@ -296,4 +296,15 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
     const em = this.emFactory();
     return em.find(OrganizationSalesRepAssignment, { organizationId });
   }
+
+  /**
+   * Issue #317 — the organizations with at least one assignment row, each
+   * once. The flat rule `listForOrganization(id).length > 0` answers for one
+   * organization; this answers it for all of them in one statement, so the
+   * quote request list's `unassigned` scope is a condition of its query.
+   */
+  async listOrganizationIdsWithAssignments(): Promise<string[]> {
+    const rows = await this.emFactory().find(OrganizationSalesRepAssignment, {}, { fields: ['organizationId'] });
+    return [...new Set(rows.map((row) => row.organizationId))];
+  }
 }

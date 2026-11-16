@@ -297,17 +297,20 @@ export const projectsApi = {
           envelope.data.map((opportunity) => ({ id: opportunity.id, number: opportunity.number, detail: opportunity.title })),
         );
     }
-    const qs = new URLSearchParams({ organizationId });
-    const needle = q.toLowerCase();
+    // The quote request list is paged and searched by the server (issue #317),
+    // as the orders list is: one bounded page, the number matched there.
+    const qs = new URLSearchParams({ organizationId, page: '1', pageSize: String(LINKABLE_LIMIT) });
+    if (q) qs.set('q', q);
     return apiClient
       .get<{ data: Array<{ id: string; businessId: string; status: string; statusName?: string }> }>(
         `${OWNER_LISTS.quoteRequests}?${qs.toString()}`,
       )
       .then((envelope) =>
-        envelope.data
-          .filter((request) => needle === '' || request.businessId.toLowerCase().includes(needle))
-          .slice(0, LINKABLE_LIMIT)
-          .map((request) => ({ id: request.id, number: request.businessId, detail: request.statusName ?? request.status })),
+        envelope.data.map((request) => ({
+          id: request.id,
+          number: request.businessId,
+          detail: request.statusName ?? request.status,
+        })),
       );
   },
 

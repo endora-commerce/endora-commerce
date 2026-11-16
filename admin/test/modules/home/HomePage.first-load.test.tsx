@@ -67,7 +67,8 @@ const { HomePage } = await import('../../../../packages/admin-shell/src/modules/
 
 const PRESENCE = '/api/v1/admin/module-presence';
 const PRODUCTS = '/api/v1/admin/catalog/products?pageSize=1';
-const QUOTES = '/api/v1/admin/quote-requests?status=Pending';
+// Issue #317 — the list is paged, so the tile asks for one row and reads the total.
+const QUOTES = '/api/v1/admin/quote-requests?status=Pending&pageSize=1';
 const ORDERS = '/api/v1/admin/orders?status=new';
 const INVENTORY = '/api/v1/admin/inventory';
 const LOW_STOCK = '/api/v1/admin/inventory/low-stock';
@@ -135,7 +136,10 @@ const EVERY_MODULE: AdminModulePresenceResponse = modulePresence({ present: ever
 
 function answerEveryTile(): void {
   net.routes.set(PRODUCTS, json({ data: [], counts: { active: 42 } }));
-  net.routes.set(QUOTES, json({ data: [{}, {}, {}] }));
+  net.routes.set(
+    QUOTES,
+    json({ data: [{}], pagination: { page: 1, pageSize: 1, total: 3, limit: 1, hasMore: true, nextCursor: null } }),
+  );
   net.routes.set(ORDERS, json({ data: [{}, {}, {}, {}, {}, {}, {}] }));
   net.routes.set(INVENTORY, json({ data: { outOfStockCount: 5 } }));
   net.routes.set(

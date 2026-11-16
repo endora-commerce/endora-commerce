@@ -1558,6 +1558,12 @@ export interface SalesRepAssignmentPort {
   canSeeOrganization(adminUserId: string, organizationId: string): Promise<boolean>;
   listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
   listForOrganization(organizationId: string): Promise<SalesRepAssignmentRow[]>;
+  /**
+   * Issue #317 — every organization that carries at least one assignment row,
+   * each once: the complement of the "unassigned" organizations, answered in
+   * one read rather than one {@link listForOrganization} per organization.
+   */
+  listOrganizationIdsWithAssignments(): Promise<string[]>;
   assign(input: {
     organizationId: string;
     adminUserId: string;
