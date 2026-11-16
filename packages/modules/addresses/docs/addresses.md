@@ -6,7 +6,7 @@ description: Customer postal addresses with default-per-kind invariant
 # Addresses (`addresses`)
 
 Customer postal addresses scoped to an Organization. Each address has a
-`kind` (`shipping`, `billing`, `delivery`) and a per-kind default flag.
+`kind` (`delivery` or `billing`) and a per-kind default flag.
 
 This is **every customer's one address book**: a company's, and an
 individual's personal organization's. Checkout offers and saves to it, and the
@@ -21,7 +21,7 @@ separate personal address book `customers` used to keep is retired.
 | `GET /api/v1/organizations/mine/addresses` | List own Organization's addresses |
 | `POST /api/v1/organizations/mine/addresses` | Create; `isDefault=true` atomically demotes the previous default of the same kind |
 | `PATCH /api/v1/organizations/mine/addresses/:id` | Update |
-| `DELETE /api/v1/organizations/mine/addresses/:id` | Delete (rejected if referenced by an order via `409 ADDRESS_IN_USE`) |
+| `DELETE /api/v1/organizations/mine/addresses/:id` | Delete (`204`). A soft delete: orders placed to the address keep their own snapshot of it |
 
 The routes are served by `organizations`. Creating, updating and deleting need
 the **`addresses.manage`** organization permission, which this module declares

@@ -1,11 +1,11 @@
 ---
 title: Uwierzytelnianie
-description: Sesje klientów i administratorów, hashowanie haseł, TOTP
+description: Sesje klientów i administratorów, śledzenie ostatniej aktywności sesji oraz zabezpieczenia tras administratora i klienta
 ---
 
 # Uwierzytelnianie (`auth`)
 
-Wspólne mechanizmy sesji, hashowania haseł i TOTP, z których korzystają zarówno
+Wspólne mechanizmy sesji i zabezpieczenia tras, z których korzystają zarówno
 `customer_accounts`, jak i `admin_users`. Według konwencji nazewnictwa to jeden z dwóch katalogów
 modułów, które mogą mieć nazwę w liczbie pojedynczej (obok `example`).
 
@@ -13,14 +13,16 @@ modułów, które mogą mieć nazwę w liczbie pojedynczej (obok `example`).
 
 - **Sesje** — `session-service.ts` zapisuje wiersze sesji w Postgresie, z warstwą pamięci
   podręcznej w Redis dla częstych odczytów; ciasteczka są podpisywane przez `@fastify/cookie`.
-- **Hashowanie haseł** — `password-hasher.ts` opakowuje argon2id; domyślne parametry są dobrane do
-  docelowego sprzętu (zobacz sekcję **Hardware & system requirements** w `README.md` w katalogu
-  głównym repozytorium).
-- **TOTP** — `kernel/crypto/totp` platformy opakowuje `otpauth` i pulę kodów zapasowych.
+- **Hashowanie haseł** — nie należy do tego modułu: `hashPassword` / `verifyPassword` należą do
+  platformy (`@endora-commerce/platform/kernel`, `packages/platform/src/kernel/crypto/password-hasher.ts`),
+  argon2id z parametrami OWASP (19 MiB, dwa przebiegi). Zobacz sekcję **Hardware & system
+  requirements** w `README.md` w katalogu głównym repozytorium.
+- **TOTP** — również nie należy do tego modułu: `totp.ts` modułu `mfa` opakowuje `otpauth`, a jego
+  kody odzyskiwania to wiersze w `mfa_enrolments`.
 - **Plugin Fastify** — `plugin.ts` odczytuje ciasteczko sesji i ustawia
   `request.actor = { kind, id, ... }` oraz `request.adminActor`.
 - **Zabezpieczenia tras** — `requireAdmin(permission?)`, `requireAdminAny(codes)` i
-  `requireCustomer`, udostępniane jako porty z `backend.ts` i pobierane przez każdy moduł, który
+  `requireCustomer`, udostępniane jako porty z kompozycji tego modułu (`src/backend/index.ts`) i pobierane przez każdy moduł, który
   chroni trasy. Kiedyś były dekoratorami Fastify w pluginie; zamieniono je na porty, aby produkcja i
   środowisko testowe korzystały z tej samej implementacji, a nie z dwóch różnych. Oba
   zabezpieczenia administracyjne odrzucają też, z kodem 401, sesję, której konto administratora
@@ -52,12 +54,13 @@ przechowywał czas zalogowania i nic poza nim.
 
 ## Brak własnych tras HTTP
 
-`auth` to moduł z podstawowymi mechanizmami — endpointy logowania, wylogowania i weryfikacji dwuetapowej należą do
-modułów obsługujących klientów (`customer_accounts`) i administratorów (`admin_users`).
+`auth` to moduł z podstawowymi mechanizmami. Endpointy logowania i wylogowania klienta obsługuje
+`organizations` (korzystając z usług `customer_accounts`), administratora — `admin_users`, a drugi
+krok logowania dwuetapowego — `mfa`.
 
 ## Punkty rozszerzenia
 
-- **Przechowywanie sesji** — `session-service` jest tworzony z `(em, redis)`; tu podłącza się
+- **Przechowywanie sesji** — `session-service` jest tworzony z `(emFactory, redis)`; tu podłącza się
   alternatywną pamięć podręczną.
 - **Własne rodzaje użytkowników** — rozszerz unię rozłączną `request.actor` i zaktualizuj
   pre-handlery `requireX`; istniejący kod nadal działa, bo trasy korzystają tylko z fabryk

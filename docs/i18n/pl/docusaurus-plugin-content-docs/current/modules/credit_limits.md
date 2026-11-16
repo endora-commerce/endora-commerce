@@ -31,6 +31,11 @@ zawiera tylko rezerwacje zamówień, które klient może odczytać: jego własny
 zamówień organizacji, gdy jego rola w organizacji ma uprawnienie `orders.view_organization`
 (rola Administrator ma je domyślnie). Trasy administracyjne zawsze pokazują wszystkie rezerwacje.
 
+Każda wymieniona rezerwacja ma `orderBusinessId`, numer zamówienia widoczny dla klienta (`null`
+dla zamówienia, którego moduł `orders` nie zwrócił), zarówno w trasie klienta, jak i w trzech
+widokach administracyjnych. Ekran limitów kredytowych w panelu pokazuje ten numer w tabeli
+rezerwacji, z odnośnikiem do zamówienia.
+
 ## Współbieżność
 
 `CreditLimitService.reserve()` wykonuje `SELECT … FOR UPDATE` na wierszu `credit_limits`, a
@@ -85,6 +90,6 @@ zostały zapisane.
 
 ## Punkty rozszerzenia
 
-- **Powody zwolnienia** — `releaseByOrder(reason)` przyjmuje dziś `'invoice_paid'` i
-  `'order_cancelled'`. Nowe powody (np. `'manual_override'`) dodaje się, rozszerzając wyliczenie i
+- **Powody zwolnienia** — `releaseByOrder(reason)` przyjmuje dziś `'invoice_paid'`,
+  `'order_cancelled'` i `'admin_revocation'`. Nowe powody (np. `'manual_override'`) dodaje się, rozszerzając wyliczenie i
   podłączając wywołanie.

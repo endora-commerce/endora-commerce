@@ -244,6 +244,7 @@ Admin routes are gated by `customers:read` (reads), `customers:manage`
 | `POST /api/v1/admin/customers/:id/password-reset` | admin | Email a set-password link |
 | `POST/DELETE /api/v1/admin/customers/:id/organization` | admin | Assign / unassign organization |
 | `PUT /api/v1/admin/customers/:id/customer-group` | admin | Set / clear customer group |
+| `PATCH /api/v1/admin/customers/:id/custom-fields` | admin | Merge the customer's custom-field values (`customers:manage`); a refused value answers `422 CUSTOM_FIELD_VALUE_INVALID` and writes nothing |
 | `GET /api/v1/admin/customers/:id/addresses` | admin | Read-only: `{ organization, personal }` — the Organization book, and the personal-book rows the retirement job refused, each with `mergeRefusal` |
 | `POST /api/v1/admin/customers/:id/addresses` | admin | Retired: `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
 | `POST /api/v1/admin/customers/:id/vat-validate` | admin | Validate a NIP/VAT number |

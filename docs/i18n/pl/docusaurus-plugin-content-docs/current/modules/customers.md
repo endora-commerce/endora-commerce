@@ -226,6 +226,7 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 | `POST /api/v1/admin/customers/:id/password-reset` | administrator | E-mail z linkiem do ustawienia hasła |
 | `POST/DELETE /api/v1/admin/customers/:id/organization` | administrator | Przypisanie do organizacji / odłączenie |
 | `PUT /api/v1/admin/customers/:id/customer-group` | administrator | Ustawienie / usunięcie grupy klientów |
+| `PATCH /api/v1/admin/customers/:id/custom-fields` | administrator | Scalenie wartości pól niestandardowych klienta (`customers:manage`); odrzucona wartość daje `422 CUSTOM_FIELD_VALUE_INVALID` i nic nie zapisuje |
 | `GET /api/v1/admin/customers/:id/addresses` | administrator | Tylko do odczytu: `{ organization, personal }` — książka organizacji oraz wiersze osobistej książki, których zadanie nie przeniosło, każdy z `mergeRefusal` |
 | `POST /api/v1/admin/customers/:id/addresses` | administrator | Wycofane: `410 CUSTOMER_ADDRESS_BOOK_RETIRED` |
 | `POST /api/v1/admin/customers/:id/vat-validate` | administrator | Walidacja numeru NIP/VAT |

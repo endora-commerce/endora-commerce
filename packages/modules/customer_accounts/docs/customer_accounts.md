@@ -11,13 +11,19 @@ service; this module owns the customer-facing identity surface.
 
 ## Public surface
 
+The sign-in, password and reset routes are served by the `organizations` module over this
+module's services.
+
 | Verb + Path | Purpose |
 | --- | --- |
-| `POST /api/v1/auth/login` | Email + password (+ TOTP step if two-step verification is enabled) |
-| `POST /api/v1/auth/logout` | Destroy session |
+| `POST /api/v1/auth/customer/login` | E-mail + password. When a second factor is required it answers `mfaRequired` (with a `challengeId`) or `mfaSetupRequired` (with a `setupTicket`) and sets no session; the second step is the `mfa` module's `POST /api/v1/auth/customer/mfa/verify` |
+| `POST /api/v1/auth/customer/logout` | Destroy session |
 | `POST /api/v1/me/password` | Change password (rejects wrong `currentPassword`). A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `POST /api/v1/auth/password-reset/request` | Begin reset flow. A new link retires every earlier unused one, so only the newest e-mail works. Repeated requests for one address are limited (see below) |
 | `POST /api/v1/auth/password-reset/confirm` | Redeem reset token. A redeemed token signs the account out of **every** session, retires its other outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
+| `GET /api/v1/admin/customer-groups` | Admin: list customer groups (`customer_groups:read`) |
+| `PUT /api/v1/admin/customer-groups/:code` | Admin: create or update the group with that code — `name`, optional `description` (`customer_groups:write`) |
+| `DELETE /api/v1/admin/customer-groups/:id` | Admin: delete a customer group, `204` (`customer_groups:write`) |
 
 ## Limits on repeated attempts
 
@@ -207,7 +213,8 @@ the platform moves off it, and will be removed.
 
 ## Extension points
 
-- **Password policy** — `password-hasher.ts` wraps argon2id; tune cost
+- **Password policy** — the platform's `password-hasher.ts`
+  (`packages/platform/src/kernel/crypto/`) wraps argon2id; tune cost
   parameters there.
 - **Backup codes and second factors** — not this module's. Customer and admin
   two-step verification is the `mfa` module's, over `mfa_enrolments`, served at

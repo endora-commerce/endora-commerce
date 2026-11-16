@@ -93,3 +93,24 @@ wygaśnięciu logowania.
 
 Admin UI nie jest tym objęty: rozmawia z backendem bezpośrednio, więc jego sesja
 należy do hosta backendu i `callback` ustawia ją właśnie tam.
+
+## Wymaganie drugiego składnika
+
+Drugiego składnika wymaga od administratora ustawienie `mfa.admin.totp_enforced` albo rola, która
+wymaga weryfikacji dwuetapowej, a od klienta ustawienie `mfa.storefront.totp_enforced` na kanale
+sprzedaży żądania albo zasada jego organizacji. Logowanie i poniższe reguły odczytują wymaganie
+w ten sam sposób.
+
+- **Ostatni składnik zostaje.** Dopóki obowiązuje wymaganie, wyłączenie własnego ostatniego
+  drugiego składnika (`POST /api/v1/admin/account/mfa/disable`, `POST /api/v1/account/mfa/disable`)
+  jest odrzucane z `409 MFA_LAST_FACTOR_REQUIRED`, zanim zostanie sprawdzony kod lub hasło. Trasa
+  stanu (`GET …/mfa/status`) zwraca `canDisable` i `disableBlockedReason` (`factor_required`),
+  a ekran **Bezpieczeństwo konta** w panelu oraz strona bezpieczeństwa konta w sklepie ukrywają
+  formularz wyłączania i wyjaśniają dlaczego. Reset cudzego składnika przez administratora nie jest
+  tym objęty.
+- **Bez klucza szyfrowania nie ma wymagania.** Bez `MFA_SECRET_ENCRYPTION_KEY` nie da się
+  skonfigurować drugiego składnika, więc żadne wymaganie nie obowiązuje i nic z powyższego nie jest
+  odrzucane. Włączenie wymagania w takiej instalacji — któregokolwiek ustawienia albo zasady
+  organizacji — jest odrzucane z `409 MFA_ENFORCEMENT_UNAVAILABLE`; wyłączenie jest zawsze
+  przyjmowane. Ustawienie włączone przy braku klucza pokazuje *Nie obowiązuje: brak klucza
+  szyfrowania*, a każde uruchomienie zapisuje to w logu na poziomie błędu.

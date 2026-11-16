@@ -16,10 +16,12 @@ Zarządzanie użytkownikami i rolami wymaga uprawnienia `admin_users:manage`.
 | --- | --- |
 | `POST /api/v1/auth/admin/login` | Logowanie administratora (z weryfikacją dwuetapową, gdy wymaga tego rola). Powtarzane błędne hasła są ograniczane: 429 `ADMIN_AUTHENTICATION_THROTTLED` z nagłówkiem `Retry-After` — patrz niżej |
 | `POST /api/v1/auth/admin/logout` | Zakończenie sesji administratora |
+| `GET /api/v1/admin/me` | Zalogowany administrator, z rolą, uprawnieniami i preferencjami Admin UI; dowolna sesja administratora, bez kodu uprawnienia |
 | `PATCH /api/v1/admin/me` | Zalogowany administrator edytuje własne imię i nazwisko oraz zmienia własne hasło; nie jest potrzebne żadne uprawnienie. Nowe `password` musi być wysłane razem z `currentPassword`: bez niego żądanie jest odrzucane z 400 `VALIDATION_FAILED`, z błędnym — z 403 `CURRENT_PASSWORD_INVALID`, z nowym hasłem takim samym jak obecne — z 400 `NEW_PASSWORD_UNCHANGED`, a odrzucone żądanie niczego nie zmienia — imienia i nazwiska również. Przyjęta zmiana hasła wylogowuje wszystkie pozostałe sesje konta (zob. *Sesje a zmiana hasła*). Powtarzane błędne bieżące hasła są ograniczane tak samo jak błędne hasła przy logowaniu (429 `ADMIN_AUTHENTICATION_THROTTLED`) |
 | `GET /api/v1/admin/admin-users` | Lista administratorów (usunięte konta są pomijane) |
 | `POST /api/v1/admin/admin-users` | Utworzenie administratora. Pole `adminRoleId` jest wymagane: konto bez roli jest odrzucane z 400 `ADMIN_USER_ROLE_REQUIRED`. Powtórzony e-mail jest odrzucany z `EMAIL_ALREADY_REGISTERED` |
 | `PATCH /api/v1/admin/admin-users/:id` | Aktualizacja imienia, przypisanej roli lub statusu; nie ustawia hasła — pole `password` jest odrzucane z 400 `VALIDATION_FAILED`. Rolę można zmienić na inną, ale nie można jej usunąć: `adminRoleId: null` jest odrzucane z 400 `ADMIN_USER_ROLE_REQUIRED`. Ustawienie `status: 'inactive'` wylogowuje konto ze wszystkich sesji |
+| `POST /api/v1/admin/admin-users/:id/password` | Ustawienie hasła innego administratora; wylogowuje konto ze wszystkich sesji (zob. *Sesje a zmiana hasła*) |
 | `DELETE /api/v1/admin/admin-users/:id` | Usunięcie miękkie (ustawia `deletedAt` i `status='inactive'`) oraz wylogowanie konta ze wszystkich sesji |
 | `GET /api/v1/admin/admin-roles` | Lista ról z tablicami uprawnień |
 | `PUT /api/v1/admin/admin-roles/:code` | Utworzenie lub aktualizacja roli według kodu; nieznane uprawnienia zwracają 400 `VALIDATION_FAILED`. Włączenie `requiresTwoFactor` jest odrzucane z 409 `MFA_REQUIRED_FOR_ROLE_TWO_FACTOR`, gdy MFA jest wyłączone albo nie ma klucza szyfrowania; odpowiedź zawiera `signedOutAdministrators` (zob. *Role wymagające weryfikacji dwuetapowej*) |
@@ -29,7 +31,7 @@ Zarządzanie użytkownikami i rolami wymaga uprawnienia `admin_users:manage`.
 | `GET /api/v1/admin/me/preferences` | Własne preferencje panelu administracyjnego zalogowanego administratora; kod uprawnienia nie jest potrzebny (zob. *Preferencje panelu administracyjnego*) |
 | `PATCH /api/v1/admin/me/preferences` | Zmiana jednej lub kilku z nich; niepoprawne żądanie jest odrzucane z 400 `VALIDATION_FAILED` i nic nie zostaje zapisane |
 | `POST /api/v1/admin/me/preferences/legacy-import` | Jednorazowe przeniesienie rozmiarów stron z przeglądarki; nigdy nie nadpisuje wartości zapisanej na serwerze |
-| `POST /api/v1/admin/organizations/:id/impersonate` | Rozpoczęcie logowania jako klient; przed wydaniem ciasteczka zapisuje wpis audytu `impersonation.start` |
+| `POST /api/v1/admin/organizations/:id/impersonate` | Rozpoczęcie logowania jako klient (`customers:impersonate`); przed wydaniem ciasteczka zapisuje wpis audytu `impersonation.start` |
 | `POST /api/v1/admin/impersonation/end` | Powrót do pierwotnej sesji administratora |
 
 ## Zasięg uprawnienia `admin_users:manage`
@@ -504,8 +506,8 @@ zapisanego powodu.
 *Logowanie jako klient*.
 
 `AdminRole` (kod, nazwa wyświetlana, JSONB `permissions[]`, `requiresTwoFactor`). Symbol
-wieloznaczny `*` służy wyłącznie do inicjalizacji platformy i jest odrzucany przez trasę zapisu
-roli.
+wieloznaczny `*` daje każde uprawnienie; lista, która go zawiera, jest zapisywana jako dokładnie
+`['*']`, a zapisać go może tylko posiadacz `*` (zob. *Zasięg uprawnienia `admin_users:manage`*).
 
 ## Punkty rozszerzenia
 

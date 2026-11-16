@@ -33,8 +33,10 @@ no per-node walk.
 - **Read the ancestor chain** — `GET /api/v1/admin/organizations/:id/ancestors`
   returns the parent → … → root chain, nearest-first.
 - **Deletion is blocked** — an organization with any child cannot be deleted
-  (`409 has_children`), backed by the `parent_id … ON DELETE RESTRICT` foreign
-  key. Reassign or remove the children first.
+  (`DELETE /api/v1/admin/organizations/:id`, a soft delete answering `204`, is
+  refused `409 ORGANIZATION_HAS_CHILDREN` with `details.code: 'has_children'`),
+  backed by the `parent_id … ON DELETE RESTRICT` foreign key. Reassign or remove
+  the children first.
 
 Re-parenting is **retroactive**: subtree membership, roll-up visibility, and
 term inheritance are always computed against the *current* tree, so after a move
@@ -99,7 +101,11 @@ Visibility across descendants is **permission-gated** by the
   overrides the inherited one for its subtree — the **nearest assignment on the
   ancestor chain wins**. Without the capability, an organization is governed by
   its own assignments only.
-- A branch-only user (no roll-up) sees only their own organization.
+- A branch-only user (no roll-up) sees only their own organization. An
+  operator turns a member's roll-up on or off with
+  `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/rollup`
+  (`{ subtreeRollupEnabled, expectedUpdatedAt? }`, `customers:manage`), audited
+  as `customer_account.admin_rollup_change`.
 
 The nearest assignment decides on **every admin surface** (issue #305): the
 organization screens, the organizations list and pickers, admin search, and

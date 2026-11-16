@@ -1,11 +1,11 @@
 ---
 title: Authentication
-description: Customer + admin sessions, password hashing, TOTP
+description: Customer and admin sessions, session last-seen tracking and the admin and customer route guards
 ---
 
 # Authentication (`auth`)
 
-Shared session, password-hashing, and TOTP primitives consumed by both
+Shared session primitives and route guards consumed by both
 `customer_accounts` and `admin_users`. One of the two singular module
 folders permitted by the naming conventions (alongside `example`).
 
@@ -14,14 +14,16 @@ folders permitted by the naming conventions (alongside `example`).
 - **Sessions** — `session-service.ts` persists session rows in Postgres
   with a Redis cache layer for hot reads; cookies signed via
   `@fastify/cookie`.
-- **Password hashing** — `password-hasher.ts` wraps argon2id; defaults are
-  tuned for the target hardware (see the **Hardware & system requirements**
-  section of `README.md` at the repository root).
-- **TOTP** — the platform's `kernel/crypto/totp` wraps `otpauth` + a backup-code pool.
+- **Password hashing** — not this module's: `hashPassword` / `verifyPassword` are the
+  platform's (`@endora-commerce/platform/kernel`, `packages/platform/src/kernel/crypto/password-hasher.ts`),
+  argon2id with OWASP parameters (19 MiB, two passes). See the **Hardware & system
+  requirements** section of `README.md` at the repository root.
+- **TOTP** — not this module's either: the `mfa` module's `totp.ts` wraps `otpauth`, and
+  its recovery codes are rows in `mfa_enrolments`.
 - **Fastify plugin** — `plugin.ts` parses the session cookie and attaches
   `request.actor = { kind, id, ... }` plus `request.adminActor`.
 - **Route guards** — `requireAdmin(permission?)`, `requireAdminAny(codes)` and
-  `requireCustomer`, provided as ports from `backend.ts` and resolved by every
+  `requireCustomer`, provided as ports from this module's composition (`src/backend/index.ts`) and resolved by every
   module that gates a route. They were Fastify decorators on the plugin once;
   they were turned into ports so production and the test harness run the same
   implementation instead of one each. The two admin guards also refuse, with 401, a session whose
@@ -55,13 +57,13 @@ then an administrator's row held the sign-in time and nothing after.
 
 ## No HTTP routes of its own
 
-`auth` is a primitive module — login/logout/two-step verification endpoints belong to the
-customer-facing `customer_accounts` and admin-facing `admin_users`
-modules.
+`auth` is a primitive module. The customer sign-in and sign-out endpoints are served by
+`organizations` (over `customer_accounts`' services), the administrator's by `admin_users`,
+and the second step of a two-step sign-in by `mfa`.
 
 ## Extension points
 
-- **Session storage** — `session-service` is constructed with `(em, redis)`;
+- **Session storage** — `session-service` is constructed with `(emFactory, redis)`;
   alternative caches plug in here.
 - **Custom actor kinds** — extend the `request.actor` discriminated union
   and update the `requireX` pre-handlers; existing callers keep working
