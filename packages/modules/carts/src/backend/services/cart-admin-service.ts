@@ -9,6 +9,7 @@ import type {
   CatalogProductRecord,
   CustomerAccountReadPort,
   OrganizationDetailsPort,
+  ProductTaxRateResolver,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { orgConstraintFor, orgInScope, orgScopeWhere } from '@endora-commerce/platform/tenancy';
@@ -57,6 +58,12 @@ export class CartAdminService {
     private readonly catalogProducts: CatalogProductReadPort,
     /** Feature 045 (T043) — when wired, the detail shows the real discount. */
     private readonly promotion?: AdminCartPromotionPort,
+    /**
+     * Issue #1350 — the rates the buyer's cart read and placement charge, so a
+     * percent-off or free-unit promotion shows the gross discount the order
+     * takes. Unwired, the lines carry no rate and the discount is the net one.
+     */
+    private readonly taxRates?: ProductTaxRateResolver,
   ) {}
 
   /**
@@ -261,6 +268,13 @@ export class CartAdminService {
     // quoted a customer the undiscounted total as if it were the real one.
     let discountTotal = 0;
     if (this.promotion && items.length > 0) {
+      const typeOf = (productId: string) => productById.get(productId)?.type ?? ('simple' as const);
+      const rateByType = this.taxRates
+        ? await this.taxRates({
+            organizationId: cart.organizationId ?? null,
+            productTypes: items.map((it) => typeOf(it.productId)),
+          })
+        : null;
       const application = await this.promotion.applyToCart({
         organizationId: cart.organizationId ?? null,
         // Issue #177 — the owner's effective group, from the two records this
@@ -269,13 +283,17 @@ export class CartAdminService {
         // applies to, which is the figure they then quote to that buyer.
         customerGroupId: cust?.customerGroupId ?? org?.customerGroupId ?? null,
         currency,
-        lines: items.map((it) => ({
-          productId: it.productId,
-          variantId: it.variantId ?? null,
-          categoryIds: [],
-          quantity: it.quantity,
-          unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
-        })),
+        lines: items.map((it) => {
+          const taxRate = rateByType?.get(typeOf(it.productId));
+          return {
+            productId: it.productId,
+            variantId: it.variantId ?? null,
+            categoryIds: [],
+            quantity: it.quantity,
+            unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+            ...(taxRate !== undefined ? { taxRate } : {}),
+          };
+        }),
         deliveryTotal: 0,
         promotionCode: cart.appliedPromotionCode ?? null,
         salesChannelId: cart.salesChannelId ?? null,

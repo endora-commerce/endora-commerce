@@ -54,6 +54,32 @@ and surfaces the result in the cart and on the placed order.
    `order_applied_promotions` + `orders.discount_total`, and **finalizes
    usage** inside the placement transaction.
 
+## What a discount is computed on
+
+A discount is an amount the buyer does not pay, taken off the gross total.
+
+- **Percent-off actions** — `percentage_off_cart`, `buy_x_units_percent_off`,
+  `spend_x_percent_off`, `every_nth_product_percent_off` and the legacy
+  `percentage_off` kind — take their percentage of the **gross** the buyer
+  pays for the goods: 10 % off is 10 % of that gross.
+- **Free-unit actions** — `buy_x_get_y_free` and `buy_x_units_y_free` — take
+  off the free units' gross, so a free unit is free VAT included. The cheapest
+  or most expensive unit is the one with the lowest or highest gross price.
+- **Fixed amounts** — `amount_off_cart`, `buy_x_units_amount_off`,
+  `spend_x_amount_off` and the legacy `amount_off` kind — take off the
+  configured amount, capped at the net subtotal.
+- **Thresholds** — the "spend X" steps, `minCartSubtotal` and the rule
+  builder's cart total — compare the **net** subtotal.
+
+The gross is VAT per rate on the sum of the line nets, the same figure the cart
+and the order charge. Each line of the `CartSnapshot` carries its VAT rate as
+`taxRate`, a fraction (`0.23`). A line without one carries no VAT. The cart, the
+admin cart detail, the checkout preview and order placement pass the rates
+they charge, so all four show the same discount. A call to
+`POST /api/v1/admin/promotions/preview` must send `taxRate` on each line to get
+the discount an order would take. Until issue #1350 percent-off and free-unit
+actions computed on net prices.
+
 ## Usage finalization (race-safe)
 
 `finalizeUsage` runs inside the order-placement transaction. Each applicable

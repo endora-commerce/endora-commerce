@@ -1306,6 +1306,9 @@ export class OrderService {
           categoryIds: [],
           quantity: it.quantity,
           unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+          // Issue #1350 — the rate this order charges the line at: a percent-off
+          // or free-unit promotion computes on the gross the buyer pays.
+          taxRate: rateForProductId(it.productId),
         })),
         deliveryTotal: Number(roundHalfUp(input.deliveryCost)),
         promotionCode: input.appliedPromotionCode ?? null,
