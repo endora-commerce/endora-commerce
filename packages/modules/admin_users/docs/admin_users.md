@@ -469,6 +469,18 @@ writing `impersonation.end`. Every action taken during an impersonated
 session carries both `actorAdminUserId` and `impersonatedCustomerAccountId`
 through the audit log.
 
+The `impersonation.start` entry names the shape of the start, never its
+values (issue #470): `hasReason`, `reasonLength` when a reason was given,
+`organizationScoped` (whether the start named the account's Organization) and
+`valueChangeId`. The audit log is one platform-wide table, read by everybody
+holding `audit_log:read` whatever Organizations they may see, so the reason an
+administrator typed is kept in `admin_impersonation_reasons` instead, and
+`valueChangeId` is that row's id. The row and the entry are written in one
+transaction before the session is minted: a start that fails at either write
+leaves neither and signs nobody in. When the customer account is anonymised,
+its reasons are erased (`impersonation.reasons_erase`, recording how many). No
+screen shows a stored reason yet.
+
 ## Entities
 
 `AdminUser` (email, passwordHash, two-step verification state, single `adminRoleId`,
@@ -476,6 +488,10 @@ through the audit log.
 
 `AdminUserPreference` (administrator, preference key, `jsonb` value, `updatedAt`) — see
 *Admin UI preferences*.
+
+`ImpersonationReason` (customer account, its Organization, the administrator, the reason,
+`at`) — `@CustomerScoped`, one row per impersonation started with a reason; see
+*Impersonation model*.
 
 `AdminRole` (code, display name, JSONB `permissions[]`,
 `requiresTwoFactor`). The wildcard `*` is bootstrap-only and rejected by

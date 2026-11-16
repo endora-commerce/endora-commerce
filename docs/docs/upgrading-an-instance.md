@@ -5046,6 +5046,31 @@ typed — often a submitter's e-mail address or a phrase from their answers.
 **After upgrading,** nothing has to be done. The audit log still says who exported which form's
 entries, when, with which filters and how many rows; it no longer says what was searched for.
 
+### Impersonation reasons and Organizations leave the platform audit log {#impersonation-reason-store}
+
+The release that ships this change stops writing the reason an administrator gives for
+impersonating a customer, and the Organization the impersonation was started from, into the
+platform-wide audit log (issue #470). That log is one table, read by everybody holding
+`audit_log:read` whatever Organizations they may see. The release adds one table,
+`admin_impersonation_reasons`, which the upgrade's migration step creates.
+
+**Behaviour change on upgrade:**
+
+- On the **Audit log** screen, and in `audit_logs read`, a new `impersonation.start` entry no
+  longer carries `reason` or `organizationId`. It records `hasReason`, `reasonLength` when a reason
+  was given, `organizationScoped` (whether the start was made from the Organization's screen) and
+  `valueChangeId`, the id of the `admin_impersonation_reasons` row that holds the reason. The entry
+  is still recorded against the customer account, with the administrator who started it.
+- The reason itself is kept in `admin_impersonation_reasons`, written in the same transaction as
+  the audit entry. No screen shows it yet.
+- When a customer account is anonymised, its impersonation reasons are deleted, and an
+  `impersonation.reasons_erase` entry records how many.
+- Starting and ending an impersonation work as before.
+- Entries recorded before the upgrade are not rewritten: they keep the reason and the Organization.
+
+**After upgrading,** nothing has to be done. A report that read the reason out of the audit log
+reads it from `admin_impersonation_reasons` by the entry's `valueChangeId`.
+
 ### The admin panel's address is a platform input {#admin-base-url-platform-input}
 
 The release that ships this change makes `ADMIN_BASE_URL` — the admin panel's address — an input
