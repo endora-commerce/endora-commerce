@@ -99,7 +99,7 @@ kolejki:
   (50 produktów). Żądanie z panelu zapisuje wiersz `BulkOperation` ze statusem `pending`, dodaje jego
   identyfikator do kolejki i od razu zwraca `202`.
 - **`search_reindex`** — pełne ponowne indeksowanie Meilisearch (odpowiednik polecenia
-  `pnpm search:reindex`), dodawane do kolejki automatycznie po zmianie flagi `searchable` atrybutu.
+  `pnpm run cli search reindex`), dodawane do kolejki automatycznie po zmianie flagi `searchable` atrybutu.
 
 Konsument przejmuje wiersz, zmieniając `pending → running` warunkowym UPDATE (atomowe przejęcie),
 wykonuje handler i na bieżąco zapisuje postęp, a na końcu status `completed` / `failed`. Po

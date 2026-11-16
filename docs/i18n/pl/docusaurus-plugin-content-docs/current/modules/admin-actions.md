@@ -181,8 +181,8 @@ Wagi są tylko zaleceniem, ale recenzenci oczekują, że nowe akcje trafią do w
 ## Lista dozwolonych ikon
 
 Dozwolone nazwy ikon to typ wyliczeniowy w `packages/contracts/src/admin-actions.ts`. Dodanie nowej
-ikony to jednowierszowa zmiana w tym typie i w `icon-map.ts` pakietu admin shell
-(`@endora-commerce/admin-shell`, `src/lib/admin-actions/icon-map.ts`).
+ikony to jednowierszowa zmiana w tym typie i w `icon-map.ts` systemu projektowego panelu
+(`@endora-commerce/admin-kit`, `src/lib/admin-actions/icon-map.ts`).
 
 ## Jakie akcje istnieją
 

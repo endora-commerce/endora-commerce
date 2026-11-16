@@ -138,6 +138,8 @@ GET /api/v1/megamenu/by-channel?language=<bcp-47>
 X-Sales-Channel: <channel-code>
 ```
 
+Without `?language=`, the language is the one `Accept-Language` asks for, read as a q-weighted list matched against the channel's languages (exactly, then by base language, so `pl` reaches `pl-PL`); a header naming no language the channel offers gets the channel default's menu.
+
 The resolver:
 
 1. Looks up the active binding via the partial unique index (1 query).

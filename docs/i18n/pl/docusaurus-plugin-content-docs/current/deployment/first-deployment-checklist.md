@@ -212,7 +212,7 @@ weryfikacyjny w prawdziwej skrzynce. Zrób to, zanim zrobi to pierwszy klient tw
 
 **Dlaczego.** Historię migracji przebudowano, a zamrożoną mapę nazw wycofano z tego samego powodu —
 braku wdrożenia produkcyjnego. Kolejność bloku sprzed `20260801T000000` celowo nie jest korygowana
-(`backend/src/db/migration-order.ts`), a cały łańcuch wykonywano dotąd tylko na bazach, które można
+(`packages/platform/src/db/migration-order.ts`), a cały łańcuch wykonywano dotąd tylko na bazach, które można
 było wyrzucić. Pierwsza baza produkcyjna to pierwsza, która musi zachować wiersze.
 
 **Do zrobienia (inżynier).** Dokładnie na tym commicie, który zostanie wdrożony, wykonaj cały
@@ -465,7 +465,7 @@ elementy storefrontu, nawet jeśli nikt o niego nie prosił.
 z czego klient nie korzysta. Wyłączenie niczego nie niszczy i jest odwracalne: nie usuwa danych,
 konfiguracji, uprawnień ani schematu. **Nie licz na to, że okno potwierdzenia powie, co kosztuje
 wyłączenie** — dziś podaje tylko nazwę modułu
-(`packages/admin-shell/src/modules/platform/ModuleActivationControl.tsx:109`). Co przestaje działać po wyłączeniu
+(`packages/admin-shell/src/modules/platform/ModuleActivationControl.tsx:112`). Co przestaje działać po wyłączeniu
 modułu, opisuje
 [rejestr skutków wyłączenia](../architecture/kernel.md#rejestr-skutków-wyłączenia); poproś
 inżyniera o odczytanie go dla każdego modułu, z którego klient na pewno nie będzie korzystał.

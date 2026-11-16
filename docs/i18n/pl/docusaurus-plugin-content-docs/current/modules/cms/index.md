@@ -1464,8 +1464,8 @@ albo nieudane pobranie nic nie wyświetla — hooki nie mogą zepsuć wyświetla
 | Metoda | Ścieżka                              | Zwraca                                                        |
 | ------ | --------------------------------- | -------------------------------------------------------------- |
 | GET    | `/pages/by-slug?slug=…&language=…`| Stronę z `embeds.blocks`, `embeds.templates` i plikami. `slug` przyjmuje całą ścieżkę publiczną strony w dowolnym z jej języków; własny slug zagnieżdżonej strony też działa. |
-| GET    | `/blocks/by-code?code=…&language=…`| Blok (jeden, z filtrowaniem według kanału, tylko aktywny).|
-| GET    | `/hooks/by-code?code=…&language=…`| Uporządkowaną listę aktywnych bloków dla wskazanego hooka.     |
+| GET    | `/blocks/by-code?code=…&language=…`| Blok (jeden, z filtrowaniem według kanału, tylko aktywny) z plikami osadzonymi w jego drzewie. |
+| GET    | `/hooks/by-code?code=…&language=…`| Uporządkowaną listę aktywnych bloków dla wskazanego hooka z plikami osadzonymi w tych blokach. |
 
 Odczytana strona zawiera też `path` (swoją ścieżkę publiczną w kanale i
 wyświetlanym języku), `url` (tę ścieżkę tak, jak linkuje ją storefront, pod
@@ -1482,7 +1482,9 @@ kanału, z `cache-control: public, max-age=60`.
 
 Kanał jest wyznaczany najpierw z nagłówka `X-Sales-Channel`, a w jego braku jest to domyślny kanał
 systemowy. Język — najpierw z `?language=`, potem z `Accept-Language`, a na końcu jest to język
-domyślny skonfigurowany dla kanału.
+domyślny skonfigurowany dla kanału. `Accept-Language` jest czytany jako lista ważona `q`:
+tagi w malejącej kolejności `q`, każdy dopasowywany do języków kanału (najpierw dokładnie, potem
+po języku bazowym, więc `pl` trafia do `pl-PL`); wygrywa pierwszy, który kanał oferuje.
 
 ## Odczyt w storefroncie i pamięć podręczna w Redis
 
