@@ -371,8 +371,9 @@ Decydują o tym dwie reguły, zawsze w tej kolejności.
 **1. Dostęp do organizacji.** Administrator, który ma dostęp do wszystkich
 organizacji — każda rola poza rolą przedstawiciela handlowego — widzi każdy
 projekt. Przedstawiciel handlowy widzi projekt tylko wtedy, gdy **każda**
-organizacja projektu jest do niego przypisana; projekt dla dwóch organizacji, z
-których ma dostęp do jednej, dla niego nie istnieje. Projekt wewnętrzny widzą
+organizacja projektu jest w zasięgu jego dostępu — jest do niego przypisana
+albo nie jest przypisana do żadnego innego przedstawiciela; projekt dla dwóch
+organizacji, z których ma dostęp do jednej, dla niego nie istnieje. Projekt wewnętrzny widzą
 tylko administratorzy z dostępem do wszystkich organizacji. Nic, co opisano
 niżej, nie poszerza tej reguły.
 
@@ -402,7 +403,7 @@ projektu.
 *Wgląd we wszystkie projekty* (`projects:see_all`) znosi tę drugą regułę,
 nigdy pierwszą: jego posiadacz widzi każdy projekt **w granicach swojego
 dostępu**, a przedstawiciel handlowy z tym uprawnieniem nadal nie widzi
-projektu organizacji, która nie jest do niego przypisana, ani żadnego projektu
+projektu organizacji, do której nie ma dostępu, ani żadnego projektu
 wewnętrznego.
 
 Projekt, którego ktoś nie może zobaczyć, nie istnieje dla niego nigdzie: ani na
@@ -550,7 +551,7 @@ bibliotece mediów.
 **Biblioteka mediów nie usunie pliku, którego używa projekt**, i wskazuje ten
 projekt numerem tym, którzy mogą go zobaczyć — także wtedy, gdy moduł Projekty
 jest wyłączony. Najpierw odłącz plik od projektu. Plik używany tylko przez
-projekty, których ktoś nie jest członkiem, jest przed nim ukryty w bibliotece
+projekty, których ktoś nie może zobaczyć, jest przed nim ukryty w bibliotece
 mediów. Odnośnik do pobrania jest przygotowywany w chwili
 kliknięcia *Pobierz* i ważny przez kilka minut.
 
@@ -740,7 +741,6 @@ odczytaj projekt ponownie.
 | `POST /api/v1/admin/projects/templates`, `PUT …/templates/:id` | `projects:configure` | Cały szablon w jednym body (`ProjectTemplateBody`: nazwa, opis, `roleIds`, `stages` — każdy z `key` i swoimi `tasks`, `moves` wskazujące etapy po kluczu — pominięte oznacza przejście każdego etapu do następnego) → `201` / `200` `{ data: ProjectTemplateDetail }`. Klucz, który jest identyfikatorem jednego z etapów szablonu, zachowuje identyfikator tego etapu. Zarchiwizowana rola, której szablon jeszcze nie ma, daje `422` `PROJECT_TEMPLATE_ROLE_ARCHIVED` (`details`: `roleId`; do zgłoszenia #634 `VALIDATION_FAILED`). |
 | `POST /api/v1/admin/projects/templates/:id/duplicate` | `projects:configure` | `201` `{ data: ProjectTemplateDetail }` — niezależna kopia. |
 | `POST /api/v1/admin/projects/templates/:id/archive`, `…/restore` | `projects:configure` | `{ data: ProjectTemplateDetail }`. |
-
 | `GET /api/v1/admin/projects/analytics/summary` | `projects:analytics` | `{ opened, completed, lost, completionRate }` — `completionRate` to `null`, gdy nic nie zostało zamknięte. |
 | `GET /api/v1/admin/projects/analytics/durations` | `projects:analytics` | `{ completedAverageDays, completedCount, lostAverageDays, lostCount }` — od utworzenia do zamknięcia, dla projektów zamkniętych w okresie. |
 | `GET /api/v1/admin/projects/analytics/time-in-stage` | `projects:analytics` | `{ stageName, averageDays, sampleCount }[]` dla każdej nazwy etapu, z pobytów rozpoczętych w okresie i zakończonych, w kolejności, w jakiej etapy są zwykle przechodzone. |
@@ -952,11 +952,13 @@ przez `lazyPort` i deklaruj krawędź jako `degrades-without` ze zdaniem
 | --- | --- |
 | `findById(id)` | Projekt jako `ProjectRecord` — `id`, `number`, `title`, `state`, `currentStageId`, `currentStageName`, `organizationIds`, `valueAmount`, `valueCurrency`, `templateId`, `closedAt`, `createdAt` — albo `null`. |
 | `findByRecord(kind, id)` | Projekt, do którego podpięto `order`, `quote_request` lub `opportunity`, jako `ProjectRecord`, albo `null`. |
+| `findByIds(ids)` | Projekty o podanych `ids`, w dowolnej kolejności; identyfikator projektu, którego wywołujący nie może zobaczyć albo który nie istnieje, jest pomijany. |
+| `search({ q, limit })` | Projekty, których numer lub tytuł zawiera `q`, od najnowszych, najwyżej `limit` (nie więcej niż 20). |
 
-Obie metody odpowiadają w imieniu wywołującego, przez `ProjectAccess` w jego
+Wszystkie cztery metody odpowiadają w imieniu wywołującego, przez `ProjectAccess` w jego
 własnym kontekście dzierżawy: projekt, który nie istnieje, projekt poza
 zasięgiem wywołującego i projekt, którego nie może on zobaczyć, to ten sam
-`null`. Odpowiedź jest zwykłym obiektem, nigdy encją.
+`null` — albo zostają pominięte. Odpowiedź jest zwykłym obiektem, nigdy encją.
 
 `./backend` eksportuje też **`nextProjectNumber(em)`** — wejście modułu do jego
 sekwencji numerów: kolejny numer `PRJ-…` dla kodu, który zapisuje projekty bez

@@ -16,6 +16,11 @@ mirrors each ingested event into Google Analytics when configured.
 | `POST /api/v1/analytics/events` | storefront / admin (no auth) | Ingest a batch of events (≤ 100) |
 | `GET /api/v1/admin/analytics/summary` | admin (`analytics:read`) | Totals by type + per-day breakdown for a window |
 
+The module is switched on and off with `analytics.enabled` (on by default, set
+on the **Modules** screen, `/platform/modules`). While it is off nothing is
+ingested, the dashboards and their API are gone and nothing is forwarded to
+GA4; the events already collected are kept and are back when it is on again.
+
 ## Event types
 
 The Zod boundary accepts a fixed set:
@@ -36,15 +41,25 @@ type union). Per-event validation inside the service still runs in case a
 property field is unexpected — those individual events are reported in the
 response's `rejected` array and the rest of the batch lands.
 
-The endpoint returns `202 Accepted` with `{ accepted, rejected[] }`. Each
-stored row mirrors the request's `X-Request-Id` for cross-log correlation.
+The endpoint returns `202 Accepted` with `{ data: { accepted, rejected[] } }`.
+Each stored row mirrors the request's `X-Request-Id` for cross-log correlation.
+
+Who sent a batch, and on which sales channel, is what the server resolved for
+the request: the signed-in customer's account and organization (none for
+anybody else) and the request's sales channel. The `customerAccountId`,
+`organizationId` and `salesChannelId` an event may still carry are accepted
+and ignored. One client address may send 60 batches a minute; beyond that the
+endpoint answers `429`.
 
 ## Aggregation
 
 `AnalyticsQueryService.summary({ from, to, salesChannelId? })` runs two
 window-bounded queries (totals by type, daily totals by type) against the
 `(occurred_at)` and `(type, occurred_at)` indexes. The dashboard never
-queries an unbounded range.
+queries an unbounded range. Both count only the events of organizations the
+reader may see: for an administrator restricted in organization reach — a sales
+representative — the events of the organizations they reach, and no event
+without an organization.
 
 ## GA4 forwarder
 

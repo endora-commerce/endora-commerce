@@ -50,8 +50,16 @@ it never collides with an external ESP (MailerLite, GetResponse, …).
 - **Branding** — the logo and accent colour come from the campaign's or
   automation's sales channel. One created without a sales channel is previewed
   and sent with the **default** sales channel's branding.
-- **Provider** — selected + configured in the Admin UI; the SMTP password is
-  stored as a Settings `secret` (AES-256-GCM, write-only at the boundary).
+- **Provider** — the SMTP connection (host, port, TLS, user name, password)
+  is a reusable **Email adapter** configuration of the SMTP kind, created on
+  the **Credentials** screen and chosen in the setting *Email credentials*
+  (`newsletter.email_credentials`); the password is stored encrypted and never
+  returned. The newsletter's **Sending provider** screen sets the sender
+  address and name and the send rate, and tests the connection
+  (`GET`/`PUT /api/v1/admin/newsletter/provider`,
+  `POST …/provider/test`). With no usable credential chosen, campaign e-mails
+  are written to the server log (the console sink) instead of being sent — the
+  send is not refused.
 
 ## Delivery
 
@@ -130,7 +138,7 @@ sentence names travel in `details`:
 | --- | --- | --- | --- |
 | `NEWSLETTER_CAMPAIGN_NOT_EDITABLE` | 422 | Editing a campaign that is not a draft or scheduled | `campaignId`, `status` |
 | `NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE` | 422 | Cancelling a campaign that is not a draft or scheduled | `campaignId`, `status` |
-| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Sending a campaign while no sending provider is configured | — |
+| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Sending a campaign while no sending provider is configured. Not answered today: without a credential the console sink is the provider (see *Provider*) | — |
 | `NEWSLETTER_AUTOMATION_ACTIVE` | 422 | Editing an active automation; pause it first | `automationId`, `status` |
 | `NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN` | 409 | Creating a custom field whose key exists | `key` |
 | `NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN` | 409 | Creating an email block whose code exists | `blockCode` |
@@ -226,7 +234,7 @@ external endpoint for a newsletter service outside the platform.
 ## In the audit log
 
 Subscribing, resubscribing, confirming, unsubscribing, a bounce or complaint
-suppression and deleting a subscriber are each an entry in the platform-wide
+suppression, deactivating and deleting a subscriber are each an entry in the platform-wide
 audit log. That log is read by everybody holding `audit_log:read` whatever they
 may see, so an entry names the subscriber by id and holds no e-mail address and
 no free text: the status, the source, a suppression's reason code, and whether an
@@ -241,5 +249,6 @@ Migration `20260629T200954_newsletter_init.ts` creates `newsletter_subscribers`,
 `newsletter_suppressions`, `newsletter_email_blocks`(+ channel bridge),
 `newsletter_campaigns`(+ group bridge), `newsletter_send_records`,
 `newsletter_engagement_events`, `newsletter_automations`, and
-`newsletter_automation_runs`. Provider config + opt-in mode live in the
-**Settings** module (no bespoke credential table).
+`newsletter_automation_runs`. The sender, the send rate and the opt-in mode
+live in the **Settings** module, and the SMTP connection in the **Credentials**
+module (no bespoke credential table).
