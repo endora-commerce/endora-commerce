@@ -67,7 +67,11 @@ zamiast być wyłączane jako przypadek szczególny.
 - Logowanie jako klient; audytowane jako `impersonation.start` / `impersonation.end`. Odpowiedź
   podaje `organizationRole` klienta, a logowanie jako klient działa dokładnie z jego uprawnieniami
   w organizacji.
-- Reset hasła z poziomu panelu (e-mail z linkiem do ustawienia hasła).
+- Reset hasła z poziomu panelu (e-mail z linkiem do ustawienia hasła). Wiadomość to e-mail
+  transakcyjny `customer_password_reset_by_admin`, który sklep edytuje w ekranie **Maile
+  transakcyjne** jak każdy inny; jest wysyłana w języku domyślnego kanału sprzedaży, a link
+  otwiera stronę resetu pod prefiksem tego języka. Nie można jej wyłączyć, bo to dzięki niej klient
+  odzyskuje dostęp do konta.
 - Walidacja NIP/VAT (VIES, port Białej listy).
 - Przypisanie do organizacji i odłączenie od organizacji, które przenosi klienta do jego własnej
   organizacji osobistej, zamiast zostawiać go bez organizacji. Bezpośrednie przypisanie grupy

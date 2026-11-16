@@ -26,6 +26,7 @@ import {
   type CustomerAccountReadPort,
   type CustomFieldValuePort,
   type EmailMailerPort,
+  type TemplateEmailPort,
   type ImpersonationPort,
   type OrderListPort,
   type OrganizationRoleReadPort,
@@ -49,6 +50,7 @@ import {
   serializeOrganizationAddress,
 } from './serializers.js';
 import { addressBookRetired } from './address-book-retired.js';
+import { sendAdminPasswordResetEmail } from './services/admin-password-reset-email.js';
 
 const ADMIN_SHADOW_COOKIE = 'admin_shadow_session';
 
@@ -128,6 +130,8 @@ export interface CustomersAdminDeps {
   presenceService: CustomerPresenceService;
   passwordResetService: CustomerPasswordResetPort;
   mailer: EmailMailerPort;
+  /** Issue #1295 — the reset e-mail's template sender; {@link mailer} is its fallback. */
+  templateEmail?: TemplateEmailPort;
   auditLogService: AuditPort;
   storefrontBaseUrl: string;
   /**
@@ -583,29 +587,35 @@ export async function registerCustomersAdminRoutes(
       const { rawToken } = await deps.passwordResetService.requestReset(customer.email);
       if (rawToken) {
         // Feature 167 — the storefront's real reset page (`/password-reset/confirm`;
-        // `/reset-password` was served by nothing), under the default language's
-        // prefix: the e-mail is written in no particular language.
+        // `/reset-password` was served by nothing), under the prefix of the
+        // channel's default language. Issue #1295 — the e-mail is the
+        // `customer_password_reset_by_admin` template, written in that same
+        // language, so the message and the page it opens agree.
+        const channel = deps.linkChannel ? await deps.linkChannel() : null;
         const path = storefrontPagePathFor({
           path: `/password-reset/confirm?token=${encodeURIComponent(rawToken)}`,
-          channel: deps.linkChannel ? await deps.linkChannel() : null,
+          channel,
         });
         const link = `${deps.storefrontBaseUrl.replace(/\/+$/, '')}${path}`;
-        const outcome = await deps.mailer.send({
-          messageId: `admin-pwd-reset.${customer.id}.${rawToken.slice(0, 8)}`,
-          to: customer.email,
-          subject: 'Set a new password',
-          text: `An administrator started a password reset for your account. Set a new password here: ${link}`,
-          kind: 'admin_password_reset',
-        });
+        const sent = await sendAdminPasswordResetEmail(
+          { templateEmail: deps.templateEmail, mailer: deps.mailer },
+          {
+            customerId: customer.id,
+            to: customer.email,
+            messageId: `admin-pwd-reset.${customer.id}.${rawToken.slice(0, 8)}`,
+            resetUrl: link,
+            language: channel?.defaultLanguage ?? null,
+          },
+        );
         // Only the transport's refusal is named here. `logged` (issue #186) is the
         // console driver saying no mail server is configured: it has already
         // written the message to the log itself, and the delivery record says so.
-        if (outcome.status === 'suppressed') {
+        if (sent.via === 'mailer' && sent.outcome.status === 'suppressed') {
           // The reset token is minted either way, and the audit row below
           // records the request rather than the delivery — so the message's own
           // fate is named here and kept by D-59's record.
           request.log.warn(
-            { customerId: customer.id, reason: outcome.reason },
+            { customerId: customer.id, reason: sent.outcome.reason },
             '[customers] the password-reset e-mail was not sent',
           );
         }

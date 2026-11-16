@@ -34,6 +34,7 @@ import type {
   CustomerPasswordResetPort,
   DefaultPreferencePort,
   EmailMailerPort,
+  TemplateEmailPort,
   ImpersonationPort,
   OrderListPort,
   OrderReadPort,
@@ -208,6 +209,12 @@ export interface CustomersModuleOptions {
   vatValidator: VatValidator;
   mailer: EmailMailerPort;
   /**
+   * `transactional_emails`' template sender (issue #1295): the operator-triggered
+   * password-reset e-mail renders through it. Absent, or answering `false` for
+   * a code with no definition, the plain {@link mailer} sends an English one.
+   */
+  templateEmail?: TemplateEmailPort;
+  /**
    * `carts`' reporting read: the account's current cart and its abandoned ones,
    * for the customer-detail panel. This host used to build a second
    * `CartQueryService` from an import of that module's directory (feature 075).
@@ -377,6 +384,7 @@ export function customersModule(options: CustomersModuleOptions): {
       presenceService,
       passwordResetService,
       mailer: options.mailer,
+      ...(options.templateEmail ? { templateEmail: options.templateEmail } : {}),
       auditLogService: options.auditLogService,
       storefrontBaseUrl: options.storefrontBaseUrl,
       ...(options.linkChannel ? { linkChannel: options.linkChannel } : {}),

@@ -154,7 +154,8 @@ usuwa treści, nadpisań ani dostosowań dla kanałów. Wyłączony e-mail w chw
 `{ status: 'deactivated' }` i **nie jest wysyłana żadna wiadomość zastępcza**.
 
 E-maili potrzebnych do założenia konta lub odzyskania do niego dostępu w ogóle nie można wyłączyć:
-obecnie są to `email_verification` i `organization_invitation`. Deklaracja znajduje się we wpisie
+obecnie są to `email_verification`, `organization_invitation` i `customer_password_reset_by_admin`.
+Deklaracja znajduje się we wpisie
 rejestru modułu, do którego należy e-mail (`EmailDefaults.nonDeactivatable`), a nie na liście
 utrzymywanej przez ten moduł czy panel administracyjny, a odrzucone przełączenie zwraca
 `409 TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE` z powodem podanym przez ten moduł — w tej samej postaci,

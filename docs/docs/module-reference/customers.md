@@ -43,6 +43,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `quick_order` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `quote_requests` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `admin_search` | no | contributes-to `adminSearchProviderRegistry` |
 
 ## Permissions
