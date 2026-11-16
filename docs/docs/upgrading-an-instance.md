@@ -4467,8 +4467,9 @@ Whenever it suits you:
     backend image's command ([Backend supervisor](#backend-supervisor)). Without it the backend runs
     as before.
 11. **Code of your own** that called `isOrgInScope` or `ruleVisibleForScope`, matched
-    `OrgConstraint`'s `'set'` arm, read an Organization's `taxId` as a string or read tenant values
-    from the platform audit log needs the changes in [Breaking changes](#after-0-111-0-breaking).
+    `OrgConstraint`'s `'set'` arm, read an Organization's `taxId` as a string, read tenant values
+    from the platform audit log, mounted one of six editor zones or matched a refusal on a generic
+    error code needs the changes in [Breaking changes](#after-0-111-0-breaking).
 
 #### Tax IDs {#after-0-111-0-tax-ids}
 
@@ -4525,6 +4526,18 @@ calls only once it is brought over (step 7); until then accounts record the chan
   an entry names the fields a write changed and, where a module keeps one, points at the module's own
   value history. Entries written before the upgrade are not rewritten. Each module's entry below says
   what moved where.
+- **Six admin zones take a required `saveSession` prop** (`ProductEditorZoneProps`,
+  `ProductEditorFieldZoneProps`, `CategoryEditorZoneProps`, `SalesChannelEditorZoneProps`,
+  `OrganizationDetailZoneProps`, `CustomerDetailZoneProps`; issue #407): code that mounts one of them
+  through `<AdminZone>` or `useAdminZone()` passes the host's save session, or `INERT_SAVE_SESSION`
+  from `@endora-commerce/admin-kit/lib`. A contribution that does not read the prop is unaffected.
+- **Domain refusals get their own error codes** (issue #86) in `catalog`, `delivery_methods`,
+  `dictionaries`, `invoices`, `megamenu`, `newsletter`, `orders`, `payment_methods`, `payments`,
+  `price_lists`, `product_feeds`, `projects`, `promotions`, `quick_order`, `returns`, `shipments`,
+  `tasks`, `crm`, `transactional_emails`, `api_keys`, `import_export` and `invoice_ledger`: a refusal
+  that answered `VALIDATION_FAILED` or another generic code answers a code of its own, with its values
+  in `details`. A caller that matched the generic code matches the new one; each module's
+  `CHANGELOG.md` for 0.111.0 names its refusals and their codes.
 
 This section was written on 2026-11-16 against the release branch `release/version-0.111.0`, read
 from the changesets of the release against its migrations and manifests; the entries from

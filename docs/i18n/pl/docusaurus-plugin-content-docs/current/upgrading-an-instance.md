@@ -4673,8 +4673,9 @@ W dowolnym momencie:
 10. **Uruchamiaj backend pod nadzorcą**: skopiuj `backend/scripts/supervise.mjs` i zmień polecenie
     obrazu backendu ([Nadzorca backendu](#backend-supervisor)). Bez tego backend działa jak dotąd.
 11. **Własny kod**, który wywoływał `isOrgInScope` lub `ruleVisibleForScope`, dopasowywał wariant
-    `'set'` typu `OrgConstraint`, czytał `taxId` organizacji jako tekst albo czytał wartości najemców
-    z dziennika audytu platformy, wymaga zmian opisanych w [Zmianach niezgodnych wstecz](#after-0-111-0-breaking).
+    `'set'` typu `OrgConstraint`, czytał `taxId` organizacji jako tekst, czytał wartości najemców
+    z dziennika audytu platformy, montował jedną z sześciu stref edytorów albo rozpoznawał odmowę po
+    ogólnym kodzie błędu, wymaga zmian opisanych w [Zmianach niezgodnych wstecz](#after-0-111-0-breaking).
 
 #### Numery NIP {#after-0-111-0-tax-ids}
 
@@ -4732,6 +4733,19 @@ zapisują domyślny język kanału.
   pól zmienionych przez zapis i, tam gdzie moduł ją prowadzi, wskazuje własną historię wartości
   modułu. Wpisy zapisane przed aktualizacją nie są przepisywane. Wpis każdego modułu poniżej mówi, co
   i dokąd przeniesiono.
+- **Sześć stref panelu administracyjnego wymaga właściwości `saveSession`** (`ProductEditorZoneProps`,
+  `ProductEditorFieldZoneProps`, `CategoryEditorZoneProps`, `SalesChannelEditorZoneProps`,
+  `OrganizationDetailZoneProps`, `CustomerDetailZoneProps`; zgłoszenie #407): kod, który montuje jedną
+  z nich przez `<AdminZone>` lub `useAdminZone()`, przekazuje sesję zapisu gospodarza albo
+  `INERT_SAVE_SESSION` z `@endora-commerce/admin-kit/lib`. Wkład, który nie czyta tej właściwości, nie
+  wymaga zmian.
+- **Odmowy domenowe mają własne kody błędów** (zgłoszenie #86) w modułach `catalog`, `delivery_methods`,
+  `dictionaries`, `invoices`, `megamenu`, `newsletter`, `orders`, `payment_methods`, `payments`,
+  `price_lists`, `product_feeds`, `projects`, `promotions`, `quick_order`, `returns`, `shipments`,
+  `tasks`, `crm`, `transactional_emails`, `api_keys`, `import_export` i `invoice_ledger`: odmowa, która
+  odpowiadała `VALIDATION_FAILED` lub innym ogólnym kodem, odpowiada własnym kodem, z wartościami w
+  `details`. Wywołujący, który rozpoznawał ogólny kod, rozpoznaje nowy; `CHANGELOG.md` każdego modułu
+  dla 0.111.0 wymienia jego odmowy i ich kody.
 
 Ta sekcja została napisana 2026-11-16 na gałęzi wydania `release/version-0.111.0`, na podstawie
 changesetów wydania zestawionych z jego migracjami i manifestami; wpisy od *Jednej reguły zasięgu
