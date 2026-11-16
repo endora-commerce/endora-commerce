@@ -115,11 +115,12 @@ export const apiBaseUrl: string =
  * The storefront origin, for a screen that sends the operator there — the
  * customer detail's impersonation hand-off (issue #1328). Published for
  * {@link apiBaseUrl}'s reason, and read verbatim for the same one; the default
- * is the storefront's development port, as `admin/.env.example` sets it.
+ * is the storefront's development port, as `admin/.env.example` sets it. It is
+ * the value as configured, so a caller trims a trailing slash before appending a
+ * path: a call here would be an import-time side effect (#175).
  */
-export const storefrontBaseUrl: string = (
-  (import.meta.env.VITE_STOREFRONT_BASE_URL as string | undefined) ?? 'http://localhost:3000'
-).replace(/\/+$/, '');
+export const storefrontBaseUrl: string =
+  (import.meta.env.VITE_STOREFRONT_BASE_URL as string | undefined) ?? 'http://localhost:3000';
 
 const inner = createApiClient({ baseUrl: apiBaseUrl });
 

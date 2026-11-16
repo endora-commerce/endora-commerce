@@ -440,7 +440,7 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
                   </p>
                   <div className="flex flex-wrap gap-3">
                     <Button asChild>
-                      <a ref={storefrontLinkRef} href={`${storefrontBaseUrl}/account`} target="_blank" rel="noopener noreferrer">
+                      <a ref={storefrontLinkRef} href={`${storefrontBaseUrl.replace(/\/+$/, '')}/account`} target="_blank" rel="noopener noreferrer">
                         {t('detail.impersonate.openStorefront')}
                         <span className="sr-only"> {t('detail.impersonate.newTab')}</span>
                       </a>
