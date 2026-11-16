@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { INVENTORY_SETTING_CODES, manifest } from './manifest.js';
-import en from '../i18n/en.json' with { type: 'json' };
-import pl from '../i18n/pl.json' with { type: 'json' };
+import { INVENTORY_SETTING_CODES, manifest } from '../manifest.js';
+import en from '../../i18n/en.json' with { type: 'json' };
+import pl from '../../i18n/pl.json' with { type: 'json' };
 
 // Issue #1335 — the recipient's description said an empty value falls back to
 // the platform admin; `LowStockAlertService.resolveRecipient` falls back to the

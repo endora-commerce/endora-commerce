@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { manifest, SEARCH_SETTING_CODES } from './manifest.js';
-import en from '../i18n/en.json' with { type: 'json' };
-import pl from '../i18n/pl.json' with { type: 'json' };
+import { manifest, SEARCH_SETTING_CODES } from '../manifest.js';
+import en from '../../i18n/en.json' with { type: 'json' };
+import pl from '../../i18n/pl.json' with { type: 'json' };
 
 // Issue #1335 — the description of `search.llm.enabled` named the three
 // `embedder.*` settings that feature 058 replaced with one credential reference.
