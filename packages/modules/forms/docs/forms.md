@@ -261,7 +261,8 @@ attribution comes from the session, never from an e-mail address typed into the 
   its notes are gone, and nothing about the answers stays in the audit log.
 
 Every change — to a form, an entry's status, a note, a deletion, an export — is recorded in the
-audit log without the answers.
+audit log without the answers. An export records its filters but not the search text: only that
+one was used, and how long it was.
 
 ### Entries and organisations
 

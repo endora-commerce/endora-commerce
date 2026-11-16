@@ -358,7 +358,8 @@ Two rules decide it, always in this order.
 **1. Organization reach.** An administrator who can reach every Organization —
 any role other than the sales representative's — can see every project. A
 sales representative sees a project only when **every** Organization of the
-project is one they are assigned; a project for two Organizations, of which
+project is one they reach — one assigned to them, or one no other
+representative is assigned to; a project for two Organizations, of which
 they reach one, does not exist for them. An internal project is visible only to
 administrators who can reach every Organization. Nothing below widens this
 rule.
@@ -388,8 +389,8 @@ the project.
 
 *See every project* (`projects:see_all`) lifts this second rule, never the
 first: its holder sees every project **within their reach**, and a sales
-representative who holds it still sees no project of an Organization they are
-not assigned, nor any internal project.
+representative who holds it still sees no project of an Organization they do
+not reach, nor any internal project.
 
 A project somebody may not see does not exist for them, anywhere: not in a
 list, not in its total, not by its address, not as the context of a task in the
@@ -531,8 +532,8 @@ run — an HTML page, an SVG image, an XML document, a script — is refused.
 
 **The media library refuses to delete a file a project uses**, and names the
 project by its number to those who may see it — also while Projects is switched
-off. Detach it from the project first. A file used only by projects somebody is
-not a member of is hidden from them in the media library. A download link is prepared at the moment you press *Download*
+off. Detach it from the project first. A file used only by projects somebody may
+not see is hidden from them in the media library. A download link is prepared at the moment you press *Download*
 and is valid for a few minutes.
 
 ## Deadline alerts
@@ -717,7 +718,6 @@ project `version`. Re-read the project after a `409`.
 | `POST /api/v1/admin/projects/templates`, `PUT …/templates/:id` | `projects:configure` | The whole template in one body (`ProjectTemplateBody`: name, description, `roleIds`, `stages` each with a `key` and its `tasks`, `moves` naming stages by key — left out, each stage moves to the next) → `201` / `200` `{ data: ProjectTemplateDetail }`. A key that is the id of one of the template's stages keeps that stage's id. An archived role the template does not already hold is `422` `PROJECT_TEMPLATE_ROLE_ARCHIVED` (`details`: `roleId`; `VALIDATION_FAILED` until issue #634). |
 | `POST /api/v1/admin/projects/templates/:id/duplicate` | `projects:configure` | `201` `{ data: ProjectTemplateDetail }` — an independent copy. |
 | `POST /api/v1/admin/projects/templates/:id/archive`, `…/restore` | `projects:configure` | `{ data: ProjectTemplateDetail }`. |
-
 | `GET /api/v1/admin/projects/analytics/summary` | `projects:analytics` | `{ opened, completed, lost, completionRate }` — `completionRate` is `null` when nothing closed. |
 | `GET /api/v1/admin/projects/analytics/durations` | `projects:analytics` | `{ completedAverageDays, completedCount, lostAverageDays, lostCount }` — creation to closing, over the projects closed in the range. |
 | `GET /api/v1/admin/projects/analytics/time-in-stage` | `projects:analytics` | `{ stageName, averageDays, sampleCount }[]` per stage name, over the stays begun in the range that have ended, in the order stages are usually walked. |
@@ -914,10 +914,12 @@ It is gated: resolving it while Projects is off throws, and the call answers
 | --- | --- |
 | `findById(id)` | The project as a `ProjectRecord` — `id`, `number`, `title`, `state`, `currentStageId`, `currentStageName`, `organizationIds`, `valueAmount`, `valueCurrency`, `templateId`, `closedAt`, `createdAt` — or `null`. |
 | `findByRecord(kind, id)` | The project an `order`, `quote_request` or `opportunity` is linked to, as a `ProjectRecord`, or `null`. |
+| `findByIds(ids)` | The projects of `ids`, in no particular order; an id the caller may not see, or that does not exist, is left out. |
+| `search({ q, limit })` | The projects whose number or title contains `q`, newest first, at most `limit` (20 at most). |
 
-Both answer for the caller, through `ProjectAccess` under the caller's own
+All four answer for the caller, through `ProjectAccess` under the caller's own
 tenant context: a project that does not exist, one out of the caller's reach
-and one the caller may not see are the same `null`. The answer is a plain
+and one the caller may not see are the same `null` — or are left out. The answer is a plain
 object, never an entity.
 
 `./backend` also exports **`nextProjectNumber(em)`**, the module's door to its

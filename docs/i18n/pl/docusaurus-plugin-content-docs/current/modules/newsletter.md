@@ -49,8 +49,14 @@ wyłączać**, aby nie kolidował z zewnętrzną usługą e-mail marketingu (Mai
 - **Identyfikacja wizualna** — logo i kolor akcentu pochodzą z kanału sprzedaży kampanii lub
   automatyzacji. Kampania albo automatyzacja utworzona bez kanału sprzedaży jest podglądana
   i wysyłana z identyfikacją wizualną **domyślnego** kanału sprzedaży.
-- **Dostawca wysyłki** — wybierany i konfigurowany w panelu administracyjnym; hasło SMTP jest
-  przechowywane jako ustawienie typu `secret` (AES-256-GCM, na granicy API tylko do zapisu).
+- **Dostawca wysyłki** — połączenie SMTP (host, port, TLS, nazwa użytkownika, hasło) to
+  wielokrotnego użytku konfiguracja **Email adapter** w wariancie SMTP, tworzona na ekranie
+  **Poświadczenia** (*Credentials*) i wybierana w ustawieniu *Email credentials*
+  (`newsletter.email_credentials`); hasło jest przechowywane w postaci zaszyfrowanej i nigdy nie jest
+  zwracane. Ekran **Usługa wysyłki** newslettera ustawia adres i nazwę nadawcy oraz tempo wysyłki
+  i testuje połączenie (`GET`/`PUT /api/v1/admin/newsletter/provider`, `POST …/provider/test`).
+  Bez wybranej, działającej konfiguracji e-maile kampanii są zapisywane w logu serwera (konsolowe
+  ujście) zamiast wysyłane — wysyłka nie jest odrzucana.
 
 ## Wysyłka
 
@@ -126,7 +132,7 @@ zdaniem w języku operatora. Wartości, które to zdanie wymienia, są przekazyw
 | --- | --- | --- | --- |
 | `NEWSLETTER_CAMPAIGN_NOT_EDITABLE` | 422 | Edycja kampanii, która nie jest wersją roboczą ani zaplanowaną | `campaignId`, `status` |
 | `NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE` | 422 | Anulowanie kampanii, która nie jest wersją roboczą ani zaplanowaną | `campaignId`, `status` |
-| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Wysyłka kampanii, gdy nie skonfigurowano dostawcy wysyłki | — |
+| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Wysyłka kampanii, gdy nie skonfigurowano dostawcy wysyłki. Dziś nie występuje: bez konfiguracji poświadczeń dostawcą jest konsolowe ujście (zob. *Dostawca wysyłki*) | — |
 | `NEWSLETTER_AUTOMATION_ACTIVE` | 422 | Edycja aktywnej automatyzacji; najpierw ją wstrzymaj | `automationId`, `status` |
 | `NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN` | 409 | Utworzenie pola niestandardowego o istniejącym kluczu | `key` |
 | `NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN` | 409 | Utworzenie bloku e-mail o istniejącym kodzie | `blockCode` |
@@ -220,8 +226,8 @@ dowolnego zewnętrznego endpointu, dla usługi newslettera spoza platformy.
 
 ## W dzienniku audytu
 
-Zapis, ponowny zapis, potwierdzenie, wypisanie, zablokowanie po odbiciu lub skardze i usunięcie
-subskrybenta to każde wpis w dzienniku audytu całej platformy. Ten dziennik czyta każdy, kto ma
+Zapis, ponowny zapis, potwierdzenie, wypisanie, zablokowanie po odbiciu lub skardze, dezaktywacja i
+usunięcie subskrybenta to osobne wpisy w dzienniku audytu całej platformy. Ten dziennik czyta każdy, kto ma
 `audit_log:read`, bez względu na to, co widzi, dlatego wpis nazywa subskrybenta identyfikatorem i
 nie zawiera adresu e-mail ani wolnego tekstu: status, źródło, kod powodu blokady i to, czy przy
 wypisaniu podano powód (`hasReason`). Adres jest przy subskrybencie, powód przy subskrybencie i
@@ -233,5 +239,6 @@ Migracja `20260629T200954_newsletter_init.ts` tworzy `newsletter_subscribers`, `
 `newsletter_subscriber_tags`, `newsletter_custom_fields`, `newsletter_suppressions`,
 `newsletter_email_blocks` (z tabelą łączącą z kanałami), `newsletter_campaigns` (z tabelą łączącą z
 grupami), `newsletter_send_records`, `newsletter_engagement_events`, `newsletter_automations` i
-`newsletter_automation_runs`. Konfiguracja dostawcy wysyłki i tryb zgody są przechowywane w module
-**ustawień** (bez osobnej tabeli danych uwierzytelniających).
+`newsletter_automation_runs`. Nadawca, tempo wysyłki i tryb zgody są przechowywane w module
+**ustawień**, a połączenie SMTP w module **poświadczeń** (bez osobnej tabeli danych
+uwierzytelniających).
