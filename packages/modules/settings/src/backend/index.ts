@@ -5,6 +5,7 @@ import type { EventBus } from '@endora-commerce/platform/events';
 import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type {
+  AssetReadPort,
   AssetsLibraryPort,
   SettingsAdminPort,
   SettingsManifestCollectionPort,
@@ -24,6 +25,7 @@ import { SettingNoticeRegistry } from './services/setting-notices.js';
 import { CacheAdminService } from './services/cache-admin.service.js';
 import { ShopInfoResolver } from './services/shop-info-resolver.js';
 import { createSocialProfilesValidator } from './services/social-profiles-validator.js';
+import { createShopLogoValidator } from './services/shop-logo-validator.js';
 import { HomepageResolver } from './services/homepage-resolver.js';
 import { ProductCardButtonsResolver } from './services/product-card-buttons-resolver.js';
 import { SpeculationRulesResolver } from './services/speculation-rules-resolver.js';
@@ -110,6 +112,9 @@ export function registerModule(ctx: ModuleContext): void {
         // Feature 163 (FR-035) — this module's own rule for its own setting:
         // `shop.social_profiles` holds `https:` URLs only.
         registry.register(createSocialProfilesValidator());
+        // Issue #544 — a newly set shop logo the administrator may not see in
+        // the asset library is refused as a missing one.
+        registry.register(createShopLogoValidator(lazyPort<AssetReadPort>(ctx, 'assetReadPort')));
         return registry;
       })
       .singleton(),

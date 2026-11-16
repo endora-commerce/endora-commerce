@@ -403,6 +403,8 @@ describe('pwa — quote pushes arrive through customerPushPort, not through quot
       },
       routes: () => undefined,
       worker: () => undefined,
+      // Issue #544 — the icon write validator is pushed from a boot hook.
+      onBoot: () => undefined,
       log: { info: () => undefined, warn: () => undefined, error: () => undefined },
     } as unknown as ModuleContext;
     registerModule(ctx);

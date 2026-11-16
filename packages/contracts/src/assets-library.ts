@@ -8,6 +8,7 @@
 // See specs/013-assets-library/contracts/ for the per-surface contracts these schemas back.
 
 import { z } from 'zod';
+import type { SettingWriteValidator } from './settings.js';
 import { isoDateTimeSchema, uuidSchema, multilingualStringSchema, isUuidShape } from './common.js';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -554,6 +555,82 @@ export interface AssetReadPort {
    * decides whether the bytes are worth moving.
    */
   openAssetBytes(assetId: string): Promise<AssetBytes | null>;
+}
+
+/**
+ * Every asset id a Page Builder or document tree carries: each non-empty
+ * string under a key ending in `assetId`, in any case and at any depth
+ * (`assetId`, `iconAssetId`, `mainImageAssetId`, ...). The same rule the
+ * renderers resolve embeds by, so what is checked is what is shown.
+ */
+export function contentAssetIds(tree: unknown, acc: Set<string> = new Set()): Set<string> {
+  if (tree === null || typeof tree !== 'object') return acc;
+  if (Array.isArray(tree)) {
+    for (const item of tree) contentAssetIds(item, acc);
+    return acc;
+  }
+  for (const [key, value] of Object.entries(tree as Record<string, unknown>)) {
+    if (typeof value === 'string' && /assetId$/i.test(key)) {
+      if (value.length > 0) acc.add(value);
+    } else {
+      contentAssetIds(value, acc);
+    }
+  }
+  return acc;
+}
+
+/**
+ * Of the asset ids a write would store, the ones it may not: every id the
+ * write **newly adds** that {@link AssetReadPort.visibleToCaller} does not
+ * return — a hidden file and a missing one alike (issue #544, owner ruling of
+ * 2026-10-30, option a; `specs/166-asset-reference-visibility/` FR-006).
+ *
+ * An id in `current` — what the record already stores — is that record's own
+ * reference and is not asked about, so a body still embedding a purged file
+ * saves as before. Ids are compared trimmed and lower-cased. One question for
+ * the whole write; the answer is sorted, so the refusal names the same id
+ * whatever order the tree was walked in.
+ */
+export async function unlinkableAssetIds(
+  assets: Pick<AssetReadPort, 'visibleToCaller'>,
+  proposed: Iterable<string>,
+  current: Iterable<string> = [],
+): Promise<string[]> {
+  const normalise = (id: string) => id.trim().toLowerCase();
+  const kept = new Set([...current].map(normalise));
+  const added = [...new Set([...proposed].map(normalise))].filter((id) => id !== '' && !kept.has(id)).sort();
+  if (added.length === 0) return [];
+  const visible = await assets.visibleToCaller(added);
+  const seen = new Set([...visible].map(normalise));
+  return added.filter((id) => !seen.has(id));
+}
+
+/**
+ * A setting write validator for settings whose value is one asset id, `''`
+ * meaning unset (a shop logo, an app icon, a default sharing image): the
+ * write is refused by `refuse` when it newly sets an id the caller may not
+ * see, per {@link unlinkableAssetIds}. A value the setting already holds —
+ * platform-wide or on any channel — is accepted as it stands.
+ *
+ * The owning module registers it, as for any of its settings; `refuse`
+ * builds the module's refusal, which this package cannot construct.
+ */
+export function assetIdSettingValidator(options: {
+  contributorModuleId: string;
+  codes: readonly string[];
+  assets: Pick<AssetReadPort, 'visibleToCaller'>;
+  refuse: (assetId: string) => Error;
+}): SettingWriteValidator {
+  return {
+    contributorModuleId: options.contributorModuleId,
+    codes: options.codes,
+    async validate({ proposedValue, currentValues }) {
+      if (typeof proposedValue !== 'string' || proposedValue.trim() === '') return;
+      const stored = (currentValues ?? []).filter((value): value is string => typeof value === 'string');
+      const [refused] = await unlinkableAssetIds(options.assets, [proposedValue], stored);
+      if (refused !== undefined) throw options.refuse(refused);
+    },
+  };
 }
 
 /** One asset's stored bytes, with the MIME type they were stored under. */

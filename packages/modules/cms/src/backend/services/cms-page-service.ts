@@ -13,7 +13,8 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditState, CommandBus } from '@endora-commerce/platform/commands';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';
+import { walkAssetIds, walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';
+import { assertAssetsLinkable, type CmsAssetVisibility } from './linkable-assets.js';
 import { assertAnchors } from './anchor-guard.js';
 import type { CmsContentInvalidator } from './cms-content-invalidator.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';
@@ -157,7 +158,20 @@ export class CmsPageService {
     private readonly knownComponentNames: () => Iterable<string>,
     private readonly invalidator?: CmsContentInvalidator,
     private readonly references?: CmsReferenceRegistry,
+    /** Issue #544 — asked before a save stores an asset id the page did not already hold. */
+    private readonly assets?: CmsAssetVisibility,
   ) {}
+
+  /**
+   * Every asset id the stored page already holds — its body in every language
+   * and its sharing image. A save re-storing one of them adds nothing
+   * (issue #544).
+   */
+  private storedAssetIds(row: PageRow): Set<string> {
+    const ids = walkAssetIds(row.content);
+    if (row.share_image_asset_id) ids.add(row.share_image_asset_id);
+    return ids;
+  }
 
   setReservedSegmentsResolver(resolver: ReservedSlugSegmentsResolver | null): void {
     this.reservedSegmentsResolver = resolver;
@@ -546,6 +560,7 @@ export class CmsPageService {
     }
     const translations = normalizeTranslations(input.translations ?? {});
     this.assertTranslationsInLanguages(translations, input.languages);
+    if (input.shareImageAssetId) await assertAssetsLinkable(this.assets, [input.shareImageAssetId], []);
     const id = randomUUID();
     const now = new Date();
     const meta = this.splitMeta(input.meta ?? null);
@@ -647,6 +662,9 @@ export class CmsPageService {
         const row = await this.findRow(id, tx);
         if (!row) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
         this.assertVersion(row, input.version);
+        if (input.shareImageAssetId) {
+          await assertAssetsLinkable(this.assets, [input.shareImageAssetId], this.storedAssetIds(row));
+        }
         slugsToInvalidate.add(row.slug);
         const before = await this.auditState(tx, row);
 
@@ -755,6 +773,7 @@ export class CmsPageService {
         this.assertVersion(row, version);
         // One anchor names one place in this language's tree (feature 163, R-8).
         assertAnchors({ [language]: data });
+        await assertAssetsLinkable(this.assets, walkAssetIds(data), this.storedAssetIds(row));
 
         const unknown = walkUnknownComponents(data, new Set(this.knownComponentNames()));
         if (unknown.size > 0) {

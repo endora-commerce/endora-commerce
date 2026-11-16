@@ -179,6 +179,13 @@ Projects by membership, CRM by `crm:read` and your Organization reach.
   files at once skips it, as it skips a missing one.
 - Attaching it to a Task, a Project or an Opportunity is refused as for a
   missing file.
+- Using it anywhere else is refused as for a missing file too, and a missing
+  file is refused there as well. This covers embedding it in a CMS page, block
+  or template, a category's page, a product's content, a blog post or a blog
+  category's description, or a document template and its preview. It also
+  covers choosing it as a page's sharing image, the default sharing image, the
+  shop logo, the app icon or a sales channel's logo. A file that is already
+  used there stays: saving that content or setting again works.
 - A permalink refusal (`409 ASSET_PERMALINK_TAKEN`) does not name the file that
   holds the name when you may not see it.
 
@@ -552,6 +559,13 @@ visibility, its type), so a hidden file and a missing one get one answer. The
 port's other methods are unfiltered: they serve modules that decide by their
 own record's rules. `assetsLibraryPort.getAsset` answers the detail with the
 references the caller may see.
+
+A module that stores asset ids in a content body or a setting asks the same
+question about the ids a write **adds**. `unlinkableAssetIds(assets, proposed,
+current)` in `@endora-commerce/contracts` returns the ids to refuse. Ids the
+record already stores (`current`) are not asked about. `contentAssetIds(tree)`
+collects the ids a Page Builder tree carries. `assetIdSettingValidator` builds
+the write validator for a setting whose value is one asset id.
 
 ## Pluggable storage adapters
 

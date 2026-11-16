@@ -670,7 +670,7 @@ export function catalogModule(options: CatalogModuleOptions) {
     // attribute read model (which set members are content attributes).
     const productContentService =
       options.commandBus && attributeReadService
-        ? new ProductContentService(options.emFactory, options.commandBus, attributeReadService)
+        ? new ProductContentService(options.emFactory, options.commandBus, attributeReadService, options.assets)
         : undefined;
 
     await registerCatalogAdminRoutes(app, {

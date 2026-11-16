@@ -626,6 +626,15 @@ export interface SettingWriteValidationInput {
    * this.
    */
   readonly proposedValue: unknown;
+  /**
+   * Every value the setting holds **before** the write: the platform-wide
+   * value in force (the stored global value, else the manifest default) and
+   * each channel's own row. A rule about what a write newly introduces — an
+   * asset id the caller may not see (issue #544) — reads this, so re-saving a
+   * value already stored is not judged as adding it. `settings` always sends
+   * it; absent reads as "nothing is stored".
+   */
+  readonly currentValues?: readonly unknown[];
   /** Every sales channel in the platform, active or not, with its post-write value. */
   readonly projection: readonly SettingWriteChannelProjection[];
   /** Channel ids the write targets; empty for a platform-wide (`scope: 'all'`) write. */

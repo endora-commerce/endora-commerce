@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type {
+  AssetReadPort,
   DictionaryValidator,
   SalesChannelAttributionRegistryPort,
 } from '@endora-commerce/contracts';
@@ -132,6 +133,9 @@ export function registerModule(ctx: ModuleContext): void {
             // Feature 154 — kernel-composed, resolved per call like the channel
             // cache, and narrowed to the invalidating half for the same reason.
             lazyPort<SalesChannelAccessCacheInvalidation>(ctx, 'salesChannelAccessCache'),
+            // Issue #544 — a newly set logo must be a file the administrator
+            // may see in the library. Another module's port, resolved per call.
+            lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
           ),
       )
       .singleton(),

@@ -15,7 +15,7 @@ import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import type { CommandBus, CommandEvent } from '@endora-commerce/platform/commands';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { Category } from '../entities/category.entity.js';
-import { requireLinkableAsset, type LinkableAssetReader } from './linkable-asset.js';
+import { requireLinkableAsset, requireLinkableContentAssets, type LinkableAssetReader } from './linkable-asset.js';
 
 /** Result of a category write closure: the entity + its audit snapshot. */
 interface CategoryWrite {
@@ -394,6 +394,9 @@ export class CategoryAdminService {
         { populate: ['content'] },
       );
       if (!found) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
+      // Issue #544 — an asset id the content newly embeds must be one the
+      // caller may see, as for the main image.
+      await requireLinkableContentAssets(this.assets, content, found.content ?? null);
       const before = { contentLanguages: contentLanguagesOf(found.content ?? null) };
       found.content = content;
       await em.flush();

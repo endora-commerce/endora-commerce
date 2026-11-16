@@ -164,6 +164,12 @@ rekord, do którego zadanie należy; Projekty — członkostwo; CRM — `crm:rea
   brakujący.
 - Dołączenie go do zadania, projektu lub szansy sprzedażowej jest odrzucane jak dla brakującego
   pliku.
+- Użycie go w innym miejscu też jest odrzucane jak dla brakującego pliku, a brakujący plik jest tam
+  odrzucany również. Dotyczy to osadzenia go na stronie, w bloku lub szablonie CMS, na stronie
+  kategorii, w treści produktu, we wpisie na blogu lub w opisie kategorii bloga oraz w szablonie
+  dokumentu i jego podglądzie. Dotyczy też wybrania go jako obrazu udostępniania strony, domyślnego
+  obrazu udostępniania, logo sklepu, ikony aplikacji lub logo kanału sprzedaży. Plik, który jest już
+  tam użyty, zostaje: ponowne zapisanie tej treści lub ustawienia działa.
 - Odmowa ustawienia stałego linku (`409 ASSET_PERMALINK_TAKEN`) nie wskazuje pliku, który ma już tę
   nazwę, jeśli nie możesz go zobaczyć.
 
@@ -501,6 +507,13 @@ Moduł, który pozwala dołączyć istniejący plik z biblioteki, pyta o to **pr
 opisującą plik (jego widoczność, typ), aby ukryty i brakujący plik dostały jedną odpowiedź. Pozostałe
 metody portu nie filtrują: służą modułom, które decydują według reguł własnego rekordu.
 `assetsLibraryPort.getAsset` zwraca szczegóły z odwołaniami, które wywołujący może zobaczyć.
+
+Moduł, który zapisuje identyfikatory zasobów w treści lub w ustawieniu, zadaje to samo pytanie o
+identyfikatory, które zapis **dodaje**. `unlinkableAssetIds(assets, proposed, current)` z
+`@endora-commerce/contracts` zwraca identyfikatory do odrzucenia. O identyfikatory, które rekord już
+przechowuje (`current`), nie pyta. `contentAssetIds(tree)` zbiera identyfikatory z drzewa Page
+Buildera. `assetIdSettingValidator` buduje walidator zapisu dla ustawienia, którego wartością jest
+jeden identyfikator zasobu.
 
 ## Wymienne adaptery przechowywania
 

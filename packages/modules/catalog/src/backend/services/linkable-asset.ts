@@ -1,4 +1,10 @@
-import { ERROR_CODES, type AssetReadPort, type AssetRecord } from '@endora-commerce/contracts';
+import {
+  contentAssetIds,
+  ERROR_CODES,
+  unlinkableAssetIds,
+  type AssetReadPort,
+  type AssetRecord,
+} from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 
 /** The two questions this module asks `assets_library` before it links a file by id. */
@@ -31,4 +37,30 @@ export async function requireLinkableAsset(assets: LinkableAssetReader, assetId:
   const asset = await findLinkableAsset(assets, assetId);
   if (!asset) throw assetNotFound(assetId);
   return asset;
+}
+
+/**
+ * Refuse a Page Builder save that newly adds an asset id the caller may not
+ * see, a missing id included, with {@link assetNotFound} (issue #544, owner
+ * ruling 2026-10-30, option a). A category's page content and a product's
+ * content attributes are unrestricted references, like the gallery: an id
+ * they store is listed in the library for every reader.
+ *
+ * `current` is what the record already stores: an id in it is its own
+ * reference and is not asked about, so content still embedding a purged file
+ * saves as before. Without the read port a save that adds an id fails closed.
+ */
+export async function requireLinkableContentAssets(
+  assets: Pick<AssetReadPort, 'visibleToCaller'> | undefined,
+  proposed: unknown,
+  current: unknown,
+): Promise<void> {
+  const [refused] = await unlinkableAssetIds(
+    assets ?? { visibleToCaller: async () => new Set() },
+    contentAssetIds(proposed),
+    contentAssetIds(current),
+  );
+  if (refused === undefined) return;
+  if (!assets) throw new Error('catalog: the asset read port is not wired — content cannot link an asset.');
+  throw assetNotFound(refused);
 }

@@ -5,6 +5,8 @@ import {
   ERROR_CODES,
   SALES_CHANNEL_AUDIT_ACTIONS,
   dispatchValidatorMode,
+  unlinkableAssetIds,
+  type AssetReadPort,
   type DictionaryValidator,
   type SalesChannelAttributionRegistryPort,
   type SalesChannelCreateRequest,
@@ -164,7 +166,31 @@ export class SalesChannelsService {
      * move; it is dropped as part of the write, like the channel cache.
      */
     private readonly accessCache?: SalesChannelAccessCacheInvalidation,
+    /**
+     * Issue #544 — `assets_library`'s visibility question, asked before a
+     * write sets a logo the channel does not already have. A write that sets
+     * one without it fails closed.
+     */
+    private readonly assets?: Pick<AssetReadPort, 'visibleToCaller'>,
   ) {}
+
+  /**
+   * Issue #544 (owner ruling 2026-10-30, option a) — refuse a newly set logo
+   * the caller may not see in the asset library, a missing one included, with
+   * `assets_library`'s own answer for a hidden file. The logo already set is
+   * the channel's own and is accepted as it stands.
+   */
+  private async assertLogoLinkable(logoAssetId: string | null | undefined, current: string | null): Promise<void> {
+    if (!logoAssetId) return;
+    const [refused] = await unlinkableAssetIds(
+      this.assets ?? { visibleToCaller: async () => new Set() },
+      [logoAssetId],
+      current ? [current] : [],
+    );
+    if (refused === undefined) return;
+    if (!this.assets) throw new Error('sales_channels: the asset read port is not wired — a logo cannot be set.');
+    throw new HttpError(404, ERROR_CODES.ASSET_NOT_FOUND, `Asset ${refused} not found.`, { assetId: refused });
+  }
 
   // -------------------------------------------------------------------------
   // Read paths
@@ -214,6 +240,7 @@ export class SalesChannelsService {
     await this.validateLanguage(body.defaultLanguage, 'create-or-change', 'defaultLanguage');
     await this.assertCurrenciesValid(body.currencies);
     await this.validateCurrency(body.defaultCurrency, 'create-or-change', 'defaultCurrency');
+    await this.assertLogoLinkable(body.logoAssetId, null);
 
     const channel = await this.commandBus.run(makeCreateSalesChannelCommand(randomUUID(), body));
     // D-93 — committed by now, so drop, then announce.
@@ -330,6 +357,8 @@ export class SalesChannelsService {
         `Sales channel "${channel.code}" is the system default and cannot be deactivated.`,
       );
     }
+
+    await this.assertLogoLinkable(body.logoAssetId, channel.logoAssetId ?? null);
 
     const updated = await this.commandBus.run(
       makeUpdateSalesChannelCommand(channel.id, body, expectedVersion),

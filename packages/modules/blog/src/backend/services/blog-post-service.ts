@@ -17,7 +17,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { assertPostLanguagesComplete } from './blog-language-completeness.js';
 import { forgetEntityUrls, redirectFormerSlug } from './blog-url-keys.js';
 import type { BlogAuthors } from './blog-authors.js';
-import { assertLinkableAsset, type LinkableAssetReader } from './linkable-asset.js';
+import { assertLinkableAsset, assertLinkableContentAssets, type LinkableAssetReader } from './linkable-asset.js';
 import { assertSlugAvailable } from './blog-slug-collision.js';
 import type { BlogCacheService } from './blog-cache.js';
 
@@ -161,6 +161,8 @@ export class BlogPostService {
     const now = new Date();
     // Feature 166 (FR-006) — a main image the caller may not see answers as a missing one.
     if (input.mainImageAssetId) await assertLinkableAsset(this.assets, input.mainImageAssetId);
+    // Issue #544 — so does an asset the content embeds.
+    if (input.content) await assertLinkableContentAssets(this.assets, input.content, null);
     if (input.authorAdminUserId) await this.assertAuthor(input.authorAdminUserId);
 
     return em.transactional(async (tx) => {
@@ -380,6 +382,8 @@ export class BlogPostService {
         throw new HttpError(404, ERROR_CODES.BLOG_POST_NOT_FOUND, 'Blog post not found.');
       }
       this.assertVersion(existing.version, input.version);
+      // Issue #544 — an asset the content newly embeds must be one the caller may see.
+      await assertLinkableContentAssets(this.assets, input.content, existing.content);
       await tx.execute(
         `update blog_posts
             set content = ?::jsonb,
