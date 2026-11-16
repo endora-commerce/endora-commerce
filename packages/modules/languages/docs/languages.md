@@ -82,7 +82,12 @@ The default-locale lookup is cached for 60 seconds; admin mutations call
 ## Entities
 
 `Language` — natural primary key on the BCP-47 code; `label`,
-`isDefault`, `isActive`, `sortOrder`.
+`nativeLabel`, `isRtl`, `fallbackCode` (a reference to another language,
+`languages_fallback_fk`), `isDefault`, `isActive`, `sortOrder`. This module
+creates `native_label`, `is_rtl`, `fallback_code` and the foreign key itself,
+in `20261114T003519_languages_dictionary_columns.ts` (issue #611); until then
+only the `dictionaries` module's init migration did. On a database that
+already has them the migration changes nothing.
 
 ## Extension points
 

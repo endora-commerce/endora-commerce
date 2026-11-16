@@ -172,8 +172,10 @@ Outbound deliveries are processed by a BullMQ queue with exponential backoff:
 - Backoff starts at **1 s** and doubles each retry (1 s, 2 s, 4 s, …).
 - Each attempt has a **10 s** timeout.
 - After the final attempt, the delivery is marked `dead_lettered` in
-  `webhook_deliveries`. The admin panel's "Failed Deliveries" view replays
-  these on demand.
+  `webhook_deliveries`. The **Recent deliveries** list on the admin panel's
+  Webhooks screen replays these on demand.
+- Finished deliveries are kept for `webhooks.delivery_retention_days` (365 days
+  by default) and then deleted; a deleted delivery can no longer be replayed.
 
 Receivers must be **idempotent**: deduplicate on `X-Webhook-Event-Id` so a
 replayed delivery does not double-apply state changes. Webhook ordering is

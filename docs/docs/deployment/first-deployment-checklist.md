@@ -210,7 +210,7 @@ verification e-mail in a real inbox. Do this before the client's first customer 
 **Why.** The migration history was rebuilt and the frozen-name map retired on the same
 no-production-deployment grounds — the ordering of the pre-`20260801T000000` block is
 uncorrected by design
-(`backend/src/db/migration-order.ts`), and the chain has only ever been applied to databases
+(`packages/platform/src/db/migration-order.ts`), and the chain has only ever been applied to databases
 that were free to be thrown away. The first production database is the first one that has to
 keep its rows.
 
@@ -466,7 +466,7 @@ storefront elements whether or not anyone asked for it.
 they are not using. Switching off is non-destructive and reversible: it drops no data,
 configuration, permissions or schema. **Do not rely on the confirmation prompt to tell you what
 a deactivation costs** — today it only names the module
-(`packages/admin-shell/src/modules/platform/ModuleActivationControl.tsx:109`). What breaks when a module goes
+(`packages/admin-shell/src/modules/platform/ModuleActivationControl.tsx:112`). What breaks when a module goes
 off is recorded in the
 [deactivation-consequence ledger](../architecture/kernel.md#the-deactivation-consequence-ledger);
 ask an engineer to read it for any module the client is not obviously done with. An instance has

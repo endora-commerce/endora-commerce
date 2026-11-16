@@ -43,8 +43,9 @@ An import of an export-only entity is answered `405 IMPORT_NOT_SUPPORTED` with
 checked first, so a caller who may not use the entity at all is refused `403`. The code was
 `405 VALIDATION_FAILED` until issue #644.
 
-A sales representative restricted to assigned organizations exports only those
-organizations' customers and orders — the same rows the customers and orders lists show them.
+A sales representative exports only the customers and orders of the organizations they reach —
+those assigned to them and every organization no representative is assigned to — the same rows the
+customers and orders lists show them.
 
 The customers sheet has the columns `email`, `organization_name`, `first_name`, `last_name`,
 `organization_role_name`, `organization_role_kind`, `email_verified_at` and `last_login_at`.
@@ -94,6 +95,11 @@ and writes nothing. The admin screen always runs it first and shows, before **Ap
 Each product row applies in its own transaction. A refused row leaves the other rows applied,
 and a refused cell leaves the rest of its row applied. Re-running the same file is safe: it
 writes the same values again.
+
+An import that wrote (not a dry run) asks `catalog`, through `catalogBulkImportPort`, to refresh
+the database statistics of the product tables in the background about a minute later (the
+`catalog.table-maintenance` queue, issue #409), so the admin product list stays fast right after
+a large import. The import neither waits for that nor fails on it.
 
 ### Columns
 

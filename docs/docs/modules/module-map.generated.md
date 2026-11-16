@@ -25,7 +25,7 @@ of the platform, not of what happens to be written.
 | [Feedback](./admin-feedback.md) | Administrators send feedback from the admin to the makers of Endora Commerce, relayed as one e-mail and stored nowhere | @endora-commerce/mod-admin-feedback |
 | `admin_notifications` | _no page yet_ | @endora-commerce/mod-admin-notifications |
 | [Admin roles](./admin_roles.md) | Admin role definitions + per-module Permissions | @endora-commerce/mod-admin-roles |
-| [Global search](./admin-search.md) | Global search in the admin — find organizations, customers, orders, quote requests, sales opportunities, products and categories from the command palette, with configurable searchable fields | @endora-commerce/mod-admin-search |
+| [Global search](./admin-search.md) | Global search in the admin — find organizations, customers, orders, quote requests, sales opportunities, products, categories, projects and tasks from the command palette, with configurable searchable fields | @endora-commerce/mod-admin-search |
 | [Admin users](./admin_users.md) | Platform Administrator accounts + impersonation | @endora-commerce/mod-admin-users |
 | [Analytics](./analytics.md) | Storefront event ingest + admin aggregation + optional GA4 forwarder | @endora-commerce/mod-analytics |
 | [API keys](./api_keys.md) | Bearer-token integration credentials | @endora-commerce/mod-api-keys |

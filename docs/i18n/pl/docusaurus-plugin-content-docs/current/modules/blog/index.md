@@ -296,7 +296,9 @@ blok, którego kategorię usunięto, po prostu nic nie pokazuje. Kanał z
 Wszystkie cztery:
 
 - odczytują wyznaczony kanał i język z nagłówków żądania (`x-sales-channel`, `x-blog-language` /
-  `accept-language`);
+  `accept-language`); `x-blog-language` ma pierwszeństwo, a `accept-language` jest czytany jako
+  lista ważona `q` dopasowywana do języków kanału (najpierw dokładnie, potem po języku bazowym),
+  w przeciwnym razie obowiązuje język domyślny kanału;
 - odczytują ustawienia `blog.*` z usługi ustawień uwzględniającej kanał;
 - zwracają `404 BLOG_DISABLED` (albo `BLOG_POST_NOT_FOUND` / `BLOG_TAG_NOT_FOUND`), gdy w danym
   zakresie nie ma pasującej treści — z wyjątkiem `/posts`, które zwraca pustą listę;

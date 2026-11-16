@@ -87,7 +87,10 @@ validation and the same completeness gate as the editor.
 
 It refuses with `not_supported`: `audience`, `product.*`, `seo:*`, `galleryRole:*`, `*:hidden`,
 `minOrderQuantity` and `returnable`. A connector writes SEO through the `seo` module, not through
-this port.
+this port. Prices are not written here either: a product's base prices go through `price_lists`'
+`priceBookWritePort`, and its rows in one non-base price book (a customer-group, organization,
+catalogue or sale book an administrator chose) through `priceBookRowWritePort`; the price books
+module's developer guide describes both.
 
 Each product is one call: at most 2 000 cells, no duplicate (field, scope), subject ids bound to
 the product, and `options.source` set to the connector's registered module id. Refusals come back

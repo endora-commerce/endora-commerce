@@ -371,6 +371,9 @@ The definition and option routes refuse with these codes:
 
 | Status | Code | When | `details` |
 | --- | --- | --- | --- |
+| `404` | `CUSTOM_FIELD_NOT_FOUND` | the field does not exist | — |
+| `409` | `CUSTOM_FIELD_KEY_CONFLICT` | creating a field under a key the record type already uses | — |
+| `409` | `CUSTOM_FIELD_HOST_MANAGED` | creating, changing or deleting a field of a record type another module manages (products, on **Catalog → Attributes**), or of a type whose module is switched off | — |
 | `409` | `CUSTOM_FIELD_OPTION_IN_USE` | removing an option that a record still holds | `value`, `label` — the option's stored value and default label |
 | `409` | `CUSTOM_FIELD_VALUE_TYPE_LOCKED` | changing the value type of a field while records hold values | `key` |
 | `409` | `CUSTOM_FIELD_STORED_VALUES_EXIST` | creating a *Customer*-visible field under a key whose values a deleted field left on records — create it as internal first | `key` |

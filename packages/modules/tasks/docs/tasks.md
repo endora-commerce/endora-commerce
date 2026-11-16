@@ -253,8 +253,8 @@ module is back.
 **Reminders.** Somebody who may change a task can add up to ten reminders to
 it, each **at a date and time** or **before the due date** — 15 minutes, an
 hour, a day, two days or a week before — for themselves and any of the task's
-assignees. At that moment each recipient gets one notification in the bell and
-one e-mail naming the task, with a link. A reminder before the due date moves
+assignees. At that moment each recipient gets one notification in the bell, with
+a link, and one e-mail naming the task (see *Links in the e-mails*). A reminder before the due date moves
 with the due date, and fires again at the new moment; when the due date is
 removed, the reminder is removed too and the task's history says so. Nothing is
 sent to a recipient who may no longer see the task, who has been deactivated,
@@ -540,7 +540,7 @@ The contract a descriptor keeps:
 
 **The maintenance pass.** A context owner deletes the tasks of a record it
 deletes through `taskWritePort.deleteInContext` — but only while Tasks is on.
-What was deleted while Tasks was off is found by the third pass of the
+What was deleted while Tasks was off is found by the last pass of the
 `tasks-reminders` worker, which runs at most every **fifteen minutes**: for each
 **present** owner that implements `existingContexts`, it reads the distinct
 contexts its tasks name, 500 at a time, and asks the owner about them. Each
@@ -600,8 +600,9 @@ late is recorded as `expired`, one for a recipient who may no longer be told as
 `skipped`, and neither sends anything. The digest claims each subscriber's day
 before it sends (`tasks_daily_digest`), so it is sent at most once a day.
 
-All three passes — reminders every minute, the digest and the maintenance pass
-at most every fifteen minutes — run in the one BullMQ Job Scheduler
+All four passes — the time-zone pass (see *General settings*) and then the
+reminders every minute, the digest and the maintenance pass at most every
+fifteen minutes — run in the one BullMQ Job Scheduler
 `tasks-reminders`, attached through `ctx.worker` only in a process that runs
 workers. A tick decides the module's presence first, then asks each pass's
 one-bit probe outside any tenant scope, and enters a system scope only for a

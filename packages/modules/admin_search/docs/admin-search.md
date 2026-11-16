@@ -1,6 +1,6 @@
 ---
 title: Global search
-description: Global search in the admin — find organizations, customers, orders, quote requests, sales opportunities, products and categories from the command palette, with configurable searchable fields
+description: Global search in the admin — find organizations, customers, orders, quote requests, sales opportunities, products, categories, projects and tasks from the command palette, with configurable searchable fields
 ---
 
 # Global search (`admin_search`)
@@ -31,6 +31,8 @@ record types, in the order their groups appear:
 | Customers | **E-mail**, **Name** | the customer |
 | Products | **SKU**, **Name**, URL key (slug), Quick-search attributes | the product |
 | Categories | **Name**, **URL key (slug)** | the category tree, with the category highlighted |
+| Projects | **Project number**, **Title**, **Organization name** | the project |
+| Tasks | **Task number**, **Title** | the task |
 
 A record type takes part only while its module is switched on: switch the CRM
 off on **/platform/modules** and sales opportunities disappear from the results
@@ -66,12 +68,16 @@ same administrator:
 - A record type appears only for a role holding the permission its own list
   requires — `orders:read` for Orders, `rfqs:handle` for quote requests,
   `crm:read` for sales opportunities, `customers:read` (or `customers:manage`)
-  for Organizations, `customers:read` for Customers, and `catalog:read` for
-  Products and Categories.
+  for Organizations, `customers:read` for Customers, `catalog:read` for
+  Products and Categories, `projects:read` for Projects and `tasks:read` for
+  Tasks.
 - A sales representative sees only the orders, quote requests, opportunities
   and customers of the organizations they reach: the ones assigned to them and
   every organization no representative is assigned to (issue #305 — the one
   reach rule of the `organizations` module).
+- Projects and tasks follow their own lists: a project or a task whose
+  organization the administrator does not reach is never found, and neither is
+  another administrator's draft or private task.
 - Organizations follow the Organizations list exactly: a sales representative
   sees every organization that list shows them — the same reach, never an
   organization assigned to another representative — with the organizations
@@ -142,6 +148,6 @@ on, global search works with the configuration it had.
 Records are read live from each module's own tables, with the number of rows
 asked for kept small. At the reference volume — 100 000 orders, 50 000
 customers and products, 20 000 quote requests and opportunities, 10 000
-organizations and 2 000 categories — a search across all seven types answers
+organizations and 2 000 categories — a search across those seven types answers
 within a few hundred milliseconds. Should an installation outgrow that, the
 remedy is a search index on the slow module's columns, added by that module.

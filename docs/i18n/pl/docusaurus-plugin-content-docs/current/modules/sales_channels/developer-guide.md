@@ -215,6 +215,15 @@ Odczyty przypisań idą bezpośrednio przez MikroORM (bez pamięci podręcznej);
 szybciej, dodaj warstwę Redis z kluczem `(entityType, entityId)` i krótkim TTL — hooki są już na
 miejscu.
 
+## Dodawanie panelu do strony edycji kanału
+
+Strona edycji istniejącego kanału montuje strefę panelu `sales_channel.editor.after` pod formularzem
+tożsamości, z właściwościami `{ channelId, saveSession }`. `saveSession` to jeden przycisk Zapisz
+tej strony (zgłoszenie #407, `specs/180-one-save-zone-editors/`): panel, który zgłasza w nim swoje
+przygotowane zmiany, jest liczony przez przycisk Zapisz formularza i zapisywany po kanale, w
+kolejności strefy, a panel, który tego nie robi, nadal zapisuje sam — tak jak przypisanie magazynów
+z modułu `inventory`, oznaczone znaczkiem *Działa od razu*. Formularz tworzenia nie uruchamia sesji.
+
 ## Adresy sklepu i prefiks języka {#storefront-urls}
 
 Każdy adres strony sklepu ma język jako pierwszy segment. Nigdy nie składaj go ręcznie —

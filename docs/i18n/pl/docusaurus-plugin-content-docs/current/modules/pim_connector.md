@@ -88,7 +88,11 @@ z zestawu atrybutów produktu, sprawdzane według typu wartości i poziomów),
 tę samą walidację i tę samą bramkę kompletności co edytor.
 
 Odrzuca z kodem `not_supported`: `audience`, `product.*`, `seo:*`, `galleryRole:*`, `*:hidden`,
-`minOrderQuantity` i `returnable`. Konektor zapisuje SEO przez moduł `seo`, a nie przez ten port.
+`minOrderQuantity` i `returnable`. Konektor zapisuje SEO przez moduł `seo`, a nie przez ten port. Ceny
+też nie są zapisywane tutaj: ceny bazowe produktu idą przez `priceBookWritePort` modułu
+`price_lists`, a jego wiersze w jednym cenniku innym niż bazowy (grupy klientów, organizacji,
+katalogowym lub promocyjnym, który wybrał administrator) przez `priceBookRowWritePort`; oba porty
+opisuje przewodnik dla programistów modułu cenników.
 
 Każdy produkt to jedno wywołanie: najwyżej 2 000 komórek, bez powtórzonej pary (pole, zakres),
 identyfikatory podmiotów powiązane z produktem, a `options.source` ustawione na zarejestrowany
