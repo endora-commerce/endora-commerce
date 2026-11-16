@@ -2030,6 +2030,7 @@
   "rfq.list.search.placeholder": "Szukaj po ID, organizacji lub kliencie…",
   "rfq.list.sort.newest": "Najnowsze",
   "rfq.list.sort.oldest": "Najstarsze",
+  "rfq.list.sort.totalAsc": "Najniższa wartość",
   "rfq.list.sort.totalDesc": "Najwyższa wartość",
   "rfq.list.statusFilter.all": "Wszystkie",
   "rfq.list.statusFilter.approved": "Zatwierdzone",

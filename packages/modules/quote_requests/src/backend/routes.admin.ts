@@ -7,16 +7,17 @@ import {
   adminCreateQuoteRequestSchema,
   adminPatchQuoteRequestSchema,
   adminPrepareCustomerBasketResponseSchema,
+  adminQuoteRequestListQuerySchema,
   createQuoteRequestSavedViewRequestSchema,
   customFieldFiltersQueryParamSchema,
   ERROR_CODES,
   isCustomFieldFilterUnavailableFailure,
-  rfqStatusSchema,
   updateQuoteRequestSavedViewRequestSchema,
+  type AdminQuoteRequestListPagination,
   type SupportedLanguage,
 } from '@endora-commerce/contracts';
 import { savedViewActor } from './saved-view-actor.js';
-import type { RfqAdminService, AdminContext, AdminAssignmentScope } from './services/rfq-admin-service.js';
+import type { RfqAdminService, AdminContext } from './services/rfq-admin-service.js';
 import type { QuoteRequestListViewService } from './services/quote-request-list-view-service.js';
 import { getResolvedChannel, type RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -75,21 +76,18 @@ export async function registerQuoteRequestsAdminRoutes(
     // Parsed under its own name, so a refusal is located at
     // `customFieldFilters.<key>.<operator>` as on the Orders list.
     const { customFieldFilters } = customFieldFiltersQuerySchema.parse({ customFieldFilters: rawFilters });
-    const q = rawQuery as Record<string, string | undefined>;
+    // Issue #317 — the page, the sort and every other filter, applied by the server.
+    const query = adminQuoteRequestListQuerySchema.parse(rawQuery);
 
-    const status = q['status']
-      ? q['status']
-          .split(',')
-          .map((s) => s.trim())
-          .filter((s) => rfqStatusSchema.safeParse(s).success)
-      : undefined;
-    const scope = (q['assignmentScope'] as AdminAssignmentScope | undefined) ?? undefined;
-
-    const data = await adminService.listAll(ctx, {
-      ...(q['organizationId'] ? { organizationId: q['organizationId']! } : {}),
-      ...(status && status.length > 0 ? { status: status as never } : {}),
-      ...(scope ? { scope } : {}),
+    const { rows, total } = await adminService.listAll(ctx, {
+      ...(query.organizationId ? { organizationId: query.organizationId } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.assignmentScope ? { scope: query.assignmentScope } : {}),
       ...(customFieldFilters ? { customFieldFilters } : {}),
+      ...(query.q ? { q: query.q } : {}),
+      sort: query.sort,
+      page: query.page,
+      pageSize: query.pageSize,
     }).catch((error: unknown) => {
       if (isCustomFieldFilterUnavailableFailure(error)) {
         throw new HttpError(400, ERROR_CODES.CUSTOM_FIELD_FILTER_UNAVAILABLE, error.message, {
@@ -110,8 +108,18 @@ export async function registerQuoteRequestsAdminRoutes(
       return name;
     };
     return {
-      data: await Promise.all(data.map(async (row) => ({ ...row, statusName: await nameOf(row.status) }))),
-      pagination: { limit: 50, nextCursor: null, hasMore: false },
+      data: await Promise.all(rows.map(async (row) => ({ ...row, statusName: await nameOf(row.status) }))),
+      // True for this response (issue #317): the page read, its size and the
+      // matches. `limit` and `hasMore` keep the envelope's earlier members; the
+      // list has no cursor, so the next page is asked for by `page`.
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+        limit: query.pageSize,
+        hasMore: query.page * query.pageSize < total,
+        nextCursor: null,
+      } satisfies AdminQuoteRequestListPagination,
     };
   });
 

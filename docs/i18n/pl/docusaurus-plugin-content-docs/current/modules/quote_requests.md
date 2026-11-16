@@ -44,7 +44,7 @@ dodatkowo wymagają podania `expectedRevisionNumber`.
 | `POST /api/v1/quote-requests/:id/reject-revision` | klient | Odrzucenie najnowszej wersji z opcjonalnym powodem. |
 | `POST /api/v1/quote-requests/:id/resubmit` | klient | Skopiowanie starego zapytania do nowego, w statusie Pending, według bieżących cen klienta. Wymaga `quote_requests.create`. |
 | `POST /api/v1/quote-requests/:id/convert-to-order` | klient | Wypełnienie koszyka klienta pozycjami zapytania w statusie Approved po uzgodnionych cenach jednostkowych i zwrócenie adresu procesu zamówienia. Wymaga `carts.create`. |
-| `GET /api/v1/admin/quote-requests` | administrator | Lista zawężona do przypisań opiekuna handlowego, z filtrami według statusu i organizacji. |
+| `GET /api/v1/admin/quote-requests` | administrator | Jedna strona listy, zawężonej do przypisań opiekuna handlowego. Serwer stosuje `assignmentScope`, `organizationId`, `status`, `q` (numer zapytania, nazwa organizacji lub klienta albo pełny identyfikator), `sort` (`updatedAt` lub `total`, `asc` / `desc`) i stronicowanie (`page`, `pageSize` do 200, domyślnie 25); `pagination` podaje `page`, `pageSize` i `total`. |
 | `GET /api/v1/admin/quote-requests/:id` | administrator | Szczegóły z pełną tożsamością wykonawców w dzienniku zdarzeń oraz, dla każdej pozycji, ceną referencyjną i propozycją klienta — zob. *Cena referencyjna*. |
 | `GET /api/v1/admin/quote-requests/:id/history` | administrator | Historia zapytania w postaci czytelnych wpisów — zob. *Historia*. |
 | `POST /api/v1/admin/quote-requests` | administrator | Utworzenie w imieniu klienta → status `Created from admin`. |

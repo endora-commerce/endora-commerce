@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Columns3, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
-import { apiClient, ApiError, formatDateTime, normalize, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
+import { apiClient, ApiError, formatDateTime, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Label, MultiSelect, PageHeader, Select, type MultiSelectOption } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldListFilters,
@@ -32,11 +32,11 @@ import { useTranslation, useTranslationContext } from '@endora-commerce/admin-ki
  * removable applied-filter chips) and a ResponsiveTable with a paginated
  * footer. Order-only affordances that do not apply to a Quote Request — sales
  * channel / payment / delivery columns + filters, bulk status, invoice
- * printing, CSV export — are omitted. Visibility scope, organization and the
- * custom-field filters (feature 157) are server-side filters — the first two
- * bound what the caller may see, the third narrows it on the server, so the
- * list is re-read when any of them changes; search, status, sort, column
- * visibility, and pagination are applied client-side over the returned set.
+ * printing, CSV export — are omitted. Every filter — visibility scope,
+ * organization, status, search, the custom-field filters (feature 157) — the
+ * sort and the page are applied by the server (issue #317): the list reads one
+ * page and its total, and is re-read when any of them changes. Only column
+ * visibility is the page's own.
  */
 
 type RfqStatus =
@@ -82,7 +82,14 @@ interface AdminRfqRow {
 
 interface AdminRfqListResponse {
   data: AdminRfqRow[];
+  /** Issue #317 — the page the server read and how many requests match. */
+  pagination?: { page: number; pageSize: number; total: number };
 }
+
+/** The largest page the list endpoint answers (`ADMIN_QUOTE_REQUEST_LIST_PAGE_SIZE_MAX`). */
+const PAGE_SIZE_MAX = 200;
+/** How long the search box waits for typing to settle before the list is re-read. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 const STATUS_VARIANT: Record<
   RfqStatus,
@@ -108,6 +115,7 @@ const SORT_OPTIONS = [
   { value: 'updatedAt:desc', labelKey: 'rfq.list.sort.newest' },
   { value: 'updatedAt:asc', labelKey: 'rfq.list.sort.oldest' },
   { value: 'total:desc', labelKey: 'rfq.list.sort.totalDesc' },
+  { value: 'total:asc', labelKey: 'rfq.list.sort.totalAsc' },
 ] as const;
 const SORT_VALUES: readonly string[] = SORT_OPTIONS.map((option) => option.value);
 const DEFAULT_SORT = SORT_OPTIONS[0].value;
@@ -156,6 +164,8 @@ export function RfqList(): ReactNode {
   const isPlatformAdmin = me?.role?.code === 'platform_admin';
 
   const [rows, setRows] = useState<AdminRfqRow[]>([]);
+  /** How many requests the filters match — the server's count, not the page's length. */
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
@@ -188,29 +198,77 @@ export function RfqList(): ReactNode {
    */
   const lastRequest = useRef<string | null>(null);
 
-  /** The custom-field filters changed: a notice about the previous state is no longer news. */
+  /**
+   * The custom-field filters changed: back to the first page in the same
+   * update — so no request carries the new filters with the old page — and a
+   * notice about the previous state is no longer news.
+   */
   const changeCustomFieldFilters = useCallback((next: CustomFieldFilters): void => {
     setCustomFieldFilters(next);
+    setPage(0);
     setDroppedCustomFields([]);
   }, []);
 
-  // Client-side filters.
   const [statusCodes, setStatusCodes] = useState<string[]>(() => {
     const fromUrl = searchParams.get('status');
     return fromUrl !== null && RFQ_STATUSES.includes(fromUrl as RfqStatus) ? [fromUrl] : [];
   });
+  /** What the search box shows, and the search the server was last asked for once typing settled. */
   const [q, setQ] = useState('');
+  const [searchedQ, setSearchedQ] = useState('');
   const [sort, setSort] = useState<string>(DEFAULT_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [visibleColumnIds, setVisibleColumnIds] = useState<ColumnId[]>(DEFAULT_VISIBLE);
 
-  const refresh = useCallback(async (): Promise<void> => {
+  // Each filter returns the list to its first page in the same update, so no
+  // request pairs the new filter with the old page.
+  const changeScope = (next: AssignmentScope): void => {
+    setScope(next);
+    setPage(0);
+  };
+  const changeOrganization = (next: string): void => {
+    setOrganizationId(next);
+    setPage(0);
+  };
+  const changeStatusCodes = (next: string[]): void => {
+    setStatusCodes(next);
+    setPage(0);
+  };
+  const changeSort = (next: string): void => {
+    setSort(next);
+    setPage(0);
+  };
+  const changePageSize = (next: Parameters<typeof setPageSize>[0]): void => {
+    setPageSize(next);
+    setPage(0);
+  };
+
+  // The search is sent once typing settles; a settled change is a new first page.
+  useEffect(() => {
+    const next = q.trim();
+    if (next === searchedQ) return;
+    const id = window.setTimeout(() => {
+      setSearchedQ(next);
+      setPage(0);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(id);
+  }, [q, searchedQ]);
+
+  const listPath = useMemo(() => {
     const params = new URLSearchParams();
     if (scope) params.set('assignmentScope', scope);
     if (organizationId) params.set('organizationId', organizationId);
+    if (statusCodes.length > 0) params.set('status', statusCodes.join(','));
+    if (searchedQ) params.set('q', searchedQ);
     if (customFieldParam !== null) params.set('customFieldFilters', customFieldParam);
-    const path =
-      '/api/v1/admin/quote-requests' + (params.toString() ? `?${params.toString()}` : '');
+    params.set('sort', sort);
+    params.set('page', String(page + 1));
+    params.set('pageSize', String(Math.min(pageSize, PAGE_SIZE_MAX)));
+    return `/api/v1/admin/quote-requests?${params.toString()}`;
+  }, [scope, organizationId, statusCodes, searchedQ, customFieldParam, sort, page, pageSize]);
+
+  const refresh = useCallback(async (): Promise<void> => {
+    const path = listPath;
     if (path === lastRequest.current) return;
     lastRequest.current = path;
     const current = ++requestSequence.current;
@@ -221,11 +279,13 @@ export function RfqList(): ReactNode {
       const res = await apiClient.get<AdminRfqListResponse>(path);
       if (current !== requestSequence.current) return;
       setRows(res.data);
+      setTotal(res.pagination?.total ?? res.data.length);
     } catch (err) {
       if (current !== requestSequence.current) return;
       const refused = customFieldFilterRefusal(err);
       if (refused !== null) {
         setRows([]);
+        setTotal(0);
         setRefusedCustomField(refused);
       } else {
         setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.list.error.load'));
@@ -233,7 +293,7 @@ export function RfqList(): ReactNode {
     } finally {
       if (current === requestSequence.current) setLoading(false);
     }
-  }, [scope, organizationId, customFieldParam, t]);
+  }, [listPath, t]);
 
   // Once the offered fields are known, options removed since a link was made
   // are dropped from it; an unknown key stays, for the server to refuse.
@@ -260,45 +320,6 @@ export function RfqList(): ReactNode {
     void refresh();
   }, [refresh]);
 
-  // Reset to the first page whenever a filter narrows the result set.
-  useEffect(() => {
-    setPage(0);
-  }, [scope, organizationId, customFieldParam, statusCodes, q, sort, pageSize]);
-
-  // Apply the client-side filters + sort, then paginate.
-  const filtered = useMemo(() => {
-    const needle = normalize(q);
-    const statusSet = new Set(statusCodes);
-    let out = rows.filter((r) => {
-      if (statusSet.size > 0 && !statusSet.has(r.status)) return false;
-      if (needle) {
-        const hay = [
-          r.businessId ?? '',
-          r.id,
-          r.organizationName ?? '',
-          r.customerDisplayName ?? '',
-        ]
-          .map(normalize)
-          .join(' ');
-        if (!hay.includes(needle)) return false;
-      }
-      return true;
-    });
-    const [field, dir] = sort.split(':');
-    const mul = dir === 'asc' ? 1 : -1;
-    out = [...out].sort((a, b) => {
-      if (field === 'total') return ((rowTotal(a) ?? 0) - (rowTotal(b) ?? 0)) * mul;
-      return (Date.parse(a.updatedAt) - Date.parse(b.updatedAt)) * mul;
-    });
-    return out;
-  }, [rows, q, statusCodes, sort]);
-
-  const total = filtered.length;
-  const pageRows = useMemo(
-    () => filtered.slice(page * pageSize, page * pageSize + pageSize),
-    [filtered, page, pageSize],
-  );
-
   const statusOptions: MultiSelectOption[] = RFQ_STATUSES.map((s) => ({ value: s, label: s }));
   const columnOptions: MultiSelectOption[] = COLUMN_IDS.map((id) => ({
     value: id,
@@ -313,7 +334,7 @@ export function RfqList(): ReactNode {
     ...statusCodes.map((code) => ({
       key: `status:${code}`,
       label: `${t('rfq.list.field.status')}: ${code}`,
-      onRemove: (): void => setStatusCodes((p) => p.filter((c) => c !== code)),
+      onRemove: (): void => changeStatusCodes(statusCodes.filter((c) => c !== code)),
     })),
     ...(organizationId
       ? [
@@ -323,7 +344,7 @@ export function RfqList(): ReactNode {
               rows.find((r) => r.organizationId === organizationId)?.organizationName ??
               organizationId.slice(0, 8)
             }`,
-            onRemove: (): void => setOrganizationId(''),
+            onRemove: (): void => changeOrganization(''),
           },
         ]
       : []),
@@ -332,7 +353,7 @@ export function RfqList(): ReactNode {
           {
             key: 'scope',
             label: `${t('rfq.list.field.visibility')}: ${t(`rfq.list.scope.${scope}`)}`,
-            onRemove: (): void => setScope('mine'),
+            onRemove: (): void => changeScope('mine'),
           },
         ]
       : []),
@@ -384,7 +405,10 @@ export function RfqList(): ReactNode {
         ? f['status'].filter((s): s is RfqStatus => RFQ_STATUSES.includes(s as RfqStatus))
         : [],
     );
-    setQ(typeof f['q'] === 'string' ? f['q'] : '');
+    const savedQ = typeof f['q'] === 'string' ? f['q'] : '';
+    setQ(savedQ);
+    // Searched at once: a loaded view is one list request, not one now and one after the debounce.
+    setSearchedQ(savedQ.trim());
     // FR-014: a saved custom-field filter the list no longer offers is dropped,
     // and the operator is told which — but only against fields that are known.
     // While they load, or after they failed to, the saved filters are kept as
@@ -411,6 +435,7 @@ export function RfqList(): ReactNode {
     setOrganizationId('');
     setScope('mine');
     setQ('');
+    setSearchedQ('');
     changeCustomFieldFilters(emptyCustomFieldFilters());
   };
 
@@ -542,13 +567,13 @@ export function RfqList(): ReactNode {
               placeholder={t('rfq.list.field.status')}
               options={statusOptions}
               selected={statusCodes}
-              onChange={setStatusCodes}
+              onChange={changeStatusCodes}
             />
             <Select
               id="rfqsort"
               aria-label={t('rfq.list.field.sort')}
               value={sort}
-              onChange={(e): void => setSort(e.target.value)}
+              onChange={(e): void => changeSort(e.target.value)}
               className="w-auto"
             >
               {SORT_OPTIONS.map((option) => (
@@ -622,7 +647,7 @@ export function RfqList(): ReactNode {
                 <Select
                   id="rfq-scope"
                   value={scope}
-                  onChange={(e): void => setScope(e.target.value as AssignmentScope)}
+                  onChange={(e): void => changeScope(e.target.value as AssignmentScope)}
                 >
                   <option value="mine">{t('rfq.list.scope.mine')}</option>
                   <option value="unassigned">{t('rfq.list.scope.unassigned')}</option>
@@ -634,7 +659,7 @@ export function RfqList(): ReactNode {
                 <OrganizationPicker
                   id="rfq-org"
                   value={organizationId || null}
-                  onChange={(v): void => setOrganizationId(v ?? '')}
+                  onChange={(v): void => changeOrganization(v ?? '')}
                 />
               </div>
               <CustomFieldListFilters
@@ -684,7 +709,7 @@ export function RfqList(): ReactNode {
             <p className="text-sm text-muted-foreground">{t('rfq.list.empty')}</p>
           ) : (
             <ResponsiveTable
-              data={pageRows}
+              data={rows}
               keyExtractor={(r) => r.id}
               columns={tableColumns}
               renderActions={(r) => (
@@ -702,7 +727,7 @@ export function RfqList(): ReactNode {
               page={page}
               pageSize={pageSize}
               total={total}
-              onPageSizeChange={setPageSize}
+              onPageSizeChange={changePageSize}
               onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
               onNext={(): void => setPage((p) => p + 1)}
             />

@@ -99,9 +99,14 @@ const KPIS: readonly Kpi[] = [
     // Count only Pending requests (matching this KPI's drill-down link).
     // `submitted` is not a valid RFQ status, so the backend rejected the
     // filter and returned every request — Canceled/Approved/etc. included.
+    // The list is paged (issue #317): one row is asked for and the total read,
+    // which counts every match rather than the first page's.
     path: ({ platformAdmin }) =>
-      `/api/v1/admin/quote-requests?status=Pending${platformAdmin ? '&assignmentScope=all' : ''}`,
-    read: (data) => String(((data as { data?: unknown[] }).data ?? []).length),
+      `/api/v1/admin/quote-requests?status=Pending${platformAdmin ? '&assignmentScope=all' : ''}&pageSize=1`,
+    read: (data) => {
+      const total = (data as { pagination?: { total?: number } }).pagination?.total;
+      return total === undefined ? null : String(total);
+    },
   },
   {
     labelKey: 'home.kpi.openOrders',

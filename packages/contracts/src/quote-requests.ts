@@ -655,6 +655,87 @@ export const quoteRequestSummarySchema = z.object({
 export type QuoteRequestSummary = z.infer<typeof quoteRequestSummarySchema>;
 
 // ---------------------------------------------------------------------------
+// Admin list query and envelope (issue #317)
+// ---------------------------------------------------------------------------
+
+/** The largest page `GET /api/v1/admin/quote-requests` answers. */
+export const ADMIN_QUOTE_REQUEST_LIST_PAGE_SIZE_MAX = 200;
+
+/**
+ * The orders the admin list can be read in — `field:direction`, the spelling a
+ * saved view of the list stores (`sort: { field, dir }`). `total` is the
+ * amount the list shows (`quoteRequestAmountSchema`); a request without one
+ * sorts as zero.
+ */
+export const ADMIN_QUOTE_REQUEST_LIST_SORTS = ['updatedAt:desc', 'updatedAt:asc', 'total:desc', 'total:asc'] as const;
+export type AdminQuoteRequestListSort = (typeof ADMIN_QUOTE_REQUEST_LIST_SORTS)[number];
+
+/**
+ * The statuses a list request names, comma-separated or repeated. A value
+ * that is not a status is dropped rather than refused, as the list has always
+ * done; none left is no status filter.
+ */
+const adminQuoteRequestListStatusParam = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((value): RfqStatus[] | undefined => {
+    if (value === undefined) return undefined;
+    const statuses = (Array.isArray(value) ? value : [value])
+      .flatMap((entry) => entry.split(','))
+      .map((entry) => entry.trim())
+      .filter((entry): entry is RfqStatus => rfqStatusSchema.safeParse(entry).success);
+    return statuses.length > 0 ? statuses : undefined;
+  });
+
+/**
+ * `GET /api/v1/admin/quote-requests` — issue #317. The server applies every
+ * filter, the sort and the page; the vocabulary is the one the list's saved
+ * views store (scope, organization, status, search, sort). The custom-field
+ * filters (`customFieldFilters`, feature 157) are read beside it by the route.
+ *
+ * `q` matches a fragment of the business id, the organization name or the
+ * customer's name, or a whole request id.
+ */
+export const adminQuoteRequestListQuerySchema = z.object({
+  assignmentScope: z.enum(['mine', 'unassigned', 'all']).optional(),
+  organizationId: uuidSchema.optional(),
+  status: adminQuoteRequestListStatusParam,
+  q: z
+    .string()
+    .trim()
+    .max(200)
+    .optional()
+    .transform((value) => (value === undefined || value === '' ? undefined : value)),
+  sort: z.enum(ADMIN_QUOTE_REQUEST_LIST_SORTS).default('updatedAt:desc'),
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(ADMIN_QUOTE_REQUEST_LIST_PAGE_SIZE_MAX).default(25),
+});
+export type AdminQuoteRequestListQuery = z.infer<typeof adminQuoteRequestListQuerySchema>;
+
+/**
+ * The admin list's pagination block: the page read, its size and how many
+ * requests the filters match (`page`, `pageSize`, `total`, as on the orders
+ * list). `limit` and `hasMore` are the envelope the list answered before
+ * issue #317, now true for the page; the list has no cursor, so `nextCursor`
+ * is always `null` — ask for the next `page`.
+ */
+export const adminQuoteRequestListPaginationSchema = z.object({
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive().max(ADMIN_QUOTE_REQUEST_LIST_PAGE_SIZE_MAX),
+  total: z.number().int().nonnegative(),
+  limit: z.number().int().positive().max(ADMIN_QUOTE_REQUEST_LIST_PAGE_SIZE_MAX),
+  hasMore: z.boolean(),
+  nextCursor: z.null(),
+});
+export type AdminQuoteRequestListPagination = z.infer<typeof adminQuoteRequestListPaginationSchema>;
+
+export const adminQuoteRequestListResponseSchema = z.object({
+  data: z.array(quoteRequestSummarySchema),
+  pagination: adminQuoteRequestListPaginationSchema,
+});
+export type AdminQuoteRequestListResponse = z.infer<typeof adminQuoteRequestListResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // Customer-facing request schemas
 // ---------------------------------------------------------------------------
 

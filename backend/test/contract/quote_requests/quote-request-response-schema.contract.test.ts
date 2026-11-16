@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  adminQuoteRequestListResponseSchema,
   quoteRequestHistorySchema,
   quoteRequestSchema,
   quoteRequestSummarySchema,
@@ -59,11 +60,13 @@ describe('quote-request responses parse with the published schemas', () => {
     expect(rows.flatMap((row) => disagreements(strictRow, row))).toEqual([]);
   });
 
-  it('GET /api/v1/admin/quote-requests — every row of the admin list', async () => {
-    const rows = (await data('/api/v1/admin/quote-requests', ADMIN)) as Array<{ id: string }>;
-    expect(rows.map((r) => r.id)).toContain(rfqId);
-    const strictRow = deepStrict(quoteRequestSummarySchema);
-    expect(rows.flatMap((row) => disagreements(strictRow, row))).toEqual([]);
+  it('GET /api/v1/admin/quote-requests — every row of the admin list, and its envelope', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/quote-requests?pageSize=200', ...ADMIN });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json() as { data: Array<{ id: string }> };
+    expect(body.data.map((r) => r.id)).toContain(rfqId);
+    // Issue #317 — the envelope as published, rows and pagination alike.
+    expect(disagreements(deepStrict(adminQuoteRequestListResponseSchema), body)).toEqual([]);
   });
 
   it('GET /api/v1/admin/quote-requests/:id — the admin detail', async () => {

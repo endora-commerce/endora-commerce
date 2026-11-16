@@ -53,8 +53,9 @@ describe('admin Quote Request list — custom-field filters', () => {
 
   const get = (url: string, cookies: Cookies = ADMIN) => h.app.inject({ method: 'GET', url, cookies });
 
+  // The largest page (issue #317): these cases compare whole result sets.
   const ids = async (query: string, cookies: Cookies = ADMIN): Promise<string[]> => {
-    const response = await get(`${LIST}?${query}`, cookies);
+    const response = await get(`${LIST}?${query}&pageSize=200`, cookies);
     expect(response.statusCode, response.body).toBe(200);
     return (response.json() as { data: Array<{ id: string }> }).data.map((row) => row.id);
   };

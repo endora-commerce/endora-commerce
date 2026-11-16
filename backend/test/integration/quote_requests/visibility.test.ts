@@ -77,4 +77,19 @@ describe('SalesRepAssignmentService.canSeeOrganization (T024)', () => {
     const ids = await svc.listAssignedOrganizationIds(adminA);
     expect(ids.sort()).toEqual([orgA, orgB].sort());
   });
+  it('listOrganizationIdsWithAssignments names every assigned organization once (issue #317)', async () => {
+    const adminA = randomUUID();
+    const adminB = randomUUID();
+    const shared = randomUUID();
+    const solo = randomUUID();
+    db.em().create(OrganizationSalesRepAssignment, { adminUserId: adminA, organizationId: shared });
+    db.em().create(OrganizationSalesRepAssignment, { adminUserId: adminB, organizationId: shared });
+    db.em().create(OrganizationSalesRepAssignment, { adminUserId: adminB, organizationId: solo });
+    await db.em().flush();
+
+    const ids = await svc.listOrganizationIdsWithAssignments();
+    expect(ids.filter((id) => id === shared)).toHaveLength(1);
+    expect(ids).toContain(solo);
+    expect(ids).not.toContain(randomUUID());
+  });
 });

@@ -46,7 +46,7 @@ revision additionally pin `expectedRevisionNumber`.
 | `POST /api/v1/quote-requests/:id/reject-revision` | customer | Reject the latest revision with optional reason. |
 | `POST /api/v1/quote-requests/:id/resubmit` | customer | Clone an old Quote Request into a new Pending one at the customer's current prices. Needs `quote_requests.create`. |
 | `POST /api/v1/quote-requests/:id/convert-to-order` | customer | Seed the customer's cart from an Approved RFQ at the agreed unit prices and return the checkout URL. Needs `carts.create`. |
-| `GET /api/v1/admin/quote-requests` | admin | List, scoped by sales-rep assignment + filterable by status / organization. |
+| `GET /api/v1/admin/quote-requests` | admin | One page of the list, scoped by sales-rep assignment. The server applies `assignmentScope`, `organizationId`, `status`, `q` (business id, organization or customer name, or a whole id), `sort` (`updatedAt` or `total`, `asc` / `desc`) and the page (`page`, `pageSize` up to 200, default 25); `pagination` carries `page`, `pageSize` and `total`. |
 | `GET /api/v1/admin/quote-requests/:id` | admin | Detail with full actor identity in the event log, and per line the reference price and the customer's proposal — see *Reference price*. |
 | `GET /api/v1/admin/quote-requests/:id/history` | admin | The request's history as readable entries — see *History*. |
 | `POST /api/v1/admin/quote-requests` | admin | Create on customer's behalf → status `Created from admin`. |

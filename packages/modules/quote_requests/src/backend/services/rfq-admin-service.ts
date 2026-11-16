@@ -5,6 +5,7 @@ import {
   QUOTE_REQUEST_HISTORY_EVENT_WINDOW,
   RFQ_CREATED_BY_ADMIN_EVENT,
   type AdminCreateQuoteRequest,
+  type AdminQuoteRequestListSort,
   type AdminQuoteRequestWarning,
   type AdminPatchQuoteRequest,
   type QuoteRequest as RfqDto,
@@ -76,7 +77,7 @@ import { cancelAuditState, prepareBasketAuditState } from './quote-request-audit
  * Admin-facing Quote Requests service — feature 008 workflow.
  *
  * Endpoints implemented:
- *   - listAll(scope)       (US2)
+ *   - listAll(filter)      (US2; one server-side page since issue #317)
  *   - getById              (US2)
  *   - approve              (US2)
  *   - cancel               (US2)
@@ -118,6 +119,37 @@ export interface AdminListFilter {
   organizationId?: string;
   /** `specs/157-custom-fields-list-filters/` — filters on the list-filter Quote Request custom fields. */
   customFieldFilters?: CustomFieldFilters;
+  /** Issue #317 — a fragment of the business id, the organization name or the customer's name, or a whole id. */
+  q?: string;
+  /** Issue #317 — default `updatedAt:desc`. */
+  sort?: AdminQuoteRequestListSort;
+  /** Issue #317 — one-based; default 1. */
+  page?: number;
+  /** Issue #317 — default 25, at most `ADMIN_QUOTE_REQUEST_LIST_PAGE_SIZE_MAX`. */
+  pageSize?: number;
+}
+
+/** One page of the admin list and how many requests its filters match (issue #317). */
+export interface AdminListPage {
+  rows: QuoteRequestSummary[];
+  total: number;
+}
+
+/**
+ * The amount the list shows, as SQL over a quote request row (issue #317): per
+ * line the agreed unit price, else the asked one, times the quantity, rounded
+ * to two places (`round` on a non-negative numeric is half-up, as
+ * `lineAmountHalfUp`), summed; a request without one sorts as zero, as the
+ * list did when it sorted in the browser. The lines are this module's table.
+ */
+function quoteAmountSql(alias: string): string {
+  return `coalesce((select sum(round(coalesce("qri"."agreed_unit_price", "qri"."desired_unit_price") * "qri"."quantity", 2))
+    from "quote_request_items" "qri" where "qri"."quote_request_id" = ${alias}."id"), 0)`;
+}
+
+/** `text` matched literally inside a LIKE pattern: `%`, `_` and `\` are not wildcards. */
+function likeLiteral(text: string): string {
+  return text.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
 
 /**
@@ -232,39 +264,76 @@ export class RfqAdminService {
     return this.deps.customFieldListFilter.condition('quote_request', filters);
   }
 
-  async listAll(ctx: AdminContext, filter: AdminListFilter = {}): Promise<QuoteRequestSummary[]> {
+  /**
+   * Issue #317 — one page of the admin list. Every filter is a condition of
+   * the one statement that reads the page and counts the matches: the scopes
+   * resolve their organizations once (`organizationId IN` / `NOT IN`), and the
+   * search resolves the organization and customer names once each through
+   * their owners' ports. Only the page's rows are then enriched.
+   *
+   * Visibility is the tenant filter's: a sales representative's scope is the
+   * `canSeeOrganization` rule, every other role's is every organization
+   * (issue #957). Nothing here widens it — each condition only narrows.
+   */
+  async listAll(ctx: AdminContext, filter: AdminListFilter = {}): Promise<AdminListPage> {
+    const page = filter.page ?? 1;
+    const pageSize = filter.pageSize ?? 25;
     const em = this.deps.emFactory();
     const where: Record<string, unknown> = {};
+    const and: unknown[] = [];
     if (filter.organizationId) where['organizationId'] = filter.organizationId;
-    if (filter.status) where['status'] = filter.status;
+    if (filter.status) {
+      where['status'] = Array.isArray(filter.status) ? { $in: filter.status } : filter.status;
+    }
     // Feature 157 — one condition, a member of `$and`: it narrows the
-    // organization and status conditions above and never replaces them, and
-    // the visibility and scope passes below still run over what it leaves.
+    // organization and status conditions above and never replaces them.
     const customFieldCondition = await this.customFieldCondition(filter.customFieldFilters);
     if (customFieldCondition !== null) {
-      ((where['$and'] ??= []) as unknown[]).push({
+      and.push({
         id: { $in: raw(`(${customFieldCondition.sql})`, [...customFieldCondition.params]) },
       });
     }
 
-    // Visibility is the tenant filter's: a sales representative's scope is
-    // the `canSeeOrganization` rule, every other role's is every organization
-    // (issue #957).
-    let rfqs: QuoteRequest[] = await em.find(QuoteRequest, where, {
-      orderBy: { createdAt: 'desc' },
-    });
-
     if (filter.scope === 'mine') {
-      const assigned = new Set(
-        await this.deps.salesRepAssignment.listAssignedOrganizationIds(ctx.adminUserId),
-      );
-      rfqs = rfqs.filter((r) => assigned.has(r.organizationId));
+      const assigned = await this.deps.salesRepAssignment.listAssignedOrganizationIds(ctx.adminUserId);
+      if (assigned.length === 0) return { rows: [], total: 0 };
+      and.push({ organizationId: { $in: assigned } });
     } else if (filter.scope === 'unassigned') {
-      const flagged = await Promise.all(rfqs.map((r) => this.isUnassigned(em, r.organizationId)));
-      rfqs = rfqs.filter((_, i) => flagged[i]);
+      // The flat rule `isUnassigned` answered per row: no assignment row.
+      const governed = await this.deps.salesRepAssignment.listOrganizationIdsWithAssignments();
+      if (governed.length > 0) and.push({ organizationId: { $nin: governed } });
     }
 
-    if (rfqs.length === 0) return [];
+    const q = filter.q?.trim();
+    if (q) {
+      const like = `%${likeLiteral(q)}%`;
+      const [orgIds, customerIds] = await Promise.all([
+        this.deps.organizations.searchIdsByName(q),
+        this.deps.customerAccounts.searchIdsByName(q),
+      ]);
+      and.push({
+        $or: [
+          { businessId: { $ilike: like } },
+          // A whole id, exactly: a fragment of a uuid matches almost every row.
+          ...(isUuidShape(q) ? [{ id: q }] : []),
+          ...(orgIds.length > 0 ? [{ organizationId: { $in: orgIds } }] : []),
+          ...(customerIds.length > 0 ? [{ customerAccountId: { $in: customerIds } }] : []),
+        ],
+      });
+    }
+    if (and.length > 0) where['$and'] = and;
+
+    const [field, direction] = (filter.sort ?? 'updatedAt:desc').split(':') as ['updatedAt' | 'total', 'asc' | 'desc'];
+    const primary =
+      field === 'total' ? { [raw((alias) => quoteAmountSql(alias))]: direction } : { updatedAt: direction };
+    const [found, total] = await em.findAndCount(QuoteRequest, where, {
+      // The id breaks ties, so a page boundary is stable.
+      orderBy: [primary, { id: 'asc' }] as never,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    });
+    const rfqs: QuoteRequest[] = [...found];
+    if (rfqs.length === 0) return { rows: [], total };
 
     const items = await em.find(QuoteRequestItem, {
       quoteRequestId: { $in: rfqs.map((r) => r.id) },
@@ -290,7 +359,7 @@ export class RfqAdminService {
       rfqs.filter((r) => !itemsByRfq.has(r.id)).map((r) => r.salesChannelId),
     );
 
-    return rfqs.map((rfq) => {
+    const rows = rfqs.map((rfq): QuoteRequestSummary => {
       const rfqItems = itemsByRfq.get(rfq.id) ?? [];
       const customer = customerById.get(rfq.customerAccountId);
       const org = orgById.get(rfq.organizationId);
@@ -326,6 +395,7 @@ export class RfqAdminService {
         customerDisplayName: customer ? customerDisplayName(customer) : null,
       };
     });
+    return { rows, total };
   }
 
   /**
@@ -1283,11 +1353,6 @@ export class RfqAdminService {
     }
   }
 
-  private async isUnassigned(em: EntityManager, organizationId: string): Promise<boolean> {
-    const reps = await this.deps.salesRepAssignment.listForOrganization(organizationId);
-    void em;
-    return reps.length === 0;
-  }
 }
 
 function toHistoryRevision(revision: {

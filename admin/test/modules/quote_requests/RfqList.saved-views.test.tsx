@@ -136,6 +136,30 @@ function rfq(n: number) {
 /** Twenty-five rows: two pages at the stubbed size of 20. */
 const ROWS = Array.from({ length: 25 }, (_, i) => rfq(i + 1));
 
+/**
+ * What the server answers since issue #317: the matching rows newest change
+ * first, cut to the page asked for, with the total.
+ */
+function serverPage<T extends { updatedAt: string; id: string }>(path: string, matching: readonly T[]) {
+  const params = new URLSearchParams(path.split('?')[1]);
+  const page = Number(params.get('page') ?? '1');
+  const pageSize = Number(params.get('pageSize') ?? '25');
+  const ordered = [...matching].sort(
+    (a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || a.id.localeCompare(b.id),
+  );
+  return {
+    data: ordered.slice((page - 1) * pageSize, page * pageSize),
+    pagination: {
+      page,
+      pageSize,
+      total: matching.length,
+      limit: pageSize,
+      hasMore: page * pageSize < matching.length,
+      nextCursor: null,
+    },
+  };
+}
+
 let nativeDialogs: {
   prompt: ReturnType<typeof vi.spyOn>;
   confirm: ReturnType<typeof vi.spyOn>;
@@ -149,7 +173,7 @@ beforeEach(() => {
     if (path.startsWith(ENDPOINT)) return { data: VIEWS };
     if (path.startsWith(LIST)) {
       // The server narrows to the loader's organizations: a foreign one answers nothing.
-      return { data: path.includes(FOREIGN) ? [] : ROWS };
+      return serverPage(path, path.includes(FOREIGN) ? [] : ROWS);
     }
     if (path.startsWith(ORGANIZATIONS)) {
       // Only a request naming the foreign organization could learn its name.
