@@ -50,6 +50,7 @@ export const INVOICES_PROSE_EN = {
   'lines.discount': 'Discount',
   'lines.priceReduction': 'Price reduction (complaint {rma}): {product}',
   'lines.priceReductionUnreferenced': 'Price reduction (complaint): {product}',
+  'lines.retainedOnReturn': 'Retained on return: {product}',
 } as const;
 
 export type InvoicesProseKey = keyof typeof INVOICES_PROSE_EN;

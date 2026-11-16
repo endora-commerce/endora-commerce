@@ -446,6 +446,49 @@ export function netForGrossAtRate(
   return { net: nearest, vat: moneyDifference(target, nearest), exact: false };
 }
 
+/** One part {@link grossPartsAtRowTarget} placed: its rate, keyed as {@link vatByRate}'s rows key it, its gross and its net. */
+export interface GrossPartAtRate {
+  rate: string;
+  gross: string;
+  net: string;
+  /** Whether a net carries the row's target gross under the rule; otherwise the nearest one (owner ruling E1). */
+  exact: boolean;
+}
+
+/**
+ * **Places amounts given as a gross at a VAT rate on a document beside its
+ * goods** (issue #854: an amount withheld on a return, at the rate of the line
+ * it was withheld from; generic, so a negative gross — a discount — goes
+ * through it the same way). The row-target rule of {@link chargesByRate}, rule
+ * 4, without the split: for each part, in input order, `T_r` is the goods'
+ * row gross at its rate (`vatByRate` over the goods nets there) plus the
+ * parts already placed at the rate plus this one, and the part's net is
+ * `netForGrossAtRate(T_r).net` less the row's net so far. The VAT is then
+ * `vatByRate` over the goods and the parts together — no second VAT
+ * computation exists — and the row's gross is the goods' row gross plus the
+ * parts' gross wherever the rule can produce that gross; where it cannot, the
+ * row is a grosz off (`exact: false`). A part's own gross is informational.
+ */
+export function grossPartsAtRowTarget(input: {
+  goods: ReadonlyArray<{ net: string | number; rate: string | number }>;
+  parts: ReadonlyArray<{ gross: string | number; rate: string | number }>;
+  unit: 'fraction' | 'percent';
+}): GrossPartAtRate[] {
+  const keyOf = (rate: string | number) => render(rateKey(rateFraction(rate, input.unit)));
+  const rows = new Map<string, { net: string; gross: string }>();
+  for (const row of vatByRate(input.goods, input.unit).rows) rows.set(row.rate, { net: row.net, gross: row.gross });
+  return input.parts.map((part) => {
+    const rate = keyOf(part.rate);
+    const gross = roundHalfUp(part.gross);
+    const row = rows.get(rate) ?? { net: '0.00', gross: '0.00' };
+    const target = moneySum([row.gross, gross]);
+    const found = netForGrossAtRate(target, rate, 'fraction');
+    const net = moneyDifference(found.net, row.net);
+    rows.set(rate, { net: found.net, gross: target });
+    return { rate, gross, net, exact: found.exact };
+  });
+}
+
 /** An order-level charge that follows the goods' VAT rates (issue #904). */
 export type OrderChargeKind = 'delivery' | 'payment_surcharge';
 

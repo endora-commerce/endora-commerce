@@ -18,6 +18,7 @@ import {
   taxAmountHalfUp,
   wholeMultiples,
   vatByRate,
+  grossPartsAtRowTarget,
   allocateHalfUp,
   netForGrossAtRate,
   chargesByRate,
@@ -469,5 +470,66 @@ describe('chargesByRate', () => {
       }
     }
     expect(checked).toBeGreaterThan(500);
+  });
+});
+
+/**
+ * Issue #854 — an amount placed on a document as a gross at one VAT rate (an
+ * amount withheld on a return; later, a discount) takes its net from the rate
+ * row's target: the goods' row gross plus the parts placed there so far plus
+ * this one, under `vatByRate`'s rule, so no second VAT computation exists.
+ */
+describe('grossPartsAtRowTarget', () => {
+  it('nets a part against the goods already at its rate', () => {
+    // Goods 40.00 net at 23 % (49.20); 2.30 more → row 51.50 = 41.87 + 9.63.
+    expect(
+      grossPartsAtRowTarget({ goods: [{ net: '40.00', rate: '0.23' }], parts: [{ gross: '2.30', rate: '0.23' }], unit: 'fraction' }),
+    ).toEqual([{ rate: '0.23', gross: '2.30', net: '1.87', exact: true }]);
+  });
+
+  it('is the whole gross at a rate no goods line has, and the gross itself at 0 %', () => {
+    expect(
+      grossPartsAtRowTarget({
+        goods: [],
+        parts: [
+          { gross: '6.15', rate: '0.23' },
+          { gross: '3.00', rate: '0' },
+        ],
+        unit: 'fraction',
+      }),
+    ).toEqual([
+      { rate: '0.23', gross: '6.15', net: '5.00', exact: true },
+      { rate: '0', gross: '3.00', net: '3.00', exact: true },
+    ]);
+  });
+
+  it('places parts at one rate in order, each against the row so far', () => {
+    // 20.00 net (24.60); +1.23 → 25.83 = 21.00 + 4.83; +1.23 → 27.06 = 22.00 + 5.06.
+    expect(
+      grossPartsAtRowTarget({
+        goods: [{ net: '20.00', rate: '23' }],
+        parts: [
+          { gross: '1.23', rate: '23' },
+          { gross: '1.23', rate: '23' },
+        ],
+        unit: 'percent',
+      }),
+    ).toEqual([
+      { rate: '0.23', gross: '1.23', net: '1.00', exact: true },
+      { rate: '0.23', gross: '1.23', net: '1.00', exact: true },
+    ]);
+  });
+
+  it('takes a negative gross the same way', () => {
+    // 100.00 net (123.00) less 12.30 → 110.70 = 90.00 + 20.70.
+    expect(
+      grossPartsAtRowTarget({ goods: [{ net: '100.00', rate: '0.23' }], parts: [{ gross: '-12.30', rate: '0.23' }], unit: 'fraction' }),
+    ).toEqual([{ rate: '0.23', gross: '-12.30', net: '-10.00', exact: true }]);
+  });
+
+  it('answers the nearest net when no net carries the row gross (owner ruling E1)', () => {
+    expect(
+      grossPartsAtRowTarget({ goods: [], parts: [{ gross: '0.03', rate: '0.23' }], unit: 'fraction' }),
+    ).toEqual([{ rate: '0.23', gross: '0.03', net: '0.02', exact: false }]);
   });
 });

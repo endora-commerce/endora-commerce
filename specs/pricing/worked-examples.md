@@ -2,7 +2,7 @@
 
 The product owner's three target scenarios (E1–E3) and the cases that chose the precedence (F, S, T, Q vectors), and the cases the owner's rulings of 2026-10-21 decide (C∩, configurable precedence, H, A, K, U, V, D vectors), and the display-mode withholding of issue #491 (W vectors), each as **inputs → expected price → which row wins and why**, under the proposed model, with today's answer where it differs. They are written to become the failing-first tests of the pricing-model feature (Constitution III) and to answer "what should this cost?" without re-deriving the algorithm.
 
-**Verified against** `master` at `b1021c71b` on 2026-10-21; §10.11 re-checked for the P0 read-path hardening (branch `fix/pricing-read-path-hardening` on `fd6255339`) on 2026-10-21; §10.16 re-checked at `e3f456957` on 2026-10-24 (vectors G1–G4). §10.17 written against `2716908b3` on 2026-10-24 (issue #417) and rewritten for the owner's VAT ruling of the same day; §10.16 and §10.17 recomputed and §10.18 written for the four-place unit-price ruling of 2026-10-25 against `ad06079a4` (branch `fix/four-place-unit-prices`); §10.17 extended for issue #428 (refunds outside `payments`, the overpayment, the on-account case, section summaries) against `9e43c3412` on 2026-10-25; §10.19 written for issue #491 against `92dba80a9` on 2026-10-28 (branch `fix/491-display-mode-none-withholds-amounts`); §10.20 written for issue #492 on 2026-10-28 (branch `fix/492-retire-ispublic`); §10.17 R2 and DC1 recomputed for issue #435 on 2026-11-07 (branch `fix/435-invoice-kept-lines`); §10.17 correction rule, L0 and the K1, K2 and P1 vectors written for issues #873 and #885 on 2026-11-08 (branch `fix/873-kept-quantity-from-corrections`); §10.17 return rule, line ceiling and the O1, P2 and P3 vectors written for issues #874 and #875 on 2026-11-08 (branch `fix/874-875-returns-kept-state`). File:line citations are as of `b1021c71b`; re-check them before relying on one.
+**Verified against** `master` at `b1021c71b` on 2026-10-21; §10.11 re-checked for the P0 read-path hardening (branch `fix/pricing-read-path-hardening` on `fd6255339`) on 2026-10-21; §10.16 re-checked at `e3f456957` on 2026-10-24 (vectors G1–G4). §10.17 written against `2716908b3` on 2026-10-24 (issue #417) and rewritten for the owner's VAT ruling of the same day; §10.16 and §10.17 recomputed and §10.18 written for the four-place unit-price ruling of 2026-10-25 against `ad06079a4` (branch `fix/four-place-unit-prices`); §10.17 extended for issue #428 (refunds outside `payments`, the overpayment, the on-account case, section summaries) against `9e43c3412` on 2026-10-25; §10.19 written for issue #491 against `92dba80a9` on 2026-10-28 (branch `fix/491-display-mode-none-withholds-amounts`); §10.20 written for issue #492 on 2026-10-28 (branch `fix/492-retire-ispublic`); §10.17 R2 and DC1 recomputed for issue #435 on 2026-11-07 (branch `fix/435-invoice-kept-lines`); §10.17 correction rule, L0 and the K1, K2 and P1 vectors written for issues #873 and #885 on 2026-11-08 (branch `fix/873-kept-quantity-from-corrections`); §10.17 return rule, line ceiling and the O1, P2 and P3 vectors written for issues #874 and #875 on 2026-11-08 (branch `fix/874-875-returns-kept-state`); §10.17 withheld-amount rule and the R3 vector written for issue #854 on 2026-11-16 (branch `fix/854-retained-amount-vat`). File:line citations are as of `b1021c71b`; re-check them before relying on one.
 
 **The "Today" lines** under each vector record what the **pre-160** engine (the Application rule
 and the Default list) answered, as the comparison the model was decided against. Since feature 160
@@ -431,6 +431,25 @@ line stored with quantity 0 and named *Obniżka ceny (reklamacja RMA-…)*, and 
 quantity (P1). Tests: `packages/modules/invoices/src/backend/services/correction-amounts.test.ts`
 (the vectors, and properties over random invoices with returns and complaints interleaved),
 `corrective-invoice-provider.test.ts` and `backend/test/integration/invoices/correction-kept-state.test.ts`.
+
+**An amount withheld on a return is part of the goods' price** (issue #854, owner ruling of
+2026-11-07). What a settled return withheld — per case line, its stored default less the approved
+amount — is charged by an invoice issued afterwards on a line of its own
+(`line_kind` `retained`), one per order line, at that line's rate. Its gross is what was withheld and
+its net is the row target's (`grossPartsAtRowTarget`): the rate's row is the kept goods' row gross
+plus the withheld amounts there, wherever a net carries it. The default is already net of the line's
+discount share, so the withheld amount carries none, and the returned goods take their whole share
+back off the discount line. R3: of 3 × 10.00 and 1 × 20.00 at 23 % (61.50) one 10.00 unit comes back,
+its default is 12.30 and 10.00 is approved: 2.30 withheld → 1.87 net, and the 23 % row is 41.87 /
+9.63 / **51.50**, what is left paid. On 3 × 10.01 at 23 % less 6.94 (DC1), approving 5.00 of 10.01
+withholds 5.01 → 4.07 net: 29.63 at 23 %, −4.63 discount, **25.00**. A refund the line ceiling lowered
+because a complaint already refunded part of the line withholds the difference too: the order's
+defaults telescope to the drop in the kept goods' value, so the invoice less what is left paid is
+exactly the complaint money, which a complaint refunded before invoicing still shows as due. Tests:
+`packages/modules/returns/src/backend/domain/retained-on-return.test.ts`,
+`packages/modules/invoices/src/backend/services/kept-quantities.test.ts`,
+`packages/contracts/test/money-decimal.unit.test.ts` and
+`backend/test/integration/invoices/kept-lines.test.ts`.
 
 **A consumer's withdrawal refunds the delivery and the surcharge** (issue #876, Directive 2011/83
 art. 13(1); owner rulings E1–E3 of 2026-11-07). The case that completes a B2C order's withdrawal —

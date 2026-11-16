@@ -26,9 +26,9 @@ import type { InvoiceNumberGenerator } from './invoice-number-generator.js';
 import type { SellerSettingsResolver } from './seller-settings.js';
 import { buildInvoiceLines, readModelVatSummary, type RawOrderLine } from './invoice-line-builder.js';
 import { invoicePaidPosition } from './invoice-paid.js';
-import { keptDiscount, keptOrderLines } from './kept-quantities.js';
+import { keptDiscount, keptOrderLines, retainedOnReturnLines } from './kept-quantities.js';
 import type { OrderReturnsLock } from './order-returns-lock.js';
-import { invoicesProseTable, type InvoicesTranslate } from '../invoices-prose.js';
+import { invoicesProse, invoicesProseTable, type InvoicesTranslate } from '../invoices-prose.js';
 import { INVOICE_RENDER_LANGUAGE } from '../document/invoice-document-type.js';
 import {
   shouldHoldForVendorNumber,
@@ -205,6 +205,28 @@ export class InvoiceService {
       orderItemId: it.id,
       lineKind: 'goods',
     }));
+    // Issue #854 (owner ruling of 2026-11-07) — what a settled return withheld
+    // is part of the goods' price, at the VAT rate of the line it was withheld
+    // from: one line per such order line, its net from the rate row's target,
+    // so the invoice charges what the buyer kept paid for the returned goods.
+    // It names no order item: a correction never reads it as goods.
+    for (const retained of retainedOnReturnLines(items, returned)) {
+      const name = await invoicesProse(
+        this.lineProse.translate,
+        'lines.retainedOnReturn',
+        this.lineProse.language ?? supportedLanguageOf(INVOICE_RENDER_LANGUAGE),
+        { product: retained.item.productSnapshot?.name ?? names['lines.item'] },
+      );
+      raw.push({
+        name: name.slice(0, 512),
+        unit: names['lines.unit.service'],
+        quantity: 1,
+        unitNetPrice: retained.net,
+        taxRate: retained.item.taxRate,
+        netValue: retained.net,
+        lineKind: 'retained',
+      });
+    }
 
     // Itemize the order's non-product amounts so the invoice total reconciles
     // with the order total. The order model adds delivery + payment surcharge
@@ -244,8 +266,9 @@ export class InvoiceService {
         lineKind: 'payment_surcharge',
       });
     }
-    // Whether anything is left to sell: a kept product line, the delivery or
-    // the payment surcharge. A discount line alone is not a sale (F4).
+    // Whether anything is left to sell: a kept product line, an amount
+    // withheld on a return (issue #854: part of the goods' price), the delivery
+    // or the payment surcharge. A discount line alone is not a sale (F4).
     const keptSale = raw.length > 0;
     // The discount the settled returns did not carry back (issue #435,
     // product-owner ruling Q3 of 2026-11-07): their refunds already gave the

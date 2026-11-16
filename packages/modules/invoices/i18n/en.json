@@ -80,6 +80,7 @@
   "lines.discount": "Discount",
   "lines.priceReduction": "Price reduction (complaint {rma}): {product}",
   "lines.priceReductionUnreferenced": "Price reduction (complaint): {product}",
+  "lines.retainedOnReturn": "Retained on return: {product}",
   "actions.openInvoices.keywords": "invoices",
   "settingGroups.invoices.name": "Invoices",
   "errors.INVOICE_SELLER_DATA_MISSING": "Configure the seller's VAT number (NIP) and company data in the invoice settings before issuing invoices.",

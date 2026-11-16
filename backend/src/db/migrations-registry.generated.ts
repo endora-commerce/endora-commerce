@@ -268,6 +268,7 @@ import { Migration20260926T230239InvoicesImportIdentity } from '@endora-commerce
 import { Migration20261017T075839InvoicesDropInvoiceTemplates } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20261024T145631InvoicesVatSummary } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20261108T073244InvoicesInvoiceLineKind } from '@endora-commerce/mod-invoices/migrations';
+import { Migration20261116T204304InvoicesInvoiceLineKindRetained } from '@endora-commerce/mod-invoices/migrations';
 
 // ── languages ───────────────────────────────────────────────────────────────
 import { Migration20260425T161557LanguagesCurrenciesInit } from '@endora-commerce/mod-languages/migrations';
@@ -709,6 +710,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('invoices', Migration20261017T075839InvoicesDropInvoiceTemplates),
   migration('invoices', Migration20261024T145631InvoicesVatSummary),
   migration('invoices', Migration20261108T073244InvoicesInvoiceLineKind),
+  migration('invoices', Migration20261116T204304InvoicesInvoiceLineKindRetained),
 
   // ── languages ───────────────────────────────────────────────────────────────
   migration('languages', Migration20260425T161557LanguagesCurrenciesInit),
