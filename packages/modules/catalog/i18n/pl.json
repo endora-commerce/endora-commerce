@@ -572,6 +572,8 @@
   "errors.VARIANT_COMBINATION_EXISTS": "Wariant z taką kombinacją wartości już istnieje.",
   "errors.VARIANT_AXIS_MISSING": "Wariant musi mieć wartość dla każdej osi wariantu.",
   "errors.ATTRIBUTE_VALUE_REJECTED": "Niektóre atrybuty nie należą do zestawu atrybutów tego produktu.",
+  "errors.ATTRIBUTE_VALUE_REJECTED.page_builder_content": "Treści Page Builder nie można zapisać jako wartości atrybutu: {attributeKeys}. Edytuj ją na ekranie treści produktu.",
+  "errors.ATTRIBUTE_VALUE_REJECTED.not_content_attribute": "Atrybut {attributeKey} nie jest atrybutem treści Page Builder w zestawie atrybutów tego produktu.",
   "errors.FIELD_IMMUTABLE": "Tego pola nie można zmienić po utworzeniu produktu.",
   "errors.ATTRIBUTE_SET_CODE_TAKEN": "Zestaw atrybutów o tym kodzie już istnieje. Wybierz inny kod.",
   "errors.ATTRIBUTE_SET_IN_USE": "Ten zestaw atrybutów jest używany przez produkty, więc nie można go usunąć. Najpierw przypisz tym produktom inny zestaw.",

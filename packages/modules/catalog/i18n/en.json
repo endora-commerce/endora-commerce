@@ -572,6 +572,8 @@
   "errors.VARIANT_COMBINATION_EXISTS": "A variant with this combination of values already exists.",
   "errors.VARIANT_AXIS_MISSING": "A variant must have a value for every variant axis.",
   "errors.ATTRIBUTE_VALUE_REJECTED": "Some attributes do not belong to this product's attribute set.",
+  "errors.ATTRIBUTE_VALUE_REJECTED.page_builder_content": "Page Builder content cannot be saved as an attribute value: {attributeKeys}. Edit it on the product's content screen.",
+  "errors.ATTRIBUTE_VALUE_REJECTED.not_content_attribute": "The attribute {attributeKey} is not a Page Builder content attribute of this product's attribute set.",
   "errors.FIELD_IMMUTABLE": "This field cannot be changed once the product has been created.",
   "errors.ATTRIBUTE_SET_CODE_TAKEN": "An attribute set with this code already exists. Choose a different code.",
   "errors.ATTRIBUTE_SET_IN_USE": "Products use this attribute set, so it cannot be deleted. Assign those products a different set first.",

@@ -609,7 +609,10 @@ export const manifest = defineModuleManifest({
     { code: 'ATTRIBUTE_SET_NOT_FOUND' },
     // Issue #624 (#86).
     { code: 'ATTRIBUTE_SLIDER_NOT_SUPPORTED' },
-    { code: 'ATTRIBUTE_VALUE_REJECTED' },
+    // Issue #1223 — `page_builder_content`: a content attribute's key in
+    // `attributeValues`; `not_content_attribute`: a content `PUT` for a key that
+    // is not a content attribute of the product's set.
+    { code: 'ATTRIBUTE_VALUE_REJECTED', tokens: ['page_builder_content', 'not_content_attribute'] },
     // Issue #1218 (#86) — `page_builder`: a type change to or from Page Builder content.
     { code: 'ATTRIBUTE_VALUE_TYPE_LOCKED', tokens: ['page_builder'] },
     { code: 'ATTRIBUTE_VALUES_REQUIRED' },
