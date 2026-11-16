@@ -199,6 +199,8 @@ GET /api/v1/megamenu/by-channel?language=<bcp-47>
 X-Sales-Channel: <channel-code>
 ```
 
+Bez `?language=` językiem jest ten, o który prosi `Accept-Language`, czytany jako lista ważona `q` i dopasowywany do języków kanału (najpierw dokładnie, potem po języku bazowym, więc `pl` trafia do `pl-PL`); nagłówek bez żadnego języka oferowanego przez kanał dostaje menu języka domyślnego kanału.
+
 Mechanizm odczytu:
 
 1. Wyszukuje aktywne przypisanie przez częściowy indeks unikalny (1 zapytanie).

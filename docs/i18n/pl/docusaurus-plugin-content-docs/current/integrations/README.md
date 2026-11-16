@@ -162,8 +162,10 @@ Wysyłki przetwarza kolejka BullMQ z wykładniczo rosnącym odstępem:
 - Do **8 prób** na wysyłkę.
 - Odstęp zaczyna się od **1 s** i podwaja przy każdym ponowieniu (1 s, 2 s, 4 s, …).
 - Każda próba ma limit czasu **10 s**.
-- Po ostatniej próbie wysyłka jest oznaczana jako `dead_lettered` w `webhook_deliveries`. Widok
-  „Failed Deliveries” w panelu administracyjnym pozwala ponowić ją na żądanie.
+- Po ostatniej próbie wysyłka jest oznaczana jako `dead_lettered` w `webhook_deliveries`. Lista
+  **Ostatnie dostarczenia** na ekranie Webhooki w panelu administracyjnym pozwala ponowić ją na żądanie.
+- Zakończone wysyłki są przechowywane przez `webhooks.delivery_retention_days` (domyślnie 365 dni),
+  a potem usuwane; usuniętej wysyłki nie można już ponowić.
 
 Odbiorcy muszą być **idempotentni**: usuwaj duplikaty według `X-Webhook-Event-Id`, aby powtórzona
 wysyłka nie zastosowała zmiany stanu dwa razy. Kolejność webhooków różnych typów zdarzeń nie jest
