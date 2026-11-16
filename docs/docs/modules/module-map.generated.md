@@ -31,7 +31,7 @@ of the platform, not of what happens to be written.
 | [API keys](./api_keys.md) | Bearer-token integration credentials | @endora-commerce/mod-api-keys |
 | [Assets library](./assets-library/index.md) | Central digital-asset library with pluggable storage adapters, stable file URLs and permalinks, in-place file replacement, soft-delete with a retention sweep, and reference-protection guards | @endora-commerce/mod-assets-library |
 | [Audit log](./audit_logs.md) | Sensitive-action audit trail | @endora-commerce/mod-audit-logs |
-| [Authentication](./auth.md) | Customer + admin sessions, password hashing, TOTP | @endora-commerce/mod-auth |
+| [Authentication](./auth.md) | Customer and admin sessions, session last-seen tracking and the admin and customer route guards | @endora-commerce/mod-auth |
 | [Blog](./blog/index.md) | Editorial Posts with Page Builder bodies, taxonomy (Categories + Tags), and storefront feeds | @endora-commerce/mod-blog |
 | [Carts](./carts.md) | Customer shopping cart with anonymous→logged-in merge | @endora-commerce/mod-carts |
 | [Catalog](./catalog.md) | Products, variants, categories, attributes, sales channels | @endora-commerce/mod-catalog |
