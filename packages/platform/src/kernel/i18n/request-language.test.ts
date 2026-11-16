@@ -83,6 +83,15 @@ describe('createRequestLanguageResolver — the ladder always answers (B1, B3)',
     expect(await resolve(request)).toBe('pl');
   });
 
+  it('never answers in a language the header refuses with q=0 (issue #1315)', async () => {
+    const resolve = createRequestLanguageResolver({ adminPreferredLanguage: neverAsked });
+    const refusedPolish = requestWith({
+      actor: { kind: 'anonymous' },
+      headers: { 'accept-language': 'pl;q=0, de' },
+    });
+    expect(await resolve(refusedPolish)).toBe('en');
+  });
+
   it('reads only the stored preference for an admin (B2)', async () => {
     const resolve = createRequestLanguageResolver({
       adminPreferredLanguage: async (id) => (id === 'admin-1' ? 'pl' : null),
