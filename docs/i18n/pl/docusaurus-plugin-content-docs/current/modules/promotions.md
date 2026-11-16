@@ -66,11 +66,14 @@ jej nazwy, gdy kuponu nie było — nigdy identyfikator promocji, który trafia 
 | `GET/POST/PUT/DELETE /api/v1/admin/promotions[/:id]` | Zarządzanie promocjami |
 | `GET /api/v1/admin/promotions/action-types` | Katalog akcji dla edytora |
 | `GET /api/v1/admin/promotions/rule-targets/attributes` | Atrybuty, których można używać w promocjach |
+| `GET /api/v1/admin/promotions/rule-targets/{categories,customer-groups,delivery-methods,organizations,payment-methods,sales-channels}` | Pozostałe listy wyboru edytora reguł |
 | `POST /api/v1/admin/promotions/preview` | Podgląd zastosowania dla `CartSnapshot` |
 | `GET/POST /api/v1/admin/promotions/:id/coupons` | Zarządzanie pojedynczymi kuponami |
+| `POST /api/v1/admin/promotions/:id/coupons/bulk-active` | Aktywowanie lub dezaktywowanie wielu kuponów naraz |
 | `POST /api/v1/admin/promotions/:id/coupon-batches` | Generowanie kuponów hurtowo |
 | `GET .../coupon-batches/:batchId/export` | Eksport wygenerowanych kodów do CSV |
 | `GET /api/v1/admin/promotions/:id/stats` | Statystyki wykorzystania |
+| `GET /api/v1/admin/promotions/coupons/:couponId/stats` | Statystyki wykorzystania jednego kuponu |
 | `GET/POST/PUT/DELETE /api/v1/admin/promotion-rules[/:id]` | Biblioteka nazwanych reguł |
 
 ## Odmowy

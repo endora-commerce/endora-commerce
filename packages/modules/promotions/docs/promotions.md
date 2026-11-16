@@ -73,11 +73,14 @@ when no coupon was applied — never the promotion's id, which travels only as
 | `GET/POST/PUT/DELETE /api/v1/admin/promotions[/:id]` | Promotion CRUD |
 | `GET /api/v1/admin/promotions/action-types` | Action catalogue for the editor |
 | `GET /api/v1/admin/promotions/rule-targets/attributes` | Promo-eligible attributes |
+| `GET /api/v1/admin/promotions/rule-targets/{categories,customer-groups,delivery-methods,organizations,payment-methods,sales-channels}` | The other pickers of the rule editor |
 | `POST /api/v1/admin/promotions/preview` | Apply against a `CartSnapshot` |
 | `GET/POST /api/v1/admin/promotions/:id/coupons` | Single-coupon management |
+| `POST /api/v1/admin/promotions/:id/coupons/bulk-active` | Activate or deactivate many coupons at once |
 | `POST /api/v1/admin/promotions/:id/coupon-batches` | Bulk generator |
 | `GET .../coupon-batches/:batchId/export` | CSV export of generated codes |
 | `GET /api/v1/admin/promotions/:id/stats` | Usage statistics |
+| `GET /api/v1/admin/promotions/coupons/:couponId/stats` | Usage statistics of one coupon |
 | `GET/POST/PUT/DELETE /api/v1/admin/promotion-rules[/:id]` | Named-rule library |
 
 ## Refusals

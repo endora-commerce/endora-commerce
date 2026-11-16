@@ -76,8 +76,11 @@ wywołują `invalidateDefault()`, aby pamięć podręczna została wyczyszczona 
 
 ## Encje
 
-`Language` — naturalny klucz główny w postaci kodu BCP-47; `label`, `isDefault`, `isActive`,
-`sortOrder`.
+`Language` — naturalny klucz główny w postaci kodu BCP-47; `label`, `nativeLabel`, `isRtl`,
+`fallbackCode` (odwołanie do innego języka, `languages_fallback_fk`), `isDefault`, `isActive`,
+`sortOrder`. Kolumny `native_label`, `is_rtl`, `fallback_code` i klucz obcy ten moduł tworzy sam,
+w `20261114T003519_languages_dictionary_columns.ts` (issue #611); wcześniej robiła to tylko
+migracja początkowa modułu `dictionaries`. W bazie, która już je ma, migracja niczego nie zmienia.
 
 ## Punkty rozszerzenia
 

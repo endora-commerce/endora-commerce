@@ -27,6 +27,7 @@ Every attribute carries:
 | `labelDefault` | Fallback label used when the active storefront / admin locale is missing from `label`. |
 | `valueType` | One of `string`, `number`, `boolean`, `price`, `date`, `select`, `multiselect`, `enum`, `page_builder`. |
 | `options[]` | Ordered list of selectable options — only for `select` / `multiselect` / `enum`. See [Option lists](#option-lists) below. |
+| `adminAccess` | **Admin access**: `edit` (*Editable*, the default), `read` (*Read-only*) or `hidden` (*Hidden*), stored on the attribute's custom-field definition and answered on every attribute response. It only changes the admin panel: it does not restrict the API, filters, exports or the audit log. A required attribute must stay `edit` — anything else is refused with `400 VALIDATION_FAILED`, and the attribute editor keeps *Read-only* and *Hidden* unavailable while the attribute is required. |
 
 Plus the behavioural flags and a numeric position:
 
@@ -57,8 +58,8 @@ Plus the behavioural flags and a numeric position:
 | `enum` | option `value` | Same storage shape as `select`; renders as a compact pill / segmented control on storefront filters and the PDP rather than a dropdown. |
 | `page_builder` | one Page Builder document per language, stored apart from `attribute_values` | **Page Builder content** — see [Product content](./product-content.md). |
 
-Changing `valueType` while any product carries a value the new type
-cannot represent is refused with `attribute_type_change_unsafe`.
+Changing `valueType` while any product holds a value for the attribute is
+refused with `409 ATTRIBUTE_VALUE_TYPE_LOCKED`; clear the values first.
 
 ### Page Builder content
 
@@ -109,14 +110,14 @@ Admin routes are gated by `catalog:read` (list / get) /
 | `GET /api/v1/admin/catalog/attributes` | admin | List attributes |
 | `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Picker payload — every attribute carrying the requested flag |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Single attribute read |
-| `POST /api/v1/admin/catalog/attributes` | admin | Create attribute (accepts the flags + inline `options[]` for select-style types) |
+| `POST /api/v1/admin/catalog/attributes` | admin | Create attribute (accepts the flags, `adminAccess` + inline `options[]` for select-style types) |
 | `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Update labels and hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Re-emits `attribute.updated.v1`. |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/usage` | admin (`catalog:read`) | What deleting the attribute would meet: `{ attributeSetCount, productValueCount, productContentCount }` — see [Deleting an attribute](#deleting-an-attribute) |
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin (`catalog:write`) | Delete an attribute of any type; refused with `409` while an Attribute Set contains it or a product holds a value for it — see [Deleting an attribute](#deleting-an-attribute) |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option rows for select / enum / multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
-| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch `label` / `labelDefault` / `isDefault` / `sortOrder` (option `value` is immutable) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Remove; refused with `409 ATTRIBUTE_OPTION_IN_USE` while any product still carries the value |
+| `PATCH /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` | admin | Patch `label` / `labelDefault` / `isDefault` / `sortOrder` (option `value` is immutable) |
+| `DELETE /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` | admin | Remove; refused with `409 ATTRIBUTE_OPTION_IN_USE` while any product still carries the value |
 
 Filter sidebar reads consume `GET /api/v1/catalog/filters` (defined on
 the [Catalog](../catalog.md) page) — that endpoint resolves the
@@ -282,7 +283,7 @@ them again.
 All attribute and option mutations flow through the catalog Commands
 behind `/catalog/attributes` — the generic Custom Fields admin surface
 lists product definitions read-only and refuses mutations with
-`409 host_managed`.
+`409 CUSTOM_FIELD_HOST_MANAGED`.
 
 ## Events emitted
 

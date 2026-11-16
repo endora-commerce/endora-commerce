@@ -7,7 +7,8 @@ description: Products, variants, categories, attributes, sales channels
 # Catalog (`catalog`)
 
 The product catalog: Products, ProductVariants, Categories,
-ProductAttributes, and SalesChannels. Owns all read paths the storefront
+ProductAttributes, and the products' per-Sales-Channel scopes (the Sales
+Channel itself is the platform's). Owns all read paths the storefront
 depends on and the admin-side authoring surface.
 
 ## Public surface
@@ -37,6 +38,8 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `POST /api/v1/admin/catalog/products/:id/archive` | admin (`catalog:write`) | Archive one product — see *Product status and archiving* |
 | `POST /api/v1/admin/catalog/products/:id/restore` | admin (`catalog:write`) | Restore one archived product |
 | `GET`, `POST /api/v1/admin/catalog/products/list-views`; `PATCH`, `DELETE …/list-views/:id` | admin | Saved views on the product list — see *Saved views* below |
+| `GET /api/v1/admin/catalog/bulk-operations`, `GET …/bulk-operations/:id` | admin (`catalog:read`) | The background bulk operations and one operation's per-product outcome |
+| `POST /api/v1/admin/catalog/bulk-operations/:id/undo` | admin (`catalog:write`) | Undo a finished bulk operation; refused with `409 BULK_OPERATION_RUNNING` while it is pending or running, `409 BULK_OPERATION_ALREADY_REVERTED` once undone and `409 BULK_OPERATION_NOT_REVERSIBLE` when there is nothing to restore (until issue #501 all three were `409 VERSION_CONFLICT`) |
 | `GET /api/v1/admin/catalog/attributes` | admin | List attributes |
 | `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Picker payload — every attribute carrying the requested flag |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Single attribute read |
@@ -46,12 +49,12 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Delete an attribute of any type; refused with `409` while an Attribute Set contains it or a live product holds a value for it (on the product, per sales channel or on a variant) |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option-list rows for select/enum/multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
-| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch label / labelDefault / isDefault / sortOrder (option `value` is immutable) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Remove; refused with `409 ATTRIBUTE_OPTION_IN_USE` while any product still carries the value |
-| `POST /api/v1/admin/catalog/attribute-set-preview` | admin | Preview which Set's attributes will be edited / hidden when an operator switches a product's Attribute Set |
+| `PATCH /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` | admin | Patch label / labelDefault / isDefault / sortOrder (option `value` is immutable) |
+| `DELETE /api/v1/admin/catalog/attributes/:attributeId/options/:optionId` | admin | Remove; refused with `409 ATTRIBUTE_OPTION_IN_USE` while any product still carries the value |
+| `POST /api/v1/admin/catalog/products/:id/attribute-set-preview` | admin (`catalog:write`) | Preview which Set's attributes will be edited / hidden when an operator switches a product's Attribute Set |
 | `GET /api/v1/admin/catalog/categories` | admin | Flat list, the UI folds into a tree |
-| `POST /api/v1/admin/catalog/categories` | admin | Create (parent must exist); a slug a sibling already holds is `409 CATEGORY_SLUG_TAKEN` (`details.slug`, `parentCategoryId`), on create and on update |
-| `PATCH /api/v1/admin/catalog/categories/:id` | admin | Update; reparenting walks the new parent's chain to refuse cycles (`409 CATEGORY_MOVE_CYCLE`, `details.categoryId`, `parentCategoryId`) |
+| `POST /api/v1/admin/catalog/categories` | admin | Create (parent must exist); a slug a sibling already holds is `409 CATEGORY_SLUG_TAKEN` (`details.slug`, `parentCategoryId`), on create and on update. `customFieldValues` are checked against the category custom-field definitions and stored with the category; a refused value is `422 CUSTOM_FIELD_VALUE_INVALID` (`details` entries `{ path, issue }`) and creates nothing. A **required** category field is enforced on every create, also when the request sends no values |
+| `PATCH /api/v1/admin/catalog/categories/:id` | admin | Update (incl. `customFieldValues`, refused as on create); reparenting walks the new parent's chain to refuse cycles (`409 CATEGORY_MOVE_CYCLE`, `details.categoryId`, `parentCategoryId`) |
 | `DELETE /api/v1/admin/catalog/categories/:id` | admin | Soft-delete; rejects with `409 CATEGORY_HAS_CHILDREN` (`details.categoryId`, `childCount`) if any active child still references the row |
 | `GET /api/v1/admin/catalog/categories/:id/content` | admin | The category's page content — one Page Builder document per language ([Category page content](./catalog/category-content.md)) |
 | `PUT /api/v1/admin/catalog/categories/:id/content` | admin | Replace the category's page content; `null` clears it |
@@ -194,7 +197,7 @@ buyer pays is chosen.
   way.
 - **Where the viewer's price display mode is *None*** — for instance an anonymous visitor on a
   channel that hides prices until sign-in — the listing and the product detail carry no amount, and
-  a price ordering or range is refused for that page. Sales channels have no price-visibility flag
+  a price ordering or range is refused for that page with `400 PRICE_ORDERING_UNAVAILABLE`. Sales channels have no price-visibility flag
   of their own any more: the display mode decides, for each viewer.
 - **Gross prices use each product's own VAT rate.** Every product on the listing and the product
   detail carries `vatRate`, the VAT rate the viewer is charged for it, as a fraction (`0.08` = 8 %).
@@ -260,8 +263,8 @@ counting the category's own changes and the display mode together.
 
 ## Entities
 
-`Product`, `ProductVariant`, `Category`, `ProductAttribute`,
-`SalesChannel`, plus the M:N bridges
+`Product`, `ProductVariant`, `Category`, `ProductAttribute` (the
+`SalesChannel` entity is the platform's), plus the M:N bridges
 `product_categories`, `sales_channel_products`, `product_assets`, and
 `ProductListSavedView` (`product_list_saved_views`, the product list's saved
 views).
@@ -734,7 +737,7 @@ and ownership model is different:
   row), using the transactional apply seam exported by
   `custom_fields`. The generic Custom Fields admin surface lists
   product definitions read-only and refuses mutations with
-  `409 host_managed`.
+  `409 CUSTOM_FIELD_HOST_MANAGED`.
 - **Migration `20260723T230401_catalog_attributes_on_custom_fields.ts`** performed the
   one-time convergence in a single transaction: backfilled one
   definition per legacy attribute (key, labels, mapped value type,

@@ -141,6 +141,15 @@ Both drop the shared Redis entry first and the local one second, with the key ma
 
 Membership lookups go through MikroORM directly (no cache layer); if you need them faster, add a Redis layer keyed by `(entityType, entityId)` with a short TTL — the hooks are already in place.
 
+## Contributing a panel to the channel edit page
+
+The edit page of an existing channel mounts the admin zone `sales_channel.editor.after` below the
+identity form, with the props `{ channelId, saveSession }`. `saveSession` is the page's one Save
+(issue #407, `specs/180-one-save-zone-editors/`): a panel that registers its staged changes with it
+is counted by the form's Save and written after the channel, in zone order, and a panel that does
+not keeps writing on its own — as `inventory`'s warehouse routing does, under an *Applies
+immediately* badge. The create form runs no session.
+
 ## Storefront URLs and the language prefix {#storefront-urls}
 
 Every storefront page URL carries the language as its first segment. Never compose one by

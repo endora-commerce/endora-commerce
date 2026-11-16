@@ -195,6 +195,12 @@ tickets that quote a shared link.
 
 ## Public surface
 
+The storefront routes (`/api/v1/comparisons/me…` and the shared-link view) judge availability and
+name products in the reader's language: the request's `Accept-Language` tags heaviest `q` first,
+each matched against the sales channel's languages (exactly, then by base language), the first one
+the channel offers, else the channel's default (`requestScopeLanguage` from
+`@endora-commerce/contracts`, issue #1011).
+
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/comparisons/me` | storefront (anonymous or customer) | Read the caller's Comparison; `204 No Content` when none |
@@ -202,7 +208,7 @@ tickets that quote a shared link.
 | `DELETE /api/v1/comparisons/me/products/:productId` | storefront | Remove a product; `404 PRODUCT_NOT_IN_COMPARISON` if absent |
 | `PATCH /api/v1/comparisons/me` | storefront | Update the persisted display mode (`all` / `common` / `differences`) |
 | `DELETE /api/v1/comparisons/me` | storefront | Hard-delete the Comparison; the share token stops resolving for everyone |
-| `GET /api/v1/comparisons/me/pdf` | storefront (owner only) | Owner PDF export; PDF mirrors the active mode and embeds product base images; `Accept-Language` picks the PDF's language and `?hideEmptyRows=true` drops rows with no value; laid out by the Product comparison document template; `409 COMPARISON_EMPTY` for a zero-product comparison |
+| `GET /api/v1/comparisons/me/pdf` | storefront (owner only) | Owner PDF export; PDF mirrors the active mode and embeds product base images; `Accept-Language` picks the PDF's language — its tags heaviest `q` first, each matched against the sales channel's languages (exactly, then by base language), else the channel's default, the same language the comparison view reads product names in — and `?hideEmptyRows=true` drops rows with no value; laid out by the Product comparison document template; `409 COMPARISON_EMPTY` for a zero-product comparison |
 | `GET /api/v1/comparisons/share/:token` | public, no auth | Recipient view; same shape as the owner read minus `maxProducts`, plus `meta.viewerIsOwner`; priced and filtered for the *recipient* (`data.pricedFor`, `data.hiddenProductCount`); `404 COMPARISON_NOT_FOUND` for a deleted/never-existed token |
 | `GET /api/v1/admin/comparisons` | admin (`comparisons:read`) | List every Comparison with filters (channel, owner kind, time range) and cursor pagination |
 | `GET /api/v1/admin/comparisons/:id` | admin (`comparisons:read`) | Read-only detail; rendered through the comparison's recorded sales channel so the view matches what the customer reported |
@@ -213,11 +219,12 @@ There is **no** comparisons-side cart proxy. The storefront's
 
 ## Settings
 
-One knob under the `compare` group, registered by
+Two settings under the `compare` group, registered by
 `packages/modules/comparisons/src/manifest.ts`:
 
 | Code | Type | Default | Purpose |
 | --- | --- | --- | --- |
+| `comparisons.enabled` | `boolean` | `true` | The module's activation control |
 | `compare.max_products` | `number` | `4` | Upper bound on a single Comparison; the store-front refuses to add the (max+1)-th product per channel. Sane range `1..16`. |
 
 The bound is read at request time inside
@@ -289,7 +296,7 @@ through the AssetByteFetcher.
 | --- | --- | --- |
 | Reads | Catalog products and `is_comparable` flag | `CatalogQueryService.comparableAttributeKeys()` + entity reads via the EM |
 | Reads | `compare.max_products` | `SettingsService.get(...)` — same shape Search uses |
-| Reads | Sales channel context (currency, public flag) | `getResolvedChannel()` — the channel the resolver middleware put on the request scope |
+| Reads | Sales channel context (currency, languages) | `getResolvedChannel()` — the channel the resolver middleware put on the request scope |
 | Reads | Customer email for the admin list | `CustomerAccount` entity — read-only join |
 | Writes | None outside its own two tables | — |
 
