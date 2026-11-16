@@ -43,8 +43,9 @@ Import encji, którą można tylko eksportować, daje odpowiedź `405 IMPORT_NOT
 najpierw, więc wywołujący, który w ogóle nie może korzystać z encji, dostaje odmowę `403`. Do
 zgłoszenia #644 kodem odpowiedzi był `405 VALIDATION_FAILED`.
 
-Przedstawiciel handlowy ograniczony do przypisanych organizacji eksportuje tylko klientów
-i zamówienia tych organizacji — te same wiersze, które widzi na listach klientów i zamówień.
+Przedstawiciel handlowy eksportuje tylko klientów i zamówienia organizacji, do których sięga —
+przypisanych do niego i każdej organizacji, do której nie jest przypisany żaden przedstawiciel —
+te same wiersze, które widzi na listach klientów i zamówień.
 
 Arkusz klientów ma kolumny `email`, `organization_name`, `first_name`, `last_name`,
 `organization_role_name`, `organization_role_kind`, `email_verified_at` i `last_login_at`.
@@ -97,6 +98,11 @@ zapisuje. Ekran panelu zawsze wykonuje go najpierw i przed **Zastosuj import** p
 Każdy wiersz produktu jest zapisywany we własnej transakcji. Odrzucony wiersz nie cofa pozostałych
 wierszy, a odrzucona komórka nie cofa reszty swojego wiersza. Ponowne uruchomienie tego samego pliku
 jest bezpieczne: zapisuje te same wartości jeszcze raz.
+
+Import, który coś zapisał (nie próbny), prosi `catalog` przez `catalogBulkImportPort` o odświeżenie
+w tle statystyk bazy danych dla tabel produktów mniej więcej minutę później (kolejka
+`catalog.table-maintenance`, issue #409), dzięki czemu lista produktów w panelu pozostaje szybka
+zaraz po dużym imporcie. Import ani na to nie czeka, ani nie kończy się z tego powodu błędem.
 
 ### Kolumny
 

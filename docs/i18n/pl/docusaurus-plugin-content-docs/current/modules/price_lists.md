@@ -337,7 +337,9 @@ odniesienia i przegrane linie.
 | `price_lists:read` | listę cenników, ustawienia i ceny każdego cennika, ceny bazowe, wyjaśnienie ceny, *Ustawienia cenowe* |
 | `price_lists:write` | tworzenie, zmienianie, aktywowanie, planowanie, duplikowanie, importowanie i usuwanie cenników; ceny bazowe; tryby prezentacji; ustawienie ceny katalogowej. Dodawanie linii produktów korzysta też z przeglądarki produktów katalogu, więc rola edytująca cenniki potrzebuje także `catalog:read` (mówi o tym edytor ról na `/admin-roles`). |
 
-**Handlowcy** — administratorzy, których rola ogranicza do własnych organizacji — widzą i edytują
+**Handlowcy** — administratorzy, których rola ogranicza do organizacji, do których sięgają:
+przypisanych do nich (z `organizations:rollup` także ich organizacji podrzędnych) i każdej
+organizacji, do której nie jest przypisany żaden handlowiec — widzą i edytują
 tylko cenniki organizacji, w których **każdy** odbiorca jest jedną z ich organizacji. Cenniki dla
 wszystkich, cenniki grup klientów i ceny bazowe są dla nich tylko do odczytu. Cennik, który wskazuje
 jakąkolwiek organizację spoza ich zakresu, dla nich nie istnieje: nie ma go na liście, a jego adres
@@ -359,15 +361,9 @@ administratorem i stanem przed zmianą i po niej; *Zobacz historię* w cenniku o
 - **Lista cenników nie ma zapisanych widoków**; jej filtry są przechowywane w adresie strony, więc
   przefiltrowaną listę można dodać do zakładek i udostępnić (zgłoszenie #408).
 - **Tuż po dużym imporcie** stronicowanie i wyszukiwanie w siatce bardzo dużego cennika (dziesiątki
-  tysięcy linii) mogą trwać nieco dłużej, dopóki baza danych nie odświeży statystyk, co robi sama
-  wkrótce potem (zgłoszenie #409).
-- **Zakładka *Variants* edytora produktu nie pokazuje wariantów produktu nieaktywnego ani produktu
-  spoza domyślnego kanału sprzedaży**, bo odczytuje je przez odczyt storefrontu (zgłoszenie #410).
-  Panel cen bazowych tego problemu nie ma: odczytuje każdy wariant.
-- **Etykiety zakładek edytora produktu inne niż *Ceny* są po angielsku** w polskim panelu
-  (zgłoszenie #413).
-- **Czytniki ekranu odczytują znaczek promocji w sklepie jako „Zapytaj o ofertę”**; widoczny tekst jest
-  poprawny (zgłoszenie #411).
+  tysięcy linii) mogą przez mniej więcej minutę trwać nieco dłużej: po zapisie zbiorczym moduł prosi
+  procesy w tle o odświeżenie statystyk bazy danych dla tabel cen minutę później (zgłoszenie #409).
+  Bez działających procesów w tle zrobi to później samo utrzymanie bazy danych.
 - **Porządek sortowania opóźnia się względem zmiany ceny** o czas odświeżania w tle — zwykle poniżej
   sekundy, a do około dwóch i pół minuty przy zmianie, która sięga całego katalogu (zob. *Gdzie
   pojawiają się ceny*); ceny na kartach nigdy się nie opóźniają. Sortowanie według

@@ -181,7 +181,10 @@ na karcie *Ustawienia* feedu albo ustaw pole `priceListId` feedu przez API admin
 cenniki w walucie feedu; te, które nie publikowałyby teraz dla feedu, są wyszarzone, z powodem obok
 nazwy, a *Bez cennika* odpina feed. Cennik, do którego feed jest już przypięty, pozostaje do wyboru
 niezależnie od swojego stanu. Wybór cennika wymaga uprawnienia do przeglądania cenników oraz do
-edycji feedów produktowych. Przypięty feed publikuje wtedy własne linie tego cennika — ceny stałe oraz procenty i
+edycji feedów produktowych; bez niego pole wyboru jest wyłączone i mówi, którego uprawnienia brakuje.
+Pole wyboru odczytuje `GET /api/v1/admin/product-feeds/:id/price-book-options` (`product_feeds:read`
+i `price_lists:read`): każdy cennik w walucie feedu, a także przypięty cennik niezależnie od waluty,
+każdy z `unpublishableReason` (`null`, gdy by publikował). Przypięty feed publikuje wtedy własne linie tego cennika — ceny stałe oraz procenty i
 korekty liczone od ceny katalogowej, jaką kanał naliczałby bez tego cennika — a **produkt, którego
 cennik nie wycenia, nie trafia do feedu**. Cennik cen bazowych publikuje swoje ceny bazowe.
 Przypięty cennik jest publikowany **tylko wtedy, gdy w chwili generowania obowiązuje kogokolwiek w

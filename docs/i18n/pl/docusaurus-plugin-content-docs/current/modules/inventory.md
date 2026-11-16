@@ -30,10 +30,11 @@ kanał sprzedaży przez nową tabelę `warehouse_channel_assignments`.
 
 ## Ustawienia modułu
 
-Siedem kluczy w grupie `inventory`:
+Dziewięć kluczy w grupie `inventory`:
 
 | Kod | Typ | Wartość domyślna | Uwagi |
 | --- | --- | --- | --- |
+| `inventory.enabled` | boolean | `true` | Włączanie i wyłączanie modułu przez operatora (dla całej platformy); wyłączenie zachowuje każdy magazyn, stan i oczekujące powiadomienie |
 | `inventory.display_mode` | string | `band` | Sposób pokazywania stanu w storefroncie: `exact` / `band` / `available_or_not` |
 | `inventory.fulfilment_strategy` | string | `default_first` | `any` / `default_first` / `lowest_stock_first` / `highest_stock_first` / `defined_order` |
 | `inventory.fulfilment_strategy_warehouse_order` | json | `[]` | Kolejność magazynów dla strategii `defined_order` |
@@ -41,6 +42,7 @@ Siedem kluczy w grupie `inventory`:
 | `inventory.global_threshold_medium` | number | `20` | Od którego ma „średni stan” |
 | `inventory.global_threshold_low` | number | `1` | Od którego ma „niski stan”; poniżej jest niedostępny |
 | `inventory.low_stock_alert_recipient_email` | string | `''` | Gdy puste, używana jest zmienna środowiskowa `INVENTORY_LOW_STOCK_RECIPIENT` |
+| `inventory.allow_negative_stock` | boolean | `false` | Globalna zgoda na zamówienia poniżej stanu, dla kanału sprzedaży: dopóki jest `false`, żaden produkt nie przyjmuje zamówienia poniżej dostępnego stanu, niezależnie od flagi `backorderEnabled` |
 
 ## API publiczne
 
@@ -76,7 +78,7 @@ rodzaj luki, który każda z czterech wcześniejszych poprawek uprawnień znajdo
 | Metoda i ścieżka | Odbiorca | Przeznaczenie |
 | --- | --- | --- |
 | `GET /api/v1/storefront/inventory/display-mode` | anonimowy | Jak kanał sprzedaży żądania pokazuje stan |
-| `GET /api/v1/storefront/inventory/stock/:id` | anonimowy | Stan produktu z łącznym stanem liczonym tylko z magazynów przypisanych do kanału wywołującego (dodatkowo zawężonych do listy dozwolonych magazynów jego organizacji, jeśli jest ustawiona); `404` dla produktu, którego wywołujący nie może zobaczyć |
+| `GET /api/v1/storefront/inventory/stock/:id` | anonimowy | Stan produktu z łącznym stanem liczonym tylko z magazynów przypisanych do kanału wywołującego (dodatkowo zawężonych do listy dozwolonych magazynów jego organizacji, jeśli jest ustawiona); `404` dla produktu, którego wywołujący nie może zobaczyć, oceniane w kanale i języku żądania (tagi `Accept-Language` od największej wagi `q`, każdy dopasowany do języków kanału, w przeciwnym razie język domyślny kanału) |
 | `POST /api/v1/storefront/inventory/notify-when-available` | anonimowy lub zalogowany | Zapisuje adres e-mail podany w treści żądania na powiadomienie o ponownej dostępności |
 | `POST /api/v1/catalog/products/:id/notify-when-available` | zalogowany klient | Zapisuje adres e-mail konta klienta na powiadomienie o ponownej dostępności |
 
@@ -117,11 +119,11 @@ gdy logi dostępu z produkcji albo właściciel wdrożenia potwierdzą, że nic 
 
 ## Flagi produktu
 
-Pięć nowych pól w `products`, zapisywanych przez `PATCH /api/v1/admin/catalog/products/:id`:
+Pięć nowych pól w `products`, zapisywanych przez `PATCH /api/v1/admin/catalog/products/:id`; zakładka Magazyn edytora produktu przygotowuje je i zapisuje jednym przyciskiem **Zapisz** edytora, w `changes.product` żądania `PUT /api/v1/admin/catalog/products/:id/scoped-values`:
 
 - `manageStock` (domyślnie `true`) — gdy `false`, storefront traktuje produkt jako zawsze dostępny, a
   koszyk i zamówienia w ogóle pomijają rezerwację.
-- `backorderEnabled` (domyślnie `false`) — gdy `true`, checkout przy zerowym stanie jest akceptowany;
+- `backorderEnabled` (domyślnie `false`) — gdy `true`, a `inventory.allow_negative_stock` jest włączone dla kanału, checkout przy zerowym stanie jest akceptowany;
   powstały wiersz `stock_allocations` ma `is_backorder = true`.
 - `lowStockThreshold` — opcjonalna liczba całkowita; gdy null, produkt nie wywołuje alertów o niskim
   stanie.
@@ -153,7 +155,7 @@ Pięć strategii znajduje się w `fulfilment-strategy-resolver.ts`:
 | `highest_stock_first` | Magazyn z największym `available` (remisy według kodu) |
 | `defined_order` | Przechodzi skonfigurowaną listę magazynów w podanej kolejności; wygrywa pierwszy wystarczający |
 
-Gdy `backorderEnabled = true`, każda z pięciu strategii pozwala złożyć zamówienie, a brakująca część
+Gdy `backorderEnabled = true` (i `inventory.allow_negative_stock` jest włączone), każda z pięciu strategii pozwala złożyć zamówienie, a brakująca część
 jest oznaczana jako sprzedaż na zamówienie w magazynie pierwszego wyboru.
 
 Składanie zamówienia zapisuje jeden wiersz `stock_allocations` dla każdej pozycji. Anulowanie
@@ -167,7 +169,7 @@ następna sekcja.
 wierszu `(product_id, variant_id, warehouse_id)`. Magazyn domyślny jest wyznaczany z
 `warehouse_channel_assignments` dla kanału sprzedaży zamówienia. Równoczesne zamówienia są
 wykonywane po kolei; to, które przegra, kończy się `409 STOCK_UNAVAILABLE`, chyba że produkt ma
-`backorderEnabled = true` — wtedy pozycja przechodzi z `is_backorder = true`.
+`backorderEnabled = true`, a `inventory.allow_negative_stock` jest włączone dla kanału — wtedy pozycja przechodzi z `is_backorder = true`.
 
 Zwolnienie jest **działaniem następczym** anulowania. Moduł `orders` zapisuje je w tej samej
 transakcji co status anulowania, podejmuje próbę w tym samym żądaniu i ponawia je w tle, aż się

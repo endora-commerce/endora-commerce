@@ -173,7 +173,10 @@ section of the feed's *Settings* tab, or set the feed's `priceListId` through th
 the price books in the feed's currency; the ones that would not publish for the feed now are listed
 disabled, with the reason beside their name, and *No price book* unpins the feed. The book the feed
 is already pinned to stays selectable whatever its state. Choosing a book needs the permission to
-view price lists as well as to edit product feeds. A pinned feed then publishes that book's own lines — fixed prices, and percentages or
+view price lists as well as to edit product feeds; without it the picker is shown disabled and says
+which permission it needs. The picker reads `GET /api/v1/admin/product-feeds/:id/price-book-options`
+(`product_feeds:read` and `price_lists:read`): every book in the feed's currency, plus the pinned one
+whatever its currency, each with `unpublishableReason` (`null` when it would publish). A pinned feed then publishes that book's own lines — fixed prices, and percentages or
 adjustments taken off the catalogue price the channel would charge without that book — and **a
 product the book does not price is absent from the feed**. A base price book publishes its base prices. The pinned book publishes **only
 while it applies to anyone on the feed's channel at generation time**:
