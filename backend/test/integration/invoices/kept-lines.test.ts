@@ -65,13 +65,15 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
   /**
    * A completed, paid order placed under the per-rate VAT method, the way
    * `OrderService.placeOrder` writes one. Two lines at 23 %: 3 × 10.00 (gross
-   * 36.90) and 1 × 20.00 (gross 24.60); 50.00 net, 11.50 VAT, 61.50 total.
+   * 36.90) and 1 × 20.00 (gross 24.60); 50.00 net, 11.50 VAT, 61.50 total,
+   * less `discountTotal` taken off the gross.
    */
   async function seedOrder(
-    opts: { deliveryTotal?: string; kind?: 'bank_transfer' | 'gateway' } = {},
+    opts: { deliveryTotal?: string; discountTotal?: string; kind?: 'bank_transfer' | 'gateway' } = {},
   ): Promise<{ orderId: string; widget: string; gadget: string }> {
     const em = h.em().fork();
     const delivery = opts.deliveryTotal ?? '0.00';
+    const discount = opts.discountTotal ?? '0.00';
     const order = em.create(Order, {
       organizationId: TEST_ORGANIZATION_ID,
       placedByCustomerAccountId: TEST_CUSTOMER_ID,
@@ -96,8 +98,8 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       subtotal: '50.00',
       taxTotal: '11.50',
       deliveryTotal: delivery,
-      discountTotal: '0.00',
-      total: ((6150 + Math.round(Number(delivery) * 100)) / 100).toFixed(2),
+      discountTotal: discount,
+      total: ((6150 + Math.round(Number(delivery) * 100) - Math.round(Number(discount) * 100)) / 100).toFixed(2),
       currency: 'PLN',
       placedAt: new Date(),
     });
@@ -570,6 +572,66 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       // 61.50 − 20.00 − 16.90 = 24.60 left paid; the 20.00 complaint refund is
       // still shown as due, as it is on an order without a return.
       expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([44.6, 24.6, 20, 0]);
+    });
+
+    // Issue #939 — a return the line ceiling capped, on a discounted order. The
+    // discount line takes the returned goods' whole default discount off, not a
+    // share scaled by the capped amount, so the invoice matches the settled
+    // money to the cent, discount line included.
+    it('a complaint refunded first on a discounted order: the ceiling-capped return carries its whole discount back', async () => {
+      // 61.50 less a 6.15 discount: 55.35 paid.
+      const { orderId, widget } = await seedOrder({ discountTotal: '6.15' });
+      await withSystemScope('test: seed a settled complaint', async () => {
+        const em = h.em().fork();
+        const rc = em.create(ReturnCase, {
+          kind: 'complaint',
+          orderId,
+          salesChannelId: CH,
+          customerAccountId: TEST_CUSTOMER_ID,
+          organizationId: TEST_ORGANIZATION_ID,
+          statusCode: 'resolved',
+          currency: 'PLN',
+          resolutionType: 'refund',
+          submittedAt: new Date(),
+        });
+        em.create(ReturnCaseItem, {
+          returnCaseId: rc.id,
+          orderItemId: widget,
+          productId: randomUUID(),
+          productName: 'Widget',
+          quantity: 1,
+          defaultRefundAmount: '20.00',
+          approvedRefundAmount: '20.00',
+        });
+        em.create(Refund, { returnCaseId: rc.id, resolutionType: 'refund', amount: '20.00', currency: 'PLN', settlementState: 'issued' });
+        await em.flush();
+      });
+      // Two widgets come back. Their default is 22.14, carrying 2.46 of the
+      // discount; the line is worth 33.21, so the ceiling leaves 33.21 − 20.00
+      // = 13.21 of it, which is approved.
+      const caseId = await settleReturn(orderId, widget, 2, 'refund');
+      const em = h.em().fork();
+      const line = await withSystemScope('test: read the settled line', () =>
+        em.findOneOrFail(ReturnCaseItem, { returnCaseId: caseId }),
+      );
+      expect([line.defaultRefundAmount, line.defaultDiscountAmount, line.approvedRefundAmount]).toEqual([
+        '22.14',
+        '2.46',
+        '13.21',
+      ]);
+
+      const invoice = await issueInvoice(orderId);
+      expect(linesOf(invoice)).toEqual([
+        ['Gadget', 1, 20, 24.6],
+        ['Kwota zatrzymana przy zwrocie: Widget', 1, 7.26, 8.93],
+        // 6.15 − 2.46: the whole default discount of the two widgets came back.
+        // Scaled by 13.21 / 22.14 it would be 1.47, and this line −4.68.
+        ['Rabat', 1, -3.69, -3.69],
+        ['Widget', 1, 10, 12.3],
+      ]);
+      // 55.35 − 20.00 − 13.21 = 22.14 left paid; 45.83 − 3.69 = 42.14 invoiced,
+      // and the difference is the 20.00 complaint refund to the cent.
+      expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([42.14, 22.14, 20, 0]);
     });
   });
 
