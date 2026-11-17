@@ -1,12 +1,11 @@
 import { useMemo, type ReactNode } from 'react';
 import type { OpportunityHandlingTime } from '@endora-commerce/contracts';
+import { FigureCard, useFigure } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmAnalyticsApi, type AnalyticsAnswer, type AnalyticsFilters } from '../../analytics-api.js';
 import { durationLabel } from '../../lib/analytics-format.js';
 import { NO_VALUE } from '../../lib/labels.js';
 import { useReportedTimeZone } from '../../lib/reporting-time-zone.js';
-import { useFigure } from '../../lib/use-figure.js';
-import { FigureCard } from './FigureCard.js';
 
 /** Average handling time: creation to closing, with won and lost apart. */
 export function HandlingTimeCard({ filters }: { filters: AnalyticsFilters | null }): ReactNode {
@@ -22,6 +21,7 @@ export function HandlingTimeCard({ filters }: { filters: AnalyticsFilters | null
 
   return (
     <FigureCard
+      errorFallback={t('analytics.error.load')}
       title={t('analytics.handling.title')}
       description={t('analytics.handling.description')}
       figure={figure}

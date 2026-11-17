@@ -52,6 +52,13 @@ export type { CategoryTreePickerProps } from './category-tree-picker/CategoryTre
 export { adminLanguageToLocale, ancestorIdsForSelected, buildCategoryTree, computeParentIndeterminateIds, expandedIdsForFilteredTree, filterCategoryTree, flattenCategoryTree, pickCategoryDisplayName, subtreeHasSelection, visibleFlattenedTree } from './category-tree-picker/category-tree-utils.js';
 export type { CategoryTreeNode, CategoryTreePickerCategory } from './category-tree-picker/category-tree-utils.js';
 export { EChart } from './charts/echart.js';
+// Issue #464 — the analytics helpers CRM and Projects each kept a copy of.
+export { FigureCard } from './analytics/FigureCard.js';
+export type { FigureCardProps } from './analytics/FigureCard.js';
+export { useFigure } from './analytics/use-figure.js';
+export type { Figure } from './analytics/use-figure.js';
+export { prefersReducedMotion, useChartColors } from './charts/use-chart-colors.js';
+export type { ChartColors } from './charts/use-chart-colors.js';
 export { ContentLanguageTabs } from './content-language-tabs/ContentLanguageTabs.js';
 export type { ContentLanguageTabsProps } from './content-language-tabs/ContentLanguageTabs.js';
 export { CmsBlockPicker } from './cms-picker/CmsBlockPicker.js';

@@ -1,6 +1,7 @@
 import { useId, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { OpportunitySummary } from '@endora-commerce/contracts';
+import { FigureCard, useFigure } from '@endora-commerce/admin-kit/components';
 import { statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
 import {
   Badge,
@@ -18,8 +19,6 @@ import { crmAnalyticsApi, type AnalyticsAnswer, type AnalyticsFilters, type TopO
 import { AssigneeName } from '../../components/AssigneeName.js';
 import { moneyLabel } from '../../lib/labels.js';
 import { useReportedTimeZone } from '../../lib/reporting-time-zone.js';
-import { useFigure } from '../../lib/use-figure.js';
-import { FigureCard } from './FigureCard.js';
 
 /** How many Opportunities are listed per currency. */
 const PER_CURRENCY = 10;
@@ -51,6 +50,7 @@ export function TopOpportunitiesCard({ filters }: { filters: AnalyticsFilters | 
 
   return (
     <FigureCard
+      errorFallback={t('analytics.error.load')}
       title={t('analytics.top.title')}
       description={t('analytics.top.description', { count: PER_CURRENCY })}
       figure={figure}

@@ -34,6 +34,8 @@ export {
 export type { AdminPreferencesStatus, SidebarPreferenceKey } from './admin-preferences/use-admin-preference.js';
 export type { AdminMe, AuthProviderProps, LoginErrorReason } from './auth.js';
 export { formatDateTime } from './format.js';
+export { RANGE_PRESETS, isDayRange, presetRange } from './range-presets.js';
+export type { DayRange, RangePreset } from './range-presets.js';
 export { formatMoney, localeForCurrency, type FormatMoneyOptions } from './money.js';
 export { invoiceEmailNotSentReason, issueInvoiceNotice, sendInvoiceEmailMessage } from './invoice-email-outcome.js';
 export type { Translate } from './invoice-email-outcome.js';
