@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Organization } from './package-entities.js';
 import { CustomerAccount } from './package-entities.js';
@@ -12,6 +13,7 @@ import {
 } from './test-actors.js';
 import { bindOrganizationsToFixtureChannelsSql } from './sales-channel-access.js';
 import { predefinedRoleIdOf } from './seed-organization-roles.js';
+import { organizationTreePath } from './organization-tree.js';
 
 /**
  * Seeds the Organization + CustomerAccount rows that back the stub-session
@@ -170,12 +172,21 @@ export async function seedTestOrganizations(em: EntityManager): Promise<void> {
  * The tax id is unique per call — the column is globally `@Unique` — and derived
  * from the clock rather than from a counter, so two files seeding inside one
  * run do not collide.
+ *
+ * Issue #956 — `parent` seeds a child instead of a root, with the real
+ * materialized path written by the insert itself (`organizationTreePath`). A
+ * root's path comes from the entity's create hook.
  */
 export async function seedAdHocOrganization(
   em: EntityManager,
   name = 'Fixture Organization',
+  options: { parent?: Pick<Organization, 'id' | 'path'> } = {},
 ): Promise<Organization> {
+  const id = randomUUID();
+  const { parent } = options;
   const org = em.create(Organization, {
+    id,
+    ...(parent ? { parentId: parent.id, path: organizationTreePath(id, parent) } : {}),
     name,
     taxId: `PL${String(Math.floor(performance.now() * 1000)).slice(-8).padStart(8, '0')}${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`,
     status: 'active',

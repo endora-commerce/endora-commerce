@@ -72,9 +72,10 @@ describe.skipIf(!shouldRun)('admin global search — seven-type fan-out at the r
     const customer = (expr: string) => `md5('gsb-cus-${stamp}-' || ((${expr}) % ${customers} + 1))::uuid`;
 
     await db.execute(
-      `insert into organizations (id, name, name_search, tax_id, status, vat_status, registered_address, created_at, updated_at)
+      `insert into organizations (id, name, name_search, tax_id, status, vat_status, registered_address, path, created_at, updated_at)
        select md5('gsb-org-${stamp}-' || g)::uuid, 'Bench Org ' || g, 'bench org ' || g, 'BT${stamp}' || g, 'active',
-              'vat_payer', '{"street":"x","city":"Kraków","postalCode":"30-001","country":"PL"}'::jsonb, now(), now()
+              'vat_payer', '{"street":"x","city":"Kraków","postalCode":"30-001","country":"PL"}'::jsonb,
+              '/' || md5('gsb-org-${stamp}-' || g)::uuid::text || '/', now(), now()
          from generate_series(1, ${orgs}) g`,
     );
     await db.execute(
