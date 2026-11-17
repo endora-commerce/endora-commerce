@@ -195,6 +195,7 @@ export function FormField(props: FormFieldProps): ReactNode {
           {props.help ? <HelpTip subjectId={labelId}>{props.help}</HelpTip> : null}
           {props.labelAddon ?? null}
         </div>
+        {/* eslint-disable-next-line no-restricted-syntax -- a ReactNode slot named `action`, not an enum value */}
         {props.action ?? null}
       </div>
       {hasDescription ? (
