@@ -102,14 +102,12 @@ export function EntityChannelMembership({
       setAllChannels(all.items);
     } catch (err) {
       setError(
-        err instanceof ApiError
-          ? err.envelope.error.message
-          : 'Failed to load channel memberships.',
+        err instanceof ApiError ? err.envelope.error.message : t('membership.error.load'),
       );
     } finally {
       setLoading(false);
     }
-  }, [entityType, entityId]);
+  }, [entityType, entityId, t]);
 
   useEffect(() => {
     void refresh();
@@ -133,11 +131,11 @@ export function EntityChannelMembership({
       await refresh();
       onChanged?.();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Add failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('membership.error.add'));
     } finally {
       setBusy(false);
     }
-  }, [pickerCode, entityType, entityId, refresh, onChanged]);
+  }, [pickerCode, entityType, entityId, refresh, onChanged, t]);
 
   const handleRemove = useCallback(
     async (code: string): Promise<void> => {
@@ -174,7 +172,7 @@ export function EntityChannelMembership({
         await refresh();
         onChanged?.();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Remove failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('membership.error.remove'));
       } finally {
         setBusy(false);
       }
