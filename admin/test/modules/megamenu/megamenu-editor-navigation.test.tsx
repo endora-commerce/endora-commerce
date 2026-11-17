@@ -14,7 +14,9 @@ import { MenuItemTree } from '../../../../packages/modules/megamenu/src/admin/co
  * tab's presentation and alignment, offers the kinds a level allows, sets an
  * audience, configures a category tree, and says when a label is inherited.
  */
-vi.mock('@endora-commerce/admin-kit/components', () => {
+// The pickers are stubbed; everything else is the kit's own — `MenuItemTree`
+// asks through the real `useConfirmDialog` before deleting (issue #1464).
+vi.mock('@endora-commerce/admin-kit/components', async (importOriginal) => {
   const picker =
     (name: string) =>
     ({
@@ -33,6 +35,7 @@ vi.mock('@endora-commerce/admin-kit/components', () => {
       />
     );
   return {
+    ...(await importOriginal<typeof import('@endora-commerce/admin-kit/components')>()),
     CategorySelect: picker('category picker'),
     CmsPagePicker: picker('page picker'),
     CmsBlockPicker: picker('block picker'),

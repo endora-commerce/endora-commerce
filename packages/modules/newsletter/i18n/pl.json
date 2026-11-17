@@ -101,5 +101,18 @@
   "errors.NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN": "Blok e-mail o kodzie „{blockCode}” już istnieje. Wybierz inny kod.",
   "errors.NEWSLETTER_EMAIL_BLOCK_SYSTEM": "Blok e-mail „{blockCode}” jest blokiem systemowym, więc nie można go usunąć.",
   "errors.NEWSLETTER_TAG_CODE_TAKEN": "Tag o kodzie „{tagCode}” już istnieje. Wybierz inny kod.",
-  "errors.NEWSLETTER_TAG_IN_USE": "Tag „{tagCode}” jest używany przez kampanię lub automatyzację, więc nie można go usunąć. Najpierw usuń go z nich."
+  "errors.NEWSLETTER_TAG_IN_USE": "Tag „{tagCode}” jest używany przez kampanię lub automatyzację, więc nie można go usunąć. Najpierw usuń go z nich.",
+  "delete.failed": "Nie udało się usunąć i nic nie zostało zmienione. Spróbuj ponownie.",
+  "delete.block.title": "Usunąć ten blok e-mail?",
+  "delete.block.message": "„{name}” ({code}) zostanie usunięty. Kampanie i automatyzacje, które go osadzają, zostaną wysłane bez niego.",
+  "delete.block.action": "Usuń blok",
+  "delete.subscriber.title": "Usunąć tego subskrybenta?",
+  "delete.subscriber.message": "{email} zostanie usunięty razem z tagami i przynależnością do grup. Adres pozostaje na liście wykluczeń, więc nie dostanie już e-maili.",
+  "delete.subscriber.action": "Usuń subskrybenta",
+  "delete.tag.title": "Usunąć ten tag?",
+  "delete.tag.message": "„{name}” ({code}) zostanie usunięty i zdjęty ze wszystkich subskrybentów, którzy go mają. Tagu używanego przez kampanię albo automatyzację nie da się usunąć.",
+  "delete.tag.action": "Usuń tag",
+  "delete.field.title": "Usunąć to pole dodatkowe?",
+  "delete.field.message": "„{label}” ({key}) zostanie usunięte. Nie będzie już dostępne jako zmienna, a nowe wartości tego pola nie będą przyjmowane.",
+  "delete.field.action": "Usuń pole"
 }

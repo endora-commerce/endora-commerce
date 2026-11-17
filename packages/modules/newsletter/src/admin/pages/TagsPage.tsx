@@ -1,8 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { slugify, type CustomFieldType, type NewsletterCustomField, type NewsletterTag } from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import { newsletterClient } from '../api/newsletter-client.js';
+import { describeDeleteError } from '../describe-delete-error.js';
 
 /** Backend requires tag codes / field keys to match this pattern. */
 const CODE_RE = /^[a-z][a-z0-9_]*$/;
@@ -34,6 +37,8 @@ function slugifyCode(input: string): string {
 
 export function TagsPage(): React.ReactElement {
   const { hasPermission } = useAuth();
+  const tn = useTranslation('newsletter');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const canWrite = hasPermission('newsletter:write');
   const [tags, setTags] = useState<NewsletterTag[]>([]);
   const [fields, setFields] = useState<NewsletterCustomField[]>([]);
@@ -51,6 +56,37 @@ export function TagsPage(): React.ReactElement {
     newsletterClient.listCustomFields().then((r) => setFields(r.items)).catch(() => undefined);
   }, []);
   useEffect(() => load(), [load]);
+
+  /** Issue #1464 — a delete asks first, and runs inside the dialog. */
+  async function confirmDeleteTag(tag: NewsletterTag): Promise<void> {
+    setError(null);
+    await confirm({
+      title: tn('delete.tag.title'),
+      message: tn('delete.tag.message', { name: tag.name, code: tag.code }),
+      confirmLabel: tn('delete.tag.action'),
+      destructive: true,
+      action: async () => {
+        await newsletterClient.deleteTag(tag.id);
+        load();
+      },
+      describeError: describeDeleteError(tn),
+    });
+  }
+
+  async function confirmDeleteField(field: NewsletterCustomField): Promise<void> {
+    setError(null);
+    await confirm({
+      title: tn('delete.field.title'),
+      message: tn('delete.field.message', { label: field.label, key: field.key }),
+      confirmLabel: tn('delete.field.action'),
+      destructive: true,
+      action: async () => {
+        await newsletterClient.deleteCustomField(field.id);
+        load();
+      },
+      describeError: describeDeleteError(tn),
+    });
+  }
 
   async function run(fn: () => Promise<unknown>): Promise<void> {
     setError(null);
@@ -183,7 +219,7 @@ export function TagsPage(): React.ReactElement {
                           >
                             Edit
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => void run(() => newsletterClient.deleteTag(t.id))}>
+                          <Button variant="ghost" size="sm" onClick={() => void confirmDeleteTag(t)}>
                             Delete
                           </Button>
                         </>
@@ -281,7 +317,7 @@ export function TagsPage(): React.ReactElement {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => void run(() => newsletterClient.deleteCustomField(f.id))}
+                            onClick={() => void confirmDeleteField(f)}
                           >
                             Delete
                           </Button>
@@ -295,6 +331,7 @@ export function TagsPage(): React.ReactElement {
           </ul>
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

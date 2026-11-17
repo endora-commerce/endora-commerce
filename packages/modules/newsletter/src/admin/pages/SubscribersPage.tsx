@@ -1,12 +1,16 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { ScopeNoticeCode, SubscriberSummary } from '@endora-commerce/contracts';
-import { ScopeNotice } from '@endora-commerce/admin-kit/components';
+import { ScopeNotice, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { Alert, AlertDescription, Button, Card, CardContent, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { newsletterClient } from '../api/newsletter-client.js';
+import { describeDeleteError } from '../describe-delete-error.js';
 
 export function SubscribersPage(): React.ReactElement {
   const { hasPermission } = useAuth();
+  const t = useTranslation('newsletter');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const canWrite = hasPermission('newsletter:write');
   const [items, setItems] = useState<SubscriberSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -41,6 +45,22 @@ export function SubscribersPage(): React.ReactElement {
   }
 
   const exportHref = newsletterClient.subscribersExportUrl({ ...(q ? { q } : {}), ...(tag ? { tag } : {}) });
+
+  /** Issue #1464 — a delete asks first, and runs inside the dialog. */
+  async function confirmDelete(subscriber: SubscriberSummary): Promise<void> {
+    setError(null);
+    await confirm({
+      title: t('delete.subscriber.title'),
+      message: t('delete.subscriber.message', { email: subscriber.email }),
+      confirmLabel: t('delete.subscriber.action'),
+      destructive: true,
+      action: async () => {
+        await newsletterClient.deleteSubscriber(subscriber.id);
+        load();
+      },
+      describeError: describeDeleteError(t),
+    });
+  }
 
   async function action(fn: () => Promise<unknown>): Promise<void> {
     try {
@@ -101,7 +121,7 @@ export function SubscribersPage(): React.ReactElement {
                           Unsubscribe
                         </Button>
                       ) : null}
-                      <Button variant="ghost" size="sm" onClick={() => void action(() => newsletterClient.deleteSubscriber(s.id))}>
+                      <Button variant="ghost" size="sm" onClick={() => void confirmDelete(s)}>
                         Delete
                       </Button>
                     </td>
@@ -124,6 +144,7 @@ export function SubscribersPage(): React.ReactElement {
           </table>
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }
