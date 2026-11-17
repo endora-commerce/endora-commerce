@@ -166,9 +166,10 @@ rekord, do którego zadanie należy; Projekty — członkostwo; CRM — `crm:rea
   pliku.
 - Użycie go w innym miejscu też jest odrzucane jak dla brakującego pliku, a brakujący plik jest tam
   odrzucany również. Dotyczy to osadzenia go na stronie, w bloku lub szablonie CMS, na stronie
-  kategorii, w treści produktu, we wpisie na blogu lub w opisie kategorii bloga oraz w szablonie
-  dokumentu i jego podglądzie. Dotyczy też wybrania go jako obrazu udostępniania strony, domyślnego
-  obrazu udostępniania, logo sklepu, ikony aplikacji lub logo kanału sprzedaży. Plik, który jest już
+  kategorii, w treści produktu, we wpisie na blogu lub w opisie kategorii bloga, w szablonie
+  dokumentu i jego podglądzie oraz w e-mailu, bloku e-maila lub szablonie e-maila. Dotyczy też
+  wybrania go jako obrazu udostępniania strony, domyślnego obrazu udostępniania, logo sklepu, logo
+  e-maili, ikony aplikacji lub logo kanału sprzedaży. Plik, który jest już
   tam użyty, zostaje: ponowne zapisanie tej treści lub ustawienia działa.
 - Odmowa ustawienia stałego linku (`409 ASSET_PERMALINK_TAKEN`) nie wskazuje pliku, który ma już tę
   nazwę, jeśli nie możesz go zobaczyć.
