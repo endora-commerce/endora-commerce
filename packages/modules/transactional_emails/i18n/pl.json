@@ -12,6 +12,7 @@
   "list.title": "Szablony maili",
   "list.empty": "Nie znaleziono maili transakcyjnych.",
   "list.search": "Szukaj po nazwie lub kodzie…",
+  "list.searchLabel": "Szukaj e-maili",
   "activation.column": "Status",
   "activation.on": "Włączony",
   "activation.off": "Wyłączony",

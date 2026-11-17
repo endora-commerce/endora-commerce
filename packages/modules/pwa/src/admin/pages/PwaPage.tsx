@@ -271,7 +271,7 @@ export function PwaPage(): ReactNode {
                   <Input id="pwa-short" value={config.shortName} onChange={(e) => patch({ shortName: e.target.value })} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Theme color</Label>
+                  <span aria-hidden="true" className="text-sm font-medium leading-none">Theme color</span>
                   <ColorPicker
                     value={config.themeColor}
                     onChange={(hex) => patch({ themeColor: hex })}
@@ -280,7 +280,7 @@ export function PwaPage(): ReactNode {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Background color</Label>
+                  <span aria-hidden="true" className="text-sm font-medium leading-none">Background color</span>
                   <ColorPicker
                     value={config.backgroundColor}
                     onChange={(hex) => patch({ backgroundColor: hex })}
@@ -399,8 +399,8 @@ export function PwaPage(): ReactNode {
               </div>
 
               <div className="space-y-2">
-                <Label>Audience</Label>
-                <div className="flex items-center gap-4">
+                <span id="push-audience-label" className="text-sm font-medium leading-none">Audience</span>
+                <div className="flex items-center gap-4" role="radiogroup" aria-labelledby="push-audience-label">
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="radio"

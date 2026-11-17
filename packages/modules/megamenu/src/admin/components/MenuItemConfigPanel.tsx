@@ -174,8 +174,8 @@ export function MenuItemConfigPanel({
         </div>
       ) : null}
 
-      <div className="space-y-2">
-        <Label>{t('fields.labelsPerLanguage')}</Label>
+      <div className="space-y-2" role="group" aria-labelledby={`${fieldId}-labels`}>
+        <span id={`${fieldId}-labels`} className="text-sm font-medium leading-none">{t('fields.labelsPerLanguage')}</span>
         {languages.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             {t('itemConfig.addBindingFirst')}
@@ -183,8 +183,9 @@ export function MenuItemConfigPanel({
         ) : null}
         {languages.map((lang) => (
           <div key={lang} className="grid grid-cols-12 items-center gap-2">
-            <span className="col-span-2 font-mono text-xs text-muted-foreground">{lang}</span>
+            <span id={`${fieldId}-label-${lang}`} className="col-span-2 font-mono text-xs text-muted-foreground">{lang}</span>
             <Input
+              aria-labelledby={`${fieldId}-labels ${fieldId}-label-${lang}`}
               className="col-span-10"
               value={item.labels[lang] ?? ''}
               onChange={(event) => setLabel(lang, event.target.value)}
@@ -316,8 +317,9 @@ function KindSpecificFields({
     case 'external-link':
       return (
         <div className="space-y-1">
-          <Label>{t('fields.url')}</Label>
+          <Label htmlFor={`${fieldId}-url`}>{t('fields.url')}</Label>
           <Input
+            id={`${fieldId}-url`}
             value={typeof target.url === 'string' ? target.url : ''}
             onChange={(event) => setTarget({ url: event.target.value } as never)}
             placeholder={t('placeholders.externalUrl')}
@@ -329,16 +331,18 @@ function KindSpecificFields({
       return (
         <>
           <div className="space-y-1">
-            <Label>{t('fields.linkTarget')}</Label>
+            <Label htmlFor={`${fieldId}-link-target`}>{t('fields.linkTarget')}</Label>
             <Input
+              id={`${fieldId}-link-target`}
               value={typeof target.url === 'string' ? target.url : ''}
               onChange={(event) => setTarget({ url: event.target.value } as never)}
               placeholder="/promotions"
             />
           </div>
           <div className="space-y-1">
-            <Label>{t('fields.variant')}</Label>
+            <Label htmlFor={`${fieldId}-variant`}>{t('fields.variant')}</Label>
             <Select
+              id={`${fieldId}-variant`}
               value={typeof target.variant === 'string' ? target.variant : 'primary'}
               onChange={(event) => setTarget({ variant: event.target.value } as never)}
             >
@@ -363,8 +367,9 @@ function KindSpecificFields({
             />
           </div>
           <div className="space-y-1">
-            <Label>{t('fields.kind')}</Label>
+            <Label htmlFor={`${fieldId}-asset-kind`}>{t('fields.kind')}</Label>
             <Select
+              id={`${fieldId}-asset-kind`}
               value={typeof target.kind === 'string' ? target.kind : 'image'}
               onChange={(event) => setTarget({ kind: event.target.value } as never)}
             >
@@ -386,8 +391,9 @@ function KindSpecificFields({
             />
           </div>
           <div className="space-y-1">
-            <Label>{t('fields.embedSide')}</Label>
+            <Label htmlFor={`${fieldId}-embed-side`}>{t('fields.embedSide')}</Label>
             <Select
+              id={`${fieldId}-embed-side`}
               value={typeof target.embedSide === 'string' ? target.embedSide : 'right'}
               onChange={(event) => setTarget({ embedSide: event.target.value } as never)}
             >
@@ -406,8 +412,9 @@ function KindSpecificFields({
       return (
         <>
           <div className="space-y-1">
-            <Label>{t('fields.rootCategory')}</Label>
+            <Label htmlFor={`${fieldId}-root-category`}>{t('fields.rootCategory')}</Label>
             <CategorySelect
+              id={`${fieldId}-root-category`}
               ariaLabel={t('fields.rootCategory')}
               clearable
               value={typeof target.rootCategoryId === 'string' && target.rootCategoryId ? target.rootCategoryId : null}

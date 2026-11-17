@@ -146,9 +146,9 @@ export function CampaignEditor(): React.ReactElement {
           canWrite ? (
             <>
               {!isNew ? (
-                <Link to={`/newsletter/campaigns/${id}/stats`}>
-                  <Button variant="outline">Stats</Button>
-                </Link>
+                <Button asChild variant="outline">
+                  <Link to={`/newsletter/campaigns/${id}/stats`}>Stats</Link>
+                </Button>
               ) : null}
               <Button variant="outline" onClick={() => void doPreview()}>
                 Preview

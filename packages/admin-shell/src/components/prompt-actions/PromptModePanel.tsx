@@ -136,6 +136,7 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
         <input
           ref={inputRef}
           data-testid="prompt-input"
+          aria-label={t('panel.inputLabel')}
           placeholder={t('panel.inputPlaceholder')}
           value={prompt}
           disabled={busy || phase === 'awaiting_confirmation'}
@@ -176,22 +177,26 @@ export function PromptModePanel({ onExit, initialRequest, initialPrompt }: Props
         </div>
       ) : null}
 
-      {busy ? (
-        <div
-          data-testid="prompt-busy"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '14px 16px',
-            fontSize: 13,
-            color: 'var(--fg-muted)',
-          }}
-        >
-          <Loader2 size={16} className="animate-spin" />
-          {phase === 'interpreting' ? t('panel.interpreting') : t('panel.executing')}
-        </div>
-      ) : null}
+      {/* Mounted empty before the work starts, so the busy line is announced
+          when it arrives (WCAG 2.2 SC 4.1.3, #1465). */}
+      <div role="status" aria-live="polite">
+        {busy ? (
+          <div
+            data-testid="prompt-busy"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '14px 16px',
+              fontSize: 13,
+              color: 'var(--fg-muted)',
+            }}
+          >
+            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+            {phase === 'interpreting' ? t('panel.interpreting') : t('panel.executing')}
+          </div>
+        ) : null}
+      </div>
 
       {phase === 'awaiting_confirmation' && request?.plan ? (
         <PromptPlanPreview

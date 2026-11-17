@@ -73,3 +73,21 @@ describe('CMS pages list — shadowed by a language prefix', () => {
     expect(badges[0]!.getAttribute('title')).toContain('b2b');
   });
 });
+
+describe('CMS pages list — search box (#1465)', () => {
+  it('names the search box by a label, not only by its placeholder', async () => {
+    renderWithSession(
+      <MemoryRouter>
+        <PagesListPage />
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: ['*'] }),
+        presence: modulePresence({ present: ['cms'] }),
+        bundle: { cms: en },
+      },
+    );
+    expect(await screen.findByRole('searchbox', { name: en['pagesList.searchLabel']! })).toBeInTheDocument();
+    expect(pl['pagesList.searchLabel']).toBeTruthy();
+    expect(pl['pagesList.searchLabel']).not.toBe(en['pagesList.searchLabel']);
+  });
+});

@@ -229,6 +229,8 @@ export function BlogTagListPage(): ReactNode {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void load();
               }}
+              type="search"
+              aria-label={t('tagList.searchLabel')}
               placeholder={t('tagList.searchPlaceholder')}
               className="w-64"
             />
