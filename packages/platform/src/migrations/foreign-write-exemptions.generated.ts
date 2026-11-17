@@ -26,22 +26,18 @@ export const FIRST_PARTY_FOREIGN_WRITE_EXEMPTIONS: readonly {
   readonly direction?: 'up' | 'down';
   readonly clause?: 'owner-depends-on-writer' | 'writer-is-core' | 'both-required';
 }[] = [
-  { moduleId: 'carts', migration: 'Migration20260611T140352CartsConsolidation', table: 'organizations' },
   { moduleId: 'catalog', migration: 'Migration20260723T230401CatalogAttributesOnCustomFields', table: 'custom_field_definitions' },
   { moduleId: 'catalog', migration: 'Migration20260723T230401CatalogAttributesOnCustomFields', table: 'custom_field_options' },
   { moduleId: 'customer_accounts', migration: 'Migration20260825T141659CustomerAccountsOrganizationRequired', table: 'organizations' },
   { moduleId: 'dictionaries', migration: 'Migration20260506T112634DictionariesDictionaryInit', table: 'currencies' },
   { moduleId: 'languages', migration: 'Migration20260425T161557LanguagesCurrenciesInit', table: 'currencies' },
   { moduleId: 'organizations', migration: 'Migration20260717T151403OrganizationsPersonalOrganizations', table: 'customer_accounts' },
-  { moduleId: 'price_lists', migration: 'Migration20260426T075235PriceListsPricingInit', table: 'organizations' },
   { moduleId: 'inventory', migration: 'Migration20260912T125716InventoryOrganizationWarehouses', table: 'organization_warehouses', kind: 'bridge', direction: 'down' },
   { moduleId: 'admin_users', migration: 'Migration20260425T053028AdminUsersInit', table: 'admin_roles', kind: 'derived-down', direction: 'down', clause: 'both-required' },
-  { moduleId: 'carts', migration: 'Migration20260611T140352CartsConsolidation', table: 'organizations', kind: 'derived-down', direction: 'down', clause: 'both-required' },
   { moduleId: 'delivery_methods', migration: 'Migration20260611T140354DeliveryMethodsShippingMethodsAdapterAndShipments', table: 'shipments', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
   { moduleId: 'dictionaries', migration: 'Migration20260506T112634DictionariesDictionaryInit', table: 'currencies', kind: 'derived-down', direction: 'down', clause: 'both-required' },
   { moduleId: 'languages', migration: 'Migration20260425T161557LanguagesCurrenciesInit', table: 'currencies', kind: 'derived-down', direction: 'down', clause: 'both-required' },
   { moduleId: 'organizations', migration: 'Migration20260424T205317OrganizationsInit', table: 'addresses', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
   { moduleId: 'organizations', migration: 'Migration20260424T205317OrganizationsInit', table: 'customer_accounts', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
-  { moduleId: 'price_lists', migration: 'Migration20260426T075235PriceListsPricingInit', table: 'organizations', kind: 'derived-down', direction: 'down', clause: 'both-required' },
   { moduleId: 'taxes', migration: 'Migration20260426T081516TaxesPromotionsInit', table: 'promotions', kind: 'derived-down', direction: 'down', clause: 'owner-depends-on-writer' },
 ];
