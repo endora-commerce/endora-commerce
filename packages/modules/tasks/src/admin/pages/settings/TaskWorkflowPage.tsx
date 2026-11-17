@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import type { TaskStatusConfig, TaskWorkflow } from '@endora-commerce/contracts';
 import {
@@ -16,7 +16,7 @@ import {
 import { StatusTransitionGraph, type StatusTransitionGraphStatus } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
-import { TASK_GENERAL_SETTINGS_PATH, TASK_PRIORITIES_PATH, TASK_TAGS_PATH } from '../../lib/settings-paths.js';
+import { BOARD_CARD_ANCHOR, TASK_GENERAL_SETTINGS_PATH, TASK_PRIORITIES_PATH, TASK_TAGS_PATH } from '../../lib/settings-paths.js';
 import { TaskStatusDeleteDialog } from '../../components/workflow/TaskStatusDeleteDialog.js';
 import { BoardCardFieldsEditor } from '../../components/BoardCardFieldsEditor.js';
 import { TaskStatusDialog, type TaskStatusDialogSubmit } from '../../components/workflow/TaskStatusDialog.js';
@@ -68,6 +68,16 @@ export function TaskWorkflowPage(): ReactNode {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The board's *Configure card* links here as `#board-card` (issue #512): a
+  // client-side navigation does not scroll to a hash, and the section exists
+  // only once the workflow has loaded — so scroll then, as CRM's workflow screen does.
+  const { hash } = useLocation();
+  const boardCardSection = useRef<HTMLElement>(null);
+  const loaded = workflow !== null;
+  useEffect(() => {
+    if (loaded && hash === `#${BOARD_CARD_ANCHOR}`) boardCardSection.current?.scrollIntoView?.();
+  }, [loaded, hash]);
 
   const graphStatuses = useMemo<StatusTransitionGraphStatus[]>(
     () =>
@@ -222,7 +232,7 @@ export function TaskWorkflowPage(): ReactNode {
         </Card>
       </section>
 
-      <section id="board-card" aria-labelledby="tasks-board-card-title" className="mb-4">
+      <section ref={boardCardSection} id={BOARD_CARD_ANCHOR} aria-labelledby="tasks-board-card-title" className="mb-4">
         <Card>
           <CardHeader>
             <CardTitle id="tasks-board-card-title">{t('boardCard.title')}</CardTitle>

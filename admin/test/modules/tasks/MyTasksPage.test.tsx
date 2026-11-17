@@ -117,6 +117,8 @@ describe('MyTasksPage', () => {
     renderTasks(<MyTasksPage />, { path: '/tasks/mine', pattern: '/tasks/mine' });
     await screen.findByText('Sign the handover');
     expect(screen.queryByLabelText(en('list.filter.assignee'))).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: en('filter.more') }));
+    expect(screen.getByLabelText(en('filter.creator'))).toBeTruthy();
     expect(screen.queryByLabelText(en('filter.statusCategory'))).toBeNull();
     expect(screen.queryByLabelText(en('filter.draft'))).toBeNull();
     await screen.findByRole('option', { name: STATUS.in_progress.name });

@@ -82,7 +82,8 @@ device you sign in from, and so are the filters you set while switching.
   available to you; one you may no longer see, or whose module is switched off,
   is named *Unavailable record*, without a link. *Sort by* orders it by when it
   was created or last changed, due date, priority, status (in workflow order),
-  number or title. It pages forward and back, fifty tasks at a time.
+  number or title. It pages forward and back; *Rows per page* sets how many
+  tasks a page shows, up to 100, and is remembered for you.
 - **The board** has one column per status, in workflow order, each stating how
   many tasks it holds and showing the first of them, with *Show more*. A card
   shows the task's title and the fields the operator chose (see *Configuring
@@ -92,12 +93,13 @@ device you sign in from, and so are the filters you set while switching.
   A move the workflow does not allow is refused, and the card stays where it
   was. Without the permission to change tasks the board can be viewed but not
   moved.
-- **Filters**, the same for the list and the board: status, open or closed,
-  assignee (anyone, you, or nobody), created by (anyone or you), priority, tags
-  (every one chosen), due from and until, only overdue tasks, only sub-tasks,
-  only top-level tasks or only tasks with sub-tasks, only your drafts, only
-  private tasks, the task custom fields marked as list filters, and a search by
-  number or title. A *Tasks* panel's *Show in the task list* opens the list of
+- **Filters**, the same for the list and the board. Always shown: a search by
+  number or title, status, assignees (anyone, you, or nobody), due from and
+  until, and only overdue tasks. *More filters* opens the rest — open or
+  closed, created by (anyone or you), priority, tags (every one chosen), only
+  sub-tasks, only top-level tasks or only tasks with sub-tasks, only your
+  drafts, only private tasks, and the task custom fields marked as list
+  filters — and, while it is closed, says how many of them are in use. A *Tasks* panel's *Show in the task list* opens the list of
   one record's tasks, with *Show all tasks* to go back.
 - **Saved views** keep a set of filters under a name, for you alone or shared
   with everyone who may view tasks, and apply to the list and the board alike.
@@ -115,10 +117,12 @@ digest** control at its top turns your digest on and off and sets its hour.
 assignees — chosen by name among the active administrators who may view tasks,
 or with *Assign to me* — a due date and time, a start date, a priority and
 tags. *Create task* publishes it; *Save as draft* keeps it to yourself.
-*Private* limits the assignees to you. A task created here belongs to no
+*Private*, above the assignees, limits them to you: switching it on takes
+anyone else already chosen off, and says whom. A task created here belongs to no
 record: a task of a project is added on the project's *Tasks* tab, into one of
 its stages. Started from a record's *Tasks* panel, the task is linked to that
-record; started from a task's *Add sub-task*, it is that task's sub-task.
+record, and *Back* returns to that record; started from a task's *Add
+sub-task*, it is that task's sub-task.
 
 **A task's screen** shows its number and title, its status — offering only the
 moves the workflow allows — and *Draft* or *Private* when it is one. A draft
@@ -139,7 +143,8 @@ shows *Publish* to its creator; the creator of a task with no record can switch
 - **Comments**, **Attachments** and **History**.
 - Beside them: **Reminders**, **Belongs to** — the record the task belongs to,
   as its module names it, with *Place in a record*, *Move* and *Remove from the
-  record* — **Linked records**, **Related tasks** and the task's **custom
+  record*, which asks first: out of its record, the task is seen by everyone
+  who may view tasks — **Linked records**, **Related tasks** and the task's **custom
   fields**.
 
 Other modules can add panels at the end of a task's screen. Without the
@@ -148,7 +153,8 @@ permission to change tasks the screen is read-only.
 **On other records.** The screens of an **opportunity**, an **order** and a
 **quote request** end with a **Tasks** panel: the tasks linked to it that you
 may see, with their status, assignees and due date, *Add task* — a new task
-already linked to the record — and *Show in the task list*.
+already linked to the record — and *Show in the task list*. A task opened or
+added from the panel leads *Back* to the record, also after it is deleted.
 
 **The command palette** (⌘K / CTRL+K) offers *Tasks*, *My tasks*, *New task*,
 *Task statuses and workflow*, *Task priorities* and *Task tags*, each to

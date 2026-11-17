@@ -27,6 +27,7 @@ function hourLabel(hour: number): string {
  */
 export function DigestControl(): ReactNode {
   const t = useTranslation('tasks');
+  const tCore = useTranslation('core');
   const toggleId = useId();
   const hourId = useId();
   const hintId = useId();
@@ -35,6 +36,8 @@ export function DigestControl(): ReactNode {
   const [staged, setStaged] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
+  /** Bumped by *Retry*: the digest is read again (issue #512). */
+  const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const hourRef = useRef<HTMLSelectElement>(null);
@@ -50,6 +53,7 @@ export function DigestControl(): ReactNode {
 
   useEffect(() => {
     let live = true;
+    setLoadFailed(false);
     tasksApi
       .digest()
       .then((subscription) => {
@@ -63,7 +67,7 @@ export function DigestControl(): ReactNode {
     return () => {
       live = false;
     };
-  }, []);
+  }, [attempt]);
 
   const save = async (next: number | null): Promise<void> => {
     setBusy(true);
@@ -92,7 +96,18 @@ export function DigestControl(): ReactNode {
   return (
     <section aria-label={t('digest.title')} className="space-y-2 rounded-md border p-3 text-sm">
       {loadFailed ? (
-        <p className="text-muted-foreground">{t('digest.error')}</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-muted-foreground">{t('digest.error')}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-h-11 sm:min-h-8"
+            onClick={(): void => setAttempt((count) => count + 1)}
+          >
+            {tCore('common.action.retry')}
+          </Button>
+        </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

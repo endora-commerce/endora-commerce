@@ -64,6 +64,26 @@ export function SubtasksSection(props: SubtasksSectionProps): ReactNode {
     }
   };
 
+  // *Make sub-task of…* sits on the *Sub-task of* line it changes when there is
+  // one (Law of Proximity, issue #512), and in the section header when there is not.
+  const makeChild = picking ? null : (
+    <Button
+      ref={focus.openerRef}
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="min-h-11 px-2 sm:min-h-8"
+      disabled={busy}
+      onClick={(): void => {
+        setPicking(true);
+        setError(null);
+      }}
+    >
+      <ListTree aria-hidden="true" />
+      {t('subtasks.makeChild')}
+    </Button>
+  );
+
   return (
     <section aria-labelledby={headingId} className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -78,23 +98,7 @@ export function SubtasksSection(props: SubtasksSectionProps): ReactNode {
                 {t('subtasks.add')}
               </Link>
             </Button>
-            {picking ? null : (
-              <Button
-                ref={focus.openerRef}
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="min-h-11 sm:min-h-8"
-                disabled={busy}
-                onClick={(): void => {
-                  setPicking(true);
-                  setError(null);
-                }}
-              >
-                <ListTree aria-hidden="true" />
-                {t('subtasks.makeChild')}
-              </Button>
-            )}
+            {task.parent ? null : makeChild}
           </div>
         ) : null}
       </div>
@@ -126,6 +130,7 @@ export function SubtasksSection(props: SubtasksSectionProps): ReactNode {
               {t('subtasks.detach')}
             </Button>
           ) : null}
+          {canChange ? makeChild : null}
         </p>
       ) : null}
 

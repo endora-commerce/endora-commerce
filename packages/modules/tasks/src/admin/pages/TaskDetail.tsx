@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Pencil, Send, Trash2, UserCheck } from 'lucide-react';
 import {
   TASK_TITLE_MAX,
@@ -8,7 +8,7 @@ import {
   type TaskWorkflow,
   type UpdateTaskBody,
 } from '@endora-commerce/contracts';
-import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, readReturnTo, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -48,6 +48,7 @@ import { dueOf, TaskFieldInputs, taskFieldValuesOf, usePriorities, type TaskFiel
 import { useCurrentAdmin } from '../lib/current-admin.js';
 import { calendarDateLabel, errorMessage, momentLabel } from '../lib/labels.js';
 import { useEditorFocus } from '../lib/use-editor-focus.js';
+import { useFocusFirstInvalid } from '../lib/use-focus-first-invalid.js';
 
 const LIST_PATH = '/tasks';
 
@@ -92,6 +93,8 @@ export function TaskDetail(): ReactNode {
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = readReturnTo(searchParams);
   const { hasPermission } = useAuth();
   const [task, setTask] = useState<TaskDetailData | null>(null);
   // Someone else's private Task is read-only even to a holder of `tasks:write` (R-3).
@@ -207,7 +210,9 @@ export function TaskDetail(): ReactNode {
     }
   };
 
-  const back = { label: t('detail.back'), to: LIST_PATH };
+  // Opened from another screen that named its own address (a record's *Tasks*
+  // panel, issue #512): the way back — and the way out after a delete — leads there.
+  const back = returnTo ? { label: tCore('common.action.back'), to: returnTo } : { label: t('detail.back'), to: LIST_PATH };
 
   if (task === null) {
     return (
@@ -226,7 +231,7 @@ export function TaskDetail(): ReactNode {
                   {tCore('common.action.retry')}
                 </Button>
                 <Button className="min-h-11 sm:min-h-8" asChild variant="ghost" size="sm">
-                  <Link to={LIST_PATH}>{t('detail.back')}</Link>
+                  <Link to={back.to}>{back.label}</Link>
                 </Button>
               </span>
             </AlertDescription>
@@ -700,7 +705,7 @@ export function TaskDetail(): ReactNode {
         <DeleteTaskDialog
           task={task}
           onClose={(): void => setDeleting(false)}
-          onDeleted={(): void => void navigate(LIST_PATH)}
+          onDeleted={(): void => void navigate(back.to)}
         />
       ) : null}
 
@@ -731,10 +736,12 @@ function TaskEditForm(props: TaskEditFormProps): ReactNode {
     task.assignees.map((person) => ({ id: person.id, name: person.name })),
   );
   const [missingTitle, setMissingTitle] = useState(false);
+  const invalid = useFocusFirstInvalid(props.editorRef);
 
   const save = (): void => {
     if (title.trim() === '') {
       setMissingTitle(true);
+      invalid.refuse();
       return;
     }
     const due = dueOf(fields);

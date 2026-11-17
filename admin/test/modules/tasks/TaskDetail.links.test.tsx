@@ -264,14 +264,27 @@ describe('TaskDetail — the context card (US6 scenario 3)', () => {
     await waitFor(() => expect(within(section).getByRole('button', { name: en('context.change') })).toHaveFocus());
   });
 
-  it('takes the Task out of its record', async () => {
+  it('takes the Task out of its record after saying who will then see it (#512)', async () => {
     patchSpy.mockResolvedValue({ data: { ...current, context: null } });
     await renderPage();
     await userEvent.click(within(contextSection()).getByRole('button', { name: en('context.remove') }));
+    const dialog = await screen.findByRole('dialog', { name: en('context.removeConfirm.title') });
+    expect(dialog).toHaveTextContent(en('context.removeConfirm.body', { record: current.context!.label }));
+    expect(patchSpy).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: en('context.remove') }));
     await waitFor(() => expect(patchSpy).toHaveBeenCalledWith(TASK_PATH, { context: null }));
     expect(await within(contextSection()).findByText(en('detail.contextNone'))).toBeInTheDocument();
     // *Remove from the record* unmounted: focus moves to the opener that is left.
     await waitFor(() => expect(within(contextSection()).getByRole('button', { name: en('context.choose') })).toHaveFocus());
+  });
+
+  it('keeps the Task in its record when the removal is cancelled', async () => {
+    await renderPage();
+    await userEvent.click(within(contextSection()).getByRole('button', { name: en('context.remove') }));
+    const dialog = await screen.findByRole('dialog', { name: en('context.removeConfirm.title') });
+    await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.cancel') }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(patchSpy).not.toHaveBeenCalled();
   });
 
   it('offers no move when the record refuses changes, on a private Task, or to a reader', async () => {

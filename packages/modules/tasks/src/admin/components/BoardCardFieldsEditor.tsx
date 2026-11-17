@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
 import type { TaskBoardCardConfig, TaskBoardCardField } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button } from '@endora-commerce/admin-kit/ui';
+import { useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
 import { errorMessage } from '../lib/labels.js';
@@ -35,7 +36,7 @@ const sameOrder = (a: readonly string[], b: readonly string[]): boolean =>
  * place, or on the field's own *Add* when none is left; after an add, on the
  * next field offered in its group, or on the added row.
  *
- * Nothing is stored until *Save*; the answer is the server's own, so a field
+ * Nothing is stored until *Save*, and leaving with a choice not saved asks first; the answer is the server's own, so a field
  * that stopped existing meanwhile is gone from both lists afterwards.
  */
 export function BoardCardFieldsEditor(): ReactNode {
@@ -86,6 +87,9 @@ export function BoardCardFieldsEditor(): ReactNode {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A choice not yet saved is asked about before a link leaves the screen (issue #512).
+  useUnsavedChangesPrompt(config !== null && !sameOrder(chosen, config.fields.map((field) => field.ref)));
 
   const byRef = useMemo(
     () => new Map((config?.available ?? []).map((field) => [field.ref, field])),

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { setMobileViewport } from '../../setup';
-import { en, renderTasks } from './tasks-fixtures';
+import { core, en, renderTasks } from './tasks-fixtures';
 
 /**
  * The *Daily digest* control on *My Tasks* (`specs/165-task-management/` User
@@ -101,5 +101,15 @@ describe('DigestControl (US7)', () => {
     renderTasks(<DigestControl />);
     expect(await screen.findByText(en('digest.error'))).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: en('digest.toggle') })).toBeNull();
+  });
+
+  it('offers a Retry when the digest cannot be read, and shows the control once it can (#512)', async () => {
+    getSpy.mockImplementationOnce(() => Promise.reject(new Error('down')));
+    renderTasks(<DigestControl />);
+    expect(await screen.findByText(en('digest.error'))).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: core('common.action.retry') }));
+    await waitFor(() => expect(toggle()).not.toBeChecked());
+    expect(screen.queryByText(en('digest.error'))).toBeNull();
+    expect(getSpy).toHaveBeenCalledTimes(2);
   });
 });

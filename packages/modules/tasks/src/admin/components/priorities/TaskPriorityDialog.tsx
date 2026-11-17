@@ -9,6 +9,7 @@ import { Alert, AlertDescription, Button, ColorPicker, Input, Label } from '@end
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
+import { useFocusFirstInvalid } from '../../lib/use-focus-first-invalid.js';
 
 /** The two Admin UI languages; a priority is named in both (FR-024). */
 const NAME_LANGUAGES = ['en', 'pl'] as const;
@@ -57,6 +58,7 @@ export function TaskPriorityDialog(props: TaskPriorityDialogProps): ReactNode {
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const invalid = useFocusFirstInvalid<HTMLFormElement>();
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -70,7 +72,10 @@ export function TaskPriorityDialog(props: TaskPriorityDialogProps): ReactNode {
     const nextNameError = name.en.length === 0 || name.pl.length === 0 ? t('workflow.error.name') : null;
     setCodeError(nextCodeError);
     setNameError(nextNameError);
-    if (nextCodeError || nextNameError) return;
+    if (nextCodeError || nextNameError) {
+      invalid.refuse();
+      return;
+    }
 
     const parsedWeight = Number.parseInt(weight, 10);
     const safeWeight = Number.isFinite(parsedWeight) && parsedWeight >= 0 ? parsedWeight : 0;
@@ -108,7 +113,7 @@ export function TaskPriorityDialog(props: TaskPriorityDialogProps): ReactNode {
 
   return (
     <ModalDialog title={title} onClose={onClose} busy={busy}>
-      <form className="space-y-4" noValidate onSubmit={(event): void => void submit(event)}>
+      <form ref={invalid.containerRef} className="space-y-4" noValidate onSubmit={(event): void => void submit(event)}>
         {submitError ? (
           <Alert variant="destructive">
             <AlertDescription>{submitError}</AlertDescription>

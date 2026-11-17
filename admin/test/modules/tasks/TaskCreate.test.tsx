@@ -1,9 +1,10 @@
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 import { setMobileViewport } from '../../setup';
-import { ME_ID, en, renderTasks, taskDetail } from './tasks-fixtures';
+import { ME_ID, core, en, renderTasks, taskDetail } from './tasks-fixtures';
 
 /**
  * Creating a Task (`specs/163-projects-and-tasks/`, User Story 2 — task T067).
@@ -31,6 +32,12 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   };
 });
 
+/** Where the screen went: the path and query of the Task route. */
+function Where(): ReactNode {
+  const location = useLocation();
+  return <p>{`${location.pathname}${location.search}`}</p>;
+}
+
 const { TaskCreate } = await import('../../../../packages/modules/tasks/src/admin/pages/TaskCreate');
 
 beforeEach(() => {
@@ -53,7 +60,47 @@ describe('TaskCreate', () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: en('create.submit') }));
     expect(screen.getByText(en('create.error.title'))).toBeTruthy();
+    // Focus goes to the invalid field, whose description is the error (WCAG 3.3.1, #512).
+    const title = screen.getByLabelText(new RegExp(en('field.title')));
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(title).toHaveAccessibleDescription(en('create.error.title'));
     expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('shows busy only on the button that was pressed (#512)', async () => {
+    postSpy.mockReturnValue(new Promise(() => undefined));
+    renderPage();
+    await userEvent.type(await screen.findByLabelText(new RegExp(en('field.title'))), 'Think it over');
+    await userEvent.click(screen.getByRole('button', { name: en('create.saveDraft') }));
+    expect(screen.getByRole('button', { name: en('create.saveDraft') })).toHaveAttribute('aria-busy', 'true');
+    const create = screen.getByRole('button', { name: en('create.submit') });
+    expect(create).toBeDisabled();
+    expect(create).not.toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('leads Back, and on to the new Task, to the screen it was opened from (`?returnTo=`, #512)', async () => {
+    postSpy.mockResolvedValue({ data: taskDetail() });
+    renderTasks(
+      <Routes>
+        <Route path="/tasks/new" element={<TaskCreate />} />
+        <Route path="/tasks/:id" element={<Where />} />
+      </Routes>,
+      { path: `/tasks/new?returnTo=${encodeURIComponent('/orders/o-1')}` },
+    );
+    expect(await screen.findByRole('link', { name: core('common.action.back') })).toHaveAttribute('href', '/orders/o-1');
+    await userEvent.type(screen.getByLabelText(new RegExp(en('field.title'))), 'Call the buyer');
+    await userEvent.click(screen.getByRole('button', { name: en('create.submit') }));
+    expect(await screen.findByText(`/tasks/${taskDetail().id}?returnTo=${encodeURIComponent('/orders/o-1')}`)).toBeTruthy();
+  });
+
+  it('ignores a returnTo that is not a path of this application', async () => {
+    renderTasks(
+      <Routes>
+        <Route path="/tasks/new" element={<TaskCreate />} />
+      </Routes>,
+      { path: `/tasks/new?returnTo=${encodeURIComponent('//evil.example')}` },
+    );
+    expect(await screen.findByRole('link', { name: en('create.back') })).toHaveAttribute('href', '/tasks');
   });
 
   it('links the description’s hint to the field, and names the tag picker by its visible label (T092)', async () => {

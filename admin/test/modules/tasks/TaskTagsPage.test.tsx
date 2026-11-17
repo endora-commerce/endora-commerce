@@ -111,6 +111,10 @@ describe('TaskTagsPage — the dialog', () => {
     const dialog = screen.getByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
     expect(await within(dialog).findByText(en('tags.error.name'))).toBeInTheDocument();
+    // Focus goes to the invalid field, whose description is the error (WCAG 3.3.1, #512).
+    const name = within(dialog).getByLabelText(en('tags.field.name'));
+    await waitFor(() => expect(name).toHaveFocus());
+    expect(name).toHaveAccessibleDescription(en('tags.error.name'));
     expect(postSpy).not.toHaveBeenCalled();
   });
 

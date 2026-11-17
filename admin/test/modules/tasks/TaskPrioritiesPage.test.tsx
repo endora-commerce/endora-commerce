@@ -141,6 +141,8 @@ describe('TaskPrioritiesPage — the dialog', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
     expect(await within(dialog).findByText(en('workflow.error.code'))).toBeInTheDocument();
     expect(within(dialog).getByText(en('workflow.error.name'))).toBeInTheDocument();
+    // Focus goes to the first invalid field (WCAG 3.3.1, #512).
+    await waitFor(() => expect(codeField).toHaveFocus());
     await userEvent.clear(codeField);
     await userEvent.type(codeField, 'none');
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
