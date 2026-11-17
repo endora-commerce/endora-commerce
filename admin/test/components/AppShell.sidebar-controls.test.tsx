@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
-import { expectNoAxeViolations } from '../helpers/axe';
 import { pinnedSection, renderShell, sidebar } from '../helpers/app-shell-preferences';
 
 /**
@@ -11,7 +10,8 @@ import { pinnedSection, renderShell, sidebar } from '../helpers/app-shell-prefer
  *   is activated, never when focus merely lands on it (WCAG 3.2.1 On Focus),
  *   and it has an accessible name and advertises its shortcut;
  * - every collapsible group header exposes its state (`aria-expanded`) and
- *   names the region it controls (`aria-controls`), WCAG 4.1.2;
+ *   names the region it controls (`aria-controls`), WCAG 4.1.2 — axe over
+ *   the same sidebar runs in `AppShell.pinned.a11y.test.tsx`;
  * - the top bar carries no Help button that does nothing.
  */
 
@@ -112,11 +112,6 @@ describe('collapsible sidebar groups (SHELL-04)', () => {
     });
     const toggle = within(pinnedSection()!).getByRole('button', { name: 'Pinned' });
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-  });
-
-  it('the expanded sidebar has no axe violations', async () => {
-    renderShell(AppShell, { preferences: { sidebarPins: ['/orders'] } });
-    await expectNoAxeViolations(sidebar());
   });
 });
 
