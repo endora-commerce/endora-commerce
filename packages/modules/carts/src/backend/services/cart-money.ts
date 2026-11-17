@@ -24,6 +24,22 @@ export function cartSubtotal(lines: ReadonlyArray<{ unitPrice: string | number; 
   return moneySum(lines.map((l) => lineAmountHalfUp(l.unitPrice, l.quantity)));
 }
 
+/**
+ * What the buyer pays for the lines, VAT included, as a two-place decimal
+ * string: `vatByRate` over the line nets — per rate, on the sum of the nets,
+ * rounded once — at each line's rate by its id (issue #1396). A line with no
+ * rate carries no VAT, as the promotion engine reads it.
+ */
+export function cartGoodsGross(
+  lines: ReadonlyArray<{ id: string; unitPrice: string | number; quantity: number }>,
+  taxRates?: ReadonlyMap<string, number> | null,
+): string {
+  return vatByRate(
+    lines.map((l) => ({ net: lineAmountHalfUp(l.unitPrice, l.quantity), rate: taxRates?.get(l.id) ?? 0 })),
+    'fraction',
+  ).gross;
+}
+
 /** `subtotal − discount`, never below zero. */
 export function cartTotalAfterDiscount(subtotal: string | number, discount: string | number): number {
   const total = moneyDifference(subtotal, discount);

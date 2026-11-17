@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  compareDecimals,
   DictionaryReferenceError,
   ERROR_CODES,
   dispatchValidatorMode,
@@ -333,9 +334,11 @@ export class PromotionService {
     const em = this.emFactory();
     const now = new Date();
 
-    // The net subtotal — what a threshold, a minimum spend and a fixed amount's
-    // cap read — and the goods gross, what the buyer pays and what a percent-off
-    // or free-unit action computes on (issue #1350, owner ruling 2026-11-16).
+    // The net subtotal, answered as `subtotal`, and the goods gross: what the
+    // buyer pays, what a percent-off or free-unit action computes on (issue
+    // #1350, owner ruling 2026-11-16), and what a minimum spend, a cart-total
+    // threshold, a "spend X" step and a fixed amount's cap compare (issue
+    // #1396, owner ruling 2026-11-17).
     const subtotal = linesSubtotal(snapshot.lines);
     const grossSubtotal = linesGross(snapshot.lines);
 
@@ -419,7 +422,7 @@ export class PromotionService {
       if (p.validUntil && now > p.validUntil) return false;
       if (
         p.minCartSubtotal != null &&
-        Number(p.minCartSubtotal) > subtotal
+        compareDecimals(p.minCartSubtotal, grossSubtotal) > 0
       ) {
         return false;
       }
@@ -491,7 +494,7 @@ export class PromotionService {
         ? snapshot
         : await this.hydrateLineAttributeValues(snapshot, [...referencedKeys]);
 
-    const ruleCtx = buildRuleContext(hydratedSnapshot, subtotal, attributeLookup, (info) =>
+    const ruleCtx = buildRuleContext(hydratedSnapshot, grossSubtotal, attributeLookup, (info) =>
       this.auditLogger.info('promotion_rule_attribute_skipped', info),
     );
 
@@ -551,7 +554,8 @@ export class PromotionService {
         amount = percentOf(linesGross(matching), promotion.value ?? 0);
       } else if (promotion.kind === 'amount_off') {
         if (promotion.currency && promotion.currency !== snapshot.currency) continue;
-        amount = round2(Math.min(Number(promotion.value), lineBase));
+        // Capped at what the buyer pays for the matching lines (issue #1396).
+        amount = round2(Math.min(Number(promotion.value), linesGross(matching)));
       } else if (promotion.kind === 'free_delivery') {
         amount = round2(workingDelivery);
         workingDelivery = 0;
@@ -921,7 +925,8 @@ function coerceRuleValue(v: unknown): string | number | boolean {
 /** Build the cart-level rule-evaluation context from a hydrated snapshot. */
 function buildRuleContext(
   snapshot: CartSnapshot,
-  subtotal: number,
+  /** The goods gross the buyer pays — what `cartTotal` compares (issue #1396). */
+  grossSubtotal: number,
   attributeLookup: PromotionRuleAttributeLookup,
   onSkip: (info: { attributeKey: string; reason: 'attribute_not_promo_eligible' }) => void,
 ): PromotionRuleContext {
@@ -939,7 +944,7 @@ function buildRuleContext(
   }
   const categoryIds = [...new Set(snapshot.lines.flatMap((l) => l.categoryIds))];
   return {
-    cartTotal: subtotal,
+    cartTotal: grossSubtotal,
     paymentMethodCode: snapshot.paymentMethodCode ?? null,
     deliveryMethodCode: snapshot.deliveryMethodCode ?? null,
     deliveryCountry: snapshot.deliveryCountry ?? null,
