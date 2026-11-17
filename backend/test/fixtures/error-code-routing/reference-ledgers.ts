@@ -1173,6 +1173,44 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'Minted by issue #625 (#86) for deleting a return status cases are in. It was `409 ' +
       'VALIDATION_FAILED`; the count now travels as `details.caseCount`.',
   },
+  RETURN_OFF_PLATFORM_DISABLED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (contracts/settings-emails-events.md §4) for ' +
+      'the refusal of a complaint without a platform order while the channel does not accept them ' +
+      '(`returns.off_platform_complaints_enabled`). The noun is a return case, `returns`\' own row; ' +
+      'the one raise site is `return-case-service.ts`.',
+  },
+  RETURN_PROOF_OF_PURCHASE_REQUIRED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (§4) for a complaint without a platform order ' +
+      'filed with no proof-of-purchase file while `returns.proof_of_purchase_required` is on. Raised ' +
+      'only in `return-case-service.ts`; `VALIDATION_FAILED` is not reused because the request is well ' +
+      'formed and the sentence has to name the missing document.',
+  },
+  RETURN_CLAUSES_NOT_ACCEPTED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (§4) for a filing that does not accept every ' +
+      'current `must_accept` clause of the returns form, or accepted a revision since replaced. The ' +
+      'clauses are `returns`\' own table; the one raise site is `return-clause-service.ts`.',
+  },
+  RETURN_ATTACHMENT_REJECTED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (§4) for a file a return case refuses: too ' +
+      'large, not an accepted type by content, unknown upload, too many files. The files are ' +
+      '`returns`\' own rows; the raise site is `return-attachment-service.ts`, the reason in ' +
+      '`details.reason`.',
+  },
+  RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (§4) for a refund, credit or corrective invoice ' +
+      'asked of a case without a platform order, which has no payment or invoice behind it. The noun ' +
+      'is a return case\'s settlement; the one raise site is `return-settlement-service.ts`.',
+  },
   RFQ_SAVED_VIEW_NAME_TAKEN: {
     to: 'quote_requests',
     reason:

@@ -1,7 +1,13 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property, Unique } from '@mikro-orm/core';
 import { randomUUID } from 'crypto';
 import { OrgScoped } from '@endora-commerce/platform/tenancy';
-import type { AlternativeConsentSource, AlternativeResolution } from '@endora-commerce/contracts';
+import type {
+  AlternativeConsentSource,
+  AlternativeResolution,
+  ReturnAddressSnapshot,
+  ReturnContact,
+  ShownClause,
+} from '@endora-commerce/contracts';
 
 /**
  * ReturnCase — feature 046 (RMA case).
@@ -32,6 +38,16 @@ export class ReturnCase {
     | 'approvedSurchargeRefund'
     | 'rejectionReason'
     | 'authorizedAt'
+    | 'authorizedByAdminUserId'
+    | 'purchaseProofNumber'
+    | 'purchaseDate'
+    | 'contact'
+    | 'returnAddress'
+    | 'acceptedClauses'
+    | 'clausesAcceptedAt'
+    | 'resolutionNote'
+    | 'submissionKey'
+    | 'personalDataErasedAt'
     | 'resolvedAt'
     | 'closedAt'
     | 'consumerWithdrawal'
@@ -56,9 +72,13 @@ export class ReturnCase {
   @Unique()
   rmaNumber?: string | null;
 
-  @Property({ type: 'uuid' })
+  /**
+   * `null` = a complaint without a platform order (`specs/180-off-platform-complaints/`
+   * R5): *off-platform* is derived from this, never stored.
+   */
+  @Property({ type: 'uuid', nullable: true })
   @Index()
-  orderId!: string;
+  orderId!: string | null;
 
   @Property({ type: 'uuid' })
   @Index()
@@ -92,9 +112,9 @@ export class ReturnCase {
   @Property({ type: 'boolean' })
   freeReturnEligible: boolean = false;
 
-  /** `refund` | `credit` | `replacement` | `repair`; null until settlement. */
+  /** `refund` | `credit` | `replacement` | `repair` | `settled_outside`; null until settlement. */
   @Property({ type: 'string', length: 16, nullable: true })
-  resolutionType?: 'refund' | 'credit' | 'replacement' | 'repair' | null;
+  resolutionType?: 'refund' | 'credit' | 'replacement' | 'repair' | 'settled_outside' | null;
 
   @Property({ type: 'uuid', nullable: true })
   refundPaymentMethodId?: string | null;
@@ -131,6 +151,16 @@ export class ReturnCase {
 
   @Property({ type: 'datetime', nullable: true })
   authorizedAt?: Date | null;
+
+  /**
+   * `specs/180-off-platform-complaints/` FR-A40 — the administrator whose action
+   * moved the case into `authorized`, stamped in the same flush as `authorizedAt`
+   * by whichever path entered the status (research R-7.3). `null` for a system
+   * actor, and for a case authorized before the column existed whose audit entry
+   * names nobody (FR-A43). No FK: `admin_users` owns that table.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  authorizedByAdminUserId?: string | null;
 
   @Property({ type: 'datetime', nullable: true })
   resolvedAt?: Date | null;
@@ -173,6 +203,43 @@ export class ReturnCase {
 
   @Property({ type: 'string', length: 32, nullable: true })
   alternativeConsentSource?: AlternativeConsentSource | null;
+
+  // --- `specs/180-off-platform-complaints/` phase B (data-model §2.1) ---------
+
+  /** The proof-of-purchase number the customer gave; off-platform cases only. */
+  @Property({ type: 'string', length: 100, nullable: true })
+  purchaseProofNumber?: string | null;
+
+  /** The purchase date (`YYYY-MM-DD`); required on an off-platform case. */
+  @Property({ type: 'date', nullable: true })
+  purchaseDate?: string | null;
+
+  /** Contact data as submitted; `null` on order cases and after erasure (FR-B43). */
+  @Property({ type: 'json', nullable: true })
+  contact?: ReturnContact | null;
+
+  /** Ship-back address as submitted; `null` on order cases and after erasure. */
+  @Property({ type: 'json', nullable: true })
+  returnAddress?: ReturnAddressSnapshot | null;
+
+  /** Every clause shown at submission, as shown (FR-B31). */
+  @Property({ type: 'json' })
+  acceptedClauses: ShownClause[] = [];
+
+  @Property({ type: 'datetime', nullable: true })
+  clausesAcceptedAt?: Date | null;
+
+  /** How a `settled_outside` case was settled (FR-B33a). */
+  @Property({ type: 'text', nullable: true })
+  resolutionNote?: string | null;
+
+  /** Idempotency key of the storefront post (research R-18). */
+  @Property({ type: 'uuid', nullable: true })
+  submissionKey?: string | null;
+
+  /** When the filer's personal data was erased (FR-B43, D-8). */
+  @Property({ type: 'datetime', nullable: true })
+  personalDataErasedAt?: Date | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

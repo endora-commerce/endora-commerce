@@ -100,6 +100,9 @@ function row(id: string, rma: string) {
   return {
     id,
     rmaNumber: rma,
+    // 180 FR-A44 — the row's reference is its link text: the RMA number here.
+    reference: rma,
+    authorizedBy: null,
     kind: 'return',
     statusCode: 'new',
     statusLabel: 'New',

@@ -5,6 +5,7 @@ import {
   DEFAULT_RETURN_STATUSES,
   ReturnStatusConfigError,
   ReturnStatusGraph,
+  resolveReturnStatusName,
   type ReturnStatusDef,
 } from './return-status-graph.js';
 
@@ -82,5 +83,21 @@ describe('ReturnStatusGraph — invariants', () => {
       { fromStatusCode: 'new', toStatusCode: 'ghost', isSystem: false },
     ]);
     expect(() => g.assertValid()).toThrow(/unknown status/);
+  });
+});
+
+describe('resolveReturnStatusName — the buyer-facing label', () => {
+  const def = { code: 'new', name: { en: 'New', pl: 'Nowe' }, defaultName: 'New (default)' };
+
+  it('answers the exact language, then its primary subtag', () => {
+    expect(resolveReturnStatusName(def, 'pl')).toBe('Nowe');
+    expect(resolveReturnStatusName(def, 'pl-PL')).toBe('Nowe');
+    expect(resolveReturnStatusName({ ...def, name: { 'pl-PL': 'Nowe' } }, 'pl')).toBe('Nowe');
+  });
+
+  it('falls back to defaultName, never to another language, and then to the code', () => {
+    expect(resolveReturnStatusName({ ...def, name: { pl: 'Nowe' } }, 'en-US')).toBe('New (default)');
+    expect(resolveReturnStatusName({ ...def, name: { pl: '' } }, 'pl')).toBe('New (default)');
+    expect(resolveReturnStatusName({ ...def, name: {}, defaultName: '' }, 'de')).toBe('new');
   });
 });

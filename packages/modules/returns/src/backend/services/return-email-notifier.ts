@@ -1,7 +1,7 @@
 import type { EmailMailerPort, TransactionalEmailSender } from '@endora-commerce/contracts';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { ReturnCase } from '../entities/return-case.entity.js';
-import type { ReturnNotifier } from './return-authorization-service.js';
+import type { ReturnNotifier } from './return-transition-service.js';
 import { buildReturnAuthorizedEmail } from '../email-templates/return-authorized.js';
 import { buildReturnRejectedEmail } from '../email-templates/return-rejected.js';
 

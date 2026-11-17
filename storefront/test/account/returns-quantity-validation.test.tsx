@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderToString } from 'react-dom/server';
 import { ReturnFormLines } from '../../components/returns/ReturnFormLines';
+import { orderBodyOf } from '../../lib/returns/returnForm';
 
 /**
  * Feature 155, U4 (owner ruling S8 A) — the return form's quantity input. Its native `min`/`max`
@@ -31,8 +32,19 @@ function qtyInput(html: string): string {
 describe('return form — quantity', () => {
   it('asks the browser not to validate and normalises on the server instead', () => {
     const page = readFileSync(resolve(import.meta.dirname, '../../app/(account)/returns/new/page.tsx'), 'utf8');
-    expect(page).toMatch(/<form action=\{submit\} noValidate className="b2b-auth__form">/);
-    expect(page).toContain('Math.max(1, Math.floor(Number(formData.get(`qty_${orderItemId}`) ?? 1)) || 1)');
+    // 180 research R-13: the form posts to the route handler, which normalises the quantity.
+    expect(page).toMatch(/<form method="post" action="\/returns\/submit" encType="multipart\/form-data" noValidate/);
+    const form = new FormData();
+    form.set('orderId', '00000000-0000-4000-8000-000000000001');
+    form.set('kind', 'return');
+    for (const [id, qty] of [['a', '0'], ['b', 'x'], ['c', '2.7'], ['d', '9']] as const) {
+      form.set(`include_${id}`, 'on');
+      form.set(`qty_${id}`, qty);
+      form.set(`remaining_${id}`, '4');
+      form.set(`reason_${id}`, '00000000-0000-4000-8000-0000000000aa');
+    }
+    const { body } = orderBodyOf(form);
+    expect((body as { lines: Array<{ quantity: number }> }).lines.map((l) => l.quantity)).toEqual([1, 1, 2, 4]);
   });
 
   it.each([
