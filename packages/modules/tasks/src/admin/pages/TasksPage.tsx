@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, ListChecks, Plus, SearchX, SlidersHorizontal, X } from 'lucide-react';
-import { TASK_LIST_SORTS, type TaskSummary } from '@endora-commerce/contracts';
-import { useAuth, useListViewModePreference } from '@endora-commerce/admin-kit/lib';
+import { ListChecks, Plus, SearchX, SlidersHorizontal, X } from 'lucide-react';
+import { TASK_LIST_LIMIT_MAX, TASK_LIST_SORTS, type TaskSummary } from '@endora-commerce/contracts';
+import { useAuth, useListViewModePreference, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import {
+  CursorPagination,
   ResponsiveTable,
   SavedViewsControl,
   customFieldFilterRefusal,
@@ -19,6 +20,7 @@ import { TaskFilters } from '../components/TaskFilters.js';
 import { ViewModeToggle } from '../components/ViewModeToggle.js';
 import { useTaskColumns } from '../components/task-columns.js';
 import { errorMessage } from '../lib/labels.js';
+import { BOARD_CARD_ANCHOR, TASK_WORKFLOW_PATH } from '../lib/settings-paths.js';
 import {
   apiQuery,
   customFilters,
@@ -30,7 +32,6 @@ import {
 } from '../lib/task-filters.js';
 import { useTaskVocabulary } from '../lib/use-task-vocabulary.js';
 
-const PAGE_LIMIT = 50;
 const VIEWS_ENDPOINT = '/api/v1/admin/tasks/list-views';
 /** The list id the list/board choice is remembered under (`listViewModes`). */
 const LIST_ID = 'tasks';
@@ -70,6 +71,8 @@ export function TasksPage(): ReactNode {
   const columns = useTaskColumns();
   const vocabulary = useTaskVocabulary();
   const [mode, setMode] = useListViewModePreference(LIST_ID);
+  // The admin's rows per page for this list, kept across devices (feature 164); never above what the API returns.
+  const { pageSize, setPageSize } = usePageSizePreference(LIST_ID);
   const [searchParams, setSearchParams] = useSearchParams();
   // Keyed by the address's own text, so the derived values are stable until it changes.
   const address = searchParams.toString();
@@ -102,9 +105,9 @@ export function TasksPage(): ReactNode {
     const query = apiQuery(params, { customFields, withSort: true });
     const cursor = trail[trail.length - 1];
     if (cursor) query.set('cursor', cursor);
-    query.set('limit', String(PAGE_LIMIT));
+    query.set('limit', String(Math.min(pageSize, TASK_LIST_LIMIT_MAX)));
     return query.toString();
-  }, [params, customFields, trail]);
+  }, [params, customFields, trail, pageSize]);
   const boardQuery = useMemo(() => apiQuery(params, { customFields }).toString(), [params, customFields]);
 
   const load = useCallback(async (): Promise<void> => {
@@ -198,7 +201,7 @@ export function TasksPage(): ReactNode {
             <ViewModeToggle mode={mode} onChange={setMode} />
             {canConfigure && mode === 'board' ? (
               <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
-                <Link to="/tasks/settings/workflow#board-card">
+                <Link to={`${TASK_WORKFLOW_PATH}#${BOARD_CARD_ANCHOR}`}>
                   <SlidersHorizontal aria-hidden="true" />
                   {t('board.configureCard')}
                 </Link>
@@ -304,31 +307,23 @@ export function TasksPage(): ReactNode {
             ) : (
               <>
                 <ResponsiveTable data={rows} columns={columns} keyExtractor={(row): string => row.id} emptyState={emptyState} />
-                {rows.length > 0 && (trail.length > 0 || nextCursor) ? (
-                  <nav className="mt-4 flex justify-end gap-2" aria-label={t('list.title')}>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="min-h-11 sm:min-h-8"
-                      disabled={trail.length === 0 || loading}
-                      onClick={(): void => setTrail((previous) => previous.slice(0, -1))}
-                    >
-                      <ChevronLeft aria-hidden="true" />
-                      {t('list.previous')}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="min-h-11 sm:min-h-8"
-                      disabled={nextCursor === null || loading}
-                      onClick={(): void => {
-                        if (nextCursor) setTrail((previous) => [...previous, nextCursor]);
-                      }}
-                    >
-                      {t('list.next')}
-                      <ChevronRight aria-hidden="true" />
-                    </Button>
-                  </nav>
+                {rows.length > 0 || trail.length > 0 ? (
+                  <CursorPagination
+                    page={trail.length + 1}
+                    pageSize={pageSize}
+                    maxPageSize={TASK_LIST_LIMIT_MAX}
+                    hasPrevious={trail.length > 0}
+                    hasNext={nextCursor !== null}
+                    busy={loading}
+                    onPageSizeChange={(next): void => {
+                      setPageSize(next);
+                      setTrail([]);
+                    }}
+                    onPrevious={(): void => setTrail((previous) => previous.slice(0, -1))}
+                    onNext={(): void => {
+                      if (nextCursor) setTrail((previous) => [...previous, nextCursor]);
+                    }}
+                  />
                 ) : null}
               </>
             )}

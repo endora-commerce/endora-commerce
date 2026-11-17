@@ -4,6 +4,7 @@ import { Alert, AlertDescription, Button, ColorPicker, Input, Label } from '@end
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { errorMessage } from '../../lib/labels.js';
+import { useFocusFirstInvalid } from '../../lib/use-focus-first-invalid.js';
 
 export type TaskTagDialogSubmit =
   | { mode: 'create'; body: { name: string; color: string } }
@@ -32,12 +33,14 @@ export function TaskTagDialog(props: TaskTagDialogProps): ReactNode {
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const invalid = useFocusFirstInvalid<HTMLFormElement>();
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       setNameError(t('tags.error.name'));
+      invalid.refuse();
       return;
     }
     setNameError(null);
@@ -73,7 +76,7 @@ export function TaskTagDialog(props: TaskTagDialogProps): ReactNode {
       onClose={onClose}
       busy={busy}
     >
-      <form className="space-y-4" noValidate onSubmit={(event): void => void submit(event)}>
+      <form ref={invalid.containerRef} className="space-y-4" noValidate onSubmit={(event): void => void submit(event)}>
         {submitError ? (
           <Alert variant="destructive">
             <AlertDescription>{submitError}</AlertDescription>

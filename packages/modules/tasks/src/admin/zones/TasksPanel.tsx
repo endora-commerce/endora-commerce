@@ -1,8 +1,8 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import type { TaskLinkKind, TaskSummary } from '@endora-commerce/contracts';
-import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { useAuth, withReturnTo } from '@endora-commerce/admin-kit/lib';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
@@ -61,6 +61,9 @@ export function TasksPanel({ kind, recordId }: TasksPanelProps): ReactNode {
   }, [kind, recordId, attempt]);
 
   const filtered = `/tasks?${new URLSearchParams({ linkedKind: kind, linkedId: recordId }).toString()}`;
+  // A Task opened or added here leads Back to this record, not to the Tasks list (`?returnTo=`, issue #512).
+  const location = useLocation();
+  const backHere = (target: string): string => withReturnTo(target, `${location.pathname}${location.search}`);
 
   return (
     <section aria-labelledby={headingId} className="mt-4">
@@ -73,7 +76,7 @@ export function TasksPanel({ kind, recordId }: TasksPanelProps): ReactNode {
           </CardTitle>
           {hasPermission('tasks:write') ? (
             <Button asChild variant="outline" size="sm" className="min-h-11 sm:min-h-8">
-              <Link to={`/tasks/new?link=${kind}:${recordId}`}>
+              <Link to={backHere(`/tasks/new?link=${kind}:${recordId}`)}>
                 <Plus aria-hidden="true" />
                 {t('panel.add')}
               </Link>
@@ -106,7 +109,7 @@ export function TasksPanel({ kind, recordId }: TasksPanelProps): ReactNode {
                 {state.tasks.map((task) => (
                   <li key={task.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
                     <Link
-                      to={`/tasks/${task.id}`}
+                      to={backHere(`/tasks/${task.id}`)}
                       className="min-w-0 font-medium text-primary underline-offset-4 [overflow-wrap:anywhere] hover:underline"
                     >
                       <span className="text-muted-foreground">{task.number}</span> {task.title}

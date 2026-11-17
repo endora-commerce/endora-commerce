@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { Route, Routes } from 'react-router-dom';
 import type { TaskDetail as TaskDetailData } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../../setup';
 import {
@@ -213,6 +214,17 @@ describe('TaskDetail — writing', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: en('detail.edit') })).toHaveFocus());
   });
 
+  it('focuses the title when the edit is saved without one, its error as its description (WCAG 3.3.1, #512)', async () => {
+    await renderPage();
+    await userEvent.click(screen.getByRole('button', { name: en('detail.edit') }));
+    const title = screen.getByLabelText(new RegExp(en('field.title')));
+    await userEvent.clear(title);
+    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(title).toHaveAccessibleDescription(en('create.error.title'));
+    expect(patchSpy).not.toHaveBeenCalled();
+  });
+
   it('edits the details in place and sends only what changed', async () => {
     patchSpy.mockResolvedValue({ data: taskDetail({ title: 'Order the galvanised racking' }) });
     await renderPage();
@@ -278,6 +290,41 @@ describe('TaskDetail — writing', () => {
     expect(screen.queryByRole('button', { name: en('detail.edit') })).toBeNull();
     expect(screen.queryByRole('button', { name: en('detail.delete') })).toBeNull();
     expect(screen.getByText(en('detail.readOnly'))).toBeTruthy();
+  });
+});
+
+describe('TaskDetail — the way back (`?returnTo=`, #512)', () => {
+  const RETURN_TO = `/orders/${PROJECT_ID}?tab=tasks`;
+
+  function renderFrom(returnTo: string): void {
+    renderTasks(
+      <Routes>
+        <Route path="/tasks/:id" element={<TaskDetail />} />
+        <Route path="/orders/:id" element={<p>order screen</p>} />
+      </Routes>,
+      { path: `/tasks/${TASK_ID}?${new URLSearchParams({ returnTo }).toString()}` },
+    );
+  }
+
+  it('leads Back to the screen the Task was opened from', async () => {
+    renderFrom(RETURN_TO);
+    await screen.findByRole('heading', { name: /Order the racking/ });
+    expect(screen.getByRole('link', { name: core('common.action.back') })).toHaveAttribute('href', RETURN_TO);
+  });
+
+  it('returns there once the Task is deleted', async () => {
+    deleteSpy.mockResolvedValue({ data: { subtasksDetached: 0 } });
+    renderFrom(RETURN_TO);
+    await userEvent.click(await screen.findByRole('button', { name: en('detail.delete') }));
+    const dialog = await screen.findByRole('dialog', { name: en('delete.title') });
+    await userEvent.click(within(dialog).getByRole('button', { name: en('delete.confirm') }));
+    expect(await screen.findByText('order screen')).toBeTruthy();
+  });
+
+  it('ignores an address that is not a path of this application', async () => {
+    renderFrom('https://evil.example/');
+    await screen.findByRole('heading', { name: /Order the racking/ });
+    expect(screen.getByRole('link', { name: en('detail.back') })).toHaveAttribute('href', '/tasks');
   });
 });
 

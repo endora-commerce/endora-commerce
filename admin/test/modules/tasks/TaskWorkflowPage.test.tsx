@@ -166,6 +166,8 @@ describe('TaskWorkflowPage — the statuses', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
     expect(await within(dialog).findByText(en('workflow.error.code'))).toBeInTheDocument();
     expect(within(dialog).getByText(en('workflow.error.name'))).toBeInTheDocument();
+    // Focus goes to the first invalid field, whose description is the error (WCAG 3.3.1, #512).
+    await waitFor(() => expect(within(dialog).getByLabelText(en('workflow.field.code'))).toHaveFocus());
     expect(postSpy).not.toHaveBeenCalled();
   });
 
@@ -357,6 +359,37 @@ describe('TaskWorkflowPage — the board card (FR-022)', () => {
       expect(putSpy).toHaveBeenCalledWith(`${API}/board/card-fields`, { fields: ['custom:region', 'builtin:due'] }),
     );
     expect(await within(section).findByText(en('boardCard.saved'))).toBeInTheDocument();
+  });
+
+  it('scrolls to the board card when opened at #board-card, once the workflow has loaded (#512)', async () => {
+    // jsdom lays nothing out and has no `scrollIntoView`: what is held is which element is asked.
+    const original = Element.prototype.scrollIntoView;
+    const scrolled: Element[] = [];
+    Element.prototype.scrollIntoView = function scrollIntoView(this: Element): void {
+      scrolled.push(this);
+    };
+    try {
+      renderTasks(<TaskWorkflowPage />, { permissions: CONFIGURER, path: '/tasks/settings/workflow#board-card' });
+      const section = await screen.findByRole('region', { name: en('boardCard.title') });
+      await waitFor(() => expect(scrolled).toContain(section));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it('asks before a link leaves the screen with an unsaved card choice (#512)', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    try {
+      await renderPage();
+      const section = await screen.findByRole('region', { name: en('boardCard.title') });
+      await within(section).findByRole('list', { name: en('boardCard.shown.title') });
+      await userEvent.click(within(section).getByRole('button', { name: en('boardCard.add', { field: 'Region' }) }));
+      await userEvent.click(screen.getByRole('link', { name: en('settings.tags.link') }));
+      expect(confirmSpy).toHaveBeenCalledWith(core('form.unsavedChanges.confirm'));
+      expect(screen.getByRole('region', { name: en('boardCard.title') })).toBeInTheDocument();
+    } finally {
+      confirmSpy.mockRestore();
+    }
   });
 
   it('keeps focus on the moved row, or its neighbour, as the two lists change (WCAG 2.4.3)', async () => {

@@ -155,6 +155,26 @@ describe('TaskCreate — drafts and private Tasks', () => {
     expect(postSpy).toHaveBeenCalledWith(TASKS_API, { title: 'Mine only', assigneeIds: [ME_ID], private: true });
   });
 
+  it('puts the Private switch before the assignees, and says whom turning it on took off (#512)', async () => {
+    renderCreate();
+    const privateSwitch = await screen.findByRole('switch', { name: en('create.private') });
+    const picker = await screen.findByRole('combobox', { name: en('field.assignee') });
+    // Reading order: the switch that limits the choice comes before the choice.
+    expect(privateSwitch.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The announcement's live region is there, empty, before it has anything to say (WCAG 4.1.3).
+    const region = document.getElementById(privateSwitch.getAttribute('aria-describedby')?.split(' ').find((id) => id.endsWith('-removed')) ?? '');
+    expect(region).toHaveAttribute('role', 'status');
+    expect(region?.textContent).toBe('');
+    await userEvent.click(picker);
+    await userEvent.click(await screen.findByRole('option', { name: /Anna Nowak/ }));
+    await userEvent.click(screen.getByRole('button', { name: en('detail.assignToMe') }));
+    await userEvent.click(privateSwitch);
+    expect(region?.textContent).toBe(en('create.privateRemoved', { names: 'Anna Nowak' }));
+    // Turning it off again says nothing more and brings nobody back silently.
+    await userEvent.click(privateSwitch);
+    expect(region?.textContent).toBe('');
+  });
+
   it('offers no Private switch for a Task started inside a record', async () => {
     renderCreate(`/tasks/new?context=project:${PROJECT_ID}`);
     expect(await screen.findByText(en('create.context'))).toBeTruthy();

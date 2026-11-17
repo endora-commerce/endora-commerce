@@ -138,6 +138,11 @@ function lastBoardQuery(): URLSearchParams | null {
   return last === undefined ? null : queryOf(last);
 }
 
+/** The filter bar's disclosure while it is collapsed and nothing hidden is in use. */
+function moreFilters(): HTMLElement {
+  return screen.getByRole('button', { name: en('filter.more') });
+}
+
 function viewButton(name: 'list' | 'board'): HTMLElement {
   return within(screen.getByRole('group', { name: en('view.label') })).getByRole('button', { name: en(`view.${name}`) });
 }
@@ -179,6 +184,7 @@ describe('TasksPage — the list', () => {
   it('names the priority and tag pickers by their visible labels, not by a second copy (T092)', async () => {
     renderTasks(<TasksPage />, { path: '/tasks', pattern: '/tasks' });
     await screen.findByText('Order the racking');
+    await userEvent.click(moreFilters());
     for (const name of [en('filter.priority'), en('filter.tags')]) {
       const trigger = screen.getByRole('button', { name });
       expect(trigger).not.toHaveAttribute('aria-label');
@@ -202,6 +208,7 @@ describe('TasksPage — the list', () => {
     await waitFor(() => expect(lastListQuery().getAll('status')).toEqual(['done']));
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.assignee')), 'me');
     await waitFor(() => expect(lastListQuery().getAll('assignee')).toEqual(['me']));
+    await userEvent.click(moreFilters());
     await userEvent.selectOptions(screen.getByLabelText(en('filter.statusCategory')), 'closed');
     await waitFor(() => expect(lastListQuery().getAll('statusCategory')).toEqual(['done', 'cancelled']));
     await userEvent.selectOptions(screen.getByLabelText(en('filter.creator')), 'me');
@@ -244,11 +251,31 @@ describe('TasksPage — the list', () => {
       path.includes('cursor=c2') ? { items: [UNAVAILABLE], nextCursor: null } : { items: [taskSummary()], nextCursor: 'c2' };
     renderTasks(<TasksPage />, { path: '/tasks', pattern: '/tasks' });
     await screen.findByText('Order the racking');
-    await userEvent.click(screen.getByRole('button', { name: en('list.next') }));
+    const pages = screen.getByRole('navigation', { name: core('cursorPagination.label') });
+    expect(within(pages).getByText(core('cursorPagination.page', { page: 1 }))).toBeTruthy();
+    await userEvent.click(within(pages).getByRole('button', { name: core('common.pagination.next') }));
     expect(await screen.findByText('Sign the handover')).toBeTruthy();
     expect(lastListQuery().get('cursor')).toBe('c2');
-    await userEvent.click(screen.getByRole('button', { name: en('list.previous') }));
+    expect(within(pages).getByText(core('cursorPagination.page', { page: 2 }))).toBeTruthy();
+    await userEvent.click(within(pages).getByRole('button', { name: core('common.pagination.previous') }));
     expect(await screen.findByText('Order the racking')).toBeTruthy();
+  });
+
+  it('pages with the kit’s CursorPagination: a rows-per-page choice up to the API’s limit, starting again from page one (#512)', async () => {
+    listAnswer = (path) =>
+      path.includes('cursor=c2') ? { items: [UNAVAILABLE], nextCursor: null } : { items: [taskSummary()], nextCursor: 'c2' };
+    renderTasks(<TasksPage />, { path: '/tasks', pattern: '/tasks' });
+    await screen.findByText('Order the racking');
+    const pages = screen.getByRole('navigation', { name: core('cursorPagination.label') });
+    const size = within(pages).getByLabelText(core('common.pagination.rowsPerPage'));
+    const offered = within(size).getAllByRole('option').map((option) => Number((option as HTMLOptionElement).value));
+    expect(Math.max(...offered)).toBeLessThanOrEqual(100);
+    expect(lastListQuery().get('limit')).toBe((size as HTMLSelectElement).value);
+    await userEvent.click(within(pages).getByRole('button', { name: core('common.pagination.next') }));
+    await screen.findByText('Sign the handover');
+    await userEvent.selectOptions(size, '50');
+    await waitFor(() => expect(lastListQuery().get('limit')).toBe('50'));
+    expect(lastListQuery().get('cursor')).toBeNull();
   });
 
   it('offers "New task" to a writer only', async () => {
@@ -267,6 +294,38 @@ describe('TasksPage — the list', () => {
     await screen.findByRole('option', { name: STATUS.done.name });
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.status')), 'done');
     expect(await screen.findByText(en('list.noResults.title'))).toBeTruthy();
+  });
+});
+
+describe('TasksPage — the filter bar (#512, Hick’s law)', () => {
+  it('shows search, status, assignee and due at once, and the rest behind More filters', async () => {
+    renderTasks(<TasksPage />, { path: '/tasks', pattern: '/tasks' });
+    await screen.findByText('Order the racking');
+    for (const label of ['list.search', 'list.filter.status', 'list.filter.assignee', 'filter.dueFrom', 'filter.dueTo', 'list.filter.overdue']) {
+      expect(screen.getByLabelText(en(label))).toBeTruthy();
+    }
+    for (const label of ['filter.statusCategory', 'filter.creator', 'filter.hierarchy', 'filter.draft', 'filter.private']) {
+      expect(screen.queryByLabelText(en(label))).toBeNull();
+    }
+    const toggle = moreFilters();
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(toggle);
+    const fewer = screen.getByRole('button', { name: en('filter.fewer') });
+    expect(fewer).toHaveAttribute('aria-expanded', 'true');
+    expect(document.getElementById(fewer.getAttribute('aria-controls') ?? '')).toContainElement(
+      screen.getByLabelText(en('filter.creator')),
+    );
+    await userEvent.click(fewer);
+    expect(screen.queryByLabelText(en('filter.creator'))).toBeNull();
+  });
+
+  it('counts the filters it hides that are in use, so a collapsed bar never hides that the list is narrowed', async () => {
+    renderTasks(<TasksPage />, {
+      path: '/tasks?priority=high&tagId=00000000-0000-4000-8000-0000000000a1&creator=me&status=done',
+      pattern: '/tasks',
+    });
+    await screen.findByText('Order the racking');
+    expect(screen.getByRole('button', { name: en('filter.moreCount', { count: 3 }) })).toHaveAttribute('aria-expanded', 'false');
   });
 });
 

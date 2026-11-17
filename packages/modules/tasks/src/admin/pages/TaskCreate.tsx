@@ -4,7 +4,7 @@ import { CornerLeftUp, Link2, UserCheck } from 'lucide-react';
 import type { CreateTaskBody, TaskContext, TaskDetail, TaskLinkTarget } from '@endora-commerce/contracts';
 import { TASK_LINK_KINDS, TASK_TITLE_MAX, UUID_SHAPE_PATTERN } from '@endora-commerce/contracts';
 import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
-import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { readReturnTo, useAuth, withReturnTo } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -22,6 +22,7 @@ import { AssigneePicker, type ChosenAssignee } from '../components/AssigneePicke
 import { dueOf, TaskFieldInputs, taskFieldValuesOf, type TaskFieldValues } from '../components/TaskFieldInputs.js';
 import { useCurrentAdmin } from '../lib/current-admin.js';
 import { errorMessage } from '../lib/labels.js';
+import { useFocusFirstInvalid } from '../lib/use-focus-first-invalid.js';
 
 const UUID = UUID_SHAPE_PATTERN;
 const LINK_PARAM = new RegExp(`^(${TASK_LINK_KINDS.join('|')}):(${UUID})$`, 'i');
@@ -75,12 +76,15 @@ function contextFromParam(value: string | null): TaskContext | null {
  */
 export function TaskCreate(): ReactNode {
   const t = useTranslation('tasks');
+  const tCore = useTranslation('core');
   const navigate = useNavigate();
   const me = useCurrentAdmin();
   const { hasPermission } = useAuth();
   const { language } = useAppLanguage();
   const [searchParams] = useSearchParams();
   const parentTaskId = searchParams.get('parent');
+  // `?returnTo=` — the record screen whose *Add task* opened this form (issue #512).
+  const returnTo = readReturnTo(searchParams);
   const link = linkFromParam(searchParams.get('link'));
   const context = contextFromParam(searchParams.get('context'));
   const [parent, setParent] = useState<TaskDetail | null>(null);
@@ -90,8 +94,13 @@ export function TaskCreate(): ReactNode {
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
   const [assignees, setAssignees] = useState<ChosenAssignee[]>([]);
   const [isPrivate, setPrivate] = useState(false);
+  /** Who turning *Private* on took off the assignees, in a sentence; empty otherwise. */
+  const [removedByPrivate, setRemovedByPrivate] = useState('');
   const [missingTitle, setMissingTitle] = useState(false);
-  const [busy, setBusy] = useState(false);
+  /** Which button sent the form — only that one shows it is busy (issue #512). */
+  const [pending, setPending] = useState<'create' | 'draft' | null>(null);
+  const busy = pending !== null;
+  const invalid = useFocusFirstInvalid<HTMLFormElement>();
   const [error, setError] = useState<string | null>(null);
 
   // The parent named at the top of the form; without it the Task is still sent under it.
@@ -113,6 +122,7 @@ export function TaskCreate(): ReactNode {
     event.preventDefault();
     if (title.trim() === '') {
       setMissingTitle(true);
+      invalid.refuse();
       return;
     }
     const due = dueOf(fields);
@@ -131,23 +141,29 @@ export function TaskCreate(): ReactNode {
       ...(isPrivate ? { private: true } : {}),
       ...(asDraft ? { draft: true } : {}),
     };
-    setBusy(true);
+    setPending(asDraft ? 'draft' : 'create');
     setError(null);
     try {
       const created = await tasksApi.createTask(body);
-      void navigate(`/tasks/${created.id}`);
+      // The new Task's Back still leads to the screen this form was opened from.
+      const target = `/tasks/${created.id}`;
+      void navigate(returnTo ? withReturnTo(target, returnTo) : target);
     } catch (failure) {
       setError(errorMessage(failure, t('create.error.generic')));
-      setBusy(false);
+      setPending(null);
     }
   };
 
   return (
     <>
-      <PageHeader title={t('create.title')} description={t('create.description')} back={{ label: t('create.back'), to: '/tasks' }} />
+      <PageHeader
+        title={t('create.title')}
+        description={t('create.description')}
+        back={returnTo ? { label: tCore('common.action.back'), to: returnTo } : { label: t('create.back'), to: '/tasks' }}
+      />
       <Card className="max-w-3xl">
         <CardContent className="pt-6">
-          <form className="space-y-5" noValidate onSubmit={(event): void => void submit(event)}>
+          <form ref={invalid.containerRef} className="space-y-5" noValidate onSubmit={(event): void => void submit(event)}>
             {parent ? (
               <p className="flex items-center gap-2 text-sm">
                 <CornerLeftUp aria-hidden="true" className="size-4 text-muted-foreground" />
@@ -196,6 +212,45 @@ export function TaskCreate(): ReactNode {
               disabled={busy}
             />
 
+            {/* A Task started inside a record is never private (FR-038): no switch there. It comes
+                before the assignees, because turning it on narrows who they can be (issue #512). */}
+            {context ? null : (
+              <div className="space-y-1">
+                <label htmlFor={ids.private} className="flex min-h-11 items-center gap-2 text-sm font-medium sm:min-h-9">
+                  <Checkbox
+                    id={ids.private}
+                    role="switch"
+                    checked={isPrivate}
+                    aria-describedby={`${ids.private}-hint ${ids.private}-removed`}
+                    onChange={(event): void => {
+                      const on = event.target.checked;
+                      setPrivate(on);
+                      if (!on) {
+                        setRemovedByPrivate('');
+                        return;
+                      }
+                      // A private Task is its caller's alone: everyone else leaves the assignees — said aloud.
+                      const removed = assignees.filter((person) => person.id !== me?.id);
+                      setAssignees(assignees.filter((person) => person.id === me?.id));
+                      setRemovedByPrivate(
+                        removed.length > 0
+                          ? t('create.privateRemoved', { names: removed.map((person) => person.name).join(', ') })
+                          : '',
+                      );
+                    }}
+                  />
+                  {t('create.private')}
+                </label>
+                <p id={`${ids.private}-hint`} className="text-xs text-muted-foreground">
+                  {t('create.privateHint')}
+                </p>
+                {/* Mounted before it has text, so the removal is announced (WCAG 4.1.3). */}
+                <p id={`${ids.private}-removed`} role="status" className="text-xs text-muted-foreground">
+                  {removedByPrivate}
+                </p>
+              </div>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor={isPrivate ? undefined : ids.assignee}>{t('field.assignee')}</Label>
@@ -233,30 +288,6 @@ export function TaskCreate(): ReactNode {
               </div>
             </div>
 
-            {/* A Task started inside a record is never private (FR-038): no switch there. */}
-            {context ? null : (
-              <div className="space-y-1">
-                <label htmlFor={ids.private} className="flex min-h-11 items-center gap-2 text-sm font-medium sm:min-h-9">
-                  <Checkbox
-                    id={ids.private}
-                    role="switch"
-                    checked={isPrivate}
-                    aria-describedby={`${ids.private}-hint`}
-                    onChange={(event): void => {
-                      const on = event.target.checked;
-                      setPrivate(on);
-                      // A private Task is its caller's alone: everyone else leaves the assignees.
-                      if (on) setAssignees((chosen) => chosen.filter((person) => person.id === me?.id));
-                    }}
-                  />
-                  {t('create.private')}
-                </label>
-                <p id={`${ids.private}-hint`} className="text-xs text-muted-foreground">
-                  {t('create.privateHint')}
-                </p>
-              </div>
-            )}
-
             {/* The `task` custom fields, sent with the Task (R-8); their definitions are `custom_fields:read`'s. */}
             {hasPermission('custom_fields:read') ? (
               <CustomFieldValuesPanel
@@ -274,14 +305,15 @@ export function TaskCreate(): ReactNode {
             ) : null}
 
             <div className="flex flex-wrap gap-2 border-t pt-4">
-              <Button type="submit" className="min-h-11 sm:min-h-9" disabled={busy} aria-busy={busy}>
-                {busy ? t('create.submitting') : t('create.submit')}
+              <Button type="submit" className="min-h-11 sm:min-h-9" disabled={busy} aria-busy={pending === 'create'}>
+                {pending === 'create' ? t('create.submitting') : t('create.submit')}
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 className="min-h-11 sm:min-h-9"
                 disabled={busy}
+                aria-busy={pending === 'draft'}
                 aria-describedby={ids.draftHint}
                 onClick={(event): void => void submit(event, true)}
               >
