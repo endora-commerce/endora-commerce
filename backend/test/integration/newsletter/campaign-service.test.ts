@@ -8,10 +8,19 @@ import { NewsletterContentService } from '../../../../packages/modules/newslette
 import { NewsletterCampaignDispatchService } from '../../../../packages/modules/newsletter/src/backend/services/campaign-dispatch.service.js';
 import { NewsletterCampaignService } from '../../../../packages/modules/newsletter/src/backend/services/campaign.service.js';
 import { InMemoryNewsletterProvider } from '../../../../packages/modules/newsletter/src/backend/services/provider/console-provider.js';
+import {
+  NO_USABLE_CREDENTIAL_ERROR,
+  UnconfiguredNewsletterProvider,
+} from '../../../../packages/modules/newsletter/src/backend/services/provider/provider-registry.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { SettingsService as KernelSettingsService } from '../../../src/kernel/settings/settings.service.js';
 import { BrandingService } from '../../../../packages/modules/transactional_emails/src/backend/services/branding.service.js';
-import { NewsletterSubscriber, NewsletterSubscriberTag, NewsletterTag } from '../../helpers/package-entities.js';
+import {
+  NewsletterSendRecord,
+  NewsletterSubscriber,
+  NewsletterSubscriberTag,
+  NewsletterTag,
+} from '../../helpers/package-entities.js';
 
 function textTree(text: string): Record<string, unknown> {
   return { root: { props: {} }, content: [{ type: 'transactional_emails.EmailText', props: { id: 't', text } }], zones: {} };
@@ -124,6 +133,41 @@ describe('newsletter campaign service (US2)', () => {
     expect(sent.status).toBe('sent');
     expect(provider.sent).toHaveLength(1);
     expect(provider.sent[0]?.to).toBe('1@x.test');
+  });
+
+  it('fails every recipient with the reason when dispatch finds no usable credential (issue #1334)', async () => {
+    // A campaign scheduled while a credential was chosen, dispatched after it
+    // was removed: a production instance has no console sink to fall back to,
+    // so each send record is failed with the reason instead of marked sent.
+    const em = db.em();
+    const tag = em.create(NewsletterTag, { code: `t${randomUUID().slice(0, 8)}`, name: 'P' });
+    const s1 = em.create(NewsletterSubscriber, { email: `nocred-${randomUUID()}@x.test`, status: 'active' });
+    await em.flush();
+    em.create(NewsletterSubscriberTag, { subscriberId: s1.id, tagId: tag.id });
+    await em.flush();
+    const c = await service.create({
+      name: 'C',
+      language: 'en-US',
+      subject: 'Hi',
+      content: textTree('B'),
+      targetType: 'tag',
+      targetTagIds: [tag.id],
+    });
+
+    const dispatch = new NewsletterCampaignDispatchService({
+      emFactory: () => db.em(),
+      audience: new NewsletterAudienceResolver(() => db.em()),
+      content: new NewsletterContentService(),
+      optIn: new NewsletterOptInService({} as unknown as SettingsService, new NewsletterTokenHelper('s')),
+      links: { confirm: (t) => `c?${t}`, unsubscribe: (t) => `u?${t}` },
+      resolveProvider: async () => new UnconfiguredNewsletterProvider(),
+      resolveSender: async () => ({ fromEmail: 'n@s.test', fromName: '' }),
+    });
+    const result = await dispatch.dispatchCampaign(c.id);
+
+    expect(result).toEqual({ claimed: 1, sent: 0, failed: 1 });
+    const records = await db.em().find(NewsletterSendRecord, { campaignId: c.id });
+    expect(records.map((r) => [r.status, r.error])).toEqual([['failed', NO_USABLE_CREDENTIAL_ERROR]]);
   });
 
   it('cancels a draft campaign', async () => {

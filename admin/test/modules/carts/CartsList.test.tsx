@@ -65,6 +65,14 @@ const BUNDLE = passthroughBundle('carts', [
   'carts.loading',
   'carts.empty',
   'carts.open',
+  'carts.status.active',
+  'carts.status.abandoned',
+  'carts.status.completed',
+  'carts.status.rejected',
+  'carts.approvalStatus.not_required',
+  'carts.approvalStatus.pending',
+  'carts.approvalStatus.approved',
+  'carts.approvalStatus.rejected_by_org_admin',
 ]);
 
 beforeEach(() => {
@@ -111,9 +119,10 @@ describe('CartsList', () => {
     // PLN renders in its pl-PL currency style ("124,50 zł"); the space before
     // the symbol is a non-breaking space, so match tolerantly.
     expect(screen.getByText(/124,50\s*zł/)).toBeInTheDocument();
-    // 'active' appears multiple times (status filter option + status badge);
-    // assert at least one is rendered.
-    expect(screen.getAllByText('active').length).toBeGreaterThan(0);
+    // The status label appears twice (filter option + status badge), and it is
+    // the catalogue's label, never the raw code (issue #1368).
+    expect(screen.getAllByText('carts.status.active').length).toBeGreaterThan(0);
+    expect(screen.queryByText('active')).toBeNull();
   });
 
   it('renders the empty state when the API returns no rows', async () => {

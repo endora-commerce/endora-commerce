@@ -9,7 +9,7 @@ import {
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { Refund } from '../entities/refund.entity.js';
-import { carriedDiscount } from '../domain/refund-math.js';
+import { settledReturnLine } from '../domain/refund-math.js';
 import { MONEY_RESOLUTIONS, entersKeptState } from '../domain/kept-state.js';
 
 /**
@@ -61,19 +61,27 @@ export class ReturnRefundReadService implements ReturnRefundReadPort {
       { returnCaseId: { $in: cases.map((c) => c.id) } },
       { orderBy: { orderItemId: 'asc', id: 'asc' } },
     );
-    const byLine = new Map<string, { quantity: number; discounts: string[] }>();
+    const byLine = new Map<string, { quantity: number; discounts: string[]; retained: string[] }>();
     for (const item of items) {
-      const line = byLine.get(item.orderItemId) ?? { quantity: 0, discounts: [] };
+      const line = byLine.get(item.orderItemId) ?? { quantity: 0, discounts: [], retained: [] };
       line.quantity += item.quantity;
       // The discount the settled refund carried — the figure the settlement
       // hands a correction for the invoice's discount line (product-owner
-      // ruling Q3 of 2026-11-07), from what the case line recorded.
-      line.discounts.push(carriedDiscount(item.defaultDiscountAmount, item.defaultRefundAmount, item.approvedRefundAmount));
+      // ruling Q3 of 2026-11-07) — and what it withheld of the goods (issue
+      // #854), from what the case line recorded.
+      const settled = settledReturnLine(item);
+      line.discounts.push(settled.discount);
+      line.retained.push(settled.retained);
       byLine.set(item.orderItemId, line);
     }
     return [...byLine]
       .filter(([, line]) => line.quantity > 0)
-      .map(([orderItemId, line]) => ({ orderItemId, quantity: line.quantity, discount: moneySum(line.discounts) }));
+      .map(([orderItemId, line]) => ({
+        orderItemId,
+        quantity: line.quantity,
+        discount: moneySum(line.discounts),
+        retained: moneySum(line.retained),
+      }));
   }
 
   /**

@@ -26,6 +26,7 @@ import type {
   CustomerGroupReadPort,
   CustomerPasswordResetPort,
   DefaultPreferencePort,
+  EmailDefaultsRegistryPort,
   EmailDeliveryAnonymizationPort,
   EmailMailerPort,
   ImpersonationPort,
@@ -36,6 +37,7 @@ import type {
   OrganizationRoleReadPort,
   PersonalOrganizationPort,
   RfqCustomerPort,
+  TemplateEmailPort,
   VatValidator,
 } from '@endora-commerce/contracts';
 import {
@@ -54,6 +56,8 @@ import { customersModule, type CustomersModuleOptions } from './plugin.js';
 import { startAddressBookRetirement } from './workers/address-book-retirement-worker.js';
 import { startAnonymizationSweep } from './workers/anonymization-sweep-worker.js';
 import { CustomerAddress } from './entities/customer-address.entity.js';
+import { ADMIN_PASSWORD_RESET_DEFAULT } from './email-templates/transactional-defaults.js';
+import { ADMIN_PASSWORD_RESET_EMAIL_CODE } from './services/admin-password-reset-email.js';
 
 /**
  * `customers` — three settings reads that only production performed
@@ -338,6 +342,9 @@ export function registerModule(ctx: ModuleContext): void {
               'organizationSalesRepScopePort',
             ),
             mailer: lazyPort<EmailMailerPort>(ctx, 'emailMailer'),
+            // Issue #1295 — the operator-triggered password-reset e-mail is a
+            // transactional template; the mailer above is its fallback.
+            templateEmail: lazyPort<TemplateEmailPort>(ctx, 'templateEmailPort'),
             // Feature 075 — `carts`' reporting read and `admin_users`'
             // impersonation seam, where this module built a second instance of
             // each from an import of the owner's directory. Both are gated
@@ -448,6 +455,20 @@ export function registerModule(ctx: ModuleContext): void {
         app.addHook('onClose', close);
       },
     });
+  });
+
+  /**
+   * The default subject and content for the transactional e-mail this module
+   * declares in its manifest (issue #1295) — a **contribution** hook, as every
+   * other module's: `transactional_emails`' boot reconciler reads the registry
+   * once, inside its plugin body, so this always lands first.
+   */
+  ctx.onBoot(() => {
+    lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort').register(
+      ADMIN_PASSWORD_RESET_EMAIL_CODE,
+      ADMIN_PASSWORD_RESET_DEFAULT,
+      'customers',
+    );
   });
 
   /**

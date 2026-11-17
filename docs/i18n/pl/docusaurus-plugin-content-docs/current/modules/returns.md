@@ -135,7 +135,9 @@ trafia do dziennika audytu — z informacją, czy podano powód (`hasReason`), n
   zawiera `correctiveInvoice: { issued: false, reason: "order_not_invoiced" }`. Faktura wystawiona
   później obejmuje tylko to, co kupujący zatrzymał: zwrot rozliczony zwrotem pieniędzy albo
   środkami na koncie zmniejsza ilość w pozycji zamówienia, pozycja zwrócona w całości jest
-  pomijana, a rabat, który oddał zwrot, zmniejsza pozycję rabatu na fakturze. Na zamówieniu, które
+  pomijana, a rabat, który niosły zwrócone towary, zmniejsza pozycję rabatu na fakturze. To, co
+  zatrzymano — kwota domyślna pomniejszona o kwotę zatwierdzoną — jest fakturowane jako część ceny towarów według stawki VAT pozycji (zob.
+  *Faktury*). Na zamówieniu, które
   zostało zafakturowane, korekta zwrotu uznaje zwrócone towary i zostawia na fakturze VAT dla każdej
   stawki od wartości netto, które kupujący zatrzymał.
 - **Zwrot pieniędzy z reklamacji jest obniżką ceny** — reklamacja rozliczona zwrotem pieniędzy albo

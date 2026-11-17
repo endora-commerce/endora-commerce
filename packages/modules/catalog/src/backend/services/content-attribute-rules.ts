@@ -103,6 +103,11 @@ export function assertTypeChangeAllowed(from: string, to: string, attributeKey: 
  * (FR-014, FR-042 inbound, research R-7): its value is a document authored on
  * the product content screen and stored apart from `attribute_values`. Refused
  * whether the key is new or "already stored" — a resend must not smuggle one.
+ *
+ * The attribute usually *is* in the product's set, so the code's own sentence
+ * ("do not belong to this product's attribute set") would be false: the token
+ * `page_builder_content` chooses one that says why, naming the keys joined in
+ * `details.attributeKeys` (issue #1223; the array details could carry neither).
  */
 export function assertNoContentAttributeValues(
   attributeValues: Readonly<Record<string, unknown>> | undefined,
@@ -118,9 +123,6 @@ export function assertNoContentAttributeValues(
     400,
     ERROR_CODES.ATTRIBUTE_VALUE_REJECTED,
     `Page Builder content cannot be set through attribute values: ${refused.join(', ')}.`,
-    refused.map((key) => ({
-      path: `attributeValues.${key}`,
-      issue: 'Page Builder content is edited on the product content screen',
-    })),
+    { code: 'page_builder_content', attributeKeys: refused.join(', ') },
   );
 }

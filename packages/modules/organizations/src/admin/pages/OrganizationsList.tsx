@@ -111,7 +111,7 @@ export function OrganizationsList(): ReactNode {
               <option value="">{t('organizations.filter.all')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {own(`status.${s}`)}
                 </option>
               ))}
             </Select>
@@ -156,7 +156,7 @@ export function OrganizationsList(): ReactNode {
                   id: 'vat',
                   header: t('organizations.column.vat'),
                   hideOnMobile: true,
-                  render: (o) => o.vatStatus,
+                  render: (o) => own(`vatStatus.${o.vatStatus}`),
                 },
                 {
                   id: 'registered',

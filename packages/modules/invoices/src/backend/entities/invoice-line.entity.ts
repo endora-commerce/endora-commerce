@@ -5,9 +5,11 @@ import { randomUUID } from 'crypto';
 /**
  * Issue #904 — what an invoice line is (`invoice_lines.line_kind`). A
  * `price_reduction` is a correction's line; the others are an issued
- * document's.
+ * document's. A `retained` line (issue #854) is an amount withheld on a
+ * return, at the VAT rate of the goods it was withheld from; it names no order
+ * item, so a correction never reads it as goods.
  */
-export const INVOICE_LINE_KINDS = ['goods', 'delivery', 'payment_surcharge', 'discount', 'price_reduction'] as const;
+export const INVOICE_LINE_KINDS = ['goods', 'delivery', 'payment_surcharge', 'discount', 'price_reduction', 'retained'] as const;
 export type InvoiceLineKind = (typeof INVOICE_LINE_KINDS)[number];
 
 /**

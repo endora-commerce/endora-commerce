@@ -75,7 +75,11 @@ switched off by a special case.
 - Impersonation; audited as `impersonation.start` / `impersonation.end`. The
   answer names the customer's `organizationRole`, and the impersonation acts
   with exactly that customer's organization permissions.
-- Admin-triggered password reset (emails a set-password link).
+- Admin-triggered password reset (emails a set-password link). The e-mail is the
+  `customer_password_reset_by_admin` transactional e-mail, which a store edits under
+  **Transactional emails** like any other; it is sent in the language of the default sales
+  channel, and its link opens the reset page under that language's prefix. It cannot be
+  switched off, because it is how the customer gets back into the account.
 - NIP/VAT validation (VIES / Biała lista port).
 - Organization assign, and detach-from-organization, which moves the customer to
   their own personal organization rather than leaving them without one.

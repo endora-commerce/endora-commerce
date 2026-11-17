@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { PaymentMethodSummary } from '../api/methods';
 import { PaymentMethodIcon } from './icons';
+import { methodName } from '../checkout/method-name';
 
 /**
  * Storefront payment-method renderer registry (feature 034, FR-016/FR-017).
@@ -29,19 +30,16 @@ export interface PaymentMethodRenderProps {
 
 export type PaymentMethodRenderer = (props: PaymentMethodRenderProps) => ReactNode;
 
-function pickName(name: Record<string, string>): string {
-  return name.default ?? name['en-US'] ?? name.en ?? Object.values(name)[0] ?? '';
-}
-
 export const DefaultPaymentMethodRenderer: PaymentMethodRenderer = ({
   method,
   defaultChecked,
   currency,
+  locale = 'en-US',
 }) => (
   <label style={{ display: 'flex', alignItems: 'center' }}>
     <input type="radio" name="paymentMethodId" value={method.id} defaultChecked={defaultChecked} />{' '}
     <PaymentMethodIcon method={method} />
-    {pickName(method.name)}
+    {methodName(method.name, locale)}
     {method.additionalPrice > 0 ? (
       <span className="muted">{` +${method.additionalPrice.toFixed(2)}${currency ? ` ${currency}` : ''}`}</span>
     ) : null}

@@ -21,6 +21,8 @@ import type {
   CartMergeOutcomePublic,
   CustomerAuthenticationThrottlePort,
   CustomerSignInCompletionPort,
+  MfaSetupTicketCompleteResponse,
+  MfaVerifyResponse,
 } from '@endora-commerce/contracts';
 import { readKnownDevice, rememberKnownDevice } from './known-device-cookie.js';
 import { HttpError } from '@endora-commerce/platform/http';
@@ -122,7 +124,7 @@ function registerSetupTicketRoutes(
   app.post(
     cfg.setupCompletePath,
     { schema: { body: mfaSetupTicketCompleteSchema }, config: { salesChannelAccess: 'open' } },
-    async (request, reply) => {
+    async (request, reply): Promise<MfaSetupTicketCompleteResponse> => {
       const body = mfaSetupTicketCompleteSchema.parse(request.body);
       const ticket = await resolveTicket(deps, body.setupTicket, cfg.subjectType);
       // Feature 154 — before the enrolment is activated, so a refused sign-in
@@ -168,7 +170,7 @@ function registerVerifyRoute(
 ): void {
   // Feature 154 — reachable whatever the sales-channel access rule decides:
   // the second factor of a sign-in is verified before a session exists.
-  app.post(cfg.path, { schema: { body: mfaVerifyRequestSchema }, config: { salesChannelAccess: 'open' } }, async (request, reply) => {
+  app.post(cfg.path, { schema: { body: mfaVerifyRequestSchema }, config: { salesChannelAccess: 'open' } }, async (request, reply): Promise<MfaVerifyResponse> => {
     const body = mfaVerifyRequestSchema.parse(request.body);
     const objectType = cfg.subjectType === 'customer' ? 'customer_account' : 'admin_user';
     const knownDevice = readKnownDevice(request, cfg.subjectType);

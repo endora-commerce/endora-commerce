@@ -57,6 +57,40 @@ describe('ShippingMethods section', () => {
   });
 });
 
+/**
+ * Issue #1324 — the name is a per-language record; the row shows the page
+ * language's entry, the way `/preferences` does, and falls back when the page
+ * language has none.
+ */
+describe('method name language', () => {
+  const pickup: DeliveryMethodSummary = {
+    ...method('d-pickup', 'Pickup'),
+    name: { 'en-US': 'In-person pickup', 'pl-PL': 'Odbiór osobisty' },
+  };
+
+  it('shows the pl-PL name on a pl-PL page', () => {
+    const html = renderToString(<ShippingMethods methods={[pickup]} locale="pl-PL" />);
+    expect(html).toContain('Odbiór osobisty');
+    expect(html).not.toContain('In-person pickup');
+  });
+
+  it('falls back to en-US when the page language has no name', () => {
+    const html = renderToString(<ShippingMethods methods={[pickup]} locale="de-DE" />);
+    expect(html).toContain('In-person pickup');
+  });
+
+  it('prefers the default key over another language when the page language is missing', () => {
+    const html = renderToString(
+      <ShippingMethods
+        methods={[{ ...pickup, name: { 'pl-PL': 'Kurier', default: 'Courier' } }]}
+        locale="de-DE"
+      />,
+    );
+    expect(html).toContain('Courier');
+    expect(html).not.toContain('Kurier');
+  });
+});
+
 describe('shipping-renderer registry', () => {
   it('falls back to the default renderer for null/unknown keys', () => {
     expect(resolveShippingMethodRenderer(null)).toBe(DefaultShippingMethodRenderer);

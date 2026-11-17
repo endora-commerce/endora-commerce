@@ -466,8 +466,34 @@ export async function registerCatalogPublicRoutes(
     // Feature 163 — the facet counts are counted over what this caller may
     // reach, so they are the caller's and must not enter a shared cache.
     markPersonalisedPricing(reply, ctx.audience);
-    const filters = await queryService.getFilterDefinitions(ctx);
-    return { data: filters };
+    // Issue #1326 — with a text query the counts are the result set's, and
+    // the result set is the one `GET /catalog/products?q=` lists: the index's
+    // when it answers that listing, Postgres's text match when the listing
+    // degrades there. The counting stays Postgres's either way — the index
+    // contributes ids, never a count, because it does not carry who may see a
+    // product (issue #227).
+    const rawQ = (request.query as Record<string, unknown> | undefined)?.['q'];
+    const q = typeof rawQ === 'string' && rawQ.trim().length > 0 ? rawQ : undefined;
+    if (q === undefined) {
+      return { data: await queryService.getFilterDefinitions(ctx) };
+    }
+    if (
+      indexAnswersListing(process.env['CATALOG_SEARCH_BACKEND'], q) &&
+      searchQueryService !== undefined &&
+      effectiveState.isPresent('search')
+    ) {
+      const outcome = await searchQueryService.matchingProductIds({ q }, ctx);
+      if (outcome.status === 'ok') {
+        reply.header('x-search-backend', 'meilisearch');
+        return { data: await queryService.getFilterDefinitions(ctx, { ids: outcome.ids }) };
+      }
+      request.log.warn(
+        { err: outcome.reason },
+        'meilisearch unavailable; counting filters over the postgres match',
+      );
+    }
+    reply.header('x-search-backend', 'postgres');
+    return { data: await queryService.getFilterDefinitions(ctx, { q }) };
   });
 }
 

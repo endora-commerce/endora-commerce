@@ -44,10 +44,10 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext, orgScopeWhere } from '@endora-commerce/platform/tenancy';
 import type { OrganizationTreeService } from './services/organization-tree-service.js';
-import { hasChildrenRefusal } from './services/organization-tree-service.js';
 import { makeSetParentCommand } from './commands/set-parent.command.js';
 import { makeMoveCommand } from './commands/move.command.js';
 import { makeSetCreditModeCommand } from './commands/set-credit-mode.command.js';
+import { makeDeleteOrganizationCommand } from './commands/delete-organization.command.js';
 import { makeCreateOrganizationCommand } from './commands/create-organization.command.js';
 import { assertCountryAvailable, assertSalesChannelsExist } from './services/organization-write-guards.js';
 import { makeSetTaxIdScopeCommand } from './commands/set-tax-id-scope.command.js';
@@ -103,7 +103,6 @@ import {
   memberAuditState,
   memberCreatedAuditState,
   memberUpdatedAuditState,
-  organizationDeletedAuditState,
 } from './services/organization-audit-state.js';
 import type { RequireAdminFactory, SchemaExtensionReads } from '@endora-commerce/platform/kernel';
 
@@ -1165,12 +1164,13 @@ export async function registerOrganizationsAdminRoutes(
         throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Member not found.');
       }
       assertVersion(member.updatedAt, body.expectedUpdatedAt);
+      // `customer_account.set_subtree_rollup` (issue #1338): the owner's
+      // Command, whose one audit entry — naming the operator — commits with
+      // the write and replaces the hand audit `.admin_rollup_change`.
       const updated = await deps.customerAccountWrite.setSubtreeRollup(
         member.id,
         body.subtreeRollupEnabled,
       );
-      const state = memberUpdatedAuditState(member, updated);
-      await audit(request, 'customer_account.admin_rollup_change', 'customer_account', updated.id, state.before, state.after);
       return { data: await memberDetail(updated, await request.responseLanguage()) };
     },
   );
@@ -1402,26 +1402,8 @@ export async function registerOrganizationsAdminRoutes(
       '/api/v1/admin/organizations/:id',
       { preHandler: [requireAdmin('customers:manage'), organizationInReach] },
       async (request, reply) => {
-        const em = emFactory();
-        if (!isUuidShape(request.params.id)) {
-          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-        }
-        const org = await em.findOne(Organization, { id: request.params.id, deletedAt: null });
-        if (!org) {
-          throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
-        }
-        const childCount = await em.count(Organization, {
-          parentId: request.params.id,
-          deletedAt: null,
-        });
-        if (childCount > 0) {
-          throw hasChildrenRefusal();
-        }
-        // Names and structure, never the record's values (D-288, O-2).
-        const before = organizationDeletedAuditState(org);
-        org.deletedAt = new Date();
-        await em.flush();
-        await audit(request, 'organization.delete', 'organization', org.id, before, null);
+        // The soft delete and its one audit entry commit together (issue #1338).
+        await commandBus.run(makeDeleteOrganizationCommand({ organizationId: request.params.id }));
         return reply.status(204).send();
       },
     );

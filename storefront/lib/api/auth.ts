@@ -1,4 +1,4 @@
-import type { CartMergeOutcomePublic, CustomerSignInResponse } from '@endora-commerce/contracts';
+import type { CartMergeOutcomePublic, CustomerSignInResponse, MfaVerifyResponse } from '@endora-commerce/contracts';
 import { apiMutate } from './mutations';
 import type { RequestContext } from './client';
 import { knownDeviceCookieHeader, rememberKnownDevice, signInCookieHeader } from '../session';
@@ -131,7 +131,7 @@ export async function verifyCustomerMfa(
   payload: { challengeId: string; code: string },
   ctx?: RequestContext,
 ): Promise<{ sessionCookieValue: string | null; cartMerge: CartMergeOutcomePublic | null }> {
-  const result = await apiMutate<{ status: 'authenticated'; cartMerge?: CartMergeOutcomePublic | null }>({
+  const result = await apiMutate<MfaVerifyResponse['data']>({
     method: 'POST',
     path: '/api/v1/auth/customer/mfa/verify',
     body: payload,

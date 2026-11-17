@@ -80,6 +80,7 @@
   "lines.discount": "Rabat",
   "lines.priceReduction": "Obniżka ceny (reklamacja {rma}): {product}",
   "lines.priceReductionUnreferenced": "Obniżka ceny (reklamacja): {product}",
+  "lines.retainedOnReturn": "Kwota zatrzymana przy zwrocie: {product}",
   "actions.openInvoices.keywords": "faktury",
   "settingGroups.invoices.name": "Faktury",
   "errors.INVOICE_SELLER_DATA_MISSING": "Przed wystawieniem faktur skonfiguruj NIP sprzedawcy i dane firmy w ustawieniach faktur.",

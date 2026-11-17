@@ -1,4 +1,4 @@
-import type { CartMergeOutcomePublic } from '@endora-commerce/contracts';
+import type { CartMergeOutcomePublic, MfaSetupTicketCompleteResponse } from '@endora-commerce/contracts';
 import { apiMutate, apiGetAuthed } from './mutations';
 import type { RequestContext } from './client';
 import { rememberKnownDevice, signInCookieHeader } from '../session';
@@ -38,11 +38,7 @@ export async function completeMfaSetupTicket(
   sessionCookieValue: string | null;
   cartMerge: CartMergeOutcomePublic | null;
 }> {
-  const res = await apiMutate<{
-    status: 'authenticated';
-    recoveryCodes: string[];
-    cartMerge?: CartMergeOutcomePublic | null;
-  }>({
+  const res = await apiMutate<MfaSetupTicketCompleteResponse['data']>({
     method: 'POST',
     path: '/api/v1/auth/customer/mfa/setup-ticket/complete',
     body: { setupTicket, code },

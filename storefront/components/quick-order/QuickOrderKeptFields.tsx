@@ -11,7 +11,8 @@ import { LINE_QUANTITY_MAX } from '@endora-commerce/contracts';
  * into the others. These fields keep what the buyer typed in the tab's `sessionStorage` and put it
  * back after the reload: the pasted list survives a search, and the quantities typed in the other
  * result rows survive an *Add* on one. The row whose *Add* was pressed starts again at 1, as it
- * always did; a finished build (`forget`) forgets both.
+ * always did; a finished build (`forget`) forgets both, and empties the paste box it re-renders
+ * in place (issue #1325). A refused build keeps them.
  *
  * Progressive enhancement: the server renders the same plain `<textarea>` / `<input>` the page
  * always had, so without JavaScript the forms post exactly as before. `sessionStorage` rather than
@@ -82,6 +83,9 @@ export function QuickOrderPasteField(props: {
   useEffect(() => {
     if (props.forget) {
       writeItem(QUICK_ORDER_PASTE_STORAGE_KEY, null);
+      // Issue #1325 — the build's redirect re-renders the page in place, so the box is still
+      // mounted with the list in it: empty it too, or a second Preview + Send builds it twice.
+      if (ref.current) ref.current.value = '';
       return;
     }
     const kept = readItem(QUICK_ORDER_PASTE_STORAGE_KEY);

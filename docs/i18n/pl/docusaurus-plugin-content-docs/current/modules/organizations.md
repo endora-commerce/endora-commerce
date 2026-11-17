@@ -1405,10 +1405,11 @@ zaproszonej osoby; nigdy nazwy ani opisu roli niestandardowej.
   odrzucenia (`hasBlockedReason`, `hasRejectedReason`); sam powód widać na
   stronie organizacji.
 - **`customer_account.admin_create`**, **`.admin_profile_update`**,
-  **`.admin_rollup_change`**, **`.admin_remove`** — identyfikator roli członka,
-  jego flagi zbiorczego widoku, potwierdzenia adresu e-mail i weryfikacji
-  dwuetapowej, a po zmianie — nazwy tego, co się zmieniło (`email`,
-  `firstName`, `lastName`, …).
+  **`.admin_remove`** — identyfikator roli członka, jego flagi zbiorczego
+  widoku, potwierdzenia adresu e-mail i weryfikacji dwuetapowej, a po zmianie —
+  nazwy tego, co się zmieniło (`email`, `firstName`, `lastName`, …).
+- **`customer_account.set_subtree_rollup`** — flaga zbiorczego widoku członka
+  przed zmianą i po niej.
 - **`organization_invitation.create`**, **`.revoke`** — identyfikator
   zaproszenia oraz identyfikator i rodzaj jego roli.
   **`organization.invite_accept`** — nowe konto i jego rola jako

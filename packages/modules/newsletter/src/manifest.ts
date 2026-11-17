@@ -8,7 +8,8 @@ import { NEWSLETTER_SETTING_CODES } from '@endora-commerce/contracts';
  * tracking. Bulk delivery is independent of the transactional-email transport.
  * The SMTP connection + credentials come from a reusable `email_adapter`
  * credential configuration referenced by `newsletter.email_credentials`
- * (feature 058); when unset, dispatch uses the console (dev) sink.
+ * (feature 058); when unset, a production instance refuses campaign sends and a
+ * development or test one uses the console sink (issue #1334).
  */
 export const newsletterSettingsManifest = defineModuleSettingsManifest({
   moduleCode: 'newsletter',
@@ -45,7 +46,7 @@ export const newsletterSettingsManifest = defineModuleSettingsManifest({
       code: NEWSLETTER_SETTING_CODES.EMAIL_CREDENTIALS,
       name: 'Email credentials',
       description:
-        'Reference a reusable Email adapter credential configuration (Credentials screen) providing the SMTP host/port/security/username/password. Required to send real mail; when empty, newsletter dispatch uses the console (dev) sink.',
+        'Reference a reusable Email adapter credential configuration (Credentials screen) providing the SMTP host/port/security/username/password. Required to send real mail: on a production instance, a campaign cannot be sent while it is empty or names a credential that cannot be used; a development or test instance writes the messages to the server log instead.',
       groupCode: 'newsletter',
       valueType: 'credential_ref',
       configurationType: 'email_adapter',

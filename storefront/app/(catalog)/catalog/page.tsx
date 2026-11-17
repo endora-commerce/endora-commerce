@@ -56,7 +56,8 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
 
   const [products, filters] = await Promise.all([
     listProducts(query.list, ctx),
-    getFilters(ctx),
+    // Issue #1326 — the counts of the listed result set, not the catalogue's.
+    getFilters(ctx, query.list.q !== undefined ? { q: query.list.q } : {}),
   ]);
   // FR-023 — the server's answer, never the storefront's guess.
   const priceOrdering = products.capabilities?.priceOrdering === true;

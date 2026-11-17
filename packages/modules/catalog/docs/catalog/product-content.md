@@ -150,14 +150,19 @@ Content attributes are deliberately left out of:
 The envelope is the one a CMS page uses and is limited to 1 MiB (1 048 576
 bytes) of JSON across all languages; a larger one is refused with
 `400 VALIDATION_FAILED`. A key that is not a content attribute of the product's
-current set is refused with `400 ATTRIBUTE_VALUE_REJECTED`. An unknown or deleted
+current set is refused with `400 ATTRIBUTE_VALUE_REJECTED`, token
+`not_content_attribute`, `details.attributeKey`. An unknown or deleted
 product answers `404 PRODUCT_NOT_FOUND`. The `PUT` body is validated by the
 handler, so the published OpenAPI document shows no request schema for it.
 
 A content attribute's key is refused in `attributeValues` everywhere —
 `POST`/`PATCH /api/v1/admin/catalog/products`, the API-key
 `PUT /api/v1/catalog/products/by-sku/:sku` and the catalogue's write port — with
-`400 ATTRIBUTE_VALUE_REJECTED`; content is written only through the route above.
+`400 ATTRIBUTE_VALUE_REJECTED`, token `page_builder_content`, with the refused
+keys joined in `details.attributeKeys`; content is written only through the
+route above. Each token has its own sentence: the code's default one, that some
+attributes do not belong to the product's set, is reserved for keys outside the
+set, which keep `details: [{ path, issue }]`.
 
 Saving runs the `product.content.update` command — the audit entry records the
 attribute and which languages the envelope carried, not the documents — and

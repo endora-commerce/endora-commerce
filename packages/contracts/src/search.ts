@@ -301,7 +301,38 @@ export interface SearchQueryPort {
     params: SearchListProductsParams,
     ctx: SearchQueryContext,
   ): Promise<SearchListOutcome>;
+  /**
+   * Issue #1326 — the ids of the products a text query matches, in relevance
+   * order, at most {@link SEARCH_MATCHING_IDS_MAX}: the result set
+   * `listProducts` pages through for the same `q`, without the page. `catalog`
+   * counts its filter panel over them, so a search's facet counts are its own
+   * result set's. Ids only, never a count: the index does not carry who may
+   * see a product, so the caller intersects them with what this caller may
+   * reach before counting anything.
+   */
+  matchingProductIds(
+    params: SearchMatchingIdsParams,
+    ctx: SearchQueryContext,
+  ): Promise<SearchMatchingIdsOutcome>;
 }
+
+/**
+ * The most ids {@link SearchQueryPort.matchingProductIds} answers — the
+ * engine's own default ceiling on the hits one query can reach
+ * (`pagination.maxTotalHits`), so a listing cannot page further than this
+ * either.
+ */
+export const SEARCH_MATCHING_IDS_MAX = 1000;
+
+export interface SearchMatchingIdsParams {
+  q: string;
+}
+
+/** The {@link SearchListOutcome} shape, for a result set's ids. */
+export type SearchMatchingIdsOutcome =
+  | { status: 'ok'; ids: string[] }
+  /** Meilisearch refused or timed out. `reason` is for the caller's log line. */
+  | { status: 'index-unavailable'; reason: string };
 
 /**
  * Container name: `searchReindexPort`. Owner: `search`.

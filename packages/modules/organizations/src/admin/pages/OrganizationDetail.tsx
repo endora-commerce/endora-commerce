@@ -651,7 +651,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             >
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {own(`status.${s}`)}
                 </option>
               ))}
             </Select>
@@ -666,13 +666,13 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             >
               {VAT_STATUSES.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {own(`vatStatus.${v}`)}
                 </option>
               ))}
             </Select>
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="orderConfEmails">{t('organizations.detail.orderConfirmationEmails')}</Label>
+            <Label htmlFor="orderConfEmails">{own('detail.orderConfirmationEmails')}</Label>
             <textarea
               id="orderConfEmails"
               aria-label="order-confirmation-emails"
@@ -683,7 +683,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
               onChange={(e): void => changeEdits({ emailsText: e.target.value })}
             />
             <p className="text-xs text-muted-foreground">
-              {t('organizations.detail.orderConfirmationEmailsHint')}
+              {own('detail.orderConfirmationEmailsHint')}
             </p>
           </div>
         </CardContent>

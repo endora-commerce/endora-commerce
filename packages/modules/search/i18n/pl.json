@@ -7,5 +7,9 @@
   "errors.PHRASE_TOO_LONG": "Wyszukiwana fraza jest za długa.",
   "errors.RESULT_COUNT_INVALID": "Liczba wyników jest nieprawidłowa.",
   "errors.LLM_CONFIG_INCOMPLETE": "Konfiguracja wyszukiwania LLM jest niekompletna.",
-  "settingGroups.search.name": "Wyszukiwarka"
+  "settingGroups.search.name": "Wyszukiwarka",
+  "settingLabels.search.llm.enabled.name": "Wyszukiwanie wspomagane LLM — włączone",
+  "settingLabels.search.llm.enabled.description": "Po włączeniu Meilisearch prowadzi wyszukiwanie hybrydowe, leksykalne i semantyczne, z użyciem skonfigurowanego embeddera. Można je włączyć tylko wtedy, gdy ustawienie dane uwierzytelniające embeddera poniżej wskazuje konfigurację danych uwierzytelniających LLM, która podaje Base URL, klucz API i model.",
+  "settingLabels.search.llm.embedder_credentials.name": "Wyszukiwanie wspomagane LLM — dane uwierzytelniające embeddera",
+  "settingLabels.search.llm.embedder_credentials.description": "Wskazuje wielokrotnego użytku konfigurację danych uwierzytelniających LLM (ekran Dane uwierzytelniające). Jej Base URL, klucz API i model wyznaczają adres embeddera, dane uwierzytelniające i model. Wymagane, aby włączyć wyszukiwanie wspomagane LLM."
 }

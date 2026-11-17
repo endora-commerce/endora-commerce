@@ -96,7 +96,7 @@
   "errors.NEWSLETTER_AUTOMATION_ACTIVE": "This automation is active, so it cannot be edited. Pause it before editing.",
   "errors.NEWSLETTER_CAMPAIGN_NOT_EDITABLE": "This campaign has the status \"{status}\", so it can no longer be edited. Only draft and scheduled campaigns can be edited.",
   "errors.NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE": "This campaign has the status \"{status}\", so it can no longer be cancelled. Only draft and scheduled campaigns can be cancelled.",
-  "errors.NEWSLETTER_PROVIDER_NOT_CONFIGURED": "No sending provider is configured, so the campaign cannot be sent. Configure the sending provider first.",
+  "errors.NEWSLETTER_PROVIDER_NOT_CONFIGURED": "No usable e-mail credential is chosen for the newsletter, so the campaign cannot be sent. Choose an SMTP credential in the Email credentials setting first.",
   "errors.NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN": "A custom field with the key \"{key}\" already exists. Choose another key.",
   "errors.NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN": "An email block with the code \"{blockCode}\" already exists. Choose another code.",
   "errors.NEWSLETTER_EMAIL_BLOCK_SYSTEM": "Email block \"{blockCode}\" is a system block, so it cannot be deleted.",

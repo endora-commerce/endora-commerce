@@ -138,14 +138,18 @@ Atrybuty treści są celowo pomijane w:
 Koperta jest taka sama jak dla strony CMS i jest ograniczona do 1 MiB (1 048 576 bajtów) danych
 JSON łącznie dla wszystkich języków; większa jest odrzucana z `400 VALIDATION_FAILED`. Klucz, który
 nie jest atrybutem treści bieżącego zestawu produktu, jest odrzucany z
-`400 ATTRIBUTE_VALUE_REJECTED`. Nieznany albo usunięty produkt daje `404 PRODUCT_NOT_FOUND`. Treść
+`400 ATTRIBUTE_VALUE_REJECTED`, token `not_content_attribute`, `details.attributeKey`. Nieznany albo
+usunięty produkt daje `404 PRODUCT_NOT_FOUND`. Treść
 żądania `PUT` jest sprawdzana w obsłudze trasy, więc publikowany dokument OpenAPI nie pokazuje dla
 niej schematu.
 
 Klucz atrybutu treści jest odrzucany w `attributeValues` wszędzie —
 `POST`/`PATCH /api/v1/admin/catalog/products`, `PUT /api/v1/catalog/products/by-sku/:sku` z kluczem
-API i port zapisu katalogu — z `400 ATTRIBUTE_VALUE_REJECTED`; treść zapisuje się wyłącznie przez
-trasę opisaną wyżej.
+API i port zapisu katalogu — z `400 ATTRIBUTE_VALUE_REJECTED`, token `page_builder_content`, a
+odrzucone klucze są złączone w `details.attributeKeys`; treść zapisuje się wyłącznie przez trasę
+opisaną wyżej. Każdy token ma własne zdanie: domyślne zdanie kodu, że część atrybutów nie należy do
+zestawu produktu, jest zarezerwowane dla kluczy spoza zestawu, które zachowują
+`details: [{ path, issue }]`.
 
 Zapis uruchamia polecenie `product.content.update` — wpis audytu rejestruje atrybut i to, które
 języki zawierała koperta, a nie same dokumenty — i emituje `product.content.updated.v1`, po którym
