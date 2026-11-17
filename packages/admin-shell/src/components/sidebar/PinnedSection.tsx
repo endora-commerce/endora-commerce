@@ -11,6 +11,7 @@ import {
   ReorderAnnouncer,
   TouchReorderButtons,
 } from '@endora-commerce/admin-kit/components';
+import { sidebarGroupItemsId } from './group-ids.js';
 import type { NavItem, NavSection } from './nav-types.js';
 import { PinToggleButton } from './PinToggleButton.js';
 
@@ -109,13 +110,19 @@ export function PinnedSection({
         type="button"
         className="b2b-sidebar__group-label"
         aria-expanded={!collapsed}
+        aria-controls={sidebarGroupItemsId(ADMIN_PINNED_GROUP_KEY)}
         onClick={(): void => onToggleCollapsed(ADMIN_PINNED_GROUP_KEY)}
       >
-        <ChevronDown size={11} />
+        <ChevronDown size={11} aria-hidden="true" />
         <span>{t('appShell.pinned.heading')}</span>
       </button>
       {/* A list, so each row's position (`aria-posinset`) is a supported attribute. */}
-      <div className="b2b-sidebar__items" role="list" aria-label={t('appShell.pinned.heading')}>
+      <div
+        className="b2b-sidebar__items"
+        id={sidebarGroupItemsId(ADMIN_PINNED_GROUP_KEY)}
+        role="list"
+        aria-label={t('appShell.pinned.heading')}
+      >
         {items.map((pin, index) => {
           const Icon = pin.item.icon;
           const label = navLabel(pin.item);

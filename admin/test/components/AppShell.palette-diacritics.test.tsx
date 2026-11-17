@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { GetAdminActionsResponse } from '@endora-commerce/contracts';
@@ -159,7 +159,7 @@ async function paletteRowsFor(query: string): Promise<string[]> {
  */
 async function paletteRowsForEach(queries: readonly string[]): Promise<string[][]> {
   renderShell();
-  await userEvent.click(screen.getByPlaceholderText('appShell.search.placeholder'));
+  await userEvent.click(within(document.querySelector<HTMLElement>('aside.b2b-sidebar')!).getByRole('button', { name: 'appShell.search.openPalette' }));
   const dialog = await screen.findByRole('dialog');
   const input = dialog.querySelector('.b2b-palette__input input') as HTMLInputElement;
   return queries.map((query) => {
