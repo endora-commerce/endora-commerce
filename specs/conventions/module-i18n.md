@@ -23,8 +23,25 @@ fallbacks as the storefront's are; **`jsx-expression`** — a literal rendered a
 `{error ?? 'Channel not found.'}`; and **`setter-literal`** — prose or a one-word label handed to a
 `useState` setter, `setError('Delete failed.')`, while a state value (`setStatus('idle')`) is not.
 A template is judged with each substitution read as a word, so `select-${id}` is a token and
-`Remove ${name}` is copy. Copy reaching the screen through any other call (`toast(…)`,
-`confirm({ title })`) or a constant is not seen.
+`Remove ${name}` is copy.
+
+**Issue #1433 added the fallbacks**, re-measuring the ledger again: **`copy-property`** — a literal
+under a property, default prop or variable named for copy (`confirm({ title: 'Delete?' })`, an
+options or Puck field table's `label`, `{ label = 'Drag a file here' }`,
+`const emptyMessage = props.emptyMessage ?? 'No rows.'`), and the other prose or one-word values of
+an object one of whose values that reported, which is a component's `DEFAULT_LABELS`; and
+**`fallback-literal`** — prose or a one-word label handed to an error helper (a callee named for an
+error or a message, `formatError(err, 'Save failed.')`), and a prose literal kept behind `??` / `||`
+that nothing else claimed, outside a diagnostic, a `throw` and a comparison. Still not seen: a word
+or sentence passed to any other call (`toast('Saved')`), a constant whose name says nothing
+(`const unit = 'pcs'`), and a one-word `??` fallback (`status ?? 'Draft'`), which is as often a state
+value as a label.
+
+**The kit's own words come from the `core` bundle** (`packages/modules/_i18n/i18n/{en,pl}.json`,
+through `useTranslation('core')`), never from an English default in the component: a caller that
+passes no `labels` / `placeholder` / `ariaLabel` gets the operator's language, and a caller's prop
+still wins. A kit default written as an English literal is what made every rule editor and picker
+English for a Polish operator until issue #1433.
 
 **The storefront is in the same run since issue #85**, with its own ledger,
 `STOREFRONT_HARDCODED_STRINGS_BASELINE`, ratcheted the same two ways. Its walk is the `storefront`

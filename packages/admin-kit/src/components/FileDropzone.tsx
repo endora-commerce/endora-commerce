@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
+import { useTranslation } from '../i18n/useTranslation.js';
 
 /**
  * Drag-and-drop file picker (feature 039). Reads the dropped / selected file
@@ -7,15 +8,19 @@ import { useRef, useState, type ReactNode } from 'react';
 export function FileDropzone({
   onFile,
   accept = '.csv,.xlsx',
-  label = 'Drag a CSV or Excel file here, or click to choose',
+  label,
   selectedLabel,
 }: {
   onFile: (filename: string, contentBase64: string) => void;
   accept?: string;
   label?: string;
-  /** Rendered instead of `label` once a file is chosen. Defaults to `Selected: <name>`. */
+  /**
+   * Rendered instead of `label` once a file is chosen. Both default to the
+   * `core` bundle's copy (issue #1433).
+   */
   selectedLabel?: (filename: string) => string;
 }): ReactNode {
+  const t = useTranslation('core');
   const inputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -55,7 +60,11 @@ export function FileDropzone({
         role="button"
         tabIndex={0}
       >
-        {name ? (selectedLabel ? selectedLabel(name) : `Selected: ${name}`) : label}
+        {name
+          ? selectedLabel
+            ? selectedLabel(name)
+            : t('fileDropzone.selected', { name })
+          : (label ?? t('fileDropzone.prompt'))}
       </div>
       <input
         ref={inputRef}
