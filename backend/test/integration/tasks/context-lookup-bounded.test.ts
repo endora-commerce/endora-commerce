@@ -18,6 +18,8 @@ import { callTasks, createProject, deleteProjects, setProjectsVisibility } from 
  * What it offers is unchanged: what the caller may see and change, by label,
  * the label matched case- and diacritic-insensitively, at most 20.
  */
+const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
+
 describe('tasks — the Project/Stage picker reads one bounded page (issue #504) [integration]', () => {
   let h: BackendServerHandle;
   const tag = `cl${randomUUID().slice(0, 6)}`;
@@ -28,11 +30,11 @@ describe('tasks — the Project/Stage picker reads one bounded page (issue #504)
   let withoutProjectWrite: Person;
   let memberProject: string;
 
-  async function statements<T>(run: () => Promise<T>): Promise<{ result: T; queries: Array<{ sql: string; bindings: unknown[] }> }> {
+  async function statements<T>(run: () => Promise<T>): Promise<{ result: T; queries: Array<{ sql: string }> }> {
     const knex: Knex = h.em().getConnection().getKnex();
-    const queries: Array<{ sql: string; bindings: unknown[] }> = [];
-    const onQuery = (query: { sql: string; bindings?: unknown[] }): void => {
-      queries.push({ sql: query.sql, bindings: query.bindings ?? [] });
+    const queries: Array<{ sql: string }> = [];
+    const onQuery = (query: { sql: string }): void => {
+      queries.push({ sql: query.sql });
     };
     knex.on('query', onQuery);
     try {
@@ -100,11 +102,11 @@ describe('tasks — the Project/Stage picker reads one bounded page (issue #504)
     // The Projects are read once, with the page as its limit; nothing lists every visible Project.
     const projectReads = thirty.queries.filter((query) => /from "projects" p/.test(query.sql));
     expect(projectReads).toHaveLength(1);
-    expect(projectReads[0]!.sql).toMatch(/limit \?/);
-    expect(projectReads[0]!.bindings.at(-1)).toBe(20);
+    // The driver inlines the parameters, so the limit and the ids are read off the statement.
+    expect(projectReads[0]!.sql).toMatch(/limit 20\s*$/);
     const stageReads = thirty.queries.filter((query) => /from "project_stages"/.test(query.sql));
     expect(stageReads).toHaveLength(1);
-    expect(String(stageReads[0]!.bindings[0]).split(',')).toHaveLength(20);
+    expect(stageReads[0]!.sql.match(UUID)).toHaveLength(20);
   });
 
   it('keeps the visibility rule: a Member is offered only the Project they see', async () => {
