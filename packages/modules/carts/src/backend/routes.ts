@@ -511,6 +511,12 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
       }
     }
 
+    // Issue #436 — each line's VAT rate, as placement resolves it. The
+    // breakdown is the order's figure or none: a failed resolution answers
+    // `vat: null` and the storefront shows the net, never a rate it invented.
+    // Resolved before the coupon re-evaluation, whose minimum spend compares
+    // the gross (issue #1396).
+    const taxRates = await lineTaxRates(deps, request, cart, items, records);
     // Feature 027 US2 / FR-014 — re-evaluate the applied coupon on every
     // read. If a previously-valid code is no longer eligible (e.g. the
     // cart fell below min spend after a line removal), drop it silently
@@ -519,7 +525,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     let couponDroppedThisRead: { code: string; reason: CouponDropReason } | null = null;
     if (cart.appliedPromotionCode && items.length > 0) {
       try {
-        const result = await deps.cartCouponService.reevaluateOnRead(cart, items);
+        const result = await deps.cartCouponService.reevaluateOnRead(cart, items, taxRates);
         if (result.dropped) {
           couponDroppedThisRead = result.dropped;
         }
@@ -529,27 +535,6 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         // buyer the undiscounted total while the cart went on showing the code.
         rethrowIfModuleDisabled(err);
         couponDroppedThisRead = null;
-      }
-    }
-    // Issue #436 — each line's VAT rate, by its product's tax class, as
-    // placement resolves it; a line whose product record is gone is priced as
-    // `simple`, as placement prices it. The breakdown is the order's figure or
-    // none: a failed resolution answers `vat: null` and the storefront shows
-    // the net, never a rate it invented.
-    let taxRates: Map<string, number> | null = null;
-    if (items.length > 0) {
-      try {
-        const typeOf = new Map(records.map((p) => [p.id, p.type]));
-        const lineTypes = new Map(items.map((it) => [it.id, typeOf.get(it.productId) ?? ('simple' as const)]));
-        const byType = await deps.cartTaxRates({
-          organizationId: cart.organizationId ?? null,
-          productTypes: [...lineTypes.values()],
-        });
-        taxRates = new Map([...lineTypes].map(([itemId, type]) => [itemId, byType.get(type) ?? 0]));
-      } catch (err) {
-        rethrowIfModuleDisabled(err);
-        request.log.warn({ err, cartId: cart.id }, 'cart VAT resolution failed; answering no VAT');
-        taxRates = null;
       }
     }
     // Feature 045 — compute the real discount + per-promotion breakdown on
@@ -746,7 +731,16 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         throw new HttpError(422, ERROR_CODES.CART_EMPTY, 'cart_empty');
       }
       const body = applyCartCouponSchema.parse(request.body);
-      const result = await deps.cartCouponService.apply(cart, body.code);
+      // Issue #1396 — the minimum spend compares the gross, at the rates the
+      // read and placement charge.
+      const taxRates = await lineTaxRates(
+        deps,
+        request,
+        cart,
+        items,
+        await loadCartProducts(deps.catalogProducts, items.map((it) => it.productId)),
+      );
+      const result = await deps.cartCouponService.apply(cart, body.code, taxRates);
       if (result.outcome === 'dropped') {
         // Issue #231 — the discriminator goes in **both** fields, and the
         // duplication is the point.
@@ -1149,6 +1143,35 @@ function resolvePrimaryCta(cart: Cart) {
     approvalStatus: cart.approvalStatus,
     requiresApproval: false,
   });
+}
+
+/**
+ * Issue #436 — each line's VAT rate as a fraction, by cart item id, by its
+ * product's tax class, as placement resolves it; a line whose product record is
+ * gone is priced as `simple`, as placement prices it. `null` when the
+ * resolution failed: the caller answers no VAT rather than a rate it invented.
+ */
+async function lineTaxRates(
+  deps: Pick<CartsDeps, 'cartTaxRates'>,
+  request: FastifyRequest,
+  cart: Cart,
+  items: readonly CartItem[],
+  records: readonly CatalogProductRecord[],
+): Promise<Map<string, number> | null> {
+  if (items.length === 0) return null;
+  try {
+    const typeOf = new Map(records.map((p) => [p.id, p.type]));
+    const lineTypes = new Map(items.map((it) => [it.id, typeOf.get(it.productId) ?? ('simple' as const)]));
+    const byType = await deps.cartTaxRates({
+      organizationId: cart.organizationId ?? null,
+      productTypes: [...lineTypes.values()],
+    });
+    return new Map([...lineTypes].map(([itemId, type]) => [itemId, byType.get(type) ?? 0]));
+  } catch (err) {
+    rethrowIfModuleDisabled(err);
+    request.log.warn({ err, cartId: cart.id }, 'cart VAT resolution failed; answering no VAT');
+    return null;
+  }
 }
 
 /**

@@ -19,7 +19,13 @@ import { CartAuditEntry } from '../entities/cart-audit-entry.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartSnapshot, PromotionApplication } from '@endora-commerce/contracts';
-import { cartLineAmount, cartSubtotal, cartTotalAfterDiscount, cartTotalsByCart } from './cart-money.js';
+import {
+  cartLineAmount,
+  cartSubtotal,
+  cartTotalAfterDiscount,
+  cartTotalGross,
+  cartTotalsByCart,
+} from './cart-money.js';
 
 /** Narrow port over the promotion engine for the admin cart-detail discount. */
 export interface AdminCartPromotionPort {
@@ -267,14 +273,17 @@ export class CartAdminService {
     // indistinguishable, and an administrator reading this panel would have
     // quoted a customer the undiscounted total as if it were the real one.
     let discountTotal = 0;
-    if (this.promotion && items.length > 0) {
-      const typeOf = (productId: string) => productById.get(productId)?.type ?? ('simple' as const);
-      const rateByType = this.taxRates
+    // Issue #1396 — the rates the buyer's cart read charges, for the gross
+    // total beside the net one; unwired, there is no gross to show.
+    const typeOf = (productId: string) => productById.get(productId)?.type ?? ('simple' as const);
+    const rateByType =
+      this.taxRates && items.length > 0
         ? await this.taxRates({
             organizationId: cart.organizationId ?? null,
             productTypes: items.map((it) => typeOf(it.productId)),
           })
         : null;
+    if (this.promotion && items.length > 0) {
       const application = await this.promotion.applyToCart({
         organizationId: cart.organizationId ?? null,
         // Issue #177 — the owner's effective group, from the two records this
@@ -301,6 +310,19 @@ export class CartAdminService {
       discountTotal = application.discountTotal;
     }
     const total = cartTotalAfterDiscount(subtotal, discountTotal);
+    const totalGross =
+      items.length === 0
+        ? 0
+        : rateByType
+        ? cartTotalGross(
+            items.map((it) => ({
+              unitPrice: it.unitPrice,
+              quantity: it.quantity,
+              taxRate: rateByType.get(typeOf(it.productId)),
+            })),
+            discountTotal,
+          )
+        : null;
 
     return {
       data: {
@@ -315,6 +337,7 @@ export class CartAdminService {
         approvalStatus: cart.approvalStatus,
         itemCount: items.length,
         total: { amount: total, currency },
+        totalGross: totalGross === null ? null : { amount: totalGross, currency },
         appliedPromotionCode: cart.appliedPromotionCode ?? null,
         lastActivityAt: cart.lastActivityAt.toISOString(),
         createdAt: cart.createdAt.toISOString(),

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cartGoodsGross,
   cartLineAmount,
   cartShortfall,
   cartSubtotal,
   cartTotalAfterDiscount,
+  cartTotalGross,
   cartTotalsByCart,
   cartVatMoney,
 } from './cart-money.js';
@@ -37,6 +39,59 @@ describe('cart money', () => {
     expect(cartShortfall('0.30', '0.30')).toBeNull();
     expect(cartShortfall('0.30', '0.31')).toBe(0.01);
     expect(cartShortfall('100.00', '99.99')).toBeNull();
+  });
+});
+
+/**
+ * Issue #1396 — a minimum spend compares what the buyer pays for the goods:
+ * VAT per rate on the sum of the nets, at each line's rate by its id.
+ */
+describe('cartGoodsGross', () => {
+  it('reads each line at its rate, VAT per rate on the net sum', () => {
+    const lines = [
+      { id: 'a', unitPrice: '29.50', quantity: 1 },
+      { id: 'b', unitPrice: '29.50', quantity: 1 },
+      { id: 'c', unitPrice: '10.00', quantity: 1 },
+    ];
+    const rates = new Map([
+      ['a', 0.23],
+      ['b', 0.23],
+      ['c', 0.08],
+    ]);
+    // 59.00 at 23 % is 72.57 (two line grosses would be 72.58); 10.00 at 8 % is 10.80.
+    expect(cartGoodsGross(lines, rates)).toBe('83.37');
+  });
+
+  it('carries no VAT on a line without a rate, or without rates', () => {
+    const lines = [{ id: 'a', unitPrice: '29.50', quantity: 2 }];
+    expect(cartGoodsGross(lines, new Map())).toBe('59.00');
+    expect(cartGoodsGross(lines, null)).toBe('59.00');
+  });
+});
+
+/** Issue #1396 — the admin cart detail's gross total beside its net one. */
+describe('cartTotalGross', () => {
+  it('is the gross per rate on the net sum, less the discount, never below zero', () => {
+    const lines = [
+      { unitPrice: '29.50', quantity: 2, taxRate: 0.23 },
+      { unitPrice: '10.00', quantity: 1, taxRate: 0.08 },
+    ];
+    // 72.57 + 10.80 = 83.37.
+    expect(cartTotalGross(lines, 0)).toBe(83.37);
+    expect(cartTotalGross(lines, '3.37')).toBe(80);
+    expect(cartTotalGross(lines, 500)).toBe(0);
+  });
+
+  it('is null when a line rate is unresolved', () => {
+    expect(
+      cartTotalGross(
+        [
+          { unitPrice: '29.50', quantity: 1, taxRate: 0.23 },
+          { unitPrice: '10.00', quantity: 1, taxRate: undefined },
+        ],
+        0,
+      ),
+    ).toBeNull();
   });
 });
 

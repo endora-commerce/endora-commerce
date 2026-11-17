@@ -10,7 +10,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { CartApprovalService } from './cart-approval-service.js';
 import { resolveCartCustomerGroupId } from './customer-group-resolver.js';
-import { cartShortfall, cartSubtotal } from './cart-money.js';
+import { cartGoodsGross, cartShortfall } from './cart-money.js';
 
 /**
  * Cart-level coupon application (feature 027 US2).
@@ -115,8 +115,17 @@ export class CartCouponService {
    * EntityManager fork. We re-load it on our own fork so the
    * `appliedPromotionCode` mutation flushes to the DB and the
    * caller's in-memory cart is also updated.
+   *
+   * `taxRates` is each line's VAT rate as a fraction, by cart item id, as the
+   * read resolves them: the minimum spend compares the gross the buyer pays,
+   * and its shortfall is a gross amount (issue #1396). Without them the lines
+   * carry no VAT, as the engine reads them.
    */
-  async apply(cart: Cart, code: string | null): Promise<CouponApplyResult> {
+  async apply(
+    cart: Cart,
+    code: string | null,
+    taxRates?: ReadonlyMap<string, number> | null,
+  ): Promise<CouponApplyResult> {
     // command-coverage-ignore: transient cart coupon state — the durable applied
     // promotion is captured on the order at checkout (audited there); the cart is
     // ephemeral pre-order working state.
@@ -152,11 +161,11 @@ export class CartCouponService {
     }
 
     const items = await em.find(CartItem, { cartId: managedCart.id });
-    const subtotal = cartSubtotal(items);
+    const gross = cartGoodsGross(items, taxRates);
     const currency = items[0]?.currency ?? 'PLN';
 
     if (promotion.minCartSubtotal != null) {
-      const shortfall = cartShortfall(subtotal, promotion.minCartSubtotal);
+      const shortfall = cartShortfall(gross, promotion.minCartSubtotal);
       if (shortfall !== null) {
         return {
           outcome: 'dropped',
@@ -173,15 +182,20 @@ export class CartCouponService {
       organizationId: cart.organizationId ?? null,
       customerGroupId: await this.customerGroupIdFor(managedCart),
       currency,
-      lines: items.map((it) => ({
-        productId: it.productId,
-        variantId: it.variantId ?? null,
-        // Feature 012 / US8 category criteria — hydrated by the engine
-        // when needed. Empty seed keeps the contract satisfied.
-        categoryIds: [],
-        quantity: it.quantity,
-        unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
-      })),
+      lines: items.map((it) => {
+        const taxRate = taxRates?.get(it.id);
+        return {
+          productId: it.productId,
+          variantId: it.variantId ?? null,
+          // Feature 012 / US8 category criteria — hydrated by the engine
+          // when needed. Empty seed keeps the contract satisfied.
+          categoryIds: [],
+          quantity: it.quantity,
+          unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+          // Issue #1396 — the engine's minimum spend compares the gross too.
+          ...(taxRate !== undefined ? { taxRate } : {}),
+        };
+      }),
       deliveryTotal: 0,
       promotionCode: code,
     };
@@ -268,10 +282,14 @@ export class CartCouponService {
    * no longer eligible (e.g. the cart fell below `min_cart_subtotal`),
    * silently drops it on the cart record and returns a typed result the
    * caller can surface as `couponDroppedThisRead` in the response.
+   *
+   * `taxRates` as in {@link apply}: the minimum spend compares the gross
+   * (issue #1396).
    */
   async reevaluateOnRead(
     cart: Cart,
     items: CartItem[],
+    taxRates?: ReadonlyMap<string, number> | null,
   ): Promise<CouponReevaluateResult> {
     if (!cart.appliedPromotionCode) return { dropped: null };
     const code = cart.appliedPromotionCode;
@@ -292,10 +310,8 @@ export class CartCouponService {
       return { dropped: { code, reason: 'expired' } };
     }
 
-    const subtotal = cartSubtotal(items);
-
     if (promotion.minCartSubtotal != null) {
-      if (cartShortfall(subtotal, promotion.minCartSubtotal) !== null) {
+      if (cartShortfall(cartGoodsGross(items, taxRates), promotion.minCartSubtotal) !== null) {
         await this.persistDrop(em, cart);
         return { dropped: { code, reason: 'below_min_spend' } };
       }

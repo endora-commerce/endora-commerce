@@ -15,7 +15,9 @@ import { lineQuantitySchema } from './line-bounds.js';
  *   - `code` (optional) — when present, only carts that present the code apply;
  *                          when null, the promotion applies automatically to
  *                          every eligible cart.
- *   - `minCartSubtotal`  — cart subtotal threshold (in promotion currency).
+ *   - `minCartSubtotal`  — minimum spend (in promotion currency), compared with
+ *                          the goods gross the buyer pays, VAT included and
+ *                          before any discount (issue #1396).
  *   - `validFrom` / `validUntil` — clock-bound validity window.
  *   - `organizationId` / `customerGroupId` — restrict to a single Customer / group.
  *   - `categoryId` / `productId` — restrict effect to lines in the chosen scope.

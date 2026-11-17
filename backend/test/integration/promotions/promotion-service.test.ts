@@ -86,7 +86,7 @@ describe('PromotionService.applyToCart', () => {
     expect(result.discountTotal).toBe(12.3);
   });
 
-  it('keeps a legacy amount_off on the net cap (#1350)', async () => {
+  it('caps a legacy amount_off at the gross of the matching lines (#1396)', async () => {
     await svc.upsert({ name: '500 off A', kind: 'amount_off', value: 500, currency: 'PLN', categoryId: CAT_X });
     const result = await svc.applyToCart(
       snapshot({
@@ -95,7 +95,29 @@ describe('PromotionService.applyToCart', () => {
         ],
       }),
     );
-    expect(result.discountTotal).toBe(100);
+    // A's net 100.00 at 23 % is 123.00 gross: the goods are free, VAT included.
+    expect(result.discountTotal).toBe(123);
+    expect(result.total).toBe(20);
+  });
+
+  it('compares a legacy minCartSubtotal with the gross (#1396)', async () => {
+    await svc.upsert({ name: 'Over 120', kind: 'percentage_off', value: 10, minCartSubtotal: 120 });
+    const taxedA = (taxRate?: number): CartSnapshot =>
+      snapshot({
+        lines: [
+          {
+            productId: PROD_A,
+            variantId: null,
+            categoryIds: [CAT_X],
+            quantity: 2,
+            unitPrice: { amount: 50, currency: 'PLN' },
+            ...(taxRate !== undefined ? { taxRate } : {}),
+          },
+        ],
+      });
+    // The net 100.00 misses 120; at 23 % the gross 123.00 meets it.
+    expect((await svc.applyToCart(taxedA())).discountTotal).toBe(0);
+    expect((await svc.applyToCart(taxedA(0.23))).discountTotal).toBe(12.3);
   });
 
   it('takes a percentage of the exact line sum (#417): 10 % of 0.01 + 2.34 is 0.24, not the binary 0.23', async () => {

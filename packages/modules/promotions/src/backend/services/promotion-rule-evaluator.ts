@@ -16,6 +16,7 @@ import type {
  * treated as non-matching and reported through `onSkip` (FR-039 parity).
  */
 export interface PromotionRuleContext {
+  /** The goods gross the buyer pays, before any discount (issue #1396). */
   cartTotal: number;
   paymentMethodCode: string | null;
   deliveryMethodCode: string | null;
