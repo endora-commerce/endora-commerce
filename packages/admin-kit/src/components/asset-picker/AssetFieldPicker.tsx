@@ -5,6 +5,7 @@ import { Button } from '../../ui/button.js';
 import { Input } from '../../ui/input.js';
 import { AssetPicker } from './AssetPicker.js';
 import { fetchAssetDetail } from './assets-api.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 /**
  * Field-style asset picker.
@@ -36,8 +37,9 @@ export interface AssetFieldPickerProps {
   placeholder?: string;
   ariaLabel?: string;
   /**
-   * Translated button copy, for a consumer that has its own bundle (feature
-   * 163). Each defaults to today's English, so an existing caller is unchanged.
+   * Button copy, for a consumer that wants its own wording (feature 163). Each
+   * defaults to the `core` bundle's copy since issue #1433, which was English
+   * for every caller that passed nothing.
    */
   chooseLabel?: string;
   changeLabel?: string;
@@ -46,6 +48,7 @@ export interface AssetFieldPickerProps {
 
 export function AssetFieldPicker(props: AssetFieldPickerProps): ReactNode {
   const { value, onChange } = props;
+  const t = useTranslation('core');
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState<string | null>(null);
 
@@ -90,8 +93,8 @@ export function AssetFieldPicker(props: AssetFieldPickerProps): ReactNode {
           {...(props.id ? { id: props.id } : {})}
           value={label ?? value}
           readOnly
-          placeholder={props.placeholder ?? 'No asset selected'}
-          aria-label={props.ariaLabel ?? 'Selected asset'}
+          placeholder={props.placeholder ?? t('assetField.empty')}
+          aria-label={props.ariaLabel ?? t('assetField.label')}
           className={label ? '' : 'font-mono'}
         />
         {value && !props.disabled ? (
@@ -103,7 +106,7 @@ export function AssetFieldPicker(props: AssetFieldPickerProps): ReactNode {
               onChange('');
               setLabel(null);
             }}
-            aria-label={props.clearLabel ?? 'Clear asset'}
+            aria-label={props.clearLabel ?? t('assetField.clear')}
           >
             <X className="size-4" aria-hidden="true" />
           </Button>
@@ -115,7 +118,9 @@ export function AssetFieldPicker(props: AssetFieldPickerProps): ReactNode {
           disabled={props.disabled ?? false}
           onClick={(): void => setOpen((v) => !v)}
         >
-          {value ? (props.changeLabel ?? 'Change') : (props.chooseLabel ?? 'Choose')}
+          {value
+            ? (props.changeLabel ?? t('assetField.change'))
+            : (props.chooseLabel ?? t('assetField.choose'))}
         </Button>
       </div>
     </div>

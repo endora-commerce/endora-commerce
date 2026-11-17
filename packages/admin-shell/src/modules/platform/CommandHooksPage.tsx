@@ -277,6 +277,7 @@ function ActionPlan({
         <CardHeader className="flex flex-row flex-wrap items-baseline justify-between gap-2 space-y-0">
           <CardTitle className="min-w-0">
             <h2 id={headingId} className={`font-mono text-base ${WRAP}`}>
+              {/* eslint-disable-next-line no-restricted-syntax -- a command id is this screen's subject, shown as code */}
               {action.action}
             </h2>
           </CardTitle>
@@ -609,6 +610,7 @@ function Outbox({
                         else rows.current.delete(item.id);
                       }}
                     >
+                      {/* eslint-disable-next-line no-restricted-syntax -- a command id is this screen's subject, shown as code */}
                       <TableCell className={`font-mono text-xs ${WRAP}`}>{item.action}</TableCell>
                       <TableCell className="text-xs">
                         <div>{item.objectType}</div>

@@ -229,4 +229,45 @@ export default [
       'jsx-a11y/alt-text': 'warn',
     },
   },
+  // Issue #1434 (DS-17) — no raw enum value as admin screen text. A status, a
+  // kind or an actor type is a code the API sends; an operator reads its label,
+  // in their language, through the owning module's `defineEnumLabels` map
+  // (`@endora-commerce/admin-kit/lib`; `specs/conventions/module-i18n.md`).
+  // `admin/eslint.config.js` applies the same selectors to its own `src/`.
+  {
+    files: [
+      'packages/admin-kit/src/**/*.tsx',
+      'packages/admin-shell/src/**/*.tsx',
+      'packages/modules/*/src/admin/**/*.tsx',
+    ],
+    ignores: ['**/*.test.tsx'],
+    rules: {
+      'no-restricted-syntax': ['error', ...rawEnumInJsxSelectors()],
+    },
+  },
 ];
+
+/**
+ * The JSX-child shapes the raw-enum rule refuses (issue #1434).
+ *
+ * Syntax, not types: it recognises the value by its property name — a JSX child
+ * that is `x.status`, `x?.kind`, or either before a `??` / `||` fallback. That
+ * misses an enum under another name and catches the odd value that is not one,
+ * a ReactNode slot named `action` or a command id shown as code. Such a site
+ * carries an `eslint-disable-next-line` saying why; a site that is debt names
+ * the issue that drains it.
+ */
+export function rawEnumInJsxSelectors() {
+  const property = '/^(status|state|kind|action|actorType|fromState|toState|[a-z]+Status)$/';
+  const member = `MemberExpression[computed=false][property.name=${property}]`;
+  const child = ':matches(JSXElement, JSXFragment) > JSXExpressionContainer';
+  const message =
+    "A raw enum value is rendered as text. Render its label through the owning module's `defineEnumLabels` " +
+    'map (`@endora-commerce/admin-kit/lib`), so the operator reads it in their language (issue #1434).';
+  return [
+    `${child} > ${member}`,
+    `${child} > ChainExpression > ${member}`,
+    `${child} > LogicalExpression > ${member}.left`,
+    `${child} > LogicalExpression > ChainExpression.left > ${member}`,
+  ].map((selector) => ({ selector, message }));
+}

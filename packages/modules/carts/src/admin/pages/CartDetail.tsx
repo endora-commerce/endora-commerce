@@ -19,6 +19,13 @@ import {
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import {
+  cartApprovalStatusLabels,
+  cartAuditActionLabels,
+  cartAuditActorLabels,
+  cartStateLabel,
+  cartStatusLabels,
+} from '../lib/labels.js';
 
 /**
  * CartDetail (feature 027 US6).
@@ -142,9 +149,12 @@ export default function CartDetail(): ReactNode {
 
   return (
     <>
+      {/* Issue #1477 — the owner and the organization, not the cart's UUID. */}
       <PageHeader
         title={t('carts.detail.title')}
-        description={cart.id}
+        description={[cart.ownerDisplayName ?? t('carts.owner.anonymous'), cart.organizationDisplayName]
+          .filter((part): part is string => part !== null)
+          .join(' · ')}
       />
 
       {error ? (
@@ -156,8 +166,8 @@ export default function CartDetail(): ReactNode {
       <Card className="mb-4">
         <CardContent className="pt-6 space-y-2">
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4 text-sm">
-            <div><Label>{t('carts.column.status')}</Label><Badge>{t(`carts.status.${cart.status}`)}</Badge></div>
-            <div><Label>{t('carts.column.approval')}</Label><Badge>{t(`carts.approvalStatus.${cart.approvalStatus}`)}</Badge></div>
+            <div><Label>{t('carts.column.status')}</Label><Badge>{cartStatusLabels.label(t, cart.status)}</Badge></div>
+            <div><Label>{t('carts.column.approval')}</Label><Badge>{cartApprovalStatusLabels.label(t, cart.approvalStatus)}</Badge></div>
             <div><Label>{t('carts.column.owner')}</Label><span>{cart.ownerDisplayName ?? t('carts.owner.anonymous')}</span></div>
             <div><Label>{t('carts.column.org')}</Label><span>{cart.organizationDisplayName ?? '—'}</span></div>
             <div><Label>{t('carts.column.lastActivity')}</Label><span>{formatDateTime(cart.lastActivityAt)}</span></div>
@@ -292,12 +302,12 @@ export default function CartDetail(): ReactNode {
                   <TableRow key={row.id}>
                     <TableCell className="text-xs">{formatDateTime(row.occurredAt)}</TableCell>
                     <TableCell className="text-xs">
-                      <span className="text-muted-foreground">{row.actorType}</span>
+                      <span className="text-muted-foreground">{cartAuditActorLabels.label(t, row.actorType)}</span>
                       {row.actorDisplayName ? ` · ${row.actorDisplayName}` : ''}
                     </TableCell>
-                    <TableCell><Badge variant="secondary">{row.action}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary">{cartAuditActionLabels.label(t, row.action)}</Badge></TableCell>
                     <TableCell className="text-xs">
-                      {row.fromState ?? '—'} → {row.toState ?? '—'}
+                      {cartStateLabel(t, row.fromState)} → {cartStateLabel(t, row.toState)}
                     </TableCell>
                     <TableCell className="text-xs">{row.reason ?? ''}</TableCell>
                   </TableRow>
