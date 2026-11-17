@@ -3014,6 +3014,11 @@ function docsTranslationsFindingsOfKind(kind: DocsTranslationFindingKind): numbe
       writeFileSync(absolutePath, '<!-- AUTO-GENERATED -->\n---\ntitle: Sample\n---\n\nBody.\n');
       seedComplete('<!-- AUTO-GENERATED -->\n---\ntitle: Sample\n---\n\nTreść.\n');
       return countOf(baseInput);
+    } else if (kind === 'structure-divergence') {
+      // Issue #1340: the English page lost a section and was re-pinned, so the
+      // hash is fresh while the Polish page still carries the section.
+      seedComplete('---\ntitle: Sample\n---\n\nWitamy.\n\n## Jeden Zapis {#one-save}\n');
+      return countOf(baseInput);
     }
 
     return countOf(baseInput);
@@ -5631,6 +5636,9 @@ const CHECKS: readonly CheckEntry[] = [
       'doc-title-unresolvable': top(() =>
         docsTranslationsFindingsOfKind('doc-title-unresolvable'),
       ),
+      // Issue #1340: a fresh pin does not prove the English page still holds
+      // every section its translation does.
+      'structure-divergence': top(() => docsTranslationsFindingsOfKind('structure-divergence')),
     },
   },
   {
@@ -12138,8 +12146,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // stale from its own targeted tests. Issue #671 moved it 6 → 7: the
       // `content` copy left the entry, which retired "content drift" from
       // `stale-translation` and added `malformed-pin` for an entry that still
-      // carries it.
-      'backend/scripts/check-docs-translations.ts': 7,
+      // carries it. Issue #1340 moved it 7 → 8: `structure-divergence`, a
+      // fresh pin over an English page whose heading outline no longer matches
+      // the translation it pins.
+      'backend/scripts/check-docs-translations.ts': 8,
       // The two in-tree shapes — none and more than one — plus T034's two: a
       // package's persisted entity is in the population, and a package that
       // could not be enumerated stops the run instead of being credited with

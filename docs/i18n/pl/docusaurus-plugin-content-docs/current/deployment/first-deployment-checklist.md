@@ -288,7 +288,7 @@ walucie klienta.
 
 ## D. Tożsamość, role i uprawnienia
 
-### D1. Utwórz pierwszego administratora, a potem ogranicz jego użycie {#d1-utwórz-bootstrap-administratora-potem-go-zawęź}
+### D1. Utwórz pierwszego administratora, a potem ogranicz jego użycie {#d1-create-the-bootstrap-administrator-then-narrow-it}
 
 **Dlaczego.** Jedyna rola, którą platforma kiedykolwiek tworzy za ciebie, to `platform_admin`, z
 uprawnieniem wieloznacznym `*`. Wszystkie pozostałe role projektuje klient.

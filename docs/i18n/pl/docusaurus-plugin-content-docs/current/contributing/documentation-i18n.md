@@ -107,10 +107,23 @@ plików, krok 3 to lokalna kontrola.
    aktualne, więc przypinaj tylko strony, które naprawdę zaktualizowałeś.
 
    Kod wyjścia `0` oznacza, że każde źródło ma aktualne przypięcie, gotowy plik, z którego
-   Docusaurus potrafi odczytać tytuł, a każdy identyfikator elementów stałych jest w pliku, który
-   go odczytuje. Kod wyjścia `2` wypisuje zgłoszenia `missing-translation`, `stale-translation`,
-   `malformed-pin`, `missing-sidebar-message`, `chrome-message-missing`, `chrome-message-inert`
-   albo `doc-title-unresolvable`.
+   Docusaurus potrafi odczytać tytuł i którego nagłówki odpowiadają stronie angielskiej, a każdy
+   identyfikator elementów stałych jest w pliku, który go odczytuje. Kod wyjścia `2` wypisuje
+   zgłoszenia `missing-translation`, `stale-translation`, `malformed-pin`,
+   `missing-sidebar-message`, `chrome-message-missing`, `chrome-message-inert`,
+   `doc-title-unresolvable` albo `structure-divergence`.
+
+   **`structure-divergence`** porównuje układ nagłówków aktualnie przypiętej strony z jej
+   tłumaczeniem, bo przypięcie mówi tylko, z której angielskiej treści powstało tłumaczenie:
+   scalenie, które usuwa sekcję angielską i przypina stronę na nowo, przechodzi kontrolę skrótu,
+   choć polska strona nadal tę sekcję zawiera. Nagłówki są łączone w pary po identyfikatorze, pod
+   którym się renderują — jawnej kotwicy `{#anchor}` albo slugu, który Docusaurus wyprowadza z
+   tekstu nagłówka angielskiego — dlatego polskiemu nagłówkowi nadawaj identyfikator angielski
+   (`## Wyłączanie modułu {#switching-the-module-off}`), a nie własny. Zgłoszeniem jest para
+   nagłówków na różnych poziomach, jawna kotwica tylko po jednej stronie albo różna liczba
+   pozostałych nagłówków na jednym poziomie. Ograniczenie: nagłówki bez jawnej kotwicy są
+   porównywane tylko jako liczba na poziom, więc usunięcie jednej sekcji i dodanie innej na tym
+   samym poziomie po tej samej stronie nie zostanie zauważone.
 
 ### Przypięcia tłumaczeń
 
