@@ -12,8 +12,9 @@ import { ConsoleNewsletterProvider } from '../../../../packages/modules/newslett
 /**
  * Feature 058 US1 adoption (T061) — the newsletter sending provider is built
  * SOLELY from a `credential_ref` (`newsletter.email_credentials`, an
- * `email_adapter` configuration). When it is unset or unresolvable, dispatch
- * fails closed to the console (dev) sink. [real DB]
+ * `email_adapter` configuration). When it is unset or unresolvable, a test
+ * run (NODE_ENV is not `production`) falls back to the console sink; the
+ * production refusal is `provider-registry.test.ts` (issue #1334). [real DB]
  */
 const ADMIN = { cookies: { b2b_session: 'stub-admin-session' } };
 

@@ -17,7 +17,12 @@ const MAX_TAGS = 10;
  * to {@link MAX_HEADER_LENGTH} characters and, after weighting, to
  * {@link MAX_TAGS} tags. Exceeding either is not an error — the remainder is
  * simply not read. A malformed `q` drops its tag rather than guessing a weight.
- * `*` is returned as an ordinary tag; no consumer matches it to a language.
+ *
+ * A tag at `q=0` or below is dropped too (issue #1315): RFC 9110 § 12.4.2 makes
+ * `q=0` "not acceptable", so a refused language is never a candidate, and it does
+ * not count towards {@link MAX_TAGS}. `*` with a positive `q` is returned as an
+ * ordinary tag; no consumer matches it to a language. A refused `*` is dropped
+ * like any other refused tag, so it never matches either.
  */
 export function parseAcceptLanguage(header: string | readonly string[] | undefined): string[] {
   return weightedAcceptLanguage(header).map((entry) => entry.tag);
@@ -26,15 +31,17 @@ export function parseAcceptLanguage(header: string | readonly string[] | undefin
 /** One element of a parsed `Accept-Language` header: the tag and its weight. */
 export interface WeightedLanguageTag {
   tag: string;
-  /** The `q` parameter as written, `1` when absent. Not clamped: `0` and below are kept. */
+  /**
+   * The `q` parameter as written, `1` when absent. Always above `0`: a refused tag is not
+   * answered at all (issue #1315).
+   */
   q: number;
 }
 
 /**
- * {@link parseAcceptLanguage} with the weights kept, in the same order and under the same
- * bounds. For a consumer that has to tell a tag at `q=0` — "not acceptable" (RFC 9110) — from
- * an ordinary one, as the storefront's locale redirect does (issue #1011); every other reader
- * takes {@link parseAcceptLanguage}.
+ * {@link parseAcceptLanguage} with the weights kept, in the same order, under the same bounds
+ * and the same exclusion of refused (`q=0`) tags. For a consumer that needs the weight itself;
+ * every reader that only needs the order takes {@link parseAcceptLanguage}.
  */
 export function weightedAcceptLanguage(header: string | readonly string[] | undefined): WeightedLanguageTag[] {
   const raw = typeof header === 'string' ? header : header?.[0];
@@ -45,7 +52,8 @@ export function weightedAcceptLanguage(header: string | readonly string[] | unde
     const tag = tagPart?.trim() ?? '';
     if (tag.length === 0) continue;
     const weight = readWeight(parameters);
-    if (weight === null) continue;
+    // Malformed, or refused: `q=0` is "not acceptable" (RFC 9110 § 12.4.2, issue #1315).
+    if (weight === null || weight <= 0) continue;
     weighted.push({ tag, weight, order: weighted.length });
   }
   weighted.sort((a, b) => b.weight - a.weight || a.order - b.order);

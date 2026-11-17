@@ -459,6 +459,26 @@ describe('quick order — the preview never travels in the URL (issue #790)', ()
     expect(previews.size).toBe(0);
   });
 
+  // Issue #1325 — the list that was sent as a quote request is not offered for sending again.
+  it('a successful quote request clears the preview', async () => {
+    seedPreview();
+    const action = actionsOf(await quickTree()).get('confirmAction')!;
+    buildResult = { target: 'quote_request', quoteRequestId: rfq.id, quoteRequestBusinessId: 'RFQ-0001' };
+    expect(await redirectOf(() => action(form({ target: 'quote_request' }) as never))).toBe(
+      `/quick-order?built=quote&rfqId=${rfq.id}`,
+    );
+    expect(previews.size).toBe(0);
+  });
+
+  it('a failed build keeps the preview to try again', async () => {
+    seedPreview();
+    const action = actionsOf(await quickTree()).get('confirmAction')!;
+    for (const target of ['cart', 'quote_request']) {
+      expect(await redirectOf(() => action(form({ target }) as never))).toBe('/quick-order?problem=build_failed');
+      expect(previews.size).toBe(1);
+    }
+  });
+
   it('adding from search to a full preview is refused with its own advice, and the preview kept', async () => {
     const full = fullPreview();
     seedPreview(full);

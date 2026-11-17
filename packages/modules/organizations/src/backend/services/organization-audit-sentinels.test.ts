@@ -10,9 +10,11 @@
  * EntityManager with a recording audit port. The writes that are not Commands
  * (moderation, the invitation accept) record through the
  * audit port as they always have, and are held to the same sentinels. The
- * admin route writes (`organization.delete`, the `customer_account.admin_*`
- * member writes) record the state the snapshot helpers build, so the helpers
- * are what is checked here; the contract tests read the stored row.
+ * admin route writes (the `customer_account.admin_*` member writes) record the
+ * state the snapshot helpers build, so the helpers are what is checked here;
+ * the contract tests read the stored row. `organization.delete` builds its
+ * state with a helper too, and since issue #1338 runs on the bus
+ * (`commands/delete-organization.command.test.ts`).
  *
  * `organization.admin_patch` has its own file
  * (`commands/admin-patch-organization.command.test.ts`, #1039).
@@ -432,30 +434,18 @@ describe('customer_account.admin_* — audit state (D-288)', () => {
     });
   });
 
-  it('admin_profile_update / admin_rollup_change: ids, booleans and the names of what changed', () => {
+  it('admin_profile_update: ids, booleans and the names of what changed', () => {
     const before = sentinelMember();
     const profile = memberUpdatedAuditState(
       before,
       sentinelMember({ email: S.newEmail, lastName: `${S.lastName}-2`, emailVerifiedAt: null }),
     );
-    const rollup = memberUpdatedAuditState(before, sentinelMember({ subtreeRollupEnabled: true }));
     const entries = [
       { action: 'customer_account.admin_profile_update', stateBefore: profile.before, stateAfter: profile.after },
-      { action: 'customer_account.admin_rollup_change', stateBefore: rollup.before, stateAfter: rollup.after },
     ];
     expectNoAuditValues(entries, SENTINELS);
     expectClassifiedKeys(entries);
     expect(profile.after).toMatchObject({ emailVerified: false, changedFields: ['email', 'emailVerified', 'lastName'] });
-    expect(rollup).toEqual({
-      before: { organizationRoleId: MEMBER_ROLE, subtreeRollupEnabled: false, emailVerified: true, twoFactorEnabled: false },
-      after: {
-        organizationRoleId: MEMBER_ROLE,
-        subtreeRollupEnabled: true,
-        emailVerified: true,
-        twoFactorEnabled: false,
-        changedFields: ['subtreeRollupEnabled'],
-      },
-    });
   });
 
   it('admin_remove: the member by role id and flags, no e-mail or names', () => {

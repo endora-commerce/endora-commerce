@@ -255,9 +255,13 @@ const COMPOSERS: Readonly<
       // composition's subscriber connection, which every instance has.
       redisSubscriber: { subscribe: async () => 1, on: () => undefined },
     }),
-  // `customers` offers the Customer record type to the same registry, from its
-  // only boot hook.
-  customers: (withOwner, ownerNames) => compose('customers', registerCustomers, ownerNames, withOwner),
+  // `customers` offers the Customer record type to the same registry. Its other
+  // boot hook — issue #1295 — pushes the admin password-reset e-mail's defaults
+  // into `transactional_emails`', a module it declares in `dependencies`.
+  customers: (withOwner, ownerNames) =>
+    compose('customers', registerCustomers, ownerNames, withOwner, {
+      emailDefaultsPort: { register: () => {} },
+    }),
   // `comparisons` pushes the Product comparison document type into
   // `document_templates`' registry (`specs/152-compare-pdf-template/`), from its
   // only boot hook.

@@ -151,7 +151,9 @@ before/after events and is written to the audit log — whether it had a reason
   reason: "order_not_invoiced" }`. The invoice issued later lists only what the
   buyer kept: a return settled with a refund or a credit takes its quantity off
   the order line, a line returned in full is left off, and the discount the
-  refund carried comes off the invoice's discount line. On an order that was
+  returned goods carried comes off the invoice's discount line. What was
+  withheld — the default less the approved amount — is invoiced as part of the goods' price at the line's VAT
+  rate (see *Invoices*). On an order that was
   invoiced, a return's correction credits the returned goods and leaves on the
   invoice the VAT per rate on the nets the buyer kept.
 - **A complaint refund is a price reduction** — a complaint settled with a

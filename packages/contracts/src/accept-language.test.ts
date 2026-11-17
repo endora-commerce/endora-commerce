@@ -28,6 +28,22 @@ describe('parseAcceptLanguage — a q-weighted list, bounded (R9)', () => {
     expect(parseAcceptLanguage('*')).toEqual(['*']);
   });
 
+  /**
+   * Issue #1315 — RFC 9110 § 12.4.2: `q=0` means "not acceptable". A refused tag is not a
+   * candidate at all, however the zero is spelled, and neither is a refused `*`.
+   */
+  it('drops a tag at q=0 (and below), a refused * included', () => {
+    expect(parseAcceptLanguage('pl;q=0, en;q=0.5')).toEqual(['en']);
+    expect(parseAcceptLanguage('pl;q=0')).toEqual([]);
+    expect(parseAcceptLanguage('pl;q=0.000, en;q=-1, de')).toEqual(['de']);
+    expect(parseAcceptLanguage('en, *;q=0')).toEqual(['en']);
+  });
+
+  it('does not let refused tags use up the ten-tag bound', () => {
+    const refused = Array.from({ length: 12 }, (_unused, i) => `r${i};q=0`).join(',');
+    expect(parseAcceptLanguage(`${refused},pl;q=0.1`)).toEqual(['pl']);
+  });
+
   it('reads the first element of a duplicated header', () => {
     // Fastify hands duplicate headers over as an array.
     expect(parseAcceptLanguage(['pl', 'en'])).toEqual(['pl']);
@@ -68,8 +84,8 @@ describe('parseAcceptLanguage — a q-weighted list, bounded (R9)', () => {
 });
 
 /**
- * Issue #1011 — the same parse with its weights, for a consumer that has to tell `q=0`
- * ("not acceptable", RFC 9110) from an ordinary tag: the storefront's locale redirect.
+ * Issue #1011 — the same parse with its weights. Issue #1315 — under the same exclusion of
+ * refused (`q=0`) tags, so every weight it answers is above zero.
  */
 describe('weightedAcceptLanguage — the parse with its weights', () => {
   it('answers each tag with its q, in the order parseAcceptLanguage answers the tags', () => {
@@ -78,7 +94,6 @@ describe('weightedAcceptLanguage — the parse with its weights', () => {
       { tag: '*', q: 1 },
       { tag: 'pl', q: 0.9 },
       { tag: 'en', q: 0.2 },
-      { tag: 'de', q: 0 },
     ]);
     expect(weightedAcceptLanguage(header).map((entry) => entry.tag)).toEqual(parseAcceptLanguage(header));
   });

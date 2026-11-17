@@ -105,7 +105,7 @@ Visibility across descendants is **permission-gated** by the
   operator turns a member's roll-up on or off with
   `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/rollup`
   (`{ subtreeRollupEnabled, expectedUpdatedAt? }`, `customers:manage`), audited
-  as `customer_account.admin_rollup_change`.
+  as `customer_account.set_subtree_rollup`.
 
 The nearest assignment decides on **every admin surface** (issue #305): the
 organization screens, the organizations list and pickers, admin search, and

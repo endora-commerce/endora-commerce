@@ -3,6 +3,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import {
   CONTENT_ATTRIBUTE_LOCKED_FLAGS,
   assertContentAttributeShape,
+  assertNoContentAttributeValues,
   assertTypeChangeAllowed,
 } from './content-attribute-rules.js';
 
@@ -110,5 +111,30 @@ describe('assertTypeChangeAllowed', () => {
     expect(() => assertTypeChangeAllowed('page_builder', 'page_builder', 'guide')).not.toThrow();
     expect(() => assertTypeChangeAllowed('string', 'number', 'guide')).not.toThrow();
     expect(() => assertTypeChangeAllowed('enum', 'select', 'guide')).not.toThrow();
+  });
+});
+
+describe('assertNoContentAttributeValues', () => {
+  const views = [
+    { key: 'color', valueType: 'enum' },
+    { key: 'buying_guide', valueType: 'page_builder' },
+    { key: 'care', valueType: 'page_builder' },
+  ];
+
+  // Issue #1223 — the token chooses a sentence of its own; the code's generic
+  // one ("do not belong to this product's attribute set") is false here.
+  it('refuses content keys with the token page_builder_content, naming them joined', () => {
+    const error = thrown(() =>
+      assertNoContentAttributeValues({ color: 'red', buying_guide: {}, care: {} }, views),
+    );
+    expect(error.statusCode).toBe(400);
+    expect(error.code).toBe('ATTRIBUTE_VALUE_REJECTED');
+    expect(error.details).toEqual({ code: 'page_builder_content', attributeKeys: 'buying_guide, care' });
+  });
+
+  it('lets ordinary keys and an empty map through', () => {
+    expect(() => assertNoContentAttributeValues({ color: 'red' }, views)).not.toThrow();
+    expect(() => assertNoContentAttributeValues({}, views)).not.toThrow();
+    expect(() => assertNoContentAttributeValues(undefined, views)).not.toThrow();
   });
 });

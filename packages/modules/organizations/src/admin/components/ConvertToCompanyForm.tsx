@@ -189,7 +189,7 @@ export function ConvertToCompanyForm(props: ConvertToCompanyFormProps): ReactNod
         <Select id={id('vatStatus')} value={vatStatus} onChange={(e): void => setVatStatus(e.target.value as VatStatus)}>
           {VAT_STATUSES.map((status) => (
             <option key={status} value={status}>
-              {t(`convertToCompany.vatStatus.${status}`)}
+              {t(`vatStatus.${status}`)}
             </option>
           ))}
         </Select>

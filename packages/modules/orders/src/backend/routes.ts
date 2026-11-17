@@ -376,10 +376,19 @@ export async function registerOrderRoutes(
           },
         );
       }
+      // Issue #1320 — the basket is judged in the channel language the
+      // request's `Accept-Language` asks for (`requestScopeLanguage`), the one
+      // `POST /cart/items` judged its lines in. A content language, so not
+      // `request.responseLanguage()`, which words the messages: a channel
+      // language the interface does not offer (`de-DE` with only en/pl) used to
+      // be judged at the channel's default here.
+      const header = request.headers['accept-language'];
+      const languageTag =
+        header === undefined || header.length === 0 ? undefined : requestScopeLanguage(requestChannel, header);
       const order = await orderService.placeOrder(
         ctx,
         { ...body, salesChannelId: requestChannel.id },
-        { language: await request.responseLanguage() },
+        { language: await request.responseLanguage(), ...(languageTag ? { languageTag } : {}) },
       );
       reply.status(201);
       return { data: await serializeForBuyer(order, ctx.customerAccountId) };
@@ -398,10 +407,18 @@ export async function registerOrderRoutes(
       const ctx = resolveCustomerContext(request);
       // The preview is for the channel the buyer is on, so it refuses a method
       // that channel does not offer — the same answer the placement will give.
+      const requestChannel = getResolvedChannel(request);
+      // Issue #1373 — the basket is judged in the channel language the
+      // request's `Accept-Language` asks for (`requestScopeLanguage`), as
+      // `POST /cart/items` judged its lines and `POST /orders` places them; not
+      // in `request.responseLanguage()`, which only words the messages.
+      const header = request.headers['accept-language'];
+      const languageTag =
+        header === undefined || header.length === 0 ? undefined : requestScopeLanguage(requestChannel, header);
       const totals = await orderService.previewTotal(
         ctx,
-        { ...body, salesChannelId: getResolvedChannel(request).id },
-        { language: await request.responseLanguage() },
+        { ...body, salesChannelId: requestChannel.id },
+        { language: await request.responseLanguage(), ...(languageTag ? { languageTag } : {}) },
       );
       return { data: totals };
     },

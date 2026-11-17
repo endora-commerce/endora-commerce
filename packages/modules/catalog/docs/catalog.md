@@ -28,7 +28,7 @@ otherwise; every price names its currency either way. A malformed code is refuse
 | `GET /api/v1/catalog/products/:idOrSlug` | storefront | Product detail (no amount where the viewer's price display mode is *None*); `?include=content` adds the product's Page Builder content ([Product content](./catalog/product-content.md)) |
 | `GET /api/v1/catalog/categories` | storefront | Nested category tree |
 | `GET /api/v1/catalog/categories/:id/content` | storefront | One category's page content, resolved to the caller's language |
-| `GET /api/v1/catalog/filters` | storefront | Filterable attributes for the active Sales Channel |
+| `GET /api/v1/catalog/filters?q` | storefront | Filterable attributes for the active Sales Channel, with option counts over the products the caller may see; with `q`, over the products that text query matches (the same matches as `GET /api/v1/catalog/products?q`) |
 | `GET /api/v1/catalog/sitemap.xml` | crawlers | SEO sitemap |
 | `GET /api/v1/admin/catalog/products?status&archived` | admin | Admin product list. `status` is `active` or `inactive` (any other value: `400 VALIDATION_FAILED`); `archived` is `exclude` (default), `include` or `only` — the legacy `includeArchived=1` means `include`. `counts` is `{ all, active, inactive, archived }` — see *Product status and archiving* |
 | `GET /api/v1/admin/catalog/products/:id` | admin | Product detail |

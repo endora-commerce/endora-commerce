@@ -113,8 +113,14 @@ const KPIS: readonly Kpi[] = [
     to: '/orders?status=new',
     requiredPermission: 'orders:read',
     module: 'orders',
-    path: () => '/api/v1/admin/orders?status=new',
-    read: (data) => String(((data as { data?: unknown[] }).data ?? []).length),
+    // The list is paged (25 rows by default), so counting the rows it returned
+    // stopped at 25 (issue #1358). One row is asked for and the total read,
+    // as the pending-quotes tile does.
+    path: () => '/api/v1/admin/orders?status=new&pageSize=1',
+    read: (data) => {
+      const total = (data as { pagination?: { total?: number } }).pagination?.total;
+      return total === undefined ? null : String(total);
+    },
   },
   {
     labelKey: 'home.kpi.outOfStock',

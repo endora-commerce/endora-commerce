@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import { Organization } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
@@ -75,6 +76,23 @@ describe('admin set member roll-up capability (T032)', () => {
     expect(off.statusCode).toBe(200);
     em.clear();
     expect((await em.findOneOrFail(CustomerAccount, { id: memberId })).subtreeRollupEnabled).toBe(false);
+
+    // Issue #1338 — each toggle is one `customer_account.set_subtree_rollup`
+    // Command, committed with the write: one entry per request, the flag only,
+    // and no hand-written `.admin_rollup_change` beside it.
+    const entries = await em.find(AuditLogEntry, { objectType: 'customer_account', objectId: memberId });
+    expect(entries.map((entry) => entry.action)).toEqual([
+      'customer_account.set_subtree_rollup',
+      'customer_account.set_subtree_rollup',
+    ]);
+    // Two writes inside one millisecond tie on `actedAt`; the states say which is which.
+    expect(entries.map((entry) => [entry.stateBefore, entry.stateAfter])).toEqual(
+      expect.arrayContaining([
+        [{ subtreeRollupEnabled: false }, { subtreeRollupEnabled: true }],
+        [{ subtreeRollupEnabled: true }, { subtreeRollupEnabled: false }],
+      ]),
+    );
+    expect(entries.every((entry) => entry.actorAdminUserId !== null)).toBe(true);
   });
 
   it('returns 404 for an unknown member', async () => {

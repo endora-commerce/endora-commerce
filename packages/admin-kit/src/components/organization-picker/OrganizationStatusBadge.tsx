@@ -1,4 +1,5 @@
 import type { OrganizationStatus } from '@endora-commerce/contracts';
+import { useTranslation } from '../../i18n/useTranslation.js';
 import { cn } from '../../lib/utils.js';
 
 export interface OrganizationStatusBadgeProps {
@@ -10,25 +11,22 @@ export interface OrganizationStatusBadgeProps {
  * Status pill used by the OrganizationPicker (compact variant) and by the
  * Organizations list view (full variant).
  *
- * Labels are PL/EN i18n strings landed by feature 021 — for the
- * foundational layer we ship English defaults and let the admin i18n
- * bundle (US1 T050) populate translations.
+ * **Its labels are `core`'s** (`organizationStatusBadge.<status>`, EN + PL), for
+ * the reason `CategoryTreePicker` gives: the kit never resolves a module's
+ * namespace (`admin-kit-surface.md` R6). They were hard-coded English until
+ * issue #1368.
  */
-const STYLES: Record<OrganizationStatus, { label: string; cls: string }> = {
+const STYLES: Record<OrganizationStatus, { cls: string }> = {
   pending_verification: {
-    label: 'Pending',
     cls: 'bg-amber-100 text-amber-900 border-amber-300',
   },
   active: {
-    label: 'Active',
     cls: 'bg-emerald-100 text-emerald-900 border-emerald-300',
   },
   blocked: {
-    label: 'Blocked',
     cls: 'bg-rose-100 text-rose-900 border-rose-300',
   },
   rejected: {
-    label: 'Rejected',
     cls: 'bg-slate-200 text-slate-700 border-slate-300',
   },
 };
@@ -36,6 +34,7 @@ const STYLES: Record<OrganizationStatus, { label: string; cls: string }> = {
 export function OrganizationStatusBadge(
   props: OrganizationStatusBadgeProps,
 ): React.ReactElement {
+  const t = useTranslation('core');
   const style = STYLES[props.status];
   return (
     <span
@@ -45,7 +44,7 @@ export function OrganizationStatusBadge(
         style.cls,
       )}
     >
-      {style.label}
+      {t(`organizationStatusBadge.${props.status}`)}
     </span>
   );
 }

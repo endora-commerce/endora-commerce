@@ -198,9 +198,9 @@ export function memberCreatedAuditState(
 }
 
 /**
- * `customer_account.admin_profile_update` / `.admin_rollup_change`: the
- * member's snapshot on both sides and, after, the sorted names of what
- * changed — `email`, `firstName`, `lastName` by name only.
+ * `customer_account.admin_profile_update`: the member's snapshot on both
+ * sides and, after, the sorted names of what changed — `email`, `firstName`,
+ * `lastName` by name only.
  */
 export function memberUpdatedAuditState(
   before: MemberSnapshot,

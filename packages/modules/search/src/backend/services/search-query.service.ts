@@ -22,6 +22,8 @@ import {
   type ProductAudience,
   type ProductListSort,
   type ProductSummary,
+  type SearchMatchingIdsParams,
+  SEARCH_MATCHING_IDS_MAX,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { encodeCursor, decodeCursor } from '@endora-commerce/platform/http';
@@ -218,8 +220,6 @@ export class SearchQueryService {
     params: SearchListProductsParams,
     ctx: SearchQueryContext,
   ): Promise<SearchListResult> {
-    const channel = ctx.resolvedChannel;
-
     // Validate filter keys against the live composed attribute views so that an
     // unfilterable attribute returns the same 400 the Postgres path returns
     // (FR-005, T043). The Meilisearch index only enforces shape, not policy.
@@ -247,12 +247,60 @@ export class SearchQueryService {
       }
     }
 
+    const offset = decodeOffsetCursor(params.cursor) ?? 0;
+    const response = await this.#search(params, ctx, {
+      offset,
+      // Over-fetch by one to detect hasMore.
+      limit: params.limit + 1,
+      sort: buildSort(params.sort, queryLanguageOf(ctx.resolvedChannel, ctx.preferredLanguage)),
+      attributesToRetrieve: ['id', 'sku', 'slug', 'type', 'categorySlugs', 'primaryAssetUrl'],
+    });
+
+    const hits = response.hits.slice(0, params.limit);
+    const hasMore = response.hits.length > params.limit;
+    const nextCursor = hasMore ? encodeOffsetCursor(offset + params.limit) : null;
+
+    return {
+      data: hits.length === 0 ? [] : await this.hydrateHits(hits, ctx),
+      pagination: { cursor: nextCursor, hasMore, limit: params.limit },
+    };
+  }
+
+  /**
+   * Issue #1326 — the ids of the products `q` matches, in relevance order, at
+   * most {@link SEARCH_MATCHING_IDS_MAX}: the result set {@link listProducts}
+   * pages through for the same query, asked once without the page. Under the
+   * same filter the listing is cut from (availability at (channel, L), the
+   * window, the audience), and with no hydration: the caller counts over
+   * these ids in Postgres, where who may see a product is decided.
+   */
+  async matchingProductIds(params: SearchMatchingIdsParams, ctx: SearchQueryContext): Promise<string[]> {
+    const response = await this.#search(params, ctx, {
+      offset: 0,
+      limit: SEARCH_MATCHING_IDS_MAX,
+      sort: [],
+      attributesToRetrieve: ['id'],
+    });
+    return response.hits.map((hit) => hit.id);
+  }
+
+  /**
+   * One query against the channel's index, under the filter every read of it
+   * is cut from — shared by {@link listProducts} and
+   * {@link matchingProductIds}, so a facet count and the page it sits beside
+   * are asked the same question.
+   */
+  async #search(
+    params: Pick<SearchListProductsParams, 'q' | 'categorySlug' | 'attributeFilters'>,
+    ctx: SearchQueryContext,
+    page: { offset: number; limit: number; sort: string[]; attributesToRetrieve: string[] },
+  ): Promise<SearchResponse<DocumentHit & { updatedAt: number }>> {
+    const channel = ctx.resolvedChannel;
     const indexUid = indexUidFor(channel);
     const index = this.client.index<DocumentHit & { updatedAt: number }>(indexUid);
     // Feature 174 (FR-033) — the one language this query reads texts in, validated first (R21).
     const queryLanguage = queryLanguageOf(channel, ctx.preferredLanguage);
 
-    const offset = decodeOffsetCursor(params.cursor) ?? 0;
     // Feature 163 (R8) — availability at (channel, L), the window at query time
     // and the audience go into the filter the page is cut from (issue #151),
     // never only into hydration.
@@ -264,7 +312,6 @@ export class SearchQueryService {
         nowMs: Date.now(),
       }),
     ];
-    const sort = buildSort(params.sort, queryLanguage);
 
     // Feature 174 (FR-033, `contracts/search-index.md` §3) — a query matches the texts of its
     // language only, `texts.<L>.*`, beside the SKU and the searchable non-text attributes. An
@@ -273,18 +320,16 @@ export class SearchQueryService {
     const searchOn = params.q ? await this.#attributesToSearchOn(queryLanguage) : null;
     const runSearch = (restrict: boolean) =>
       index.search(params.q ?? '', {
-        offset,
-        // Over-fetch by one to detect hasMore.
-        limit: params.limit + 1,
+        offset: page.offset,
+        limit: page.limit,
         ...(filter.length > 0 ? { filter } : {}),
-        ...(sort.length > 0 ? { sort } : {}),
+        ...(page.sort.length > 0 ? { sort: page.sort } : {}),
         ...(restrict && searchOn ? { attributesToSearchOn: searchOn } : {}),
-        attributesToRetrieve: ['id', 'sku', 'slug', 'type', 'categorySlugs', 'primaryAssetUrl'],
+        attributesToRetrieve: page.attributesToRetrieve,
       });
-    let response: SearchResponse<DocumentHit & { updatedAt: number }>;
     try {
       try {
-        response = await runSearch(true);
+        return await runSearch(true);
       } catch (err) {
         rethrowIfModuleDisabled(err);
         if (!(searchOn && err instanceof MeilisearchApiError && err.cause?.code === 'invalid_search_attributes_to_search_on')) {
@@ -294,7 +339,7 @@ export class SearchQueryService {
         console.warn('[search] index without language-keyed texts; searching every field until it is reindexed', {
           indexUid,
         });
-        response = await runSearch(false);
+        return await runSearch(false);
       }
     } catch (err) {
       // Reserved-fallback (R-08): `searchQueryPort` converts this into the
@@ -312,15 +357,6 @@ export class SearchQueryService {
       // rather than only by whoever happened to call it.
       throw searchBackendFailure(err, indexUid);
     }
-
-    const hits = response.hits.slice(0, params.limit);
-    const hasMore = response.hits.length > params.limit;
-    const nextCursor = hasMore ? encodeOffsetCursor(offset + params.limit) : null;
-
-    return {
-      data: hits.length === 0 ? [] : await this.hydrateHits(hits, ctx),
-      pagination: { cursor: nextCursor, hasMore, limit: params.limit },
-    };
   }
 
   /**

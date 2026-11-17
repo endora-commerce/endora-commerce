@@ -310,6 +310,13 @@ export class OrderCreationAdminService {
         {
           ...(input.origin ? { origin: input.origin } : {}),
           ...(options.language ? { language: options.language } : {}),
+          // Issue #1320 — judged at the channel's default language, as the
+          // basket add above judged the lines (N2): an operator names the
+          // channel, and the language they read messages in does not choose
+          // the assortment. It used to follow `language`, so a product on at
+          // the default and off in `pl-PL` was admitted by the add and refused
+          // here for a Polish-speaking operator.
+          atChannelDefaultLanguage: true,
           ...(lineGrouping ? { lineGrouping } : {}),
           ...(Object.keys(customFieldValues).length > 0 ? { customFieldValues } : {}),
           workingBasketId: working.cart.id,

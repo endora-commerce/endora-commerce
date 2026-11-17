@@ -72,7 +72,11 @@ zamiast być wyłączane jako przypadek szczególny.
   wsparcia ekran podaje link do sklepu, w którym działasz jako klient w tej samej przeglądarce, oraz
   przycisk *Zakończ sesję wsparcia*; sesję kończy też pasek w sklepie. Dopóki ta sesja trwa, ekran
   nie proponuje kolejnego rozpoczęcia. Odmowa rozpoczęcia jest pokazywana w oknie dialogowym.
-- Reset hasła z poziomu panelu (e-mail z linkiem do ustawienia hasła).
+- Reset hasła z poziomu panelu (e-mail z linkiem do ustawienia hasła). Wiadomość to e-mail
+  transakcyjny `customer_password_reset_by_admin`, który sklep edytuje w ekranie **Maile
+  transakcyjne** jak każdy inny; jest wysyłana w języku domyślnego kanału sprzedaży, a link
+  otwiera stronę resetu pod prefiksem tego języka. Nie można jej wyłączyć, bo to dzięki niej klient
+  odzyskuje dostęp do konta.
 - Walidacja NIP/VAT (VIES, port Białej listy).
 - Przypisanie do organizacji i odłączenie od organizacji, które przenosi klienta do jego własnej
   organizacji osobistej, zamiast zostawiać go bez organizacji. Bezpośrednie przypisanie grupy

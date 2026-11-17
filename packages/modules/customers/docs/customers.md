@@ -82,7 +82,11 @@ switched off by a special case.
   the customer in the same browser, and offers *End support session*; the
   storefront's banner ends it too. While that session is open the screen offers
   no second start. A refused start is shown in the dialog.
-- Admin-triggered password reset (emails a set-password link).
+- Admin-triggered password reset (emails a set-password link). The e-mail is the
+  `customer_password_reset_by_admin` transactional e-mail, which a store edits under
+  **Transactional emails** like any other; it is sent in the language of the default sales
+  channel, and its link opens the reset page under that language's prefix. It cannot be
+  switched off, because it is how the customer gets back into the account.
 - NIP/VAT validation (VIES / Biała lista port).
 - Organization assign, and detach-from-organization, which moves the customer to
   their own personal organization rather than leaving them without one.

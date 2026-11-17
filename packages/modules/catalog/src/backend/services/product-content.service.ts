@@ -164,11 +164,14 @@ export class ProductContentService {
     const product = await this.#product(em, productId);
     const member = (await this.#members(em, product.attributeSetId)).find((m) => m.key === attributeKey);
     if (!member) {
+      // Issue #1223 — the token `not_content_attribute` chooses a sentence of
+      // its own: the key may well be in the set (an ordinary attribute), so the
+      // code's "do not belong to this product's attribute set" is not the reason.
       throw new HttpError(
         400,
         ERROR_CODES.ATTRIBUTE_VALUE_REJECTED,
         `"${attributeKey}" is not a Page Builder content attribute of this product's attribute set.`,
-        [{ path: 'attributeKey', issue: "not a Page Builder content attribute of this product's attribute set" }],
+        { code: 'not_content_attribute', attributeKey },
       );
     }
     const normalised = normalisePageBuilderEnvelope(content as PageBuilderEnvelope | null);

@@ -54,4 +54,6 @@ podpowiedzi nad logo.
 
 Nowe zależności dodaje się do sprawdzania, rozszerzając listę testów w
 `packages/platform/src/http/health.ts`. Każdy test powinien być tani (pojedynczy ping albo
-`SELECT 1`) i ograniczony czasowo (limit ≤ 200 ms).
+`SELECT 1`). Endpoint ogranicza każdy test do 200 ms (`HEALTH_PROBE_TIMEOUT_MS`): test, który
+do tego czasu nie odpowie, liczy się jako niedostępna zależność, więc zawieszona baza danych albo
+wyszukiwarka daje `503` w tym czasie, zamiast trzymać żądanie otwarte.

@@ -1,5 +1,7 @@
 import type {
   SearchListOutcome,
+  SearchMatchingIdsOutcome,
+  SearchMatchingIdsParams,
   SearchListProductsParams,
   SearchListResult,
   SearchQueryContext,
@@ -36,6 +38,7 @@ export interface SearchQueryBackend {
     params: SearchListProductsParams,
     ctx: SearchQueryContext,
   ): Promise<SearchListResult>;
+  matchingProductIds(params: SearchMatchingIdsParams, ctx: SearchQueryContext): Promise<string[]>;
 }
 
 export function createSearchQueryPort(backend: SearchQueryBackend): SearchQueryPort {
@@ -50,6 +53,20 @@ export function createSearchQueryPort(backend: SearchQueryBackend): SearchQueryP
         // Narrow by construction: only this module's own unavailability
         // signal is converted, and every other failure — including anything
         // the container could raise — is re-thrown unconditionally.
+        if (err instanceof SearchBackendUnavailable) {
+          return { status: 'index-unavailable', reason: err.message };
+        }
+        throw err;
+      }
+    },
+    async matchingProductIds(
+      params: SearchMatchingIdsParams,
+      ctx: SearchQueryContext,
+    ): Promise<SearchMatchingIdsOutcome> {
+      try {
+        return { status: 'ok', ids: await backend.matchingProductIds(params, ctx) };
+      } catch (err) {
+        // The same narrow conversion as `listProducts` above, for the same reason.
         if (err instanceof SearchBackendUnavailable) {
           return { status: 'index-unavailable', reason: err.message };
         }

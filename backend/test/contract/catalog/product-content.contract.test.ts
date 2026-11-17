@@ -254,9 +254,10 @@ describe('Product content — admin routes (feature 172)', () => {
       for (const key of ['pc_plain', 'pc_outside', 'pc_nope']) {
         const res = await put(productId, key, { languages: { 'en-US': tree('Nope') } });
         expect(res.statusCode, key).toBe(400);
-        const body = res.json() as { error: { code: string; details?: Array<{ path: string }> } };
+        const body = res.json() as { error: { code: string; details?: unknown } };
         expect(body.error.code).toBe('ATTRIBUTE_VALUE_REJECTED');
-        expect(body.error.details?.[0]?.path).toBe('attributeKey');
+        // Issue #1223 — a token of its own, so the sentence says why.
+        expect(body.error.details).toEqual({ code: 'not_content_attribute', attributeKey: key });
       }
       expect(await rowCount(productId)).toBe(0);
     });
