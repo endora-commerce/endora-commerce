@@ -434,6 +434,8 @@ Benches (all `describe.skipIf(PERF_RUN !== 'true')`), as they stand after featur
 | `backend/test/perf/price_lists/book-resolver.bench.ts` | a 50-product listing page on the price-book resolver (replaced `matrix-resolver.bench.ts`) | budget **60 ms** p95; 13.0 ms (no book), 11.5 ms (100 rows), 11.1 ms (1 950 rows on other products) |
 | `backend/test/perf/price_lists/book-lines-page.bench.ts` | the admin grid's line pages, 50 003-line base book (161 G15) | budget **150 ms** p95; steady: every case ≤ 150 ms, largest 125.3 ms; fresh data before the first autovacuum: three broad-search cases 150.6–152.6 ms (accepted, issue #409) |
 | `backend/test/perf/price_lists/editor-import-save.bench.ts` | a 5 000-row import preview and commit; a 1 000-row file to preview | preview 205 ms, commit 1 024 ms; 83 ms (2026-10-23) |
+| `backend/test/perf/price_lists/value-history-write.bench.ts` | the price-change history's cost on the largest book writes (#470 stage 2): 5 000-row import, bulk change, duplicate; a 10 000-line `replace` import; the writer's own statements for 10 000 lines | **D-5 budget** (below): ≤ **100 µs** per line, a 10 000-line batch commits in < **3 s** median — both asserted; 2026-11-17: 92.4 µs per line, 10 000-line commit 2 256 ms median |
+| `backend/test/perf/price_lists/value-history-read.bench.ts` | the price-change history's three reads (#470 stage 3), 100 000 lines over 200 changes | budget **150 ms** p95 per 50-item page; 2026-11-17: every case ≤ 15.7 ms |
 | `backend/test/perf/catalog/listing-price-cost.bench.ts` | anonymous priced page over HTTP | budget **275 ms** p95 (pre-160 measurement 77–87 ms) |
 | `backend/test/perf/catalog/listing-price-viewer-cost.bench.ts` | cold/warm, anonymous vs signed-in, statement counts | ceiling 60 statements (signed-in cold); T173 (2026-10-23, price-book engine): anonymous cold 20 / 101.3 ms, warm 16, p95 24.2 ms; signed-in cold 24 / 36.2 ms, warm 23, p95 25.2 ms — baselines below |
 | `backend/test/perf/catalog/listing-filtered-page.bench.ts`, `listing-card-reads-cost.bench.ts`, `carts/cart-routes.bench.ts` | adjacent | not pricing-specific |
@@ -484,6 +486,36 @@ earlier run); all stay within budget, and the refresh is within its 60 s with li
 
 **Final verification (feature 160, T133, 2026-10-22).** The SC-005 bench green on the release
 branch: every page p95 ≤ 28.2 ms, a single-book change visible in the order after 47.2 s.
+
+**The price-change history (issue #470, D-288; D-5 budget set by the architect 2026-11-17, the
+owner may override).** Every value-changing price-book Command writes the book's own history in its
+transaction since stage 2 (#1319), and stage 3 reads it.
+
+- **Write — D-5:** the history adds **≤ 100 µs per line** written, and a **10 000-line batch** (a
+  `replace`-mode import of 5 000 rows over 5 000 others, the most one batch writes) **commits in
+  < 3 s median** on the bench machine. `value-history-write.bench.ts` asserts both: the commit as
+  the median of three runs through the admin route (`PERF_HISTORY_WRITE_10K_MS`), the per-line cost
+  as the median time of the writer's own two statements for 10 000 lines in a rolled-back
+  transaction (`PERF_HISTORY_WRITE_LINE_US`). Stage 2 measured the same cost from the route against
+  a baseline tree: about 90 µs per line, 2.34–2.38 s for the 10 000-line commit (master 1.41–1.48 s).
+  The redundant `price_list_row_value_changes.price_list_id` foreign key stays; dropping it was the
+  cheapest lever stage 2 found (about 0.5 s of the 10 000 lines), and the budget does not need it.
+- **Read:** each of the three reads answers a 50-item page within **150 ms p95** on a book holding
+  about 100 000 lines over about 200 changes (`value-history-read.bench.ts`: first and deep pages,
+  keyset ties on `at`, an actor lookup per page).
+
+| Measured 2026-11-17 (load average 4.1 → 2.9) | Figure | Budget |
+| --- | --- | --- |
+| 5 000-row import / bulk change / duplicate, commit median | 1 438 / 1 667 / 1 379 ms | recorded |
+| 10 000-line `replace` import, commit median (slowest) | 2 256 ms (2 327) | < 3 000 ms |
+| the writer's statements, 10 000 lines, median | 924 ms = **92.4 µs per line** | ≤ 100 µs |
+| changes, first page / page 3 | p95 15.7 / 11.2 ms | 150 ms |
+| one change's lines, first page / page 9 | p95 8.7 / 7.9 ms | 150 ms |
+| one product's lines (10 000), first page / page 21 | p95 11.1 / 13.3 ms | 150 ms |
+
+The per-line figure sits close to its budget, and most of it is the two foreign-key checks per line
+(stage 2: 552 ms for 10 000 lines with them, 54 ms without); on a loaded machine it is the first
+assertion to move.
 
 **The editor (feature 161, 2026-10-22/23).** The admin grid's line pages and the CSV import, on the
 same machine: figures in the bench table above and in `specs/161-price-book-editor/plan.md`

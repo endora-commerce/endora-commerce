@@ -53,8 +53,9 @@ export class ImportProfileService {
 
   /**
    * Owner decision 2026-11-03 — the channels a mapping row may target, with the languages each
-   * offers (its default first when the stored list omits it), and nothing else: no name, no
-   * currency, no storefront address. Every channel, inactive ones included, ordered by code — a
+   * offers (its default first when the stored list omits it) and, since issue #718, the
+   * per-language name the editor labels a target with; nothing else: no currency, no storefront
+   * address. Every channel, inactive ones included, ordered by code — a
    * profile may already target a channel that was deactivated, and an editor that could not show
    * it would drop the target on the next save (the delivery-methods precedent).
    */
@@ -63,6 +64,7 @@ export class ImportProfileService {
     return channels.map((channel) => ({
       id: channel.id,
       code: channel.code,
+      name: { ...channel.name },
       languages: [...toScopeChannel(channel).languages],
     }));
   }

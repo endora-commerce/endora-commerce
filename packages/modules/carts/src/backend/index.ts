@@ -515,6 +515,11 @@ export function registerModule(ctx: ModuleContext): void {
         lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
         lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
         lazyPort<PromotionApplyPort>(ctx, 'promotionService'),
+        // Issue #1350 — the rates the buyer's cart read resolves, for the gross discount.
+        createProductTaxRateResolver({
+          taxProfiles: lazyPort<OrganizationTaxProfilePort>(ctx, 'organizationTaxProfilePort'),
+          taxes: lazyPort<TaxServicePort>(ctx, 'taxService'),
+        }),
       ),
       resolveAdminUserId: (req: FastifyRequest): string | null => {
         const prodActor = (req as { actor?: { kind?: string; adminUserId?: string } }).actor;

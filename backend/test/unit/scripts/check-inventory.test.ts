@@ -10974,6 +10974,41 @@ const CHECKS: readonly CheckEntry[] = [
           ? 1
           : 0,
       ),
+      // Issue #1316's admin shapes. Each fixture carries an exempt twin beside
+      // its red line and the proof is exactly-one, so a predicate that reported
+      // everything of that shape — or nothing — reads as 0.
+      'admin-one-word-label': top(() =>
+        hardcodedAnalyze(
+          'export const A = () => <p><Button>Delete</Button><span>order_id</span></p>;\n',
+          '/repo/admin/src/a.tsx',
+        ).filter((f) => f.kind === 'jsx-text').length === 1
+          ? 1
+          : 0,
+      ),
+      'admin-copy-prop': top(() =>
+        hardcodedAnalyze(
+          "export const A = () => <PageHeader description={ok ? 'Edit the channel.' : t('a')} variant=\"Wide\" />;\n",
+          '/repo/admin/src/a.tsx',
+        ).filter((f) => f.kind === 'jsx-attr').length === 1
+          ? 1
+          : 0,
+      ),
+      'admin-jsx-expression': top(() =>
+        hardcodedAnalyze(
+          "export const A = () => <p>{error ?? 'Channel not found.'}{' · '}</p>;\n",
+          '/repo/admin/src/a.tsx',
+        ).filter((f) => f.kind === 'jsx-expression').length === 1
+          ? 1
+          : 0,
+      ),
+      'setter-literal': top(() =>
+        hardcodedAnalyze(
+          "setError('Delete failed.');\nsetStatus('idle');\n",
+          '/repo/admin/src/a.tsx',
+        ).filter((f) => f.kind === 'setter-literal').length === 1
+          ? 1
+          : 0,
+      ),
       // The `module-admin` floor, counted as a refusal rather than a finding —
       // `bundlePairingReadRefusals`' shape. It refuses two ways and both are
       // driven here from a fixture that enters above the analysis: a registry
@@ -12471,8 +12506,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // made 357 of this walk's 422 files corroborated by nothing — plus the
       // storefront's `polish-literal` shape (issue #85), plus the storefront's
       // five strict shapes: single-word JSX text, a visible attribute read
-      // through `{…}`, a JSX child literal, a copy property, a prose literal.
-      'backend/scripts/i18n-hardcoded-strings.ts': 9,
+      // through `{…}`, a JSX child literal, a copy property, a prose literal —
+      // plus issue #1316's four admin shapes: a one-word label, a copy-named
+      // prop, a JSX child literal and prose handed to a state setter.
+      'backend/scripts/i18n-hardcoded-strings.ts': 13,
       // Four rules, the fifth (migration class scope) that reads the
       // filesystem, and issue #244's short listing — the shape every one of
       // this script's other floors is green on. Plus feature 080's three for

@@ -3,6 +3,7 @@ import type { z } from 'zod';
 import type { AuditPort, RecordAuditInput } from '@endora-commerce/platform/kernel';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
+import { newsletterTestCommandBus } from '../../helpers/newsletter-command-bus.js';
 import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
 import { NewsletterOptInService } from '../../../../packages/modules/newsletter/src/backend/services/opt-in.service.js';
 import { NewsletterSubscriberService } from '../../../../packages/modules/newsletter/src/backend/services/subscriber.service.js';
@@ -47,6 +48,7 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
       customerAccounts: customerAccountPortsFor(() => db.em()).read,
       links: { confirm: (t) => `c?${t}`, unsubscribe: (t) => `u?${t}` },
       emitEvent: (name, payload) => events.push({ name, payload }),
+      commandBus: newsletterTestCommandBus(() => db.em()),
     };
     service = new NewsletterSubscriberService(deps);
     audience = new NewsletterAudienceResolver(() => db.em());
@@ -95,13 +97,19 @@ describe('newsletter suppression + events (US3/US6 edge cases)', () => {
   });
   it('a suppression with no subscriber is audited under the suppression row, never the address (#470)', async () => {
     const recorded: RecordAuditInput[] = [];
-    // `suppress` only ever calls `record`; the rest of the port is never reached.
+    // Issue #1381 — the write is a Command, so the bus records the entry
+    // through `recordWithin`, inside the write's transaction; the rest of the
+    // port is never reached.
     const auditLog = {
-      record: async (entry: RecordAuditInput) => {
+      recordWithin: (_em: unknown, entry: RecordAuditInput) => {
         recorded.push(entry);
+        return {};
       },
     } as unknown as AuditPort;
-    const audited = new NewsletterSubscriberService({ ...deps, auditLog });
+    const audited = new NewsletterSubscriberService({
+      ...deps,
+      commandBus: newsletterTestCommandBus(() => db.em(), auditLog),
+    });
 
     await audited.suppress('S470-Nobody@X.test', 'bounce');
 

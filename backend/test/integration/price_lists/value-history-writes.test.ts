@@ -124,7 +124,11 @@ describe('price_lists — every value-changing Command writes the book’s price
       action: 'price_list.create',
       actor_kind: 'admin',
       header_before: null,
-      header_after: { name: 'S470-HISTORY-CREATE', priority: 3, audience: { memberIds: [f.orgs.Acme.id, f.orgs.Beta.id].sort() } },
+      header_after: {
+        name: 'S470-HISTORY-CREATE',
+        priority: 3,
+        audience: { kind: 'organizations', memberIds: [f.orgs.Acme.id, f.orgs.Beta.id].sort() },
+      },
       line_count: 0,
     });
     expect(changes[0]!.actor_admin_user_id).not.toBeNull();
@@ -251,8 +255,8 @@ describe('price_lists — every value-changing Command writes the book’s price
     );
     expect(members.changes).toHaveLength(1);
     expect(members.changes[0]).toMatchObject({
-      header_before: { audience: { memberIds: [f.orgs.Acme.id] } },
-      header_after: { audience: { memberIds: [f.orgs.Acme.id, f.orgs.Beta.id].sort() } },
+      header_before: { audience: { kind: 'organizations', memberIds: [f.orgs.Acme.id] } },
+      header_after: { audience: { kind: 'organizations', memberIds: [f.orgs.Acme.id, f.orgs.Beta.id].sort() } },
     });
 
     for (const [label, run] of [
@@ -269,6 +273,35 @@ describe('price_lists — every value-changing Command writes the book’s price
       expect(done.changes, label).toEqual([]);
       expect(done.entries[0]!.stateAfter, label).not.toHaveProperty('valueChangeId');
     }
+  });
+
+  // #470 stage 3, ruling 7 (amends stage 2): the audience is recorded with its
+  // kind, and a kind change on a never-activated book is a value change even
+  // when the member set stays empty.
+  it('header: an audience kind change alone writes the audience, kind included', async () => {
+    const created = await api.post<{ data: PriceBook }>(B, {
+      name: 'S470-HISTORY-KIND',
+      type: 'regular',
+      currencyCode: 'PLN',
+      channelIds: [f.channels.CH1.id],
+      audience: { kind: 'customer_groups', memberIds: [] },
+    });
+    expect(created.status, created.raw).toBe(201);
+    const book = created.body.data;
+    ownBooks.push(book.id);
+    expect((await changesOf(book.id))[0]!.header_after).toMatchObject({ audience: { kind: 'customer_groups', memberIds: [] } });
+
+    const kind = await step(book.id, async () =>
+      api.patch(`${B}/${book.id}`, { audience: { kind: 'organizations', memberIds: [] }, expectedVersion: await version(book.id) }),
+    );
+    expect(kind.changes).toHaveLength(1);
+    expect(kind.changes[0]).toMatchObject({
+      action: 'price_list.update',
+      header_before: { audience: { kind: 'customer_groups', memberIds: [] } },
+      header_after: { audience: { kind: 'organizations', memberIds: [] } },
+      line_count: 0,
+    });
+    expect(kind.entries[0]!.stateAfter).toMatchObject({ valueChangeId: kind.changes[0]!.id });
   });
 
   it('duplicate: one history row on the copy with its header and multiplier, and every copied row as an added line', async () => {
@@ -294,7 +327,7 @@ describe('price_lists — every value-changing Command writes the book’s price
     expect(changes[0]).toMatchObject({
       action: 'price_list.duplicate',
       header_before: null,
-      header_after: { name: 'S470-HISTORY-COPY', priority: 3, audience: { memberIds: [] }, amountMultiplier: '1.5' },
+      header_after: { name: 'S470-HISTORY-COPY', priority: 3, audience: { kind: 'everyone', memberIds: [] }, amountMultiplier: '1.5' },
       line_count: 2,
     });
     const [entry] = await audits(copy.body.data.id);

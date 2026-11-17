@@ -95,7 +95,7 @@ const CUSTOMER = {
   customFieldValues: {},
 };
 
-function renderDetail(preferredLanguage: string | null): void {
+function renderDetail(preferredLanguage: string | null, language: 'en' | 'pl' = 'en'): void {
   getSpy.mockImplementation((path: string) => {
     if (path === `/api/v1/admin/customers/${CUSTOMER_ID}`) {
       return Promise.resolve({ data: { ...CUSTOMER, preferredLanguage } });
@@ -119,6 +119,7 @@ function renderDetail(preferredLanguage: string | null): void {
       },
     ),
     bundle,
+    { language },
   );
 }
 
@@ -133,8 +134,34 @@ describe('CustomerDetail — the e-mail language row (#652)', () => {
 
     const term = await screen.findByText(CUSTOMERS_EN['detail.field.emailLanguage'] as string);
     expect(term.tagName).toBe('DT');
-    expect(term.nextElementSibling?.textContent).toBe('pl-PL');
     expect(term.nextElementSibling?.querySelector('input, select, button')).toBeNull();
+  });
+
+  // Issue #1328 — the row named the language by its raw tag (`en-US`). It names it in the
+  // admin's language now, and keeps the tag beside it as secondary text.
+  it('names the language in the admin language, with the tag as secondary text', async () => {
+    renderDetail('en-US');
+
+    const term = await screen.findByText(CUSTOMERS_EN['detail.field.emailLanguage'] as string);
+    const value = term.nextElementSibling as HTMLElement;
+    expect(value.querySelector('[data-language-name]')?.textContent).toBe('English (US)');
+    expect(value.querySelector('[data-language-tag]')?.textContent).toBe('en-US');
+  });
+
+  it('names the language in Polish for a Polish-speaking operator', async () => {
+    renderDetail('en-US', 'pl');
+
+    const term = await screen.findByText(CUSTOMERS_EN['detail.field.emailLanguage'] as string);
+    const value = term.nextElementSibling as HTMLElement;
+    expect(value.querySelector('[data-language-name]')?.textContent).toBe('Angielski (USA)');
+    expect(value.querySelector('[data-language-tag]')?.textContent).toBe('en-US');
+  });
+
+  it('shows a tag no language name is known for as the tag alone', async () => {
+    renderDetail('xx-YY');
+
+    const term = await screen.findByText(CUSTOMERS_EN['detail.field.emailLanguage'] as string);
+    expect(term.nextElementSibling?.textContent).toBe('xx-YY');
   });
 
   it('says the store default is used when none is known', async () => {

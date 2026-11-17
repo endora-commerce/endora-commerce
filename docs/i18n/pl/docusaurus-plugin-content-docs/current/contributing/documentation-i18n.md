@@ -31,6 +31,11 @@ przypięcia tłumaczenia oraz gotowego pliku markdown:
 Ścieżki wymienione w `docs/translation-skip.json` są pomijane (dziś jest to
 `docs/docs/contributing/translations.md`, czyli słownik tłumaczeń panelu administracyjnego).
 
+Warstwa stron pisanych ręcznie obejmuje też strony, które witryna utrzymuje sama w
+`docs/docs/modules/`, takie jak `README.md` i `lifecycle.md`. Strony modułów, które
+`composer:generate` kopiuje do tego katalogu, nie są tam źródłami: każda jest sprawdzana
+raz, pod ścieżką własnego modułu.
+
 Elementy stałe witryny — pasek nawigacji, stopkę i etykiety **kategorii** paska bocznego
 zadeklarowane w `docs/sidebars.js` i `docs/sidebars.modules.generated.js` — tłumaczy się w
 plikach, z których Docusaurus je odczytuje, a tym plikiem **nie jest** `code.json`. Zasadę opisuje

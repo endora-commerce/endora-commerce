@@ -114,6 +114,11 @@ const INVOICE_STATUS_VARIANT: Record<InvoiceRow['status'], BadgeProps['variant']
   cancelled: 'outline',
 };
 
+/** The admin PDF of one document — rendered from its invoice template. */
+function invoicePdfHref(invoiceId: string): string {
+  return `${apiBaseUrl}/api/v1/admin/invoices/${invoiceId}/pdf`;
+}
+
 function money(amount: number, currency: string): string {
   return formatMoney(amount, currency);
 }
@@ -121,9 +126,11 @@ function money(amount: number, currency: string): string {
 /**
  * Payment tab — the order's payment attempts
  * (`GET /api/v1/admin/orders/:id/payments`) plus the invoices generated for it
- * (`GET /api/v1/admin/invoices?filter[orderId]=…`). The PDF download reuses the
- * order invoice endpoint already linked from the page header; it serves the
- * most recent ready invoice, so the link is offered only for ready invoices.
+ * (`GET /api/v1/admin/invoices?filter[orderId]=…`). Each ready row links to
+ * its own document's admin PDF, `GET /api/v1/admin/invoices/:id/pdf`. The
+ * buyer's `GET /api/v1/orders/:id/invoice` is customer-only and serves one
+ * document per order, so it answered an operator with an auth failure and could
+ * not name the row (issue #1341).
  *
  * ## It is this module's surface on `orders`' screen now (feature 091, P7d)
  *
@@ -187,8 +194,6 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps): ReactNode {
       alive = false;
     };
   }, [props.orderId]);
-
-  const invoiceHref = `${apiBaseUrl}/api/v1/orders/${props.orderId}/invoice`;
 
   if (loading) {
     return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
@@ -264,7 +269,7 @@ export function OrderPaymentsTab(props: OrderPaymentsTabProps): ReactNode {
                   <TableCell className="text-right">
                     {inv.pdfReady ? (
                       <Button asChild variant="outline" size="sm" className="bg-card">
-                        <a href={invoiceHref} target="_blank" rel="noreferrer">
+                        <a href={invoicePdfHref(inv.id)} target="_blank" rel="noreferrer">
                           <FileDown />
                           {t('orderDetail.invoices.download')}
                         </a>

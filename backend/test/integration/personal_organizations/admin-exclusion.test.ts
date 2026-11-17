@@ -70,9 +70,11 @@ describe('Personal orgs excluded from B2B admin surfaces (feature 051 US3)', () 
     await em.persistAndFlush(rep);
 
     const svc = new SalesRepAssignmentService(h.em);
-    await expect(svc.assign({ organizationId: personalId, adminUserId: rep.id })).rejects.toThrow(
-      /personal/i,
-    );
+    await expect(svc.assign({ organizationId: personalId, adminUserId: rep.id })).rejects.toMatchObject({
+      statusCode: 422,
+      code: 'ORGANIZATION_PERSONAL',
+      details: { code: 'sales_rep', organizationId: personalId },
+    });
     // company org is fine
     await expect(svc.assign({ organizationId: companyId, adminUserId: rep.id })).resolves.toBeTruthy();
     void OrganizationSalesRepAssignment;
@@ -91,6 +93,11 @@ describe('Personal orgs excluded from B2B admin surfaces (feature 051 US3)', () 
       },
     });
     expect(res.statusCode).toBe(422);
+    // Issue #629 (#86) — the organization's own refusal, the token naming the action.
+    expect((res.json() as { error: { code: string; details?: { code?: string } } }).error).toMatchObject({
+      code: 'ORGANIZATION_PERSONAL',
+      details: { code: 'add_member', organizationId: personalId },
+    });
     // company org accepts a direct member
     const ok = await h.app.inject({
       method: 'POST',

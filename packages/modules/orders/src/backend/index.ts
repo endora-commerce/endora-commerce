@@ -9,7 +9,6 @@ import type {
   AddressServicePort,
   AdminRolePort,
   AdminUserReadPort,
-  AssetReadPort,
   CartReadPort,
   CartWritePort,
   CatalogProductAvailabilityPort,
@@ -629,7 +628,6 @@ export function registerModule(ctx: ModuleContext): void {
             // for the same reason: the registration below is a singleton and a
             // gate may not be frozen inside one.
             orderTransitionPort: lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
-            assetRead: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
             invoiceRead: () =>
               effectiveState.isPresent('invoices')
                 ? lazyPort<InvoiceReadPort>(ctx, 'invoiceReadPort')

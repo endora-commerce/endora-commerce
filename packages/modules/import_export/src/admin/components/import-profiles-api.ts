@@ -40,6 +40,8 @@ export async function deleteProfile(id: string): Promise<void> {
 export interface ChannelLanguageTarget {
   channelId: string;
   channelCode: string;
+  /** The channel's per-language name (issue #718); may be empty in every language. */
+  channelName: Readonly<Record<string, string>>;
   languageCode: string;
 }
 
@@ -50,6 +52,7 @@ export async function listChannelLanguageTargets(): Promise<ChannelLanguageTarge
     channel.languages.map((languageCode) => ({
       channelId: channel.id,
       channelCode: channel.code,
+      channelName: channel.name,
       languageCode,
     })),
   );

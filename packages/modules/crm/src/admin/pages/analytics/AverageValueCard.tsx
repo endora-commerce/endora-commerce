@@ -1,12 +1,11 @@
 import { useMemo, type ReactNode } from 'react';
 import type { OpportunityAverageValueRow } from '@endora-commerce/contracts';
+import { FigureCard, useFigure } from '@endora-commerce/admin-kit/components';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmAnalyticsApi, type AnalyticsAnswer, type AnalyticsFilters } from '../../analytics-api.js';
 import { moneyLabel } from '../../lib/labels.js';
 import { useReportedTimeZone } from '../../lib/reporting-time-zone.js';
-import { useFigure } from '../../lib/use-figure.js';
-import { FigureCard } from './FigureCard.js';
 
 /**
  * Average Opportunity value — one line per currency. There is no figure for
@@ -22,6 +21,7 @@ export function AverageValueCard({ filters }: { filters: AnalyticsFilters | null
 
   return (
     <FigureCard
+      errorFallback={t('analytics.error.load')}
       title={t('analytics.value.title')}
       description={t('analytics.value.description')}
       figure={figure}

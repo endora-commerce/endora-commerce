@@ -368,7 +368,14 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.di.providePort<InvoicePdfPort>(
     'invoicePdfPort',
-    ctx.asFunction(() => createInvoicePdfPort()).singleton(),
+    ctx
+      .asFunction(({ invoices }: InvoicesCradle) =>
+        createInvoicePdfPort({
+          invoiceService: invoices.handle.invoiceService,
+          documents: lazyPort<DocumentRenderPort>(ctx, 'documentRenderPort'),
+        }),
+      )
+      .singleton(),
   );
 
   /**

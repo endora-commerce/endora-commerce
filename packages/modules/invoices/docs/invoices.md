@@ -26,7 +26,7 @@ and downloading, `invoices:write` for issuing, regenerating and e-mailing.
 | `GET /api/v1/orders/:id/invoices` | customer | The ready invoices of an order the customer may see |
 | `GET /api/v1/orders/:id/invoices/:invoiceId/pdf` | customer | Download one of them; `404 NOT_FOUND` until it is `ready` |
 | `GET /api/v1/account/organization/invoices` | customer | The Organization's ERP-imported sale documents, with their attachments |
-| `GET /api/v1/orders/:id/invoice` | customer | Older single-invoice download, registered by `orders`: `404 INVOICE_NOT_READY` until the order's invoice is `ready`, then a minimal PDF (number and total), not the template layout. Use `…/invoices/:invoiceId/pdf` |
+| `GET /api/v1/orders/:id/invoice` | customer | Single-invoice download, registered by `orders`: the order's newest `ready` document of kind `invoice`, rendered from the invoice template. A proforma or a correction is never served here, so `404 INVOICE_NOT_READY` until an invoice is `ready`. Every other document is at `…/invoices/:invoiceId/pdf` |
 
 ## Generation flow
 

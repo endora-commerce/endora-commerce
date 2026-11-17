@@ -17,9 +17,15 @@ import { Migration } from '@mikro-orm/migrations';
  * `recomputed_unit_price` / `recomputed_at` / `recomputed_currency` cache
  * the most recent re-resolved price (per feature 011's PricingService).
  *
- * `organizations` gains `requires_cart_approval` — the per-Organization
- * policy flag that gates checkout behind an Organization Administrator's
- * approval. Default false preserves the prior behaviour.
+ * It also added `organizations.requires_cart_approval` — the per-Organization
+ * policy flag that gated checkout behind an Organization Administrator's
+ * approval — until issue #611. The column is `organizations`', and that
+ * module had already retired it: its
+ * `Migration20261104T094535OrganizationsDropLegacyRoleColumns` drops it in
+ * `up()` and re-creates it, with this statement's definition, in `down()`. So
+ * the statement and its inverse were deleted rather than moved, and a fresh
+ * database never has the column. This class keeps its name, so a database
+ * that has applied it is not offered it again, and its schema is unchanged.
  *
  * Introduces one new table:
  *   - cart_audit_entries — typed per-cart audit feed for the cart-detail
@@ -161,11 +167,7 @@ export class Migration20260611T140352CartsConsolidation extends Migration {
         add column "recomputed_currency" varchar(3) null;
     `);
 
-    // 9) New column on `organizations` — per-org cart-approval policy.
-    this.addSql(`
-      alter table "organizations"
-        add column "requires_cart_approval" boolean not null default false;
-    `);
+    // 9) Removed by issue #611 — see the class comment.
 
     // 10) Cart audit feed.
     this.addSql(`
@@ -194,14 +196,11 @@ export class Migration20260611T140352CartsConsolidation extends Migration {
   }
 
   override async down(): Promise<void> {
-    // Mirror order: drop the cart audit feed first, then the organization
-    // column, then cart_items columns, then re-instate the foundation
-    // partial unique index, then drop the new carts columns / constraints
-    // / indexes.
+    // Mirror order: drop the cart audit feed first, then the cart_items
+    // columns, then re-instate the foundation partial unique index, then
+    // drop the new carts columns / constraints / indexes.
     this.addSql(`drop index if exists "cart_audit_entries_cart_occurred_idx";`);
     this.addSql(`drop table if exists "cart_audit_entries" cascade;`);
-
-    this.addSql(`alter table "organizations" drop column if exists "requires_cart_approval";`);
 
     this.addSql(`
       alter table "cart_items"

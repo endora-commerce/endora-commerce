@@ -15,7 +15,8 @@ import type { CommandActor } from '@endora-commerce/platform/commands';
  * commit or roll back together.
  *
  * `headerBefore` / `headerAfter` hold only the header values the Command
- * changed — `name`, `priority`, `audience.memberIds`, and on a duplicate the
+ * changed — `name`, `priority`, `audience` as `{ kind, memberIds }` (members
+ * sorted; the kind since #470 stage 3, ruling 7), and on a duplicate the
  * `amountMultiplier` — and are `null` when it changed none. The actor is kept
  * here so the history answers "who" without a join into the audit log, which is
  * read under another permission and holds no index on its state.

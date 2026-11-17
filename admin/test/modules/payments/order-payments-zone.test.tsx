@@ -138,6 +138,37 @@ describe('payments contributes the order detail payment zone', () => {
     expect(getSpy).toHaveBeenCalledWith(`/api/v1/admin/invoices?filter[orderId]=${ORDER_ID}`);
   });
 
+  it('links a ready invoice to the admin PDF route, not the buyer route (issue #1341)', async () => {
+    const INVOICE_ID = '00000000-0000-4000-8000-0000000000f2';
+    getSpy.mockImplementation(async (url: string) => {
+      if (url.startsWith(`/api/v1/admin/orders/${ORDER_ID}/payments`)) return { data: [] };
+      if (url.startsWith('/api/v1/admin/invoices')) {
+        return {
+          data: [
+            {
+              id: INVOICE_ID,
+              kind: 'invoice',
+              number: 'FV 1/2026',
+              issuedAt: '2026-11-17T10:00:00.000Z',
+              currency: 'PLN',
+              total: 123,
+              status: 'ready',
+              pdfReady: true,
+            },
+          ],
+        };
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+    const container = renderZone({});
+    await waitFor(() => expect(container.querySelector('a[href]')).not.toBeNull());
+    const href = container.querySelector('a[href]')?.getAttribute('href') ?? '';
+    // The operator's session is an admin one: the customer-only
+    // `/api/v1/orders/:id/invoice` refuses it, and it may not be this row.
+    expect(href.endsWith(`/api/v1/admin/invoices/${INVOICE_ID}/pdf`)).toBe(true);
+    expect(href).not.toContain(`/api/v1/orders/${ORDER_ID}/invoice`);
+  });
+
   it('renders nothing while the module is switched off, and fetches no chunk', async () => {
     const container = renderZone({ present: [] });
     await waitFor(() => expect(container.textContent).toBe(''));

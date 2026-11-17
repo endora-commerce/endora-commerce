@@ -23,7 +23,7 @@
  * structural comparison, which a second React context would pass.
  */
 export { resolveIcon } from './admin-actions/icon-map.js';
-export { ApiError, apiBaseUrl, apiClient, onUnauthorized, postMultipart } from './api-client.js';
+export { ApiError, apiBaseUrl, apiClient, onUnauthorized, postMultipart, storefrontBaseUrl } from './api-client.js';
 export { toAbsoluteAssetUrl } from './asset-url.js';
 export { AuthProvider, useAuth } from './auth.js';
 export {
@@ -34,6 +34,8 @@ export {
 export type { AdminPreferencesStatus, SidebarPreferenceKey } from './admin-preferences/use-admin-preference.js';
 export type { AdminMe, AuthProviderProps, LoginErrorReason } from './auth.js';
 export { formatDateTime } from './format.js';
+export { RANGE_PRESETS, isDayRange, presetRange } from './range-presets.js';
+export type { DayRange, RangePreset } from './range-presets.js';
 export { formatMoney, localeForCurrency, type FormatMoneyOptions } from './money.js';
 export { invoiceEmailNotSentReason, issueInvoiceNotice, sendInvoiceEmailMessage } from './invoice-email-outcome.js';
 export type { Translate } from './invoice-email-outcome.js';

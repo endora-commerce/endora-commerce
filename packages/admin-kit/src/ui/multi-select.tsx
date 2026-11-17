@@ -7,6 +7,8 @@ import { normalize } from '../lib/text-normalization.js';
 export interface MultiSelectOption {
   value: string;
   label: string;
+  /** Optional secondary text shown muted after the label (e.g. a code beside a name). */
+  description?: string;
 }
 
 export interface MultiSelectProps {
@@ -160,6 +162,9 @@ export function MultiSelect({
                     onChange={(): void => toggle(opt.value)}
                   />
                   <span className="flex-1 truncate">{opt.label}</span>
+                  {opt.description ? (
+                    <span className="shrink-0 text-xs text-muted-foreground">{opt.description}</span>
+                  ) : null}
                   {checked ? <Check className="size-3.5 opacity-70" /> : null}
                 </label>
               );

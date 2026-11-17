@@ -7,6 +7,7 @@ import type { Redis } from 'ioredis';
 import type { FastifyRequest } from 'fastify';
 import type { CmsBlockSeedPort, CustomerAccountReadPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort, resolvePublicApiBaseUrl } from '@endora-commerce/platform/kernel';
@@ -82,6 +83,7 @@ import { NewsletterTag } from './entities/newsletter-tag.entity.js';
 export interface NewsletterCradle {
   readonly emFactory: () => EntityManager;
   readonly auditLogService: AuditPort;
+  readonly commandBus: CommandBus;
   readonly requireAdmin: RequireAdminFactory;
   readonly requireCustomer: NonNullable<NewsletterModuleOptions['requireCustomer']>;
   readonly settingsReadPort: NonNullable<NewsletterModuleOptions['settings']>;
@@ -126,6 +128,7 @@ export function registerModule(ctx: ModuleContext): void {
         ({
           emFactory,
           auditLogService,
+          commandBus,
           moduleQueueRedis,
           newsletterTokenSecret,
           storefrontBaseUrl,
@@ -135,6 +138,7 @@ export function registerModule(ctx: ModuleContext): void {
         return newsletterModule({
           emFactory,
           auditLog: auditLogService,
+          commandBus,
           settings: lazyPort<NonNullable<NewsletterModuleOptions['settings']>>(
             ctx,
             'settingsReadPort',

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { newsletterTestCommandBus } from '../../helpers/newsletter-command-bus.js';
 import { NewsletterTagService } from '../../../../packages/modules/newsletter/src/backend/services/tag.service.js';
 import { NewsletterCustomFieldService } from '../../../../packages/modules/newsletter/src/backend/services/custom-field.service.js';
 import { NewsletterSubscriberAdminService } from '../../../../packages/modules/newsletter/src/backend/services/subscriber-admin.service.js';
@@ -21,7 +22,7 @@ describe('newsletter subscriber admin (US3)', () => {
     await db.beginTx();
     tags = new NewsletterTagService(() => db.em());
     fields = new NewsletterCustomFieldService(() => db.em());
-    admin = new NewsletterSubscriberAdminService(() => db.em());
+    admin = new NewsletterSubscriberAdminService(() => db.em(), newsletterTestCommandBus(() => db.em()));
   });
   afterEach(async () => {
     await db.rollbackTx();

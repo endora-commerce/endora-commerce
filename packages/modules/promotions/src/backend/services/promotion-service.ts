@@ -13,7 +13,7 @@ import {
   type PromotionRule,
   isUuidShape,
 } from '@endora-commerce/contracts';
-import { linesSubtotal, percentOf, round2 } from '../actions/util.js';
+import { linesGross, linesSubtotal, percentOf, round2 } from '../actions/util.js';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort, SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -333,7 +333,11 @@ export class PromotionService {
     const em = this.emFactory();
     const now = new Date();
 
+    // The net subtotal — what a threshold, a minimum spend and a fixed amount's
+    // cap read — and the goods gross, what the buyer pays and what a percent-off
+    // or free-unit action computes on (issue #1350, owner ruling 2026-11-16).
     const subtotal = linesSubtotal(snapshot.lines);
+    const grossSubtotal = linesGross(snapshot.lines);
 
     const all = await em.find(Promotion, { isActive: true });
 
@@ -491,7 +495,10 @@ export class PromotionService {
       this.auditLogger.info('promotion_rule_attribute_skipped', info),
     );
 
+    // Every discount is a gross reduction (#926 D1): it comes off both running
+    // bases, and the gross is the cap — 100 % off frees the goods VAT included.
     let workingSubtotal = subtotal;
+    let workingGross = grossSubtotal;
     let workingDelivery = snapshot.deliveryTotal;
     let discountTotal = 0;
     const applied: PromotionApplication['appliedPromotions'] = [];
@@ -507,15 +514,17 @@ export class PromotionService {
         const applyCtx: CartApplyContext = {
           lines: hydratedSnapshot.lines,
           subtotal: workingSubtotal,
+          grossSubtotal: workingGross,
           deliveryTotal: workingDelivery,
           currency: snapshot.currency,
         };
         const result = this.actionRegistry.apply(action, applyCtx);
-        const subDelta = round2(Math.max(0, Math.min(result.discountSubtotalDelta, workingSubtotal)));
+        const subDelta = round2(Math.max(0, Math.min(result.discountSubtotalDelta, workingGross)));
         const delDelta = round2(Math.max(0, Math.min(result.discountDeliveryDelta, workingDelivery)));
         const amount = round2(subDelta + delDelta);
         if (amount <= 0) continue;
-        workingSubtotal = round2(workingSubtotal - subDelta);
+        workingSubtotal = Math.max(0, round2(workingSubtotal - subDelta));
+        workingGross = round2(workingGross - subDelta);
         workingDelivery = round2(workingDelivery - delDelta);
         discountTotal = round2(discountTotal + amount);
         applied.push({
@@ -530,12 +539,16 @@ export class PromotionService {
       }
 
       // Legacy kind/value promotion.
-      const lineBase = this.computeLineBase(hydratedSnapshot, promotion, attributeLookup);
+      // free_delivery reads no line; the others take the matching lines' exact sum (#417).
+      const matching =
+        promotion.kind === 'free_delivery' ? [] : this.matchingLines(hydratedSnapshot, promotion, attributeLookup);
+      const lineBase = promotion.kind === 'free_delivery' ? snapshot.deliveryTotal : linesSubtotal(matching);
       if (lineBase <= 0 && promotion.kind !== 'free_delivery') continue;
 
       let amount = 0;
       if (promotion.kind === 'percentage_off') {
-        amount = percentOf(lineBase, promotion.value ?? 0);
+        // Of what the buyer pays for the matching lines (issue #1350).
+        amount = percentOf(linesGross(matching), promotion.value ?? 0);
       } else if (promotion.kind === 'amount_off') {
         if (promotion.currency && promotion.currency !== snapshot.currency) continue;
         amount = round2(Math.min(Number(promotion.value), lineBase));
@@ -547,6 +560,7 @@ export class PromotionService {
 
       if (promotion.kind !== 'free_delivery') {
         workingSubtotal = Math.max(0, round2(workingSubtotal - amount));
+        workingGross = Math.max(0, round2(workingGross - amount));
       }
       discountTotal = round2(discountTotal + amount);
       applied.push({
@@ -559,7 +573,8 @@ export class PromotionService {
       if (promotion.stopFurther) break;
     }
 
-    const total = round2(workingSubtotal + workingDelivery);
+    // What the buyer still pays: the goods gross left plus the delivery left.
+    const total = round2(workingGross + workingDelivery);
     return {
       subtotal,
       discountTotal,
@@ -685,14 +700,12 @@ export class PromotionService {
     };
   }
 
-  private computeLineBase(
+  /** The lines a legacy promotion's product, category and criteria scope selects. */
+  private matchingLines(
     snapshot: CartSnapshot,
     p: Promotion,
     attributeLookup: PromotionRuleAttributeLookup,
-  ): number {
-    // free_delivery doesn't read line totals.
-    if (p.kind === 'free_delivery') return snapshot.deliveryTotal;
-
+  ): CartSnapshot['lines'] {
     const ctx: PromotionRuleEvaluationContext = {
       attributeLookup,
       promotionId: p.id,
@@ -705,14 +718,11 @@ export class PromotionService {
       },
     };
 
-    // The matching lines' exact sum (issue #417): a percentage is taken of it.
-    return linesSubtotal(
-      snapshot.lines.filter((line) => {
-        if (p.productId && line.productId !== p.productId) return false;
-        if (p.categoryId && !line.categoryIds.includes(p.categoryId)) return false;
-        return p.criteria.length === 0 || lineMatchesAllCriteria(p.criteria, line, ctx);
-      }),
-    );
+    return snapshot.lines.filter((line) => {
+      if (p.productId && line.productId !== p.productId) return false;
+      if (p.categoryId && !line.categoryIds.includes(p.categoryId)) return false;
+      return p.criteria.length === 0 || lineMatchesAllCriteria(p.criteria, line, ctx);
+    });
   }
 }
 

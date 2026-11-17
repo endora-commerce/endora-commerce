@@ -1,15 +1,12 @@
 import { useMemo, type ReactNode } from 'react';
 import type { OpportunityCurrencyTotal, OpportunityRepEffectivenessRow } from '@endora-commerce/contracts';
-import { EChart, type EChartProps } from '@endora-commerce/admin-kit/components';
+import { EChart, type EChartProps, FigureCard, prefersReducedMotion, useChartColors, useFigure } from '@endora-commerce/admin-kit/components';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmAnalyticsApi, type AnalyticsAnswer, type AnalyticsFilters } from '../../analytics-api.js';
 import { monthLabel } from '../../lib/analytics-format.js';
 import { NO_VALUE, moneyLabel } from '../../lib/labels.js';
-import { prefersReducedMotion, useChartColors } from '../../lib/use-chart-colors.js';
 import { useReportedTimeZone } from '../../lib/reporting-time-zone.js';
-import { useFigure } from '../../lib/use-figure.js';
-import { FigureCard } from './FigureCard.js';
 
 interface RepRanking {
   id: string;
@@ -120,6 +117,7 @@ export function RepEffectivenessCard({ filters }: { filters: AnalyticsFilters | 
 
   return (
     <FigureCard
+      errorFallback={t('analytics.error.load')}
       title={t('analytics.reps.title')}
       description={t('analytics.reps.description')}
       figure={figure}

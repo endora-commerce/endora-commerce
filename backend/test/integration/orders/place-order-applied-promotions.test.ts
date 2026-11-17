@@ -1,4 +1,5 @@
 import { Cart } from '../../helpers/package-entities.js';
+import { decimalSum, percentOfHalfUp } from '@endora-commerce/contracts';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -89,8 +90,11 @@ describe('placeOrder — automatic promotion carried to order (feature 045)', ()
       },
     );
 
-    const subtotal = Number(order.subtotal);
-    const expectedDiscount = Math.round(subtotal * 0.1 * 100) / 100;
+    // Issue #1350 — 10 % of what the buyer pays for the goods: the gross,
+    // net plus the VAT per rate on the nets, not 10 % of the net.
+    const goodsGross = decimalSum(order.subtotal, order.taxTotal);
+    expect(Number(order.taxTotal)).toBeGreaterThan(0);
+    const expectedDiscount = Number(percentOfHalfUp(goodsGross, 10));
     expect(expectedDiscount).toBeGreaterThan(0);
     expect(Number(order.discountTotal)).toBeCloseTo(expectedDiscount, 2);
 
