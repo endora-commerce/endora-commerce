@@ -3,7 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { Data } from '@puckeditor/core';
 import type { BlogCategoryDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup } from '@endora-commerce/admin-kit/ui';
-import { AssetFieldPicker, ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { AssetFieldPicker, ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { PageBuilderEditor } from '@endora-commerce/mod-cms/admin-ui';
 import {
@@ -35,6 +36,21 @@ function savedFields(category: BlogCategoryDetail, language: string): LanguageFi
     metaDescription: pickValue(category.metaDescription, language),
     metaKeywords: pickValue(category.metaKeywords, language),
   };
+}
+
+/** The whole form as `category` was last saved, in `language` (issue #1461: what `dirty` compares against). */
+function savedForm(category: BlogCategoryDetail, language: string): FormState {
+  return {
+    slug: category.slug,
+    enabled: category.enabled,
+    mainImageAssetId: category.mainImageAssetId ?? '',
+    ...savedFields(category, language),
+  };
+}
+
+/** Same channels and languages, in any order. */
+function sameMembers(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value) => b.includes(value));
 }
 
 function languageFieldsOf(form: FormState): LanguageFields {
@@ -109,12 +125,7 @@ export function BlogCategoryEditor(): ReactNode {
   const reloadFormFromCategory = useCallback(
     (loaded: BlogCategoryDetail, language: string | null) => {
       const lang = language ?? loaded.languages[0] ?? 'en-US';
-      setForm({
-        slug: loaded.slug,
-        enabled: loaded.enabled,
-        mainImageAssetId: loaded.mainImageAssetId ?? '',
-        ...savedFields(loaded, lang),
-      });
+      setForm(savedForm(loaded, lang));
       setParentId(loaded.parentId);
       setStash({});
     },
@@ -198,14 +209,11 @@ export function BlogCategoryEditor(): ReactNode {
     [settingsPanel],
   );
 
-  const create = async (): Promise<void> => {
+  const create = async (): Promise<boolean> => {
     setInfo(null);
     const found = blogEditorProblem({ ...form, ...scope });
     setProblem(found);
-    if (found) {
-      refuse(t(found));
-      return;
-    }
+    if (found) return refuse(t(found));
     setSaving(true);
     setError(null);
     const lang = activeLanguage ?? 'en-US';
@@ -223,8 +231,9 @@ export function BlogCategoryEditor(): ReactNode {
         ...(form.metaKeywords ? { metaKeywords: { [lang]: form.metaKeywords } } : {}),
       });
       navigate(`/blog/categories/${created.id}`);
+      return true;
     } catch (err) {
-      refuse(err instanceof Error ? err.message : String(err));
+      return refuse(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -303,9 +312,46 @@ export function BlogCategoryEditor(): ReactNode {
   const ready =
     !isNew && category !== null && activeLanguage !== null && draftDescription !== null;
 
+  /**
+   * Issue #1461 (CONTENT-02) — the draft against the last saved version: the
+   * language on screen (fields and description), every stashed language and
+   * the scope. A new category is dirty once anything was typed into it.
+   */
+  const dirty = ((): boolean => {
+    if (!category) {
+      return isNew && (!isDraftEqual(form, blankForm) || scope.salesChannelIds.length > 0);
+    }
+    const lang = activeLanguage ?? category.languages[0] ?? 'en-US';
+    if (!isDraftEqual(form, savedForm(category, lang))) return true;
+    if (!sameMembers(scope.salesChannelIds, category.salesChannelIds) || !sameMembers(scope.languages, category.languages)) return true;
+    if (descriptionDirty && draftDescription && !isDraftEqual(draftDescription, descriptionFor(category, lang))) return true;
+    return Object.entries(stash).some(
+      ([language, kept]) =>
+        (kept.fields !== undefined && !isDraftEqual(kept.fields, savedFields(category, language))) ||
+        (kept.description !== undefined && !isDraftEqual(kept.description, descriptionFor(category, language))),
+    );
+  })();
+
+  const discard = (): void => {
+    if (!category) {
+      setForm(blankForm);
+      setScope({ salesChannelIds: [], languages: ['en-US'] });
+      return;
+    }
+    const lang = activeLanguage ?? category.languages[0] ?? 'en-US';
+    setForm(savedForm(category, lang));
+    setScope({ salesChannelIds: category.salesChannelIds, languages: category.languages });
+    setStash({});
+    setDraftDescription(descriptionFor(category, lang));
+    setDescriptionDirty(false);
+  };
+
   return (
     <PageBuilderEditorLayout
       settingsPanel={settingsPanel}
+      dirty={dirty}
+      onSave={isNew ? create : save}
+      onDiscard={discard}
       header={
         <>
           <PageHeader
@@ -320,7 +366,8 @@ export function BlogCategoryEditor(): ReactNode {
                   : t('categoryEditor.description.default')
             }
             actions={
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <UnsavedChangesHint dirty={dirty} />
                 <Button asChild variant="outline">
                   <Link to="/blog/categories">{t('categoryEditor.backToTree')}</Link>
                 </Button>

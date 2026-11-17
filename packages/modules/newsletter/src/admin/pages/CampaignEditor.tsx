@@ -8,7 +8,8 @@ import type {
   NewsletterTag,
   SubscriberSummary,
 } from '@endora-commerce/contracts';
-import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { isDraftEqual, useAuth } from '@endora-commerce/admin-kit/lib';
+import { UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import {
   EmailEditorPane,
@@ -22,6 +23,37 @@ import { newsletterVariables } from '../email-variables.js';
 import { newsletterClient } from '../api/newsletter-client.js';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
+
+/** What a save sends, from the editor's fields (issue #1461: what `dirty` compares). */
+interface CampaignDraft {
+  name: string;
+  language: string;
+  subject: string;
+  content: Data;
+  targetType: CampaignTargetType;
+  targetTagIds: string[];
+}
+
+const blankDraft: CampaignDraft = {
+  name: '',
+  language: 'en-US',
+  subject: '',
+  content: emptyData,
+  targetType: 'all',
+  targetTagIds: [],
+};
+
+function draftOf(campaign: CampaignDetail | null): CampaignDraft {
+  if (!campaign) return blankDraft;
+  return {
+    name: campaign.name,
+    language: campaign.language,
+    subject: campaign.subject,
+    content: asData(campaign.content),
+    targetType: campaign.targetType,
+    targetTagIds: campaign.targetTagIds,
+  };
+}
 
 function asData(content: Record<string, unknown> | undefined): Data {
   if (!content || typeof content !== 'object') return emptyData;
@@ -95,6 +127,7 @@ export function CampaignEditor(): React.ReactElement {
         saved = await newsletterClient.setCampaignGroup(saved.id, targetSubscriberIds);
       }
       setCampaign(saved);
+      setGroupTouched(false);
       setNotice('Saved.');
       if (isNew) navigate(`/newsletter/campaigns/${saved.id}`, { replace: true });
       return saved;
@@ -127,6 +160,24 @@ export function CampaignEditor(): React.ReactElement {
     }
   }
 
+  // Issue #1461 (CONTENT-02) — the fields and canvas against the last saved campaign.
+  const current: CampaignDraft = { name, language, subject, content, targetType, targetTagIds };
+  const dirty = (isNew || campaign !== null) && (groupTouched || !isDraftEqual(current, draftOf(campaign)));
+  const unsavedGuard = useUnsavedChangesGuard({
+    dirty,
+    onSave: canWrite ? async () => (await save()) !== null : undefined,
+    onDiscard: () => {
+      const saved = draftOf(campaign);
+      setName(saved.name);
+      setLanguage(saved.language);
+      setSubject(saved.subject);
+      setContent(saved.content);
+      setTargetType(saved.targetType);
+      setTargetTagIds(saved.targetTagIds);
+      setGroupTouched(false);
+    },
+  });
+
   if (!hasPermission('newsletter:read')) {
     return (
       <Alert>
@@ -145,6 +196,7 @@ export function CampaignEditor(): React.ReactElement {
         actions={
           canWrite ? (
             <>
+              <UnsavedChangesHint dirty={dirty} />
               {!isNew ? (
                 <Link to={`/newsletter/campaigns/${id}/stats`}>
                   <Button variant="outline">Stats</Button>
@@ -312,6 +364,7 @@ export function CampaignEditor(): React.ReactElement {
           </CardContent>
         </Card>
       ) : null}
+      {unsavedGuard.dialog}
     </div>
   );
 }

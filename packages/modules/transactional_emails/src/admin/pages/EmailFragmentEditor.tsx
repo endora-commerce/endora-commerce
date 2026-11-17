@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type { EmailBlockDetail, EmailTemplateDetail } from '@endora-commerce/contracts';
-import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { isDraftEqual, useAuth } from '@endora-commerce/admin-kit/lib';
+import { UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { Alert, AlertDescription, Label, PageHeader, SaveButtonGroup, Select } from '@endora-commerce/admin-kit/ui';
 import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
@@ -98,6 +99,15 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
     }
   };
 
+  // Issue #1461 (CONTENT-02) — the canvas against the language's saved content.
+  // A language switch replaces the canvas, so it asks first too.
+  const dirty = detail !== null && !isDraftEqual(content, (detail.content[language] as Data | undefined) ?? emptyData);
+  const unsavedGuard = useUnsavedChangesGuard({
+    dirty,
+    onSave: canWrite ? save : undefined,
+    onDiscard: () => setContent((detail?.content[language] as Data | undefined) ?? emptyData),
+  });
+
   if (!hasPermission('transactional_emails:read')) {
     return (
       <Alert>
@@ -115,15 +125,18 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
               title={detail?.name ?? id}
               description={kind === 'block' ? t('editor.blockContent') : t('editor.templateContent')}
               actions={
-                <SaveButtonGroup
-                  onSave={() => void save()}
-                  onSaveAndExit={() => void saveAndExit()}
-                  saving={busy}
-                  disabled={!canWrite}
-                  saveLabel={t('editor.save')}
-                  savingLabel={t('editor.save')}
-                  saveAndExitLabel={t('editor.saveAndExit')}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <UnsavedChangesHint dirty={dirty} />
+                  <SaveButtonGroup
+                    onSave={() => void save()}
+                    onSaveAndExit={() => void saveAndExit()}
+                    saving={busy}
+                    disabled={!canWrite}
+                    saveLabel={t('editor.save')}
+                    savingLabel={t('editor.save')}
+                    saveAndExitLabel={t('editor.saveAndExit')}
+                  />
+                </div>
               }
             />
             {error ? (
@@ -146,7 +159,14 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1">
               <Label htmlFor="frag-lang">{t('editor.language')}</Label>
-              <Select id="frag-lang" value={language} onChange={(e) => switchLanguage(e.target.value)}>
+              <Select
+                id="frag-lang"
+                value={language}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  unsavedGuard.confirm(() => switchLanguage(next));
+                }}
+              >
                 {(detail?.languages ?? []).map((l) => (
                   <option key={l} value={l}>
                     {l}
@@ -183,6 +203,7 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
           />
         }
       />
+      {unsavedGuard.dialog}
     </EmailVariablesProvider>
   );
 }

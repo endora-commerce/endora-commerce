@@ -20,11 +20,14 @@ import {
   CmsPagePicker,
   ContentLanguageTabs,
   ScopePicker,
+  UnsavedChangesHint,
   type ScopePickerValue,
 } from '@endora-commerce/admin-kit/components';
+import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
 import { PageBuilderEditor } from '../components/PageBuilderEditor.js';
 import {
   emptyPageBuilderData,
+  hasUnsavedCanvas,
   PageBuilderEditorLayout,
   usePageBuilderEditorSettingsPanel,
 } from '@endora-commerce/page-builder-admin';
@@ -33,7 +36,7 @@ import {
   loadCmsTemplateCanvas,
   saveCanvasAsCmsTemplate,
 } from '../components/cms-template-layout.js';
-import { resolveScopedContentLanguage } from '../components/scope-utils.js';
+import { isSameScope, resolveScopedContentLanguage } from '../components/scope-utils.js';
 import { cmsClient } from '../api/cms-client.js';
 
 /** One language's own name, slug and description (R24) — an empty field inherits the page's. */
@@ -193,6 +196,47 @@ function slugify(input: string): string {
   return slugifyText(input, { maxLength: 180 });
 }
 
+/** The form as the page was last saved (issue #1461: also what `dirty` compares against). */
+function formFor(loaded: CmsPageDetail | null): FormState {
+  if (!loaded) return blankForm;
+  return {
+    name: loaded.name,
+    slug: loaded.slug,
+    active: loaded.active,
+    description: loaded.description ?? '',
+    translations: Object.fromEntries(
+      Object.entries(loaded.translations ?? {}).map(([language, own]) => [
+        language,
+        { name: own.name ?? '', slug: own.slug ?? '', description: own.description ?? '' },
+      ]),
+    ),
+    meta: Object.fromEntries(
+      Object.entries(loaded.meta ?? {}).map(([language, own]) => [
+        language,
+        { title: own.title ?? '', description: own.description ?? '', keywords: own.keywords ?? '' },
+      ]),
+    ),
+    parentPageId: loaded.parentPageId ?? null,
+    parentPathInUrl: loaded.parentPathInUrl ?? false,
+    breadcrumbsVisible: loaded.breadcrumbsVisible ?? true,
+    breadcrumbsScheme: loaded.breadcrumbsScheme ?? 'light',
+    breadcrumbsOverlay: loaded.breadcrumbsOverlay ?? false,
+    shareImageAssetId: loaded.shareImageAssetId ?? null,
+  };
+}
+
+/**
+ * Issue #1461 (CONTENT-02) — the form as a save would send it: a language's
+ * fields cleared again are the same as never touched.
+ */
+function comparableForm(form: FormState, languages: readonly string[]): unknown {
+  return {
+    ...form,
+    translations: translationsToSave(form.translations, languages),
+    meta: metaToSave(form.meta, languages),
+  };
+}
+
 function dataFor(page: CmsPageDetail | null, language: string | null): Data | null {
   if (!page || !language) return null;
   const data = page.content.languages[language];
@@ -281,30 +325,7 @@ export function PageEditor(): ReactNode {
     setError(null);
     const loaded = await cmsClient.getPage(id);
     setPage(loaded);
-    setForm({
-      name: loaded.name,
-      slug: loaded.slug,
-      active: loaded.active,
-      description: loaded.description ?? '',
-      translations: Object.fromEntries(
-        Object.entries(loaded.translations ?? {}).map(([language, own]) => [
-          language,
-          { name: own.name ?? '', slug: own.slug ?? '', description: own.description ?? '' },
-        ]),
-      ),
-      meta: Object.fromEntries(
-        Object.entries(loaded.meta ?? {}).map(([language, own]) => [
-          language,
-          { title: own.title ?? '', description: own.description ?? '', keywords: own.keywords ?? '' },
-        ]),
-      ),
-      parentPageId: loaded.parentPageId ?? null,
-      parentPathInUrl: loaded.parentPathInUrl ?? false,
-      breadcrumbsVisible: loaded.breadcrumbsVisible ?? true,
-      breadcrumbsScheme: loaded.breadcrumbsScheme ?? 'light',
-      breadcrumbsOverlay: loaded.breadcrumbsOverlay ?? false,
-      shareImageAssetId: loaded.shareImageAssetId ?? null,
-    });
+    setForm(formFor(loaded));
     setLanguageSlugsEdited(
       new Set(Object.entries(loaded.translations ?? {}).filter(([, own]) => Boolean(own.slug)).map(([language]) => language)),
     );
@@ -481,6 +502,27 @@ export function PageEditor(): ReactNode {
     });
   };
 
+  // Issue #1461 (CONTENT-02) — the draft against the last saved version.
+  const savedScope: ScopePickerValue = page
+    ? { salesChannelIds: page.salesChannelIds, languages: page.languages }
+    : { salesChannelIds: [], languages: [] };
+  const dirty =
+    !isDraftEqual(comparableForm(form, scope.languages), comparableForm(formFor(page), scope.languages)) ||
+    !isSameScope(scope, savedScope) ||
+    hasUnsavedCanvas({
+      draft: draftData,
+      activeLanguage,
+      overrides: languageContentOverrides,
+      saved: (language) => (page ? dataFor(page, language) : null),
+    });
+
+  const discard = (): void => {
+    setForm(formFor(page));
+    setScope(savedScope);
+    setDraftData(null);
+    setLanguageContentOverrides({});
+  };
+
   const save = async (): Promise<boolean> => {
     if (scope.salesChannelIds.length === 0) {
       setError(t('pageEditor.errors.selectChannel'));
@@ -587,13 +629,17 @@ export function PageEditor(): ReactNode {
   return (
     <PageBuilderEditorLayout
       settingsPanel={settingsPanel}
+      dirty={dirty}
+      onSave={save}
+      onDiscard={discard}
       header={
         <>
           <PageHeader
             title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
             description={t('pageEditor.description')}
             actions={
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <UnsavedChangesHint dirty={dirty} />
                 <Button asChild variant="outline">
                   <Link to="/cms/pages">{t('common.back')}</Link>
                 </Button>

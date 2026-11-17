@@ -4,10 +4,12 @@ import type { Data } from '@puckeditor/core';
 import type { CmsTemplateDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
 import { PageBuilderEditor } from '../components/PageBuilderEditor.js';
 import {
   emptyPageBuilderData,
+  hasUnsavedCanvas,
   PageBuilderEditorLayout,
   usePageBuilderEditorSettingsPanel,
 } from '@endora-commerce/page-builder-admin';
@@ -16,7 +18,7 @@ import {
   loadCmsTemplateCanvas,
   saveCanvasAsCmsTemplate,
 } from '../components/cms-template-layout.js';
-import { resolveScopedContentLanguage } from '../components/scope-utils.js';
+import { isSameScope, resolveScopedContentLanguage } from '../components/scope-utils.js';
 import { cmsClient } from '../api/cms-client.js';
 
 interface FormState {
@@ -26,6 +28,17 @@ interface FormState {
 }
 
 const blankForm: FormState = { name: '', code: '', description: '' };
+
+function formFor(template: CmsTemplateDetail | null): FormState {
+  if (!template) return blankForm;
+  return { name: template.name, code: template.code, description: template.description ?? '' };
+}
+
+function scopeFor(template: CmsTemplateDetail | null): ScopePickerValue {
+  return template
+    ? { salesChannelIds: template.salesChannelIds, languages: template.languages }
+    : { salesChannelIds: [], languages: [] };
+}
 
 function dataFor(template: CmsTemplateDetail | null, language: string | null): Data | null {
   if (!template || !language) return null;
@@ -53,12 +66,8 @@ export function TemplateEditor(): ReactNode {
     if (isNew || !id) return;
     const loaded = await cmsClient.getTemplate(id);
     setTemplate(loaded);
-    setForm({
-      name: loaded.name,
-      code: loaded.code,
-      description: loaded.description ?? '',
-    });
-    setScope({ salesChannelIds: loaded.salesChannelIds, languages: loaded.languages });
+    setForm(formFor(loaded));
+    setScope(scopeFor(loaded));
     setActiveLanguage(loaded.languages[0] ?? null);
   }, [id, isNew]);
 
@@ -96,6 +105,24 @@ export function TemplateEditor(): ReactNode {
     }
     return dataFor(template, activeLanguage);
   }, [activeLanguage, draftData, languageContentOverrides, template]);
+
+  // Issue #1461 (CONTENT-02) — the draft against the last saved version.
+  const dirty =
+    !isDraftEqual(form, formFor(template)) ||
+    !isSameScope(scope, scopeFor(template)) ||
+    hasUnsavedCanvas({
+      draft: draftData,
+      activeLanguage,
+      overrides: languageContentOverrides,
+      saved: (language) => (template ? dataFor(template, language) : null),
+    });
+
+  const discard = (): void => {
+    setForm(formFor(template));
+    setScope(scopeFor(template));
+    setDraftData(null);
+    setLanguageContentOverrides({});
+  };
 
   const save = async (): Promise<boolean> => {
     if (scope.salesChannelIds.length === 0) {
@@ -171,13 +198,17 @@ export function TemplateEditor(): ReactNode {
   return (
     <PageBuilderEditorLayout
       settingsPanel={settingsPanel}
+      dirty={dirty}
+      onSave={save}
+      onDiscard={discard}
       header={
         <>
           <PageHeader
             title={isNew ? t('templateEditor.title.new') : form.name || t('templateEditor.title.edit')}
             description={t('templateEditor.description')}
             actions={
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <UnsavedChangesHint dirty={dirty} />
                 <Button asChild variant="outline">
                   <Link to="/cms/templates">{t('common.back')}</Link>
                 </Button>

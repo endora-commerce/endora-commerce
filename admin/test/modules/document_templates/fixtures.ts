@@ -133,5 +133,8 @@ export const BUNDLE = {
   ...passthroughBundle('document_templates', KEYS),
   ...passthroughBundle('comparisons', ['documentTypes.comparison.label', 'documentTypes.comparison.description', 'documentTypes.comparison.variables.productCount']),
   ...passthroughBundle('invoices', ['documentTypes.invoice.label']),
-  ...passthroughBundle('core', ['common.action.back']),
+  ...passthroughBundle('core', [
+    'common.action.back',
+    ...['title', 'body', 'save', 'saving', 'discard', 'stay', 'hint'].map((key) => `form.unsavedChanges.${key}`),
+  ]),
 };
