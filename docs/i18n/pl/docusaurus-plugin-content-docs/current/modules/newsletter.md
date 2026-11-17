@@ -55,8 +55,11 @@ wyłączać**, aby nie kolidował z zewnętrzną usługą e-mail marketingu (Mai
   (`newsletter.email_credentials`); hasło jest przechowywane w postaci zaszyfrowanej i nigdy nie jest
   zwracane. Ekran **Usługa wysyłki** newslettera ustawia adres i nazwę nadawcy oraz tempo wysyłki
   i testuje połączenie (`GET`/`PUT /api/v1/admin/newsletter/provider`, `POST …/provider/test`).
-  Bez wybranej, działającej konfiguracji e-maile kampanii są zapisywane w logu serwera (konsolowe
-  ujście) zamiast wysyłane — wysyłka nie jest odrzucana.
+  Działająca konfiguracja to taka, którą da się odczytać i która jest w wariancie SMTP; konfiguracja
+  Amazon SES nie jest jeszcze obsługiwana. Bez niej instancja produkcyjna (`NODE_ENV=production`)
+  odrzuca wysyłkę kampanii kodem `NEWSLETTER_PROVIDER_NOT_CONFIGURED`, test połączenia kończy się
+  błędem, a kampania już zaplanowana oznacza każdego odbiorcę jako nieudanego z podaniem przyczyny.
+  Instancja deweloperska lub testowa zapisuje wtedy e-maile w logu serwera (konsolowe ujście).
 
 ## Wysyłka
 
@@ -132,7 +135,7 @@ zdaniem w języku operatora. Wartości, które to zdanie wymienia, są przekazyw
 | --- | --- | --- | --- |
 | `NEWSLETTER_CAMPAIGN_NOT_EDITABLE` | 422 | Edycja kampanii, która nie jest wersją roboczą ani zaplanowaną | `campaignId`, `status` |
 | `NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE` | 422 | Anulowanie kampanii, która nie jest wersją roboczą ani zaplanowaną | `campaignId`, `status` |
-| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Wysyłka kampanii, gdy nie skonfigurowano dostawcy wysyłki. Dziś nie występuje: bez konfiguracji poświadczeń dostawcą jest konsolowe ujście (zob. *Dostawca wysyłki*) | — |
+| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Wysyłka kampanii na instancji produkcyjnej, gdy nie wybrano działających poświadczeń e-mail (zob. *Dostawca wysyłki*) | — |
 | `NEWSLETTER_AUTOMATION_ACTIVE` | 422 | Edycja aktywnej automatyzacji; najpierw ją wstrzymaj | `automationId`, `status` |
 | `NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN` | 409 | Utworzenie pola niestandardowego o istniejącym kluczu | `key` |
 | `NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN` | 409 | Utworzenie bloku e-mail o istniejącym kodzie | `blockCode` |

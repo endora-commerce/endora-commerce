@@ -20,11 +20,12 @@ import { NewsletterCampaignService } from '../../../../packages/modules/newslett
  *
  * The sentences are written out here rather than read from the bundle: a test
  * that loads the file it checks asserts only that JSON parses. The operator is
- * answered in their stored language (D-132), so each case sets it. The one
- * refusal no route can reach today — the sending provider, which the composed
- * registry always reports configured — is raised from the real service behind
- * a test route, so the real envelope, routing and installed bundles render it,
- * and the language comes from `Accept-Language` there.
+ * answered in their stored language (D-132), so each case sets it. The
+ * sending-provider refusal is raised only on a production instance with no
+ * usable e-mail credential (issue #1334) — the test run keeps the console sink
+ * — so it is raised from the real service behind a test route, where the real
+ * envelope, routing and installed bundles render it, and the language comes
+ * from `Accept-Language` there.
  */
 
 interface ErrorBody {
@@ -64,8 +65,8 @@ const SENTENCES = {
       `Ta kampania ma status „${status}”, więc nie można już jej anulować. Anulować można tylko kampanie w wersji roboczej i zaplanowane.`,
   },
   providerNotConfigured: {
-    en: 'No sending provider is configured, so the campaign cannot be sent. Configure the sending provider first.',
-    pl: 'Nie skonfigurowano dostawcy wysyłki, więc nie można wysłać kampanii. Najpierw skonfiguruj dostawcę wysyłki.',
+    en: 'No usable e-mail credential is chosen for the newsletter, so the campaign cannot be sent. Choose an SMTP credential in the Email credentials setting first.',
+    pl: 'Dla newslettera nie wybrano działających poświadczeń e-mail, więc nie można wysłać kampanii. Najpierw wybierz poświadczenia SMTP w ustawieniu Email credentials.',
   },
   customFieldKeyTaken: {
     en: (key: string) => `A custom field with the key "${key}" already exists. Choose another key.`,
