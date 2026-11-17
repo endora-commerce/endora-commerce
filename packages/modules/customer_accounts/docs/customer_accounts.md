@@ -149,7 +149,10 @@ never its values:
 - a role change records the role by id and kind, never a custom role's name;
 - a preferred-language change (`customer_account.set_preferred_language`)
   records `changedFields: ['preferredLanguage']` and where it came from as
-  `source` (`self_service` or `sign_in`), never the language.
+  `source` (`self_service` or `sign_in`), never the language;
+- a roll-up change (`customer_account.set_subtree_rollup`) records the
+  `subtreeRollupEnabled` flag before and after. It is a Command, so the entry
+  is written in the change's transaction.
 
 The account itself holds the values.
 

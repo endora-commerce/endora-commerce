@@ -98,7 +98,7 @@ organization descendants”).
   lub wyłącza wgląd w strukturę członka przez
   `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/rollup`
   (`{ subtreeRollupEnabled, expectedUpdatedAt? }`, `customers:manage`); zmiana jest zapisywana
-  w audycie jako `customer_account.admin_rollup_change`.
+  w audycie jako `customer_account.set_subtree_rollup`.
 
 Najbliższe przypisanie rozstrzyga na **każdym ekranie panelu** (zgłoszenie #305): na stronach
 organizacji, na liście organizacji i w polach wyboru, w wyszukiwarce panelu oraz przy każdym odczycie

@@ -26,6 +26,7 @@ import { makeChangeCustomerAccountRoleCommand } from '../commands/customer-accou
 import { makePromoteOrganizationAdminCommand } from '../commands/customer-account-promote-admin.command.js';
 import { makeRemoveMemberCommand } from '../commands/customer-account-remove-member.command.js';
 import { prepareCustomerAccountCreate } from '../commands/customer-account-create.command.js';
+import { makeSetCustomerAccountSubtreeRollupCommand } from '../commands/customer-account-set-subtree-rollup.command.js';
 import {
   entityManagerAccountRoleStore,
   type CustomerAccountRoleCommandDeps,
@@ -343,7 +344,8 @@ export class CustomerPasswordVerificationService implements CustomerPasswordVeri
  * **Each write audits itself**, in the same unit of work, exactly as
  * `addresses`' `AddressService` does — the role changes, which `RoleService`
  * used to audit the same way, are Commands since `specs/170-organization-roles/`
- * WP-02b, and so is {@link CustomerAccountMemberWriteService.promoteToOrganizationAdmin}. The
+ * WP-02b, and so are {@link CustomerAccountMemberWriteService.promoteToOrganizationAdmin}
+ * and, since issue #1338, {@link CustomerAccountMemberWriteService.setSubtreeRollup}. The
  * host's own row is a different fact and stays where it is: "an operator edited
  * this member on the organisation panel" is not "this account's e-mail
  * changed", and the role endpoint has recorded both for as long as it has
@@ -355,8 +357,8 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
     private readonly twoFactorEnrolments: TwoFactorEnrolmentReader,
     private readonly auditLog?: AuditPort,
     /**
-     * The bus {@link create} and {@link promoteToOrganizationAdmin} run their
-     * Commands with, and the role lookup the promotion needs
+     * The bus {@link create}, {@link setSubtreeRollup} and
+     * {@link promoteToOrganizationAdmin} run their Commands with, and the role lookup the promotion needs
      * (`specs/170-organization-roles/` WP-02b; `specs/176-command-hooks-outbox/`
      * FR-004). Optional so the hand-built test services that never write
      * through them need not wire them; each method refuses without them.
@@ -421,18 +423,19 @@ export class CustomerAccountMemberWriteService implements CustomerAccountMemberW
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
+  /**
+   * Issue #1338 — the `customer_account.set_subtree_rollup` Command: the write
+   * and its one audit entry commit together, and nothing here audits.
+   */
   async setSubtreeRollup(
     customerAccountId: string,
     enabled: boolean,
   ): Promise<CustomerAccountRecord> {
-    const em = this.emFactory();
-    const account = await this.#loadLive(em, customerAccountId);
-    const before = { subtreeRollupEnabled: account.subtreeRollupEnabled };
-    account.subtreeRollupEnabled = enabled;
-    this.#audit(em, 'customer_account.set_subtree_rollup', account.id, before, {
-      subtreeRollupEnabled: enabled,
-    });
-    await em.flush();
+    const commandBus = this.commands?.commandBus;
+    if (!commandBus) {
+      throw new Error('CustomerAccountMemberWriteService: the roll-up toggle runs a Command; construct the service with its bus.');
+    }
+    const account = await commandBus.run(makeSetCustomerAccountSubtreeRollupCommand({ customerAccountId, enabled }));
     return toOneCustomerAccountRecord(this.twoFactorEnrolments, account);
   }
 
