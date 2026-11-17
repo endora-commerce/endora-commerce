@@ -26,6 +26,7 @@ import {
   CardTitle,
   Checkbox,
   Combobox,
+  FormField,
   Input,
   Label,
   MultiCombobox,
@@ -359,7 +360,9 @@ export function ChannelIdentityForm({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">
-          {mode === 'create' ? t('identity.title.create') : t('identity.title.edit')}
+          {/* One name for both modes: on the create screen the page title already says
+              "New sales channel", and the card repeating it was noise (issue #1482). */}
+          {t('identity.title.edit')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -370,23 +373,21 @@ export function ChannelIdentityForm({
           </Alert>
         )}
         <form className="grid gap-4" onSubmit={handleSubmit}>
-          <div className="grid gap-2">
-            <Label htmlFor="sc-code">{t('identity.code.label')}</Label>
+          <FormField
+            label={t('identity.code.label')}
+            hint={lockCode ? t('identity.code.lockedHelp') : undefined}
+          >
             <Input
               id="sc-code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="serwis-a"
+              placeholder={t('identity.code.placeholder')}
               disabled={lockCode}
               required
             />
-            {lockCode && (
-              <p className="text-xs text-muted-foreground">{t('identity.code.lockedHelp')}</p>
-            )}
-          </div>
+          </FormField>
 
-          <div className="grid gap-2">
-            <Label htmlFor="sc-name">{t('identity.name.label')}</Label>
+          <FormField label={t('identity.name.label')}>
             <Input
               id="sc-name"
               value={name}
@@ -394,7 +395,7 @@ export function ChannelIdentityForm({
               placeholder={t('identity.name.placeholder')}
               required
             />
-          </div>
+          </FormField>
 
           {/*
             Free text, and never a closed list — feature 102 / D-199.
@@ -412,8 +413,7 @@ export function ChannelIdentityForm({
             every well-formed one — including a theme this repository has never
             heard of, which is the whole point.
           */}
-          <div className="grid gap-2">
-            <Label htmlFor="sc-theme">{t('identity.theme.label')}</Label>
+          <FormField label={t('identity.theme.label')} hint={t('identity.theme.help')}>
             <Input
               id="sc-theme"
               value={themeCode}
@@ -422,8 +422,7 @@ export function ChannelIdentityForm({
               pattern="[a-z][a-z0-9_-]*"
               title={t('identity.theme.pattern')}
             />
-            <p className="text-xs text-muted-foreground">{t('identity.theme.help')}</p>
-          </div>
+          </FormField>
 
           {dictionaryStatus === 'error' && (
             <Alert variant="destructive">
@@ -449,10 +448,7 @@ export function ChannelIdentityForm({
               <MultiCombobox
                 id="sc-languages"
                 ariaLabelledBy="sc-languages-label"
-                ariaDescribedBy={describedBy(
-                  'sc-languages-help',
-                  languagesMissing && 'sc-languages-error',
-                )}
+                ariaDescribedBy={describedBy(languagesMissing && 'sc-languages-error')}
                 invalid={languagesMissing}
                 options={languageOptions.available}
                 value={languages}
@@ -469,9 +465,6 @@ export function ChannelIdentityForm({
               {languagesMissing && (
                 <FieldError id="sc-languages-error">{t('identity.languages.required')}</FieldError>
               )}
-              <p id="sc-languages-help" className="text-xs text-muted-foreground">
-                {t('identity.languages.help')}
-              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="sc-default-lang">{t('identity.defaultLanguage.label')}</Label>
@@ -503,10 +496,7 @@ export function ChannelIdentityForm({
               <MultiCombobox
                 id="sc-currencies"
                 ariaLabelledBy="sc-currencies-label"
-                ariaDescribedBy={describedBy(
-                  'sc-currencies-help',
-                  currenciesMissing && 'sc-currencies-error',
-                )}
+                ariaDescribedBy={describedBy(currenciesMissing && 'sc-currencies-error')}
                 invalid={currenciesMissing}
                 options={currencyOptions.available}
                 value={currencies}
@@ -523,9 +513,6 @@ export function ChannelIdentityForm({
               {currenciesMissing && (
                 <FieldError id="sc-currencies-error">{t('identity.currencies.required')}</FieldError>
               )}
-              <p id="sc-currencies-help" className="text-xs text-muted-foreground">
-                {t('identity.currencies.help')}
-              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="sc-default-curr">{t('identity.defaultCurrency.label')}</Label>
@@ -578,12 +565,12 @@ export function ChannelIdentityForm({
             The hint is the operator's only warning of the consequences, so it
             is attached to the control rather than left beside it.
 
-            The second hint answers the question operators bring to this
-            control and it does not answer: whether anonymous visitors see
-            prices. That is the display-mode chain's
-            `pricing.unauthenticated_display_mode`, per channel — the channel's
-            own public flag that once said it is retired (issue #492) — so the
-            hint names it and links to where it is set.
+            The link answers the question operators bring to this control and
+            it does not answer: whether anonymous visitors see prices. That is
+            the display-mode chain's `pricing.unauthenticated_display_mode`, per
+            channel — the channel's own public flag that once said it is retired
+            (issue #492) — so the link names it and goes to where it is set. It
+            was a paragraph plus a link; the link alone carries it (#1482).
           */}
           <div className="grid gap-1">
             <div className="flex items-center gap-2">
@@ -601,7 +588,6 @@ export function ChannelIdentityForm({
               {t('identity.anonymousAccess.hint')}
             </p>
             <p id="sc-anonymous-access-prices-hint" className="text-xs text-muted-foreground">
-              {t('identity.anonymousAccess.pricesHint')}{' '}
               <Link to="/price-lists/display-modes" className="underline underline-offset-2">
                 {t('identity.anonymousAccess.pricesLink')}
               </Link>

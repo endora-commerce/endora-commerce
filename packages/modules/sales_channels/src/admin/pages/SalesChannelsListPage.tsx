@@ -86,7 +86,6 @@ export function SalesChannelsListPage(): ReactNode {
     <>
       <PageHeader
         title={t('list.page.title')}
-        description={t('list.page.description')}
         actions={
           // Gated on the code the create route now enforces (feature 091, batch
           // 14). It was ungated while `/sales-channels/new` was `App.tsx`'s and

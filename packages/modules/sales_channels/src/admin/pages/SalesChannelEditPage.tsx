@@ -33,9 +33,8 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  * conflict banner so the operator can choose to refresh and retry
  * (412) or rename / re-pick a code (409).
  *
- * Membership tabs (US3 / T064) are NOT rendered here yet; the page
- * deliberately scopes itself to identity + lifecycle so US2 ships
- * standalone.
+ * The header carries no description (issue #1482): the title, the status
+ * badges and the lifecycle actions beside it already say what the page is.
  */
 export function SalesChannelEditPage(): ReactNode {
   const t = useTranslation('sales_channels');
@@ -221,11 +220,6 @@ export function SalesChannelEditPage(): ReactNode {
               )}
             </span>
           )
-        }
-        description={
-          isCreate
-            ? t('edit.page.createDescription')
-            : t('edit.page.editDescription')
         }
         actions={
           channel ? (
