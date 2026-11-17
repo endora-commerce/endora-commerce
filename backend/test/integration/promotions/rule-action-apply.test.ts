@@ -190,15 +190,78 @@ describe('PromotionService — action + rule engine (feature 045)', () => {
       expect(result.discountTotal).toBe(163.8);
     });
 
-    it('keeps comparing a cart-total threshold with the net subtotal', async () => {
+  });
+
+  /**
+   * Issue #1396 (owner ruling 2026-11-17) — a cart-total threshold, a minimum
+   * spend and a "spend X" step compare the gross the buyer pays, and a fixed
+   * amount is capped at the gross. 2 × 300.00 at 23 %: net 600.00, gross 738.00.
+   */
+  describe('gross thresholds and fixed-amount caps (#1396)', () => {
+    const taxed = (): CartSnapshot =>
+      snapshot({
+        lines: [
+          {
+            productId: PROD_A,
+            variantId: null,
+            categoryIds: [CAT_X],
+            quantity: 2,
+            unitPrice: { amount: 300, currency: 'PLN' },
+            taxRate: 0.23,
+          },
+        ],
+      });
+
+    it('compares a cart-total threshold with the gross', async () => {
       await svc.upsert({
         name: '10% over 700',
         action: { type: 'percentage_off_cart', percent: 10 },
         rule: { kind: 'condition', field: { kind: 'builtin', key: 'cartTotal' }, op: 'gte', values: [700] },
       });
-      // Gross 738.00 would meet 700; the net 600.00 does not.
+      // The net 600.00 would miss 700; the gross 738.00 meets it.
       const result = await svc.applyToCart(taxed());
-      expect(result.discountTotal).toBe(0);
+      expect(result.discountTotal).toBe(73.8);
+    });
+
+    it('refuses a cart-total threshold above the gross', async () => {
+      await svc.upsert({
+        name: '10% over 740',
+        action: { type: 'percentage_off_cart', percent: 10 },
+        rule: { kind: 'condition', field: { kind: 'builtin', key: 'cartTotal' }, op: 'gte', values: [740] },
+      });
+      expect((await svc.applyToCart(taxed())).discountTotal).toBe(0);
+    });
+
+    it('compares minCartSubtotal with the gross', async () => {
+      await svc.upsert({
+        name: '50 off over 700',
+        minCartSubtotal: 700,
+        action: { type: 'amount_off_cart', amount: 50, currency: 'PLN' },
+        rule: { kind: 'all' },
+      });
+      expect((await svc.applyToCart(taxed())).discountTotal).toBe(50);
+    });
+
+    it('caps a fixed amount at the gross: the goods are free, VAT included', async () => {
+      await svc.upsert({
+        name: '1000 off',
+        action: { type: 'amount_off_cart', amount: 1000, currency: 'PLN' },
+        rule: { kind: 'all' },
+      });
+      const result = await svc.applyToCart(taxed());
+      expect(result.discountTotal).toBe(738);
+      // Only the delivery is left to pay.
+      expect(result.total).toBe(20);
+    });
+
+    it('counts "spend X" steps on the gross', async () => {
+      await svc.upsert({
+        name: '25 per 350',
+        action: { type: 'spend_x_amount_off', spendStep: 350, amount: 25, currency: 'PLN' },
+        rule: { kind: 'all' },
+      });
+      // The net 600.00 is one step of 350; the gross 738.00 is two.
+      expect((await svc.applyToCart(taxed())).discountTotal).toBe(50);
     });
   });
 });

@@ -203,7 +203,7 @@ export const PromotionEditPage = (): ReactNode => {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+      <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
         <Card>
           <CardHeader>
             <CardTitle>{t('promotions.edit.general')}</CardTitle>
@@ -333,7 +333,7 @@ export const PromotionEditPage = (): ReactNode => {
           <Button type="submit" disabled={saving}>
             {saving ? t('promotions.loading') : t('promotions.edit.save')}
           </Button>
-          <Button type="button" variant="outline" onClick={() => navigate('/promotions')}>
+          <Button type="button" variant="outline" onClick={() => { navigate('/promotions'); }}>
             {t('promotions.edit.cancel')}
           </Button>
         </div>

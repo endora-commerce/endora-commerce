@@ -49,7 +49,10 @@ interface AdminCartDetail {
   status: string;
   approvalStatus: string;
   items: AdminCartLine[];
+  /** The net after the discount (issue #1396). */
   total: { amount: number; currency: string };
+  /** What the buyer pays after the discount; `null` when a rate is unresolved (issue #1396). */
+  totalGross?: { amount: number; currency: string } | null;
   discount: { code: string | null; amount: number; currency: string } | null;
   appliedPromotionCode: string | null;
   lastActivityAt: string;
@@ -207,9 +210,17 @@ export default function CartDetail(): ReactNode {
                 </TableRow>
               ) : null}
               <TableRow>
-                <TableCell colSpan={3} className="text-right font-semibold">{t('carts.column.total')}</TableCell>
-                <TableCell className="tabular-nums font-semibold">{formatMoney(cart.total.amount, cart.total.currency)}</TableCell>
+                <TableCell colSpan={3} className="text-right">{t('carts.detail.netTotal')}</TableCell>
+                <TableCell className="tabular-nums">{formatMoney(cart.total.amount, cart.total.currency)}</TableCell>
               </TableRow>
+              {cart.totalGross ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-right font-semibold">{t('carts.detail.grossTotal')}</TableCell>
+                  <TableCell className="tabular-nums font-semibold">
+                    {formatMoney(cart.totalGross.amount, cart.totalGross.currency)}
+                  </TableCell>
+                </TableRow>
+              ) : null}
             </TableBody>
           </Table>
         </CardContent>

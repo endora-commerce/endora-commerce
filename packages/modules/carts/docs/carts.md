@@ -261,7 +261,7 @@ decided by the roles.
 | Verb + Path | Capability | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/admin/carts` | `carts:read` | Paginated platform-wide list (status / approvalStatus / org / customer / channel / date filters) |
-| `GET /api/v1/admin/carts/:id` | `carts:read` | Read-only cart detail |
+| `GET /api/v1/admin/carts/:id` | `carts:read` | Read-only cart detail. `total` is the net after the discount, as the cart's `grandTotal`; `totalGross` is what the buyer pays, as the cart's `vat.grandTotalGross`, or `null` when a line's rate cannot be resolved. The list's `total` is the lines' net before any discount |
 | `GET /api/v1/admin/carts/:id/audit` | `carts:read` | Cart-detail audit feed |
 | `POST /api/v1/admin/carts/:id/reject` | `carts:reject` | Emergency terminal reject (requires reason); a completed or rejected cart is `422 CART_ALREADY_TERMINAL` |
 
@@ -321,6 +321,11 @@ price for the line's **current** quantity:
   is informational — the line grosses can add up to a cent more or less than
   the total. The storefront shows these figures and computes no VAT of its own;
   where the read carries none (`vat: null`), it shows net amounts.
+- **`grandTotal` is a net figure**: `subtotal − discount`, never below zero.
+  The discount is a gross amount, taken off untaxed, as the order and the
+  invoice book it (one 0 % discount line). Where the discount is larger than
+  the net subtotal — a fixed amount is capped at the gross — `grandTotal` reads
+  0. What the buyer pays is `vat.grandTotalGross`.
 - **The cart's VAT is an estimate until checkout; placement is the authority.**
   The cart resolves its rates for the organization's **registered country**,
   because no billing address has been chosen yet. Placement resolves them for

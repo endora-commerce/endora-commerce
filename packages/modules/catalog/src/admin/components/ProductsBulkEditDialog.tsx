@@ -246,7 +246,8 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
   // Load mass-editable attributes + channel / category metadata on mount.
   useEffect(() => {
     let cancelled = false;
-    (async (): Promise<void> => {
+    // Fire-and-forget: the body catches its own errors.
+    void (async (): Promise<void> => {
       try {
         const [attrRes, chRes, catRes, setRes] = await Promise.all([
           apiClient.get<{ data: { items: AdminAttributeSummary[] } }>(

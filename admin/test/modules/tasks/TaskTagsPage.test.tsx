@@ -79,10 +79,17 @@ describe('TaskTagsPage — the table', () => {
     expect(within(tagRow('Site visit')).getByText('0')).toBeInTheDocument();
   });
 
-  it('says so when there is no tag yet', async () => {
+  it('says so when there is no tag yet, explains what a tag is for and offers one Add tag (issue #527)', async () => {
     getSpy.mockResolvedValue({ data: [] });
     renderTasks(<TaskTagsPage />, { permissions: CONFIGURER });
-    expect(await screen.findByText(en('tags.empty'))).toBeInTheDocument();
+    expect(await screen.findByText(en('tags.empty.title'))).toBeInTheDocument();
+    expect(screen.getByText(en('tags.empty.body'))).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
+    // One primary action, not a second outline button in the card header.
+    const add = screen.getAllByRole('button', { name: en('tags.add') });
+    expect(add).toHaveLength(1);
+    await userEvent.click(add[0]!);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });
 

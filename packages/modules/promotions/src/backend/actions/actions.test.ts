@@ -227,13 +227,13 @@ describe('gross-based percent-off and free-unit actions (#1350)', () => {
     expect(r.discountSubtotalDelta).toBe(12.3);
   });
 
-  it('counts spend_x_percent_off steps on the net and takes the percentage of the gross', () => {
-    // Net 250.00 → 2 steps of 100 (the gross 307.50 would be 3) → 10 % of 307.50.
+  it('takes the spend_x_percent_off percentage of the gross', () => {
+    // Gross 307.50 → 3 steps of 100 (#1396) → 15 % of 307.50 = 46.125 → 46.13.
     const r = registry.apply(
       { type: 'spend_x_percent_off', spendStep: 100, percent: 5, currency: 'PLN' },
       ctx([line('p', 250, 1, 0.23)]),
     );
-    expect(r.discountSubtotalDelta).toBe(30.75);
+    expect(r.discountSubtotalDelta).toBe(46.13);
   });
 
   it('frees a unit VAT included (buy_x_get_y_free)', () => {
@@ -273,18 +273,67 @@ describe('gross-based percent-off and free-unit actions (#1350)', () => {
     expect(r.discountSubtotalDelta).toBe(12.3);
   });
 
-  it('leaves fixed amounts and their net caps unchanged', () => {
+  it('leaves the fixed amounts themselves unchanged', () => {
     const lines = [line('p', 100, 1, 0.23)];
     expect(
       registry.apply({ type: 'amount_off_cart', amount: 30, currency: 'PLN' }, ctx(lines)).discountSubtotalDelta,
     ).toBe(30);
     expect(
-      registry.apply({ type: 'spend_x_amount_off', spendStep: 100, amount: 7, currency: 'PLN' }, ctx(lines))
-        .discountSubtotalDelta,
-    ).toBe(7);
-    expect(
       registry.apply({ type: 'buy_x_units_amount_off', productId: 'p', buyUnits: 1, amount: 15, currency: 'PLN' }, ctx(lines))
         .discountSubtotalDelta,
     ).toBe(15);
+  });
+});
+
+/**
+ * Issue #1396 (owner ruling 2026-11-17) — a "spend X" step counts the gross the
+ * buyer pays, and a fixed amount is capped at the gross: it can make the goods
+ * free, VAT included. 100.00 net at 23 % is 123.00 gross.
+ */
+describe('gross thresholds and fixed-amount caps (#1396)', () => {
+  const lines = [line('p', 100, 1, 0.23)];
+
+  it('caps amount_off_cart at the gross', () => {
+    expect(
+      registry.apply({ type: 'amount_off_cart', amount: 150, currency: 'PLN' }, ctx(lines)).discountSubtotalDelta,
+    ).toBe(123);
+    expect(
+      registry.apply({ type: 'amount_off_cart', amount: 110, currency: 'PLN' }, ctx(lines)).discountSubtotalDelta,
+    ).toBe(110);
+  });
+
+  it('caps buy_x_units_amount_off at the gross', () => {
+    expect(
+      registry.apply(
+        { type: 'buy_x_units_amount_off', productId: 'p', buyUnits: 1, amount: 150, currency: 'PLN' },
+        ctx(lines),
+      ).discountSubtotalDelta,
+    ).toBe(123);
+  });
+
+  it('counts spend_x_amount_off steps on the gross and caps at the gross', () => {
+    // Net 100.00 is one step of 60; the gross 123.00 is two → 2 × 7.
+    expect(
+      registry.apply({ type: 'spend_x_amount_off', spendStep: 60, amount: 7, currency: 'PLN' }, ctx(lines))
+        .discountSubtotalDelta,
+    ).toBe(14);
+    // Net 100.00 is no step of 110; the gross 123.00 is one.
+    expect(
+      registry.apply({ type: 'spend_x_amount_off', spendStep: 110, amount: 7, currency: 'PLN' }, ctx(lines))
+        .discountSubtotalDelta,
+    ).toBe(7);
+    // One step of 120 worth 200 → capped at the gross 123.00.
+    expect(
+      registry.apply({ type: 'spend_x_amount_off', spendStep: 120, amount: 200, currency: 'PLN' }, ctx(lines))
+        .discountSubtotalDelta,
+    ).toBe(123);
+  });
+
+  it('counts spend_x_percent_off steps on the gross', () => {
+    // Net 100.00 is no step of 110; the gross 123.00 is one → 5 % of 123.00.
+    expect(
+      registry.apply({ type: 'spend_x_percent_off', spendStep: 110, percent: 5, currency: 'PLN' }, ctx(lines))
+        .discountSubtotalDelta,
+    ).toBe(6.15);
   });
 });

@@ -185,7 +185,7 @@ export function ProductFeedsListPage(): ReactNode {
           // The Templates button is gone: it is a tab now, so the header keeps
           // only the action that creates something.
           <Button
-            onClick={() => navigate('/product-feeds/new')}
+            onClick={() => { navigate('/product-feeds/new'); }}
             disabled={!canWrite}
             title={writeTitle}
           >
@@ -236,7 +236,7 @@ export function ProductFeedsListPage(): ReactNode {
                   <div className="b2b-empty__sub">{t('feeds.empty.subtitle')}</div>
                   <Button
                     className="mt-2"
-                    onClick={() => navigate('/product-feeds/new')}
+                    onClick={() => { navigate('/product-feeds/new'); }}
                     disabled={!canWrite}
                     title={writeTitle}
                   >

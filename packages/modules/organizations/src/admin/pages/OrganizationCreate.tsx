@@ -314,7 +314,7 @@ export function OrganizationCreate(): ReactNode {
             ) : null}
 
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => navigate('/organizations')} disabled={saving}>
+              <Button type="button" variant="ghost" onClick={() => { navigate('/organizations'); }} disabled={saving}>
                 {t('create.cancel')}
               </Button>
               <Button type="submit" disabled={cannotSubmit}>

@@ -36,6 +36,7 @@ import type {
   SchemaExtensionReads,
 } from '@endora-commerce/platform/kernel';
 import { registerOrganizationsPublicRoutes } from './routes.public.js';
+import { createStorefrontOriginResolver } from './services/storefront-origin.js';
 import { registerOrganizationsCustomerRoutes } from './routes.customer.js';
 import { registerOrganizationsStorefrontRoutes } from './routes.storefront.js';
 import { OrganizationContextService } from './services/organization-context-service.js';
@@ -159,6 +160,12 @@ export interface OrganizationsModuleOptions {
   // now owns.
   /** Storefront base URL for the invitation accept link. */
   storefrontBaseUrl?: string;
+  /**
+   * Issue #1371 — a channel's `sales_channels.storefront_url`, the storefront
+   * the self-service password-reset link opens. Absent, or answering nothing
+   * usable: {@link storefrontBaseUrl}.
+   */
+  readChannelStorefrontUrl?: (salesChannelId: string) => Promise<string | null>;
   /** Required when `requireAdmin` is set — audit trail for admin org mutations. */
   auditLogService?: AuditPort;
   /**
@@ -295,6 +302,10 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
       mailer,
       templateEmail: orgTemplateEmail,
       storefrontBaseUrl,
+      storefrontOriginFor: createStorefrontOriginResolver(
+        options.readChannelStorefrontUrl ?? (async () => null),
+        storefrontBaseUrl,
+      ),
       organizationRoles: options.organizationRoles,
       organizationPermissions: options.organizationPermissions,
       ...(options.onLogin ? { onLogin: options.onLogin } : {}),

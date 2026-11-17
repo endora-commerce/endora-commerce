@@ -1,5 +1,6 @@
 // Default subject + content for organizations transactional emails (feature 047):
-// email_verification, organization_invitation, new_org_registration.
+// email_verification, organization_invitation, customer_password_reset,
+// new_org_registration, organization_approved, organization_rejected.
 // Simple layout via shared header/footer embeds + heading / text / CTA.
 
 import { simpleEmailBodyTree } from '@endora-commerce/email-components/defaults/simple-email-body';
@@ -7,7 +8,8 @@ import { simpleEmailBodyTree } from '@endora-commerce/email-components/defaults/
 const LANGS = ['en-US', 'pl-PL'];
 
 /**
- * Two of this module's three emails may never be switched off (issue #89).
+ * Three of this module's emails may never be switched off (issue #89; the
+ * password reset since issue #1371).
  *
  * The criterion is "required to get into an account", and the reason it bites
  * is `TemplateEmail.trySend`: a deactivated email answers `true`, meaning
@@ -107,6 +109,62 @@ export const ORGANIZATION_INVITATION_DEFAULT = {
         ].join('\n'),
         ctaLabel: 'Zaakceptuj zaproszenie',
         ctaHref: '{{var acceptUrl}}',
+      }),
+    },
+  } as Record<string, unknown>,
+  languages: LANGS,
+  nonDeactivatable: REQUIRED_FOR_ACCOUNT_ACCESS,
+};
+
+/**
+ * The e-mail a customer asks for on the storefront's *Forgot password* page
+ * (issue #1371). The route minted a token and mailed nothing, so a customer who
+ * forgot the password could not get back into the account.
+ *
+ * `nonDeactivatable` on the criterion above: it is how the customer regains
+ * access, and a deactivated e-mail answers `trySend` with *handled*, so no
+ * fallback would go out either.
+ *
+ * The link is also written into the body copy, so the plain-text part carries
+ * it and a client that does not render the button still reaches the page.
+ */
+export const PASSWORD_RESET_DEFAULT = {
+  defaultSubject: {
+    'en-US': 'Reset your password',
+    'pl-PL': 'Zresetuj hasło',
+  } as Record<string, string>,
+  defaultContent: {
+    schema_version: 1,
+    languages: {
+      'en-US': simpleEmailBodyTree({
+        idPrefix: 'password-reset',
+        heading: 'Reset your password',
+        text: [
+          'Hi,',
+          '',
+          'We received a request to reset the password of your account. Click the button below to set a new password.',
+          '',
+          'If the button does not work, open this link: {{var resetUrl}}',
+          '',
+          'If you did not ask for this, you can ignore this message — your current password stays unchanged.',
+        ].join('\n'),
+        ctaLabel: 'Set a new password',
+        ctaHref: '{{var resetUrl}}',
+      }),
+      'pl-PL': simpleEmailBodyTree({
+        idPrefix: 'password-reset',
+        heading: 'Zresetuj hasło',
+        text: [
+          'Dzień dobry,',
+          '',
+          'Otrzymaliśmy prośbę o zresetowanie hasła do Twojego konta. Kliknij przycisk poniżej, aby ustawić nowe hasło.',
+          '',
+          'Jeśli przycisk nie działa, otwórz ten link: {{var resetUrl}}',
+          '',
+          'Jeśli to nie Ty o to prosiłeś, zignoruj tę wiadomość — Twoje obecne hasło pozostaje bez zmian.',
+        ].join('\n'),
+        ctaLabel: 'Ustaw nowe hasło',
+        ctaHref: '{{var resetUrl}}',
       }),
     },
   } as Record<string, unknown>,

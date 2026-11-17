@@ -67,9 +67,12 @@ A discount is an amount the buyer does not pay, taken off the gross total.
   or most expensive unit is the one with the lowest or highest gross price.
 - **Fixed amounts** — `amount_off_cart`, `buy_x_units_amount_off`,
   `spend_x_amount_off` and the legacy `amount_off` kind — take off the
-  configured amount, capped at the net subtotal.
-- **Thresholds** — the "spend X" steps, `minCartSubtotal` and the rule
-  builder's cart total — compare the **net** subtotal.
+  configured amount, capped at the **gross**: a fixed amount can make the goods
+  free, VAT included.
+- **Thresholds** — the "spend X" steps, `minCartSubtotal`, the coupon's
+  minimum-spend check and the rule builder's cart total — compare the
+  **gross** the buyer pays for the goods, before any discount. A coupon refused
+  below its minimum spend reports the gross shortfall.
 
 The gross is VAT per rate on the sum of the line nets, the same figure the cart
 and the order charge. Each line of the `CartSnapshot` carries its VAT rate as
@@ -78,7 +81,8 @@ admin cart detail, the checkout preview and order placement pass the rates
 they charge, so all four show the same discount. A call to
 `POST /api/v1/admin/promotions/preview` must send `taxRate` on each line to get
 the discount an order would take. Until issue #1350 percent-off and free-unit
-actions computed on net prices.
+actions computed on net prices; until issue #1396 thresholds compared, and
+fixed amounts were capped at, the net subtotal.
 
 ## Usage finalization (race-safe)
 

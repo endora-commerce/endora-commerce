@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { ERROR_CODES, FORMS_SETTING_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { CAPTCHA_VERIFY_URLS, CaptchaVerifier } from './captcha-verifier.js';
@@ -57,11 +57,11 @@ async function refusal(promise: Promise<unknown>): Promise<HttpError> {
   throw new Error('expected a refusal');
 }
 
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: Mock<(url: string, init: RequestInit) => Promise<Response>>;
 const logged: unknown[][] = [];
 
 beforeEach(() => {
-  fetchMock = vi.fn();
+  fetchMock = vi.fn<(url: string, init: RequestInit) => Promise<Response>>();
   vi.stubGlobal('fetch', fetchMock);
   logged.length = 0;
   for (const level of ['log', 'info', 'warn', 'error', 'debug'] as const) {

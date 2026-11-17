@@ -132,8 +132,9 @@ shows *Publish* to its creator; the creator of a task with no record can switch
 - **Details** — the description, with its references as links; assignees, due
   date and time, start date, priority and tags, changed with *Edit* and saved
   together; *Assign to me*; who created the task and when, and when it was
-  finished. *Delete task* asks before it deletes, and says how many sub-tasks
-  the task has: they become top-level tasks, they are not deleted. It is not
+  finished. *Delete task*, at the top of the screen and away from *Edit*, asks
+  before it deletes, and says how many sub-tasks the task has: they become
+  top-level tasks, they are not deleted. It is not
   offered for a task of a record you may not change — a project you may not
   edit — and the screen says why.
 - **Sub-tasks** — how many are done of how many, each with its status,

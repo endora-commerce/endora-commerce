@@ -80,7 +80,7 @@
     "i18n:coverage": "tsx --env-file-if-exists=.env src/cli.ts _i18n coverage",
     "i18n:hardcoded": "tsx scripts/i18n-hardcoded-strings.ts",
     "i18n:reload": "tsx --env-file-if-exists=.env src/cli.ts _i18n reload",
-    "lint": "eslint src test",
+    "lint": "eslint src test --ignore-pattern 'test/contract/**' --ignore-pattern 'test/integration/**' --ignore-pattern 'test/perf/**' && eslint test/contract test/integration test/perf",
     "manifest-index:generate": "tsx scripts/generate-composer.ts",
     "manifests:check": "tsx scripts/generate-module-manifests.ts --check",
     "manifests:generate": "tsx scripts/generate-module-manifests.ts",

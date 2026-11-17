@@ -144,8 +144,8 @@ zadania bez rekordu może włączać i wyłączać *Prywatne*. Dalej:
 - **Szczegóły** — opis z odwołaniami jako odnośnikami; osoby przypisane, termin
   z godziną, data rozpoczęcia, priorytet i etykiety, zmieniane przyciskiem
   *Edytuj* i zapisywane razem; *Przypisz do mnie*; kto i kiedy utworzył
-  zadanie oraz kiedy zostało zakończone. *Usuń zadanie* pyta przed usunięciem
-  i podaje, ile zadanie ma podzadań: stają się one zadaniami głównymi, nie są
+  zadanie oraz kiedy zostało zakończone. *Usuń zadanie*, u góry ekranu i z dala
+  od *Edytuj*, pyta przed usunięciem i podaje, ile zadanie ma podzadań: stają się one zadaniami głównymi, nie są
   usuwane. Przycisk nie jest dostępny dla zadania rekordu, którego nie możesz
   zmieniać — projektu, którego nie możesz edytować — a ekran wyjaśnia dlaczego.
 - **Podzadania** — ile jest zrobionych z ilu, każde ze statusem, osobami
