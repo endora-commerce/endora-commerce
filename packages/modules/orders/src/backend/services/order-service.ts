@@ -1369,8 +1369,18 @@ export class OrderService {
        */
       salesChannelId?: string | undefined;
     },
-    /** The language the response is answered in — names a below-minimum line's product (feature 155). */
-    options: { language?: string | undefined } = {},
+    options: {
+      /** The language the response is answered in — names a below-minimum line's product (feature 155). */
+      language?: string | undefined;
+      /**
+       * Issue #1373 — the channel language the request's `Accept-Language`
+       * asks for (`requestScopeLanguage`), the one the basket's lines were
+       * judged in and the one `placeOrder` takes as `languageTag`. When given,
+       * the basket's availability and names are judged in it; otherwise in the
+       * channel language `language` names, else the channel's default.
+       */
+      languageTag?: string | undefined;
+    } = {},
   ): Promise<{
     subtotal: number;
     taxTotal: number;
@@ -1444,6 +1454,8 @@ export class OrderService {
     }
     // Feature 163 (FR-006) — the lines whose product is no longer available
     // in the basket's channel are reported as placement will refuse them.
+    // Issue #1373 — in the request's scope language when it is given, as
+    // placement judges them, so the preview and the order agree.
     const basketChannel = await this.emFactory().findOne(SalesChannel, { id: basketChannelId });
     const basketLanguage = basketChannel
       ? resolveScopeLanguage(
@@ -1452,7 +1464,7 @@ export class OrderService {
             languages: basketChannel.languages,
             defaultLanguage: basketChannel.defaultLanguage,
           },
-          options.language,
+          options.languageTag ?? options.language,
         )
       : null;
     const catalogue = await readBasketCatalogue(this.neighbours.catalogProductRead, items, (products) =>
