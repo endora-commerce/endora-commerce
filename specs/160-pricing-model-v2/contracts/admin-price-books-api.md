@@ -28,7 +28,8 @@ Common rules:
   attribute value, or an attribute that cannot select prices), `PRICE_BOOK_ROW_LIMIT`. The envelope's
   code is `PRICE_BOOK_ROW_OVERLAP` (`409`) when every error is an overlap, else
   `PRICE_BOOK_ROW_SHAPE` (`400`).
-- Paged answers are `{ data: T[], meta: { page, pageSize, totalCount } }`.
+- Paged answers are `{ data: T[], meta: { page, pageSize, totalCount } }` — except the price history,
+  which is keyset-paged (*Price history (#470)* below says why).
 
 ## Books
 
@@ -106,6 +107,52 @@ probe did. Answer per line:
 `GET /api/v1/admin/price-books/precedence` → the active version (cells, toggle, depth mode, preset
 name if it equals one). Any `POST`/`PUT` under `…/precedence` answers
 `409 PRECEDENCE_CHANGE_UNAVAILABLE` until P3.
+
+## Price history (#470)
+
+A book's own record of the values its Commands changed (issue #470, D-288; owner ruling O-3), read
+from `price_list_value_changes` and `price_list_row_value_changes` — not from the audit log, which
+would cap a history at 500 entries and is read under another permission. It holds **value changes
+only**: name, priority, audience, a duplicate's multiplier and price rows. Status, channels and
+activation stay in the audit log. History starts with the release that shipped the writer (#470
+stage 2); older audit entries are not served here (O-4).
+
+| Method + path | Query | Answer |
+| --- | --- | --- |
+| `GET /api/v1/admin/price-books/:id/price-history` | `limit`, `cursor` | `PriceBookHistoryChange[]`, newest first `(at desc, id desc)`: `id, action, actor, at, headerBefore, headerAfter, lineCount` |
+| `GET /api/v1/admin/price-books/:id/price-history/:changeId/lines` | `limit`, `cursor` | `PriceBookHistoryLine[]` of one change, `seq` ascending |
+| `GET /api/v1/admin/price-books/:id/price-history/products/:productId` | `limit`, `cursor` | `PriceBookHistoryProductLine[]`: the product's own lines **and its variants'**, `(at desc, changeId desc, seq asc)`, each with `changeId, at, action, actor`. Category, attribute and all-products lines are not a product's and are not included |
+
+- **Permission and scope:** `price_lists:read`. The book is loaded as `GET /:id` loads it, so a book
+  out of the caller's reach is `404 NOT_FOUND`, identical to an unknown id. Every read filters by that
+  book's id; a `changeId` that is not a UUID, or names another book's change, is `404 NOT_FOUND`. A
+  `productId` that is not a UUID is `404`; a product with no lines is an empty page. No new error code.
+- **Keyset paging — a deliberate exception to *Common rules*.** The envelope is the platform's
+  `{ data, pagination: { cursor, hasMore, limit } }` (`packages/contracts/src/pagination.ts`):
+  `limit` defaults to 50, at most 200; `cursor` is opaque (base64url), carries the stored `at` at the
+  column's own precision, and pages ties on `at` by id. A history grows at its head, so an offset
+  page would shift under a reader while a Command commits, and a total would be a scan of the whole
+  history (R-08). There is no `totalCount`; a change's `lineCount` says how many lines it holds. A
+  malformed cursor or limit is `400 VALIDATION_FAILED`.
+- **Header sides** hold only the keys the Command changed (a created book: all of them):
+  `{ name?, priority?, audience?: { kind, memberIds, withheldMemberCount? }, amountMultiplier? }`,
+  members sorted. `null` when the side has none.
+- **Organization members out of reach:** for a caller whose scope is not every organization, each
+  side's `audience.memberIds` leaves out every organization id outside the scope and
+  `withheldMemberCount` counts them (`0` when none, and always `0` for customer-group and everyone
+  audiences, whose ids are never withheld). A platform administrator gets the ids as stored, with no
+  `withheldMemberCount`. A stored audience without a kind (development databases written before
+  the kind was recorded) is read as `organizations`, so it fails closed.
+- **Actor:** `{ kind, id, name }`, `kind` one of `admin`, `customer`, `system`, `api_key`. `id` and
+  `name` only for `admin` — `name` is "first last", else the e-mail, and `null` when the
+  administrator cannot be found; other kinds carry `null` for both. One lookup per page.
+- **Lines:** `{ seq, kind: added | changed | removed, selection { variantId, productId, categoryId,
+  attributeKey, attributeValue }, minQuantity, maxQuantity, before, after }`. `before` / `after`
+  are the row price union (`fixed | percent | amount`), `null` on an added line's before side and a
+  removed line's after side. Amounts are the stored decimal strings (`0.0125`, `-1.2345`), never
+  rounded.
+- **Ids only.** Labels (products, variants, categories, organizations, a deleted entity's fallback)
+  are the admin panel's (#470 stage 4).
 
 ## Removed (same release)
 

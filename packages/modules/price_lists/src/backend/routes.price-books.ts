@@ -10,6 +10,7 @@ import {
   priceBookDuplicateSchema,
   priceBookLinesQuerySchema,
   priceBookProductLinesQuerySchema,
+  priceBookHistoryQuerySchema,
   priceBookListQuerySchema,
   priceBookPatchRequestSchema,
   priceBookResolveRequestSchema,
@@ -38,6 +39,7 @@ import { PRICE_LIST_PERMISSIONS } from '../manifest.js';
 import type { BuyerLinePriceService } from './services/buyer-line-price-service.js';
 import type { PriceBookService } from './services/price-book-service.js';
 import type { PriceBookReads } from './services/price-book-reads.js';
+import type { PriceBookHistory } from './services/price-book-history.js';
 import { pickLabel } from './services/price-book-reads.js';
 import { attributeInactiveReason } from './services/attribute-eligibility.js';
 import { currentPriceBookScope, organizationInScope } from './services/price-book-scope.js';
@@ -60,6 +62,8 @@ import { presetName, type PrecedenceConfig } from './services/precedence.js';
 export interface PriceBookRoutesDeps {
   priceBookService: PriceBookService;
   reads: PriceBookReads;
+  /** Issue #470 stage 3 — the reader over a book's own price-change history. */
+  history: PriceBookHistory;
   buyerLinePriceService: BuyerLinePriceService;
   emFactory: () => EntityManager;
   requireAdmin: RequireAdminFactory;
@@ -516,6 +520,48 @@ export async function registerPriceBookRoutes(app: FastifyInstance, deps: PriceB
     const { productIds } = parseOr400(priceBookProductLinesQuerySchema, request.query);
     return { data: { productIds: await deps.reads.productLines(request.params.id, productIds, await currentPriceBookScope()) } };
   });
+
+  // ---- Price history (#470 stage 3) ---------------------------------------------
+  //
+  // The book's own value-change store, keyset-paged; the book is loaded through
+  // the price-book scope first, so an out-of-reach book answers as an unknown one.
+
+  app.get<{ Params: { id: string } }>(`${base}/:id/price-history`, { preHandler: readGate }, async (request) => {
+    if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
+    const query = parseOr400(priceBookHistoryQuerySchema, request.query);
+    return deps.history.changes(request.params.id, query, await currentPriceBookScope());
+  });
+
+  app.get<{ Params: { id: string; productId: string } }>(
+    `${base}/:id/price-history/products/:productId`,
+    { preHandler: readGate },
+    async (request) => {
+      if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
+      const scope = await currentPriceBookScope();
+      // The book first: an out-of-reach book is a 404 whatever the product.
+      if (!isUuidShape(request.params.productId)) {
+        await deps.reads.header(request.params.id, scope);
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Product not found.');
+      }
+      const query = parseOr400(priceBookHistoryQuerySchema, request.query);
+      return deps.history.productLines(request.params.id, request.params.productId, query, scope);
+    },
+  );
+
+  app.get<{ Params: { id: string; changeId: string } }>(
+    `${base}/:id/price-history/:changeId/lines`,
+    { preHandler: readGate },
+    async (request) => {
+      if (!isUuidShape(request.params.id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price book not found.');
+      const scope = await currentPriceBookScope();
+      if (!isUuidShape(request.params.changeId)) {
+        await deps.reads.header(request.params.id, scope);
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Price change not found.');
+      }
+      const query = parseOr400(priceBookHistoryQuerySchema, request.query);
+      return deps.history.lines(request.params.id, request.params.changeId, query, scope);
+    },
+  );
 
   app.put<{ Params: { id: string }; Querystring: { dryRun?: string } }>(
     `${base}/:id/rows`,
