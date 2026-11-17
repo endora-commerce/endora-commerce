@@ -664,7 +664,7 @@ Dwie metody `CatalogQueryService` są używane ponad granicami modułów (udokum
 - `buildVisibleAttributesProjection()` — wewnętrzna, używana przez odpowiedź ze szczegółami
   produktu do zbudowania `visibleAttributes[]`
 
-## Atrybuty jako rozszerzenie pól niestandardowych {#atrybuty-jako-rozszerzenia-custom-field}
+## Atrybuty jako rozszerzenie pól niestandardowych {#attributes-as-custom-field-extensions}
 
 Przechowywanie definicji atrybutów połączono z ogólną warstwą pól niestandardowych modułu
 `custom_fields` przez adapter, a nie przez przepisanie. W API HTTP nic się nie zmieniło — każdy

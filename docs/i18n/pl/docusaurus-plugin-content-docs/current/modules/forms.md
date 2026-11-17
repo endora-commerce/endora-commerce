@@ -123,7 +123,7 @@ wpisano, jest odrzucane i nie jest zapisywane, a inne reguły traktują je jako 
 i serwer obliczają reguły tak samo, więc klient nie może wysłać odpowiedzi na pole, którego nie
 widział.
 
-### Wersje — publikowanie {#versions-publishing}
+### Wersje — publikowanie {#versions--publishing}
 
 **Opublikuj** zamraża kopię roboczą jako nową, numerowaną **wersję**; klienci zawsze dostają
 najnowszą opublikowaną wersję. Edycja opublikowanego formularza niczego dla klientów nie zmienia,

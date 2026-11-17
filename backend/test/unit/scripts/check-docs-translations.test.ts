@@ -25,6 +25,7 @@ import {
   type TranslationCacheEntry,
 } from '../../../scripts/lib/docs-translation-cache.js';
 import {
+  headingOutline,
   sidebarMessageIdsIn,
   type DocsTranslationSource,
 } from '../../../scripts/lib/docs-translation-sources.js';
@@ -619,6 +620,139 @@ describe('check-docs-translations', () => {
         .update(readFileSync(join(FIXTURE_DIR, name)))
         .digest('hex');
       expect(digest, `${name} is not the artefact captured from the pre-fix tree`).toBe(expected);
+    }
+  });
+});
+
+describe('check-docs-translations — structural divergence (issue #1340)', () => {
+  const english = [
+    '## Public surface',
+    '',
+    'Text.',
+    '',
+    '## One Save on the screen {#one-save}',
+    '',
+    '```bash',
+    '# Install the module',
+    'pnpm install',
+    '```',
+    '',
+    '### Migrations',
+  ].join('\n');
+
+  const polish = [
+    '## API publiczne',
+    '',
+    'Tekst.',
+    '',
+    '## Jeden przycisk Zapisz na ekranie {#one-save}',
+    '',
+    '```bash',
+    '# Zainstaluj moduł',
+    '# Druga linia komentarza, której nie ma w wersji angielskiej',
+    'pnpm install',
+    '```',
+    '',
+    '### Migracje',
+  ].join('\n');
+
+  function run(englishBody: string, polishBody: string) {
+    const root = mkdtempSync(join(tmpdir(), 'docs-check-'));
+    try {
+      const source = writeEnglish(root, 'docs/docs/intro.md', englishBody);
+      seedTranslation(root, source, polishBody);
+      return checkDocsTranslations(baseInput(root, [source]));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  it('reads level and explicit anchor, ignoring front matter and fenced code', () => {
+    expect(
+      headingOutline(`---\ntitle: T\n---\n\n# Title\n\n~~~sh\n# not a heading\n~~~\n\n## A {#a}\n### B ##\n`),
+    ).toEqual([
+      { level: 1, anchor: null, id: 'title' },
+      { level: 2, anchor: 'a', id: 'a' },
+      { level: 3, anchor: null, id: 'b' },
+    ]);
+  });
+
+  it('derives the slug Docusaurus renders for a heading without an explicit anchor', () => {
+    expect(
+      headingOutline('## Sales channels\n## The `organizations` [module](./x.md)\n## Sales channels\n'),
+    ).toEqual([
+      { level: 2, anchor: null, id: 'sales-channels' },
+      { level: 2, anchor: null, id: 'the-organizations-module' },
+      { level: 2, anchor: null, id: 'sales-channels-1' },
+    ]);
+  });
+
+  it('pairs a Polish explicit anchor with the English heading whose derived slug it repeats', () => {
+    const result = run(
+      `${english}\n\n## Switching the module off\n`,
+      `${polish}\n\n## Wyłączanie modułu {#switching-the-module-off}\n`,
+    );
+    expect(result.findings).toEqual([]);
+  });
+
+  it('reports a Polish anchor that matches no English heading id', () => {
+    const result = run(
+      `${english}\n\n## Switching the module off\n`,
+      `${polish}\n\n## Wyłączanie modułu {#wylaczanie-modulu}\n`,
+    );
+    expect(result.findings.map((finding) => finding.detail)).toEqual([
+      'structure-divergence:docs/docs/intro.md:pl:anchor-only-in-translation:#wylaczanie-modulu',
+      'structure-divergence:docs/docs/intro.md:pl:unanchored-h2-count:2-vs-1',
+    ]);
+  });
+
+  it('reports nothing for a normal translation whose heading text differs', () => {
+    expect(run(english, polish).findings).toEqual([]);
+  });
+
+  it('reports an anchored section the Polish page keeps and the English page dropped', () => {
+    const dropped = english.replace('## One Save on the screen {#one-save}', 'Moved text.');
+    const result = run(dropped, polish);
+    expect(result.findings.map((finding) => finding.detail)).toEqual([
+      'structure-divergence:docs/docs/intro.md:pl:anchor-only-in-translation:#one-save',
+    ]);
+    expect(result.findings[0]?.kind).toBe('structure-divergence');
+  });
+
+  it('reports an anchored section the English page has and the Polish page lacks', () => {
+    const result = run(`${english}\n\n## Upgrading {#upgrading}\n`, polish);
+    expect(result.findings.map((finding) => finding.detail)).toEqual([
+      'structure-divergence:docs/docs/intro.md:pl:anchor-only-in-source:#upgrading',
+    ]);
+  });
+
+  it('reports an anchor whose heading level differs between the two pages', () => {
+    const result = run(english.replace('## One Save', '### One Save'), polish);
+    expect(result.findings.map((finding) => finding.detail)).toEqual([
+      'structure-divergence:docs/docs/intro.md:pl:anchor-level:#one-save:h3-vs-h2',
+    ]);
+  });
+
+  it('reports a dropped unanchored section as a per-level heading count mismatch', () => {
+    // The #1340 shape: the section had no explicit anchor, so only the count
+    // per level can tell the shortened English page from its translation.
+    const dropped = english.replace('## Public surface\n\nText.\n\n', '');
+    const result = run(dropped, polish);
+    expect(result.findings.map((finding) => finding.detail)).toEqual([
+      'structure-divergence:docs/docs/intro.md:pl:unanchored-h2-count:0-vs-1',
+    ]);
+  });
+
+  it('does not compare a translation whose pin is already stale', () => {
+    const root = mkdtempSync(join(tmpdir(), 'docs-check-'));
+    try {
+      const source = writeEnglish(root, 'docs/docs/intro.md', english);
+      seedTranslation(root, source, `${polish}\n\n## Dodatkowa {#extra}\n`);
+      writeFileSync(source.absolutePath, `${readFileSync(source.absolutePath, 'utf8')}\nMore.\n`);
+      const result = checkDocsTranslations(baseInput(root, [source]));
+      expect(result.findings.map((finding) => finding.kind)).toEqual(['stale-translation']);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 });
