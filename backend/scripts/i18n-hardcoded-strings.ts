@@ -338,7 +338,7 @@ export function moduleAdminFloorRefusal(
  * `pnpm --filter backend run i18n:hardcoded [-- <path>… | --strict | --list]` — feature 021.
  *
  * Walks the admin SPA's `.tsx` source for hard-coded user-visible strings.
- * Flags four shapes:
+ * Flags six shapes:
  *   1. JSX text nodes whose trimmed value contains a non-whitespace English
  *      letter (a-z), e.g. `<Button>Save changes</Button>` — and, since issue
  *      #1316, a single capitalised word, `<Button>Delete</Button>`.
@@ -351,6 +351,13 @@ export function moduleAdminFloorRefusal(
  *      (`jsx-expression`, issue #1316).
  *   4. Prose handed to a state setter, `setError('Delete failed.')`
  *      (`setter-literal`, issue #1316).
+ *   5. A literal under a copy-named property, default prop or variable —
+ *      `confirm({ title: 'Delete?' })`, `{ label = 'Drag a file here' }`,
+ *      `const emptyMessage = … ?? 'No rows.'` — and the rest of a label table
+ *      one of whose values is copy (`copy-property`, issue #1433).
+ *   6. A fallback sentence handed to an error helper or kept behind `??` /
+ *      `||`, `formatError(err, 'Save failed.')` (`fallback-literal`, issue
+ *      #1433).
  *
  * The storefront (issue #85) is walked as well, over `.ts` and `.tsx`, and is
  * judged strictly ({@link STOREFRONT_ANALYSIS}) — six kinds, each literal
@@ -426,6 +433,10 @@ const USER_VISIBLE_ATTRS = new Set([
  *   above reported.
  * - `setter-literal` — the admin's: prose handed to a state setter,
  *   `setError('Delete failed.')` (issue #1316).
+ * - `fallback-literal` — the admin's: a fallback sentence handed to an error
+ *   helper or kept behind `??` / `||`, `formatError(err, 'Save failed.')`,
+ *   `res.reason ?? 'Unknown failure.'` (issue #1433). The admin reads
+ *   `copy-property` too since that issue, over its own copy test.
  */
 export type FindingKind =
   | 'jsx-text'
@@ -434,7 +445,8 @@ export type FindingKind =
   | 'copy-property'
   | 'prose-literal'
   | 'polish-literal'
-  | 'setter-literal';
+  | 'setter-literal'
+  | 'fallback-literal';
 
 export interface Finding {
   filePath: string;
@@ -575,8 +587,24 @@ const STATE_SETTER = /^set[A-Z]\w*$/;
  *   that is not prose (`setStatus('idle')`, `setTab('general')`) is state, not
  *   copy, and stays unreported.
  *
- * What it still cannot see is declared: copy that reaches the page through any
- * other call argument (`toast(…)`, `confirm({ title })`) or through a constant.
+ * Issue #1433 added the fallbacks the audit found English behind:
+ *
+ * - `copy-property`: a literal under a property named for copy
+ *   (`confirm({ title: 'Delete?' })`, `{ label: 'Countries' }`), a copy-named
+ *   default prop (`{ label = 'Drag a file here' }`) and a copy-named variable's
+ *   initialiser (`const emptyMessage = props.emptyMessage ?? 'No rows.'`) — and,
+ *   in {@link analyzeSource}, the other word-shaped values of a label table one
+ *   of whose values was reported, which is a component's `DEFAULT_LABELS`.
+ * - `fallback-literal`: prose or a one-word label handed to an error helper
+ *   (`formatError(err, 'Save failed.')`: a callee named for an error or a
+ *   message), and a prose-shaped literal kept behind `??` / `||` that no other
+ *   shape claimed (`res.reason ?? 'Unknown failure.'`), outside a developer's
+ *   diagnostic, a `throw` and a comparison.
+ *
+ * What it still cannot see is declared: a word or sentence reaching the page
+ * through any other call argument (`toast('Saved')`) or through a constant
+ * whose name says nothing (`const unit = 'pcs'`), and a one-word `??` fallback
+ * (`status ?? 'Draft'`), which is as often a state value as a label.
  */
 function classifyAdminLiteral(
   literal: TextLiteral,
@@ -617,7 +645,89 @@ function classifyAdminLiteral(
   ) {
     return isProseShaped(text) || ONE_WORD_LABEL.test(text.trim()) ? 'setter-literal' : null;
   }
+  if (insidePerLanguageStructure(literal)) return null;
+  const copyName = copyNameHolding(ctx, top);
+  if (copyName !== null) {
+    if (copyName.kind === 'property' && isStyleObject(copyName.object)) return null;
+    return isAdminCopy(probe) ? 'copy-property' : null;
+  }
+  if (
+    ts.isCallExpression(ctx) &&
+    ctx.arguments.includes(top as ts.Expression) &&
+    isErrorHelperCall(ctx)
+  ) {
+    return isProseShaped(text) || ONE_WORD_LABEL.test(text.trim()) ? 'fallback-literal' : null;
+  }
+  if (isBehindFallbackOperator(literal, top) && isProseShaped(text)) {
+    return isNonRenderedContext(literal, top) ? null : 'fallback-literal';
+  }
   return null;
+}
+
+/**
+ * The copy-named place `top` is the value of, if any: a property assignment
+ * (`{ title: … }`), a binding element's default (`{ label = … }`,
+ * `{ ariaLabel: name = … }`), a parameter's default or a variable's initialiser
+ * — each judged by the name the value is written under (issue #1433).
+ */
+function copyNameHolding(
+  ctx: ts.Node,
+  top: ts.Node,
+):
+  | { kind: 'property'; object: ts.ObjectLiteralExpression }
+  | { kind: 'binding' }
+  | null {
+  if (ts.isPropertyAssignment(ctx) && ctx.initializer === top) {
+    const key = propertyKeyText(ctx.name);
+    if (key === null || !namesRenderedCopy(key)) return null;
+    return ts.isObjectLiteralExpression(ctx.parent) ? { kind: 'property', object: ctx.parent } : null;
+  }
+  if (ts.isBindingElement(ctx) && ctx.initializer === top) {
+    const nameNode = ctx.propertyName ?? ctx.name;
+    const name = ts.isIdentifier(nameNode) ? nameNode.text : null;
+    return name !== null && namesRenderedCopy(name) ? { kind: 'binding' } : null;
+  }
+  if (
+    (ts.isParameter(ctx) || ts.isVariableDeclaration(ctx) || ts.isPropertyDeclaration(ctx)) &&
+    ctx.initializer === top &&
+    ts.isIdentifier(ctx.name) &&
+    namesRenderedCopy(ctx.name.text)
+  ) {
+    return { kind: 'binding' };
+  }
+  return null;
+}
+
+/**
+ * A call that turns an error into the sentence an operator reads, whose other
+ * arguments are therefore the fallback copy: the callee's own name says error
+ * or message (`formatError`, `errorMessage`, `describeError`). A developer's
+ * diagnostic (`console.error`) and a constructed error (`new Error`, which is a
+ * `NewExpression` and not a call) are not.
+ */
+function isErrorHelperCall(call: ts.CallExpression): boolean {
+  const name = calleeName(call.expression);
+  if (name === null || !/error|message/i.test(name)) return false;
+  if (CATALOGUE_CALLS.has(name)) return false;
+  return receiverName(call.expression) !== 'console';
+}
+
+/** Whether, between `literal` and `top`, it is the right operand of `??` or `||`. */
+function isBehindFallbackOperator(literal: ts.Node, top: ts.Node): boolean {
+  let cur: ts.Node = literal;
+  while (cur !== top && cur.parent) {
+    const p = cur.parent;
+    if (
+      ts.isBinaryExpression(p) &&
+      p.right === cur &&
+      (p.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
+        p.operatorToken.kind === ts.SyntaxKind.BarBarToken)
+    ) {
+      return true;
+    }
+    cur = p;
+  }
+  return false;
 }
 
 function walkFile(filePath: string, findings: Finding[], options: AnalyzeOptions = {}): void {
@@ -707,6 +817,48 @@ export function analyzeSource(
   }
 
   visit(sf);
+
+  // A label table (issue #1433): an object literal one of whose values was
+  // reported as `copy-property` holds copy, so its other values are copy too
+  // whatever their keys are called — a component's `DEFAULT_LABELS`
+  // (`matchAll: 'Matches all carts.'` beside `valuesLabel: 'Value'`). Only a
+  // value the admin reads as copy elsewhere counts: prose, or one capitalised
+  // word. Ids, modes and slugs beside it (`testId: 'rule-builder'`) do not.
+  const first = findings.length;
+  const siblings = (node: ts.Node): void => {
+    if (ts.isObjectLiteralExpression(node) && !isStyleObject(node)) {
+      const values = node.properties
+        .filter(ts.isPropertyAssignment)
+        .map((property) => property.initializer)
+        .filter(
+          (value): value is TextLiteral =>
+            ts.isStringLiteral(value) ||
+            ts.isNoSubstitutionTemplateLiteral(value) ||
+            ts.isTemplateExpression(value),
+        );
+      const table = values.some((value) => {
+        if (!reported.has(value)) return false;
+        const at = sf.getLineAndCharacterOfPosition(value.getStart(sf));
+        return findings.some(
+          (f) => f.kind === 'copy-property' && f.line === at.line + 1 && f.column === at.character + 1,
+        );
+      });
+      if (table) {
+        for (const value of values) {
+          if (reported.has(value) || insidePerLanguageStructure(value)) continue;
+          const text = literalText(value);
+          if (isProseShaped(text) || ONE_WORD_LABEL.test(text.trim())) {
+            push(value, text, 'copy-property');
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, siblings);
+  };
+  siblings(sf);
+  if (findings.length > first) {
+    findings.sort((a, b) => a.line - b.line || a.column - b.column);
+  }
   return findings;
 }
 
@@ -1126,7 +1278,9 @@ function analyzeStrict(
  * of the 321 `.tsx` files under `admin/src`. Re-measured when issue #1316
  * widened the admin rule (2026-11-17): **571 findings across 75 files** — the
  * same screens' one-word labels, copy-named props, rendered literals and
- * setter messages, which the narrower rule could not see.
+ * setter messages, which the narrower rule could not see. Re-measured when
+ * issue #1433 added the admin's fallbacks (2026-11-17): **751 findings across
+ * 80 files**, after the kit's own primitives were translated in the same change.
  *
  * ## Why a per-file count rather than a per-string ledger
  *
@@ -1156,11 +1310,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // same four strings in the same component are read at the path they now sit
   // at. The count is unmoved, which is what says nothing was translated.
   'packages/admin-shell/src/components/LoginPage.tsx': 5,
-  // Feature 091's P4c published the asset cluster into the kit; its one
-  // finding, AssetFieldPicker's `aria-label="Clear asset"`, became feature
-  // 163's translatable `clearLabel` prop (English stays only as its default
-  // for callers with no bundle), and the entry went with it.
-  'packages/admin-kit/src/components/rule-builder/RuleBuilder.tsx': 9,
   // Feature 091's P5b published the shared page-builder chrome and the e-mail
   // builder as `@endora-commerce/page-builder-admin`, and these **six** entries
   // are **re-keyed**, not raised and not dropped. Every count is unmoved: the
@@ -1172,14 +1321,14 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // declares `endora: { type: 'admin-ui' }`; forget that block and all six go
   // *stale* in the same run rather than silently unread, which is the property
   // that makes a self-declared population safe here.
-  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 9,
-  'packages/page-builder-admin/src/email/EmailRichTextField.tsx': 2,
+  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 12,
+  'packages/page-builder-admin/src/email/EmailRichTextField.tsx': 3,
   'packages/page-builder-admin/src/email/EmailRowLayoutPicker.tsx': 3,
   'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': 5,
   // Feature 163, R17 (T201): the picker's Change / Select / Clear selection and
   // the source's two options read the `core` bundle; lowered from 5.
-  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 4,
-  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 32,
+  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 6,
+  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 36,
   // Feature 091, Phase 4 batch 16 — re-keyed, not raised and not dropped:
   // `cms` took its admin surface into its package and these files went with
   // it. Every count is unmoved; the same strings in the same components, under
@@ -1201,7 +1350,7 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // so the merge request that moves a file is structurally the one that
   // cannot see the entry go stale. Issue #888 lowered it from 4: the canvas
   // now draws its labels from the PDF's `pdf.*` keys.
-  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 3,
+  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 85,
   // `specs/134-paid-module-extraction/` T063 re-keyed two of the six strings
   // above to the KSeF block's editor preview in the module that declares the
   // block; T069 then took that module out of this repository, and the entry
@@ -1290,11 +1439,11 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // Translating them is two screens' worth of keys per module and belongs to
   // whoever repairs those screens, not to a batch whose subject is where the
   // file lives.
-  'packages/modules/newsletter/src/admin/pages/AutomationBuilder.tsx': 19,
+  'packages/modules/newsletter/src/admin/pages/AutomationBuilder.tsx': 20,
   'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 12,
   'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 20,
-  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 25,
-  'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': 6,
+  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 26,
+  'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': 7,
   'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 9,
   'packages/modules/newsletter/src/admin/pages/ProviderSettingsPage.tsx': 13,
   'packages/modules/newsletter/src/admin/pages/SubscribersPage.tsx': 14,
@@ -1303,7 +1452,7 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 10,
   'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 8,
   'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 10,
-  'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 21,
+  'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 22,
   'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 51,
   'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
   // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `organizations`
@@ -1321,30 +1470,22 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // 2026-11-17: 571 admin findings across 75 files, up from 217 across 40.
   // `color-picker.tsx`'s one finding left with the rule rather than with a
   // translation: it was a hex colour placeholder, which is not copy.
-  'packages/admin-kit/src/components/FileDropzone.tsx': 1,
-  'packages/admin-kit/src/components/asset-picker/AssetFieldPicker.tsx': 5,
-  'packages/admin-kit/src/components/cms-picker/CmsBlockPicker.tsx': 3,
-  'packages/admin-kit/src/components/cms-picker/CmsPagePicker.tsx': 3,
-  'packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx': 2,
-  'packages/admin-kit/src/components/organization-picker/OrganizationPicker.tsx': 3,
-  'packages/admin-kit/src/components/organization-picker/OrganizationPickerMulti.tsx': 4,
-  'packages/admin-kit/src/ui/multi-select.tsx': 3,
   'packages/admin-kit/src/zones/ZoneErrorBoundary.tsx': 1,
   'packages/admin-shell/src/components/AppShell.tsx': 5,
   'packages/modules/carts/src/admin/pages/CartsList.tsx': 1,
   'packages/modules/catalog/src/admin/components/ProductInventoryTab.tsx': 3,
   'packages/modules/catalog/src/admin/pages/AttributeSetsPage.tsx': 3,
   'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': 2,
-  'packages/modules/cms/src/admin/components/BackgroundFields.tsx': 1,
+  'packages/modules/cms/src/admin/components/BackgroundFields.tsx': 5,
   'packages/modules/cms/src/admin/components/CarouselPreviewNav.tsx': 5,
   'packages/modules/cms/src/admin/components/ContentSliderActionBarExtras.tsx': 2,
-  'packages/modules/cms/src/admin/components/HeroFields.tsx': 2,
+  'packages/modules/cms/src/admin/components/HeroFields.tsx': 14,
   'packages/modules/cms/src/admin/components/PageBuilderActionBar.tsx': 7,
-  'packages/modules/cms/src/admin/components/SectionBlockFields.tsx': 1,
-  'packages/modules/dictionaries/src/admin/pages/DictionaryPage.tsx': 2,
-  'packages/modules/dictionaries/src/admin/tabs/CountriesTab.tsx': 23,
-  'packages/modules/dictionaries/src/admin/tabs/CurrenciesTab.tsx': 21,
-  'packages/modules/dictionaries/src/admin/tabs/LanguagesTab.tsx': 15,
+  'packages/modules/cms/src/admin/components/SectionBlockFields.tsx': 6,
+  'packages/modules/dictionaries/src/admin/pages/DictionaryPage.tsx': 5,
+  'packages/modules/dictionaries/src/admin/tabs/CountriesTab.tsx': 29,
+  'packages/modules/dictionaries/src/admin/tabs/CurrenciesTab.tsx': 27,
+  'packages/modules/dictionaries/src/admin/tabs/LanguagesTab.tsx': 23,
   'packages/modules/invoices/src/admin/pages/InvoicesList.tsx': 3,
   'packages/modules/orders/src/admin/pages/OrderDetail.tsx': 1,
   'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx': 2,
@@ -1356,6 +1497,36 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/settings/src/admin/pages/SettingsPage.tsx': 6,
   'packages/page-builder-admin/src/email/EmailBuilderActionBar.tsx': 5,
   'packages/page-builder-admin/src/email/EmailVariableFields.tsx': 2,
+  // Issue #1433 widened the admin rule again, to the fallbacks the 2026-11-17
+  // UX audit found English behind: a literal under a copy-named property
+  // (`confirm({ title })`, an options or Puck field table's `label`), a
+  // copy-named default prop or variable (`{ label = '…' }`,
+  // `const emptyMessage = … ?? '…'`), the rest of a label table one of whose
+  // values is copy, and a fallback sentence handed to an error helper or kept
+  // behind `??` / `||` (`formatError(err, 'Save failed.')`). The entries above
+  // were raised in place by what it sees in them; these are the files it found
+  // that the #1316 rule read as clean. The kit's own primitives were
+  // translated in the same change rather than ledgered — `RuleBuilder`, the CMS
+  // and organization pickers, `AssetFieldPicker`, `MultiSelect`,
+  // `FileDropzone` and `CustomFieldValuesPanel` left with their strings.
+  // `auth.tsx` stays: its two sentences are the login screen's, drained with
+  // it. Measured 2026-11-17: 751 admin findings across 80 files, up from 571
+  // across 75.
+  'packages/admin-kit/src/lib/auth.tsx': 2,
+  'packages/modules/cms/src/admin/components/CarouselFields.tsx': 6,
+  'packages/modules/cms/src/admin/components/ListingFields.tsx': 3,
+  'packages/modules/cms/src/admin/components/PageBuilderEditor.tsx': 4,
+  'packages/modules/comparisons/src/admin/document-blocks/canvas.tsx': 7,
+  'packages/modules/document_templates/src/admin/blocks/core-block-editors.tsx': 14,
+  'packages/modules/document_templates/src/admin/blocks/items-table/index.tsx': 8,
+  'packages/modules/product_feeds/src/admin/components/TemplateFieldList.tsx': 1,
+  'packages/modules/quote_requests/src/admin/components/QuoteRequestPdfDialog.tsx': 1,
+  'packages/page-builder-admin/src/chrome/BlogCategoryPicker.tsx': 1,
+  'packages/page-builder-admin/src/chrome/ButtonListField.tsx': 24,
+  'packages/page-builder-admin/src/chrome/FormPickers.tsx': 1,
+  'packages/page-builder-admin/src/chrome/LinkField.tsx': 3,
+  'packages/page-builder-admin/src/chrome/NewsletterPickers.tsx': 2,
+  'packages/page-builder-admin/src/chrome/ResponsiveImageField.tsx': 1,
 };
 
 /**

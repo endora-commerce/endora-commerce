@@ -15,6 +15,7 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { cartApprovalStatusLabels, cartStatusLabels } from '../lib/labels.js';
 
 /**
  * CartsList (feature 027 US6).
@@ -42,8 +43,6 @@ interface AdminCartRow {
   createdAt: string;
 }
 
-const STATUSES = ['active', 'abandoned', 'completed', 'rejected'] as const;
-const APPROVAL_STATUSES = ['not_required', 'pending', 'approved', 'rejected_by_org_admin'] as const;
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   active: 'default',
@@ -64,8 +63,8 @@ export default function CartsList(): ReactNode {
   const [rows, setRows] = useState<AdminCartRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'' | (typeof STATUSES)[number]>('');
-  const [approvalFilter, setApprovalFilter] = useState<'' | (typeof APPROVAL_STATUSES)[number]>('');
+  const [statusFilter, setStatusFilter] = useState<'' | (typeof cartStatusLabels.values)[number]>('');
+  const [approvalFilter, setApprovalFilter] = useState<'' | (typeof cartApprovalStatusLabels.values)[number]>('');
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -114,9 +113,9 @@ export default function CartsList(): ReactNode {
                 onChange={(e): void => setStatusFilter(e.target.value as typeof statusFilter)}
               >
                 <option value="">{t('carts.filter.all')}</option>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`carts.status.${s}`)}
+                {cartStatusLabels.options(t).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </Select>
@@ -129,9 +128,9 @@ export default function CartsList(): ReactNode {
                 onChange={(e): void => setApprovalFilter(e.target.value as typeof approvalFilter)}
               >
                 <option value="">{t('carts.filter.all')}</option>
-                {APPROVAL_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`carts.approvalStatus.${s}`)}
+                {cartApprovalStatusLabels.options(t).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </Select>
@@ -152,24 +151,18 @@ export default function CartsList(): ReactNode {
               keyExtractor={(c) => c.id}
               columns={[
                 {
-                  id: 'cart',
-                  header: t('carts.column.id'),
+                  // Issue #1477 — a cart has no business ID, and the UUID
+                  // prefix this column used to lead with told the operator
+                  // nothing. The owner is what they recognise.
+                  id: 'owner',
+                  header: t('carts.column.owner'),
                   primary: true,
                   render: (c) => (
-                    <Link to={`/carts/${c.id}`} className="font-mono text-xs underline underline-offset-2">
-                      {c.id.slice(0, 8)}
+                    <Link to={`/carts/${c.id}`} className="font-medium underline underline-offset-2">
+                      {c.ownerDisplayName ?? t('carts.owner.anonymous')}
                     </Link>
                   ),
                   meta: (c) => formatDateTime(c.lastActivityAt),
-                },
-                {
-                  id: 'owner',
-                  header: t('carts.column.owner'),
-                  render: (c) => (
-                    <span className="text-xs text-muted-foreground">
-                      {c.ownerDisplayName ?? t('carts.owner.anonymous')}
-                    </span>
-                  ),
                 },
                 {
                   id: 'org',
@@ -185,7 +178,7 @@ export default function CartsList(): ReactNode {
                   id: 'status',
                   header: t('carts.column.status'),
                   render: (c) => (
-                    <Badge variant={STATUS_VARIANT[c.status] ?? 'secondary'}>{t(`carts.status.${c.status}`)}</Badge>
+                    <Badge variant={STATUS_VARIANT[c.status] ?? 'secondary'}>{cartStatusLabels.label(t, c.status)}</Badge>
                   ),
                 },
                 {
@@ -193,7 +186,7 @@ export default function CartsList(): ReactNode {
                   header: t('carts.column.approval'),
                   render: (c) => (
                     <Badge variant={APPROVAL_VARIANT[c.approvalStatus] ?? 'secondary'}>
-                      {t(`carts.approvalStatus.${c.approvalStatus}`)}
+                      {cartApprovalStatusLabels.label(t, c.approvalStatus)}
                     </Badge>
                   ),
                 },

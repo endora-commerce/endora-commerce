@@ -184,8 +184,9 @@ describe('SettingRowEditor — multi-line string settings', () => {
 
   it('names the field after the setting, so it is not an unlabelled textarea', () => {
     renderRow(stringSetting({ multiline: true }));
-    expect(textarea()!.getAttribute('aria-label')).toBe('Notes');
+    // Through the row's `<label>` since issue #1478, not an `aria-label`.
     expect(screen.getByRole('textbox', { name: 'Notes' })).toBe(textarea());
+    expect(screen.getByText('Notes').getAttribute('for')).toBe(textarea()!.id);
   });
 
   it('names it with the name the row shows — the owner bundle\'s, when it has one', () => {
@@ -205,7 +206,7 @@ describe('SettingRowEditor — multi-line string settings', () => {
       ),
       { ...BUNDLE, demo: { 'settingLabels.demo.notes.name': 'Notatki' } },
     );
-    expect(textarea()!.getAttribute('aria-label')).toBe('Notatki');
+    expect(screen.getByRole('textbox', { name: 'Notatki' })).toBe(textarea());
   });
 
   it('keeps the value previews under the field to one short line', () => {

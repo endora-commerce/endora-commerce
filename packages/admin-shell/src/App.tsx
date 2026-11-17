@@ -8,6 +8,7 @@ import {
   readReturnTo,
   useAuth,
   ModulePresenceProvider,
+  useModulePresence,
   useSurfaceVisibility,
   type GatedSurface,
   type PermissionRequirement,
@@ -15,9 +16,12 @@ import {
 import {
   TranslationProvider,
   useTranslation,
+  useTranslationContext,
   AppLanguageContext,
 } from '@endora-commerce/admin-kit/i18n';
 import { appBootstrapCopy } from './i18n/preauth-login-copy.js';
+import { adminBootCopy } from './i18n/admin-boot-copy.js';
+import { AdminBootSkeleton } from './components/AdminBootSkeleton.js';
 import { AdminActionsProvider } from './lib/admin-actions/AdminActionsProvider.js';
 import { AdminContributionsProvider } from '@endora-commerce/admin-kit/zones';
 import {
@@ -25,7 +29,7 @@ import {
   registryRoutes,
   type AdminRegistryEntry,
 } from './lib/module-registry/index.js';
-import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
+import type { Bundle, SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { HomePage } from './modules/home/HomePage.js';
 import { ModulesPage as PlatformModulesPage } from './modules/platform/ModulesPage.js';
 import { ApiDescriptionPage } from './modules/platform/ApiDescriptionPage.js';
@@ -110,6 +114,42 @@ function ModuleScreenFallback(): ReactNode {
   return <p className="text-sm text-muted-foreground">{t('app.moduleScreenLoading')}</p>;
 }
 
+/**
+ * Holds the routes behind {@link AdminBootSkeleton} until the shell has what it
+ * needs to render honestly (issues #1431, #1485): the operator's i18n bundle,
+ * without which every label is a raw `scope.key`, and the first module-presence
+ * projection, without which the fail-closed gate in {@link ModuleRoute} answers
+ * every module route — and the sidebar every module entry — with "absent".
+ *
+ * Both conditions settle on failure as well as on success. A bundle endpoint
+ * that errors opens the shell on raw keys and a presence request that errors
+ * degrades open (see `ModulePresenceProvider`); either is diagnosable, and a
+ * skeleton that never ends is not.
+ *
+ * It wraps `<Routes>` only, not the providers above it, so the bundle, presence
+ * and admin-actions requests all start on the same render rather than one after
+ * another. It closes once and stays closed: a later language flip keeps the
+ * previous bundle on screen (`TranslationProvider`'s `ready` never returns to
+ * `false`), and a presence `refresh()` keeps the projection it already has.
+ */
+function BootGate({
+  language,
+  children,
+}: {
+  language: SupportedAdminLanguage;
+  children: ReactNode;
+}): ReactNode {
+  const { ready: translationsReady } = useTranslationContext();
+  const { isLoading, modules, error } = useModulePresence();
+  // "Still on the first request": a refresh keeps the rows it already has, so
+  // an empty projection that is loading without an error can only be the boot.
+  const presenceBooting = isLoading && modules.length === 0 && error === null;
+  if (!translationsReady || presenceBooting) {
+    return <AdminBootSkeleton label={adminBootCopy[language]} />;
+  }
+  return children;
+}
+
 export interface AppProps {
   /**
    * The generated contribution registry — every installed module's admin layer.
@@ -146,9 +186,24 @@ export interface AppProps {
    * it.
    */
   readonly modulePresence?: AdminModulePresenceResponse;
+  /**
+   * The translation bundle, when the caller already has it.
+   *
+   * Forwarded to `TranslationProvider`'s `initialBundle` — and as the English
+   * fallback, so a non-English session does not fetch one either — which skips
+   * the boot fetch and opens {@link BootGate} on the first render. The seam
+   * exists for the same reason as `modulePresence` above: the provider is
+   * mounted inside the auth gate, so a caller rendering `<App/>` has no other
+   * way to reach it. Since issues #1431 and #1485 that matters: without it the
+   * first render is the boot skeleton, and a test asserting synchronously
+   * against the shell — an off-state case above all, whose subject is an
+   * absence — would assert against the skeleton and pass for the wrong reason.
+   * `{}` is the bundle that resolves every key to its `scope.key` placeholder.
+   */
+  readonly translations?: Bundle;
 }
 
-export function App({ contributions, modulePresence }: AppProps): ReactNode {
+export function App({ contributions, modulePresence, translations }: AppProps): ReactNode {
   const { status, me } = useAuth();
   // Feature 019 — admin-side language state. Seeded from the session
   // payload's `preferredLanguage`; falls back to English (FR-003).
@@ -174,15 +229,19 @@ export function App({ contributions, modulePresence }: AppProps): ReactNode {
   }, [sessionLanguage]);
 
   if (status === 'loading') {
-    return (
-      <div className="grid min-h-screen place-items-center bg-muted/40">
-        <p className="text-sm text-muted-foreground">{appBootstrapCopy.loading}</p>
-      </div>
-    );
+    // The same frame the boot gate below holds, so the page does not change
+    // shape between "checking the session" and "loading the bundle". The
+    // operator's language is not known yet, hence the pre-auth English copy.
+    return <AdminBootSkeleton label={appBootstrapCopy.loading} />;
   }
   if (status === 'unauthenticated') return <LoginPage />;
   return (
-    <TranslationProvider language={language}>
+    <TranslationProvider
+      language={language}
+      {...(translations === undefined
+        ? {}
+        : { initialBundle: translations, initialFallbackBundle: translations })}
+    >
       <AppLanguageContext.Provider value={{ language, setLanguage }}>
         <ModulePresenceProvider {...(modulePresence === undefined ? {} : { initial: modulePresence })}>
         {/* The zone renderer is the kit's (Z6) — a host screen becomes a
@@ -197,6 +256,10 @@ export function App({ contributions, modulePresence }: AppProps): ReactNode {
         <AdminActionsProvider language={language}>
         {/* Auto sign-out after the configured inactivity window (default 60 min). */}
         <IdleLogout />
+        {/* The session's language, not the state's: on the first signed-in
+            render the state still holds the 'en' it was seeded with while the
+            session was loading, and the effect above has not run yet. */}
+        <BootGate language={(sessionLanguage as SupportedAdminLanguage | null) ?? language}>
         <Routes>
           <Route path="/login" element={<SignedInLoginRedirect />} />
           <Route element={<AppShell />}>
@@ -360,6 +423,7 @@ export function App({ contributions, modulePresence }: AppProps): ReactNode {
         />
           </Route>
         </Routes>
+        </BootGate>
         </AdminActionsProvider>
         </AdminContributionsProvider>
         </AdminRegistryProvider>

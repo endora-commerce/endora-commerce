@@ -6,6 +6,7 @@ import type { CmsBlockSummary } from '@endora-commerce/contracts';
 // spelling `vi.mock` can name from outside the package.
 import { ApiError, apiClient } from '../../lib/index.js';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 /**
  * Single-select CMS-block picker.
@@ -38,10 +39,18 @@ export interface CmsBlockPickerProps {
   className?: string;
 }
 
+/**
+ * A failed read: the server's own message when it sent one, or `null` for the
+ * picker's translated fallback — resolved at render, so the request does not
+ * re-run when the bundle arrives (issue #1433).
+ */
+type ReadFailure = { message: string | null };
+
 export function CmsBlockPicker(props: CmsBlockPickerProps): ReactNode {
   const [blocks, setBlocks] = useState<CmsBlockSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const t = useTranslation('core');
+  const [error, setError] = useState<ReadFailure | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -54,7 +63,7 @@ export function CmsBlockPicker(props: CmsBlockPickerProps): ReactNode {
       })
       .catch((err: unknown) => {
         if (!alive) return;
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load blocks.');
+        setError({ message: err instanceof ApiError ? err.envelope.error.message : null });
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -69,7 +78,9 @@ export function CmsBlockPicker(props: CmsBlockPickerProps): ReactNode {
     [blocks],
   );
 
-  const emptyMessage = props.emptyMessage ?? error ?? 'No CMS blocks.';
+  const emptyMessage =
+    props.emptyMessage ??
+    (error ? (error.message ?? t('cmsPicker.blocks.loadFailed')) : t('cmsPicker.blocks.empty'));
 
   return (
     <Combobox<string>
@@ -79,9 +90,9 @@ export function CmsBlockPicker(props: CmsBlockPickerProps): ReactNode {
       loading={loading}
       clearable={props.clearable ?? true}
       disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Select a CMS block…'}
+      placeholder={props.placeholder ?? t('cmsPicker.blocks.placeholder')}
       emptyMessage={emptyMessage}
-      ariaLabel={props.ariaLabel ?? 'Select CMS block'}
+      ariaLabel={props.ariaLabel ?? t('cmsPicker.blocks.label')}
       id={props.id ?? ''}
       className={props.className ?? ''}
     />
