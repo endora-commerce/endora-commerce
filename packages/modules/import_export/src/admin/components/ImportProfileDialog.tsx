@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { pimLocaleTagSchema, type ImportProfile, type PimLocaleMappingEntry } from '@endora-commerce/contracts';
+import { pickLocalized, pimLocaleTagSchema, type ImportProfile, type PimLocaleMappingEntry } from '@endora-commerce/contracts';
 import {
   Alert,
   AlertDescription,
@@ -113,7 +113,10 @@ export function ImportProfileDialog({ profile, onClose, onSaved }: ImportProfile
     () =>
       (targets ?? []).map((target) => ({
         value: targetValue(target.channelId, target.languageCode),
-        label: `${target.channelCode} / ${languageName(target.languageCode, adminLanguage)}`,
+        // Issue #718: the channel's name in the admin's language, the code as secondary text; a
+        // channel named in no language is named by its code alone.
+        label: `${pickLocalized(target.channelName, adminLanguage) || target.channelCode} / ${languageName(target.languageCode, adminLanguage)}`,
+        description: target.channelCode,
       })),
     [targets, adminLanguage],
   );
@@ -325,6 +328,16 @@ export function ImportProfileDialog({ profile, onClose, onSaved }: ImportProfile
                         {missing.length > 0 ? (
                           <div className="mt-1 flex flex-wrap items-center gap-2">
                             <p className="text-xs text-destructive">{t('importProfiles.mapping.missingChannel')}</p>
+                            {/* A deleted channel has no name left to show: each target keeps a fallback label. */}
+                            <ul className="w-full text-xs text-muted-foreground">
+                              {missing.map((target) => (
+                                <li key={targetValue(target.channelId, target.languageCode)}>
+                                  {t('importProfiles.mapping.missingChannelTarget', {
+                                    language: languageName(target.languageCode, adminLanguage),
+                                  })}
+                                </li>
+                              ))}
+                            </ul>
                             <Button
                               type="button"
                               variant="link"
