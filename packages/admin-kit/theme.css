@@ -1737,9 +1737,6 @@ textarea.b2b-field {
     flex-shrink: 0;
     gap: 4px;
   }
-  .b2b-topbar__hide-mobile {
-    display: none !important;
-  }
   .b2b-lang-picker__label {
     display: none;
   }
