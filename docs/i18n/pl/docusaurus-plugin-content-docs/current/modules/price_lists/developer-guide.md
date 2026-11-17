@@ -58,7 +58,7 @@ rozwinięcie dawnego cennika, dlatego tabele zachowały stare nazwy.
 | `price_list_precedence` | Wersjonowana kolejność: dwanaście kodów komórek, `category_before_attribute`, `depth_mode`, `state`. Wersja 1 = HY jest instalowana jako aktywna; ścieżki zapisu jeszcze nie ma. |
 | `price_profiles`, `price_profile_prices`, `price_profile_stale_products` | Powierzchnia cen i jej znaczniki odświeżenia (niżej). |
 | `price_display_mode_overrides` | Tryby prezentacji dla organizacji, kategorii i produktu. |
-| `price_list_value_changes`, `price_list_row_value_changes` | Własna historia zmian cen cennika (zgłoszenie #470): jeden wiersz na każde polecenie, które zmieniło wartości — akcja, autor, czas, zmienione wartości nagłówka i liczba linii — i jedna linia na każdy wiersz ceny, który dodało, zmieniło lub usunęło, z wyborem wiersza, jego przedziałem ilości i obiema stronami ceny. Obie są `@RuleScoped` jak cennik i usuwane kaskadowo razem z nim, więc usunięcie cennika usuwa jego historię. Na razie zapisuje je tylko `priceBookRowWritePort` (niżej). |
+| `price_list_value_changes`, `price_list_row_value_changes` | Własna historia zmian cen cennika (zgłoszenie #470): jeden wiersz na każde polecenie, które zmieniło wartości — akcja, autor, czas, zmienione wartości nagłówka i liczba linii — i jedna linia na każdy wiersz ceny, który dodało, zmieniło lub usunęło, z wyborem wiersza, jego przedziałem ilości i obiema stronami ceny. Obie są `@RuleScoped` jak cennik i usuwane kaskadowo razem z nim, więc usunięcie cennika usuwa jego historię. Zapisuje je każde polecenie cennika, które zmienia wartości, we własnej transakcji; API administracyjne je odczytuje (*Historia cen*, niżej). |
 | `cart_items.price_source` (`carts`), `order_items.price_source` (`orders`) | Który krok wycenił pozycję: `agreed`, `base`, `catalogue`, `buyer`, `sale`; `null` dla pozycji wycenionej przed tym wydaniem. |
 
 Produkt nie ma własnej ceny: cena produktu to jego wiersze w cenniku cen bazowych każdej waluty. Pola
@@ -447,6 +447,9 @@ i po niej; audytowane akcje to `price_list.create`, `update`, `channels_replace`
 | `GET /:id/rows` | Wiersze, stronicowane (`selectionKind`, `productId`, `variantId`, `categoryId`, `attributeKey`, `search`), każdy z `labels`, `naturalKey`, `inactiveReason` i `targetDeleted`. |
 | `GET /:id/lines` | Strony siatki dzielone według linii (`kind`, `search`, `page`, `pageSize` ≤ 500), warianty zagnieżdżone pod produktem, `meta.totalLines`; koszt strony nie rośnie z cennikiem. |
 | `GET /:id/product-lines?productIds=` | Które z najwyżej 200 produktów mają już linię w cenniku. |
+| `GET /:id/price-history` | Historia zmian cen cennika, od najnowszych: `id`, `action`, `actor { kind, id, name }`, `at`, `headerBefore`, `headerAfter`, `lineCount`. Stronicowanie kluczem (`limit`, `cursor`). |
+| `GET /:id/price-history/:changeId/lines` | Linie jednej zmiany w kolejności `seq`: `kind` (`added`, `changed`, `removed`), `selection`, `minQuantity`, `maxQuantity`, `before`, `after`. |
+| `GET /:id/price-history/products/:productId` | Linie jednego produktu i jego wariantów, od najnowszych, każda z `changeId`, `at`, `action` i `actor`. |
 | `PUT /:id/rows` | Jedna partia, jedno audytowane polecenie: `{ expectedVersion, mode: 'merge' \| 'replace', upsert, delete }`, najwyżej 5 000 wierszy. Wiersz wskazuje wybór identyfikatorami (`selection`) albo kluczem naturalnym (`key`: `productSku`, `variantSku`, `categoryPath`, `attribute { key, valueCode }`). Wiersz bez id, którego wybór i `minQuantity` są równe zapisanemu wierszowi, zastępuje go. |
 | `PUT /:id/rows?dryRun=true` | Ta sama treść, bez zapisu: `{ version, resolved, diff { added, changed, removed, unchangedCount }, errors }`. Zatwierdzenie to ta sama treść bez `dryRun`, z wersją zwróconą przez podgląd. |
 | `GET /base-prices?productId=`, `PUT /base-prices/:productId` | Ceny bazowe produktu w każdej walucie, `{ byCurrency: { CODE: { product: Tier[], variants: { [variantId]: VariantBaseRow \| null } } } }`; jedno polecenie dla wszystkich walut, tworzące cennik cen bazowych waluty przy pierwszym użyciu. Handlowiec dostaje przy zapisie `403`. |
@@ -465,6 +468,20 @@ Nadpisania trybów prezentacji mają własne ścieżki:
 **Wersje.** `version` zmienia się przy każdym zapisie cennika. `PATCH /:id` i `PUT /:id/rows` muszą
 wskazać wersję, względem której powstały; bez niej odpowiadają `400`, a względem starszej —
 `409 PRICE_BOOK_STALE` z `details.currentVersion`, niczego nie zapisując.
+
+**Historia cen (zgłoszenie #470).** Trzy odczyty `price-history` zwracają własny zapis zmian wartości
+cennika — nazwy, priorytetu, odbiorców, mnożnika duplikatu i wierszy cen; status, kanały i aktywacja
+zostają w dzienniku audytu. Wymagają `price_lists:read`, a cennik jest wczytywany tak jak przez
+`GET /:id`, więc cennik poza zakresem daje `404` jak nieznany, podobnie jak `changeId` innego
+cennika. W odróżnieniu od pozostałych list są **stronicowane kluczem**: `{ data, pagination: {
+cursor, hasMore, limit } }`, `limit` domyślnie 50 i najwyżej 200, nieprzezroczysty `cursor`, bez
+sumy, bo historia rośnie od początku. Kwoty to zapisane ciągi dziesiętne, nigdy nie zaokrąglane.
+Strona nagłówka zawiera tylko klucze zmienione przez polecenie, odbiorców jako `{ kind, memberIds }`;
+dla wywołującego, którego zakres nie obejmuje wszystkich organizacji, identyfikatory organizacji
+spoza niego są pomijane i liczone w `withheldMemberCount`. `id` i `name` autora są ustawione tylko
+dla administratora. Odpowiedzi zawierają same identyfikatory; historia zaczyna się od wydania, które
+pierwsze ją zapisało. Kontrakt: `specs/160-pricing-model-v2/contracts/admin-price-books-api.md`,
+*Price history (#470)*.
 
 **Odmowy.**
 

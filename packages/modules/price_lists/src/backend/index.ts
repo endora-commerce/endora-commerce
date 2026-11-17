@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type {
+  AdminUserReadPort,
   ChannelMemberEntityType,
   BuyerLinePricePort,
   CatalogAttributeReadPort,
@@ -240,6 +241,9 @@ export function registerModule(ctx: ModuleContext): void {
             // fails closed, deliberately: refusing the probe is better than
             // pricing for a customer the platform will not identify.
             customerAccountRead: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            // Issue #470 stage 3 — the price-change history's actor names, as
+            // Tasks resolves them. `admin_users` is a declared dependency.
+            adminUserRead: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             // Feature 146 (threat model T8, D-3M) — the probe answers a
             // non-platform admin only about organizations they may see.
             // `organizations` is already a declared dependency.

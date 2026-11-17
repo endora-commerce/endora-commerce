@@ -91,7 +91,11 @@ export const manifest = defineModuleManifest({
   // it?" resolver into (feature 075, D-87). The registry is ungated and its
   // owner is non-deactivatable, so the declaration buys install and migration
   // order rather than a flip-time refusal.
+  // `admin_users` owns `adminUserReadPort`, which the price-change history
+  // reads for an administrator actor's name (issue #470 stage 3). Both modules
+  // are non-deactivatable, so the edge buys install order and an honest graph.
   dependencies: [
+    'admin_users',
     'audit_logs',
     'catalog',
     'currencies',

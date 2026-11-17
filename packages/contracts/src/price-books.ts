@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, uuidSchema } from './common.js';
+import { paginationSchema } from './pagination.js';
 
 /**
  * Price books — feature 160, D-287 P1 (`specs/160-pricing-model-v2/`).
@@ -1113,3 +1114,131 @@ export interface PriceBookRowWritePort {
   /** The product's rows in one non-base book, or `null` when it holds none at all. */
   bookRows(bookId: string, productId: string): Promise<BookProductRows | null>;
 }
+
+// --- Price history (#470 stage 3) ----------------------------------------------
+
+/**
+ * A price book's price-change history — issue #470 (D-288; owner ruling O-3),
+ * stage 3: the reader over the store every value-changing price-book Command
+ * writes (`price_list_value_changes` and its lines). Three keyset-paged reads
+ * under `/api/v1/admin/price-books/:id/price-history`, behind `price_lists:read`,
+ * on a book the caller can see (an out-of-reach book answers as an unknown one).
+ *
+ * **Keyset, not offset** — a deliberate exception to the price-book API's
+ * `{ data, meta: { page, pageSize, totalCount } }`: a history grows at its
+ * head, so an offset page shifts under a reader while a Command commits, and a
+ * count is a scan of the whole history (R-08). The envelope is the platform's
+ * `{ data, pagination: { cursor, hasMore, limit } }` with an opaque cursor.
+ *
+ * Amounts are the stored decimal strings (`numeric(14,4)`, percents
+ * `numeric(7,2)`), never rounded. Ids only: labels are stage 4's.
+ */
+export const PRICE_BOOK_HISTORY_DEFAULT_LIMIT = 50;
+export const PRICE_BOOK_HISTORY_MAX_LIMIT = 200;
+
+/** Query of every price-history read. */
+export const priceBookHistoryQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(PRICE_BOOK_HISTORY_MAX_LIMIT).default(PRICE_BOOK_HISTORY_DEFAULT_LIMIT),
+  cursor: z.string().min(1).max(512).optional(),
+});
+export type PriceBookHistoryQuery = z.infer<typeof priceBookHistoryQuerySchema>;
+
+/** Who ran the Command. `id` and `name` only for an administrator ("first last", else the e-mail; `null` when the admin is gone). */
+export const priceBookHistoryActorSchema = z.object({
+  kind: z.enum(['admin', 'customer', 'system', 'api_key']),
+  id: uuidSchema.nullable(),
+  name: z.string().nullable(),
+});
+export type PriceBookHistoryActor = z.infer<typeof priceBookHistoryActorSchema>;
+
+/**
+ * One side's audience. For a caller whose scope is not every organization, the
+ * organization ids outside it are left out and counted in `withheldMemberCount`
+ * (present only for such a caller); customer-group ids are never withheld.
+ */
+export const priceBookHistoryAudienceSchema = z.object({
+  kind: priceBookAudienceKindSchema,
+  memberIds: z.array(uuidSchema),
+  withheldMemberCount: z.number().int().nonnegative().optional(),
+});
+export type PriceBookHistoryAudience = z.infer<typeof priceBookHistoryAudienceSchema>;
+
+/** The header values one Command changed, on one side: only the keys that moved (a created book: all of them). */
+export const priceBookHistoryHeaderSchema = z.object({
+  name: z.string().optional(),
+  priority: z.number().int().optional(),
+  audience: priceBookHistoryAudienceSchema.optional(),
+  /** A duplicate's multiplier, on the copy's first change. */
+  amountMultiplier: z.string().optional(),
+});
+export type PriceBookHistoryHeader = z.infer<typeof priceBookHistoryHeaderSchema>;
+
+/** One value-changing Command, newest first. */
+export const priceBookHistoryChangeSchema = z.object({
+  id: uuidSchema,
+  /** The Command's audit action, e.g. `price_list.rows_replace`. */
+  action: z.string(),
+  actor: priceBookHistoryActorSchema,
+  at: isoDateTimeSchema,
+  headerBefore: priceBookHistoryHeaderSchema.nullable(),
+  headerAfter: priceBookHistoryHeaderSchema.nullable(),
+  /** Every line the change holds, however many a reader pages. */
+  lineCount: z.number().int().nonnegative(),
+});
+export type PriceBookHistoryChange = z.infer<typeof priceBookHistoryChangeSchema>;
+
+/** A history line's selection, as the row stored it. */
+export const priceBookHistorySelectionSchema = z.object({
+  variantId: uuidSchema.nullable(),
+  productId: uuidSchema.nullable(),
+  categoryId: uuidSchema.nullable(),
+  attributeKey: z.string().nullable(),
+  attributeValue: z.string().nullable(),
+});
+
+/** One price row a Command added (`before: null`), changed, or removed (`after: null`). */
+export const priceBookHistoryLineSchema = z.object({
+  /** The line's position in its change, from 0. */
+  seq: z.number().int().nonnegative(),
+  kind: z.enum(['added', 'changed', 'removed']),
+  selection: priceBookHistorySelectionSchema,
+  minQuantity: POSITIVE_INT,
+  maxQuantity: POSITIVE_INT.nullable(),
+  before: priceBookRowPriceSchema.nullable(),
+  after: priceBookRowPriceSchema.nullable(),
+});
+export type PriceBookHistoryLine = z.infer<typeof priceBookHistoryLineSchema>;
+
+/** A line of one product's history: the line with the change it belongs to. */
+export const priceBookHistoryProductLineSchema = priceBookHistoryLineSchema.extend({
+  changeId: uuidSchema,
+  at: isoDateTimeSchema,
+  action: z.string(),
+  actor: priceBookHistoryActorSchema,
+});
+export type PriceBookHistoryProductLine = z.infer<typeof priceBookHistoryProductLineSchema>;
+
+/** `GET …/:id/price-history` — changes, `(at desc, id desc)`. */
+export const priceBookHistoryChangesResponseSchema = z.object({
+  data: z.array(priceBookHistoryChangeSchema),
+  pagination: paginationSchema,
+});
+export type PriceBookHistoryChangesResponse = z.infer<typeof priceBookHistoryChangesResponseSchema>;
+
+/** `GET …/:id/price-history/:changeId/lines` — one change's lines, `seq` ascending. */
+export const priceBookHistoryLinesResponseSchema = z.object({
+  data: z.array(priceBookHistoryLineSchema),
+  pagination: paginationSchema,
+});
+export type PriceBookHistoryLinesResponse = z.infer<typeof priceBookHistoryLinesResponseSchema>;
+
+/**
+ * `GET …/:id/price-history/products/:productId` — the product's own lines and
+ * its variants', `(at desc, changeId desc, seq asc)`. Category, attribute and
+ * all-products lines are not a product's and are not here.
+ */
+export const priceBookHistoryProductLinesResponseSchema = z.object({
+  data: z.array(priceBookHistoryProductLineSchema),
+  pagination: paginationSchema,
+});
+export type PriceBookHistoryProductLinesResponse = z.infer<typeof priceBookHistoryProductLinesResponseSchema>;
