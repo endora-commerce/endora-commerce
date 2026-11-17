@@ -130,8 +130,8 @@ triggers keep current inside the transaction of every write that can change it
   predicate taken once) and `assignedOrganizationIdsForRanking` (ranking and
   "mine" filters only). The synchronous `isOrgInScope` and `ruleVisibleForScope`
   were removed rather than made async, because a promise in an `if` is always
-  truthy; `no-floating-promises` and `no-misused-promises` hold the files that
-  ask the question (issue #955).
+  truthy; `no-floating-promises` and `no-misused-promises` hold every TypeScript
+  file in the repository (issues #955 and #1027).
   `OrgConstraint` names the arms `all`, `single`, `allowed` and `excluded`; the
   former `set` arm was removed rather than kept beside them, so that no
   consumer could read a representative's scope as "no restriction".

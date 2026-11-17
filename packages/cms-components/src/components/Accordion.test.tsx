@@ -225,7 +225,7 @@ describe('cms.Accordion title level and size (T134)', () => {
       accordion.resolveFields!(
         { props: { ...defaults, id: 'acc', ...props } } as never,
         { parent: null, fields, lastFields: fields, changed: {}, lastData: null, metadata: {}, appState: {} } as never,
-      ) as FieldMap;
+      ) as FieldMap | Promise<FieldMap>;
     expect(Object.keys(await resolve({}))).not.toContain('titleSizePx');
     expect(Object.keys(await resolve({ titleSize: { base: 'h5', desktop: 'custom' } }))).toContain('titleSizePx');
     expect(defaults['titleLevel']).toBeUndefined();
@@ -329,7 +329,7 @@ describe('cms.Accordion look (T175)', () => {
       accordion.resolveFields!(
         { props: { ...defaults, id: 'acc', ...props } } as never,
         { parent: null, fields, lastFields: fields, changed: {}, lastData: null, metadata: {}, appState: {} } as never,
-      ) as FieldMap;
+      ) as FieldMap | Promise<FieldMap>;
     expect(Object.keys(await resolveWith({}))).not.toContain('titlePaddingPx');
     expect(Object.keys(await resolveWith({ titlePadding: { base: 's', desktop: 'custom' } }))).toContain('titlePaddingPx');
     // Dividers are offered for plain items only.
@@ -424,7 +424,7 @@ describe('cms.Accordion title colour, divider position and icon size (T179)', ()
       accordion.resolveFields!(
         { props: { ...defaults, id: 'acc', ...props } } as never,
         { parent: null, fields, lastFields: fields, changed: {}, lastData: null, metadata: {}, appState: {} } as never,
-      ) as FieldMap;
+      ) as FieldMap | Promise<FieldMap>;
     expect(Object.keys(await resolveWith({}))).not.toContain('iconSizePx');
     expect(Object.keys(await resolveWith({ iconSize: 'custom' }))).toContain('iconSizePx');
     expect(Object.keys(await resolveWith({}))).toContain('dividerPosition');
@@ -520,7 +520,7 @@ describe('cms.Accordion spacing and title weight (T182, T183)', () => {
       accordion.resolveFields!(
         { props: { ...defaults, id: 'acc', ...props } } as never,
         { parent: null, fields, lastFields: fields, changed: {}, lastData: null, metadata: {}, appState: {} } as never,
-      ) as FieldMap;
+      ) as FieldMap | Promise<FieldMap>;
     expect(Object.keys(await resolveWith({}))).not.toContain('panelGapPx');
     expect(Object.keys(await resolveWith({}))).not.toContain('itemGapPx');
     expect(Object.keys(await resolveWith({ panelGap: { desktop: 'custom' } }))).toContain('panelGapPx');
@@ -636,7 +636,7 @@ describe('cms.Accordion title weight per breakpoint, panel bottom space and open
       accordion.resolveFields!(
         { props: { ...defaults, id: 'acc', ...props } } as never,
         { parent: null, fields, lastFields: fields, changed: {}, lastData: null, metadata: {}, appState: {} } as never,
-      ) as FieldMap;
+      ) as FieldMap | Promise<FieldMap>;
     const unset = Object.keys(await resolveWith({}));
     expect(unset).not.toContain('panelPaddingBottomPx');
     expect(unset).not.toContain('openItemGapPx');

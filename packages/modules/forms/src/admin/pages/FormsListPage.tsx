@@ -216,7 +216,7 @@ export function FormsListPage(): ReactNode {
                   ? {
                       renderActions: (form: FormSummary) => (
                         <RowActionMenu label={t('list.actions', { name: form.name })}>
-                          <RowActionMenuItem onSelect={() => navigate(`/forms/${form.id}`)}>{t('list.open')}</RowActionMenuItem>
+                          <RowActionMenuItem onSelect={() => { navigate(`/forms/${form.id}`); }}>{t('list.open')}</RowActionMenuItem>
                           <RowActionMenuItem onSelect={() => void act(form, 'duplicate')}>{t('list.duplicate')}</RowActionMenuItem>
                           {form.status === 'published' ? (
                             <RowActionMenuItem onSelect={() => void act(form, 'close')}>{t('list.close')}</RowActionMenuItem>

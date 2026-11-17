@@ -519,7 +519,7 @@ export function DocumentTemplateEditor(): ReactNode {
         </ModalDialog>
       ) : null}
       {template === null && error ? (
-        <Button variant="outline" onClick={() => navigate('/document-templates')}>
+        <Button variant="outline" onClick={() => { navigate('/document-templates'); }}>
           {tCore('common.action.back')}
         </Button>
       ) : null}

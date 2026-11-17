@@ -64,7 +64,8 @@ export default function CustomEventEditPage(): ReactNode {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    // Fire-and-forget: the body catches its own errors.
+    void (async () => {
       try {
         const cat = await googleAnalyticsClient.actionCatalogue();
         if (cancelled) return;

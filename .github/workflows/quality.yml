@@ -126,9 +126,17 @@ jobs:
       # `packages/platform`. An unbuilt workspace is not a stale import, it is a
       # repository in which almost nothing resolves.
       - run: pnpm run build:packages
+      - run: pnpm -r run typecheck
+      # Typed lint (issue #1027) holds a TypeScript program per process, and
+      # `backend`'s `test/{contract,integration,perf}` program is the largest:
+      # under Node 22.20 it dies at 2816 and passes at 3072, and it died at
+      # 3072 on this runner (PR #1424). 3584 keeps ~512 MB over it. The job's
+      # 3072 above stays the type-check's measured value, so lint is a step of
+      # its own with its own heap.
+      - env:
+          NODE_OPTIONS: --max-old-space-size=3584
+        run: pnpm -r run lint
       - run: |
-          pnpm -r run typecheck
-          pnpm -r run lint
           pnpm --filter backend exec tsx scripts/check-entity-tenant-classification.ts
           pnpm --filter backend exec tsx scripts/check-channel-resolution.ts --enforce
           pnpm --filter backend run check:command-coverage -- --strict

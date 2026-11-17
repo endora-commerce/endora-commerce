@@ -205,7 +205,7 @@ export function ProductFeedCreatePage(): ReactNode {
       </Card>
 
       <StickyFormActions className="mt-4">
-        <Button variant="outline" onClick={() => navigate('/product-feeds')}>
+        <Button variant="outline" onClick={() => { navigate('/product-feeds'); }}>
           {t('feeds.retry') === '' ? '' : '←'} {t('page.title')}
         </Button>
         <Button

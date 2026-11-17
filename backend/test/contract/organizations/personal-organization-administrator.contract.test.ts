@@ -173,7 +173,7 @@ describe('a personal Organization’s administrator (PR-3)', () => {
   });
 
   it.each([
-    ['a Member', () => ({})],
+    ['a Member', async (): Promise<object> => ({})],
     ['an Administrator', async (): Promise<object> => ({ roleId: await predefinedRoleIdOf(h.em(), personalOrganizationId, 'administrator') })],
     [
       'with a role id the Organization does not have — refused before it is resolved',
