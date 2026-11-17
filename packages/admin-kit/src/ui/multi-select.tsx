@@ -3,6 +3,7 @@ import { Check, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 import { Checkbox } from './checkbox.js';
 import { normalize } from '../lib/text-normalization.js';
+import { useTranslation } from '../i18n/useTranslation.js';
 
 export interface MultiSelectOption {
   value: string;
@@ -56,6 +57,7 @@ export function MultiSelect({
   searchable = false,
   searchPlaceholder,
 }: MultiSelectProps): ReactNode {
+  const t = useTranslation('core');
   const reactId = useId();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -134,8 +136,8 @@ export function MultiSelect({
               autoFocus
               value={query}
               onChange={(e): void => setQuery(e.target.value)}
-              placeholder={searchPlaceholder ?? 'Search…'}
-              aria-label={searchPlaceholder ?? 'Search options'}
+              placeholder={searchPlaceholder ?? t('common.multiSelect.search')}
+              aria-label={searchPlaceholder ?? t('common.multiSelect.searchLabel')}
               className={cn(
                 'mb-1 h-8 w-full rounded-sm border border-input bg-transparent px-2 text-sm',
                 'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
@@ -145,7 +147,7 @@ export function MultiSelect({
           <div className="overflow-auto">
           {visibleOptions.length === 0 ? (
             <p className="px-2 py-1.5 text-sm text-muted-foreground">
-              {options.length === 0 ? '—' : 'No matches'}
+              {options.length === 0 ? '—' : t('common.multiSelect.noMatches')}
             </p>
           ) : (
             visibleOptions.map((opt) => {

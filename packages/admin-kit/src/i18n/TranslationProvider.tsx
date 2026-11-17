@@ -47,6 +47,21 @@ interface TranslationContextValue {
   language: SupportedAdminLanguage;
   bundle: Bundle;
   fallbackBundle: Bundle | undefined;
+  /**
+   * Whether the provider has settled its first bundle (issues #1431, #1485).
+   *
+   * `false` from mount until the first fetch for the current language either
+   * lands or fails; `true` from the start when an `initialBundle` was supplied.
+   * Until then every `t()` answers with the raw `scope.key` placeholder, so a
+   * consumer that renders copy — the shell above all — holds its tree behind a
+   * loading frame while this is `false`.
+   *
+   * It never returns to `false`: a later language flip keeps the previous
+   * bundle on screen until the new one arrives, which is the "keep the previous
+   * screen" half of the same rule. A failed fetch settles it too, so a broken
+   * bundle endpoint degrades to raw keys rather than to a frame that never ends.
+   */
+  ready: boolean;
   /** Translate a key under a module-scoped namespace (defaults to `core`). */
   t(scope: string, key: string, params?: Record<string, string | number>): string;
 }
@@ -104,6 +119,7 @@ export function TranslationProvider(props: TranslationProviderProps): ReactNode 
   const lastFetchedRef = useRef<SupportedAdminLanguage | null>(
     initialBundle ? language : null,
   );
+  const [ready, setReady] = useState<boolean>(initialBundle !== undefined);
 
   // Fetch the requested-language bundle whenever the language prop flips
   // (or on first mount when no initialBundle was supplied).
@@ -115,6 +131,7 @@ export function TranslationProvider(props: TranslationProviderProps): ReactNode 
         const res: GetBundlesResponse = await getBundles(language);
         if (cancelled) return;
         setBundle(res.bundles);
+        setReady(true);
         lastFetchedRef.current = language;
         // Pre-fetch EN once for cross-language fallback (FR-013) — only
         // when the user has chosen a non-English language and we don't
@@ -126,6 +143,10 @@ export function TranslationProvider(props: TranslationProviderProps): ReactNode 
       } catch (err) {
         // Logging only; the provider keeps the prior bundle so the UI
         // stays usable. The toast is the consumer's responsibility.
+        // A fetch that failed after this language's bundle had landed (the EN
+        // fallback) leaves `ready` as it was; one that never landed settles it,
+        // so the consumer's loading frame cannot outlive the failure.
+        if (!cancelled) setReady(true);
         if (import.meta.env.DEV) {
           // The subject is the language whose bundle could not be fetched, so a
           // second language failing is still reported; the same one failing on
@@ -169,8 +190,8 @@ export function TranslationProvider(props: TranslationProviderProps): ReactNode 
   );
 
   const value = useMemo<TranslationContextValue>(
-    () => ({ language, bundle, fallbackBundle, t }),
-    [language, bundle, fallbackBundle, t],
+    () => ({ language, bundle, fallbackBundle, ready, t }),
+    [language, bundle, fallbackBundle, ready, t],
   );
 
   return (

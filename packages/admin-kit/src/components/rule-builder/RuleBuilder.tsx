@@ -4,6 +4,7 @@ import { Button } from '../../ui/button.js';
 import { Input } from '../../ui/input.js';
 import { MultiSelect } from '../../ui/multi-select.js';
 import { Select } from '../../ui/select.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 import type { PromotionRule } from '@endora-commerce/contracts';
 
 /**
@@ -23,6 +24,13 @@ import type { PromotionRule } from '@endora-commerce/contracts';
  * (`cartTotal >= 0`) and the same copy. `admin/test/components/RuleBuilder.test.tsx`
  * pins all of it, because the incumbent callers (`PromotionRulesPage`,
  * `PromotionEditPage`) are live screens that must not shift under this feature.
+ *
+ * Issue #1433 (DS-16, SHELL-07) moved every word the component draws itself
+ * into the `core` bundle, so a Polish operator no longer reads English on any of
+ * the screens that render it. The one sentence that changed is `matchAll`: it
+ * said "Matches all carts." on a product feed's criteria as well, and now says
+ * what an empty rule means anywhere. Every entry of {@link RuleBuilderLabels}
+ * still overrides its default.
  */
 export interface RuleAttributeField {
   attributeKey: string;
@@ -85,6 +93,30 @@ export interface RuleBuilderLabels {
   valuesLabel?: string;
   /** Placeholder inside the value picker's search box. */
   valuesSearchPlaceholder?: string;
+  /** Placeholder of the free-text value input, for a field with no option set. */
+  valuesInputPlaceholder?: string;
+  /** Accessible name of a condition's field select. */
+  fieldLabel?: string;
+  /** Accessible name of a condition's operator select. */
+  operatorLabel?: string;
+  /** The two buttons on the `all` node. */
+  addCondition?: string;
+  addGroup?: string;
+  /** The button under a lone condition that turns it into a group. */
+  combineWith?: string;
+  /** Accessible name of a group's AND / OR select, and its two options. */
+  groupOperatorLabel?: string;
+  groupAll?: string;
+  groupAny?: string;
+  /** The words after the AND / OR select: "ALL of [the following conditions:]". */
+  groupSuffix?: string;
+  /** The two buttons under a group's children. */
+  addChildCondition?: string;
+  addChildGroup?: string;
+  /** Accessible name of a condition's icon-only remove button. */
+  removeCondition?: string;
+  /** Accessible name of the icon-only button that removes a child from its group. */
+  removeChild?: string;
 }
 
 const BUILTIN_FIELDS: RuleBuilderBuiltinField[] = [
@@ -103,13 +135,28 @@ const BUILTIN_FIELDS: RuleBuilderBuiltinField[] = [
   { key: 'category', kind: 'set', ops: ['in', 'notIn'] },
 ];
 
-const DEFAULT_LABELS: Required<RuleBuilderLabels> = {
-  builtinGroup: 'Cart & relationship',
-  attributeGroup: 'Attributes',
-  matchAll: 'Matches all carts.',
-  valuesPlaceholder: 'Any value',
-  valuesLabel: 'Value',
-  valuesSearchPlaceholder: 'Search…',
+/** The `core` key behind each label's default (issue #1433). */
+const DEFAULT_LABEL_KEYS: Readonly<Record<keyof RuleBuilderLabels, string>> = {
+  builtinGroup: 'ruleBuilder.group.builtin',
+  attributeGroup: 'ruleBuilder.group.attribute',
+  matchAll: 'ruleBuilder.matchAll',
+  valuesPlaceholder: 'ruleBuilder.values.placeholder',
+  valuesLabel: 'ruleBuilder.values.label',
+  valuesSearchPlaceholder: 'ruleBuilder.values.search',
+  valuesInputPlaceholder: 'ruleBuilder.values.input',
+  fieldLabel: 'ruleBuilder.field.label',
+  operatorLabel: 'ruleBuilder.operator.label',
+  addCondition: 'ruleBuilder.add.condition',
+  addGroup: 'ruleBuilder.add.group',
+  combineWith: 'ruleBuilder.combineWith',
+  groupOperatorLabel: 'ruleBuilder.groupOp.label',
+  groupAll: 'ruleBuilder.groupOp.all',
+  groupAny: 'ruleBuilder.groupOp.any',
+  groupSuffix: 'ruleBuilder.groupOp.suffix',
+  addChildCondition: 'ruleBuilder.add.childCondition',
+  addChildGroup: 'ruleBuilder.add.childGroup',
+  removeCondition: 'ruleBuilder.remove.condition',
+  removeChild: 'ruleBuilder.remove.child',
 };
 
 const ATTRIBUTE_OPS: string[] = ['eq', 'neq', 'in', 'notIn', 'between'];
@@ -183,7 +230,13 @@ export function RuleBuilder<T extends StructuralRule = PromotionRule>({
   labels,
   disabled = false,
 }: RuleBuilderProps<T>): ReactNode {
-  const copy: Required<RuleBuilderLabels> = { ...DEFAULT_LABELS, ...labels };
+  const t = useTranslation('core');
+  const copy = Object.fromEntries(
+    (Object.keys(DEFAULT_LABEL_KEYS) as Array<keyof RuleBuilderLabels>).map((name) => [
+      name,
+      labels?.[name] ?? t(DEFAULT_LABEL_KEYS[name]),
+    ]),
+  ) as Required<RuleBuilderLabels>;
   return (
     <div className="rounded-md border border-line p-3">
       <RuleNode
@@ -227,7 +280,7 @@ function RuleNode({
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span>{labels.matchAll}</span>
         <Button type="button" size="sm" variant="outline" disabled={disabled} onClick={() => onChange(defaultCondition(builtinFields))}>
-          <Plus className="mr-1 h-3 w-3" /> Add condition
+          <Plus className="mr-1 h-3 w-3" aria-hidden="true" /> {labels.addCondition}
         </Button>
         <Button
           type="button"
@@ -238,7 +291,7 @@ function RuleNode({
             onChange({ kind: 'group', op: 'AND', children: [defaultCondition(builtinFields)] })
           }
         >
-          <Plus className="mr-1 h-3 w-3" /> Add group
+          <Plus className="mr-1 h-3 w-3" aria-hidden="true" /> {labels.addGroup}
         </Button>
       </div>
     );
@@ -271,7 +324,7 @@ function RuleNode({
               })
             }
           >
-            <Plus className="mr-1 h-3 w-3" /> Combine with…
+            <Plus className="mr-1 h-3 w-3" aria-hidden="true" /> {labels.combineWith}
           </Button>
         </div>
       </div>
@@ -295,12 +348,13 @@ function RuleNode({
           className="w-24"
           value={node.op}
           disabled={disabled}
+          aria-label={labels.groupOperatorLabel}
           onChange={(e) => onChange({ ...node, op: e.target.value as 'AND' | 'OR' })}
         >
-          <option value="AND">ALL of</option>
-          <option value="OR">ANY of</option>
+          <option value="AND">{labels.groupAll}</option>
+          <option value="OR">{labels.groupAny}</option>
         </Select>
-        <span className="text-xs text-muted-foreground">the following conditions:</span>
+        <span className="text-xs text-muted-foreground">{labels.groupSuffix}</span>
       </div>
       <div className="flex flex-col gap-2 border-l-2 border-line pl-3">
         {node.children.map((child, idx) => (
@@ -317,8 +371,15 @@ function RuleNode({
                 depth={depth + 1}
               />
             </div>
-            <Button type="button" size="icon" variant="ghost" disabled={disabled} onClick={() => removeChild(idx)}>
-              <Trash2 className="h-3 w-3" />
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              disabled={disabled}
+              aria-label={labels.removeChild}
+              onClick={() => removeChild(idx)}
+            >
+              <Trash2 className="h-3 w-3" aria-hidden="true" />
             </Button>
           </div>
         ))}
@@ -335,7 +396,7 @@ function RuleNode({
               })
             }
           >
-            <Plus className="mr-1 h-3 w-3" /> Condition
+            <Plus className="mr-1 h-3 w-3" aria-hidden="true" /> {labels.addChildCondition}
           </Button>
           {depth < 4 ? (
             <Button
@@ -353,7 +414,7 @@ function RuleNode({
                 })
               }
             >
-              <Plus className="mr-1 h-3 w-3" /> Group
+              <Plus className="mr-1 h-3 w-3" aria-hidden="true" /> {labels.addChildGroup}
             </Button>
           ) : null}
         </div>
@@ -396,7 +457,13 @@ function ConditionRow({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Select className="w-44" value={fieldKey(condition.field)} disabled={disabled} onChange={(e) => onFieldChange(e.target.value)}>
+      <Select
+        className="w-44"
+        value={fieldKey(condition.field)}
+        disabled={disabled}
+        aria-label={labels.fieldLabel}
+        onChange={(e) => onFieldChange(e.target.value)}
+      >
         <optgroup label={labels.builtinGroup}>
           {builtinFields.map((f) => (
             <option key={f.key} value={`builtin:${f.key}`}>
@@ -418,6 +485,7 @@ function ConditionRow({
         className="w-28"
         value={condition.op}
         disabled={disabled}
+        aria-label={labels.operatorLabel}
         onChange={(e) => onChange({ ...condition, op: e.target.value })}
       >
         {ops.map((op) => (
@@ -450,12 +518,20 @@ function ConditionRow({
           className="w-48"
           value={valuesToText(condition.values)}
           disabled={disabled}
-          placeholder={numeric ? '0' : 'value(s), comma-separated'}
+          aria-label={labels.valuesLabel}
+          placeholder={numeric ? '0' : labels.valuesInputPlaceholder}
           onChange={(e) => onChange({ ...condition, values: textToValues(e.target.value, numeric) })}
         />
       )}
-      <Button type="button" size="icon" variant="ghost" disabled={disabled} onClick={onRemove}>
-        <Trash2 className="h-3 w-3" />
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        disabled={disabled}
+        aria-label={labels.removeCondition}
+        onClick={onRemove}
+      >
+        <Trash2 className="h-3 w-3" aria-hidden="true" />
       </Button>
     </div>
   );

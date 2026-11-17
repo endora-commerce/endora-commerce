@@ -59,6 +59,7 @@ import {
   useSectionSummaryText,
 } from '../line-groups.js';
 import { quoteTotals } from '../quote-totals.js';
+import { rfqStatusLabels } from '../lib/labels.js';
 import { QuoteRequestPdfDialog, type QuoteRequestPdfMode } from '../components/QuoteRequestPdfDialog.js';
 
 /**
@@ -479,7 +480,7 @@ export function RfqDetail(): ReactNode {
               <Copy className="size-3.5 opacity-60" />
             </button>
             <Badge variant={STATUS_VARIANT[rfq.status]} className="text-xs font-medium">
-              {rfq.status}
+              {rfqStatusLabels.label(t, rfq.status)}
             </Badge>
             {rfq.awaitingCustomerRevisionAcceptance ? (
               <Badge variant="warning" className="text-xs font-medium">
@@ -510,8 +511,7 @@ export function RfqDetail(): ReactNode {
                 ? ` · ${t('rfq.detail.meta.expires', { date: formatDateTime(validity.expiresAt) })}`
                 : validity.kind === 'lapsed'
                   ? ` · ${t('rfq.detail.meta.validityEnded', { date: formatDateTime(validity.expiresAt) })}`
-                  : ''}{' '}
-            <code className="font-mono text-xs">({rfq.id})</code>
+                  : ''}
           </span>
         }
         actions={headerActions.length > 0 ? headerActions : null}
