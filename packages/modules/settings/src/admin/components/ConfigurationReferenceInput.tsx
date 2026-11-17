@@ -4,7 +4,7 @@ import type {
   ConfigurationListResponse,
 } from '@endora-commerce/contracts';
 import { apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { Button, Select } from '@endora-commerce/admin-kit/ui';
+import { Button, Select, type FormFieldControlProps } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 /**
  * Loaded lazily, and that is a **build** decision rather than a performance one
@@ -86,12 +86,15 @@ interface Props {
   /** Current value — a configuration code (may be empty ⇒ not configured). */
   value: string;
   onChange: (next: string) => void;
+  /** The id and descriptions the row's `FormField` wires the select with (issue #1478). */
+  control?: FormFieldControlProps;
 }
 
 export function ConfigurationReferenceInput({
   configurationType,
   value,
   onChange,
+  control,
 }: Props): ReactNode {
   const t = useTranslation('settings');
   const isVisible = useSurfaceVisibility();
@@ -122,6 +125,7 @@ export function ConfigurationReferenceInput({
   return (
     <div className="flex items-center gap-2">
       <Select
+        {...control}
         className="flex-1"
         value={value}
         onChange={(e) => onChange(e.target.value)}

@@ -322,6 +322,8 @@
   "common.confirm.title": "Are you sure?",
   "common.field.code": "Code",
   "common.field.name": "Name",
+  "common.formField.required": "(required)",
+  "common.helpTip.label": "More information",
   "common.combobox.clearSelection": "Clear selection",
   "common.combobox.loading": "Loading…",
   "common.combobox.noResults": "No results.",
