@@ -429,6 +429,7 @@ import { Migration20261020T171341QuoteRequestsQuoteRequestItemGroups } from '@en
 import { Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20261025T031736QuoteRequestsUnitPriceFourPlaces } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20261113T081826QuoteRequestsNotificationsRedesign } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders } from '@endora-commerce/mod-quote-requests/migrations';
 
 // ── returns ─────────────────────────────────────────────────────────────────
 import { Migration20260625T144227ReturnsInit } from '@endora-commerce/mod-returns/migrations';
@@ -876,6 +877,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('quote_requests', Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped),
   migration('quote_requests', Migration20261025T031736QuoteRequestsUnitPriceFourPlaces),
   migration('quote_requests', Migration20261113T081826QuoteRequestsNotificationsRedesign),
+  migration('quote_requests', Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders),
 
   // ── returns ─────────────────────────────────────────────────────────────────
   migration('returns', Migration20260625T144227ReturnsInit),
