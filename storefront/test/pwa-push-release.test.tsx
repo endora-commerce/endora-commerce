@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import {
   PUSH_DISMISS_KEY,
@@ -48,7 +48,7 @@ function fakeSubscription(): FakeSubscription {
 function stubBrowser(options: {
   registration?: { pushManager: { getSubscription: () => Promise<FakeSubscription | null> } } | undefined;
   fetchImpl?: (...args: unknown[]) => Promise<Response>;
-}): { fetchSpy: ReturnType<typeof vi.fn>; storage: Map<string, string> } {
+}): { fetchSpy: Mock<(...args: unknown[]) => Promise<Response>>; storage: Map<string, string> } {
   const storage = new Map<string, string>();
   vi.stubGlobal('window', {
     PushManager: function PushManager() {},

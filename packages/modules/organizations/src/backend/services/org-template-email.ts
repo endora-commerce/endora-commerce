@@ -21,6 +21,12 @@ export interface OrgTemplateEmail {
     messageId: string;
     variables: Record<string, unknown>;
     meta?: Record<string, unknown> | undefined;
+    /**
+     * Issue #1371 — the channel the recipient came through and the language to
+     * write in; absent, the system-default channel and its default language.
+     */
+    salesChannelId?: string | null | undefined;
+    language?: string | null | undefined;
   }): Promise<boolean>;
 }
 

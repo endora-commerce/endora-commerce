@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { createElement, type ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
 import {
@@ -475,7 +475,7 @@ describe('coexistence with the other platforms (FR-032)', () => {
 
 describe('server-side relay dispatch (US3)', () => {
   const relayConfig: GtmStorefrontConfig = { ...trackedConfig, serverSide: true };
-  let fetchSpy: ReturnType<typeof vi.fn>;
+  let fetchSpy: Mock<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>;
 
   beforeEach(() => {
     fetchSpy = vi.fn(

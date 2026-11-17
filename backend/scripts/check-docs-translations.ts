@@ -16,10 +16,17 @@
  * `docs/docusaurus.config.js` and `docs/sidebars.js` by
  * `lib/docs-chrome-messages.ts`, never listed here.
  *
+ * Issue #1340 added `structure-divergence`: a fresh pin over an English page
+ * whose heading outline no longer matches the translation it pins — an
+ * explicit `{#anchor}` on one side only or at another level, or a different
+ * count of unanchored headings at one level. That is the shape a merge leaves
+ * when it drops an English section, re-pins, and the Polish page keeps it.
+ *
  * Usage: `pnpm --filter backend run check:docs-translations`
  *
  * Exit 0 = complete; exit 2 = missing, stale or malformed translations, chrome messages in
- * the wrong file or missing from the right one, or a page with no reachable title.
+ * the wrong file or missing from the right one, a page with no reachable title, or a
+ * translation whose heading outline diverges from its English source.
  */
 /* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
 import { existsSync, readFileSync } from 'node:fs';
@@ -50,6 +57,8 @@ import {
 import {
   collectAllDocsTranslationSources,
   collectSidebarMessageIds,
+  headingOutline,
+  headingOutlineDivergence,
   loadTranslationSkipPaths,
   type DocsTranslationSource,
 } from './lib/docs-translation-sources.js';
@@ -64,7 +73,8 @@ export type DocsTranslationFindingKind =
   | 'missing-sidebar-message'
   | 'chrome-message-missing'
   | 'chrome-message-inert'
-  | 'doc-title-unresolvable';
+  | 'doc-title-unresolvable'
+  | 'structure-divergence';
 
 export interface DocsTranslationFinding {
   readonly kind: DocsTranslationFindingKind;
@@ -212,6 +222,20 @@ export function checkDocsTranslations(input: DocsTranslationCheckInput): DocsTra
           detail:
             `doc-title-unresolvable:${repoRelative(input.repoRoot, materialized)}:` +
             translatedTitle.reason,
+        });
+      }
+      // Issue #1340: the pin proves which English body the translation was
+      // made from, not that the English body still holds everything the
+      // translation does — a merge that drops an English section and re-pins
+      // passes the hash. The heading outline is what both locales share.
+      for (const divergence of headingOutlineDivergence(
+        headingOutline(english),
+        headingOutline(onDisk),
+      )) {
+        findings.push({
+          kind: 'structure-divergence',
+          key: `${locale}:${source.sourcePath}:structure:${divergence}`,
+          detail: `structure-divergence:${source.sourcePath}:${locale}:${divergence}`,
         });
       }
     }

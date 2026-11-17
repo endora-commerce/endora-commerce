@@ -404,7 +404,7 @@ describe('cms.MediaText feature titles: size and weight (T160)', () => {
   });
 
   it('offers the Custom px only once a breakpoint is on Custom', async () => {
-    const block = config.components['cms.MediaText'] as unknown as { fields: Record<string, unknown>; resolveFields: (data: unknown, params: unknown) => Record<string, unknown> };
+    const block = config.components['cms.MediaText'] as unknown as { fields: Record<string, unknown>; resolveFields: (data: unknown, params: unknown) => Record<string, unknown> | Promise<Record<string, unknown>> };
     const fieldsFor = async (props: Record<string, unknown>) =>
       Object.keys(await block.resolveFields({ props: { ...defaults, ...props } }, { parent: null, fields: block.fields, appState: {} }));
     expect(await fieldsFor({})).not.toContain('featureTitleSizePx');

@@ -2,18 +2,22 @@ import { NO_DISCOUNT, type ActionConfigFor, type PromotionActionDefinition } fro
 import { compareDecimals, decimalProduct, wholeMultiples } from '@endora-commerce/contracts';
 import { percentOf, round2 } from './util.js';
 
-/** For every X (amount) spent, Y% off the whole cart (capped at 100%). */
+/**
+ * For every X (amount) spent, Y% off the whole cart (capped at 100%). The steps
+ * count the gross the buyer pays (issue #1396), and the percentage is taken of
+ * it (issue #1350).
+ */
 export const spendXPercentOffAction: PromotionActionDefinition<ActionConfigFor<'spend_x_percent_off'>> = {
   type: 'spend_x_percent_off',
   labelKey: 'action.spend_x_percent_off',
   apply: (config, ctx) => {
     if (config.currency !== ctx.currency) return NO_DISCOUNT;
-    const steps = wholeMultiples(ctx.subtotal, config.spendStep);
+    const steps = wholeMultiples(ctx.grossSubtotal, config.spendStep);
     if (steps <= 0) return NO_DISCOUNT;
     // Exact (issue #417): 3 × 0.15 is the double 0.44999999999999996.
     const stepped = decimalProduct(steps, config.percent);
     const percent = compareDecimals(stepped, 100) > 0 ? '100' : stepped;
-    const delta = Math.min(percentOf(ctx.subtotal, percent), ctx.subtotal);
+    const delta = Math.min(percentOf(ctx.grossSubtotal, percent), ctx.grossSubtotal);
     return { discountSubtotalDelta: round2(Math.max(0, delta)), discountDeliveryDelta: 0 };
   },
 };

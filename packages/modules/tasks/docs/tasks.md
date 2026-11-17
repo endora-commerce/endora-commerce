@@ -128,8 +128,9 @@ shows *Publish* to its creator; the creator of a task with no record can switch
 - **Details** — the description, with its references as links; assignees, due
   date and time, start date, priority and tags, changed with *Edit* and saved
   together; *Assign to me*; who created the task and when, and when it was
-  finished. *Delete task* asks before it deletes, and says how many sub-tasks
-  the task has: they become top-level tasks, they are not deleted. It is not
+  finished. *Delete task*, at the top of the screen and away from *Edit*, asks
+  before it deletes, and says how many sub-tasks the task has: they become
+  top-level tasks, they are not deleted. It is not
   offered for a task of a record you may not change — a project you may not
   edit — and the screen says why.
 - **Sub-tasks** — how many are done of how many, each with its status,
@@ -487,6 +488,7 @@ ctx.onBoot(() => {
     allVisibleContextIds: () => /* every record id the caller may see */,
     visibleContextIds: (ids) => /* which of these ids the caller may see */,
     describe: (ids) => /* id → { label, href, groups: groupId → label } */,
+    search: ({ q, limit, changeableOnly }) => /* one page of { id, description }, by label */,
     canSeeAs: (adminUserId, id) => /* may that administrator see this record? */,
     canChangeTasks: (id) => /* may the caller add, take out or delete a task of this record? */,
     existingContexts: (ids) => /* id → the group ids it has now, for each id that still exists */,
@@ -504,6 +506,14 @@ The contract a descriptor keeps:
 - `visibleContextIds(ids)` answers for a single task, or a few.
 - `describe(ids)` is how a task shows its context: a label, an address in the
   Admin UI, and the labels of the record's groups.
+- `search({ q, limit, changeableOnly })`, optional, answers the record picker
+  on a task's screen (*Move*, *Place in a record*) one page at a time: the
+  records the caller may see whose label contains `q`, ignoring case and
+  diacritics, sorted by label, at most `limit`, each described as `describe`
+  would. With `changeableOnly`, only the records `canChangeTasks` would allow.
+  Answer it with one bounded query. Without it, every search lists every record
+  the caller may see, describes them all and asks `canChangeTasks` of each, so
+  the picker slows down as your records grow. Projects implements it.
 - `canSeeAs(adminUserId, id)` is the one method that answers for **somebody
   else**: whether that administrator, by their own permissions and reach, may
   see the record. It is asked before anybody is told about a task of the

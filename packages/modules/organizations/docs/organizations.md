@@ -24,7 +24,7 @@ writes need `customers:manage`, unless a row names another code.
 | `POST /api/v1/auth/email-verification/verify` | anon | Redeem verification token |
 | `POST /api/v1/auth/customer/login` | anon | Customer login → sets `b2b_session` cookie; merges anonymous cart |
 | `POST /api/v1/auth/customer/logout` | customer | Destroy session |
-| `POST /api/v1/auth/password-reset/request` | anon | Always 202 (defends against account enumeration) |
+| `POST /api/v1/auth/password-reset/request` | anon | Always 202 (defends against account enumeration). When the address belongs to an account, the `customer_password_reset` e-mail carries the reset link, on the storefront of the request's sales channel and under its language prefix |
 | `POST /api/v1/auth/password-reset/confirm` | anon | Redeem the emailed reset token. A redeemed token signs the account out of **every** session, retires its other outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `GET /api/v1/me` | customer | Current customer (with `organizationRole`, `permissions` and `preferredLanguage`, `null` while unknown) + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer |
 | `POST /api/v1/me/password` | customer | Change password (rejects wrong `currentPassword`). A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
@@ -95,6 +95,13 @@ correction to the value already stored).
   otherwise through the composed `emailMailer` (`EmailMailerPort`, the `email`
   module's); `SMTP_URL` (or `SMTP_HOST` + `SMTP_PORT`) decides whether that is
   SMTP or the console logger.
+- **Password-reset dispatch** — the self-service reset request sends the
+  `customer_password_reset` template, in the language of the request's sales
+  channel, with a link to `/password-reset/confirm` on that channel's
+  `sales_channels.storefront_url` (else `STOREFRONT_BASE_URL`). With no template
+  definition it falls back to a plain English message through `emailMailer`. The
+  e-mail cannot be switched off, because it is how a customer who forgot the
+  password gets back into the account.
 - **Last-admin guard** — codified in the `customer_accounts` Commands
   `customer-account-change-role.command.ts` and
   `customer-account-remove-member.command.ts`, and in this module's
@@ -286,7 +293,10 @@ the `organizations.version` column) and is wrapped in
 `em.transactional`. A stale `expectedVersion` returns `409
 VERSION_CONFLICT` with the `currentVersion` in the body. A status guard
 violation (e.g. approving an already-active org) returns `422
-VALIDATION_FAILED`.
+ORGANIZATION_STATUS_INVALID` with `details.currentStatus` and
+`details.requiredStatus`, and their labels in the reader's language as
+`currentStatusLabel` and `requiredStatusLabel`, which the sentence names
+(issue #629; until then it was `422 VALIDATION_FAILED`).
 
 Customer-side gate: the storefront receives the localized
 "why-you-can't-transact" message via `GET /api/v1/me`'s
@@ -405,7 +415,7 @@ registers all three:
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET /api/v1/admin/organizations/:id/sales-reps` | List the reps assigned to an organization. `404 NOT_FOUND` for an organization outside a sales representative's reach (see *Which Organizations a sales representative reaches*), as for one that does not exist. |
-| `POST /api/v1/admin/organizations/:id/sales-reps` | Assign a rep. |
+| `POST /api/v1/admin/organizations/:id/sales-reps` | Assign a rep. A personal organization is refused `422 ORGANIZATION_PERSONAL` (token `sales_rep`, `details.organizationId`, `organizationName`). |
 | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | Remove an assignment. |
 
 They are gated by `organizations:assign-sales-rep`. Until 2026-08 they
@@ -954,6 +964,11 @@ made for a personal organization earlier still shows the placeholder where it
 showed it then. Orders that carry one can be listed with
 `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
 
+An operator adding a member to a personal organization directly
+(`POST /api/v1/admin/organizations/:id/members`) is refused
+`422 ORGANIZATION_PERSONAL` (token `add_member`, `details.organizationId`,
+`organizationName`).
+
 Company (B2B) organizations are unaffected — the single-member invariant
 (`assertMembershipAllowed`) only rejects adding a second member to a
 personal org.
@@ -1374,8 +1389,9 @@ field (`organization_admin` / `regular_user`) any more.
 - **Personal organizations.** The sole member of a personal organization is its
   Administrator. The member and invitation routes answer them as any
   administrator (their members list holds only themselves and their
-  invitations list is empty); inviting is refused `422 VALIDATION_FAILED`,
-  because the organization is personal, before the role is looked at. A
+  invitations list is empty); inviting is refused `422 ORGANIZATION_PERSONAL`
+  (token `invite`, `details.organizationId`), because the organization is
+  personal, before the role is looked at. A
   storefront hides the organization screens there by `organization.isPersonal`,
   never by the role.
 - **Login and the guest basket.** When a member whose role lacks *Create and

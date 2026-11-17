@@ -55,6 +55,14 @@ export function PushOptIn({ locale }: { locale: string }): React.ReactElement | 
     setIosHint(false);
   };
 
+  // A refused subscription (a denied permission rejects `subscribe`) is the
+  // customer saying no, so it is remembered like "Not now" (issue #1027).
+  const enable = async (): Promise<void> => {
+    const ok = await subscribeToPush(vapidKey!).catch(() => false);
+    if (ok) setDone(true);
+    else dismiss();
+  };
+
   if (done || (!vapidKey && !iosHint)) return null;
 
   if (iosHint) {
@@ -84,11 +92,7 @@ export function PushOptIn({ locale }: { locale: string }): React.ReactElement | 
         <button
           type="button"
           className="underline"
-          onClick={async () => {
-            const ok = await subscribeToPush(vapidKey!);
-            if (ok) setDone(true);
-            else dismiss();
-          }}
+          onClick={() => void enable()}
         >
           {t('chrome.pwa.push.enable')}
         </button>

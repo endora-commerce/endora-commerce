@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Tags, Trash2 } from 'lucide-react';
 import type { TaskTag } from '@endora-commerce/contracts';
 import { statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
 import {
@@ -24,6 +24,7 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
 import { TaskTagDeleteDialog } from '../../components/tags/TaskTagDeleteDialog.js';
 import { TaskTagDialog, type TaskTagDialogSubmit } from '../../components/tags/TaskTagDialog.js';
+import { SettingsEmptyState } from '../../components/SettingsEmptyState.js';
 import { errorMessage } from '../../lib/labels.js';
 import { TASK_WORKFLOW_PATH } from '../../lib/settings-paths.js';
 
@@ -117,14 +118,22 @@ export function TaskTagsPage(): ReactNode {
             <CardTitle>{t('tags.list.title')}</CardTitle>
             <CardDescription>{t('tags.list.description')}</CardDescription>
           </div>
-          <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
-            <Plus aria-hidden="true" />
-            {t('tags.add')}
-          </Button>
+          {tags.length > 0 ? (
+            <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
+              <Plus aria-hidden="true" />
+              {t('tags.add')}
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
           {tags.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('tags.empty')}</p>
+            <SettingsEmptyState
+              icon={<Tags size={20} />}
+              title={t('tags.empty.title')}
+              body={t('tags.empty.body')}
+              actionLabel={t('tags.add')}
+              onAction={(): void => setDialog({ kind: 'create' })}
+            />
           ) : (
             <Table aria-label={t('tags.title')}>
               <TableHeader>

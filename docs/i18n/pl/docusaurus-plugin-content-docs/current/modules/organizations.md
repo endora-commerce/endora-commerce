@@ -23,7 +23,7 @@ wymagają `customers:manage`, chyba że wiersz podaje inny kod.
 | `POST /api/v1/auth/email-verification/verify` | anonimowy | Użycie tokenu weryfikacyjnego |
 | `POST /api/v1/auth/customer/login` | anonimowy | Logowanie klienta → ustawia ciasteczko `b2b_session`; łączy koszyk anonimowy |
 | `POST /api/v1/auth/customer/logout` | klient | Zakończenie sesji |
-| `POST /api/v1/auth/password-reset/request` | anonimowy | Zawsze 202 (ochrona przed sprawdzaniem, czy konto istnieje) |
+| `POST /api/v1/auth/password-reset/request` | anonimowy | Zawsze 202 (ochrona przed sprawdzaniem, czy konto istnieje). Gdy adres należy do konta, e-mail `customer_password_reset` zawiera link do resetu hasła — w sklepie kanału sprzedaży, z którego przyszło żądanie, pod prefiksem jego języka |
 | `POST /api/v1/auth/password-reset/confirm` | anonimowy | Użycie tokenu resetu z e-maila. Wykorzystanie tokenu wylogowuje konto ze **wszystkich** sesji, unieważnia pozostałe niewykorzystane tokeny resetu i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `GET /api/v1/me` | klient | Bieżący klient (z `organizationRole`, `permissions` i `preferredLanguage`, `null`, dopóki nieznany) i jego organizacja oraz `impersonation: { impersonatorAdminUserId }`, gdy administrator działa jako kupujący |
 | `POST /api/v1/me/password` | klient | Zmiana hasła (odrzucana przy błędnym `currentPassword`). Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
@@ -92,6 +92,12 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
   `email_verification`, gdy jest zdefiniowany, a w przeciwnym razie przez skomponowany `emailMailer`
   (`EmailMailerPort`, z modułu `email`); `SMTP_URL` (albo `SMTP_HOST` + `SMTP_PORT`) decyduje, czy
   jest to SMTP, czy wypisywanie do konsoli.
+- **Wysyłka resetu hasła** — samodzielne żądanie resetu wysyła szablon `customer_password_reset`
+  w języku kanału sprzedaży, z którego przyszło żądanie, z linkiem do `/password-reset/confirm`
+  pod adresem `sales_channels.storefront_url` tego kanału (w przeciwnym razie
+  `STOREFRONT_BASE_URL`). Bez definicji szablonu wysyłana jest zwykła wiadomość po angielsku przez
+  `emailMailer`. Tego e-maila nie można wyłączyć, bo to dzięki niemu klient, który zapomniał hasła,
+  odzyskuje dostęp do konta.
 - **Ochrona ostatniego administratora** — zapisana w Commandach modułu `customer_accounts`
   `customer-account-change-role.command.ts` i `customer-account-remove-member.command.ts` oraz
   w `organization-invitation-revoke.command.ts` tego modułu; nowe miejsca, w których „musi zostać
@@ -293,7 +299,10 @@ Endpointy administracyjne:
 Każda treść żądania zawiera `expectedVersion: number` (token blokady optymistycznej z kolumny
 `organizations.version`), a operacja jest wykonywana w `em.transactional`. Nieaktualne
 `expectedVersion` zwraca `409 VERSION_CONFLICT` z `currentVersion` w treści. Niedozwolone przejście
-statusu (np. zatwierdzenie już aktywnej organizacji) zwraca `422 VALIDATION_FAILED`.
+statusu (np. zatwierdzenie już aktywnej organizacji) zwraca `422 ORGANIZATION_STATUS_INVALID` z
+`details.currentStatus` i `details.requiredStatus` oraz ich etykietami w języku odbiorcy jako
+`currentStatusLabel` i `requiredStatusLabel`, które wymienia komunikat (zgłoszenie #629; wcześniej
+`422 VALIDATION_FAILED`).
 
 Po stronie klienta: storefront dostaje przetłumaczony komunikat „dlaczego nie możesz składać
 zamówień” w polach `organization.canTransact` i `organization.moderationMessage` z `GET /api/v1/me`.
@@ -397,7 +406,7 @@ Tę relację obsługują trzy endpointy, należące do tego modułu i przez nieg
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/admin/organizations/:id/sales-reps` | Lista handlowców przypisanych do organizacji. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. *Do których organizacji sięga przedstawiciel handlowy*), jak dla organizacji, która nie istnieje. |
-| `POST /api/v1/admin/organizations/:id/sales-reps` | Przypisanie handlowca. |
+| `POST /api/v1/admin/organizations/:id/sales-reps` | Przypisanie handlowca. Organizacja osobista jest odrzucana z `422 ORGANIZATION_PERSONAL` (token `sales_rep`, `details.organizationId`, `organizationName`). |
 | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | Usunięcie przypisania. |
 
 Są chronione przez `organizations:assign-sales-rep`. Do 2026-08 rejestrował je moduł zapytań
@@ -913,6 +922,11 @@ pokazuje ten zastępczy numer tam, gdzie pokazywał go wtedy. Zamówienia, któr
 znaleźć zapytaniem
 `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
 
+Operator dodający członka bezpośrednio do organizacji osobistej
+(`POST /api/v1/admin/organizations/:id/members`) dostaje odmowę
+`422 ORGANIZATION_PERSONAL` (token `add_member`, `details.organizationId`,
+`organizationName`).
+
 Organizacje firmowe (B2B) pozostają bez zmian — reguła jednoosobowości (`assertMembershipAllowed`)
 odrzuca tylko dodanie drugiego członka do organizacji osobistej.
 
@@ -1313,8 +1327,9 @@ faktycznie ma — aby sklep mógł ukryć to, czego członek nie może zrobić. 
 - **Organizacje osobiste.** Jedyny członek organizacji osobistej ma jej rolę
   Administrator. Trasy członków i zaproszeń odpowiadają mu jak każdemu
   administratorowi (lista członków zawiera tylko jego, lista zaproszeń jest
-  pusta); zaproszenie jest odrzucane z `422 VALIDATION_FAILED`, bo organizacja
-  jest osobista, zanim rola zostanie sprawdzona. Sklep ukrywa tam ekrany
+  pusta); zaproszenie jest odrzucane z `422 ORGANIZATION_PERSONAL` (token
+  `invite`, `details.organizationId`), bo organizacja jest osobista, zanim rola
+  zostanie sprawdzona. Sklep ukrywa tam ekrany
   organizacji na podstawie `organization.isPersonal`, nigdy roli.
 - **Logowanie i koszyk gościa.** Gdy loguje się członek, którego rola nie ma
   uprawnienia *Tworzenie i edycja koszyków*, jego koszyk gościa nie jest łączony:

@@ -142,7 +142,7 @@ definicjami pól niestandardowych dla encji `product`, a katalog przechowuje wie
 trzy opisane wyżej punkty rozszerzenia niezależne od encji (wpis `product` w rejestrze z
 `managedBy`, powiązanie sprawdzania `{table, column}` i API zapisu definicji) — bez żadnej logiki
 katalogu. Spojrzenie od strony katalogu i wynik migracji opisuje
-[strona modułu katalogu](../modules/catalog.md#atrybuty-jako-rozszerzenia-custom-field).
+[strona modułu katalogu](../modules/catalog.md#attributes-as-custom-field-extensions).
 
 ## Izolacja tenantów (dziedziczona)
 

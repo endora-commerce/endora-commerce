@@ -2,7 +2,7 @@ import type {
   FastifyReply,
   FastifyRequest,
   RouteOptions,
-  preHandlerHookHandler,
+  preHandlerAsyncHookHandler,
 } from 'fastify';
 import { HttpError } from '../error-envelope.js';
 import type { ApiInterceptorRegistry } from './registry.js';
@@ -58,7 +58,7 @@ function requestInfo(
 export function makePreDispatchOnRoute(
   registry: ApiInterceptorRegistry,
 ): (route: RouteOptions) => void {
-  const dispatchPre: preHandlerHookHandler = async function dispatchApiInterceptorsPre(
+  const dispatchPre: preHandlerAsyncHookHandler = async function dispatchApiInterceptorsPre(
     request: FastifyRequest,
     _reply: FastifyReply,
   ): Promise<void> {

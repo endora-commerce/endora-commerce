@@ -24,6 +24,7 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { assertEmailAssetsLinkable, type EmailAssetVisibility } from './linkable-assets.js';
 import { EmailBlock } from '../entities/email-block.entity.js';
 import { EmailBlockSalesChannel } from '../entities/email-block-sales-channel.entity.js';
 
@@ -40,6 +41,8 @@ export class EmailBlockService {
     private readonly auditLog?: AuditPort,
     /** The block names saved content may hold; the first-party set when not composed. */
     private readonly emailSafeNames: EmailSafeNames = FIRST_PARTY_EMAIL_NAMES,
+    /** Issue #1354 — asked before a save stores an asset id the block did not already hold. */
+    private readonly assets?: EmailAssetVisibility,
   ) {}
 
   #audit(
@@ -165,6 +168,7 @@ export class EmailBlockService {
     if (req.expectedVersion !== b.version) {
       throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'Block was modified by someone else.');
     }
+    await assertEmailAssetsLinkable(this.assets, req.content, [b.content]);
     const env = (b.content as { schema_version?: number; languages?: Record<string, unknown> }) ?? {};
     const languages = { ...(env.languages ?? {}), [language]: req.content };
     b.content = { schema_version: env.schema_version ?? 1, languages };

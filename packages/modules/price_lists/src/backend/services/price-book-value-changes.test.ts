@@ -28,38 +28,50 @@ const row = (over: Partial<PlannedRow> = {}): PlannedRow => ({
 });
 
 describe('headerValueChange', () => {
-  const was = { name: 'Contract', priority: 10, memberIds: [ORG_A] };
+  const was = { name: 'Contract', priority: 10, audienceKind: 'organizations' as const, memberIds: [ORG_A] };
 
-  it('holds only the header values that changed, on both sides', () => {
+  it('holds only the header values that changed, on both sides, the audience as its kind and sorted members', () => {
     expect(headerValueChange(was, { name: 'Contract 2' })).toEqual({
       before: { name: 'Contract' },
       after: { name: 'Contract 2' },
     });
-    expect(headerValueChange(was, { priority: 20, memberIds: [ORG_B, ORG_A] })).toEqual({
-      before: { priority: 10, audience: { memberIds: [ORG_A] } },
-      after: { priority: 20, audience: { memberIds: [ORG_A, ORG_B].sort() } },
+    expect(headerValueChange(was, { priority: 20, audienceKind: 'organizations', memberIds: [ORG_B, ORG_A] })).toEqual({
+      before: { priority: 10, audience: { kind: 'organizations', memberIds: [ORG_A] } },
+      after: { priority: 20, audience: { kind: 'organizations', memberIds: [ORG_A, ORG_B].sort() } },
     });
   });
 
-  it('is null when no value moved: the same name, priority and member set in another order', () => {
+  // #470 stage 3, ruling 7 (amends stage 2): a kind change is an audience change
+  // even when the member set stays the same, so a reader can tell whom the ids name.
+  it('records the audience when only its kind changes', () => {
+    const never = { name: 'x', priority: 0, audienceKind: 'customer_groups' as const, memberIds: [] };
+    expect(headerValueChange(never, { audienceKind: 'organizations', memberIds: [] })).toEqual({
+      before: { audience: { kind: 'customer_groups', memberIds: [] } },
+      after: { audience: { kind: 'organizations', memberIds: [] } },
+    });
+  });
+
+  it('is null when no value moved: the same name, priority, kind and member set in another order', () => {
     expect(headerValueChange(was, {})).toBeNull();
-    expect(headerValueChange(was, { name: 'Contract', priority: 10, memberIds: [ORG_A] })).toBeNull();
-    const two = { name: 'x', priority: 0, memberIds: [ORG_B, ORG_A] };
-    expect(headerValueChange(two, { memberIds: [ORG_A, ORG_B] })).toBeNull();
+    expect(headerValueChange(was, { name: 'Contract', priority: 10, audienceKind: 'organizations', memberIds: [ORG_A] })).toBeNull();
+    const two = { name: 'x', priority: 0, audienceKind: 'organizations' as const, memberIds: [ORG_B, ORG_A] };
+    expect(headerValueChange(two, { audienceKind: 'organizations', memberIds: [ORG_A, ORG_B] })).toBeNull();
   });
 });
 
 describe('createdHeaderValues', () => {
-  it('is the whole header of a created book, members sorted, with a duplicate’s multiplier', () => {
-    expect(createdHeaderValues({ name: 'New', priority: 5, memberIds: [ORG_B, ORG_A] })).toEqual({
+  it('is the whole header of a created book, the audience with its kind and sorted members, with a duplicate’s multiplier', () => {
+    expect(createdHeaderValues({ name: 'New', priority: 5, audienceKind: 'organizations', memberIds: [ORG_B, ORG_A] })).toEqual({
       name: 'New',
       priority: 5,
-      audience: { memberIds: [ORG_A, ORG_B].sort() },
+      audience: { kind: 'organizations', memberIds: [ORG_A, ORG_B].sort() },
     });
-    expect(createdHeaderValues({ name: 'Copy', priority: 0, memberIds: [], amountMultiplier: '1.1' })).toEqual({
+    expect(
+      createdHeaderValues({ name: 'Copy', priority: 0, audienceKind: 'everyone', memberIds: [], amountMultiplier: '1.1' }),
+    ).toEqual({
       name: 'Copy',
       priority: 0,
-      audience: { memberIds: [] },
+      audience: { kind: 'everyone', memberIds: [] },
       amountMultiplier: '1.1',
     });
   });

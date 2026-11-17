@@ -117,8 +117,8 @@ aktualną w transakcji każdego zapisu, który może ją zmienić (issue #955). 
   asynchroniczne `orgInScope`, `ruleInScope`, `orgScopeTest` (predykat synchroniczny pobierany raz) i
   `assignedOrganizationIdsForRanking` (wyłącznie do kolejności i filtrów „moje”). Synchroniczne
   `isOrgInScope` i `ruleVisibleForScope` usunięto, zamiast uczynić je asynchronicznymi, ponieważ
-  obietnica w `if` jest zawsze prawdziwa; pliki zadające to pytanie pilnują reguły
-  `no-floating-promises` i `no-misused-promises` (issue #955). `OrgConstraint`
+  obietnica w `if` jest zawsze prawdziwa; każdego pliku TypeScript w repozytorium pilnują reguły
+  `no-floating-promises` i `no-misused-promises` (issues #955 i #1027). `OrgConstraint`
   ma gałęzie `all`, `single`, `allowed` i `excluded`; dawna gałąź `set` została usunięta, a nie
   pozostawiona obok, aby żaden konsument nie odczytał zakresu handlowca jako „bez ograniczeń”.
 

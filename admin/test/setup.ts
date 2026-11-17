@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, configure } from '@testing-library/react';
 import { afterAll, afterEach, beforeEach, vi } from 'vitest';
 import { installMemoryStorage } from './helpers/memory-storage';
+import { outlivePuckLoaderTimer, trackPuckMounts } from './helpers/puck-loader-timer';
 
 /**
  * The budget a DOM assertion gets before it gives up, declared rather than
@@ -166,32 +167,18 @@ if (!Element.prototype.scrollIntoView) {
 // auto-cleanup isn't registered. Do it explicitly so each test gets a
 // fresh DOM and findBy* queries don't collide with leftovers.
 afterEach(() => {
-  if (document.querySelector('[class*="_Puck_"]')) puckMountedInThisFile = true;
   cleanup();
   setMobileViewport(false);
 });
 
 /**
- * Puck 0.23 starts a 500 ms timer when its canvas mounts
- * (`setTimeout(() => setShowLoader(true), 500)` in `@puckeditor/core`'s
- * `dist/chunk-55V3NZVF.mjs`) and never clears it on unmount. Unmounting is
- * harmless while the file's jsdom is alive — React drops the update — but a
- * file whose last mount is under 500 ms before the end lets the timer fire
- * after jsdom has been torn down, and React's `dispatchSetState` then reads
- * `window` and throws `ReferenceError: window is not defined`. Vitest reports
- * it as an unhandled error and fails the run with every test green — PR #478's
- * `test:frontend`, blamed on `test/modules/cms/section-presets.test.tsx`.
- *
- * So a file that mounted Puck outlives that timer before its environment goes:
- * one wait per such file, none for any other.
+ * A file that mounted Puck outlives Puck's never-cleared 500 ms loader timer
+ * before its jsdom goes (PR #478, issue #1035) — one wait per such file, none
+ * for any other. `helpers/puck-loader-timer.ts` carries why, and why the mount
+ * is watched for rather than looked for in an `afterEach`.
  */
-const PUCK_LOADER_TIMER_MS = 500;
-let puckMountedInThisFile = false;
-
-afterAll(async () => {
-  if (!puckMountedInThisFile) return;
-  await new Promise((settle) => setTimeout(settle, PUCK_LOADER_TIMER_MS + 100));
-});
+const puckMounts = trackPuckMounts();
+afterAll(() => outlivePuckLoaderTimer(puckMounts));
 
 /** Default: desktop tier (min-width 1024px) for layout tests. */
 let mobileViewport = false;

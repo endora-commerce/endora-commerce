@@ -39,6 +39,7 @@ import { TransactionalEmail } from '../entities/transactional-email.entity.js';
 import { TransactionalEmailContent } from '../entities/transactional-email-content.entity.js';
 import type { ContentResolver} from './content-resolver.js';
 import { type ResolvedContent } from './content-resolver.js';
+import { assertEmailAssetsLinkable, type EmailAssetVisibility } from './linkable-assets.js';
 import type { BrandingService} from './branding.service.js';
 import { type ResolvedBranding } from './branding.service.js';
 import type { EmbedResolver } from './embed-resolver.js';
@@ -115,6 +116,11 @@ export interface TransactionalEmailServiceDeps {
    * is the manifest's English literal, which is what it was before the key.
    */
   translator?: AdminI18nTranslatePort;
+  /**
+   * Issue #1354 — asked before a save stores an asset id none of the e-mail's
+   * bodies already held. Absent: a save that adds an id fails closed.
+   */
+  assets?: EmailAssetVisibility;
 }
 
 export class TransactionalEmailService implements TransactionalEmailSender {
@@ -130,6 +136,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private readonly onBlockFailure: EmailBlockFailureReporter | undefined;
   private readonly emailSafeNames: EmailSafeNames;
   private readonly translator: AdminI18nTranslatePort | undefined;
+  private readonly assets: EmailAssetVisibility | undefined;
 
   constructor(deps: TransactionalEmailServiceDeps) {
     this.emFactory = deps.emFactory;
@@ -144,6 +151,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     this.onBlockFailure = deps.onBlockFailure;
     this.emailSafeNames = deps.emailSafeNames ?? FIRST_PARTY_EMAIL_NAMES;
     this.translator = deps.translator;
+    this.assets = deps.assets;
   }
 
   // --- Sending (port) -----------------------------------------------------
@@ -415,6 +423,14 @@ export class TransactionalEmailService implements TransactionalEmailSender {
 
     const em = this.emFactory();
     const email = await this.loadEmailOrThrow(em, code);
+    // What the e-mail already stores is every body it holds — each channel's
+    // and language's, and the declared default — so a channel override started
+    // from the platform-wide body keeps the images that body already has.
+    const stored = await em.find(TransactionalEmailContent, { emailId: email.id });
+    await assertEmailAssetsLinkable(this.assets, input.content, [
+      email.defaultContent,
+      ...stored.map((body) => body.content),
+    ]);
     let row = await em.findOne(TransactionalEmailContent, {
       emailId: email.id,
       salesChannelId: scope.salesChannelId,

@@ -41,9 +41,14 @@ reads a currency through is untouched by the move.
 
 ## Defaults
 
-Same partial-unique-index pattern as `languages`. The migration bootstrap
-seeds `PLN` (default) and `EUR`; symbol values are stored via Postgres
-Unicode literals so the migration source stays ASCII.
+Same partial-unique-index pattern as `languages`. The module's own migration,
+`Migration20261117T065542CurrenciesTable`, creates the table and seeds `PLN`
+(default) and `EUR`; symbol values are stored via Postgres Unicode literals so
+the migration source stays ASCII. It seeds only when it creates the table, so
+on a database that already has one it changes no row: a currency the operator
+deleted stays deleted. Until issue #611 the `languages` and `dictionaries`
+migrations created this table, its rows and its `symbol_position` /
+`decimal_places` columns.
 
 Promoting an inactive currency is refused with
 `409 DICTIONARY_DEFAULT_ENTRY_INACTIVE`, and creating a currency whose code

@@ -25,7 +25,7 @@ Trasy administracyjne są chronione własnymi kodami modułu: `invoices:read` do
 | `GET /api/v1/orders/:id/invoices` | klient | Gotowe faktury zamówienia, które klient może zobaczyć |
 | `GET /api/v1/orders/:id/invoices/:invoiceId/pdf` | klient | Pobranie jednej z nich; `404 NOT_FOUND`, dopóki nie jest `ready` |
 | `GET /api/v1/account/organization/invoices` | klient | Dokumenty sprzedaży organizacji zaimportowane z ERP, wraz z załącznikami |
-| `GET /api/v1/orders/:id/invoice` | klient | Starsze pobieranie pojedynczej faktury, rejestrowane przez moduł `orders`: `404 INVOICE_NOT_READY`, dopóki faktura zamówienia nie jest `ready`, potem uproszczony PDF (numer i kwota), a nie układ z szablonu. Używaj `…/invoices/:invoiceId/pdf` |
+| `GET /api/v1/orders/:id/invoice` | klient | Pobieranie pojedynczej faktury, rejestrowane przez moduł `orders`: najnowszy dokument zamówienia rodzaju `invoice` w stanie `ready`, renderowany z szablonu faktury. Proforma ani korekta nie są tu nigdy zwracane, więc `404 INVOICE_NOT_READY`, dopóki żadna faktura nie jest `ready`. Pozostałe dokumenty są pod `…/invoices/:invoiceId/pdf` |
 
 ## Generowanie
 

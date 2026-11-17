@@ -5,7 +5,6 @@ import { Migration } from '@mikro-orm/migrations';
  *
  * Schema changes (one atomic migration):
  *   - new tables: countries, dictionary_translations, language_countries.
- *   - ALTER `currencies` ADD COLUMN symbol_position, decimal_places (CHECKs).
  *   - partial unique index `uniq_countries_one_default` for the "exactly one
  *     default" invariant (mirrors the analogous indexes on languages and
  *     currencies introduced by migration 012).
@@ -13,10 +12,6 @@ import { Migration } from '@mikro-orm/migrations';
  *     for the "at most one primary language per country" invariant.
  *   - btree indexes: `idx_countries_active`, `idx_countries_sort`,
  *     `idx_dict_translations_lang`, `idx_language_countries_country`.
- *   - FK `countries.default_currency_code` → `currencies(code)` ON DELETE
- *     SET NULL — added LAST (after seed inserts run via the runtime
- *     SeedReconciler) so the constraint is satisfied for every seeded row
- *     without the migration carrying ~250 inline INSERTs.
  *
  * Until issue #611 it also added `languages.native_label`, `is_rtl` and
  * `fallback_code` with the `languages_fallback_fk` self-reference (step 2).
@@ -27,6 +22,19 @@ import { Migration } from '@mikro-orm/migrations';
  * `assets_library`'s frozen init carried. This class keeps its name, so a
  * database that has applied it is not offered it again, and its schema is
  * unchanged. The steps below keep their numbers.
+ *
+ * Issue #611 also moved step 3 and step 6. Step 3 added
+ * `currencies.symbol_position` and `decimal_places` with their two checks.
+ * Those are `currencies`' (its `Currency` entity maps them), so they moved,
+ * with their inverses, to `Migration20261117T065542CurrenciesTable`, which now
+ * creates the `currencies` table as well. Step 6 added the
+ * `countries_default_currency_fk` foreign key to that table. The FK is this
+ * module's, but `currencies`' block runs after the whole frozen prefix, so on a
+ * database migrated from empty the table does not exist yet when this class
+ * runs. The FK therefore moved to this module's above-watermark
+ * `Migration20261117T065601DictionariesDefaultCurrencyFk`. Both moved
+ * verbatim and guarded, so a database that applied this class keeps
+ * everything it has.
  *
  * No seed rows in this migration. The countries seed, the Polish
  * translations seed, the en-US/pl-PL language↔country primary associations,
@@ -40,7 +48,8 @@ export class Migration20260506T112634DictionariesDictionaryInit extends Migratio
   override async up(): Promise<void> {
     // ────────────────────────────────────────────────────────────────────
     // 1) countries — ISO 3166-1 alpha-2 territories
-    //    FK to currencies(code) is added LAST in this migration (step 8).
+    //    The FK to currencies(code) is added by
+    //    Migration20261117T065601DictionariesDefaultCurrencyFk (issue #611).
     // ────────────────────────────────────────────────────────────────────
     this.addSql(`
       create table "countries" (
@@ -70,24 +79,6 @@ export class Migration20260506T112634DictionariesDictionaryInit extends Migratio
     );
     this.addSql(`create index "idx_countries_active" on "countries" ("is_active");`);
     this.addSql(`create index "idx_countries_sort" on "countries" ("sort_order", "label");`);
-
-    // ────────────────────────────────────────────────────────────────────
-    // 3) ALTER currencies — extended fields (symbol_position, decimal_places)
-    // ────────────────────────────────────────────────────────────────────
-    this.addSql(
-      `alter table "currencies" add column "symbol_position" varchar(8) not null default 'suffix';`,
-    );
-    this.addSql(`alter table "currencies" add column "decimal_places" smallint not null default 2;`);
-    this.addSql(`
-      alter table "currencies"
-        add constraint "currencies_symbol_position_check"
-        check ("symbol_position" in ('prefix','suffix'));
-    `);
-    this.addSql(`
-      alter table "currencies"
-        add constraint "currencies_decimal_places_check"
-        check ("decimal_places" >= 0 and "decimal_places" <= 6);
-    `);
 
     // ────────────────────────────────────────────────────────────────────
     // 4) dictionary_translations — polymorphic per-Language label override
@@ -136,30 +127,11 @@ export class Migration20260506T112634DictionariesDictionaryInit extends Migratio
     this.addSql(
       `create index "idx_language_countries_country" on "language_countries" ("country_code");`,
     );
-
-    // ────────────────────────────────────────────────────────────────────
-    // 6) FK countries.default_currency_code → currencies(code)
-    //    Added LAST so the runtime SeedReconciler can backfill
-    //    `default_currency_code` referring to currencies that may not yet
-    //    exist when the migration runs against an empty database. The FK
-    //    itself is enforced from this point forward.
-    // ────────────────────────────────────────────────────────────────────
-    this.addSql(`
-      alter table "countries"
-        add constraint "countries_default_currency_fk"
-        foreign key ("default_currency_code") references "currencies" ("code")
-        on delete set null;
-    `);
   }
 
   override async down(): Promise<void> {
-    this.addSql(`alter table "countries" drop constraint if exists "countries_default_currency_fk";`);
     this.addSql(`drop table if exists "language_countries" cascade;`);
     this.addSql(`drop table if exists "dictionary_translations" cascade;`);
-    this.addSql(`alter table "currencies" drop constraint if exists "currencies_decimal_places_check";`);
-    this.addSql(`alter table "currencies" drop constraint if exists "currencies_symbol_position_check";`);
-    this.addSql(`alter table "currencies" drop column if exists "decimal_places";`);
-    this.addSql(`alter table "currencies" drop column if exists "symbol_position";`);
     this.addSql(`drop table if exists "countries" cascade;`);
   }
 }

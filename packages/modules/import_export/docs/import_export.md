@@ -21,7 +21,7 @@ the products import maps source languages with.
 | `POST /api/v1/admin/import-export/profiles` | admin (`catalog:write`) | Create an import profile |
 | `PATCH /api/v1/admin/import-export/profiles/:id` | admin (`catalog:write`) | Change an import profile |
 | `DELETE /api/v1/admin/import-export/profiles/:id` | admin (`catalog:write`) | Delete an import profile |
-| `GET /api/v1/admin/import-export/channel-targets` | admin (`catalog:write`) | The channels a profile may target: id, code and languages only |
+| `GET /api/v1/admin/import-export/channel-targets` | admin (`catalog:write`) | The channels a profile may target: id, code, per-language name and languages only |
 
 ## Supported entities
 

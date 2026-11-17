@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CommandActor } from '@endora-commerce/platform/commands';
+import type { PriceBookAudienceKind } from '@endora-commerce/contracts';
 import { randomUUID } from 'node:crypto';
 import type { PriceListHeaderValues } from '../entities/price-list-value-change.entity.js';
 import type { PlannedRow } from './price-book-rules.js';
@@ -12,17 +13,23 @@ import type { RowValueLine } from './price-book-row-write.js';
  * the book's rule scope, and the audit entry points at the row by
  * `valueChangeId`.
  *
- * The header values a history holds are `name`, `priority`,
- * `audience.memberIds` and a duplicate's `amountMultiplier` — the header's
- * free text, its ordering number and whom it prices. Dates, status, the
- * audience kind and the channel set are codes, timestamps and ids of global
- * records, which the audit entry may name itself.
+ * The header values a history holds are `name`, `priority`, the audience
+ * (`{ kind, memberIds }`) and a duplicate's `amountMultiplier` — the header's
+ * free text, its ordering number and whom it prices. The audience is recorded
+ * with its kind (#470 stage 3, ruling 7, amending stage 2) so a reader can tell
+ * organization ids from customer-group ids, and a kind change alone is an
+ * audience change. Dates, status and the channel set are codes, timestamps and
+ * ids of global records, which the audit entry may name itself.
+ *
+ * Stored shape, changed keys only: `{ name?, priority?, audience?: { kind,
+ * memberIds }, amountMultiplier? }`, members sorted.
  */
 
 /** A book's header values as a change compares them. */
 export interface HeaderValues {
   name: string;
   priority: number;
+  audienceKind: PriceBookAudienceKind;
   memberIds: readonly string[];
 }
 
@@ -35,8 +42,9 @@ const sameSet = (a: readonly string[], b: readonly string[]): boolean => {
 
 /**
  * The header values one write changed, on both sides, holding only the keys
- * that moved; `null` when none did (the same name, priority and member set,
- * in whatever order).
+ * that moved; `null` when none did (the same name, priority, audience kind and
+ * member set, in whatever order). An audience write names its kind and members
+ * together, so `next` carries both or neither.
  */
 export function headerValueChange(
   was: HeaderValues,
@@ -52,9 +60,13 @@ export function headerValueChange(
     before['priority'] = was.priority;
     after['priority'] = next.priority;
   }
-  if (next.memberIds !== undefined && !sameSet(next.memberIds, was.memberIds)) {
-    before['audience'] = { memberIds: sorted(was.memberIds) };
-    after['audience'] = { memberIds: sorted(next.memberIds) };
+  if (next.memberIds !== undefined || next.audienceKind !== undefined) {
+    const kind = next.audienceKind ?? was.audienceKind;
+    const memberIds = next.memberIds ?? was.memberIds;
+    if (kind !== was.audienceKind || !sameSet(memberIds, was.memberIds)) {
+      before['audience'] = { kind: was.audienceKind, memberIds: sorted(was.memberIds) };
+      after['audience'] = { kind, memberIds: sorted(memberIds) };
+    }
   }
   return Object.keys(after).length === 0 ? null : { before, after };
 }
@@ -64,7 +76,7 @@ export function createdHeaderValues(book: HeaderValues & { amountMultiplier?: st
   return {
     name: book.name,
     priority: book.priority,
-    audience: { memberIds: sorted(book.memberIds) },
+    audience: { kind: book.audienceKind, memberIds: sorted(book.memberIds) },
     ...(book.amountMultiplier !== undefined ? { amountMultiplier: book.amountMultiplier } : {}),
   };
 }

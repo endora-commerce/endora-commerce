@@ -29,6 +29,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 
 | Module | Binding | What it means |
 | --- | --- | --- |
+| `admin_users` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `audit_logs` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `catalog` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `currencies` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |

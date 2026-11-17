@@ -410,6 +410,17 @@ export interface InvoicePdfLine {
  * of Node types — it is imported by the admin SPA and the storefront too.
  */
 export interface InvoicePdfPort {
+  /**
+   * The PDF of one issued document, rendered from its invoice template — the
+   * same path the admin and the per-invoice customer downloads take
+   * (issue #1341). Rejects when no document has that id.
+   */
+  renderInvoice(invoiceId: string): Promise<Uint8Array>;
+  /**
+   * A stub one-page PDF carrying the number and the total only.
+   *
+   * @deprecated No route serves it since issue #1341; use `renderInvoice`.
+   */
   renderMinimal(params: { invoiceNumber: string; total: string; currency: string }): Uint8Array;
   renderBulk(invoices: readonly InvoicePdfLine[]): Uint8Array;
 }

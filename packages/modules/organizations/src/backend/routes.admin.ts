@@ -58,11 +58,12 @@ import { TaxIdScopeService } from './services/tax-id-scope-service.js';
 import { runOrganizationWrite, taxIdExistsRefusal } from './services/organization-write.js';
 import { taxIdSharedAcrossTreesRefusal } from './services/organization-tree-service.js';
 import { makeAdminPatchOrganizationCommand } from './commands/admin-patch-organization.command.js';
-import { Organization } from './entities/organization.entity.js';
+import { Organization, type OrganizationStatus } from './entities/organization.entity.js';
 import { adminActorOf, organizationInReach as organizationInReachPreHandler } from './organization-reach.js';
 import { OrganizationRole } from './entities/organization-role.entity.js';
 import { predefinedRoleIdOn } from './services/organization-role-store.js';
 import { memberRoleRef } from './services/member-role-views.js';
+import { organizationsProse, type OrganizationsTranslate } from './services/organizations-prose.js';
 import type { RequireAdminAnyFactory } from '@endora-commerce/platform/kernel';
 import type { InvitationService } from './services/invitation-service.js';
 import {
@@ -221,6 +222,12 @@ export interface AdminOrgsDeps {
    * registers it in every composition it builds.
    */
   schemaExtensionReads?: SchemaExtensionReads;
+  /**
+   * Issue #629 (#86) — this module's bundle, for the status labels the
+   * moderation status refusal names in the reader's language. Absent, the
+   * English labels.
+   */
+  translate?: OrganizationsTranslate;
 }
 
 export async function registerOrganizationsAdminRoutes(
@@ -242,6 +249,19 @@ export async function registerOrganizationsAdminRoutes(
   const customFieldValues = deps.customFieldValues;
 
   const customersRead = requireAdminAny(['customers:read', 'customers:manage']);
+
+  /**
+   * Issue #629 (#86) — a moderation failure as its HTTP refusal. The status
+   * guard's sentence names both statuses by their labels in the language the
+   * response is answered in, which only the request knows.
+   */
+  const moderationRefusal = async (err: unknown, request: FastifyRequest): Promise<HttpError> => {
+    if (!(err instanceof OrganizationStatusGuardError)) return mapModerationError(err);
+    const language = await request.responseLanguage();
+    const label = (status: OrganizationStatus) =>
+      organizationsProse(deps.translate, `status.${status}`, language);
+    return statusGuardRefusal(err, await label(err.currentStatus), await label(err.requiredStatus));
+  };
 
   /**
    * Issue #698 — every `/:id` route here answers only for an Organization the
@@ -820,7 +840,7 @@ export async function registerOrganizationsAdminRoutes(
           });
           return { data: serializeOrg(org) };
         } catch (err) {
-          throw mapModerationError(err);
+          throw await moderationRefusal(err, request);
         }
       },
     );
@@ -844,7 +864,7 @@ export async function registerOrganizationsAdminRoutes(
           });
           return { data: serializeOrg(org) };
         } catch (err) {
-          throw mapModerationError(err);
+          throw await moderationRefusal(err, request);
         }
       },
     );
@@ -867,7 +887,7 @@ export async function registerOrganizationsAdminRoutes(
           });
           return { data: serializeOrg(org) };
         } catch (err) {
-          throw mapModerationError(err);
+          throw await moderationRefusal(err, request);
         }
       },
     );
@@ -889,7 +909,7 @@ export async function registerOrganizationsAdminRoutes(
           });
           return { data: serializeOrg(org) };
         } catch (err) {
-          throw mapModerationError(err);
+          throw await moderationRefusal(err, request);
         }
       },
     );
@@ -1060,10 +1080,13 @@ export async function registerOrganizationsAdminRoutes(
       }
       // Feature 051 — a personal (B2C) org is single-member; no direct add.
       if (org.isPersonal) {
+        // Issue #629 (#86) — the organization refuses a well-formed request: a
+        // code of its own, the token naming the action.
         throw new HttpError(
           422,
-          ERROR_CODES.VALIDATION_FAILED,
+          ERROR_CODES.ORGANIZATION_PERSONAL,
           'A personal (individual) organization cannot have additional members.',
+          { code: 'add_member', organizationId: org.id, organizationName: org.name },
         );
       }
       // The role named — a role of this Organization, `404` for any other
@@ -1543,6 +1566,30 @@ function mapRestrictionError(err: unknown): HttpError {
   );
 }
 
+/**
+ * Issue #629 (#86) — the organization refuses a well-formed moderation request
+ * because it is in another status: a code of its own. The machine values stay
+ * in `details` for a client to branch on; the labels beside them fill the
+ * sentence.
+ */
+function statusGuardRefusal(
+  err: OrganizationStatusGuardError,
+  currentStatusLabel: string,
+  requiredStatusLabel: string,
+): HttpError {
+  return new HttpError(
+    422,
+    ERROR_CODES.ORGANIZATION_STATUS_INVALID,
+    `Organization is in status '${err.currentStatus}', cannot perform an action that requires '${err.requiredStatus}'.`,
+    {
+      currentStatus: err.currentStatus,
+      requiredStatus: err.requiredStatus,
+      currentStatusLabel,
+      requiredStatusLabel,
+    },
+  );
+}
+
 function mapModerationError(err: unknown): HttpError {
   if (err instanceof OrganizationVersionMismatchError) {
     return new HttpError(
@@ -1556,12 +1603,7 @@ function mapModerationError(err: unknown): HttpError {
     );
   }
   if (err instanceof OrganizationStatusGuardError) {
-    return new HttpError(
-      422,
-      ERROR_CODES.VALIDATION_FAILED,
-      `Organization is in status '${err.currentStatus}', cannot perform an action that requires '${err.requiredStatus}'.`,
-      { currentStatus: err.currentStatus, requiredStatus: err.requiredStatus },
-    );
+    return statusGuardRefusal(err, err.currentStatus, err.requiredStatus);
   }
   if (err instanceof OrganizationNotFoundError) {
     return new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');

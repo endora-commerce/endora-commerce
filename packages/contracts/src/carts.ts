@@ -355,6 +355,16 @@ export const cartFullPayloadSchema = z.object({
   discount: cartDiscountSchema,
   /** Feature 045 — per-promotion breakdown of the cart discount. */
   appliedPromotions: z.array(cartAppliedPromotionSchema).default([]),
+  /**
+   * `subtotal − discount`, never below zero — a **net** figure. `discount` is
+   * a gross reduction (issues #1350, #1396), taken off here untaxed, as the
+   * order and the invoice book it until #926: one 0 % discount line (vector
+   * DC1). It equals the net of the order's goods lines plus its discount line,
+   * except where the discount exceeds the net subtotal — a fixed amount is
+   * capped at the gross — where it reads 0. What the buyer pays is
+   * `vat.grandTotalGross`. #926 makes it the true net after the per-rate
+   * reduction; its name and meaning (the net after discount) stay.
+   */
   grandTotal: moneySchema,
   primaryCta: cartPrimaryCtaSchema,
   droppedLines: z.array(cartDroppedLineSchema),
@@ -407,6 +417,7 @@ export const cartMiniPayloadSchema = z.object({
    * parsed before it was declared still parses.
    */
   subtotal: moneySchema.optional(),
+  /** As the full view's `grandTotal`: the net after the discount, never below zero. */
   grandTotal: moneySchema.optional(),
   primaryCta: cartPrimaryCtaSchema.optional(),
 });
@@ -639,6 +650,11 @@ export const adminCartSummarySchema = z.object({
   status: cartStatusSchema,
   approvalStatus: cartApprovalStatusSchema,
   itemCount: z.number().int().nonnegative(),
+  /**
+   * A **net** figure. On the list, the net of the lines before any discount:
+   * the list runs no promotions. On the detail, the net after the discount,
+   * never below zero — as the cart read's `grandTotal` (issue #1396).
+   */
   total: moneySchema,
   appliedPromotionCode: z.string().nullable(),
   lastActivityAt: isoDateTimeSchema,
@@ -684,6 +700,13 @@ export type AdminCartLine = z.infer<typeof adminCartLineSchema>;
 export const adminCartDetailPayloadSchema = adminCartSummarySchema.extend({
   items: z.array(adminCartLineSchema),
   discount: cartDiscountSchema,
+  /**
+   * What the buyer pays for the goods after the discount, never below zero —
+   * the cart read's `vat.grandTotalGross`: VAT per rate on the sum of the line
+   * nets, less the gross discount (issue #1396). `null` when a line's rate
+   * cannot be resolved.
+   */
+  totalGross: moneySchema.nullable().default(null),
   convertedToQuoteRequestId: uuidSchema.nullable(),
   submittedForApprovalAt: isoDateTimeSchema.nullable(),
   approvedAt: isoDateTimeSchema.nullable(),

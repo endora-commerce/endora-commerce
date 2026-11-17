@@ -115,7 +115,7 @@ export const PromotionsPage = (): ReactNode => {
 
       {canWrite ? (
         <div className="mb-4">
-          <Button type="button" onClick={() => navigate('/promotions/new')}>
+          <Button type="button" onClick={() => { navigate('/promotions/new'); }}>
             <Plus /> {t('promotions.edit.titleNew')}
           </Button>
         </div>
@@ -192,7 +192,7 @@ export const PromotionsPage = (): ReactNode => {
                           size="sm"
                           type="button"
                           className="mr-2"
-                          onClick={() => navigate(`/promotions/${p.id}`)}
+                          onClick={() => { navigate(`/promotions/${p.id}`); }}
                         >
                           <Pencil />
                           {t('promotions.edit.titleEdit')}
@@ -203,7 +203,7 @@ export const PromotionsPage = (): ReactNode => {
                         size="sm"
                         type="button"
                         className="mr-2"
-                        onClick={() => navigate(`/promotions/${p.id}/stats`)}
+                        onClick={() => { navigate(`/promotions/${p.id}/stats`); }}
                       >
                         <BarChart3 />
                         {t('promotionStats.title')}

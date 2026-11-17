@@ -5,13 +5,26 @@ import {
   SaveSessionProvider,
   apiClient,
   formatDateTime,
+  storefrontBaseUrl,
   useAuth,
   useSaveSession,
   useUnsavedChangesPrompt,
   type SavePart,
 } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Badge, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Badge,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Label,
+  PageHeader,
+  Textarea,
+} from '@endora-commerce/admin-kit/ui';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { OrdersPanel, QuoteRequestsPanel, CartsPanel } from '../panels/HistoryPanels.js';
 import {
   OrganizationAssignmentPanel,
@@ -19,6 +32,7 @@ import {
   AddressesPanel,
 } from '../panels/ManagementPanels.js';
 import {
+  ConfirmDialog,
   CustomFieldValuesPanel,
   SaveSessionActions,
   SaveSessionSummary,
@@ -46,6 +60,49 @@ interface AdminCustomerDetail {
   deletion: { deletedAt: string; anonymizedAt: string | null } | null;
   customFieldValues?: Record<string, unknown>;
 }
+
+/**
+ * Issue #1328 — a language tag by name, in the admin's language: `en-US` reads
+ * "English (US)" to an English-speaking operator and "Angielski (USA)" to a
+ * Polish-speaking one. `null` when no name is known for the tag's language, so
+ * the row shows the tag alone rather than the tag echoed back as a "name".
+ */
+function languageName(tag: string, adminLanguage: string): string | null {
+  try {
+    const names = new Intl.DisplayNames([adminLanguage], {
+      type: 'language',
+      languageDisplay: 'standard',
+      style: 'short',
+    });
+    const base = tag.split('-')[0] ?? tag;
+    if ((names.of(base) ?? base).toLowerCase() === base.toLowerCase()) return null;
+    const name = names.of(tag);
+    if (!name) return null;
+    return name.charAt(0).toLocaleUpperCase(adminLanguage) + name.slice(1);
+  } catch {
+    return null;
+  }
+}
+
+/** The e-mail language row's value: the language's name, the tag as secondary text. */
+function EmailLanguage({ tag, adminLanguage }: { tag: string; adminLanguage: string }): ReactNode {
+  const name = languageName(tag, adminLanguage);
+  if (name === null) return <span data-language-tag="">{tag}</span>;
+  return (
+    <>
+      <span data-language-name="">{name}</span>{' '}
+      <span data-language-tag="" className="text-xs text-muted-foreground">
+        {tag}
+      </span>
+    </>
+  );
+}
+
+/**
+ * Issue #1328 — what the operator's last impersonation step left: nothing yet, a
+ * session this screen started (so it offers no second start), or one it ended.
+ */
+type ImpersonationState = { phase: 'idle' } | { phase: 'active' } | { phase: 'ended' };
 
 /** The host part's unsaved changes: one per edited custom field (feature 180, WP-8). */
 function customFieldChangeCount(
@@ -76,10 +133,26 @@ export function CustomerDetail(): ReactNode {
 
 function CustomerDetailScreen({ id }: { id: string }): ReactNode {
   const t = useTranslation('customers');
+  const adminLanguage = useTranslationContext().language;
   const { hasPermission } = useAuth();
   const [c, setC] = useState<AdminCustomerDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Issue #1328 — the reason dialog, its in-flight start and refusal, and the outcome.
+  const [impersonateOpen, setImpersonateOpen] = useState(false);
+  const [impersonateReason, setImpersonateReason] = useState('');
+  const [impersonateBusy, setImpersonateBusy] = useState(false);
+  const [impersonateError, setImpersonateError] = useState<string | null>(null);
+  const [impersonation, setImpersonation] = useState<ImpersonationState>({ phase: 'idle' });
+  const [endingImpersonation, setEndingImpersonation] = useState(false);
+  // Where focus goes once the dialog or the session closes: the button that held it is
+  // disabled or gone by then (WCAG 2.4.3).
+  const storefrontLinkRef = useRef<HTMLAnchorElement>(null);
+  const impersonateButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (impersonation.phase === 'active') storefrontLinkRef.current?.focus();
+    if (impersonation.phase === 'ended') impersonateButtonRef.current?.focus();
+  }, [impersonation]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -167,6 +240,37 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
     [refresh, t],
   );
 
+  const startImpersonation = async (): Promise<void> => {
+    setImpersonateBusy(true);
+    setImpersonateError(null);
+    const reason = impersonateReason.trim();
+    try {
+      // The customer route takes the reason and stores it outside the audit log (#1317),
+      // and serves org-less customers too — the organization route needs an organization.
+      await apiClient.post(`/api/v1/admin/customers/${id}/impersonate`, reason === '' ? {} : { reason });
+      setImpersonation({ phase: 'active' });
+      setImpersonateOpen(false);
+      setImpersonateReason('');
+    } catch (err) {
+      setImpersonateError(err instanceof ApiError ? err.envelope.error.message : t('detail.actionError'));
+    } finally {
+      setImpersonateBusy(false);
+    }
+  };
+
+  const endImpersonation = async (): Promise<void> => {
+    setEndingImpersonation(true);
+    setError(null);
+    try {
+      await apiClient.post('/api/v1/admin/impersonation/end', {});
+      setImpersonation({ phase: 'ended' });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('detail.actionError'));
+    } finally {
+      setEndingImpersonation(false);
+    }
+  };
+
   if (!c) {
     return (
       <>
@@ -199,7 +303,15 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
     ],
     [t('detail.field.lastLogin'), c.lastLoginAt ? formatDateTime(c.lastLoginAt) : t('list.none')],
     // Issue #652 (D-292) — read-only: only the buyer changes it, on the storefront.
-    [t('detail.field.emailLanguage'), c.preferredLanguage ?? t('detail.field.emailLanguageUnset')],
+    // Issue #1328 — by name, in the admin's language; the tag stays as secondary text.
+    [
+      t('detail.field.emailLanguage'),
+      c.preferredLanguage ? (
+        <EmailLanguage tag={c.preferredLanguage} adminLanguage={adminLanguage} />
+      ) : (
+        t('detail.field.emailLanguageUnset')
+      ),
+    ],
   ];
 
   return (
@@ -286,18 +398,15 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
             {t('detail.action.resetMfa')}
           </Button>
 
+          {/* Issue #1328 — asks for a reason first; no second start while this one is open. */}
           <Button
+            ref={impersonateButtonRef}
             variant="outline"
-            disabled={busy || c.deleted}
-            onClick={(): void =>
-              void act(async () => {
-                const res = await apiClient.post<{ data: { impersonationSessionId: string } }>(
-                  `/api/v1/admin/customers/${id}/impersonate`,
-                  {},
-                );
-                return res;
-              })
-            }
+            disabled={busy || c.deleted || impersonation.phase === 'active'}
+            onClick={(): void => {
+              setImpersonateError(null);
+              setImpersonateOpen(true);
+            }}
           >
             {t('detail.action.impersonate')}
           </Button>
@@ -319,8 +428,72 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
               {t('detail.action.delete')}
             </Button>
           )}
+
+          {/* Mounted before it has text, so the outcome that arrives is announced. */}
+          <div role="status" data-testid="impersonation-status" className="w-full empty:hidden">
+            {impersonation.phase === 'idle' ? null : impersonation.phase === 'active' ? (
+              <Alert>
+                <AlertDescription className="space-y-3">
+                  <p>
+                    <strong>{t('detail.impersonate.started', { name: `${c.firstName} ${c.lastName}` })}</strong>{' '}
+                    {t('detail.impersonate.startedHelp')}
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button asChild>
+                      <a ref={storefrontLinkRef} href={`${storefrontBaseUrl.replace(/\/+$/, '')}/account`} target="_blank" rel="noopener noreferrer">
+                        {t('detail.impersonate.openStorefront')}
+                        <span className="sr-only"> {t('detail.impersonate.newTab')}</span>
+                      </a>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={endingImpersonation}
+                      aria-busy={endingImpersonation}
+                      onClick={(): void => void endImpersonation()}
+                    >
+                      {t('detail.impersonate.end')}
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert>
+                <AlertDescription>{t('detail.impersonate.ended')}</AlertDescription>
+              </Alert>
+            )}
+          </div>
         </CardContent>
       </Card>
+
+      {impersonateOpen ? (
+        <ConfirmDialog
+          title={t('detail.impersonate.title', { name: `${c.firstName} ${c.lastName}` })}
+          message={
+            <div className="space-y-3">
+              <p>{t('detail.impersonate.message')}</p>
+              <div className="space-y-1">
+                <Label htmlFor="impersonation-reason">{t('detail.impersonate.reasonLabel')}</Label>
+                <Textarea
+                  id="impersonation-reason"
+                  value={impersonateReason}
+                  maxLength={1000}
+                  rows={3}
+                  aria-describedby="impersonation-reason-hint"
+                  onChange={(e): void => setImpersonateReason(e.target.value)}
+                />
+                <p id="impersonation-reason-hint" className="text-xs text-muted-foreground">
+                  {t('detail.impersonate.reasonHint')}
+                </p>
+              </div>
+            </div>
+          }
+          confirmLabel={t('detail.impersonate.confirm')}
+          busy={impersonateBusy}
+          error={impersonateError}
+          onConfirm={(): void => void startImpersonation()}
+          onCancel={(): void => setImpersonateOpen(false)}
+        />
+      ) : null}
 
       <OrganizationAssignmentPanel customerId={id} organizationId={c.organizationId} onChanged={(): void => void refresh()} />
       <CustomerGroupPanel customerId={id} customerGroupId={c.customerGroupId} onChanged={(): void => void refresh()} />

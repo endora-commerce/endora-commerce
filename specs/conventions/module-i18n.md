@@ -8,11 +8,23 @@ home for these rules, so never restate them in `AGENTS.md` or in a tool-specific
 All user-facing strings ship in **both `en` and `pl`**; a static CI check rejects hard-coded
 literals in the admin SPA (`pnpm --filter backend run i18n:hardcoded`, in the `quality` job since
 issue #116 — before that it was cited here while running nowhere). It compares the tree to
-`HARDCODED_STRINGS_BASELINE`, a **per-file two-way ratchet** over the 274 pre-existing findings: a
+`HARDCODED_STRINGS_BASELINE`, a **per-file two-way ratchet** over the pre-existing findings: a
 new hard-coded string fails, and so does a baseline number left standing after the strings under it
 were translated. Never raise a number to make the build pass — add the key. Run
 `pnpm --filter backend run i18n:hardcoded -- --strict` to see the whole remaining debt, or pass one
 path while draining a screen.
+
+**The admin walk reads four shapes since issue #1316**, which re-measured its ledger rather than
+draining it: **`jsx-text`** — JSX text that is not a code token, where a single capitalised word
+(`Delete`, `Inactive`, `Re-activate`) is a label and not a token, while a lower-case, all-capitals,
+camel-cased or `_`/`.`/`/`-bearing word still is; **`jsx-attr`** — the visible attributes and every
+prop named for copy (`description`, `label`, `emptyLabel`, …), read through `{…}`, conditionals and
+fallbacks as the storefront's are; **`jsx-expression`** — a literal rendered as a JSX child,
+`{error ?? 'Channel not found.'}`; and **`setter-literal`** — prose or a one-word label handed to a
+`useState` setter, `setError('Delete failed.')`, while a state value (`setStatus('idle')`) is not.
+A template is judged with each substitution read as a word, so `select-${id}` is a token and
+`Remove ${name}` is copy. Copy reaching the screen through any other call (`toast(…)`,
+`confirm({ title })`) or a constant is not seen.
 
 **The storefront is in the same run since issue #85**, with its own ledger,
 `STOREFRONT_HARDCODED_STRINGS_BASELINE`, ratcheted the same two ways. Its walk is the `storefront`

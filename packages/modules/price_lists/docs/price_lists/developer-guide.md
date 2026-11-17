@@ -57,7 +57,7 @@ list, which is why the tables keep their old names.
 | `price_list_precedence` | The versioned precedence: twelve cell codes, `category_before_attribute`, `depth_mode`, `state`. Version 1 = HY is installed active; there is no write path yet. |
 | `price_profiles`, `price_profile_prices`, `price_profile_stale_products` | The price surface and its refresh marks (below). |
 | `price_display_mode_overrides` | Display modes per organization, category and product. |
-| `price_list_value_changes`, `price_list_row_value_changes` | A book's own price-change history (issue #470): one row per Command that changed values — action, actor, time, the changed header values and the line count — and one line per price row it added, changed or removed, with the row's selection, quantity window and both sides of its price. Both are `@RuleScoped` like the book and cascade from it, so deleting a book deletes its history. Today only `priceBookRowWritePort` writes them (below). |
+| `price_list_value_changes`, `price_list_row_value_changes` | A book's own price-change history (issue #470): one row per Command that changed values — action, actor, time, the changed header values and the line count — and one line per price row it added, changed or removed, with the row's selection, quantity window and both sides of its price. Both are `@RuleScoped` like the book and cascade from it, so deleting a book deletes its history. Every value-changing price-book Command writes them in its own transaction; the admin API reads them (*Price history*, below). |
 | `cart_items.price_source` (`carts`), `order_items.price_source` (`orders`) | Which tier priced a line: `agreed`, `base`, `catalogue`, `buyer`, `sale`; `null` for a line priced before the release. |
 
 A product carries no price of its own: a product's price is its rows in the base book of each
@@ -430,6 +430,9 @@ are `price_list.create`, `update`, `channels_replace`, `activate`, `draftify`, `
 | `GET /:id/rows` | Rows, paged (`selectionKind`, `productId`, `variantId`, `categoryId`, `attributeKey`, `search`), each with `labels`, `naturalKey`, `inactiveReason` and `targetDeleted`. |
 | `GET /:id/lines` | The grid's pages, cut by line (`kind`, `search`, `page`, `pageSize` ≤ 500), variants nested under their product, `meta.totalLines`; the cost of a page does not grow with the book. |
 | `GET /:id/product-lines?productIds=` | Which of up to 200 products already have a line in the book. |
+| `GET /:id/price-history` | The book's price-change history, newest first: `id`, `action`, `actor { kind, id, name }`, `at`, `headerBefore`, `headerAfter`, `lineCount`. Keyset-paged (`limit`, `cursor`). |
+| `GET /:id/price-history/:changeId/lines` | One change's lines in `seq` order: `kind` (`added`, `changed`, `removed`), `selection`, `minQuantity`, `maxQuantity`, `before`, `after`. |
+| `GET /:id/price-history/products/:productId` | One product's lines and its variants', newest first, each with `changeId`, `at`, `action` and `actor`. |
 | `PUT /:id/rows` | One batch, one audited command: `{ expectedVersion, mode: 'merge' \| 'replace', upsert, delete }`, at most 5 000 rows. A row names its selection by ids (`selection`) or by natural key (`key`: `productSku`, `variantSku`, `categoryPath`, `attribute { key, valueCode }`). A row without an id whose selection and `minQuantity` equal a stored row's replaces it. |
 | `PUT /:id/rows?dryRun=true` | The same body, writing nothing: `{ version, resolved, diff { added, changed, removed, unchangedCount }, errors }`. Confirm by sending the same body without `dryRun`, with the version the preview answered. |
 | `GET /base-prices?productId=`, `PUT /base-prices/:productId` | A product's base prices per currency, `{ byCurrency: { CODE: { product: Tier[], variants: { [variantId]: VariantBaseRow \| null } } } }`; one command across currencies, creating a currency's base book on first use. A sales representative is `403` on the write. |
@@ -447,6 +450,19 @@ Display-mode overrides keep their own paths: `GET /api/v1/admin/pricing/display-
 **Versions.** `version` moves on every write to the book. `PATCH /:id` and `PUT /:id/rows` must name
 the version they were made against; without one they answer `400`, against an older one
 `409 PRICE_BOOK_STALE` with `details.currentVersion`, writing nothing.
+
+**Price history (issue #470).** The three `price-history` reads serve the book's own store of value
+changes — name, priority, audience, a duplicate's multiplier and price rows; status, channels and
+activation stay in the audit log. They need `price_lists:read`, and the book is loaded as `GET /:id`
+loads it, so a book out of reach is `404` like an unknown one, and so is a `changeId` of another
+book. Unlike the other lists they are **keyset-paged**: `{ data, pagination: { cursor, hasMore,
+limit } }`, `limit` 50 by default and at most 200, an opaque `cursor`, no total, because a history
+grows at its head. Amounts are the stored decimal strings, never rounded. A header side holds only
+the keys the Command changed, the audience as `{ kind, memberIds }`; for a caller whose scope is not
+every organization, organization ids outside it are left out and counted in `withheldMemberCount`.
+The actor's `id` and `name` are set only for an administrator. Answers carry ids only; the history
+starts with the release that first wrote it. Contract:
+`specs/160-pricing-model-v2/contracts/admin-price-books-api.md`, *Price history (#470)*.
 
 **Refusals.**
 

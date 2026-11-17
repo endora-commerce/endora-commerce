@@ -9,6 +9,7 @@ import type {
   CatalogProductRecord,
   CustomerAccountReadPort,
   OrganizationDetailsPort,
+  ProductTaxRateResolver,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { orgConstraintFor, orgInScope, orgScopeWhere } from '@endora-commerce/platform/tenancy';
@@ -18,7 +19,13 @@ import { CartAuditEntry } from '../entities/cart-audit-entry.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { CartAuditService } from './cart-audit-service.js';
 import type { CartSnapshot, PromotionApplication } from '@endora-commerce/contracts';
-import { cartLineAmount, cartSubtotal, cartTotalAfterDiscount, cartTotalsByCart } from './cart-money.js';
+import {
+  cartLineAmount,
+  cartSubtotal,
+  cartTotalAfterDiscount,
+  cartTotalGross,
+  cartTotalsByCart,
+} from './cart-money.js';
 
 /** Narrow port over the promotion engine for the admin cart-detail discount. */
 export interface AdminCartPromotionPort {
@@ -57,6 +64,12 @@ export class CartAdminService {
     private readonly catalogProducts: CatalogProductReadPort,
     /** Feature 045 (T043) — when wired, the detail shows the real discount. */
     private readonly promotion?: AdminCartPromotionPort,
+    /**
+     * Issue #1350 — the rates the buyer's cart read and placement charge, so a
+     * percent-off or free-unit promotion shows the gross discount the order
+     * takes. Unwired, the lines carry no rate and the discount is the net one.
+     */
+    private readonly taxRates?: ProductTaxRateResolver,
   ) {}
 
   /**
@@ -260,6 +273,16 @@ export class CartAdminService {
     // indistinguishable, and an administrator reading this panel would have
     // quoted a customer the undiscounted total as if it were the real one.
     let discountTotal = 0;
+    // Issue #1396 — the rates the buyer's cart read charges, for the gross
+    // total beside the net one; unwired, there is no gross to show.
+    const typeOf = (productId: string) => productById.get(productId)?.type ?? ('simple' as const);
+    const rateByType =
+      this.taxRates && items.length > 0
+        ? await this.taxRates({
+            organizationId: cart.organizationId ?? null,
+            productTypes: items.map((it) => typeOf(it.productId)),
+          })
+        : null;
     if (this.promotion && items.length > 0) {
       const application = await this.promotion.applyToCart({
         organizationId: cart.organizationId ?? null,
@@ -269,13 +292,17 @@ export class CartAdminService {
         // applies to, which is the figure they then quote to that buyer.
         customerGroupId: cust?.customerGroupId ?? org?.customerGroupId ?? null,
         currency,
-        lines: items.map((it) => ({
-          productId: it.productId,
-          variantId: it.variantId ?? null,
-          categoryIds: [],
-          quantity: it.quantity,
-          unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
-        })),
+        lines: items.map((it) => {
+          const taxRate = rateByType?.get(typeOf(it.productId));
+          return {
+            productId: it.productId,
+            variantId: it.variantId ?? null,
+            categoryIds: [],
+            quantity: it.quantity,
+            unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+            ...(taxRate !== undefined ? { taxRate } : {}),
+          };
+        }),
         deliveryTotal: 0,
         promotionCode: cart.appliedPromotionCode ?? null,
         salesChannelId: cart.salesChannelId ?? null,
@@ -283,6 +310,19 @@ export class CartAdminService {
       discountTotal = application.discountTotal;
     }
     const total = cartTotalAfterDiscount(subtotal, discountTotal);
+    const totalGross =
+      items.length === 0
+        ? 0
+        : rateByType
+        ? cartTotalGross(
+            items.map((it) => ({
+              unitPrice: it.unitPrice,
+              quantity: it.quantity,
+              taxRate: rateByType.get(typeOf(it.productId)),
+            })),
+            discountTotal,
+          )
+        : null;
 
     return {
       data: {
@@ -297,6 +337,7 @@ export class CartAdminService {
         approvalStatus: cart.approvalStatus,
         itemCount: items.length,
         total: { amount: total, currency },
+        totalGross: totalGross === null ? null : { amount: totalGross, currency },
         appliedPromotionCode: cart.appliedPromotionCode ?? null,
         lastActivityAt: cart.lastActivityAt.toISOString(),
         createdAt: cart.createdAt.toISOString(),

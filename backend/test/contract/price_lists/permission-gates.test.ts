@@ -120,6 +120,10 @@ describe('price_lists admin permission gates (issue #219)', () => {
       '/api/v1/admin/price-books/precedence',
       '/api/v1/admin/price-books/targets/attributes',
       '/api/v1/admin/pricing/display-mode-overrides',
+      // #470 stage 3 — the price-change history is a read on `price_lists:read`.
+      '/api/v1/admin/price-books/00000000-0000-4000-8000-0000000002f9/price-history',
+      '/api/v1/admin/price-books/00000000-0000-4000-8000-0000000002f9/price-history/00000000-0000-4000-8000-0000000002fa/lines',
+      '/api/v1/admin/price-books/00000000-0000-4000-8000-0000000002f9/price-history/products/00000000-0000-4000-8000-0000000002fb',
     ]) {
       const res = await h.app.inject({ method: 'GET', url, ...CATALOG_EDITOR });
       expect(res.statusCode, url).toBe(403);
@@ -153,6 +157,8 @@ describe('price_lists admin permission gates (issue #219)', () => {
     const id = (created.json() as { data: { id: string } }).data.id;
     const read = await h.app.inject({ method: 'GET', url: `/api/v1/admin/price-books/${id}`, ...PRICING_EDITOR });
     expect(read.statusCode).toBe(200);
+    const history = await h.app.inject({ method: 'GET', url: `/api/v1/admin/price-books/${id}/price-history`, ...PRICING_VIEWER });
+    expect(history.statusCode, history.body).toBe(200);
     const removed = await h.app.inject({ method: 'DELETE', url: `/api/v1/admin/price-books/${id}`, ...PRICING_EDITOR });
     expect(removed.statusCode).toBe(204);
   });
