@@ -7,6 +7,7 @@ import {
   MODULE_REFERENCE_CATEGORY,
   MODULES_CATEGORY,
   PAGE_EXTENSIONS,
+  copyTargetOf,
   type DocPage,
 } from './module-docs.js';
 
@@ -65,16 +66,36 @@ function walkMarkdown(
   return sources;
 }
 
-/** Layer-1 hand-authored pages under `docs/docs/`, excluding generated categories. */
+/**
+ * Layer-1 hand-authored pages under `docs/docs/`, excluding generated categories.
+ *
+ * The modules category is not skipped whole (issue #676): it holds the pages
+ * `composer:generate` copies in from each module's own `docs/` layer, and
+ * beside them the pages the site itself owns there (`README.md`,
+ * `lifecycle.md`). The copies are told apart by the module pages they are
+ * copies of — the same set every other walk over the site's tree leaves alone
+ * — so a fresh checkout with no copies and a developer's tree with all of them
+ * produce one population. The generated module map stays layer 3.
+ */
 export function collectHandAuthoredSources(
   repoRoot: string,
   contentRoot: string,
+  modulePages: readonly DocPage[],
 ): readonly DocsTranslationSource[] {
-  return walkMarkdown(
-    contentRoot,
-    new Set([MODULE_REFERENCE_CATEGORY, MODULES_CATEGORY]),
-    repoRoot,
-  ).sort((a, b) => a.sourcePath.localeCompare(b.sourcePath));
+  const modulesRoot = join(contentRoot, MODULES_CATEGORY);
+  const copies = new Set(modulePages.map((page) => copyTargetOf(page, modulesRoot)));
+  const moduleMap = join(modulesRoot, MODULE_MAP_ARTEFACT);
+  const siteModulePages = walkMarkdown(modulesRoot, new Set(), repoRoot).filter(
+    (source) => !copies.has(source.absolutePath) && source.absolutePath !== moduleMap,
+  );
+  return [
+    ...walkMarkdown(
+      contentRoot,
+      new Set([MODULE_REFERENCE_CATEGORY, MODULES_CATEGORY]),
+      repoRoot,
+    ),
+    ...siteModulePages,
+  ].sort((a, b) => a.sourcePath.localeCompare(b.sourcePath));
 }
 
 /** Layer-2 generated module reference pages committed under `docs/docs/module-reference/`. */
@@ -135,7 +156,7 @@ export function collectAllDocsTranslationSources(
   modulePages: readonly DocPage[],
 ): readonly DocsTranslationSource[] {
   const sources = [
-    ...collectHandAuthoredSources(repoRoot, contentRoot),
+    ...collectHandAuthoredSources(repoRoot, contentRoot, modulePages),
     ...collectGeneratedReferenceSources(repoRoot, contentRoot),
     ...collectModuleOwnedSources(repoRoot, modulePages),
   ];
@@ -153,7 +174,7 @@ export function collectTranslateCommandSources(
   modulePages: readonly DocPage[],
 ): readonly DocsTranslationSource[] {
   return [
-    ...collectHandAuthoredSources(repoRoot, contentRoot),
+    ...collectHandAuthoredSources(repoRoot, contentRoot, modulePages),
     ...collectModuleOwnedSources(repoRoot, modulePages),
   ].sort((a, b) => a.sourcePath.localeCompare(b.sourcePath));
 }

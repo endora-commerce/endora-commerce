@@ -79,8 +79,10 @@ describe('Admin organization moderation — approve / reject + storefront gate',
       payload: { expectedVersion: fresh.version },
     });
     expect(res.statusCode).toBe(422);
-    const err = res.json() as { error: { code: string } };
-    expect(err.error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+    // Issue #629 (#86) — the status guard's own code, both statuses in `details`.
+    const err = res.json() as { error: { code: string; details?: Record<string, unknown> } };
+    expect(err.error.code).toBe(ERROR_CODES.ORGANIZATION_STATUS_INVALID);
+    expect(err.error.details).toMatchObject({ currentStatus: 'active', requiredStatus: 'pending_verification' });
   });
 
   it('rejects with 409 VERSION_CONFLICT when expectedVersion is stale', async () => {

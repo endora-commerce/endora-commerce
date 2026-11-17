@@ -286,7 +286,10 @@ the `organizations.version` column) and is wrapped in
 `em.transactional`. A stale `expectedVersion` returns `409
 VERSION_CONFLICT` with the `currentVersion` in the body. A status guard
 violation (e.g. approving an already-active org) returns `422
-VALIDATION_FAILED`.
+ORGANIZATION_STATUS_INVALID` with `details.currentStatus` and
+`details.requiredStatus`, and their labels in the reader's language as
+`currentStatusLabel` and `requiredStatusLabel`, which the sentence names
+(issue #629; until then it was `422 VALIDATION_FAILED`).
 
 Customer-side gate: the storefront receives the localized
 "why-you-can't-transact" message via `GET /api/v1/me`'s
@@ -405,7 +408,7 @@ registers all three:
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET /api/v1/admin/organizations/:id/sales-reps` | List the reps assigned to an organization. `404 NOT_FOUND` for an organization outside a sales representative's reach (see *Which Organizations a sales representative reaches*), as for one that does not exist. |
-| `POST /api/v1/admin/organizations/:id/sales-reps` | Assign a rep. |
+| `POST /api/v1/admin/organizations/:id/sales-reps` | Assign a rep. A personal organization is refused `422 ORGANIZATION_PERSONAL` (token `sales_rep`, `details.organizationId`, `organizationName`). |
 | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | Remove an assignment. |
 
 They are gated by `organizations:assign-sales-rep`. Until 2026-08 they
@@ -954,6 +957,11 @@ made for a personal organization earlier still shows the placeholder where it
 showed it then. Orders that carry one can be listed with
 `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
 
+An operator adding a member to a personal organization directly
+(`POST /api/v1/admin/organizations/:id/members`) is refused
+`422 ORGANIZATION_PERSONAL` (token `add_member`, `details.organizationId`,
+`organizationName`).
+
 Company (B2B) organizations are unaffected — the single-member invariant
 (`assertMembershipAllowed`) only rejects adding a second member to a
 personal org.
@@ -1374,8 +1382,9 @@ field (`organization_admin` / `regular_user`) any more.
 - **Personal organizations.** The sole member of a personal organization is its
   Administrator. The member and invitation routes answer them as any
   administrator (their members list holds only themselves and their
-  invitations list is empty); inviting is refused `422 VALIDATION_FAILED`,
-  because the organization is personal, before the role is looked at. A
+  invitations list is empty); inviting is refused `422 ORGANIZATION_PERSONAL`
+  (token `invite`, `details.organizationId`), because the organization is
+  personal, before the role is looked at. A
   storefront hides the organization screens there by `organization.isPersonal`,
   never by the role.
 - **Login and the guest basket.** When a member whose role lacks *Create and

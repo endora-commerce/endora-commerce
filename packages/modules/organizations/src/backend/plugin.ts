@@ -387,6 +387,8 @@ export function organizationsModule(options: OrganizationsModuleOptions) {
         ...(options.dictionaryValidator ? { dictionaryValidator: options.dictionaryValidator } : {}),
         treeService: new OrganizationTreeService(options.emFactory),
         ...(options.roleCache ? { roleCache: options.roleCache } : {}),
+        // Issue #629 (#86) — the status labels of the moderation status refusal.
+        ...(options.translate ? { translate: options.translate } : {}),
       });
       await registerOrganizationAdminRoleRoutes(app, {
         roleService: options.roleService,

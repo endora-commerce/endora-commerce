@@ -74,6 +74,118 @@ describe('analyzeSource — the shapes it claims to flag', () => {
   });
 });
 
+describe('analyzeSource — the admin shapes issue #1316 found missing', () => {
+  // `SalesChannelEditPage.tsx` rendered every one of these in English to a
+  // Polish operator while this check reported the file clean.
+  const kinds = (source: string): string[] => analyzeSource(source, FILE).map((f) => f.kind);
+  const texts = (source: string): string[] => analyzeSource(source, FILE).map((f) => f.text);
+
+  it('reports a one-word capitalised label in JSX text, hyphenated ones included', () => {
+    expect(texts('export const A = () => <Button>Delete</Button>;\n')).toEqual(['Delete']);
+    expect(texts('export const A = () => <Button>Re-activate</Button>;\n')).toEqual([
+      'Re-activate',
+    ]);
+    expect(texts('export const A = () => <Badge>\n  Inactive\n</Badge>;\n')).toEqual(['Inactive']);
+  });
+
+  it('still skips a code-shaped one-word token', () => {
+    for (const token of ['order_id', 'v1.2', 'px', 'SKU', 'ItemList', 'src/admin', 'GET']) {
+      expect(texts(`export const A = () => <span>${token}</span>;\n`), token).toEqual([]);
+    }
+  });
+
+  it('reports a one-word label in a visible attribute', () => {
+    expect(kinds('export const A = () => <button aria-label="Close" />;\n')).toEqual(['jsx-attr']);
+  });
+
+  it('reports a copy-named prop, read through `{…}` and both branches of a conditional', () => {
+    const source =
+      "export const A = () => <PageHeader title={'New Sales Channel'} description={isCreate ? 'Create a new place of sale.' : 'Edit the channel.'} />;\n";
+    expect(texts(source)).toEqual([
+      'New Sales Channel',
+      'Create a new place of sale.',
+      'Edit the channel.',
+    ]);
+    expect(kinds(source)).toEqual(['jsx-attr', 'jsx-attr', 'jsx-attr']);
+    expect(kinds('export const A = () => <Field label="Status" emptyLabel="No rows" />;\n')).toEqual([
+      'jsx-attr',
+      'jsx-attr',
+    ]);
+  });
+
+  it('ignores a non-copy prop, a code value, styling and a catalogue call', () => {
+    const source = [
+      'export const A = () => (',
+      '  <>',
+      '    <Button variant="destructive" size="Large" />',
+      '    <Field label="status" title="orders.list" />',
+      "    <div className={'Foo Bar'} />",
+      "    <PageHeader description={t('edit.description')} />",
+      '  </>',
+      ');',
+      '',
+    ].join('\n');
+    expect(analyzeSource(source, FILE)).toEqual([]);
+  });
+
+  it('reports a literal rendered as a JSX child, and not a separator or a catalogue call', () => {
+    const source =
+      "export const A = () => <p>{error ?? 'Channel not found.'}{' · '}{t('a.b')}{ok ? 'Saved' : null}</p>;\n";
+    expect(texts(source)).toEqual(['Channel not found.', 'Saved']);
+    expect(kinds(source)).toEqual(['jsx-expression', 'jsx-expression']);
+  });
+
+  it('judges a template with its substitutions as words — a generated id is not copy', () => {
+    const source = [
+      'export const A = () => (',
+      '  <>',
+      '    <input aria-label={`select-${o.id}`} ariaLabel={`${idPrefix}-country`} />',
+      '    <button aria-label={`Remove ${name}`} title={`${a} · ${b}`} />',
+      '    <p>{`+${n}`}{`Page ${p} / ${total}`}</p>',
+      '    <style>{`:host{display:block}${css}`}</style>',
+      '  </>',
+      ');',
+      '',
+    ].join('\n');
+    expect(texts(source)).toEqual(['Remove ${…}', 'Page ${…} / ${…}']);
+  });
+
+  it('reports a prose literal passed to a state setter, through a conditional', () => {
+    const source = [
+      "setError('Delete failed.');",
+      "setError(err instanceof ApiError ? err.message : 'Deactivate failed.');",
+      "setNotice('Saved');",
+      '',
+    ].join('\n');
+    expect(texts(source)).toEqual(['Delete failed.', 'Deactivate failed.', 'Saved']);
+    expect(kinds(source)).toEqual(['setter-literal', 'setter-literal', 'setter-literal']);
+  });
+
+  it('ignores a state value passed to a setter, and a non-setter call', () => {
+    const source = [
+      "setStatus('idle');",
+      "setTab('general');",
+      "setSort('created_at');",
+      'setError(null);',
+      "settle('Delete failed.');",
+      "console.error('Delete failed.');",
+      '',
+    ].join('\n');
+    expect(analyzeSource(source, FILE)).toEqual([]);
+  });
+
+  it('leaves the storefront\'s strict analysis as it was', () => {
+    // The storefront reads every one-word JSX text already; this rule is the
+    // admin's, and must not change a storefront count.
+    const source = "export const A = () => <p><span>order_id</span>{setError('x')}</p>;\n";
+    expect(
+      analyzeSource(source, '/repo/storefront/components/a.tsx', STOREFRONT_ANALYSIS).map(
+        (f) => f.kind,
+      ),
+    ).toEqual(['jsx-text']);
+  });
+});
+
 describe('analyzeSource — the storefront\'s Polish literals (issue #85)', () => {
   const SF = '/repo/storefront/components/rfq/RfqDetailActions.tsx';
   const SF_TS = '/repo/storefront/lib/quote-requests/describe-diff.ts';
@@ -92,7 +204,9 @@ describe('analyzeSource — the storefront\'s Polish literals (issue #85)', () =
   });
 
   it('flags a Polish value of an attribute nobody reads out loud', () => {
-    const source = 'export const A = () => <Field label="Ilość" />;\n';
+    // `name`, not `label`: issue #1316 made `label` a copy-named prop for the
+    // admin, so it is reported as the attribute rather than as Polish.
+    const source = 'export const A = () => <Field name="Ilość" />;\n';
     expect(analyzeSource(source, SF, polish).map((f) => f.kind)).toEqual(['polish-literal']);
   });
 
@@ -129,7 +243,7 @@ describe('analyzeSource — the storefront\'s Polish literals (issue #85)', () =
     expect(analyzeSource(source, SF_TS, polish).map((f) => f.kind)).toEqual(['polish-literal']);
   });
 
-  it('is off unless asked for, so the admin roots keep the two shapes they had', () => {
+  it('is off unless asked for, so an admin literal outside the admin shapes stays unreported', () => {
     expect(analyzeSource("export const x = 'Odrzuć';\n", FILE)).toEqual([]);
   });
 });
@@ -181,9 +295,16 @@ describe('analyzeSource — the storefront\'s strict shapes (issue #85)', () => 
       ).toEqual([]);
     });
 
-    it('is off for the admin, whose ledger was measured without it', () => {
-      expect(analyzeSource(jsx('<span>Koszyk</span>'), FILE)).toEqual([]);
-      expect(analyzeSource(jsx('<span>Koszyk</span>'), FILE, { polishLiterals: true })).toEqual([]);
+    it('is narrower for the admin: a capitalised word is a label, a lower-case one is not', () => {
+      // Issue #1316 moved the admin's line to a single capitalised word; the
+      // storefront's "any letter" stays its own.
+      expect(analyzeSource(jsx('<span>delivery</span>'), FILE)).toEqual([]);
+      expect(analyzeSource(jsx('<span>delivery</span>'), FILE, { polishLiterals: true })).toEqual(
+        [],
+      );
+      expect(analyzeSource(jsx('<span>Koszyk</span>'), FILE).map((f) => f.kind)).toEqual([
+        'jsx-text',
+      ]);
     });
   });
 

@@ -169,7 +169,13 @@ export const importProfileErrorDetailsSchemas = {
  * target (inactive ones included, so a saved target is not dropped), ordered by code.
  */
 export const importChannelTargetSchema = z
-  .object({ id: uuidSchema, code: z.string().min(1).max(32), languages: z.array(z.string().min(2).max(16)).min(1) })
+  .object({
+    id: uuidSchema,
+    code: z.string().min(1).max(32),
+    /** The channel's per-language name (issue #718); the editor picks the admin's language, else the code. */
+    name: z.record(z.string(), z.string()),
+    languages: z.array(z.string().min(2).max(16)).min(1),
+  })
   .strict();
 export type ImportChannelTarget = z.infer<typeof importChannelTargetSchema>;
 export const importChannelTargetListResponseSchema = z.object({ data: z.array(importChannelTargetSchema) });

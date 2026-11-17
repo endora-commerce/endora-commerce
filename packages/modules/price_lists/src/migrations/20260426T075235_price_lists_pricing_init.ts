@@ -5,7 +5,15 @@ import { Migration } from '@mikro-orm/migrations';
  *   - price_lists
  *   - price_list_items
  *   - price_list_assignments
- *   - organizations.customer_group_id (nullable FK)
+ *
+ * It also added the nullable `organizations.customer_group_id` and its index
+ * until issue #611. The column is `organizations`' — `Organization.customerGroupId`
+ * maps it — so the two statements and their inverses moved to
+ * `Migration20261117T033143OrganizationsCustomerGroupColumn`, verbatim and
+ * `if not exists`, in the shape D-226 gave the `cms_pages` index
+ * `assets_library`'s frozen init carried. This class keeps its name, so a
+ * database that has applied it is not offered it again, and its schema is
+ * unchanged.
  *
  * It also created `customer_groups` until
  * `specs/120-migration-closure-bridge-ownership/` Phase 3. That table is owned
@@ -80,18 +88,9 @@ export class Migration20260426T075235PriceListsPricingInit extends Migration {
     this.addSql('create index "price_list_assignments_price_list_id_index" on "price_list_assignments" ("price_list_id");');
     this.addSql('create index "price_list_assignments_organization_id_index" on "price_list_assignments" ("organization_id");');
     this.addSql('create index "price_list_assignments_customer_group_id_index" on "price_list_assignments" ("customer_group_id");');
-
-    this.addSql(
-      'alter table "organizations" add column "customer_group_id" uuid null;',
-    );
-    this.addSql(
-      'create index "organizations_customer_group_id_index" on "organizations" ("customer_group_id");',
-    );
   }
 
   override async down(): Promise<void> {
-    this.addSql('drop index if exists "organizations_customer_group_id_index";');
-    this.addSql('alter table "organizations" drop column if exists "customer_group_id";');
     this.addSql('drop table if exists "price_list_assignments" cascade;');
     this.addSql('drop table if exists "price_list_items" cascade;');
     this.addSql('drop table if exists "price_lists" cascade;');
