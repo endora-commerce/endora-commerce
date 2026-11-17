@@ -82,6 +82,7 @@ export function SubscribersPage(): React.ReactElement {
               {items.map((s) => (
                 <tr key={s.id} className="border-b last:border-0 hover:bg-muted/40">
                   <td className="p-3 font-medium">{s.email}</td>
+                  {/* eslint-disable-next-line no-restricted-syntax -- raw status on an untranslated screen, drained by #1463 (CONTENT-05) */}
                   <td className="p-3">{s.status}</td>
                   <td className="p-3 text-xs">{s.tags.join(', ') || '—'}</td>
                   <td className="p-3 text-xs">{s.source ?? '—'}</td>

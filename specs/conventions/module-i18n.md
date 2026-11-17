@@ -43,6 +43,21 @@ passes no `labels` / `placeholder` / `ariaLabel` gets the operator's language, a
 still wins. A kit default written as an English literal is what made every rule editor and picker
 English for a Polish operator until issue #1433.
 
+**An enum value is a code, and an admin screen shows its label** (issue #1434). A status, a kind or
+an actor type arrives as `Pending`, `rejected_by_org_admin` or `org_admin`. The module that owns
+the screen declares the vocabulary once, in `src/admin/lib/labels.ts`, as
+`defineEnumLabels({ value: 'full.catalogue.key', … })` from `@endora-commerce/admin-kit/lib`. The
+screen renders `labels.label(t, value)`, and a filter takes `labels.options(t)`. The helper fixes two
+rules for every module: a value the map does not declare is shown as itself, never as a
+missing-key placeholder, and no value is the dash. Type the map over the published union
+(`defineEnumLabels<RfqStatus>(…)`) where `@endora-commerce/contracts` has one, so a new value is
+a type error until it has a label. A screen showing another module's records still owns the copy
+(the customer detail labels quote request statuses from its own bundle), and a vocabulary the
+operator configures, such as order statuses, is read from the name the API serves. The root
+`eslint.config.js` refuses `{x.status}`, `{x.kind}`, `{x.action}` and the like as JSX text in admin
+sources. The selector works on syntax, not types. A site that is not an enum carries an
+`eslint-disable-next-line` that says why, and a site that is debt names the issue that will fix it.
+
 **The storefront is in the same run since issue #85**, with its own ledger,
 `STOREFRONT_HARDCODED_STRINGS_BASELINE`, ratcheted the same two ways. Its walk is the `storefront`
 workspace member's `.ts` **and** `.tsx` sources (tests, `test/`, `scripts/` and `public/` excepted),

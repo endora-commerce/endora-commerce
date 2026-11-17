@@ -227,6 +227,7 @@ export function ReturnDetail(): ReactNode {
         title={
           <span className="flex items-center gap-2">
             {rc.rmaNumber ?? 'Return case'} <Badge variant="secondary">{rc.statusLabel}</Badge>
+            {/* eslint-disable-next-line no-restricted-syntax -- raw return kind, drained by #1472 (SALES-07) */}
             <Badge variant="outline">{rc.kind}</Badge>
             {rc.consumerWithdrawal === true && <Badge variant="warning">{tr('consent.badge')}</Badge>}
           </span>
@@ -621,6 +622,7 @@ export function ReturnDetail(): ReactNode {
               {shipments.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell>{s.direction}</TableCell>
+                  {/* eslint-disable-next-line no-restricted-syntax -- raw shipment status, drained by #1472 (SALES-07) */}
                   <TableCell>{s.status}</TableCell>
                   <TableCell>{s.externalReference ?? '—'}</TableCell>
                   <TableCell>
