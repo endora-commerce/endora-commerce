@@ -39,13 +39,15 @@ export function paymentStatusLabelKey(code: string): string {
 }
 
 /**
- * What the detail screen's control may show for an order currently at `current`.
+ * What the detail screen's "Change…" dialog offers for an order currently at
+ * `current` (issue #1470, DS-18): every settable value except the current one.
  *
- * The order's own value is always shown, even when it is not settable, so the
- * select displays the truth and offers only what the server will take.
+ * The current value is shown beside the control as a badge, never offered as a
+ * target, so an unsettable one (`failed`, `awaiting_payment`, `deferred`) is
+ * still read and cannot be chosen. Payment status stays operator-editable when
+ * the `payments` module records transactions too (owner decision DEC-11, issue
+ * #1470): a bank transfer is confirmed by a person.
  */
-export function paymentStatusOptions(current: string): string[] {
-  return SELECTABLE_PAYMENT_STATUSES.includes(current)
-    ? [...SELECTABLE_PAYMENT_STATUSES]
-    : [current, ...SELECTABLE_PAYMENT_STATUSES];
+export function paymentStatusTargets(current: string): string[] {
+  return SELECTABLE_PAYMENT_STATUSES.filter((code) => code !== current);
 }

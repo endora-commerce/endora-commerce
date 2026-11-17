@@ -64,6 +64,7 @@ export function CampaignsPage(): React.ReactElement {
                   </td>
                   <td className="p-3">{c.subject}</td>
                   <td className="p-3 text-xs">{c.targetType}</td>
+                  {/* eslint-disable-next-line no-restricted-syntax -- raw status on an untranslated screen, drained by #1463 (CONTENT-05) */}
                   <td className="p-3">{c.status}</td>
                 </tr>
               ))}

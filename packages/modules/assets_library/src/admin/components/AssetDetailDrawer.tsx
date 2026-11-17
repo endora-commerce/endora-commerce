@@ -12,6 +12,7 @@ import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { AssetUploader, ModalDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { assetReferenceKindLabels } from '../lib/labels.js';
 import {
   assetsLibraryClient,
   type AssetDetail,
@@ -613,7 +614,7 @@ function AssetDetailDrawerBody({
             <ul className="space-y-1 text-xs">
               {detail.references.map((r, i) => (
                 <li key={`${r.kind}-${r.entityId}-${i}`}>
-                  <span className="font-mono text-muted-foreground">{r.kind}</span>
+                  <span className="text-muted-foreground">{assetReferenceKindLabels.label(t, r.kind)}</span>
                   {' — '}
                   {r.label}
                 </li>

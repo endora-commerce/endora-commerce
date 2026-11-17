@@ -134,10 +134,14 @@ function hosted(ui: ReactElement): ReactElement {
   });
 }
 
-/** The setting names currently rendered, in document order. */
+/**
+ * The setting names currently rendered, in document order — each row's name is
+ * the `<label>` of its control since issue #1478. Every fixture is a `string`
+ * setting, so each row holds one text input.
+ */
 function visibleSettings(): string[] {
-  return [...document.querySelectorAll('span.text-sm.font-medium')].map((el) =>
-    (el.textContent ?? '').trim(),
+  return [...document.querySelectorAll<HTMLInputElement>('fieldset input')].map((input) =>
+    (input.labels?.[0]?.textContent ?? '').trim(),
   );
 }
 

@@ -9,7 +9,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 
 | Subpath | What it is |
 | --- | --- |
-| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
+| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
 | `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt, the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
@@ -208,6 +208,41 @@ contribution** when the *owner* decides that it appears, and a **published compo
   `import.meta.env.VITE_API_BASE_URL` at build time and a cast or an indirection is a
   chance for that replacement to stop happening in a way no type-check can see. Nothing
   imports `vite`, so it does not reach `dist` and is not a consumer's dependency.
+
+## Form fields — `FormField` and `HelpTip`
+
+Issue #1432 (UX audit 2026-11-17, DS-08). Every labelled input in a module's admin layer goes
+through `FormField`, so no screen wires `htmlFor`, `aria-describedby` or `aria-invalid` by hand:
+
+```tsx
+<FormField label={t('field.email')} hint={t('field.emailHint')} error={errors.email} required>
+  <Input type="email" value={email} onChange={onEmail} />
+</FormField>
+```
+
+- **The child is cloned with the wiring** — `Input`, `Select`, `Textarea`, `Checkbox` and any
+  component that forwards `id` and `aria-*` to its input. For a control that needs the wiring
+  somewhere other than its root, pass a function: `{(control) => <Picker inputId={control.id} />}`.
+- **`group`** is for a composite with no single labellable element (an address block, an asset
+  picker): the field becomes a `role="group"` named by the label, and the descriptions describe the
+  group. A `<label for>` pointing at nothing is worse than none.
+- **`hint` is one line** and is clamped to it; longer text goes to **`help`**, a `HelpTip` (a ⓘ
+  disclosure beside the label, opened by click, tap or keyboard, closed by Escape — never a
+  hover-only tooltip). **`description`** is linked like the hint but never clamped; it exists for
+  copy that is not yet short enough to be a hint, and the content rule in
+  `specs/conventions/module-i18n.md` is what retires it.
+- **`error`** marks the control `aria-invalid`, comes first in its `aria-describedby`, and renders
+  into a polite live region that is mounted, empty, from the first render.
+- **`required`** is an asterisk hidden from assistive technology plus `aria-required` on the
+  control; native `required` is left to the caller, so a form's own validation is not replaced by
+  the browser's.
+- **Spacing is the field's, margins are the form's**: label → control 6 px, control → hint 4 px,
+  no outer margin — the form's `space-y-4` keeps field → field the larger gap (Law of Proximity).
+- `labelAddon` (badges, a copy button — outside the `<label>`, so not in the accessible name),
+  `action` (end of the label line, as in `Section`) and `describedBy` (ids of descriptions rendered
+  elsewhere) cover the editor rows that carry more than a label.
+
+The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass.
 
 ## Known rough edge
 

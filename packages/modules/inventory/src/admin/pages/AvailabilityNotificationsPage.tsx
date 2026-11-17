@@ -4,6 +4,7 @@ import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts'
 import { ApiError, apiClient, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
 import { ScopeNotice, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { availabilityStatusLabels } from '../lib/labels.js';
 interface NotificationRow {
   id: string;
   productId: string;
@@ -235,7 +236,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
                           r.status === 'cancelled' && 'b2b-badge--muted',
                         )}
                       >
-                        {r.status}
+                        {availabilityStatusLabels.label(t, r.status)}
                       </span>
                     </td>
                     <td>

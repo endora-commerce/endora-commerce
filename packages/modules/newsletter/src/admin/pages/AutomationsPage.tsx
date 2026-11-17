@@ -78,6 +78,7 @@ export function AutomationsPage(): React.ReactElement {
                   </td>
                   <td className="p-3 text-xs">{a.triggerType}</td>
                   <td className="p-3">{a.stepCount}</td>
+                  {/* eslint-disable-next-line no-restricted-syntax -- raw status on an untranslated screen, drained by #1463 (CONTENT-05) */}
                   <td className="p-3">{a.status}</td>
                   {canWrite ? (
                     <td className="p-3">

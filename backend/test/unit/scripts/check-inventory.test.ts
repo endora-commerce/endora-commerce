@@ -10927,7 +10927,9 @@ const CHECKS: readonly CheckEntry[] = [
         () =>
           hardcodedAnalyze(
             "export const M = { 'en-US': { a: 'Reject' }, 'pl-PL': { a: 'Odrzuć' } };\n" +
-              "export const label = 'Złóż zamówienie';\n",
+              // `submit`, not `label`: a copy-named variable is an admin
+              // `copy-property` since issue #1433, and would claim it first.
+              "export const submit = 'Złóż zamówienie';\n",
             '/repo/storefront/lib/a.ts',
             { polishLiterals: true },
           ).filter((f) => f.kind === 'polish-literal').length,
@@ -11014,6 +11016,23 @@ const CHECKS: readonly CheckEntry[] = [
           "setError('Delete failed.');\nsetStatus('idle');\n",
           '/repo/admin/src/a.tsx',
         ).filter((f) => f.kind === 'setter-literal').length === 1
+          ? 1
+          : 0,
+      ),
+      // Issue #1433's admin fallbacks, in the same exactly-one shape.
+      'admin-copy-property': top(() =>
+        hardcodedAnalyze(
+          "confirm({ title: 'Delete the tag?', variant: 'destructive', label: t('a.b') });\n",
+          '/repo/admin/src/a.tsx',
+        ).filter((f) => f.kind === 'copy-property').length === 1
+          ? 1
+          : 0,
+      ),
+      'fallback-literal': top(() =>
+        hardcodedAnalyze(
+          "setError(formatError(err, 'Save failed.'));\nconsole.error(e ?? 'Failed to load.');\n",
+          '/repo/admin/src/a.tsx',
+        ).filter((f) => f.kind === 'fallback-literal').length === 1
           ? 1
           : 0,
       ),
@@ -12518,8 +12537,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // five strict shapes: single-word JSX text, a visible attribute read
       // through `{…}`, a JSX child literal, a copy property, a prose literal —
       // plus issue #1316's four admin shapes: a one-word label, a copy-named
-      // prop, a JSX child literal and prose handed to a state setter.
-      'backend/scripts/i18n-hardcoded-strings.ts': 13,
+      // prop, a JSX child literal and prose handed to a state setter — plus
+      // issue #1433's two admin fallbacks: a copy-named property, default or
+      // variable, and a fallback sentence behind an error helper or `??`.
+      'backend/scripts/i18n-hardcoded-strings.ts': 15,
       // Four rules, the fifth (migration class scope) that reads the
       // filesystem, and issue #244's short listing — the shape every one of
       // this script's other floors is green on. Plus feature 080's three for

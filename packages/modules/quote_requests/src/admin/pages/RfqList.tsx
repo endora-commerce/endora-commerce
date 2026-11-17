@@ -25,6 +25,7 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import type { CustomFieldFilters } from '@endora-commerce/contracts';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { rfqStatusLabels } from '../lib/labels.js';
 /**
  * Admin Quote Requests list (feature 008 / T042). Restructured to mirror the
  * Orders list view: a PageHeader above a toolbar Card (search + status filter
@@ -47,14 +48,7 @@ type RfqStatus =
   | 'Completed'
   | 'Expired';
 
-const RFQ_STATUSES: readonly RfqStatus[] = [
-  'Created from admin',
-  'Pending',
-  'Canceled',
-  'Approved',
-  'Completed',
-  'Expired',
-];
+const RFQ_STATUSES: readonly RfqStatus[] = rfqStatusLabels.values;
 
 type AssignmentScope = 'mine' | 'unassigned' | 'all';
 
@@ -320,7 +314,7 @@ export function RfqList(): ReactNode {
     void refresh();
   }, [refresh]);
 
-  const statusOptions: MultiSelectOption[] = RFQ_STATUSES.map((s) => ({ value: s, label: s }));
+  const statusOptions: MultiSelectOption[] = rfqStatusLabels.options(t);
   const columnOptions: MultiSelectOption[] = COLUMN_IDS.map((id) => ({
     value: id,
     label: t(`rfq.list.column.${id}`),
@@ -333,7 +327,7 @@ export function RfqList(): ReactNode {
   const filterChips: FilterChip[] = [
     ...statusCodes.map((code) => ({
       key: `status:${code}`,
-      label: `${t('rfq.list.field.status')}: ${code}`,
+      label: `${t('rfq.list.field.status')}: ${rfqStatusLabels.label(t, code)}`,
       onRemove: (): void => changeStatusCodes(statusCodes.filter((c) => c !== code)),
     })),
     ...(organizationId
@@ -479,7 +473,7 @@ export function RfqList(): ReactNode {
       header: t('rfq.list.column.status'),
       render: (r) => (
         <>
-          <Badge variant={STATUS_VARIANT[r.status] ?? 'default'}>{r.status}</Badge>
+          <Badge variant={STATUS_VARIANT[r.status] ?? 'default'}>{rfqStatusLabels.label(t, r.status)}</Badge>
           {r.awaitingCustomerRevisionAcceptance ? (
             <Badge variant="warning" className="ml-1">
               {t('rfq.list.badge.awaitingCustomer')}

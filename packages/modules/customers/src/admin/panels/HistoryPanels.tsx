@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
 import { Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { cartStatusLabels, orderStatusName, quoteRequestStatusLabels } from '../lib/labels.js';
 
 /** Generic read-only fetch-on-mount panel for the customer-detail history views. */
 function usePanelData<T>(path: string, enabled: boolean): { rows: T[]; loading: boolean; error: string | null } {
@@ -36,6 +37,8 @@ interface OrderRow {
   id: string;
   businessId: string;
   status: string;
+  /** The status's name per language, as the orders list row carries it. */
+  statusName?: Record<string, string>;
   total: number;
   currency: string;
   placedAt: string;
@@ -43,6 +46,7 @@ interface OrderRow {
 
 export function OrdersPanel({ customerId }: { customerId: string }): ReactNode {
   const t = useTranslation('customers');
+  const { language } = useTranslationContext();
   const { rows, loading, error } = usePanelData<OrderRow>(
     `/api/v1/admin/customers/${customerId}/orders`,
     true,
@@ -69,7 +73,7 @@ export function OrdersPanel({ customerId }: { customerId: string }): ReactNode {
                 >
                   {o.businessId}
                 </Link>
-                <span>{o.status}</span>
+                <span>{orderStatusName(o, language)}</span>
                 <span>
                   {o.total} {o.currency}
                 </span>
@@ -119,7 +123,7 @@ export function QuoteRequestsPanel({ customerId }: { customerId: string }): Reac
                 >
                   {r.businessId ?? r.id.slice(0, 8)}
                 </Link>
-                <span>{r.status}</span>
+                <span>{quoteRequestStatusLabels.label(t, r.status)}</span>
               </li>
             ))}
           </ul>
@@ -167,7 +171,7 @@ export function CartsPanel({ customerId }: { customerId: string }): ReactNode {
   const renderCart = (c: CartView): ReactNode => (
     <div key={c.id} className="rounded border p-3">
       <p className="mb-2 text-xs text-muted-foreground">
-        {c.status} · {c.items.length} {t('detail.carts.items')}
+        {cartStatusLabels.label(t, c.status)} · {c.items.length} {t('detail.carts.items')}
       </p>
       <ul className="text-sm">
         {c.items.map((it, i) => (
