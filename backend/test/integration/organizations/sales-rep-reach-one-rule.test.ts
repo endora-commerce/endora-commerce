@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -12,6 +13,7 @@ import {
   OrganizationSalesRepAssignment,
 } from '../../helpers/package-entities.js';
 import { ADMIN_COOKIES } from '../../helpers/test-actors.js';
+import { organizationTreePath } from '../../helpers/organization-tree.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { bindOrganizationToDefaultChannel } from '../../helpers/sales-channel-access.js';
 import { searchIds } from '../../helpers/admin-search-fixtures.js';
@@ -105,11 +107,11 @@ describe('#305 — one sales-representative reach rule on every surface', () => 
       const p = organization('p', { isPersonal: true, taxId: null }); // no tax ID (specs/177)
       const f = organization('f');
       await em.persistAndFlush([o1, u, p, f]);
-      for (const o of [o1, u, p, f]) o.path = `/${o.id}/`;
-      const fc = organization('fc', { parentId: f.id } as Partial<Organization>);
+      // Issue #956 — the child's real path goes in with the insert; the roots'
+      // come from the entity's create hook.
+      const fcId = randomUUID();
+      const fc = organization('fc', { id: fcId, parentId: f.id, path: organizationTreePath(fcId, f) } as Partial<Organization>);
       await em.persistAndFlush(fc);
-      fc.path = `${f.path}${fc.id}/`;
-      await em.flush();
       Object.assign(org, { O1: o1.id, U: u.id, P: p.id, F: f.id, Fc: fc.id });
 
       const admin = (label: string): AdminUser =>

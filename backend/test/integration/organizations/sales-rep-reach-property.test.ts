@@ -15,6 +15,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { organizationTreePath, staleReachGovernorRows } from '../../helpers/organization-tree.js';
 import { OrganizationTreeService } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 import { SalesRepAssignmentService } from '../../../../packages/modules/organizations/src/backend/services/sales-rep-assignment-service.js';
 import { reachExcludedQuery } from '../../../../packages/modules/organizations/src/backend/services/admin-tenant-scope.js';
@@ -55,17 +56,18 @@ import { reachExcludedQuery } from '../../../../packages/modules/organizations/s
 let seq = 0;
 async function node(em: EntityManager, label: string, parent?: Organization): Promise<Organization> {
   seq += 1;
+  const id = randomUUID();
   const org = em.create(Organization, {
+    id,
     name: `R305P ${label}`,
     taxId: `PL305P${String(seq).padStart(4, '0')}${Date.now().toString().slice(-6)}`,
     status: 'active',
     vatStatus: 'vat_payer',
     registeredAddress: { street: '-', city: '-', postalCode: '-', country: 'PL' },
-    ...(parent ? { parentId: parent.id } : {}),
+    // Issue #956 — the real path goes in with the insert the governor triggers read.
+    ...(parent ? { parentId: parent.id, path: organizationTreePath(id, parent) } : {}),
   });
   await em.persistAndFlush(org);
-  org.path = `${parent ? parent.path : '/'}${org.id}/`;
-  await em.flush();
   return org;
 }
 
@@ -246,30 +248,8 @@ describe('#305 — canSeeOrganization and the excluded set are one rule', () => 
     const unassignRep = (label: string, rep: string) =>
       ok(admin('DELETE', `/api/v1/admin/organizations/${tree[label]}/sales-reps/${rep}`), 204);
 
-    /** The maintained table against a rebuild from scratch, in a transaction that is rolled back. */
-    async function staleGovernorRows(): Promise<number> {
-      const sentinel = new Error('rollback');
-      let stale = -1;
-      await h.orm.em
-        .fork()
-        .transactional(async (tx) => {
-          await tx.execute('create temporary table "r955_maintained" on commit drop as select * from "organization_reach_governor"');
-          await tx.execute('select "organizations_reach_governor_rebuild"(null)');
-          const rows = await tx.execute<Array<{ n: string }>>(
-            `select count(*)::text as "n" from (
-               (select * from "r955_maintained" except select * from "organization_reach_governor")
-               union all
-               (select * from "organization_reach_governor" except select * from "r955_maintained")
-             ) d`,
-          );
-          stale = Number(rows[0]!.n);
-          throw sentinel;
-        })
-        .catch((error: unknown) => {
-          if (error !== sentinel) throw error;
-        });
-      return stale;
-    }
+    /** The maintained table against a rebuild from scratch (`staleReachGovernorRows`). */
+    const staleGovernorRows = (): Promise<number> => staleReachGovernorRows(h.orm.em);
 
     /** The set the tenant filter's subquery selects (`organizations_reach_excluded`), read directly. */
     async function excludedBySubquery(rep: string, rollupOn: boolean): Promise<Set<string>> {
