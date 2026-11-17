@@ -224,6 +224,7 @@ import { Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods } fr
 
 // ── dictionaries ────────────────────────────────────────────────────────────
 import { Migration20260506T112634DictionariesDictionaryInit } from '@endora-commerce/mod-dictionaries/migrations';
+import { Migration20261117T065601DictionariesDefaultCurrencyFk } from '@endora-commerce/mod-dictionaries/migrations';
 
 // ── document_templates ──────────────────────────────────────────────────────
 import { Migration20261017T071754DocumentTemplatesInit } from '@endora-commerce/mod-document-templates/migrations';
@@ -667,6 +668,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── dictionaries ────────────────────────────────────────────────────────────
   migration('dictionaries', Migration20260506T112634DictionariesDictionaryInit),
+  migration('dictionaries', Migration20261117T065601DictionariesDefaultCurrencyFk),
 
   // ── document_templates ──────────────────────────────────────────────────────
   migration('document_templates', Migration20261017T071754DocumentTemplatesInit),
