@@ -25,7 +25,7 @@ function fixture(heldCodes: string[]) {
     allVisibleIds: vi.fn(async () => []),
     visibleIds: vi.fn(async () => new Set<string>()),
   };
-  const execute = vi.fn(async (sql: string) => {
+  const execute = vi.fn(async (sql: string, _params?: unknown[]) => {
     expect(sql).toContain('"project_stages"');
     return [
       { id: 's2', project_id: P1, name: 'Second' },
