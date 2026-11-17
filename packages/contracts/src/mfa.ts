@@ -196,6 +196,22 @@ export const mfaVerifyRequestSchema = z.object({
 });
 export type MfaVerifyRequest = z.infer<typeof mfaVerifyRequestSchema>;
 
+/**
+ * `POST /api/v1/auth/{customer|admin}/mfa/verify` — the second step completed
+ * (issue #1352). The session arrives as `Set-Cookie`, beside the known-device
+ * cookie. `cartMerge` is present only on the customer surface, when the request
+ * carried a guest basket the merge acted on — as in
+ * `customerSignInResponseSchema`'s `authenticated` arm. An administrator has no
+ * basket, so the admin surface never answers it.
+ */
+export const mfaVerifyResponseSchema = z.object({
+  data: z.object({
+    status: z.literal('authenticated'),
+    cartMerge: cartMergeOutcomePublicSchema.optional(),
+  }),
+});
+export type MfaVerifyResponse = z.infer<typeof mfaVerifyResponseSchema>;
+
 // ---------------------------------------------------------------------------
 // Self-service enrolment
 // ---------------------------------------------------------------------------
@@ -245,6 +261,19 @@ export const mfaSetupTicketCompleteSchema = z.object({
   code: z.string().length(6),
 });
 export type MfaSetupTicketComplete = z.infer<typeof mfaSetupTicketCompleteSchema>;
+
+/**
+ * `POST /api/v1/auth/{customer|admin}/mfa/setup-ticket/complete` — the
+ * enforced enrolment completed and the session issued (issue #1352). The
+ * second step's answer plus the recovery codes the activation minted, shown
+ * once (`mfaActivateResponseSchema`). `cartMerge` follows
+ * {@link mfaVerifyResponseSchema}: customer surface only, present when a guest
+ * basket was merged.
+ */
+export const mfaSetupTicketCompleteResponseSchema = z.object({
+  data: mfaVerifyResponseSchema.shape.data.extend(mfaActivateResponseSchema.shape),
+});
+export type MfaSetupTicketCompleteResponse = z.infer<typeof mfaSetupTicketCompleteResponseSchema>;
 
 /** Re-auth for self-disable: current password, or a current TOTP/recovery code. */
 export const mfaDisableRequestSchema = z
