@@ -3751,7 +3751,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T069 (`ksef` and `infakt` leave): 472 -> 460.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
     // **`docs/136-getting-started`: files 460 -> 463.** The Getting started page (`docs/docs/getting-started.md`), its Polish materialisation and cache entry; measured on a pristine detached worktree of `af4bdfea4` after `setup-worktree.sh` and `build:packages`, not computed from a delta.
     // **`docs/create-your-first-module`, merged with `origin/master` after #42: files 463 -> 466.** The branch's three new files — the English page `docs/docs/create-your-first-module.md`, its Polish materialisation and its translation-cache entry. Measured on a pristine clone of the branch head.
-    files: 562,
+    // **Issue #676: files 562 -> 568.** `docs/docs/modules/README.md` and `lifecycle.md` become sources (English page, pin, Polish page each); measured on a pristine detached worktree, 562 there with the previous collector.
+    files: 568,
     // **T042–T045, re-measured 2026-09-25: 332 -> 315.** The same pages' entries; measured, not
     // decomposed. Agreed at `origin/master` `ce96b1e94`; see the header block above the table.
     // **T055 (`pim_akeneo` leaves): 315 -> 311.** the same two sources, two sites each, measured.
@@ -3762,7 +3763,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T069 (`ksef` and `infakt` leave): 294 -> 286.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
     // **`docs/136-getting-started`: sites 286 -> 287.** The English Getting started page, `docs/docs/getting-started.md`; measured on a pristine detached worktree of `af4bdfea4` after `setup-worktree.sh` and `build:packages`, not computed from a delta.
     // **`docs/create-your-first-module`, merged with `origin/master` after #42: sites 287 -> 288.** One more English source owing a Polish materialisation: `docs/docs/create-your-first-module.md`. Measured on a pristine clone of the branch head, in the same census.
-    sites: 342,
+    // **Issue #676: sites 342 -> 344.** The same two English sources; measured in the same census.
+    sites: 344,
     sources: [],
   },
   'backend/scripts/check-doc-snippets.ts': {
