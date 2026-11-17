@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 
-/** The colours a chart draws with, taken from the design system's tokens. */
+/**
+ * The colours a chart draws with, taken from the design system's tokens.
+ *
+ * Promoted from CRM's and Projects' identical `lib/use-chart-colors.ts` (issue #464).
+ */
 export interface ChartColors {
   /** Category labels. */
   text: string;
