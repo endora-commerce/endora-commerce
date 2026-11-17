@@ -161,6 +161,10 @@ export class ReturnTransitionService {
     if (opts?.mutate) await opts.mutate(rc, em);
     await this.enter(rc, to, actor, em, opts?.reason ?? null);
     rc.statusCode = to;
+    // `specs/181-guest-complaints/` research R-9 (owner ruling 3): a case *closes* when
+    // it enters a terminal status, recorded in this flush. A terminal status has no exit,
+    // so this is written once; the guest link's expiry and data retention count from it.
+    if (graph.isTerminal(to)) rc.closedAt = new Date();
     await em.flush();
     if (opts?.sideEffects) await opts.sideEffects({ returnCase: rc, from, to, em });
 

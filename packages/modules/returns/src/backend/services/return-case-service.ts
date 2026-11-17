@@ -4,7 +4,9 @@ import { ERROR_CODES, RETURN_CASE_CREATED_EVENT, isUuidShape, returnCaseOrderLoc
 import type {
   AdminUserReadPort,
   CatalogProductAvailabilityPort,
+  CreateGuestComplaintRequest,
   CreateOffPlatformComplaintRequest,
+  GuestCaseFiled,
   CreateOrderReturnCaseRequest,
   CreateReturnCaseRequest,
   ProductAudience,
@@ -41,6 +43,10 @@ import { caseCharges, caseDefaults, liveItems, loadOrderCases, type OrderCaseIte
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import type { ReturnTransitionService } from './return-transition-service.js';
 import type { ReturnCaseScope, ReturnCustomerContext } from './return-case-scope.js';
+import { trackingLinkValidUntil, type GuestCaseAccess } from './guest/guest-case-access.js';
+import { GUEST_RETENTION_DEFAULT_DAYS, guestDataErasureDueAt } from './guest/guest-erasure.js';
+import type { GuestLinks } from './guest/guest-tracking-link.js';
+import { isHoneypotHit } from './guest/honeypot.js';
 import {
   checkRequestedQuantities,
   isLineReturnable,
@@ -115,7 +121,39 @@ export interface ReturnCaseServiceDeps {
   attachments?: CaseAttachmentClaims;
   /** Judges the clauses a submission accepted and answers what to store (180 research R-14). */
   clauses?: CaseClauseCheck;
+  /**
+   * `specs/181-guest-complaints/` — the guest's pending uploads (read through
+   * `GuestCaseAccess`, research R-1) and the tracking link a filing answers. Absent: a
+   * guest filing is refused as no session.
+   */
+  guest?: {
+    readonly access: Pick<GuestCaseAccess, 'pendingUploadsOf'>;
+    readonly links: Pick<GuestLinks, 'trackingToken'>;
+  };
+  /**
+   * `specs/181-guest-complaints/` (admin-api.md A2, research R-9) — the clamped guest data
+   * retention, for the detail's *erasure due* date. Absent: the setting's default.
+   */
+  guestRetentionDays?: () => Promise<number>;
 }
+
+/** The live guest session a guest filing comes from (`specs/181-guest-complaints/` research R-4). */
+export interface GuestFilingSession {
+  /** The verification row's id: the case's `guest_session_id`. */
+  readonly id: string;
+  /** The verified address: the case's contact e-mail (FR-031). */
+  readonly email: string;
+  readonly verifiedAt: Date;
+}
+
+/** Per-identity limits of guest filing (181 research R-8). */
+export const GUEST_CASES_PER_SESSION = 5;
+export const GUEST_CASES_PER_ADDRESS_PER_DAY = 10;
+
+/** Who files a complaint without a platform order: a customer, or a guest (181). */
+type OffPlatformFiler =
+  | { readonly kind: 'customer'; readonly customer: ReturnCustomerContext; readonly organizationId: string }
+  | { readonly kind: 'guest'; readonly session: GuestFilingSession };
 
 /** What a filing knows of its request (Principle XII: never a body field). */
 export interface FilingContext {
@@ -136,6 +174,12 @@ export interface CaseAttachmentClaims {
   claim(
     em: EntityManager,
     input: { uploads: readonly ClaimedUpload[]; customerAccountId: string; organizationId: string; returnCaseId: string },
+  ): Promise<{ count: number; types: ReturnAttachmentType[] }>;
+  /** A guest session's pending uploads (`specs/181-guest-complaints/` research R-4). */
+  claimForGuest?(
+    em: EntityManager,
+    access: Pick<GuestCaseAccess, 'pendingUploadsOf'>,
+    input: { uploads: readonly ClaimedUpload[]; guestSessionId: string; returnCaseId: string },
   ): Promise<{ count: number; types: ReturnAttachmentType[] }>;
 }
 
@@ -519,6 +563,27 @@ export class ReturnCaseService {
     const organizationId = customer.organizationId;
     // Principle XI: there is no filing without an Organization.
     if (!organizationId) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
+    return this.fileOffPlatform(input, { kind: 'customer', customer, organizationId }, filing);
+  }
+
+  /**
+   * A complaint without a platform order, from a customer or a guest. 180's rules hold
+   * for both (purchase date, product, reason, proof, clauses); what differs is who the
+   * case belongs to, which the caller stamps — never the body (Principles XI, XII):
+   *
+   * - a customer's case carries their account and organization;
+   * - a guest's case carries neither (`specs/181-guest-complaints/` research R-1, R-2),
+   *   but the session that filed it, the verified address as its contact e-mail, the
+   *   moment it was verified and tracking version 1.
+   */
+  private async fileOffPlatform(
+    input: CreateOffPlatformComplaintRequest,
+    filer: OffPlatformFiler,
+    filing: FilingContext,
+  ): Promise<string> {
+    const guest = filer.kind === 'guest' ? filer.session : null;
+    const customerAccountId = filer.kind === 'customer' ? filer.customer.customerAccountId : null;
+    const organizationId = filer.kind === 'customer' ? filer.organizationId : null;
     const channelId = filing.channel.id;
     if (!(await this.deps.offPlatformFlags.enabled(channelId))) {
       throw new HttpError(
@@ -589,7 +654,7 @@ export class ReturnCaseService {
           kind: 'complaint',
           orderId: null,
           salesChannelId: channelId,
-          customerAccountId: customer.customerAccountId,
+          customerAccountId,
           organizationId,
           statusCode: graph.initialCode(),
           currency: filing.channel.defaultCurrency,
@@ -603,6 +668,10 @@ export class ReturnCaseService {
           acceptedClauses: shownClauses,
           clausesAcceptedAt: shownClauses.length > 0 ? now : null,
           submissionKey: input.submissionKey ?? null,
+          // 181 data-model §1 — set on a guest's case only.
+          guestSessionId: guest?.id ?? null,
+          contactVerifiedAt: guest?.verifiedAt ?? null,
+          trackingVersion: guest ? 1 : null,
         });
         em.persist(rc);
         // In request order: an attachment's `line` indexes into it.
@@ -625,7 +694,10 @@ export class ReturnCaseService {
           em.persist(item);
           itemIds.push(item.id);
         }
-        const claimed = await this.claimAttachments(em, input, customer, organizationId, rc.id, itemIds);
+        const claimed =
+          filer.kind === 'customer'
+            ? await this.claimAttachments(em, input, filer.customer, filer.organizationId, rc.id, itemIds)
+            : await this.claimGuestAttachments(em, input, filer.session.id, rc.id, itemIds);
         // FR-B21 — judged on what this filing attaches.
         if (proofRequired && !claimed.types.includes('proof_of_purchase')) {
           throw new HttpError(
@@ -634,16 +706,114 @@ export class ReturnCaseService {
             'Attach a proof of purchase: a receipt or an invoice.',
           );
         }
-        this.addFirstComment(em, rc.id, customer.customerAccountId, input.comment);
+        this.addFirstComment(em, rc.id, customerAccountId, input.comment);
         await em.flush();
+        const audit = filingAudit(rc, input.lines.length, claimed.count, shownClauses.length);
         return {
           result: rc.id,
           before: null,
-          after: filingAudit(rc, input.lines.length, claimed.count, shownClauses.length),
+          // 181 research R-6 — the Command runs in the anonymous system context, so the
+          // entry says who filed it: a guest, and which session (an opaque id).
+          after: guest ? { ...audit, by: 'guest', guestSessionId: guest.id } : audit,
         };
       },
-      event: (id) => this.createdEvent(id, organizationId, channelId, 'complaint', true),
+      event: (id) => this.createdEvent(id, organizationId, channelId, 'complaint', true, guest !== null),
     });
+  }
+
+  /**
+   * File a complaint as a guest (`specs/181-guest-complaints/` G7; FR-030 – FR-036). The
+   * route has checked the module, the setting and the session; the case is stamped from
+   * the session alone — no account, no organization, the verified address (FR-033).
+   *
+   * - A honeypot hit is answered as a success and creates nothing (research R-8).
+   * - A repeated `submissionKey` from the same session answers the case already filed;
+   *   from another session it is a new case (R-4).
+   * - 5 cases per session and 10 per verified address in 24 hours (R-8).
+   */
+  async createGuestCase(
+    input: CreateGuestComplaintRequest,
+    session: GuestFilingSession,
+    filing: FilingContext,
+  ): Promise<{ filed: GuestCaseFiled; created: boolean }> {
+    const guest = this.deps.guest;
+    if (!guest) throw new HttpError(401, ERROR_CODES.RETURN_GUEST_SESSION_REQUIRED, 'Confirm your e-mail address again to continue.');
+    if (isHoneypotHit(input)) {
+      const decoy = randomUUID();
+      return {
+        filed: { reference: caseReference({ id: decoy, rmaNumber: null }), trackingToken: guest.links.trackingToken(decoy, 1), email: session.email },
+        created: true,
+      };
+    }
+    const repeated = await this.filedByGuestWithKey(session.id, input.submissionKey);
+    if (repeated) return { filed: this.guestFiled(repeated, session.email), created: false };
+    await this.assertGuestRoom(session);
+    assertAttachmentLines(input);
+    const { hp: _hp, ...rest } = input;
+    const complaint: CreateOffPlatformComplaintRequest = {
+      ...rest,
+      orderId: null,
+      contact: { name: rest.contact.name, email: session.email, ...(rest.contact.phone ? { phone: rest.contact.phone } : {}) },
+    };
+    try {
+      const caseId = await this.fileOffPlatform(complaint, { kind: 'guest', session }, filing);
+      const rc = await this.deps.emFactory().findOneOrFail(ReturnCase, { id: caseId, customerAccountId: null });
+      return { filed: this.guestFiled(rc, session.email), created: true };
+    } catch (error) {
+      // Two posts with one key raced: the second lost on the unique index.
+      const raced = await this.filedByGuestWithKey(session.id, input.submissionKey);
+      if (raced) return { filed: this.guestFiled(raced, session.email), created: false };
+      throw error;
+    }
+  }
+
+  private guestFiled(rc: ReturnCase, email: string): GuestCaseFiled {
+    return {
+      reference: caseReference(rc),
+      trackingToken: this.deps.guest!.links.trackingToken(rc.id, rc.trackingVersion ?? 1),
+      email,
+    };
+  }
+
+  private async filedByGuestWithKey(guestSessionId: string, submissionKey: string | undefined): Promise<ReturnCase | null> {
+    if (!submissionKey) return null;
+    return this.deps.emFactory().findOne(ReturnCase, { guestSessionId, submissionKey, customerAccountId: null });
+  }
+
+  /** 181 research R-8 — the per-session and per-address limits; `429` names which. */
+  private async assertGuestRoom(session: GuestFilingSession): Promise<void> {
+    const em = this.deps.emFactory();
+    const inSession = await em.count(ReturnCase, { guestSessionId: session.id, customerAccountId: null });
+    if (inSession >= GUEST_CASES_PER_SESSION) throw guestLimit('cases_per_session');
+    const since = new Date(this.now().getTime() - 24 * 3_600_000);
+    const rows = (await em.execute(
+      `select count(*)::int as "n" from "return_cases"
+        where "customer_account_id" is null and "contact" is not null
+          and lower("contact"->>'email') = lower(?) and "submitted_at" > ?`,
+      [session.email.trim(), since],
+    )) as Array<{ n: number }>;
+    if (Number(rows[0]?.n ?? 0) >= GUEST_CASES_PER_ADDRESS_PER_DAY) throw guestLimit('cases_per_address');
+  }
+
+  private async claimGuestAttachments(
+    em: EntityManager,
+    input: CreateReturnCaseRequest,
+    guestSessionId: string,
+    returnCaseId: string,
+    itemIds: readonly string[],
+  ): Promise<{ count: number; types: ReturnAttachmentType[] }> {
+    const uploads = (input.attachments ?? []).map((a) => ({
+      uploadId: a.uploadId,
+      returnCaseItemId: a.line === undefined ? null : itemIds[a.line]!,
+    }));
+    if (uploads.length === 0) return { count: 0, types: [] };
+    if (!this.deps.attachments?.claimForGuest || !this.deps.guest) {
+      throw new HttpError(422, ERROR_CODES.RETURN_ATTACHMENT_REJECTED, 'This upload cannot be attached.', {
+        reason: 'unknown_upload',
+        uploadId: uploads[0]!.uploadId,
+      });
+    }
+    return this.deps.attachments.claimForGuest(em, this.deps.guest.access, { uploads, guestSessionId, returnCaseId });
   }
 
   private async verifyClauses(
@@ -693,12 +863,14 @@ export class ReturnCaseService {
     });
   }
 
-  private addFirstComment(em: EntityManager, returnCaseId: string, customerAccountId: string, comment: string | undefined): void {
+  /** The filing's own comment: the customer's, or — with no account — the guest's (181). */
+  private addFirstComment(em: EntityManager, returnCaseId: string, customerAccountId: string | null, comment: string | undefined): void {
     if (!comment) return;
     em.persist(
       em.create(ReturnCaseComment, {
         returnCaseId,
         authorCustomerAccountId: customerAccountId,
+        authorGuest: customerAccountId === null,
         body: comment,
         isCustomerVisible: true,
         notifyCustomer: false,
@@ -713,18 +885,22 @@ export class ReturnCaseService {
     salesChannelId: string,
     kind: 'return' | 'complaint',
     offPlatform: boolean,
+    guest = false,
   ): { eventName: string; payload: ReturnCaseCreatedEventV1 } | undefined {
-    if (!organizationId) return undefined;
+    // A customer's case without an organization is never filed (Principle XI); a guest's
+    // never has one (181 research R-1).
+    if (!organizationId && !guest) return undefined;
     return {
       eventName: RETURN_CASE_CREATED_EVENT,
       payload: {
         eventId: randomUUID(),
         occurredAt: new Date().toISOString(),
         returnCaseId,
-        organizationId,
+        organizationId: organizationId ?? null,
         salesChannelId,
         kind,
         offPlatform,
+        guest,
       },
     };
   }
@@ -841,7 +1017,7 @@ export class ReturnCaseService {
       submittedAt: rc.submittedAt.toISOString(),
       // The filer (`specs/170-organization-roles/` FR-053): a holder of
       // `returns.view_organization` lists colleagues' cases too.
-      customerAccountId: rc.customerAccountId,
+      customerAccountId: rc.customerAccountId ?? null,
       reference: caseReference(rc),
       ...summaryExtras(rc, lines),
     };
@@ -889,7 +1065,7 @@ export class ReturnCaseService {
         lineCount: items.length,
       }),
       salesChannelId: rc.salesChannelId,
-      customerAccountId: rc.customerAccountId,
+      customerAccountId: rc.customerAccountId ?? null,
       organizationId: rc.organizationId ?? null,
       returnDeliveryMethodId: rc.returnDeliveryMethodId ?? null,
       appliedReturnCost: Number(rc.appliedReturnCost),
@@ -913,7 +1089,11 @@ export class ReturnCaseService {
       })),
       comments: visibleComments.map((c) => ({
         id: c.id,
-        authorKind: c.authorAdminUserId ? ('admin' as const) : ('customer' as const),
+        authorKind: c.authorGuest
+          ? ('guest' as const)
+          : c.authorAdminUserId
+            ? ('admin' as const)
+            : ('customer' as const),
         body: c.body,
         isCustomerVisible: c.isCustomerVisible,
         // "E-mail requested" (180 FR-A20) is the operator's; the buyer's view leaves it out.
@@ -946,6 +1126,26 @@ export class ReturnCaseService {
       clausesAcceptedAt: rc.clausesAcceptedAt ? rc.clausesAcceptedAt.toISOString() : null,
       resolutionNote: opts.customerView ? null : (rc.resolutionNote ?? null),
       personalDataErasedAt: opts.customerView || !rc.personalDataErasedAt ? null : rc.personalDataErasedAt.toISOString(),
+      // `specs/181-guest-complaints/` (admin-api.md A2, FR-063) — `null` on every customer
+      // case. Both dates are computed, never stored: the link works until 90 days after
+      // closing, and the data falls due at closing + the clamped retention (research R-9).
+      // Both are `null` while the case is open and once its data is erased.
+      contactVerifiedAt: rc.contactVerifiedAt ? rc.contactVerifiedAt.toISOString() : null,
+      ...(await this.guestDates(rc, opts.customerView)),
+    };
+  }
+
+  private async guestDates(
+    rc: ReturnCase,
+    customerView: boolean,
+  ): Promise<Pick<ReturnCaseDetail, 'trackingLinkValidUntil' | 'guestDataErasureDueAt'>> {
+    if (customerView || rc.customerAccountId != null || rc.personalDataErasedAt || !rc.closedAt) {
+      return { trackingLinkValidUntil: null, guestDataErasureDueAt: null };
+    }
+    const retention = this.deps.guestRetentionDays ? await this.deps.guestRetentionDays() : GUEST_RETENTION_DEFAULT_DAYS;
+    return {
+      trackingLinkValidUntil: trackingLinkValidUntil(rc)?.toISOString() ?? null,
+      guestDataErasureDueAt: guestDataErasureDueAt(rc, retention)?.toISOString() ?? null,
     };
   }
 }
@@ -977,9 +1177,11 @@ export function alternativeResolutionConsentOf(
 export function summaryExtras(
   rc: ReturnCase,
   lines: { productLabel: string; lineCount: number } | undefined,
-): Pick<ReturnCaseSummary, 'offPlatform' | 'productLabel' | 'lineCount' | 'purchaseDate'> {
+): Pick<ReturnCaseSummary, 'offPlatform' | 'productLabel' | 'lineCount' | 'purchaseDate' | 'guest'> {
   return {
     offPlatform: rc.orderId == null,
+    // `specs/181-guest-complaints/` — derived: no account filed it. Never stored.
+    guest: rc.customerAccountId == null,
     productLabel: lines?.productLabel ?? '',
     lineCount: lines?.lineCount ?? 0,
     purchaseDate: rc.orderId == null ? (rc.purchaseDate ?? null) : null,
@@ -997,6 +1199,7 @@ export function attachmentDtoOf(a: ReturnCaseAttachment): ReturnCaseDetail['atta
     mimeType: a.mimeType ?? 'application/octet-stream',
     sizeBytes: a.sizeBytes ?? 0,
     createdAt: a.createdAt.toISOString(),
+    uploadedByGuest: a.uploadedByGuest,
   };
 }
 
@@ -1007,12 +1210,19 @@ function labelOf(graph: ReturnStatusGraph, code: string, language: string | unde
   return language ? resolveReturnStatusName(def, language) : def.defaultName;
 }
 
+/** `429 RETURN_GUEST_LIMIT_REACHED`, naming the limit (181 research R-8). */
+function guestLimit(limit: 'cases_per_session' | 'cases_per_address'): HttpError {
+  return new HttpError(429, ERROR_CODES.RETURN_GUEST_LIMIT_REACHED, 'You have reached the limit for now. Try again later.', {
+    limit,
+  });
+}
+
 /**
  * A file the create request ties to a line names one of the request's own lines — its
  * index in `lines` (owner request on 180: each product has its own defect photos).
  * Judged before the Command runs, so a refused filing writes nothing.
  */
-function assertAttachmentLines(input: CreateReturnCaseRequest): void {
+function assertAttachmentLines(input: Pick<CreateReturnCaseRequest, 'attachments' | 'lines'>): void {
   for (const attachment of input.attachments ?? []) {
     if (attachment.line !== undefined && attachment.line >= input.lines.length) {
       throw new HttpError(422, ERROR_CODES.RETURN_ATTACHMENT_REJECTED, 'This file names a line the case does not have.', {

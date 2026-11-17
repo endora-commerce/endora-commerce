@@ -118,9 +118,11 @@ export class ReturnErasureService {
       .emFactory()
       .createQueryBuilder(ReturnCase, 'c')
       .select('c.customerAccountId', true)
+      // A guest case has no account to anonymise (`specs/181-guest-complaints/` FR-075):
+      // it is never a filer here, and a null would end the page cursor.
       .where(
         after === null
-          ? { personalDataErasedAt: null }
+          ? { personalDataErasedAt: null, customerAccountId: { $ne: null } }
           : { personalDataErasedAt: null, customerAccountId: { $gt: after } },
       )
       .orderBy({ customerAccountId: 'asc' })

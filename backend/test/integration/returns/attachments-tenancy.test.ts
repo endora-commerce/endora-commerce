@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { runWithTenantContext } from '../../../src/tenancy/tenant-context.js';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
-import { TEST_ORGANIZATION_ID, OTHER_TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID, OTHER_TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ReturnCaseAttachment } from '../../helpers/package-entities.js';
 
 /**
@@ -27,6 +27,9 @@ describe('returns — attachments are tenant-scoped', () => {
     await h.em().getKnex()('return_case_attachments').insert({
       id: pending,
       organization_id: TEST_ORGANIZATION_ID,
+      // A pending upload always has an owner (`specs/181-guest-complaints/` data-model §3,
+      // `return_case_attachments_owner_check`): here the customer who uploaded it.
+      customer_account_id: TEST_CUSTOMER_ID,
       type: 'photo',
       storage_backend: 'local',
       storage_locator: `returns/${TEST_ORGANIZATION_ID}/${pending}`,

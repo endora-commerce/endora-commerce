@@ -14,7 +14,9 @@ import type {
  *
  * **A job carries ids and nothing else**: `case_submitted { returnCaseId }`,
  * `comment_notify { returnCaseCommentId }`, `status_entered { returnCaseId,
- * statusCode, eventId }`. What the e-mails say is read when the job runs, so no
+ * statusCode, eventId }`, `guest_verification { verificationId }` and
+ * `guest_link_reissued { caseId, trackingVersion }` (`specs/181-guest-complaints/` —
+ * every guest link is re-derived when the job runs). What the e-mails say is read when the job runs, so no
  * personal data enters Redis, and a row gone in between is simply not mailed. Five
  * attempts with exponential backoff from 10 s; the request that produced the job
  * was answered before it was taken (FR-A50).
@@ -51,6 +53,10 @@ function jobIdOf(job: ReturnsNotificationJob): string {
       return `comment-${job.returnCaseCommentId}`;
     case 'status_entered':
       return `status-${job.eventId}`;
+    case 'guest_verification':
+      return `guest-verification-${job.verificationId}`;
+    case 'guest_link_reissued':
+      return `guest-link-${job.caseId}-${job.trackingVersion}`;
   }
 }
 

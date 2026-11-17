@@ -6,8 +6,12 @@ import { enterSystemScope, rethrowIfModuleDisabled } from '@endora-commerce/plat
  * The `returns-maintenance` clock (`specs/180-off-platform-complaints/` research R-15,
  * Constitution X; `forms`' `forms-maintenance-worker.ts` is the model): once a day it
  * deletes the pending uploads nobody filed, and erases the cases of accounts anonymised
- * while `returns` was off. Presence first, each pass inside the system scope with its own
- * reason, a failed pass logged and retried on the next tick.
+ * while `returns` was off. `specs/181-guest-complaints/` (research R-9) adds two steps:
+ * erasing the personal data of guest cases closed longer ago than the retention period,
+ * then deleting guest verification rows older than 7 days (FR-026). Presence first —
+ * a step that falls due while the module is off runs at the first tick after it is back —
+ * each pass inside the system scope with its own reason, a failed pass logged and retried
+ * on the next tick.
  */
 
 export const RETURNS_MAINTENANCE_QUEUE = 'returns-maintenance';
@@ -29,6 +33,10 @@ export interface ReturnsMaintenanceJobDeps {
   readonly isPresent: () => boolean;
   readonly uploads: ReturnsMaintenancePass;
   readonly erasure: ReturnsMaintenancePass;
+  /** 181 — `return_case.guest_data.erase` (trigger `retention`) for every due guest case. */
+  readonly guestRetention: ReturnsMaintenancePass;
+  /** 181 FR-026 — verification rows older than 7 days. */
+  readonly guestVerifications: ReturnsMaintenancePass;
   readonly log: { warn(context: Record<string, unknown>, message: string): void };
 }
 
@@ -52,7 +60,7 @@ export async function runReturnsMaintenanceJob(deps: ReturnsMaintenanceJobDeps, 
       );
     }
   };
-  for (const pass of [deps.uploads, deps.erasure]) {
+  for (const pass of [deps.uploads, deps.erasure, deps.guestRetention, deps.guestVerifications]) {
     if (!deps.isPresent()) return;
     await run(pass);
   }

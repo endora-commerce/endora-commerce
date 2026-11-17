@@ -14,6 +14,8 @@ const COLUMNS = [
   'authorizedBy',
   // 180 FR-B35 — the case has no platform order.
   'offPlatform',
+  // `specs/181-guest-complaints/` FR-061 — a guest without an account filed it.
+  'guest',
 ] as const;
 
 /**

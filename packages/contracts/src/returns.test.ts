@@ -37,6 +37,27 @@ import {
   type ReturnStatusDto,
   type SettlementPrefill,
 } from './returns.js';
+import {
+  GUEST_VERIFICATION_LINK_VALID_MINUTES,
+  RETURNS_GUEST_SESSION_COOKIE,
+  RETURNS_TRACKING_TOKEN_HEADER,
+  adminEraseGuestDataRequestSchema,
+  adminEraseGuestDataResultSchema,
+  adminReissueTrackingLinkResultSchema,
+  createGuestComplaintRequestSchema,
+  guestAvailabilitySchema,
+  guestCaseFiledSchema,
+  guestCaseViewSchema,
+  guestCommentRequestSchema,
+  guestFormConfigSchema,
+  guestLimitSchema,
+  guestSessionRedeemRequestSchema,
+  guestSessionSchema,
+  guestTrackingAttachmentFieldsSchema,
+  guestVerificationAcceptedSchema,
+  guestVerificationRequestSchema,
+  returnCaseCommentSchema,
+} from './returns.js';
 import { REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 
 /**
@@ -63,12 +84,14 @@ const summary = {
   productLabel: 'Widget',
   lineCount: 1,
   purchaseDate: null,
+  guest: false,
 } as const;
 
 describe('ReturnCaseSummary.customerAccountId (170 WP-14)', () => {
   it('is carried by the summary', () => {
     expect(returnCaseSummarySchema.parse(summary).customerAccountId).toBe(FILER);
-    expectTypeOf<ReturnCaseSummary['customerAccountId']>().toEqualTypeOf<string>();
+    // `specs/181-guest-complaints/` widens it: `null` is a guest case.
+    expectTypeOf<ReturnCaseSummary['customerAccountId']>().toEqualTypeOf<string | null>();
   });
 
   it('is required, and must be a uuid', () => {
@@ -85,7 +108,7 @@ describe('ReturnCaseSummary.customerAccountId (170 WP-14)', () => {
       authorizedBy: null,
     });
     expect(row.customerAccountId).toBe(FILER);
-    expectTypeOf<AdminReturnRow['customerAccountId']>().toEqualTypeOf<string>();
+    expectTypeOf<AdminReturnRow['customerAccountId']>().toEqualTypeOf<string | null>();
   });
 
   it('keeps the detail’s declaration of it', () => {
@@ -407,6 +430,7 @@ describe('form configuration, uploads, attachments and clauses (180 T044)', () =
       mimeType: 'image/jpeg',
       sizeBytes: 10,
       createdAt: '2026-11-14T10:00:00.000Z',
+      uploadedByGuest: false,
     });
     expect('assetId' in attachment).toBe(false);
     expect(attachment.returnCaseItemId).toBe(U(3));
@@ -479,8 +503,251 @@ describe('outside settlement, list origin and detail blocks (180 T045)', () => {
       salesChannelId: U(4),
       kind: 'complaint',
       offPlatform: true,
+      guest: false,
     };
     expect(ReturnCaseCreatedEventV1Schema.parse(event).offPlatform).toBe(true);
     expect(ReturnCaseCreatedEventV1Schema.safeParse({ ...event, contact: 'x' }).success).toBe(false);
+  });
+});
+
+/**
+ * `specs/181-guest-complaints/` G-1 (T002): the guest and tracking API
+ * (contracts/guest-api.md G1 – G10), the admin widening (admin-api.md A1 – A3,
+ * A5) and the event change (settings-emails-events.md §3).
+ */
+describe('guest complaints — contracts (181 G-1)', () => {
+  const guestCase = {
+    kind: 'complaint' as const,
+    lines: [{ modelName: 'Drill X200', quantity: 1, reasonId: U(3), description: 'Battery swells' }],
+    purchase: { proofNumber: 'FV/1/2026', date: '2026-10-01' },
+    contact: { name: 'Ewa Nowak', phone: '+48 600 000 000' },
+    returnAddress: { name: 'Ewa Nowak', street: 'Prosta 1', postalCode: '00-001', city: 'Warszawa', countryCode: 'PL' },
+    attachments: [{ uploadId: U(4), line: 0 }],
+    shownClauses: [{ id: U(5), revision: 1 }],
+    acceptedClauses: [{ id: U(5), revision: 1 }],
+    comment: 'Bought at a fair',
+    submissionKey: U(6),
+    hp: '',
+  };
+
+  describe('G1 availability, G2 verification request, G3 redeem', () => {
+    it('answers availability as one boolean', () => {
+      expect(guestAvailabilitySchema.parse({ enabled: false }).enabled).toBe(false);
+      expect(guestAvailabilitySchema.safeParse({}).success).toBe(false);
+    });
+
+    it('takes an address, an optional honeypot and an optional language, strictly', () => {
+      const parsed = guestVerificationRequestSchema.parse({ email: '  ewa@example.test ', language: 'pl' });
+      expect(parsed.email).toBe('ewa@example.test');
+      expect(parsed.hp).toBeUndefined();
+      expect(guestVerificationRequestSchema.safeParse({ email: 'ewa@example.test', hp: 'bot' }).success).toBe(true);
+      expect(guestVerificationRequestSchema.safeParse({ email: 'not-an-address' }).success).toBe(false);
+      expect(guestVerificationRequestSchema.safeParse({ email: `${'a'.repeat(250)}@x.pl` }).success).toBe(false);
+      expect(guestVerificationRequestSchema.safeParse({ email: 'ewa@example.test', salesChannelId: U(1) }).success).toBe(false);
+    });
+
+    it('answers every accepted request with the link lifetime only', () => {
+      expect(GUEST_VERIFICATION_LINK_VALID_MINUTES).toBe(60);
+      expect(guestVerificationAcceptedSchema.parse({ linkValidMinutes: 60 })).toEqual({ linkValidMinutes: 60 });
+    });
+
+    it('redeems a token of at most 512 characters into a session', () => {
+      expect(guestSessionRedeemRequestSchema.safeParse({ token: 'x'.repeat(512) }).success).toBe(true);
+      expect(guestSessionRedeemRequestSchema.safeParse({ token: 'x'.repeat(513) }).success).toBe(false);
+      expect(guestSessionRedeemRequestSchema.safeParse({ token: '' }).success).toBe(false);
+      expect(guestSessionRedeemRequestSchema.safeParse({ token: 'x', email: 'a@b.c' }).success).toBe(false);
+      const session = guestSessionSchema.parse({ sessionToken: 's', email: 'ewa@example.test', expiresAt: '2026-11-17T10:00:00.000Z' });
+      expect(session.sessionToken).toBe('s');
+    });
+
+    it('names the session cookie and the tracking header', () => {
+      expect(RETURNS_GUEST_SESSION_COOKIE).toBe('b2b_returns_guest');
+      expect(RETURNS_TRACKING_TOKEN_HEADER).toBe('x-returns-tracking-token');
+    });
+  });
+
+  describe('G5 form configuration and G7 filing', () => {
+    it('extends the form configuration with the verified address, and a confirmation that cannot be off', () => {
+      const base = {
+        offPlatformComplaintsEnabled: true,
+        proofOfPurchaseRequired: false,
+        confirmationEmailEnabled: true,
+        today: '2026-11-16',
+        clauses: [],
+        attachmentLimits: { maxFileBytes: 10, maxSubmissionBytes: 30, maxFilesPerCase: 10, acceptedMimeTypes: ['application/pdf'] },
+      };
+      const reasons = [{ id: U(7), label: { en: 'Defect' }, appliesTo: 'complaint', isActive: true, weight: 1 }];
+      const config = guestFormConfigSchema.parse({ ...base, reasons, verifiedEmail: 'ewa@example.test', sessionExpiresAt: '2026-11-17T10:00:00.000Z' });
+      expect(config.verifiedEmail).toBe('ewa@example.test');
+      // The complaint reasons the guest chooses from: the customer's reasons route needs a session.
+      expect(config.reasons).toEqual(reasons);
+      expect(guestFormConfigSchema.safeParse({ ...base, verifiedEmail: 'e', sessionExpiresAt: '2026-11-17T10:00:00.000Z' }).success).toBe(false);
+      expect(
+        guestFormConfigSchema.safeParse({ ...base, reasons, confirmationEmailEnabled: false, verifiedEmail: 'e', sessionExpiresAt: '2026-11-17T10:00:00.000Z' }).success,
+      ).toBe(false);
+    });
+
+    it('accepts a guest complaint', () => {
+      const parsed = createGuestComplaintRequestSchema.parse(guestCase);
+      expect(parsed.kind).toBe('complaint');
+      expect(parsed.contact).toEqual({ name: 'Ewa Nowak', phone: '+48 600 000 000' });
+    });
+
+    it.each([
+      ['customerAccountId', { customerAccountId: U(9) }],
+      ['organizationId', { organizationId: U(9) }],
+      ['orderId', { orderId: U(9) }],
+      ['a null orderId', { orderId: null }],
+      ['salesChannelId', { salesChannelId: U(9) }],
+    ])('refuses a body naming %s (FR-034)', (_name, extra) => {
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, ...extra }).success).toBe(false);
+    });
+
+    it('refuses an e-mail in the contact: it is the session’s (FR-031)', () => {
+      const contact = { ...guestCase.contact, email: 'other@example.test' };
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, contact }).success).toBe(false);
+    });
+
+    it('refuses kind return (G1)', () => {
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, kind: 'return' }).success).toBe(false);
+    });
+
+    it('keeps 180’s line, purchase and attachment rules', () => {
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, purchase: { proofNumber: 'x' } }).success).toBe(false);
+      const bothNamed = [{ productId: U(7), modelName: 'X', quantity: 1, reasonId: U(3), description: 'x' }];
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, lines: bothNamed }).success).toBe(false);
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, lines: [] }).success).toBe(false);
+      const eleven = Array.from({ length: 11 }, (_, i) => ({ uploadId: U(100 + i) }));
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, attachments: eleven }).success).toBe(false);
+      expect(
+        createGuestComplaintRequestSchema.safeParse({ ...guestCase, attachments: [{ uploadId: U(4), line: REQUEST_LINE_ITEMS_MAX }] }).success,
+      ).toBe(false);
+    });
+
+    it('answers a filed case with its reference, tracking token and the confirmation address', () => {
+      const filed = guestCaseFiledSchema.parse({ reference: '#ABCDEF12', trackingToken: 't', email: 'ewa@example.test' });
+      expect(filed.trackingToken).toBe('t');
+    });
+
+    it('names the limits of RETURN_GUEST_LIMIT_REACHED', () => {
+      expect(guestLimitSchema.options).toEqual(['cases_per_session', 'cases_per_address', 'comments_per_case']);
+    });
+  });
+
+  describe('G8 – G10 the tracking page', () => {
+    const view = {
+      reference: '#ABCDEF12',
+      kind: 'complaint',
+      status: { code: 'new', label: 'Nowe' },
+      isClosed: false,
+      submittedAt: '2026-11-16T10:00:00.000Z',
+      lines: [{ productName: 'Drill X200', quantity: 1, reasonLabel: 'Defect', description: 'Battery swells', serialNumber: null }],
+      purchase: { proofNumber: null, date: '2026-10-01' },
+      contact: { name: 'Ewa', email: 'ewa@example.test', phone: null },
+      returnAddress: guestCase.returnAddress,
+      rmaNumber: null,
+      comments: [{ id: U(1), authorKind: 'you', body: 'Hello', createdAt: '2026-11-16T10:00:00.000Z' }],
+      attachments: [{ id: U(2), type: 'photo', filename: 'a.jpg', sizeBytes: 10, lineIndex: 0 }],
+      linkValidUntil: null,
+      rejectionReason: null,
+    };
+
+    it('parses the view a tracking link opens', () => {
+      expect(guestCaseViewSchema.parse(view).isClosed).toBe(false);
+    });
+
+    it('carries the rejection reason, nullable and required (owner ruling O-1, FR-041)', () => {
+      expect(guestCaseViewSchema.parse({ ...view, rejectionReason: 'No defect found' }).rejectionReason).toBe('No defect found');
+      const { rejectionReason: _omitted, ...without } = view;
+      expect(guestCaseViewSchema.safeParse(without).success).toBe(false);
+    });
+
+    it('names a comment’s author as the shop or the guest, never staff', () => {
+      const staff = { ...view, comments: [{ ...view.comments[0], authorKind: 'admin' }] };
+      expect(guestCaseViewSchema.safeParse(staff).success).toBe(false);
+    });
+
+    it('carries no internal field', () => {
+      for (const key of ['resolutionNote', 'organizationId', 'customerAccountId', 'personalDataErasedAt', 'trackingVersion']) {
+        expect(guestCaseViewSchema.shape).not.toHaveProperty(key);
+      }
+    });
+
+    it('takes a comment of 1 to 2000 characters', () => {
+      expect(guestCommentRequestSchema.safeParse({ body: 'x' }).success).toBe(true);
+      expect(guestCommentRequestSchema.safeParse({ body: '' }).success).toBe(false);
+      expect(guestCommentRequestSchema.safeParse({ body: 'x'.repeat(2001) }).success).toBe(false);
+      expect(guestCommentRequestSchema.safeParse({ body: 'x', isCustomerVisible: false }).success).toBe(false);
+    });
+
+    it('reads the tracking upload’s fields from a multipart form', () => {
+      expect(guestTrackingAttachmentFieldsSchema.parse({ type: 'photo', lineIndex: '1' }).lineIndex).toBe(1);
+      expect(guestTrackingAttachmentFieldsSchema.parse({ type: 'other' }).lineIndex).toBeUndefined();
+      expect(guestTrackingAttachmentFieldsSchema.safeParse({ type: 'photo', lineIndex: '-1' }).success).toBe(false);
+    });
+  });
+
+  describe('the admin widening (A1 – A3, A5)', () => {
+    it('filters the list by the four origins and 180’s off_platform', () => {
+      for (const origin of ['platform', 'off_platform', 'off_platform_customer', 'guest']) {
+        expect(adminReturnsListQuerySchema.parse({ origin }).origin).toBe(origin);
+      }
+      expect(adminReturnsListQuerySchema.safeParse({ origin: 'customer' }).success).toBe(false);
+    });
+
+    it('makes the filer nullable on the summary and the detail, and marks a guest case', () => {
+      const guestRow = { ...summary, customerAccountId: null, guest: true, orderId: null, offPlatform: true };
+      expect(returnCaseSummarySchema.parse(guestRow).customerAccountId).toBeNull();
+      expect(returnCaseDetailSchema.shape.customerAccountId.safeParse(null).success).toBe(true);
+      const { guest: _g, ...withoutGuest } = summary;
+      expect(returnCaseSummarySchema.safeParse(withoutGuest).success).toBe(false);
+      expectTypeOf<ReturnCaseDetail['customerAccountId']>().toEqualTypeOf<string | null>();
+    });
+
+    it('puts the guest lines on the detail', () => {
+      for (const key of ['guest', 'contactVerifiedAt', 'trackingLinkValidUntil', 'guestDataErasureDueAt']) {
+        expect(returnCaseDetailSchema.shape).toHaveProperty(key);
+      }
+      expectTypeOf<ReturnCaseDetail['contactVerifiedAt']>().toEqualTypeOf<string | null>();
+      expectTypeOf<ReturnCaseDetail['trackingLinkValidUntil']>().toEqualTypeOf<string | null>();
+      expectTypeOf<ReturnCaseDetail['guestDataErasureDueAt']>().toEqualTypeOf<string | null>();
+    });
+
+    it('names a guest as a comment author and marks a guest’s file', () => {
+      expect(returnCaseCommentSchema.shape.authorKind.options).toEqual(['admin', 'customer', 'guest']);
+      expect(returnAttachmentSchema.shape.uploadedByGuest.safeParse(true).success).toBe(true);
+    });
+
+    it('answers the reissue with the new version, and erases only on an explicit confirmation', () => {
+      expect(adminReissueTrackingLinkResultSchema.parse({ trackingVersion: 2 }).trackingVersion).toBe(2);
+      expect(adminEraseGuestDataRequestSchema.safeParse({ confirm: true }).success).toBe(true);
+      expect(adminEraseGuestDataRequestSchema.safeParse({ confirm: false }).success).toBe(false);
+      expect(adminEraseGuestDataRequestSchema.safeParse({}).success).toBe(false);
+      expect(adminEraseGuestDataResultSchema.parse({ personalDataErasedAt: '2026-11-16T10:00:00.000Z' })).toBeDefined();
+    });
+  });
+
+  describe('return_case.created.v1 (settings-emails-events.md §3)', () => {
+    const event = {
+      eventId: U(1),
+      occurredAt: '2026-11-16T10:00:00.000Z',
+      returnCaseId: U(2),
+      organizationId: null,
+      salesChannelId: U(4),
+      kind: 'complaint',
+      offPlatform: true,
+      guest: true,
+    };
+
+    it('carries guest, with no organization on a guest case', () => {
+      const parsed = ReturnCaseCreatedEventV1Schema.parse(event);
+      expect(parsed.guest).toBe(true);
+      expect(parsed.organizationId).toBeNull();
+    });
+
+    it('requires guest', () => {
+      const { guest: _g, ...withoutGuest } = event;
+      expect(ReturnCaseCreatedEventV1Schema.safeParse(withoutGuest).success).toBe(false);
+    });
   });
 });

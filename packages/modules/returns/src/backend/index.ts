@@ -18,6 +18,7 @@ import {
 import type {
   AdminI18nTranslatePort,
   AdminNotificationRecordPort,
+  AdminTenantScopePort,
   AdminUserReadPort,
   CatalogProductAvailabilityPort,
   ObjectStoragePort,
@@ -55,6 +56,13 @@ import {
 import {
   RETURN_AUTHORIZED_DEFAULT,
   RETURN_COMMENT_ADDED_DEFAULT,
+  RETURN_GUEST_AUTHORIZED_DEFAULT,
+  RETURN_GUEST_COMMENT_ADDED_DEFAULT,
+  RETURN_GUEST_LINK_REISSUED_DEFAULT,
+  RETURN_GUEST_REJECTED_DEFAULT,
+  RETURN_GUEST_STATUS_ENTERED_DEFAULT,
+  RETURN_GUEST_SUBMITTED_DEFAULT,
+  RETURN_GUEST_VERIFICATION_DEFAULT,
   RETURN_NEW_CASE_DEFAULT,
   RETURN_REJECTED_DEFAULT,
   RETURN_STATUS_ENTERED_DEFAULT,
@@ -63,6 +71,16 @@ import {
 import { RETURNS_DEFAULT_TIME_ZONE, RETURNS_SETTING_CODES } from '../manifest.js';
 import { isKnownTimeZone } from './services/time-zone-validator.js';
 import { createAdminBell } from './services/notifications/admin-bell.js';
+import { createGuestLinks, type GuestLinkSeal, type GuestLinks } from './services/guest/guest-tracking-link.js';
+import { createGuestAvailability, type GuestAvailability } from './services/guest/guest-availability.js';
+import { GuestVerificationService } from './services/guest/guest-verification-service.js';
+import {
+  GuestDataErasure,
+  RETURNS_GUEST_RETENTION_SCOPE_REASON,
+  RETURNS_GUEST_VERIFICATION_PURGE_SCOPE_REASON,
+  createGuestRetentionReader,
+} from './services/guest/guest-erasure.js';
+import { trackingUrlOf } from './services/notifications/customer-message.js';
 import { ReturnsNotificationDispatch, type ReturnsNotificationJob } from './services/notifications/dispatch.js';
 import { createNewCaseRecipientResolver } from './services/notifications/recipients.js';
 import { createNotificationStore } from './services/notifications/store.js';
@@ -80,6 +98,7 @@ import { ReturnCaseComment } from './entities/return-case-comment.entity.js';
 import { ReturnCaseItem } from './entities/return-case-item.entity.js';
 import { ReturnCase } from './entities/return-case.entity.js';
 import { ReturnDeliveryMethod } from './entities/return-delivery-method.entity.js';
+import { ReturnGuestVerification } from './entities/return-guest-verification.entity.js';
 import { ReturnListSavedView } from './entities/return-list-saved-view.entity.js';
 import { ReturnReason } from './entities/return-reason.entity.js';
 import { ReturnShipment } from './entities/return-shipment.entity.js';
@@ -171,6 +190,17 @@ export interface ReturnsCradle {
   // --- Erasure and maintenance (180 research R-15) ---
   readonly returnsErasureService: ReturnErasureService;
   readonly returnsMaintenanceDeps: ReturnsMaintenanceJobDeps;
+  // --- Guest complaints (`specs/181-guest-complaints/`) ---
+  /**
+   * The platform's purpose-bound seal (`cursorSeal`, owner ruling of 2026-11-16, research
+   * R-5), named by its shape: this module never imports the platform's composition
+   * subpath (`check:platform-surface`).
+   */
+  readonly cursorSeal: GuestLinkSeal;
+  readonly returnsGuestLinks: GuestLinks;
+  readonly returnsGuestAvailability: GuestAvailability;
+  readonly returnsGuestVerificationService: GuestVerificationService;
+  readonly returnsGuestDataErasure: GuestDataErasure;
 }
 
 /**
@@ -225,6 +255,10 @@ export function registerModule(ctx: ModuleContext): void {
           {
             getTransactionalEmailSender: () => cradle().transactionalEmailSenderAccessor(),
             resolveLanguage: createChannelLanguageResolver(emFactory),
+            // `specs/181-guest-complaints/` FR-044 — the guest twins carry the case's
+            // current link, re-derived at send time.
+            guestTrackingUrl: (returnCaseId, trackingVersion) =>
+              trackingUrlOf(cradle().storefrontBaseUrl, cradle().returnsGuestLinks.trackingToken(returnCaseId, trackingVersion)),
           },
         );
         return returnsModule({
@@ -276,6 +310,14 @@ export function registerModule(ctx: ModuleContext): void {
           objectStorage: lazyPort<ObjectStoragePort>(ctx, 'objectStoragePort'),
           // 180 D-11 — the confirmation e-mail's state, from its owner (a binding dependency).
           emailState: lazyPort<TransactionalEmailStatePort>(ctx, 'transactionalEmailStatePort'),
+          // `specs/181-guest-complaints/` — the guest routes, registered with the rest.
+          // Resolved when the plugin runs, which is after every registration below.
+          guest: {
+            links: cradle().returnsGuestLinks,
+            availability: cradle().returnsGuestAvailability,
+            verifications: cradle().returnsGuestVerificationService,
+            erasure: cradle().returnsGuestDataErasure,
+          },
           // The CSV export's wording, from this module's own bundle in the
           // request's language (`_i18n`, non-deactivatable).
           translate: (key, language) =>
@@ -304,7 +346,7 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(({ moduleQueueRedis }: ReturnsCradle) => createReturnsNotificationProducer(moduleQueueRedis))
       .singleton(),
     returnsNotificationDispatch: ctx
-      .asFunction(({ emFactory, storefrontBaseUrl }: ReturnsCradle) => {
+      .asFunction(({ emFactory, storefrontBaseUrl, returnsGuestLinks }: ReturnsCradle) => {
         const settings = lazyPort<ReturnsModuleOptions['settingsService']>(ctx, 'settingsReadPort');
         return new ReturnsNotificationDispatch({
           isPresent: () => effectiveState.isPresent('returns'),
@@ -330,7 +372,19 @@ export function registerModule(ctx: ModuleContext): void {
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             permissions: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
             notifications: lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort'),
+            // 181 FR-051 — a guest case's bell reaches only unrestricted administrators;
+            // `organizations` is a binding dependency and `nonDeactivatable`.
+            tenantScope: lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort'),
           }),
+          guestLinks: returnsGuestLinks,
+          // 181 FR-050 — "{name} (guest)" in the e-mail's language.
+          translate: (key, language, params) =>
+            lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate(
+              'returns',
+              key,
+              supportedLanguageOf(language),
+              params,
+            ),
           storefrontBaseUrl,
           adminBaseUrl: configuredAdminBaseUrl(),
           log: (message, context) => ctx.log.warn(context, message),
@@ -390,7 +444,7 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
     returnsMaintenanceDeps: ctx
       .asFunction(
-        ({ returnsErasureService }: ReturnsCradle): ReturnsMaintenanceJobDeps => ({
+        ({ returnsErasureService, returnsGuestDataErasure }: ReturnsCradle): ReturnsMaintenanceJobDeps => ({
           isPresent: () => effectiveState.isPresent('returns'),
           uploads: {
             scopeReason: RETURNS_UPLOAD_SWEEP_SCOPE_REASON,
@@ -401,6 +455,17 @@ export function registerModule(ctx: ModuleContext): void {
             scopeReason: RETURNS_ERASURE_SCOPE_REASON,
             hasWork: () => returnsErasureService.hasWork(),
             run: () => returnsErasureService.reconcile(),
+          },
+          // `specs/181-guest-complaints/` research R-9 — after the account erasures.
+          guestRetention: {
+            scopeReason: RETURNS_GUEST_RETENTION_SCOPE_REASON,
+            hasWork: () => returnsGuestDataErasure.hasDueCases(),
+            run: (now) => returnsGuestDataErasure.sweep(now),
+          },
+          guestVerifications: {
+            scopeReason: RETURNS_GUEST_VERIFICATION_PURGE_SCOPE_REASON,
+            hasWork: async () => true,
+            run: (now) => returnsGuestDataErasure.purgeVerifications(now),
           },
           log: ctx.log,
         }),
@@ -425,6 +490,47 @@ export function registerModule(ctx: ModuleContext): void {
   });
   // --- end of Erasure and maintenance --------------------------------------------------
 
+  // --- Guest complaints (`specs/181-guest-complaints/`) ----------------------------------
+  // The guest's sealed links, the effective setting of a channel, and the e-mail
+  // verification that opens a guest session. The guest routes are registered through
+  // `ctx.routes`, so they are absent while the module is off (FR-080); the verification
+  // e-mail rides the existing `returns-notifications` worker.
+  ctx.di.register({
+    returnsGuestLinks: ctx.asFunction(({ cursorSeal }: ReturnsCradle) => createGuestLinks(cursorSeal)).singleton(),
+    returnsGuestAvailability: ctx
+      .asFunction(() =>
+        createGuestAvailability(lazyPort<ReturnsModuleOptions['settingsService']>(ctx, 'settingsReadPort')),
+      )
+      .singleton(),
+    returnsGuestVerificationService: ctx
+      .asFunction(
+        ({ emFactory, returnsGuestLinks }: ReturnsCradle) =>
+          new GuestVerificationService({
+            emFactory,
+            links: returnsGuestLinks,
+            enqueue: enqueueAfterCommit(ctx, () => ctx.cradle<ReturnsCradle>().returnsNotificationProducer),
+          }),
+      )
+      .singleton(),
+    // FR-070 – FR-073 — erasure on request (A5) and after the retention period (the sweep).
+    returnsGuestDataErasure: ctx
+      .asFunction(
+        ({ emFactory, commandBus }: ReturnsCradle) =>
+          new GuestDataErasure({
+            emFactory,
+            commandBus,
+            storage: lazyPort<ObjectStoragePort>(ctx, 'objectStoragePort'),
+            retentionDays: createGuestRetentionReader(
+              lazyPort<ReturnsModuleOptions['settingsService']>(ctx, 'settingsReadPort'),
+            ),
+          }),
+      )
+      .singleton(),
+  });
+  // The guest routes (G1 – G10) are registered by the `returns` plugin with the rest of
+  // the module's routes, because filing and tracking need its case services.
+  // --- end of Guest complaints ---------------------------------------------------------
+
   /**
    * What an order's settled return cases refunded (issue #428), for the invoice
    * that states what was paid for the order: a refund an operator transferred
@@ -436,7 +542,7 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   /**
-   * The default subject and content for the 6 transactional emails this
+   * The default subject and content for the transactional emails this
    * module declares in its manifest (T143a).
    *
    * These were fourteen `emailDefaultsRegistry.register(...)` calls in
@@ -457,6 +563,13 @@ export function registerModule(ctx: ModuleContext): void {
     defaults.register('return_submitted', RETURN_SUBMITTED_DEFAULT, 'returns');
     defaults.register('return_comment_added', RETURN_COMMENT_ADDED_DEFAULT, 'returns');
     defaults.register('return_status_entered', RETURN_STATUS_ENTERED_DEFAULT, 'returns');
+    defaults.register('return_guest_verification', RETURN_GUEST_VERIFICATION_DEFAULT, 'returns');
+    defaults.register('return_guest_submitted', RETURN_GUEST_SUBMITTED_DEFAULT, 'returns');
+    defaults.register('return_guest_comment_added', RETURN_GUEST_COMMENT_ADDED_DEFAULT, 'returns');
+    defaults.register('return_guest_status_entered', RETURN_GUEST_STATUS_ENTERED_DEFAULT, 'returns');
+    defaults.register('return_guest_authorized', RETURN_GUEST_AUTHORIZED_DEFAULT, 'returns');
+    defaults.register('return_guest_rejected', RETURN_GUEST_REJECTED_DEFAULT, 'returns');
+    defaults.register('return_guest_link_reissued', RETURN_GUEST_LINK_REISSUED_DEFAULT, 'returns');
   });
 
   /**
@@ -490,6 +603,7 @@ export const entities = [
   ReturnCaseItem,
   ReturnCase,
   ReturnDeliveryMethod,
+  ReturnGuestVerification,
   ReturnListSavedView,
   ReturnReason,
   ReturnShipment,

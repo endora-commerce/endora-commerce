@@ -56,6 +56,7 @@ import type { ReturnCaseAttachment as ReturnCaseAttachmentRow } from '../../../p
 import type { ReturnCaseClause as ReturnCaseClauseRow } from '../../../packages/modules/returns/src/backend/entities/return-case-clause.entity.js';
 import type { ReturnCaseComment as ReturnCaseCommentRow } from '../../../packages/modules/returns/src/backend/entities/return-case-comment.entity.js';
 import type { ReturnCaseItem as ReturnCaseItemRow } from '../../../packages/modules/returns/src/backend/entities/return-case-item.entity.js';
+import type { ReturnGuestVerification as ReturnGuestVerificationRow } from '../../../packages/modules/returns/src/backend/entities/return-guest-verification.entity.js';
 import type { ReturnReason as ReturnReasonRow } from '../../../packages/modules/returns/src/backend/entities/return-reason.entity.js';
 import type { ReturnShipment as ReturnShipmentRow } from '../../../packages/modules/returns/src/backend/entities/return-shipment.entity.js';
 import type { ReturnStatus as ReturnStatusRow } from '../../../packages/modules/returns/src/backend/entities/return-status.entity.js';
@@ -601,6 +602,11 @@ export const ReturnCaseItem = classNamed<ReturnCaseItemRow>(
   installedModuleEntities,
   'returns',
   'ReturnCaseItem',
+);
+export const ReturnGuestVerification = classNamed<ReturnGuestVerificationRow>(
+  installedModuleEntities,
+  'returns',
+  'ReturnGuestVerification',
 );
 export const ReturnReason = classNamed<ReturnReasonRow>(
   installedModuleEntities,

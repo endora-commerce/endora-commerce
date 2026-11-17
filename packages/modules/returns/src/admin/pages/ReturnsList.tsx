@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Download, ListChecks, Search, Settings, Store, X } from 'lucide-react';
+import { ArrowRight, Download, ListChecks, Search, Settings, Store, UserRound, X } from 'lucide-react';
 import {
   ApiError,
   apiBaseUrl,
@@ -28,8 +28,13 @@ const DEFAULT_SORT = 'submittedAt:desc';
 /** The sort options the toolbar offers; a saved sort outside them loads the default. */
 const SORTS = ['submittedAt:desc', 'submittedAt:asc', 'rmaNumber:asc', 'rmaNumber:desc'] as const;
 const KINDS = ['return', 'complaint'] as const;
-/** 180 FR-B35 — the origin filter; absent = every case. */
-const ORIGINS = ['platform', 'off_platform'] as const;
+/**
+ * 180 FR-B35 — the origin filter; absent = every case. 181 (research R-10) splits
+ * *bought elsewhere* by filer and keeps the combined value, so a saved view stored before
+ * keeps its meaning. The guest origin is offered to every admin: one who may not see guest
+ * cases gets an empty list, and hiding it would say their scope is narrower.
+ */
+const ORIGINS = ['platform', 'off_platform', 'off_platform_customer', 'guest'] as const;
 
 /** Resolve the admin-facing label for a status: default name → English → first → code. */
 function statusName(s: ReturnStatusDto): string {
@@ -57,17 +62,19 @@ export function ReturnsList(): ReactNode {
   const [kindFilter, setKindFilter] = useState('');
   // 180 FR-B35, D-6 — kept in saved views, never in the URL, as the other filters.
   const [originFilter, setOriginFilter] = useState('');
-  const [rma, setRma] = useState('');
-  const [debouncedRma, setDebouncedRma] = useState('');
+  // 181 design review A-2 — one search box over the RMA number, the case reference and the
+  // whole contact e-mail (`q`), not an RMA-number field: a guest case is found by its e-mail.
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sort, setSort] = useState<string>(DEFAULT_SORT);
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Debounce the RMA free-text filter.
+  // Debounce the free-text search.
   useEffect(() => {
-    const id = window.setTimeout(() => setDebouncedRma(rma), 300);
+    const id = window.setTimeout(() => setDebouncedSearch(search), 300);
     return () => window.clearTimeout(id);
-  }, [rma]);
+  }, [search]);
 
   // Load the configured status graph once for labels + badge colours.
   useEffect(() => {
@@ -85,9 +92,9 @@ export function ReturnsList(): ReactNode {
     if (statusCodes.length) p.set('status', statusCodes.join(','));
     if (kindFilter) p.set('kind', kindFilter);
     if (originFilter) p.set('origin', originFilter);
-    if (debouncedRma.trim()) p.set('rmaNumber', debouncedRma.trim());
+    if (debouncedSearch.trim()) p.set('q', debouncedSearch.trim());
     return `?${p.toString()}`;
-  }, [page, pageSize, sort, statusCodes, kindFilter, originFilter, debouncedRma]);
+  }, [page, pageSize, sort, statusCodes, kindFilter, originFilter, debouncedSearch]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -112,7 +119,7 @@ export function ReturnsList(): ReactNode {
   // Reset to the first page whenever a filter narrows the result set.
   useEffect(() => {
     setPage(0);
-  }, [statusCodes, kindFilter, originFilter, debouncedRma, sort, pageSize]);
+  }, [statusCodes, kindFilter, originFilter, debouncedSearch, sort, pageSize]);
 
   const statusLabel = useCallback(
     (code: string): string => {
@@ -183,30 +190,32 @@ export function ReturnsList(): ReactNode {
           },
         ]
       : []),
-    ...(rma.trim()
-      ? [{ key: 'rma', label: `${t('returns.filter.rmaNumber')}: ${rma.trim()}`, onRemove: (): void => setRma('') }]
+    ...(search.trim()
+      ? [{ key: 'search', label: tr('list.search.chip', { q: search.trim() }), onRemove: (): void => setSearch('') }]
       : []),
   ];
 
-  // Saved views (#312): what the list really has — the status, kind and RMA
-  // number filters and the sort. It has no column picker, so a view stores no
-  // columns. The RMA number is stored as the list applies it, debounced and
-  // trimmed.
-  const trimmedRma = debouncedRma.trim();
+  // Saved views (#312): what the list really has — the status, kind and origin
+  // filters, the search and the sort. It has no column picker, so a view stores no
+  // columns. The search is stored as the list applies it, debounced and trimmed,
+  // under `q` (181 A-2).
+  const trimmedSearch = debouncedSearch.trim();
   const [sortField = 'submittedAt', sortDir] = sort.split(':');
   const currentView: SavedViewState = {
     filters: {
       ...(statusCodes.length ? { status: statusCodes } : {}),
       ...(kindFilter ? { kind: kindFilter } : {}),
       ...(originFilter ? { origin: originFilter } : {}),
-      ...(trimmedRma ? { rmaNumber: trimmedRma } : {}),
+      ...(trimmedSearch ? { q: trimmedSearch } : {}),
     },
     sort: { field: sortField, dir: sortDir === 'asc' ? 'asc' : 'desc' },
   };
 
   // Loading a view replaces every filter and the sort; a value the page does
-  // not offer is dropped. The page and the debounced RMA number are set in the
-  // same batch, so no list request goes out with the old page or the old RMA.
+  // not offer is dropped. The page and the debounced search are set in the same
+  // batch, so no list request goes out with the old page or the old search. A view
+  // saved under 180 holds `rmaNumber`; `q` matches the RMA number by the same
+  // substring rule, so it keeps finding what it found.
   const applyView = (view: SavedViewState): void => {
     const f = view.filters;
     setPage(0);
@@ -216,9 +225,9 @@ export function ReturnsList(): ReactNode {
     setKindFilter(typeof kind === 'string' && (KINDS as readonly string[]).includes(kind) ? kind : '');
     const origin = f['origin'];
     setOriginFilter(typeof origin === 'string' && (ORIGINS as readonly string[]).includes(origin) ? origin : '');
-    const savedRma = typeof f['rmaNumber'] === 'string' ? f['rmaNumber'] : '';
-    setRma(savedRma);
-    setDebouncedRma(savedRma);
+    const saved = typeof f['q'] === 'string' ? f['q'] : typeof f['rmaNumber'] === 'string' ? f['rmaNumber'] : '';
+    setSearch(saved);
+    setDebouncedSearch(saved);
     const savedSort = view.sort ? `${view.sort.field}:${view.sort.dir}` : DEFAULT_SORT;
     setSort((SORTS as readonly string[]).includes(savedSort) ? savedSort : DEFAULT_SORT);
   };
@@ -227,7 +236,7 @@ export function ReturnsList(): ReactNode {
     setStatusCodes([]);
     setKindFilter('');
     setOriginFilter('');
-    setRma('');
+    setSearch('');
   };
 
   const selectColumn: ResponsiveColumn<AdminReturnRow> = {
@@ -276,6 +285,13 @@ export function ReturnsList(): ReactNode {
             <Badge variant="outline" className="gap-1">
               <Store className="size-3" aria-hidden="true" />
               {tr('list.offPlatform')}
+            </Badge>
+          )}
+          {r.guest && (
+            // 181 FR-061 — filed by a guest without an account; text and an icon.
+            <Badge variant="outline" className="gap-1">
+              <UserRound className="size-3" aria-hidden="true" />
+              {tr('list.guest')}
             </Badge>
           )}
         </span>
@@ -328,7 +344,13 @@ export function ReturnsList(): ReactNode {
     {
       id: 'customer',
       header: t('returns.col.customer'),
-      render: (r) => r.customerName ?? '—',
+      // 181 (admin-api.md A1) — a guest is named by the contact as given, until erased.
+      render: (r) =>
+        r.guest
+          ? r.customerName
+            ? tr('list.customer.guest', { name: r.customerName })
+            : tr('list.customer.guestErased')
+          : (r.customerName ?? '—'),
     },
     {
       id: 'org',
@@ -395,17 +417,17 @@ export function ReturnsList(): ReactNode {
 
       <Card className="mb-4">
         <CardContent className="space-y-3 pt-6">
-          {/* Primary toolbar: RMA search + status / kind filters + sort. */}
+          {/* Primary toolbar: search + status / kind filters + sort. */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 id="rsearch"
                 className="h-9 w-full rounded-md border pl-8 pr-3 text-sm"
-                value={rma}
-                onChange={(e): void => setRma(e.target.value)}
-                placeholder={t('returns.search.placeholder')}
-                aria-label={t('returns.filter.rmaNumber')}
+                value={search}
+                onChange={(e): void => setSearch(e.target.value)}
+                placeholder={tr('list.search.placeholder')}
+                aria-label={tr('list.search.label')}
               />
             </div>
             <MultiSelect

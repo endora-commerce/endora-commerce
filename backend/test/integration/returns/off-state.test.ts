@@ -24,6 +24,7 @@ import {
   type ReturnsMaintenanceJobDeps,
 } from '../../../../packages/modules/returns/src/backend/workers/returns-maintenance-worker.js';
 import { SMALL_PDF, allowOffPlatform, complaintReasonId, file, noOrderBody, upload } from './off-platform-fixtures.js';
+import { allowGuests, fileGuestCase, requestLink, freshEmail, track } from './guest-fixtures.js';
 import {
   captureReturnsNotificationJobs,
   processReturnsNotification,
@@ -71,6 +72,8 @@ describe('returns off-state (Constitution XVII)', () => {
   const channel = { 'x-sales-channel': 'default' };
   /** A case id that names nothing: restored, the consent routes answer `404`, which is not absence. */
   const ABSENT_CASE_ID = '00000000-0000-4000-8000-000000000905';
+  /** A tracking token that opens nothing: restored, the tracking routes answer `404`. */
+  const TRACKING_PROBE = { 'x-returns-tracking-token': 'off-state-probe' };
 
   const jobs: CapturedReturnsJob[] = [];
 
@@ -137,6 +140,21 @@ describe('returns off-state (Constitution XVII)', () => {
         },
         { method: 'PATCH', url: `/api/v1/admin/returns/clauses/${ABSENT_CASE_ID}`, cookies: admin, payload: { weight: 1 } },
         { method: 'DELETE', url: `/api/v1/admin/returns/clauses/${ABSENT_CASE_ID}`, cookies: admin },
+        // `specs/181-guest-complaints/` T076 — every guest route (G1–G10) and the two
+        // guest actions of the admin (A3, A5) go with the module, on both axes.
+        { url: '/api/v1/returns/guest/availability', headers: channel },
+        { method: 'POST', url: '/api/v1/returns/guest/verifications', headers: channel, payload: { email: 'off@example.test' } },
+        { method: 'POST', url: '/api/v1/returns/guest/sessions', headers: channel, payload: { token: 'off-state-probe' } },
+        { method: 'DELETE', url: '/api/v1/returns/guest/sessions/current', headers: channel },
+        { url: '/api/v1/returns/guest/form-config', headers: channel },
+        { method: 'POST', url: '/api/v1/returns/guest/uploads', headers: channel, payload: {} },
+        { method: 'POST', url: '/api/v1/returns/guest/cases', headers: channel, payload: {} },
+        { url: '/api/v1/returns/track', headers: { ...channel, ...TRACKING_PROBE } },
+        { method: 'POST', url: '/api/v1/returns/track/comments', headers: { ...channel, ...TRACKING_PROBE }, payload: { body: 'off' } },
+        { method: 'POST', url: '/api/v1/returns/track/attachments', headers: { ...channel, ...TRACKING_PROBE }, payload: {} },
+        { url: `/api/v1/returns/track/attachments/${ABSENT_CASE_ID}/file`, headers: { ...channel, ...TRACKING_PROBE } },
+        { method: 'POST', url: `/api/v1/admin/returns/${ABSENT_CASE_ID}/guest/tracking-link`, cookies: admin },
+        { method: 'POST', url: `/api/v1/admin/returns/${ABSENT_CASE_ID}/guest/erase`, cookies: admin, payload: { confirm: true } },
       ],
       adminPresence: { cookies: admin },
       settingWrite: {
@@ -247,6 +265,66 @@ describe('returns off-state (Constitution XVII)', () => {
         await runWithoutTenantContext(() => runReturnsMaintenanceJob(deps, new Date()));
         await vi.waitFor(async () => expect(await erasedAt(caseId)).toBeInstanceOf(Date), { timeout: 5000 });
         expect(await uploadExists(expired)).toBe(false);
+      },
+    );
+  });
+
+  /**
+   * `specs/181-guest-complaints/` T076 (FR-080; Principle XVII, research R-9, R-12): while
+   * `returns` is off a guest cannot ask for a link — no `guest_verification` job is
+   * produced — a job already queued is not consumed, a tracking link is refused, and the
+   * retention sweep erases nothing. Switched back on, a link from before works again and
+   * the overdue erasure runs at the next sweep.
+   */
+  describe('complaints from guests (181 T076)', () => {
+    let undoStore: () => Promise<void>;
+    let undoGuests: () => Promise<void>;
+    let reasonId: string;
+
+    beforeAll(async () => {
+      undoStore = (await useTemporaryAssetStore(h)).undo;
+      undoGuests = await allowGuests(h);
+      reasonId = await complaintReasonId(h.em());
+    });
+    afterAll(async () => {
+      await undoGuests();
+      await undoStore();
+    });
+
+    const erasedAt = async (caseId: string): Promise<Date | null> =>
+      (await h.em().fork().findOneOrFail(ReturnCase, { id: caseId }, { filters: false })).personalDataErasedAt ?? null;
+
+    it.each(['deactivated', 'platform-unavailable'] as const)(
+      'enqueues, consumes, tracks and erases nothing while %s; a link from before works once restored',
+      async (axis) => {
+        const live = await fileGuestCase(h, reasonId);
+        const due = await fileGuestCase(h, reasonId);
+        await h
+          .em()
+          .getConnection()
+          .execute(`update "return_cases" set "status_code" = 'closed', "closed_at" = now() - interval '200 days' where "id" = ?`, [
+            due.caseId,
+          ]);
+        const queued = jobs.find((j) => j.kind === 'guest_verification' && j.verificationId === live.verificationId)!;
+        expect(queued).toBeTruthy();
+        expect((await track(h, live.trackingToken)).statusCode).toBe(200);
+        const deps = h.container.resolve('returnsMaintenanceDeps') as ReturnsMaintenanceJobDeps;
+
+        await withModuleOff('returns', axis, async () => {
+          const before = jobs.length;
+          const requested = await requestLink(h, { email: freshEmail() });
+          expect(requested.statusCode).toBe(503);
+          expect(jobs.length).toBe(before);
+          await expect(processReturnsNotification(h, queued)).rejects.toBeInstanceOf(ModuleDisabledError);
+          expect((await track(h, live.trackingToken)).statusCode).toBe(503);
+          await runWithoutTenantContext(() => runReturnsMaintenanceJob(deps, new Date()));
+          expect(await erasedAt(due.caseId)).toBeNull();
+        });
+
+        expect((await track(h, live.trackingToken)).statusCode).toBe(200);
+        await runWithoutTenantContext(() => runReturnsMaintenanceJob(deps, new Date()));
+        expect(await erasedAt(due.caseId)).toBeInstanceOf(Date);
+        expect(await erasedAt(live.caseId)).toBeNull();
       },
     );
   });

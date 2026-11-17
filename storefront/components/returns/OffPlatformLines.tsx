@@ -32,6 +32,7 @@ export function OffPlatformLines({
   salesChannelCode,
   limits,
   keptPhotos = {},
+  uploadAction,
 }: {
   t: (key: MessageKey) => string;
   locale: string;
@@ -45,6 +46,8 @@ export function OffPlatformLines({
   limits: AttachmentLimits;
   /** Each slot's photos accepted on a refused attempt, kept by id. */
   keptPhotos?: Readonly<Record<number, ReadonlyArray<{ uploadId: string; filename: string }>>>;
+  /** Where each line's photo field uploads (181 F-10); `AttachmentField`'s default otherwise. */
+  uploadAction?: string;
 }): ReactNode {
   const line = (i: number): ReactNode => {
     const name = (field: string): string => `lines.${i}.${field}`;
@@ -167,6 +170,7 @@ export function OffPlatformLines({
           label={t('returns.elsewhere.photos')}
           limits={limits}
           kept={keptPhotos[i] ?? []}
+          {...(uploadAction ? { uploadAction } : {})}
         />
       </>
     );

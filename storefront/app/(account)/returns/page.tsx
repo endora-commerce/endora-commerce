@@ -12,6 +12,8 @@ import { format } from '../../../lib/i18n/format';
 import { getMe } from '../../../lib/api/account';
 import { memberSession } from '../../../lib/commerce-permissions';
 import { filedByColleague, mayStartReturn } from '../../../lib/returns/returnForm';
+import { signedOutReturnsTarget } from '../../../lib/returns/guest';
+import { getGuestAvailability } from '../../../lib/api/returns-guest';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -29,7 +31,11 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  */
 export default async function ReturnsListPage(): Promise<ReactNode> {
   const session = await getSessionCookie();
-  if (!session) return await localeRedirect('/login?next=/returns');
+  // 181 FR-010 — a signed-out visitor is offered the guest path while it is in effect.
+  if (!session) {
+    const { ctx } = await getServerContext();
+    return await localeRedirect(signedOutReturnsTarget('/returns', await getGuestAvailability({ ctx })));
+  }
   const [cases, me] = await Promise.all([listMyReturns(session), getMe(session).catch(() => null)]);
   const viewerId = me?.customerAccount.id;
   const mayStart = mayStartReturn(memberSession(me));

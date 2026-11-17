@@ -78,6 +78,25 @@ describe('ReturnStatusGraph — invariants', () => {
     expect(() => g.assertValid()).toThrow(/Terminal status/);
   });
 
+  /**
+   * `specs/181-guest-complaints/` FR-074 (research R-9): a closed guest case
+   * reopened before its erasure would have to leave a terminal status. That
+   * cannot happen, so the erasure clock counted from `closed_at` never needs
+   * resetting. Pinned here so the requirement fails loudly if the invariant
+   * ever changes: even a stored edge out of a terminal status is never taken.
+   */
+  it('never takes an edge out of a terminal status, even one stored past validation (FR-074)', () => {
+    const terminals = DEFAULT_RETURN_STATUSES.filter((s) => s.isTerminal).map((s) => s.code);
+    expect(terminals.sort()).toEqual(['cancelled', 'closed', 'rejected']);
+    const g = new ReturnStatusGraph(DEFAULT_RETURN_STATUSES.map((s) => ({ ...s })), [
+      ...computeDefaultTransitions(),
+      ...terminals.map((from) => ({ fromStatusCode: from, toStatusCode: 'new', isSystem: false })),
+    ]);
+    for (const from of terminals) {
+      expect(g.canTransition(from, 'new'), from).toBe(false);
+    }
+  });
+
   it('rejects an edge referencing an unknown status', () => {
     const g = new ReturnStatusGraph(DEFAULT_RETURN_STATUSES.map((s) => ({ ...s })), [
       { fromStatusCode: 'new', toStatusCode: 'ghost', isSystem: false },

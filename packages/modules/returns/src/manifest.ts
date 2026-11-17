@@ -38,6 +38,13 @@ export const RETURNS_SETTING_CODES = {
   OFF_PLATFORM_COMPLAINTS_ENABLED: 'returns.off_platform_complaints_enabled',
   /** 180 FR-B21 — a complaint without a platform order needs a proof-of-purchase attachment. */
   PROOF_OF_PURCHASE_REQUIRED: 'returns.proof_of_purchase_required',
+  /**
+   * `specs/181-guest-complaints/` FR-001 — visitors without an account may file a no-order
+   * complaint on the channel. In effect only with {@link OFF_PLATFORM_COMPLAINTS_ENABLED}.
+   */
+  GUEST_COMPLAINTS_ENABLED: 'returns.guest_complaints_enabled',
+  /** 181 FR-070 — days after a guest case closes until its personal data is erased; read clamped to 30–3650. */
+  GUEST_DATA_RETENTION_DAYS: 'returns.guest_data_retention_days',
 } as const;
 
 /** `returns.time_zone`'s default, and what a value the runtime does not know falls back to. */
@@ -135,6 +142,29 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'returns',
       valueType: 'boolean',
       defaultValue: false,
+    },
+    {
+      // `specs/181-guest-complaints/` FR-001, research R-12. Evaluated inside an active
+      // module and only with the no-order setting of the same channel (fails closed).
+      code: RETURNS_SETTING_CODES.GUEST_COMPLAINTS_ENABLED,
+      name: 'Complaints from guests',
+      description:
+        'Visitors without a customer account may file a complaint about goods they did not buy on this platform, after confirming their e-mail address by a one-time link. Takes effect only while "Complaints without a platform order" is on for the same channel. Sales-channel value overrides the global value.',
+      groupCode: 'returns',
+      valueType: 'boolean',
+      defaultValue: false,
+    },
+    {
+      // `specs/181-guest-complaints/` FR-070, research R-9. The settings store validates
+      // no range, so the reader clamps; the description states the range. Read with no
+      // channel: retention is the controller's one decision.
+      code: RETURNS_SETTING_CODES.GUEST_DATA_RETENTION_DAYS,
+      name: 'Guest data retention (days)',
+      description:
+        'How many days after a guest case is closed (enters a final status) the contact data, ship-back address and files of the guest are erased. Values below 30 are read as 30 and above 3650 as 3650. Comments and the case itself are kept.',
+      groupCode: 'returns',
+      valueType: 'number',
+      defaultValue: 90,
     },
   ],
 });
@@ -381,10 +411,93 @@ export const manifest = defineModuleManifest({
         variable('caseUrl', 'Link to the case in the customer account', 'https://shop.example.com/returns/…'),
       ],
     },
+    // `specs/181-guest-complaints/` (contracts/settings-emails-events.md §2). It cannot
+    // be switched off: its default declares `nonDeactivatable` (the only way in, FR-025).
+    {
+      code: 'return_guest_verification',
+      name: 'Confirm the e-mail address of a guest complaint (to the guest)',
+      group: 'returns',
+      variables: [
+        variable('verifyUrl', 'One-time confirmation link', 'https://shop.example.com/returns/guest/verify?token=…'),
+        variable('linkValidMinutes', 'Minutes the link stays valid', '60'),
+        variable('hasAccount', 'The address belongs to a customer account ("yes" or empty)', ''),
+        variable('signInUrl', 'Sign-in page', 'https://shop.example.com/login'),
+      ],
+    },
+    // The guest twins of the account e-mails (research R-7): each carries the private
+    // tracking link where the account e-mail links the account. The confirmation cannot
+    // be switched off — its default declares `nonDeactivatable` (FR-045).
+    {
+      code: 'return_guest_submitted',
+      name: 'Complaint received (to a guest)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', '#3F9A21C0'),
+        variable('productList', 'Products', '1 × Cordless drill'),
+        variable('submittedAt', 'Filed at', '13 Nov 2026, 10:30'),
+        variable('trackingUrl', 'Private link to follow the case', 'https://shop.example.com/returns/track/…'),
+      ],
+    },
+    {
+      code: 'return_guest_comment_added',
+      name: 'Message on a complaint (to a guest)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', '#3F9A21C0'),
+        variable('commentBody', 'Message', 'We received your parcel and are checking the goods.'),
+        variable('trackingUrl', 'Private link to follow the case', 'https://shop.example.com/returns/track/…'),
+      ],
+    },
+    {
+      code: 'return_guest_status_entered',
+      name: 'Complaint status changed (to a guest)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', '#3F9A21C0'),
+        variable('statusName', 'New status', 'Received'),
+        variable('trackingUrl', 'Private link to follow the case', 'https://shop.example.com/returns/track/…'),
+      ],
+    },
+    {
+      code: 'return_guest_authorized',
+      name: 'Complaint authorized (to a guest)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', 'RMA-1042'),
+        variable('rmaNumber', 'RMA number', 'RMA-1042'),
+        variable('trackingUrl', 'Private link to follow the case', 'https://shop.example.com/returns/track/…'),
+      ],
+    },
+    {
+      code: 'return_guest_rejected',
+      name: 'Complaint rejected (to a guest)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', '#3F9A21C0'),
+        variable('rejectionReason', 'Rejection reason', 'The damage was caused by use'),
+        variable('trackingUrl', 'Private link to follow the case', 'https://shop.example.com/returns/track/…'),
+      ],
+    },
+    {
+      code: 'return_guest_link_reissued',
+      name: 'New tracking link for a complaint (to a guest)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', '#3F9A21C0'),
+        variable('trackingUrl', 'Private link to follow the case', 'https://shop.example.com/returns/track/…'),
+      ],
+    },
   ],
   permissions: [
     { code: 'returns:read', label: 'View returns / RMA cases' },
     { code: 'returns:write', label: 'Manage returns / RMA cases, settlement, and configuration' },
+    // `specs/181-guest-complaints/` FR-072, research R-10 — irreversible and a GDPR action,
+    // so a role is granted it apart from case handling.
+    {
+      code: 'returns:erase_personal_data',
+      label: 'Erase personal data of guest returns and complaints',
+      requires: ['returns:read'],
+    },
   ],
   actions: [
     {
@@ -477,5 +590,13 @@ export const manifest = defineModuleManifest({
     // one sentence, the reason beside it.
     { code: 'RETURN_ATTACHMENT_REJECTED', tokens: [] },
     { code: 'RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM' },
+    // `specs/181-guest-complaints/` contracts/settings-emails-events.md §4.
+    { code: 'RETURN_GUEST_COMPLAINTS_DISABLED' },
+    { code: 'RETURN_GUEST_SESSION_REQUIRED' },
+    { code: 'RETURN_GUEST_LINK_INVALID' },
+    { code: 'RETURN_TRACKING_LINK_INVALID' },
+    // `details.limit`: cases_per_session, cases_per_address or comments_per_case.
+    { code: 'RETURN_GUEST_LIMIT_REACHED', tokens: [] },
+    { code: 'RETURN_GUEST_DATA_ERASED' },
   ],
 });

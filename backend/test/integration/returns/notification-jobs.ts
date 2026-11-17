@@ -11,7 +11,10 @@ import type { BackendServerHandle } from '../../helpers/test-server.js';
 export type CapturedReturnsJob =
   | { kind: 'case_submitted'; returnCaseId: string }
   | { kind: 'comment_notify'; returnCaseCommentId: string }
-  | { kind: 'status_entered'; returnCaseId: string; statusCode: string; eventId: string };
+  | { kind: 'status_entered'; returnCaseId: string; statusCode: string; eventId: string }
+  // `specs/181-guest-complaints/` (contracts/settings-emails-events.md §7).
+  | { kind: 'guest_verification'; verificationId: string }
+  | { kind: 'guest_link_reissued'; caseId: string; trackingVersion: number };
 
 /** `setupBackendServer({ moduleOverrides })`'s entry: a producer that records each job in `into`. */
 export function captureReturnsNotificationJobs(into: CapturedReturnsJob[]): Record<string, unknown> {

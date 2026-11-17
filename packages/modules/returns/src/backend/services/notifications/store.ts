@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ReturnCase } from '../../entities/return-case.entity.js';
 import { ReturnCaseComment } from '../../entities/return-case-comment.entity.js';
 import { ReturnCaseItem } from '../../entities/return-case-item.entity.js';
+import { ReturnGuestVerification } from '../../entities/return-guest-verification.entity.js';
 import { ReturnStatus } from '../../entities/return-status.entity.js';
 import type { NotificationStore } from './dispatch.js';
 
@@ -25,10 +26,25 @@ export function createNotificationStore(emFactory: () => EntityManager): Notific
         kind: rc.kind,
         orderId: rc.orderId,
         salesChannelId: rc.salesChannelId,
-        customerAccountId: rc.customerAccountId,
+        customerAccountId: rc.customerAccountId ?? null,
         organizationId: rc.organizationId ?? null,
         submittedAt: rc.submittedAt,
         lines: items.map((it) => ({ productName: it.productName, quantity: it.quantity })),
+        // `specs/181-guest-complaints/` — what a guest's e-mail is addressed and linked by.
+        contact: rc.contact ? { name: rc.contact.name, email: rc.contact.email } : null,
+        personalDataErasedAt: rc.personalDataErasedAt ?? null,
+        trackingVersion: rc.trackingVersion ?? null,
+      };
+    },
+    async loadGuestVerification(verificationId) {
+      const row = await emFactory().findOne(ReturnGuestVerification, { id: verificationId });
+      if (!row) return null;
+      return {
+        id: row.id,
+        salesChannelId: row.salesChannelId,
+        email: row.email,
+        linkExpiresAt: row.linkExpiresAt,
+        redeemedAt: row.redeemedAt ?? null,
       };
     },
     async loadComment(returnCaseCommentId) {

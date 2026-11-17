@@ -1,6 +1,7 @@
 import {
   ADMIN_PERMISSION_WILDCARD,
   type AdminNotificationRecordPort,
+  type AdminTenantScopePort,
   type AdminUserReadPort,
   type PermissionReadPort,
   type RecordAdminNotificationInput,
@@ -22,6 +23,12 @@ import {
  * to addresses the operator chose, carries the detail. Title and body travel as
  * translatable messages in the `returns` scope beside the English sentence.
  *
+ * **A guest's case** (`specs/181-guest-complaints/` FR-051, research R-10) has no
+ * organization, so only an administrator whose reach is every organization can open it:
+ * its entry goes to those `returns:read` holders alone, as `organizations`'
+ * `adminTenantScopePort` answers `allowAll`. Any other answer — a narrower reach, an
+ * unresolved one, a throw, no port — leaves the administrator out (fail closed).
+ *
  * **Presence.** `admin_notifications` is deactivatable and declared
  * `degrades-without`: its presence is asked first, and an absent module is an
  * outcome (`not_present`), never a caught refusal (D-60).
@@ -35,6 +42,8 @@ export interface BellCase {
   readonly kind: 'return' | 'complaint';
   readonly reference: string;
   readonly submittedAt: Date;
+  /** 181 — filed by a guest: no organization, so the audience narrows to unrestricted administrators. */
+  readonly guest?: boolean;
 }
 
 export type BellOutcome = { status: 'recorded'; adminUserIds: string[] } | { status: 'not_present' };
@@ -54,6 +63,8 @@ export interface AdminBellDeps {
   readonly adminUsers: Pick<AdminUserReadPort, 'listAll'>;
   readonly permissions: Pick<PermissionReadPort, 'listPermissions'>;
   readonly notifications: Pick<AdminNotificationRecordPort, 'record'>;
+  /** `organizations`' reach of an administrator; asked for a guest's case only (181 R-10). */
+  readonly tenantScope?: Pick<AdminTenantScopePort, 'resolveForAdmin'>;
 }
 
 export const bellKey = (adminUserId: string): string => `bell:${adminUserId}`;
@@ -67,6 +78,20 @@ export async function bellRecipients(deps: Pick<AdminBellDeps, 'adminUsers' | 'p
     if (held.includes(ADMIN_PERMISSION_WILDCARD) || held.includes(RETURNS_READ_PERMISSION)) kept.push(admin.id);
   }
   return kept;
+}
+
+/** Whether an administrator reaches every organization; anything else — a throw included — is no. */
+async function reachesEveryOrganization(
+  tenantScope: AdminBellDeps['tenantScope'],
+  adminUserId: string,
+): Promise<boolean> {
+  if (!tenantScope) return false;
+  try {
+    const scope = await tenantScope.resolveForAdmin(adminUserId);
+    return scope.allowAll === true;
+  } catch {
+    return false;
+  }
 }
 
 /** The entry for one administrator. */
@@ -94,6 +119,7 @@ export function createAdminBell(deps: AdminBellDeps): AdminBell {
       for (const adminUserId of await bellRecipients(deps)) {
         const key = bellKey(adminUserId);
         if (attempt.done.has(key)) continue;
+        if (rc.guest && !(await reachesEveryOrganization(deps.tenantScope, adminUserId))) continue;
         await deps.notifications.record(newCaseBellEntry(rc, adminUserId));
         attempt.done.add(key);
         told.push(adminUserId);

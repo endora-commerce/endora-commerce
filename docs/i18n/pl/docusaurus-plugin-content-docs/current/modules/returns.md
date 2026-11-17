@@ -29,6 +29,11 @@ Trasy administracyjne są chronione przez `returns:read` (odczyt) i `returns:wri
 | `POST /api/v1/returns/:id/attachments` | klient | Dołączenie pliku do sprawy |
 | `POST /api/v1/returns/:id/cancel` | klient | Wycofanie sprawy |
 | `GET /api/v1/returns/reasons` | klient | Aktywne powody do formularza w storefroncie |
+| `GET /api/v1/returns/guest/availability` | anonimowo | Czy ten kanał przyjmuje reklamacje od gości (zob. *Reklamacje od gości*) |
+| `POST /api/v1/returns/guest/verifications` | anonimowo | Wysłanie jednorazowego linku potwierdzającego adres e-mail |
+| `POST /api/v1/returns/guest/sessions`, `DELETE …/sessions/current` | anonimowo | Wykorzystanie linku do rozpoczęcia sesji gościa / zakończenie sesji |
+| `GET /api/v1/returns/guest/form-config`, `POST …/guest/uploads`, `POST …/guest/cases` | sesja gościa | Konfiguracja formularza gościa, przesyłanie plików i złożenie reklamacji |
+| `GET /api/v1/returns/track`, `POST …/track/comments`, `POST …/track/attachments`, `GET …/track/attachments/:attachmentId/file` | link do śledzenia | Odczyt sprawy, odpowiedź, dodanie pliku, pobranie pliku — token jest przesyłany w nagłówku `X-Returns-Tracking-Token` |
 | `GET /api/v1/admin/returns` | administrator | Lista spraw z filtrowaniem i wyszukiwaniem oraz licznikami dla każdego statusu |
 | `GET /api/v1/admin/returns/export` | administrator | Eksport bieżącego widoku do CSV |
 | `POST /api/v1/admin/returns/bulk-transition` | administrator | Masowa zmiana statusu (pomija niedozwolone) |
@@ -42,6 +47,8 @@ Trasy administracyjne są chronione przez `returns:read` (odczyt) i `returns:wri
 | `GET /api/v1/admin/returns/notification-health` | administrator | Gdzie wiadomość o nowym zgłoszeniu nie trafia do nikogo (zob. *Powiadomienia*) |
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | administrator | Przesyłki zwrotne |
 | `GET /api/v1/admin/returns/:id/attachments/:attachmentId/file` | administrator | Pobranie pliku sprawy |
+| `POST /api/v1/admin/returns/:id/guest/tracking-link` | administrator | Wysłanie gościowi nowego linku do śledzenia (zob. *Reklamacje od gości*) |
+| `POST /api/v1/admin/returns/:id/guest/erase` | administrator (`returns:erase_personal_data`) | Natychmiastowe usunięcie danych osobowych gościa ze sprawy |
 | `GET\|POST /api/v1/admin/returns/clauses`, `PATCH\|DELETE …/clauses/:id` | administrator | Klauzule formularza zwrotów (zob. *Klauzule*) |
 | `GET\|POST /api/v1/admin/returns/list-views` | administrator | Własne zapisane widoki wywołującego i wszystkie udostępnione / zapisanie widoku |
 | `PATCH\|DELETE /api/v1/admin/returns/list-views/:id` | administrator | Zmiana / usunięcie zapisanego widoku (właściciel albo administrator platformy w przypadku widoku udostępnionego) |
@@ -154,6 +161,28 @@ szczegółów, a wyszukiwarka w panelu znajduje po nim sprawę, z `#` albo bez.
   dostaje jeden wpis na nową sprawę z jej rodzajem, oznaczeniem i datą złożenia oraz odnośnikiem do
   niej. Wpis nie podaje klienta ani organizacji. Gdy moduł **Admin notifications** (`admin_notifications`) jest
   wyłączony, żaden wpis nie powstaje i nic więcej się nie zmienia.
+- **Goście** — sprawa złożona przez gościa (zob. *Reklamacje od gości*) ma własne wiadomości,
+  wysyłane na potwierdzony adres i zawierające prywatny link do śledzenia sprawy zamiast odnośnika
+  do konta:
+
+  | Wiadomość | Kiedy |
+  | --- | --- |
+  | *Potwierdzenie adresu e-mail do reklamacji gościa* (`return_guest_verification`) | gość prosi o link do formularza reklamacji |
+  | *Otrzymaliśmy reklamację (do gościa)* (`return_guest_submitted`) | gość składa sprawę |
+  | *Wiadomość w sprawie reklamacji (do gościa)* (`return_guest_comment_added`) | operator dodaje widoczny komentarz z opcją *Powiadom klienta e-mailem* |
+  | *Zmiana statusu reklamacji (do gościa)* (`return_guest_status_entered`) | sprawa wchodzi w status oznaczony *E-mail do klienta po wejściu* |
+  | *Reklamacja autoryzowana (do gościa)* (`return_guest_authorized`) | sprawa zostaje autoryzowana |
+  | *Reklamacja odrzucona (do gościa)* (`return_guest_rejected`) | sprawa zostaje odrzucona, z powodem |
+  | *Nowy link do śledzenia reklamacji (do gościa)* (`return_guest_link_reissued`) | operator wysyła nowy link do śledzenia |
+
+  Potwierdzenia adresu i potwierdzenia złożenia **nie można wyłączyć**: pierwsze jest jedynym
+  sposobem, w jaki gość może rozpocząć reklamację, drugie — jedyną trwałą drogą gościa do sprawy.
+  Potwierdzenie dla gościa wychodzi więc także wtedy, gdy `return_submitted` jest wyłączone dla
+  posiadaczy kont. Pozostałe podlegają tym samym przełącznikom co ich odpowiedniki dla kont.
+  Wiadomość *Nowy zwrot lub reklamacja* do sklepu nazywa gościa `{imię i nazwisko} (gość)` i nie
+  podaje organizacji; wpis w dzwonku dla sprawy gościa trafia tylko do administratorów, którzy
+  mogą widzieć sprawy gości. Po usunięciu danych osobowych gościa nic więcej nie jest do niego
+  wysyłane.
 - **Doręczanie** — wiadomości i wpisy w dzwonku są wysyłane z kolejki `returns-notifications` po
   zapisaniu czynności, która je wywołała, więc nigdy jej nie spowalniają, nie przerywają ani nie
   cofają. Nieudana wysyłka jest ponawiana; wiadomość, która już wyszła, nie jest wysyłana drugi raz.
@@ -202,6 +231,89 @@ dla kanału sprzedaży. Domyślnie ustawienie jest wyłączone.
 - **Ponowne wysłanie** — formularz niesie klucz zgłoszenia, więc ponowne wysłanie (podwójne
   kliknięcie, przycisk *Wstecz* przeglądarki) zwraca już złożoną sprawę.
 
+## Reklamacje od gości
+
+Sklep, który przyjmuje reklamacje bez zamówienia na platformie, może przyjmować je także od osób
+**bez konta klienta** — kogoś, kto kupił produkt w sklepie stacjonarnym albo u dystrybutora i nigdy
+się nie zarejestrował. Włącz **Reklamacje od gości** (`returns.guest_complaints_enabled`) w
+**Ustawienia → Zwroty**, globalnie albo dla kanału sprzedaży. Domyślnie ustawienie jest wyłączone i
+działa tylko wtedy, gdy dla tego samego kanału włączone są **Reklamacje bez zamówienia na
+platformie**: bez nich opcja dla gości nigdzie się nie pojawia, a reklamacja gościa jest odrzucana
+(`403 RETURN_GUEST_COMPLAINTS_DISABLED`).
+
+- **W storefroncie** — niezalogowany odwiedzający, który otwiera obszar zwrotów albo formularz
+  *kupione gdzie indziej*, dostaje wybór: *Zaloguj się* (po zalogowaniu wraca na tę samą stronę)
+  albo *Kontynuuj bez konta*. Przy wyłączonym ustawieniu jest kierowany do logowania, jak dotąd.
+- **Potwierdzenie adresu e-mail** — gość wpisuje adres e-mail i dostaje jednorazowy link ważny
+  60 minut. Strona odpowiada tymi samymi słowami bez względu na adres, więc nigdy nie zdradza, czy
+  adres ma konto; gdy ma, sama wiadomość (którą widzi tylko właściciel adresu) dodaje, że
+  reklamacje złożone po zalogowaniu pojawiają się na koncie. Nowszy link zastępuje poprzedni.
+  Prośby są ograniczane na adres i na klienta, bez informowania o tym odwiedzającego. Otwarcie linku
+  pokazuje stronę *Kontynuuj*; link zostaje wykorzystany dopiero po kliknięciu, więc skaner poczty,
+  który otwiera odnośniki, go nie zużyje.
+- **Sesja gościa** — kliknięcie rozpoczyna 24-godzinną sesję gościa w tym kanale sprzedaży,
+  przechowywaną w ciasteczku przeglądarki. Link, który już nie działa, pokazuje stronę z propozycją
+  wysłania nowego; adres jest wypełniony tylko wtedy, gdy o link prosiła ta sama przeglądarka. Gdy
+  przeglądarka ma jeszcze aktywną sesję gościa, po prostu przechodzi do formularza.
+- **Formularz** — formularz *kupione gdzie indziej* z niezmienionymi zasadami: produkty, dane
+  zakupu, dowód zakupu, klauzule i pliki. Adres e-mail jest tym potwierdzonym i nie można go
+  zmienić; imię i nazwisko, telefon i adres zwrotny gość wpisuje sam, nic nie jest wypełniane z
+  góry. Gość składa tylko reklamacje — nigdy zwrot i nigdy do zamówienia na platformie. Do 5 spraw
+  na sesję i 10 na adres w ciągu 24 godzin.
+- **Sprawa** — **nie ma konta klienta ani organizacji** i nigdy nie jest przypisywana do konta,
+  nawet gdy jej adres e-mail pasuje do jakiegoś konta albo gość jest przy składaniu zalogowany.
+  Klient, którego adres ma sprawa, nie widzi jej na swoim koncie.
+- **Link do śledzenia** — strona potwierdzenia i każda wiadomość do gościa zawierają prywatny link
+  do strony ze sprawą: jej statusem, powodem odrzucenia, jeśli jest, produktami, zakupem, danymi
+  kontaktowymi i adresem w podanej postaci, widocznymi komentarzami i plikami. **Każdy, kto ma link,
+  widzi sprawę**, i strona to mówi. Dopóki sprawa jest otwarta, gość odpowiada i dodaje tam pliki
+  (do 20 komentarzy na sprawę w ciągu 24 godzin); po zamknięciu strona jest tylko do odczytu. Link
+  przestaje działać **90 dni po zamknięciu sprawy**, po usunięciu danych gościa albo po zastąpieniu
+  go nowym; niedziałający link pokazuje jedną neutralną stronę, która nie mówi, czy sprawa istnieje.
+- **Wysłanie nowego linku do śledzenia** — na stronie sprawy *Dane gościa → Wyślij nowy link do
+  śledzenia* (z `returns:write`) wysyła nowy link na potwierdzony adres i od razu unieważnia stary.
+  Użyj tego, gdy gość zgubił link albo przez pomyłkę go komuś przekazał. Zmiana sekretu sesji
+  platformy (`SESSION_COOKIE_SECRET`) unieważnia od razu wszystkie linki gości; wyślij nowe linki
+  gościom, których sprawy są jeszcze otwarte.
+- **Kto widzi sprawy gości** — tylko administratorzy, którzy mogą widzieć sprawy wszystkich
+  organizacji. Administrator ograniczony do części organizacji i przedstawiciel handlowy nie znajdą
+  spraw gości na liście, w jej licznikach, w wyszukiwarce, w eksporcie ani w zapisanych widokach, a
+  otwarcie takiej sprawy po adresie daje odpowiedź *nie znaleziono*. Na liście sprawa gościa jest
+  oznaczona *Gość*, a filtr **Pochodzenie** oferuje *Kupione gdzie indziej – gość* i *Kupione gdzie
+  indziej – klient* obok *Zamówienie na platformie* i *Kupione gdzie indziej*. Wyszukiwarka znajduje
+  sprawy gości po dokładnym adresie e-mail z kontaktu. Eksport CSV ma kolumnę `guest`. Na stronie
+  sprawy karta kontaktu pokazuje *Potwierdzony e-mail*, do kiedy działa link do śledzenia i kiedy
+  zostaną usunięte dane osobowe; komentarze gościa mają oznaczenie *Gość*.
+- **Rozliczenie** — jak każda reklamacja bez zamówienia na platformie: *Wymiana*, *Naprawa* albo
+  *Rozliczono poza platformą* (zob. *Rozliczenie sprawy bez zamówienia na platformie*).
+
+### Usuwanie danych osobowych gościa
+
+Gość nie ma konta, które można usunąć, więc platforma usuwa ze sprawy jego dane kontaktowe, adres
+zwrotny i pliki po określonym czasie od jej **zamknięcia** — od wejścia w status końcowy
+(*Closed*, *Rejected* albo *Cancelled*). Ten czas to **Przechowywanie danych gości (dni)**
+(`returns.guest_data_retention_days`), domyślnie 90; wartość poniżej 30 jest traktowana jako 30, a
+powyżej 3650 jako 3650. Produkty, dane zakupu, statusy, komentarze i rozstrzygnięcie zostają w
+dokumentacji sklepu; sprawa pokazuje, kiedy usunięto jej dane, a jej link do śledzenia przestaje
+działać.
+
+- **Zamykaj rozliczone sprawy.** Czas liczy się od zamknięcia, nie od rozliczenia: sprawa
+  pozostawiona w statusie *Resolved* przechowuje dane gościa bez końca. Ponowne otwarcie zamkniętej
+  sprawy przesuwa usunięcie na okres po jej następnym zamknięciu.
+- **Na żądanie** — gdy gość prosi o wcześniejsze usunięcie danych, znajdź jego sprawy, wyszukując na
+  liście jego adres e-mail, a potem w każdej wybierz *Dane gościa → Usuń dane osobowe* i potwierdź.
+  Działa w każdym statusie, nie można tego cofnąć, a do gościa nie zostanie już wysłana żadna
+  wiadomość. Wymaga uprawnienia **Usuwanie danych osobowych gości w zwrotach i reklamacjach**
+  (`returns:erase_personal_data`, które wymaga `returns:read`); nadaj je w **Rolach administratorów**
+  osobom obsługującym żądania osób, których dane dotyczą.
+- **Wyłączony moduł** — codzienny przebieg `returns-maintenance` nie działa, gdy moduł `returns` jest
+  wyłączony, więc usunięcie, którego termin wtedy przypada, zostaje odłożone; wykonuje się przy
+  pierwszym przebiegu po ponownym włączeniu modułu.
+- **Anonimizacja konta klienta nie dotyczy spraw gości** z tym samym adresem e-mail: nie należą do
+  tego konta. Usuń ich dane osobno, jak wyżej.
+- **Zapisy potwierdzeń** — adresy wpisane w storefroncie są usuwane po 7 dniach od prośby, bez
+  względu na to, czy złożono sprawę.
+
 ## Załączniki
 
 Klient dołącza do sprawy pliki: zdjęcia, dowód zakupu i inne dokumenty. JPEG, PNG, WebP lub PDF, do
@@ -221,6 +333,10 @@ zawartości pliku, nie jego nazwy.
 - **Kto je widzi** — pliki są przechowywane prywatnie: pobierają je tylko klient, który złożył
   sprawę, współpracownik, który może widzieć sprawy organizacji, i administratorzy z `returns:read`.
   Są udostępniane do pobrania, nigdy nie są wyświetlane na stronach sklepu.
+- **Pliki gościa** — gość przesyła pliki w sesji gościa przed złożeniem sprawy, a potem przez link do
+  śledzenia, z tymi samymi typami i limitami. Pobierają je tylko link do śledzenia tej sprawy i
+  administratorzy, którzy mogą widzieć sprawy gości; pliku przesłanego w jednej sesji gościa nie
+  może złożyć inna sesja ani klient. Pliki gościa są usuwane razem z jego danymi osobowymi.
 - **Zmiana w tym wydaniu** — `attachmentAssetIds` w `POST /api/v1/returns` i treść JSON
   `{ assetId }` w `POST /api/v1/returns/:id/attachments` zostały usunięte: prześlij plik, a potem
   wyślij `attachments: [{ uploadId }]`, albo wyślij plik jako multipart na `/:id/attachments`. Stare
@@ -257,7 +373,8 @@ widocznej tylko dla zespołu. Zwrot pieniędzy, kredyt kupiecki i faktura korygu
 Gdy konto klienta zostaje zanonimizowane, jego sprawy zachowują pozycje, dane zakupu i komentarze,
 a tracą dane kontaktowe, adres zwrotny i wszystkie pliki. Sprawa pokazuje, kiedy to nastąpiło. Jeśli
 moduł `returns` był wtedy wyłączony, codzienny przebieg `returns-maintenance` nadrabia to po jego
-ponownym włączeniu.
+ponownym włączeniu. Sprawy gości z tym samym adresem e-mail nie należą do konta i nie są
+zmieniane; zob. *Usuwanie danych osobowych gościa*.
 
 ## Najważniejsze zachowania
 
@@ -394,7 +511,7 @@ zmienił. Kod statusu trafia do `details.statusCode`, bo `details.code` jest mie
 | `RETURN_QUANTITY_EXCEEDS_RETURNABLE` | `422` | `POST /api/v1/returns` — pozycja żąda więcej, niż można jeszcze zwrócić | `orderItemId`, `requested`, `remaining` |
 | `RETURN_REASON_INACTIVE` | `422` | `POST /api/v1/returns` — powód został wyłączony (sprawa do zamówienia lub reklamacja bez zamówienia) | `reasonId` |
 | `RETURN_COMMENTS_CLOSED` | `409` | komentarz do sprawy w statusie końcowym | `returnCaseId`, `statusCode` |
-| `RETURN_CASE_CLOSED` | `409` | `POST /api/v1/returns/:id/select-delivery-method` lub `POST /api/v1/returns/:id/attachments` dla sprawy w statusie końcowym | `returnCaseId`, `statusCode` |
+| `RETURN_CASE_CLOSED` | `409` | `POST /api/v1/returns/:id/select-delivery-method`, `POST /api/v1/returns/:id/attachments` lub `POST /api/v1/returns/track/attachments` dla sprawy w statusie końcowym | `returnCaseId`, `statusCode` |
 | `RETURN_DELIVERY_METHOD_UNAVAILABLE` | `422` | ta sama trasa — metoda dostawy zwrotu nie jest oferowana | `returnDeliveryMethodId` |
 | `RETURN_SETTLEMENT_IN_PROGRESS` | `409` | `POST /api/v1/admin/returns/:id/settlement` — trwa rozliczanie innego zwrotu z tego zamówienia; spróbuj ponownie | `orderId` |
 | `RETURN_REFUND_EXCEEDS_PAID` | `422` | ta sama trasa — zwrot wyższy niż dopuszczalny, dla pozycji albo, z `code` `delivery` / `surcharge`, dla opłaty | `returnCaseItemId` (pozycja), `requested`, `maximum`, `currency` |
@@ -557,6 +674,15 @@ czy podano notatkę, nigdy samą notatkę. Złożenie sprawy (`return_case.creat
 zmiana klauzuli są zapisywane bez tekstu klienta i klauzuli. Usunięcie danych konta
 (`return_case.erase_personal_data`) zapisuje liczbę spraw i plików oraz nazwy usuniętych pól.
 
+Czynności gościa są zapisywane z `by: 'guest'` i bez wykonawcy: złożenie sprawy
+(`return_case.create`, z identyfikatorem sesji gościa), komentarz przez link do śledzenia
+(`return_case.comment.add_by_guest`, z długością komentarza, nigdy z jego treścią) i plik
+(`return_case.attachment.add`). *Wyślij nowy link do śledzenia* (`return_case.tracking_link.reissue`)
+zapisuje numery wersji linku, nigdy sam link. Usunięcie danych gościa (`return_case.guest_data.erase`)
+zapisuje, czy powodem był upływ okresu przechowywania, czy żądanie, liczbę plików i nazwy usuniętych
+pól. Żaden wpis nie zawiera adresu e-mail, imienia i nazwiska, telefonu, adresu, komentarza ani linku
+gościa.
+
 ## Interfejsy między modułami
 
 Moduł odczytuje i zmienia dane innych domen wyłącznie przez udokumentowane porty, nigdy przez
@@ -597,6 +723,10 @@ importy wnętrza innych modułów:
   istnieje w kanale, i jego nazwa.
 - `TransactionalEmailStatePort` (transactional_emails) — czy wiadomość z potwierdzeniem jest
   włączona, żeby storefront obiecywał ją tylko wtedy.
+- `AdminTenantScopePort` (organizations) — czy administrator może widzieć sprawy wszystkich
+  organizacji, od czego zależy, kto dostaje wpis w dzwonku dla sprawy gościa.
+- Pieczęć kursora platformy — podpisuje linki potwierdzające i linki do śledzenia gości sekretem
+  sesji, więc platforma nie przechowuje żadnego linku.
 
 ## Schemat
 
@@ -627,3 +757,11 @@ usunięcia danych. `return_case_items` dostaje opcjonalną pozycję zamówienia 
 pliku, miejsce przechowywania i czas wygaśnięcia niezłożonego pliku; organizacja istniejących
 załączników jest uzupełniana z ich sprawy. Migracja tworzy `return_case_clauses`. Jej wycofanie jest
 odrzucane, dopóki istnieje sprawa bez zamówienia na platformie.
+
+Migracja `20261116T104415_returns_guest_complaints.ts` sprawia, że `return_cases.customer_account_id`
+może być pusty — sprawa bez konta to reklamacja gościa bez zamówienia na platformie i nigdy nie ma
+organizacji — i dodaje sesję gościa, która złożyła sprawę, czas potwierdzenia adresu i wersję linku
+do śledzenia. `return_case_comments` dostaje `author_guest`; `return_case_attachments` dostaje sesję
+gościa, która przesłała plik, i `uploaded_by_guest`. Migracja tworzy `return_guest_verifications`:
+jeden wiersz na każdy żądany link, który po wykorzystaniu staje się sesją gościa i przechowuje tylko
+skrót tokenu sesji. Jej wycofanie jest odrzucane, dopóki istnieje sprawa gościa.

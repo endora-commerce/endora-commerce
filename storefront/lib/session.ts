@@ -3,6 +3,7 @@ import {
   CART_MERGE_FLASH_COOKIE_NAME,
   CUSTOMER_KNOWN_DEVICE_COOKIE_NAME,
   MFA_CHALLENGE_COOKIE_NAME,
+  RETURNS_GUEST_SESSION_COOKIE,
 } from '@endora-commerce/contracts';
 
 /**
@@ -193,6 +194,19 @@ export async function clearSessionCookie(): Promise<void> {
 export async function getAnonCartCookie(): Promise<string | null> {
   const jar = await cookies();
   return jar.get(ANON_CART_COOKIE)?.value ?? null;
+}
+
+/**
+ * `specs/181-guest-complaints/` research R-4 — the guest complaint session, or `null`.
+ *
+ * Read on its own, as the anonymous cart's cookie is: the guest API client
+ * (`lib/api/returns-guest.ts`) forwards this one value in an allow-listed `Cookie` header and
+ * nothing else of the jar, so a customer session the same browser holds never reaches the
+ * guest routes. The cookie is set and deleted by the guest flow's route handlers.
+ */
+export async function getReturnsGuestSession(): Promise<string | null> {
+  const jar = await cookies();
+  return jar.get(RETURNS_GUEST_SESSION_COOKIE)?.value ?? null;
 }
 
 /** Persist the anon cart cookie returned by the backend on first add. */

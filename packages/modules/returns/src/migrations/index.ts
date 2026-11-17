@@ -29,6 +29,7 @@ import { Migration20261108T023047ReturnsConsumerWithdrawal } from './20261108T02
 import { Migration20261108T125405ReturnsCaseChargeRefunds } from './20261108T125405_returns_case_charge_refunds.js';
 import { Migration20261113T145001ReturnsAuthorizerStatusNotifications } from './20261113T145001_returns_authorizer_status_notifications.js';
 import { Migration20261113T155433ReturnsOffPlatformComplaints } from './20261113T155433_returns_off_platform_complaints.js';
+import { Migration20261116T104415ReturnsGuestComplaints } from './20261116T104415_returns_guest_complaints.js';
 
 export const migrations = [
   Migration20260625T144227ReturnsInit,
@@ -38,6 +39,7 @@ export const migrations = [
   Migration20261108T125405ReturnsCaseChargeRefunds,
   Migration20261113T145001ReturnsAuthorizerStatusNotifications,
   Migration20261113T155433ReturnsOffPlatformComplaints,
+  Migration20261116T104415ReturnsGuestComplaints,
 ];
 
 export {
@@ -48,4 +50,5 @@ export {
   Migration20261108T125405ReturnsCaseChargeRefunds,
   Migration20261113T145001ReturnsAuthorizerStatusNotifications,
   Migration20261113T155433ReturnsOffPlatformComplaints,
+  Migration20261116T104415ReturnsGuestComplaints,
 };

@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { codeLabel } from '../../../../lib/account/labels';
 import { randomUUID } from 'node:crypto';
 import { cookies } from 'next/headers';
 import type { ReturnFormConfig } from '@endora-commerce/contracts';
@@ -7,20 +6,21 @@ import { listMyOrders } from '../../../../lib/api/orders';
 import { publicApiBaseUrl } from '../../../../lib/env.mjs';
 import { getReturnFormConfig, getReturnable, listReturnReasons, type ReturnReason } from '../../../../lib/api/returns';
 import { listAddresses, type AddressSummary } from '../../../../lib/api/organization';
-import { format } from '../../../../lib/i18n/format';
-import { RETURN_FORM_LIMITS, tooLargeSentence } from '../../../../lib/returns/attachments';
+import { RETURN_FORM_LIMITS } from '../../../../lib/returns/attachments';
 import {
   RETURNS_ATTEMPT_COOKIE,
   decodeReturnsAttempt,
+  keptOf,
   type ReturnsAttempt,
 } from '../../../../lib/returns/returnForm';
 import { AttachmentField } from '../../../../components/returns/AttachmentField';
 import { ClauseList } from '../../../../components/returns/ClauseList';
-import { OffPlatformLines } from '../../../../components/returns/OffPlatformLines';
-import { AddressFields } from '../../../../components/account/AddressFields';
+import { ErrorSummary, OffPlatformForm } from '../../../../components/returns/OffPlatformForm';
 import { getSessionCookie } from '../../../../lib/session';
+import { getGuestAvailability } from '../../../../lib/api/returns-guest';
+import { signedOutReturnsTarget } from '../../../../lib/returns/guest';
 import { getServerContext } from '../../../../lib/server-context';
-import { tForLocale, type MessageKey } from '../../../../lib/i18n/messages';
+import { tForLocale } from '../../../../lib/i18n/messages';
 import { getMe } from '../../../../lib/api/account';
 import { memberSession } from '../../../../lib/commerce-permissions';
 import {
@@ -62,7 +62,10 @@ export default async function NewReturnPage({
   const { orderId, kind: kindParam } = params;
   const session = await getSessionCookie();
   // D-14 — back to the very page asked for, query included (a CMS link to the no-order form).
-  if (!session) return await localeRedirect(`/login?next=${encodeURIComponent(currentPath(params))}`);
+  // 181 FR-010 — to the guest entry instead while guest complaints are in effect.
+  if (!session) {
+    return await localeRedirect(signedOutReturnsTarget(currentPath(params), await getGuestAvailability({ ctx })));
+  }
   const t = tForLocale(locale);
 
   // Feature 170 (FR-052, FR-057): without `returns.create` the whole page would end in a refusal,
@@ -100,6 +103,8 @@ export default async function NewReturnPage({
     ]);
     return (
       <OffPlatformForm
+        mode="customer"
+        action="/returns/submit"
         t={t}
         locale={locale}
         config={elsewhereConfig ?? config}
@@ -297,218 +302,4 @@ async function readAttempt(): Promise<ReturnsAttempt | null> {
   } catch {
     return null;
   }
-}
-
-/** The case-level files a refused attempt kept, of one type (a line's photos are `keptByLine`'s). */
-function keptOf(attempt: ReturnsAttempt | null, type: string): Array<{ uploadId: string; filename: string }> {
-  return (attempt?.uploads ?? [])
-    .filter((u) => u.type === type && u.line === undefined)
-    .map((u) => ({ uploadId: u.uploadId, filename: u.filename }));
-}
-
-/** Each line slot's photos a refused attempt kept. */
-function keptByLine(attempt: ReturnsAttempt | null): Record<number, Array<{ uploadId: string; filename: string }>> {
-  const out: Record<number, Array<{ uploadId: string; filename: string }>> = {};
-  for (const u of attempt?.uploads ?? []) {
-    if (u.line === undefined) continue;
-    (out[u.line] ??= []).push({ uploadId: u.uploadId, filename: u.filename });
-  }
-  return out;
-}
-
-/**
- * The refusals of the last attempt, at the top of the form (design review R-2.6): a title,
- * one entry per refusal, focusable for the announcement. A code the page does not know reads
- * as the generic failure, never as the raw value.
- */
-function ErrorSummary({ t, locale, errors }: { t: (key: MessageKey) => string; locale: string; errors: readonly string[] }): ReactNode {
-  return (
-    <div id="returns-errors" role="alert" tabIndex={-1} className={errors.length > 0 ? 'b2b-auth__error' : undefined}>
-      {errors.length > 0 ? (
-        <>
-          <p className="font-semibold">{t('returns.errors.heading')}</p>
-          <ul>
-            {[...new Set(errors)].map((code) => (
-              <li key={code}>{code === 'too_large' ? tooLargeSentence(locale) : errorText(t, code)}</li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-function errorText(t: (key: MessageKey) => string, code: string): string {
-  const sentence = codeLabel(t, 'returns.errors', code);
-  return sentence === code ? t('returns.errors.generic') : sentence;
-}
-
-type Me = Awaited<ReturnType<typeof getMe>> | null;
-
-/**
- * The complaint about a product bought elsewhere (`specs/180-off-platform-complaints/` US5;
- * design review R-2): one page of numbered sections that works without JavaScript, posting
- * multipart to the route handler. Contact and address come prefilled from the account and its
- * delivery address, and changing them here changes neither (FR-B16).
- */
-function OffPlatformForm({
-  t,
-  locale,
-  config,
-  reasons,
-  me,
-  address,
-  attempt,
-  errors,
-  search,
-}: {
-  t: (key: MessageKey) => string;
-  locale: string;
-  /** The catalogue search behind each line's product field (`ProductField`). */
-  search: { apiBaseUrl: string | null; salesChannelCode: string | undefined };
-  config: ReturnFormConfig | null;
-  reasons: readonly ReturnReason[];
-  me: Me;
-  address: AddressSummary | null;
-  attempt: ReturnsAttempt | null;
-  errors: readonly string[];
-}): ReactNode {
-  const answers = attempt?.answers ?? {};
-  const limits = config?.attachmentLimits ?? RETURN_FORM_LIMITS;
-  const clauses = config?.clauses ?? [];
-  const value = (name: string, fallback: string): string => answers[name] ?? fallback;
-  const label = (r: ReturnReason): string =>
-    r.label[locale] ?? r.label[locale.split('-')[0]!] ?? r.label['en'] ?? Object.values(r.label)[0] ?? r.id;
-  const account = me?.customerAccount;
-  const fullName = account ? `${account.firstName ?? ''} ${account.lastName ?? ''}`.trim() : '';
-  const company = me?.organization && !me.organization.isPersonal ? me.organization.name : '';
-  let n = 0;
-  const next = (): number => (n += 1);
-  return (
-    <div className="b2b-auth b2b-stacked max-w-[720px]">
-      <p className="text-[13px]">
-        <LocalizedLink href="/returns/new" className="b2b-account__link b2b-account__link--standalone">{t('returns.elsewhere.backToOrders')}</LocalizedLink>
-      </p>
-      <h1>{t('returns.elsewhere.heading')}</h1>
-      <p>{t('returns.elsewhere.intro')}</p>
-      <ErrorSummary t={t} locale={locale} errors={errors} />
-      <form method="post" action="/returns/submit" encType="multipart/form-data" noValidate className="b2b-auth__form">
-        <input type="hidden" name="origin" value="elsewhere" />
-        <input type="hidden" name="submissionKey" value={randomUUID()} />
-
-        <fieldset>
-          <legend>{format(t('returns.elsewhere.section.product'), { n: String(next()) })}</legend>
-          <OffPlatformLines
-            t={t}
-            locale={locale}
-            reasons={reasons.map((r) => ({ id: r.id, label: label(r) }))}
-            answers={answers}
-            errors={errors}
-            apiBaseUrl={search.apiBaseUrl}
-            salesChannelCode={search.salesChannelCode}
-            limits={limits}
-            keptPhotos={keptByLine(attempt)}
-          />
-        </fieldset>
-
-        <fieldset>
-          <legend>{format(t('returns.elsewhere.section.purchase'), { n: String(next()) })}</legend>
-          <div className="b2b-auth__row">
-            <div className="b2b-auth__field">
-              <label htmlFor="purchase-date">{t('returns.elsewhere.purchaseDate')}</label>
-              <input
-                id="purchase-date"
-                name="purchase.date"
-                type="date"
-                required
-                {...(config?.today ? { max: config.today } : {})}
-                defaultValue={value('purchase.date', '')}
-                {...(errors.some((e) => e.startsWith('purchase_date')) ? { 'aria-invalid': true } : {})}
-              />
-            </div>
-            <div className="b2b-auth__field">
-              <label htmlFor="purchase-number">{t('returns.elsewhere.purchaseNumber')}</label>
-              <input id="purchase-number" name="purchase.proofNumber" maxLength={100} defaultValue={value('purchase.proofNumber', '')} />
-            </div>
-          </div>
-          <AttachmentField
-            type="proof_of_purchase"
-            locale={locale}
-            id="files-proof"
-            label={`${t('returns.elsewhere.proof')} ${t(config?.proofOfPurchaseRequired ? 'returns.elsewhere.proofRequired' : 'returns.elsewhere.proofOptional')}`}
-            limits={limits}
-            kept={keptOf(attempt, 'proof_of_purchase')}
-          />
-        </fieldset>
-
-        <fieldset>
-          <legend>{format(t('returns.elsewhere.section.contact'), { n: String(next()) })}</legend>
-          <p className="text-[13px] text-muted">{t('returns.elsewhere.changesStayHere')}</p>
-          <details className="b2b-stacked__contact" open={errors.includes('contact') || errors.includes('returnAddress') || !fullName}>
-            <summary>
-              <span className="min-w-0 truncate">
-                {value('contact.name', fullName)} · {value('contact.email', account?.email ?? '')}
-              </span>
-              <span className="shrink-0 text-[13px] font-medium text-accent">{t('returns.elsewhere.editContact')}</span>
-            </summary>
-            <div className="b2b-auth__field">
-              <label htmlFor="contact-name">{t('returns.elsewhere.contactName')}</label>
-              <input id="contact-name" name="contact.name" required maxLength={200} autoComplete="name" defaultValue={value('contact.name', fullName)} />
-            </div>
-            <div className="b2b-auth__row">
-              <div className="b2b-auth__field">
-                <label htmlFor="contact-email">{t('returns.elsewhere.contactEmail')}</label>
-                <input id="contact-email" name="contact.email" type="email" required maxLength={254} autoComplete="email" defaultValue={value('contact.email', account?.email ?? '')} />
-              </div>
-              <div className="b2b-auth__field">
-                <label htmlFor="contact-phone">{t('returns.elsewhere.contactPhone')}</label>
-                <input id="contact-phone" name="contact.phone" type="tel" maxLength={40} autoComplete="tel" defaultValue={value('contact.phone', address?.phone ?? '')} />
-              </div>
-            </div>
-            <div className="b2b-auth__field">
-              <label htmlFor="ret-addr-name">{t('returns.elsewhere.recipient')}</label>
-              <input id="ret-addr-name" name="returnAddress.name" required maxLength={200} autoComplete="name" defaultValue={value('returnAddress.name', address?.recipientName ?? fullName)} />
-            </div>
-            <AddressFields
-              t={t}
-              idPrefix="ret-addr"
-              namePrefix="returnAddress."
-              company
-              phone={false}
-              defaults={{
-                company: value('returnAddress.company', company),
-                street: value('returnAddress.street', address?.street ?? ''),
-                city: value('returnAddress.city', address?.city ?? ''),
-                postalCode: value('returnAddress.postalCode', address?.postalCode ?? ''),
-                country: value('returnAddress.country', address?.country ?? 'PL'),
-              }}
-              {...(errors.includes('returnAddress') ? { errors: { street: t('returns.errors.returnAddress') } } : {})}
-            />
-          </details>
-        </fieldset>
-
-        <fieldset>
-          <legend>{format(t('returns.elsewhere.section.documents'), { n: String(next()) })}</legend>
-          <AttachmentField type="other" locale={locale} id="files-other" label={t('returns.elsewhere.otherFiles')} limits={limits} kept={keptOf(attempt, 'other')} />
-        </fieldset>
-
-        {clauses.length > 0 ? (
-          <fieldset>
-            <legend>{format(t('returns.elsewhere.section.terms'), { n: String(next()) })}</legend>
-            {errors.includes('clauses_changed') ? <p className="b2b-auth__notice">{t('returns.errors.clauses_changed')}</p> : null}
-            <ClauseList clauses={clauses} t={t} />
-          </fieldset>
-        ) : null}
-
-        <div className="b2b-stacked__actions">
-          <button type="submit" className="btn btn--primary btn--lg">
-            {t('returns.elsewhere.submit')}
-          </button>
-          <LocalizedLink href="/returns" className="btn btn--ghost">
-            {t('returns.elsewhere.cancel')}
-          </LocalizedLink>
-        </div>
-      </form>
-    </div>
-  );
 }

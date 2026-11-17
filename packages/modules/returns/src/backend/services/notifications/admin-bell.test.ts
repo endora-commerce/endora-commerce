@@ -106,3 +106,59 @@ describe('the admin bell for a new case', () => {
     expect(deps.adminUsers.listAll).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * `specs/181-guest-complaints/` T027, T033 (FR-051, research R-10): a guest's case has
+ * no organization, so only an administrator who reaches every organization can open it.
+ * Its bell entry goes to those alone; any other answer — a narrower reach, an
+ * unresolved one, a failing port, no port at all — leaves the administrator out.
+ */
+describe('the admin bell for a guest’s case', () => {
+  const GUEST_CASE: BellCase = { ...CASE, guest: true };
+
+  function scoped(answers: Record<string, unknown>) {
+    const h = harness();
+    const tenantScope = {
+      resolveForAdmin: vi.fn(async (id: string) => {
+        const answer = answers[id];
+        if (answer instanceof Error) throw answer;
+        return answer as never;
+      }),
+    };
+    return { ...h, tenantScope, bell: createAdminBell({ ...h.deps, tenantScope }) };
+  }
+
+  it('tells only the readers whose reach is every organization', async () => {
+    const { bell, recorded } = scoped({
+      reader: { allowAll: true },
+      owner: { allowAll: false, reach: 'excluding', loadReach: async () => ({ excludedOrganizationIds: [], assignedOrganizationIds: [] }) },
+      writer: { allowAll: false, allowedOrganizationIds: ['org-1'] },
+    });
+    const outcome = await bell.announceNewCase(GUEST_CASE, { done: new Set() });
+    expect(recorded.map((r) => r.targetAdminUserId)).toEqual(['reader']);
+    expect(outcome).toEqual({ status: 'recorded', adminUserIds: ['reader'] });
+  });
+
+  it('fails closed on a throwing or unresolved reach', async () => {
+    const { bell, recorded } = scoped({
+      reader: new Error('organizations is off'),
+      owner: { allowAll: false, allowedOrganizationIds: [], unresolved: new Error('no role') },
+      writer: { allowAll: true },
+    });
+    await bell.announceNewCase(GUEST_CASE, { done: new Set() });
+    expect(recorded.map((r) => r.targetAdminUserId)).toEqual(['writer']);
+  });
+
+  it('tells nobody when no reach can be asked', async () => {
+    const { bell, recorded } = harness();
+    expect(await bell.announceNewCase(GUEST_CASE, { done: new Set() })).toEqual({ status: 'recorded', adminUserIds: [] });
+    expect(recorded).toEqual([]);
+  });
+
+  it('asks no reach for a customer’s case', async () => {
+    const { bell, recorded, tenantScope } = scoped({});
+    await bell.announceNewCase(CASE, { done: new Set() });
+    expect(recorded.map((r) => r.targetAdminUserId)).toEqual(['reader', 'owner', 'writer']);
+    expect(tenantScope.resolveForAdmin).not.toHaveBeenCalled();
+  });
+});

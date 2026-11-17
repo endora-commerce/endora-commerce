@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   RETURN_COMMENT_ADDED_DEFAULT,
+  RETURN_GUEST_VERIFICATION_DEFAULT,
   RETURN_NEW_CASE_DEFAULT,
   RETURN_STATUS_ENTERED_DEFAULT,
   RETURN_SUBMITTED_DEFAULT,
@@ -48,6 +49,48 @@ describe.each(Object.entries(DECLARED))('%s', (_code, { defaults, variables }) =
   it('names its declared variables and no other', () => {
     const text = JSON.stringify(defaults);
     for (const name of namedVariables(text)) expect(variables).toContain(name);
+  });
+
+  it('promises no processing time', () => {
+    const text = JSON.stringify(defaults);
+    expect(text).not.toMatch(/\b(within|in)\s+\d+\s*(business\s+)?(days?|hours?|working)/i);
+    expect(text).not.toMatch(/w ciągu\s+\d+|w terminie\s+\d+|\d+\s+dni/i);
+  });
+});
+
+/**
+ * `specs/181-guest-complaints/` T021 (FR-025; contracts/settings-emails-events.md §2):
+ * the guest's verification link — English and Polish, its declared variables only, the
+ * account sentence only inside `{{if hasAccount}}`, and never switched off.
+ */
+describe('return_guest_verification', () => {
+  const defaults = RETURN_GUEST_VERIFICATION_DEFAULT;
+  const variables = ['verifyUrl', 'linkValidMinutes', 'hasAccount', 'signInUrl'];
+
+  it('ships a subject and a body in en-US and pl-PL', () => {
+    expect(Object.keys(defaults.defaultSubject).sort()).toEqual(LANGUAGES);
+    const languages = (defaults.defaultContent as { languages: Record<string, unknown> }).languages;
+    expect(Object.keys(languages).sort()).toEqual(LANGUAGES);
+  });
+
+  it('names its declared variables and no other, and carries the link in every language', () => {
+    const text = JSON.stringify(defaults);
+    for (const name of namedVariables(text)) expect(variables).toContain(name);
+    const languages = (defaults.defaultContent as { languages: Record<string, unknown> }).languages;
+    for (const language of LANGUAGES) expect(JSON.stringify(languages[language])).toContain('{{var verifyUrl}}');
+  });
+
+  it('puts the sign-in sentence only inside the account condition', () => {
+    const text = JSON.stringify(defaults);
+    expect(text.split('{{var signInUrl}}')).toHaveLength(3);
+    for (const match of text.matchAll(/\{\{var signInUrl\}\}/g)) {
+      const before = text.slice(0, match.index);
+      expect(before.lastIndexOf('{{if hasAccount}}')).toBeGreaterThan(before.lastIndexOf('{{/if}}'));
+    }
+  });
+
+  it('cannot be switched off, and says why', () => {
+    expect(defaults.nonDeactivatable?.reason).toMatch(/only way/);
   });
 
   it('promises no processing time', () => {

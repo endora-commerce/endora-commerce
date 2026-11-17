@@ -1086,6 +1086,21 @@ button.b2b-stacked__add { border: 0; background: transparent; padding: 0; cursor
 /* The case page (`returns/[id]`): the same cards as the form's sections. */
 .b2b-stacked__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 20px; font-size: 13px; color: var(--color-fg-soft); }
 .b2b-stacked__status { border-radius: 999px; background: var(--surface-alt); border: 1px solid var(--line); padding: 3px 10px; }
+/* `specs/181-guest-complaints/` design review F-13 — the badge the case page's "Bought elsewhere"
+   and the guest's "Verified" use; tokens only, an optional icon beside the word. */
+.b2b-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-alt);
+  color: var(--color-fg-soft);
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
 .b2b-stacked__card { border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-top: 16px; }
 @media (max-width: 480px) { .b2b-stacked__card { padding: 16px; } }
 .b2b-stacked__card > * + * { margin-top: 12px; }

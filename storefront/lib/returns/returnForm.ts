@@ -385,3 +385,20 @@ export function orderBodyOf(form: FormData): { body: Record<string, unknown>; er
     errors: lines.length === 0 ? ['no_line'] : [],
   };
 }
+
+/** The case-level files a refused attempt kept, of one type (a line's photos are `keptByLine`'s). */
+export function keptOf(attempt: ReturnsAttempt | null, type: string): Array<{ uploadId: string; filename: string }> {
+  return (attempt?.uploads ?? [])
+    .filter((u) => u.type === type && u.line === undefined)
+    .map((u) => ({ uploadId: u.uploadId, filename: u.filename }));
+}
+
+/** Each line slot's photos a refused attempt kept. */
+export function keptByLine(attempt: ReturnsAttempt | null): Record<number, Array<{ uploadId: string; filename: string }>> {
+  const out: Record<number, Array<{ uploadId: string; filename: string }>> = {};
+  for (const u of attempt?.uploads ?? []) {
+    if (u.line === undefined) continue;
+    (out[u.line] ??= []).push({ uploadId: u.uploadId, filename: u.filename });
+  }
+  return out;
+}

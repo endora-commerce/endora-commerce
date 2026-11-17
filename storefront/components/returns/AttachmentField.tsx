@@ -22,7 +22,7 @@ import {
  * **Without JavaScript** it is a labelled `<input type="file" multiple>` with explicit MIME
  * types (never `capture`, which would block the gallery) posted with the form; the route
  * handler uploads the bytes. **With JavaScript** each file is checked against the limits,
- * uploaded at once through `POST /returns/uploads` with its progress shown, and kept as a
+ * uploaded at once through `POST /returns/uploads` (or the guest's `uploadAction`) with its progress shown, and kept as a
  * hidden `uploadId`; the native input is cleared so the post carries no bytes. Each row says
  * its state in words, never by colour alone, and the budget line lives in a `role="status"`
  * region mounted empty (WCAG 4.1.3).
@@ -47,6 +47,7 @@ export function AttachmentField({
   limits = RETURN_FORM_LIMITS,
   kept = [],
   line,
+  uploadAction = '/returns/uploads',
 }: {
   type: ReturnAttachmentType;
   locale: string;
@@ -58,6 +59,8 @@ export function AttachmentField({
   kept?: ReadonlyArray<{ uploadId: string; filename: string }>;
   /** A line's photos (`lines.N.…`): the files post under the line slot, not for the whole case. */
   line?: number;
+  /** The route handler the JS upload posts to — the guest form's is `/returns/guest/uploads` (181 F-10). */
+  uploadAction?: string;
 }): ReactNode {
   const prefix = line === undefined ? '' : `lines.${line}.`;
   const t = tForLocale(locale);
@@ -97,7 +100,7 @@ export function AttachmentField({
     body.append('type', type);
     body.append('file', file, file.name);
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/returns/uploads');
+    xhr.open('POST', uploadAction);
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) update(key, { progress: event.loaded / event.total });
     };
