@@ -4,7 +4,12 @@ import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildServer } from '../composition/index.js';
-import { healthResponseSchema, healthRoutePlugin, registerHealthRoutes } from './health.js';
+import {
+  HEALTH_PROBE_TIMEOUT_MS,
+  healthResponseSchema,
+  healthRoutePlugin,
+  registerHealthRoutes,
+} from './health.js';
 import { PLATFORM_VERSION } from './platform-version.js';
 
 /**
@@ -140,6 +145,67 @@ describe('the platform serves the liveness probe with no module composed', () =>
 
     expect(res.statusCode).toBe(503);
     expect(healthResponseSchema.parse(res.json()).checks.redis).toBe(false);
+  });
+
+  /**
+   * Issue #1337 — a probe that never settles. The database ping had no bound,
+   * so a hung database held the request open, which the backend supervisor
+   * (#596) counts as an unanswered probe. `docs/docs/operations/health-endpoint.md`
+   * asks for each probe to be bounded at 200 ms: past that, the dependency is
+   * reported down and the endpoint answers 503 like any other failure.
+   */
+  it('bounds every probe at 200 ms and reports a hanging one as down', async () => {
+    expect(HEALTH_PROBE_TIMEOUT_MS).toBeLessThanOrEqual(200);
+    const served = await serveProbes({
+      pingDatabase: () => new Promise<boolean>(() => {}),
+      pingRedis: up,
+      pingMeilisearch: up,
+    });
+
+    const started = performance.now();
+    const res = await served.inject({ method: 'GET', url: '/api/v1/_health' });
+    const elapsed = performance.now() - started;
+
+    expect(res.statusCode).toBe(503);
+    expect(healthResponseSchema.parse(res.json()).checks).toEqual({
+      database: false,
+      redis: true,
+      meilisearch: true,
+    });
+    // The bound plus scheduling slack — far below an unbounded wait.
+    expect(elapsed).toBeLessThan(HEALTH_PROBE_TIMEOUT_MS + 500);
+  });
+
+  it('reports a hung database as down through the platform\'s own probe', async () => {
+    const hungOrm = {
+      em: { getConnection: () => ({ execute: () => new Promise<never>(() => {}) }) },
+    } as unknown as MikroORM;
+    const redis = { ping: async () => 'PONG' } as unknown as Redis;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(null, { status: 200 })) as typeof fetch;
+    try {
+      app = await buildServer({
+        sessionCookieSecret: 'test-secret-do-not-use-in-production',
+        openApi: { title: 'health probe test', version: 'test', serverUrl: 'http://localhost' },
+        disableRateLimit: true,
+        modules: [healthRoutePlugin({ orm: hungOrm, redis })],
+      });
+      await app.ready();
+
+      const started = performance.now();
+      const res = await app.inject({ method: 'GET', url: '/api/v1/_health' });
+      const elapsed = performance.now() - started;
+
+      expect(res.statusCode).toBe(503);
+      expect(healthResponseSchema.parse(res.json()).checks).toEqual({
+        database: false,
+        redis: true,
+        meilisearch: true,
+      });
+      expect(elapsed).toBeLessThan(HEALTH_PROBE_TIMEOUT_MS + 500);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 
   /**
