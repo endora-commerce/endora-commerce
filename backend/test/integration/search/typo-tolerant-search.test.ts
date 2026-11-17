@@ -154,4 +154,44 @@ describe('a misspelled search phrase still finds the product', () => {
       delete process.env['CATALOG_SEARCH_BACKEND'];
     }
   }, 30_000);
+
+  // Issue #1326 — the filter panel beside the results page counts over the
+  // same result set: the index's for a misspelling it forgives, and nothing
+  // for a phrase it finds nothing for.
+  async function filterCounts(phrase: string): Promise<{ total: number; filters: number; backend: unknown }> {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/catalog/filters?q=${encodeURIComponent(phrase)}`,
+      headers: RETAIL_CHANNEL,
+    });
+    expect(res.statusCode, phrase).toBe(200);
+    const data = (res.json() as { data: Array<{ options?: Array<{ count: number }>; range?: unknown }> }).data;
+    return {
+      total: data.flatMap((f) => (f.options ?? []).map((o) => o.count)).reduce((a, b) => a + b, 0),
+      filters: data.length,
+      backend: res.headers['x-search-backend'],
+    };
+  }
+
+  it('counts the filters over the index’s result set, misspelling and all', async () => {
+    const page = await resultsPage('simpel');
+    const counts = await filterCounts('simpel');
+    expect(counts.backend).toBe('meilisearch');
+    expect(page.skus.length).toBeGreaterThan(0);
+    expect(counts.filters, 'the forgiven misspelling counted over nothing').toBeGreaterThan(0);
+
+    const everything = await h.app.inject({ method: 'GET', url: '/api/v1/catalog/filters', headers: RETAIL_CHANNEL });
+    const all = (everything.json() as { data: Array<{ options?: Array<{ count: number }> }> }).data
+      .flatMap((f) => (f.options ?? []).map((o) => o.count))
+      .reduce((a, b) => a + b, 0);
+    expect(counts.total).toBeLessThan(all);
+  }, 30_000);
+
+  it('offers no filter for a phrase the index finds nothing for', async () => {
+    const page = await resultsPage('qqxzv-no-such-product');
+    expect(page.skus).toEqual([]);
+    const counts = await filterCounts('qqxzv-no-such-product');
+    expect(counts.backend).toBe('meilisearch');
+    expect(counts.filters).toBe(0);
+  }, 30_000);
 });

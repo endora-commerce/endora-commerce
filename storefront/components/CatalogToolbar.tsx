@@ -103,9 +103,16 @@ export function CatalogToolbar(props: {
           </div>
         ) : null}
         <span key="shown-count" className="max-md:text-[12px]">
-          {t('commerce.listing.showing')}{' '}
-          <strong className="font-mono font-semibold text-fg">1–{props.shown}</strong>{' '}
-          <span className="max-md:hidden">{t(pluralKey('commerce.listing.results', props.shown, props.locale))}</span>
+          {props.shown === 0 ? (
+            // Issue #1326 — an empty listing has no range to show ("1–0").
+            t('commerce.listing.noResults')
+          ) : (
+            <>
+              {t('commerce.listing.showing')}{' '}
+              <strong className="font-mono font-semibold text-fg">1–{props.shown}</strong>{' '}
+              <span className="max-md:hidden">{t(pluralKey('commerce.listing.results', props.shown, props.locale))}</span>
+            </>
+          )}
         </span>
       </div>
       <div className="flex items-center gap-2">

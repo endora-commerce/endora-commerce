@@ -27,7 +27,7 @@ w obu przypadkach każda cena podaje swoją walutę. Niepoprawny kod jest odrzuc
 | `GET /api/v1/catalog/products/:idOrSlug` | storefront | Szczegóły produktu (bez kwoty, gdy tryb wyświetlania cen oglądającego to *Żaden*); `?include=content` dodaje treść Page Buildera produktu ([Treść produktu](./catalog/product-content.md)) |
 | `GET /api/v1/catalog/categories` | storefront | Zagnieżdżone drzewo kategorii |
 | `GET /api/v1/catalog/categories/:id/content` | storefront | Treść strony jednej kategorii, dobrana do języka wywołującego |
-| `GET /api/v1/catalog/filters` | storefront | Atrybuty, po których można filtrować w aktywnym kanale sprzedaży |
+| `GET /api/v1/catalog/filters?q` | storefront | Atrybuty, po których można filtrować w aktywnym kanale sprzedaży, z liczbą produktów przy każdej opcji, liczoną wśród produktów widocznych dla wywołującego; z `q` — wśród produktów pasujących do tego zapytania tekstowego (tych samych, które zwraca `GET /api/v1/catalog/products?q`) |
 | `GET /api/v1/catalog/sitemap.xml` | roboty wyszukiwarek | Mapa witryny dla SEO |
 | `GET /api/v1/admin/catalog/products?status&archived` | administrator | Lista produktów w panelu. `status` to `active` albo `inactive` (każda inna wartość: `400 VALIDATION_FAILED`); `archived` to `exclude` (domyślnie), `include` albo `only` — dawne `includeArchived=1` oznacza `include`. `counts` to `{ all, active, inactive, archived }` — zob. *Status produktu i archiwizacja* |
 | `GET /api/v1/admin/catalog/products/:id` | administrator | Szczegóły produktu |

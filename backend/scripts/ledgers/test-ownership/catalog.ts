@@ -34,13 +34,13 @@ const SCHEDULED: TestOwnershipLedgerEntry = {
 };
 
 /**
- * A route test written after feature 106, which cannot be placed in the package yet
+ * Route tests written after feature 106, which cannot be placed in the package yet
  * for a reason of its own rather than having been left behind.
  */
 const NEEDS_CHANNEL_SCOPE: TestOwnershipLedgerEntry = {
   scheduled: true,
   reason:
-    'Single-owner route test (issue #249): it mounts `catalog`\'s public routes on requests ' +
+    'Single-owner route test (issues #249, #1326): it mounts `catalog`\'s public routes on requests ' +
     'carrying a resolved sales channel, and the published kernel barrel opens no channel ' +
     'scope — `enterSystemScope` omits `channel` — so it uses the host\'s `enterPlatformScope`, ' +
     'as its neighbour `public-search-backend-presence.test.ts` does.',
@@ -58,6 +58,7 @@ const NEEDS_CHANNEL_SCOPE: TestOwnershipLedgerEntry = {
  */
 export const entries: Readonly<Record<string, TestOwnershipLedgerEntry>> = {
   'backend/test/unit/catalog/bulk-notification-presence.test.ts': SCHEDULED,
+  'backend/test/unit/catalog/public-filters-query.test.ts': NEEDS_CHANNEL_SCOPE,
   'backend/test/unit/catalog/public-listing-currency.test.ts': NEEDS_CHANNEL_SCOPE,
   'backend/test/unit/catalog/public-search-backend-presence.test.ts': SCHEDULED,
   'backend/test/unit/catalog/published-port-names.test.ts': SCHEDULED,
