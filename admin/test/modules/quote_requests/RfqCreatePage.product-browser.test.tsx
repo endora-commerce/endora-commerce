@@ -9,6 +9,7 @@ import { StrictMode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { byId } from '../../helpers/developer-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { ORGANIZATION_CHANNEL_ID, organizationSalesChannelsAnswer } from '../../helpers/organization-sales-channels';
 
@@ -271,11 +272,11 @@ function renderPage(customer: string | null = 'cust-1'): void {
 type User = ReturnType<typeof userEvent.setup>;
 
 async function waitForCustomer(name: string): Promise<void> {
-  await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue(name));
+  await waitFor(() => expect(byId('customerAccountId')).toHaveValue(name));
 }
 
 async function chooseCustomer(user: User, name: string): Promise<void> {
-  const input = screen.getByLabelText('customerAccountId');
+  const input = byId('customerAccountId');
   await user.click(input);
   await user.clear(input);
   await user.type(input, name.split(' ')[0]!);

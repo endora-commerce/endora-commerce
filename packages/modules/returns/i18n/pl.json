@@ -10,6 +10,8 @@
   "actions.returnStatusConfig.description": "Konfiguruj cykl życia i przejścia statusów zwrotu/reklamacji",
   "list.title": "Zwroty",
   "list.search.placeholder": "Szukaj po numerze RMA, zamówieniu, kliencie",
+  "list.selection.selectAll": "Zaznacz wszystkie zwroty na tej stronie",
+  "list.selection.selectRow": "Zaznacz zwrot {number}",
   "statusConfig.title": "Konfiguracja statusów zwrotu",
   "statusConfig.addStatus": "Dodaj status",
   "statusConfig.terminal": "Status końcowy",

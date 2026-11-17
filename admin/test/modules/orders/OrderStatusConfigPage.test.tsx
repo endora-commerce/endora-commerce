@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { shippedModuleBundle } from '../../helpers/core-bundle';
+import { developerIdLabels } from '../../helpers/developer-ids';
 
 const getSpy = vi.fn();
 const deleteSpy = vi.fn();
@@ -86,10 +88,13 @@ beforeEach(() => {
   putSpy.mockResolvedValue({ data: { transitions: [] } });
 });
 
-const BUNDLE = passthroughBundle('core', []);
+const BUNDLE = {
+  ...passthroughBundle('core', ['common.action.delete']),
+  ...shippedModuleBundle('orders', 'en'),
+};
 
-function renderPage(): void {
-  renderWithI18n(
+function renderPage(): { container: HTMLElement } {
+  return renderWithI18n(
     <MemoryRouter>
       <OrderStatusConfigPage />
     </MemoryRouter>,
@@ -98,9 +103,16 @@ function renderPage(): void {
 }
 
 describe('OrderStatusConfigPage', () => {
+  it('names its icon buttons and the actions column in words, not developer ids (#1475)', async () => {
+    const { container } = renderPage();
+    expect(await screen.findByRole('button', { name: 'Edit status Pending' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
+    expect(developerIdLabels(container)).toEqual([]);
+  });
+
   it('lists the configured statuses and transitions', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('delete-new')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete status New' })).toBeInTheDocument());
     expect(screen.getAllByText('new').length).toBeGreaterThan(0);
     expect(screen.getAllByText('pending').length).toBeGreaterThan(0);
     expect(screen.getAllByText('cancelled').length).toBeGreaterThan(0);
@@ -109,24 +121,28 @@ describe('OrderStatusConfigPage', () => {
 
   it('disables delete for the initial/system status but allows a deletable one', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('delete-new')).toBeInTheDocument());
-    expect(screen.getByLabelText('delete-new')).toBeDisabled(); // initial + system
-    expect(screen.getByLabelText('delete-cancelled')).toBeDisabled(); // system
-    expect(screen.getByLabelText('delete-pending')).not.toBeDisabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete status New' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Delete status New' })).toBeDisabled(); // initial + system
+    expect(screen.getByRole('button', { name: 'Delete status Cancelled' })).toBeDisabled(); // system
+    expect(screen.getByRole('button', { name: 'Delete status Pending' })).not.toBeDisabled();
   });
 
   it('calls DELETE when removing a deletable status', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('delete-pending')).toBeInTheDocument());
-    await userEvent.click(screen.getByLabelText('delete-pending'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete status Pending' })).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Delete status Pending' }));
     // Confirm in the deletion dialog.
-    await userEvent.click(screen.getByLabelText('confirm-delete'));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'core.orderStatusConfig.deleteConfirm.title' })).getByRole('button', {
+        name: 'common.action.delete',
+      }),
+    );
     expect(deleteSpy).toHaveBeenCalledWith('/api/v1/admin/orders/statuses/pending');
   });
 
   it('adds a new transition via the From/To form', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('delete-new')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete status New' })).toBeInTheDocument());
     await userEvent.selectOptions(
       screen.getByLabelText('core.orderStatusConfig.col.from'),
       'pending',
@@ -142,7 +158,7 @@ describe('OrderStatusConfigPage', () => {
 
   it('does not re-add an already-existing transition', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('delete-new')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete status New' })).toBeInTheDocument());
     await userEvent.selectOptions(screen.getByLabelText('core.orderStatusConfig.col.from'), 'new');
     await userEvent.selectOptions(screen.getByLabelText('core.orderStatusConfig.col.to'), 'pending');
     await userEvent.click(
@@ -153,7 +169,7 @@ describe('OrderStatusConfigPage', () => {
 
   it('exposes the graph connect-mode toggle', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('delete-new')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete status New' })).toBeInTheDocument());
     expect(
       screen.getByRole('button', { name: 'core.orderStatusConfig.graph.connectMode' }),
     ).toBeInTheDocument();

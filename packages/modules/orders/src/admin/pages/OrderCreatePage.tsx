@@ -28,6 +28,7 @@ import {
   Separator,
   PageHeader,
   Combobox,
+  FormField,
   TableCell,
   TableHead,
   TableRow,
@@ -364,6 +365,8 @@ function formatMoney(amount: number, currency: string, locale?: string, options?
  * input keeps showing the selected customer once the dropdown paginates away.
  */
 function CustomerPicker(props: {
+  /** The input's id — `FormField`'s, so its label names the picker. */
+  id: string;
   value: string | null;
   onChange: (next: string | null) => void;
   /** Narrows the search to one organization's customers, and offers them at once. */
@@ -465,8 +468,7 @@ function CustomerPicker(props: {
 
   return (
     <Combobox<string>
-      id="customerAccountId"
-      ariaLabel="customerAccountId"
+      id={props.id}
       options={options}
       value={props.value}
       selectedLabel={selected ? customerLabel(selected) : ''}
@@ -505,23 +507,31 @@ function AddressPicker(props: {
     onChange({ ...choice, fields: { ...choice.fields, [key]: value } });
   };
 
+  // Named by its own label; the address it belongs to comes from the group
+  // around it, so the delivery and the billing street are told apart without
+  // an id read aloud as their name (issue #1475).
   const inlineField = (key: keyof InlineAddressFields, label: string, required = true): ReactNode => (
-    <div className="space-y-1">
-      <Label htmlFor={`${idPrefix}-${key}`}>{label}</Label>
+    <FormField label={label}>
       <Input
         id={`${idPrefix}-${key}`}
-        aria-label={`${idPrefix}-${key}`}
         required={required}
         value={choice.mode === 'new' ? choice.fields[key] : ''}
         onChange={(e): void => setField(key, e.target.value)}
       />
-    </div>
+    </FormField>
   );
 
+  const headingId = `${idPrefix}-heading`;
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" role="group" aria-labelledby={headingId}>
       <div className="flex items-center justify-between gap-2">
-        <Label>{props.heading}</Label>
+        {/* Names the group, and the saved-address picker while that is what the side shows. */}
+        <Label
+          id={headingId}
+          {...(choice.mode === 'existing' ? { htmlFor: `${idPrefix}-existing` } : {})}
+        >
+          {props.heading}
+        </Label>
         <div className="flex gap-1">
           <Button
             type="button"
@@ -560,7 +570,6 @@ function AddressPicker(props: {
       {choice.mode === 'existing' ? (
         <Combobox<string>
           id={`${idPrefix}-existing`}
-          ariaLabel={`${idPrefix}-existing`}
           options={props.options}
           value={choice.id === '' ? null : choice.id}
           onChange={(next): void => onChange({ mode: 'existing', id: next ?? '' })}
@@ -578,17 +587,15 @@ function AddressPicker(props: {
             {inlineField('city', t('orderCreate.address.field.city'))}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor={`${idPrefix}-country`}>
-                {t('orderCreate.address.field.country')}
-              </Label>
-              <CountrySelect
-                id={`${idPrefix}-country`}
-                ariaLabel={`${idPrefix}-country`}
-                value={choice.mode === 'new' ? choice.fields.country : null}
-                onChange={(code): void => setField('country', code ?? '')}
-              />
-            </div>
+            <FormField label={t('orderCreate.address.field.country')} id={`${idPrefix}-country`}>
+              {(control) => (
+                <CountrySelect
+                  id={control.id}
+                  value={choice.mode === 'new' ? choice.fields.country : null}
+                  onChange={(code): void => setField('country', code ?? '')}
+                />
+              )}
+            </FormField>
             {inlineField('phone', t('orderCreate.address.field.phone'), false)}
           </div>
           <label className="flex items-center gap-2 text-sm">
@@ -1042,18 +1049,18 @@ export function OrderCreatePage(): ReactNode {
     options: ComboboxOption<string>[],
     opts?: { placeholder?: string },
   ): ReactNode => (
-    <div className="space-y-1">
-      <Label htmlFor={id}>{label}</Label>
-      <Combobox<string>
-        id={id}
-        ariaLabel={id}
-        options={options}
-        value={value === '' ? null : value}
-        onChange={(next): void => onChange(next ?? '')}
-        placeholder={opts?.placeholder ?? t('orderCreate.placeholder.select')}
-        emptyMessage={t('orderCreate.empty.options')}
-      />
-    </div>
+    <FormField label={label} id={id}>
+      {(control) => (
+        <Combobox<string>
+          id={control.id}
+          options={options}
+          value={value === '' ? null : value}
+          onChange={(next): void => onChange(next ?? '')}
+          placeholder={opts?.placeholder ?? t('orderCreate.placeholder.select')}
+          emptyMessage={t('orderCreate.empty.options')}
+        />
+      )}
+    </FormField>
   );
 
   const addressEmptyMessage = !customerAccountId
@@ -1111,15 +1118,17 @@ export function OrderCreatePage(): ReactNode {
           <CardTitle>{t('orderCreate.section.parties')}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="customerAccountId">{t('orderCreate.field.customer')}</Label>
-            <CustomerPicker
-              value={customerAccountId === '' ? null : customerAccountId}
-              onChange={(next): void => setCustomerAccountId(next ?? '')}
-              organizationId={openedWith.organizationId}
-              onOrganizationChange={setOrganizationId}
-            />
-          </div>
+          <FormField label={t('orderCreate.field.customer')} id="customerAccountId">
+            {(control) => (
+              <CustomerPicker
+                id={control.id}
+                value={customerAccountId === '' ? null : customerAccountId}
+                onChange={(next): void => setCustomerAccountId(next ?? '')}
+                organizationId={openedWith.organizationId}
+                onOrganizationChange={setOrganizationId}
+              />
+            )}
+          </FormField>
           {channelsFailed ? (
             // Not read, so nothing to offer and nothing sent: said, with a way back.
             <Alert variant="destructive">
@@ -1143,24 +1152,33 @@ export function OrderCreatePage(): ReactNode {
             </Alert>
           ) : (
             <div className="space-y-1">
-              <Label htmlFor="salesChannelId">{t('orderCreate.field.salesChannel')}</Label>
-              <Combobox<string>
+              {/* The note is two sentences, longer than a one-line hint, so it is
+                  rendered here in full and linked through `describedBy`. */}
+              <FormField
+                label={t('orderCreate.field.salesChannel')}
                 id="salesChannelId"
-                ariaLabel="salesChannelId"
-                options={channelOptions}
-                value={salesChannelId === '' ? null : salesChannelId}
-                onChange={(next): void => setSalesChannelId(next ?? '')}
-                disabled={channelChoices === null}
-                placeholder={t('orderCreate.placeholder.select')}
-                emptyMessage={t('orderCreate.empty.options')}
-              />
-              {channelChoices === null ? (
-                <p className="text-xs text-muted-foreground">
-                  {channelsLoading ? t('orderCreate.loading') : t('orderCreate.address.selectCustomerFirst')}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">{t('orderCreate.hint.salesChannel')}</p>
-              )}
+                describedBy="salesChannelId-note"
+              >
+                {(control) => (
+                  <Combobox<string>
+                    id={control.id}
+                    ariaDescribedBy={control['aria-describedby']}
+                    options={channelOptions}
+                    value={salesChannelId === '' ? null : salesChannelId}
+                    onChange={(next): void => setSalesChannelId(next ?? '')}
+                    disabled={channelChoices === null}
+                    placeholder={t('orderCreate.placeholder.select')}
+                    emptyMessage={t('orderCreate.empty.options')}
+                  />
+                )}
+              </FormField>
+              <p id="salesChannelId-note" className="text-xs text-muted-foreground">
+                {channelChoices === null
+                  ? channelsLoading
+                    ? t('orderCreate.loading')
+                    : t('orderCreate.address.selectCustomerFirst')
+                  : t('orderCreate.hint.salesChannel')}
+              </p>
             </div>
           )}
           {selectField(
@@ -1500,16 +1518,14 @@ export function OrderCreatePage(): ReactNode {
 
       <Card className="mb-4">
         <CardContent className="space-y-3 pt-6">
-          <div className="space-y-1">
-            <Label htmlFor="customerNote">{t('orderCreate.field.note')}</Label>
+          <FormField label={t('orderCreate.field.note')}>
             <textarea
               id="customerNote"
-              aria-label="customerNote"
               className="min-h-20 w-full rounded-md border p-2 text-sm"
               value={customerNote}
               onChange={(e): void => setCustomerNote(e.target.value)}
             />
-          </div>
+          </FormField>
           <Button disabled={!canSubmit || busy || previewLoading} onClick={(): void => void submit()}>
             {t('orderCreate.submit')}
           </Button>

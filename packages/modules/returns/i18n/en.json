@@ -10,6 +10,8 @@
   "actions.returnStatusConfig.description": "Configure the return/complaint status lifecycle and transitions",
   "list.title": "Returns",
   "list.search.placeholder": "Search by RMA number, order, customer",
+  "list.selection.selectAll": "Select all returns on this page",
+  "list.selection.selectRow": "Select return {number}",
   "statusConfig.title": "Return status configuration",
   "statusConfig.addStatus": "Add status",
   "statusConfig.terminal": "Terminal status",
