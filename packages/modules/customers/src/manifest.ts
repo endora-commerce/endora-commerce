@@ -152,6 +152,12 @@ export const manifest = defineModuleManifest({
     'quick_order',
     'quote_requests',
     'settings',
+    // Issue #1295 — the operator-triggered password-reset e-mail is rendered
+    // through `templateEmailPort`, and its defaults are pushed into
+    // `emailDefaultsPort`. `transactional_emails` declares
+    // `activation.nonDeactivatable`, so the edge costs no operator an
+    // activation control.
+    'transactional_emails',
   ],
   nonBindingDependencies: [
     {
@@ -167,6 +173,23 @@ export const manifest = defineModuleManifest({
     },
   ],
   settings,
+  // Feature 047 — admin-editable transactional e-mails owned by this module.
+  // Issue #1295: the operator-triggered reset was a hard-coded English message
+  // with no code, so it had no language and no place for a store to edit it.
+  transactionalEmails: [
+    {
+      code: 'customer_password_reset_by_admin',
+      name: 'Password reset started by an administrator (customer)',
+      group: 'customers',
+      variables: [
+        {
+          key: 'resetUrl',
+          label: 'Set-password link',
+          sampleValue: 'https://shop.example/password-reset/confirm?token=…',
+        },
+      ],
+    },
+  ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   /**
