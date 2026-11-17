@@ -188,6 +188,9 @@ import { Migration20261027T020030CrmOpportunityReferenceDocuments } from '@endor
 import { Migration20261028T143444CrmOpportunityReferenceKinds } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261109T163616CrmOpportunityValueChanges } from '@endora-commerce/mod-crm/migrations';
 
+// ── currencies ──────────────────────────────────────────────────────────────
+import { Migration20261117T065542CurrenciesTable } from '@endora-commerce/mod-currencies/migrations';
+
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
 import { Migration20261010T090000CustomFieldsDefinitionAudience } from '@endora-commerce/mod-custom-fields/migrations';
@@ -631,6 +634,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('crm', Migration20261027T020030CrmOpportunityReferenceDocuments),
   migration('crm', Migration20261028T143444CrmOpportunityReferenceKinds),
   migration('crm', Migration20261109T163616CrmOpportunityValueChanges),
+
+  // ── currencies ──────────────────────────────────────────────────────────────
+  migration('currencies', Migration20261117T065542CurrenciesTable),
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),

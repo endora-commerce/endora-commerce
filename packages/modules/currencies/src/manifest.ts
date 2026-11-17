@@ -5,8 +5,9 @@ import { defineModuleManifest } from '@endora-commerce/contracts';
  *
  * Predates the lifecycle system; this manifest is the static record
  * required so the module participates in the registry. No install /
- * uninstall hook today — the module's schema is owned by earlier
- * platform-wide migrations.
+ * uninstall hook today. Since issue #611 the module creates its own schema and
+ * its `PLN` / `EUR` rows in `Migration20261117T065542CurrenciesTable`; until
+ * then `languages`' and `dictionaries`' frozen inits did.
  */
 export const manifest = defineModuleManifest({
   id: 'currencies',

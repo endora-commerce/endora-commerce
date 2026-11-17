@@ -6,12 +6,13 @@
  * `src/packages/package-runtime.ts` takes `exported['migrations']` and refuses
  * the package outright when it is absent (D-168).
  *
- * **Two classes.** The first creates the `languages` table and the `currencies`
- * table together — the two shipped as one migration long before either module
- * was a package — so `currencies` owns rows this file creates and ships no
- * migration of its own. The second repairs a sales channel created with a
- * language code this table never held (its own header says which rows). That
- * the first is first is a fact about history, not an ordering rule: a timestamp
+ * **Three classes.** The first creates the `languages` table. Until issue #611
+ * it created the `currencies` table and its rows too, because the two shipped
+ * as one migration long before either module was a package; `currencies` now
+ * creates its own table in its own migration. The second repairs a sales
+ * channel created with a language code this table never held (its own header
+ * says which rows). The third adds the columns feature 017 gave `languages`.
+ * That the first is first is a fact about history, not an ordering rule: a timestamp
  * orders this module's own migrations and nothing else (feature 081), and where
  * this block sits relative to every other module's is decided by the manifest
  * `dependencies` graph.

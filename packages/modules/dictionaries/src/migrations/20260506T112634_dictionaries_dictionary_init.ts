@@ -5,7 +5,6 @@ import { Migration } from '@mikro-orm/migrations';
  *
  * Schema changes (one atomic migration):
  *   - new tables: countries, dictionary_translations, language_countries.
- *   - ALTER `currencies` ADD COLUMN symbol_position, decimal_places (CHECKs).
  *   - partial unique index `uniq_countries_one_default` for the "exactly one
  *     default" invariant (mirrors the analogous indexes on languages and
  *     currencies introduced by migration 012).
@@ -24,14 +23,18 @@ import { Migration } from '@mikro-orm/migrations';
  * database that has applied it is not offered it again, and its schema is
  * unchanged. The steps below keep their numbers.
  *
- * Issue #611 also moved step 6, the `countries_default_currency_fk` foreign
- * key to `currencies(code)`. The FK is this module's, but `currencies` is to
- * create its own table in its own module block, which runs after the whole
- * frozen prefix, so on a database migrated from empty the table would not
- * exist yet when this class runs. The FK moved, verbatim and behind a
- * `pg_constraint` probe, to this module's above-watermark
- * `Migration20261117T065601DictionariesDefaultCurrencyFk`, so a database that
- * applied this class keeps it.
+ * Issue #611 also moved step 3 and step 6. Step 3 added
+ * `currencies.symbol_position` and `decimal_places` with their two checks.
+ * Those are `currencies`' (its `Currency` entity maps them), so they moved,
+ * with their inverses, to `Migration20261117T065542CurrenciesTable`, which now
+ * creates the `currencies` table as well. Step 6 added the
+ * `countries_default_currency_fk` foreign key to that table. The FK is this
+ * module's, but `currencies`' block runs after the whole frozen prefix, so on a
+ * database migrated from empty the table does not exist yet when this class
+ * runs. The FK therefore moved to this module's above-watermark
+ * `Migration20261117T065601DictionariesDefaultCurrencyFk`. Both moved
+ * verbatim and guarded, so a database that applied this class keeps
+ * everything it has.
  *
  * No seed rows in this migration. The countries seed, the Polish
  * translations seed, the en-US/pl-PL language↔country primary associations,
@@ -76,24 +79,6 @@ export class Migration20260506T112634DictionariesDictionaryInit extends Migratio
     );
     this.addSql(`create index "idx_countries_active" on "countries" ("is_active");`);
     this.addSql(`create index "idx_countries_sort" on "countries" ("sort_order", "label");`);
-
-    // ────────────────────────────────────────────────────────────────────
-    // 3) ALTER currencies — extended fields (symbol_position, decimal_places)
-    // ────────────────────────────────────────────────────────────────────
-    this.addSql(
-      `alter table "currencies" add column "symbol_position" varchar(8) not null default 'suffix';`,
-    );
-    this.addSql(`alter table "currencies" add column "decimal_places" smallint not null default 2;`);
-    this.addSql(`
-      alter table "currencies"
-        add constraint "currencies_symbol_position_check"
-        check ("symbol_position" in ('prefix','suffix'));
-    `);
-    this.addSql(`
-      alter table "currencies"
-        add constraint "currencies_decimal_places_check"
-        check ("decimal_places" >= 0 and "decimal_places" <= 6);
-    `);
 
     // ────────────────────────────────────────────────────────────────────
     // 4) dictionary_translations — polymorphic per-Language label override
@@ -147,10 +132,6 @@ export class Migration20260506T112634DictionariesDictionaryInit extends Migratio
   override async down(): Promise<void> {
     this.addSql(`drop table if exists "language_countries" cascade;`);
     this.addSql(`drop table if exists "dictionary_translations" cascade;`);
-    this.addSql(`alter table "currencies" drop constraint if exists "currencies_decimal_places_check";`);
-    this.addSql(`alter table "currencies" drop constraint if exists "currencies_symbol_position_check";`);
-    this.addSql(`alter table "currencies" drop column if exists "decimal_places";`);
-    this.addSql(`alter table "currencies" drop column if exists "symbol_position";`);
     this.addSql(`drop table if exists "countries" cascade;`);
   }
 }
