@@ -127,6 +127,9 @@ export type { ModalDialogProps } from './modal-dialog/ModalDialog.js';
 // Issue #313 — the design-system replacement for the browser's `confirm()`.
 export { ConfirmDialog, useConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
 export type { ConfirmDialogProps, ConfirmOptions, UseConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
+// Issue #1435 (DS-18) — a status changed through a confirmed dialog, never a select that writes on change.
+export { StatusChangeControl } from './status-change/StatusChangeControl.js';
+export type { StatusChangeControlProps, StatusChangeOption } from './status-change/StatusChangeControl.js';
 export { useViewportTier } from './hooks/useViewportTier.js';
 export type { ViewportTier } from './hooks/useViewportTier.js';
 export { MethodAvailabilityCaption, MethodAvailabilityCell, MethodNotOfferedNotice } from './payment-method-availability/MethodAvailabilityCell.js';
