@@ -7,7 +7,7 @@
 // type-only, so it loads the declarations and emits nothing: registering the
 // plugin stays the host's job, exactly as before.
 import type {} from '@fastify/cookie';
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   SESSION_COOKIE_NAME,
   customerLoginRequestSchema,
@@ -40,6 +40,7 @@ import { buildVerificationEmail } from './email-templates/verification.js';
 import type { OrgTemplateEmail } from './services/org-template-email.js';
 import { memberSessionRole } from './services/member-role-views.js';
 import { requestAccountLanguage } from './services/request-account-language.js';
+import { sendPasswordResetEmail } from './services/password-reset-email.js';
 
 /**
  * Anonymous endpoints: registration, email verification, customer login /
@@ -83,6 +84,12 @@ export interface OrganizationsPublicDeps {
   templateEmail?: OrgTemplateEmail;
   /** Storefront URL for verify link in the email body. */
   storefrontBaseUrl: string;
+  /**
+   * Issue #1371 — the storefront origin of a sales channel (its
+   * `sales_channels.storefront_url`, else {@link storefrontBaseUrl}), without a
+   * trailing slash. Absent: {@link storefrontBaseUrl} for every channel.
+   */
+  storefrontOriginFor?: (salesChannelId: string | null) => Promise<string>;
   /**
    * `specs/170-organization-roles/` WP-03 — the signed-in member's role and
    * effective permissions on the login answer (FR-056, FR-073), in place of
@@ -254,6 +261,39 @@ export async function registerOrganizationsPublicRoutes(
     },
   );
 
+  /**
+   * The `customer_password_reset` e-mail (issue #1371), on the request's sales
+   * channel: the link opens that channel's storefront under the prefix of the
+   * channel language the request resolved to (`requestScopeLanguage`, as the
+   * verification link above), and the message is written in that language — so
+   * the message and the page it opens agree. The account's preferred language
+   * is issue #652's PR B.
+   *
+   * Everything the request knows is read here, **before** the reply, and for
+   * every request whether or not an account matched: the send itself runs after
+   * the 202 (architect ruling on PR #1418) and must not touch `request`,
+   * `currentSalesChannel()` or the request's context once the reply is out.
+   * The sender needs none of them — `transactional_emails` forks its own
+   * EntityManager per send and reads no request-scoped state.
+   */
+  const passwordResetScope = async (
+    request: FastifyRequest,
+  ): Promise<{ channel: ReturnType<typeof currentSalesChannel>; language: string | null; origin: string }> => {
+    const channel = currentSalesChannel();
+    const language = channel ? requestScopeLanguage(channel, request.headers['accept-language']) : null;
+    const fallbackOrigin = deps.storefrontBaseUrl.replace(/\/+$/, '');
+    let origin = fallbackOrigin;
+    if (deps.storefrontOriginFor) {
+      try {
+        origin = await deps.storefrontOriginFor(channel?.id ?? null);
+      } catch (err) {
+        // A failed read must not change the answer, which would enumerate.
+        request.log.error({ err }, '[organizations] the storefront URL of the channel could not be read');
+      }
+    }
+    return { channel, language, origin };
+  };
+
   app.post(
     '/api/v1/auth/password-reset/request',
     // Feature 154 — reachable whatever the sales-channel access rule decides.
@@ -276,8 +316,47 @@ export async function registerOrganizationsPublicRoutes(
         deps.latestTokenByEmail.set(`reset:${normalizeEmailAddress(body.email)}`, result.rawToken);
         deps.latestTokenByEmail.set('__latest_reset__', result.rawToken);
       }
+      const scope = await passwordResetScope(request);
+      const log = request.log;
+      // The folded address is the one the lookup matched, which is the
+      // account's own: never mail the link to the address as typed (a
+      // look-alike that folds onto an account must not receive its link).
+      const mail = result.rawToken
+        ? {
+            to: normalizeEmailAddress(body.email),
+            messageId: `customer-pwd-reset.${result.rawToken.slice(0, 8)}`,
+            resetUrl:
+              scope.origin +
+              storefrontPagePathFor({
+                path: `/password-reset/confirm?token=${encodeURIComponent(result.rawToken)}`,
+                channel: scope.channel,
+                requestedLanguage: scope.language,
+              }),
+            salesChannelId: scope.channel?.id ?? null,
+            language: scope.language,
+          }
+        : null;
       // Always 202 — defends against account enumeration.
-      return reply.status(202).send();
+      reply.status(202).send();
+      if (mail) {
+        // Issue #1371 — the port mints the token and leaves the mail to its
+        // caller, and this caller never sent it. Sent after the reply and not
+        // awaited (architect ruling on PR #1418), so how long the transport
+        // takes says nothing about whether the account exists; a failure is
+        // logged and goes nowhere else. Nothing below reads the request.
+        void sendPasswordResetEmail({ templateEmail: deps.templateEmail, mailer: deps.mailer }, mail)
+          .then((sent) => {
+            // `logged` (issue #186) is the console driver's own answer and
+            // already in the log; only the transport's refusal is named here.
+            if (sent.via === 'mailer' && sent.outcome.status === 'suppressed') {
+              log.warn({ reason: sent.outcome.reason }, '[organizations] the password-reset e-mail was not sent');
+            }
+          })
+          .catch((err: unknown) => {
+            log.error({ err }, '[organizations] the password-reset e-mail could not be sent');
+          });
+      }
+      return reply;
     },
   );
 
