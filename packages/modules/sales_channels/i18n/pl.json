@@ -107,5 +107,15 @@
   "edit.error.deactivate": "Nie udało się dezaktywować kanału.",
   "edit.error.activate": "Nie udało się aktywować kanału.",
   "channelEditor.save.hostPartLabel": "Kanał sprzedaży",
-  "channelEditor.save.failed": "Nie udało się zapisać."
+  "channelEditor.save.failed": "Nie udało się zapisać.",
+  "edit.page.newTitle": "Nowy kanał sprzedaży",
+  "edit.page.createDescription": "Utwórz nowe miejsce sprzedaży. Po zapisaniu dodaj do niego produkty, klientów i cenniki z ich ekranów edycji.",
+  "edit.page.editDescription": "Edytuj dane identyfikacyjne kanału. Aktywację, dezaktywację i usunięcie kanału znajdziesz w nagłówku strony.",
+  "edit.notFound": "Nie znaleziono kanału.",
+  "edit.error.load": "Nie udało się wczytać kanału.",
+  "edit.error.save": "Nie udało się zapisać kanału.",
+  "edit.error.delete": "Nie udało się usunąć kanału.",
+  "membership.error.load": "Nie udało się wczytać przynależności do kanałów.",
+  "membership.error.add": "Nie udało się dodać do kanału.",
+  "membership.error.remove": "Nie udało się usunąć z kanału."
 }
