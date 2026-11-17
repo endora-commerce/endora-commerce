@@ -642,6 +642,21 @@ export const manifest = defineModuleManifest({
         { key: 'expiresOn', label: 'Expiry date', sampleValue: '2026-07-15' },
       ],
     },
+    // Issue #1371 — the self-service reset (`POST /api/v1/auth/password-reset/request`)
+    // minted a token and mailed nothing. `customers` owns the operator-started
+    // twin, `customer_password_reset_by_admin`.
+    {
+      code: 'customer_password_reset',
+      name: 'Password reset (customer)',
+      group: 'organizations',
+      variables: [
+        {
+          key: 'resetUrl',
+          label: 'Set-password link',
+          sampleValue: 'https://shop.example/password-reset/confirm?token=…',
+        },
+      ],
+    },
     {
       code: 'new_org_registration',
       name: 'New organization registration (admin)',

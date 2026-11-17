@@ -23,7 +23,7 @@ wymagają `customers:manage`, chyba że wiersz podaje inny kod.
 | `POST /api/v1/auth/email-verification/verify` | anonimowy | Użycie tokenu weryfikacyjnego |
 | `POST /api/v1/auth/customer/login` | anonimowy | Logowanie klienta → ustawia ciasteczko `b2b_session`; łączy koszyk anonimowy |
 | `POST /api/v1/auth/customer/logout` | klient | Zakończenie sesji |
-| `POST /api/v1/auth/password-reset/request` | anonimowy | Zawsze 202 (ochrona przed sprawdzaniem, czy konto istnieje) |
+| `POST /api/v1/auth/password-reset/request` | anonimowy | Zawsze 202 (ochrona przed sprawdzaniem, czy konto istnieje). Gdy adres należy do konta, e-mail `customer_password_reset` zawiera link do resetu hasła — w sklepie kanału sprzedaży, z którego przyszło żądanie, pod prefiksem jego języka |
 | `POST /api/v1/auth/password-reset/confirm` | anonimowy | Użycie tokenu resetu z e-maila. Wykorzystanie tokenu wylogowuje konto ze **wszystkich** sesji, unieważnia pozostałe niewykorzystane tokeny resetu i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `GET /api/v1/me` | klient | Bieżący klient (z `organizationRole`, `permissions` i `preferredLanguage`, `null`, dopóki nieznany) i jego organizacja oraz `impersonation: { impersonatorAdminUserId }`, gdy administrator działa jako kupujący |
 | `POST /api/v1/me/password` | klient | Zmiana hasła (odrzucana przy błędnym `currentPassword`). Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
@@ -92,6 +92,12 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
   `email_verification`, gdy jest zdefiniowany, a w przeciwnym razie przez skomponowany `emailMailer`
   (`EmailMailerPort`, z modułu `email`); `SMTP_URL` (albo `SMTP_HOST` + `SMTP_PORT`) decyduje, czy
   jest to SMTP, czy wypisywanie do konsoli.
+- **Wysyłka resetu hasła** — samodzielne żądanie resetu wysyła szablon `customer_password_reset`
+  w języku kanału sprzedaży, z którego przyszło żądanie, z linkiem do `/password-reset/confirm`
+  pod adresem `sales_channels.storefront_url` tego kanału (w przeciwnym razie
+  `STOREFRONT_BASE_URL`). Bez definicji szablonu wysyłana jest zwykła wiadomość po angielsku przez
+  `emailMailer`. Tego e-maila nie można wyłączyć, bo to dzięki niemu klient, który zapomniał hasła,
+  odzyskuje dostęp do konta.
 - **Ochrona ostatniego administratora** — zapisana w Commandach modułu `customer_accounts`
   `customer-account-change-role.command.ts` i `customer-account-remove-member.command.ts` oraz
   w `organization-invitation-revoke.command.ts` tego modułu; nowe miejsca, w których „musi zostać

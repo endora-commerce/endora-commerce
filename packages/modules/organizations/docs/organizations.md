@@ -24,7 +24,7 @@ writes need `customers:manage`, unless a row names another code.
 | `POST /api/v1/auth/email-verification/verify` | anon | Redeem verification token |
 | `POST /api/v1/auth/customer/login` | anon | Customer login → sets `b2b_session` cookie; merges anonymous cart |
 | `POST /api/v1/auth/customer/logout` | customer | Destroy session |
-| `POST /api/v1/auth/password-reset/request` | anon | Always 202 (defends against account enumeration) |
+| `POST /api/v1/auth/password-reset/request` | anon | Always 202 (defends against account enumeration). When the address belongs to an account, the `customer_password_reset` e-mail carries the reset link, on the storefront of the request's sales channel and under its language prefix |
 | `POST /api/v1/auth/password-reset/confirm` | anon | Redeem the emailed reset token. A redeemed token signs the account out of **every** session, retires its other outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
 | `GET /api/v1/me` | customer | Current customer (with `organizationRole`, `permissions` and `preferredLanguage`, `null` while unknown) + their organization, plus `impersonation: { impersonatorAdminUserId }` when an admin is acting as the buyer |
 | `POST /api/v1/me/password` | customer | Change password (rejects wrong `currentPassword`). A successful change signs the account out of every other session (the one the request was made from is kept), retires its outstanding reset tokens and withdraws any sign-in it had begun and not finished. |
@@ -95,6 +95,13 @@ correction to the value already stored).
   otherwise through the composed `emailMailer` (`EmailMailerPort`, the `email`
   module's); `SMTP_URL` (or `SMTP_HOST` + `SMTP_PORT`) decides whether that is
   SMTP or the console logger.
+- **Password-reset dispatch** — the self-service reset request sends the
+  `customer_password_reset` template, in the language of the request's sales
+  channel, with a link to `/password-reset/confirm` on that channel's
+  `sales_channels.storefront_url` (else `STOREFRONT_BASE_URL`). With no template
+  definition it falls back to a plain English message through `emailMailer`. The
+  e-mail cannot be switched off, because it is how a customer who forgot the
+  password gets back into the account.
 - **Last-admin guard** — codified in the `customer_accounts` Commands
   `customer-account-change-role.command.ts` and
   `customer-account-remove-member.command.ts`, and in this module's

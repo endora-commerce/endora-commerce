@@ -160,8 +160,8 @@ override and no per-channel customization. A deactivated email answers
 `{ status: 'deactivated' }` at send time and **no fallback mail goes out**.
 
 Emails required to create an account or to get back into one may not be switched
-off at all: today `email_verification`, `organization_invitation` and
-`customer_password_reset_by_admin`. The
+off at all: today `email_verification`, `organization_invitation`,
+`customer_password_reset` and `customer_password_reset_by_admin`. The
 declaration lives on the owning module's registry entry
 (`EmailDefaults.nonDeactivatable`), not in a list held by this module or by the
 Admin UI, and a refused flip answers `409 TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE`
