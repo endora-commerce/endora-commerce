@@ -150,9 +150,7 @@ describe('createCatalogProductWritePort — content attribute keys (feature 172)
     );
     expect(error.statusCode).toBe(400);
     expect(error.code).toBe('ATTRIBUTE_VALUE_REJECTED');
-    expect(error.details).toEqual([
-      { path: 'attributeValues.buying_guide', issue: 'Page Builder content is edited on the product content screen' },
-    ]);
+    expect(error.details).toEqual({ code: 'page_builder_content', attributeKeys: 'buying_guide' });
   });
 
   it('refuses a content key on updateProduct, naming it', async () => {
@@ -163,8 +161,6 @@ describe('createCatalogProductWritePort — content attribute keys (feature 172)
     );
     expect(error.statusCode).toBe(400);
     expect(error.code).toBe('ATTRIBUTE_VALUE_REJECTED');
-    expect((error.details as Array<{ path: string }>).map((detail) => detail.path)).toEqual([
-      'attributeValues.buying_guide',
-    ]);
+    expect(error.details).toEqual({ code: 'page_builder_content', attributeKeys: 'buying_guide' });
   });
 });

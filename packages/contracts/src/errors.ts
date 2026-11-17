@@ -48,6 +48,13 @@ export const ERROR_CODES = {
   SKU_ALREADY_EXISTS: 'SKU_ALREADY_EXISTS',
   VARIANT_COMBINATION_EXISTS: 'VARIANT_COMBINATION_EXISTS',
   VARIANT_AXIS_MISSING: 'VARIANT_AXIS_MISSING',
+  /**
+   * 400 — attribute values the product cannot take. Without a token, keys outside the
+   * product's attribute set (`details: [{ path, issue }]`); token `page_builder_content` —
+   * a Page Builder content attribute's key in `attributeValues` (`details.attributeKeys`,
+   * joined); token `not_content_attribute` — a content `PUT` for a key that is not a
+   * content attribute of the set (`details.attributeKey`). Issue #1223.
+   */
   ATTRIBUTE_VALUE_REJECTED: 'ATTRIBUTE_VALUE_REJECTED',
   FIELD_IMMUTABLE: 'FIELD_IMMUTABLE',
 
