@@ -126,6 +126,7 @@ function renderAt(path: string, options: { permissions: readonly string[]; prese
               ? modulePresence({ absent: ['price_lists'] })
               : modulePresence({ present: ['price_lists'] })
           }
+          translations={{}}
         />
       </MemoryRouter>,
       { session: adminSession({ permissions: [...options.permissions] }) },
