@@ -22,7 +22,7 @@ import {
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import {
-  ModalDialog,
+  ConfirmDialog,
   MoveToMenu,
   RecordHistory,
   recordHistoryChanges,
@@ -316,6 +316,22 @@ export function TaskDetail(): ReactNode {
         }
         description={<span>{task.number}</span>}
         back={back}
+        actions={
+          // Delete sits in the page header, apart from the frequent Edit in
+          // the Details section (issue #527), as on a Project and an Opportunity.
+          (canWrite || mayDeletePrivate) && mayDelete && task.permissions.canDelete && !editing ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 text-destructive hover:text-destructive sm:min-h-9"
+              disabled={busy}
+              onClick={(): void => setDeleting(true)}
+            >
+              <Trash2 aria-hidden="true" />
+              {t('detail.delete')}
+            </Button>
+          ) : undefined
+        }
       />
 
       {error ? (
@@ -353,36 +369,19 @@ export function TaskDetail(): ReactNode {
                 <h2 id={detailsHeadingId} className="text-base font-semibold">
                   {t('detail.details')}
                 </h2>
-                {(canWrite || mayDeletePrivate) && !editing ? (
-                  <div className="flex flex-wrap gap-2">
-                    {canWrite ? (
-                      <Button
-                        ref={editFocus.openerRef}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="min-h-11 sm:min-h-8"
-                        disabled={busy}
-                        onClick={(): void => setEditing(true)}
-                      >
-                        <Pencil aria-hidden="true" />
-                        {t('detail.edit')}
-                      </Button>
-                    ) : null}
-                    {mayDelete && task.permissions.canDelete ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="min-h-11 text-destructive hover:text-destructive sm:min-h-8"
-                        disabled={busy}
-                        onClick={(): void => setDeleting(true)}
-                      >
-                        <Trash2 aria-hidden="true" />
-                        {t('detail.delete')}
-                      </Button>
-                    ) : null}
-                  </div>
+                {canWrite && !editing ? (
+                  <Button
+                    ref={editFocus.openerRef}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-11 sm:min-h-8"
+                    disabled={busy}
+                    onClick={(): void => setEditing(true)}
+                  >
+                    <Pencil aria-hidden="true" />
+                    {t('detail.edit')}
+                  </Button>
                 ) : null}
               </div>
               {canWrite && !mayDelete ? (
@@ -906,10 +905,13 @@ function TaskHistory(props: {
   );
 }
 
-/** Deleting a Task, behind a confirmation; a refusal is shown in the dialog, in the server's words. */
+/**
+ * Deleting a Task, behind the kit's destructive confirmation — it opens on
+ * *Cancel*, so Enter on a dialog opened by accident keeps the Task (issue #527).
+ * A refusal is shown in the dialog, in the server's words.
+ */
 function DeleteTaskDialog(props: { task: TaskDetailData; onClose: () => void; onDeleted: () => void }): ReactNode {
   const t = useTranslation('tasks');
-  const tCore = useTranslation('core');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -926,39 +928,21 @@ function DeleteTaskDialog(props: { task: TaskDetailData; onClose: () => void; on
   };
 
   return (
-    <ModalDialog
+    <ConfirmDialog
+      destructive
       title={t('delete.title')}
+      confirmLabel={t('delete.confirm')}
       busy={busy}
-      onClose={props.onClose}
-      footer={
-        <>
-          <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={props.onClose}>
-            {tCore('common.action.cancel')}
-          </Button>
-          <Button
-            variant="destructive"
-            className="min-h-11 sm:min-h-9"
-            disabled={busy}
-            aria-busy={busy}
-            onClick={(): void => void confirm()}
-          >
-            {t('delete.confirm')}
-          </Button>
-        </>
+      error={error}
+      onCancel={props.onClose}
+      onConfirm={(): void => void confirm()}
+      message={
+        <div className="space-y-3">
+          <p>{t('delete.body', { number: props.task.number })}</p>
+          {props.task.subtasks.total > 0 ? <p>{t('delete.subtasks', { count: props.task.subtasks.total })}</p> : null}
+        </div>
       }
-    >
-      <div className="space-y-3">
-        <p className="text-sm">{t('delete.body', { number: props.task.number })}</p>
-        {props.task.subtasks.total > 0 ? (
-          <p className="text-sm">{t('delete.subtasks', { count: props.task.subtasks.total })}</p>
-        ) : null}
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-      </div>
-    </ModalDialog>
+    />
   );
 }
 

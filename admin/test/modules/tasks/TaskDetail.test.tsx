@@ -263,6 +263,28 @@ describe('TaskDetail — writing', () => {
     expect(await screen.findByText('tasks list screen')).toBeTruthy();
   });
 
+  it('keeps Delete apart from Edit: in the page header, not in the Details section (issue #527)', async () => {
+    await renderPage();
+    const edit = await screen.findByRole('button', { name: en('detail.edit') });
+    const del = screen.getByRole('button', { name: en('detail.delete') });
+    const details = screen.getByRole('region', { name: en('detail.details') });
+    expect(details).toContainElement(edit);
+    expect(details).not.toContainElement(del);
+    expect(del.closest('header')).not.toBeNull();
+    expect(edit.closest('header')).toBeNull();
+  });
+
+  it('opens the delete confirmation on Cancel, so Enter keeps the Task (issue #527)', async () => {
+    await renderPage();
+    await userEvent.click(screen.getByRole('button', { name: en('detail.delete') }));
+    const dialog = await screen.findByRole('dialog', { name: en('delete.title') });
+    expect(dialog).toHaveTextContent(en('delete.body', { number: taskDetail().number }));
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: core('common.action.cancel') })).toHaveFocus());
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(deleteSpy).not.toHaveBeenCalled();
+  });
+
   it('offers no Delete for a Task whose record does not let the caller remove it, and says why (T147)', async () => {
     current = taskDetail({ context: { ...taskDetail().context!, canChangeTasks: false } });
     await renderPage();
