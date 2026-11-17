@@ -63,6 +63,11 @@ describe('requestScopeLanguage', () => {
     // A malformed weight drops its tag.
     ['pl;q=abc, en-US;q=0.2', 'en-US'],
     [['pl', 'en-US'], 'pl-PL'],
+    // Issue #1315 — a tag at q=0 is refused (RFC 9110 § 12.4.2), never chosen…
+    ['pl;q=0, en;q=0.5', 'en-US'],
+    // …so with nothing else asked for the channel default answers, as does a refused `*`.
+    ['pl;q=0', 'en-US'],
+    ['de-DE, *;q=0', 'en-US'],
   ] as const)('%j -> %j', (header, expected) => {
     expect(requestScopeLanguage(channel, header)).toBe(expected);
   });
@@ -72,5 +77,12 @@ describe('requestScopeLanguage', () => {
       'pl-PL',
     );
     expect(requestScopeLanguage({ id: 'c', defaultLanguage: 'pl-PL' }, 'de')).toBe('pl-PL');
+  });
+
+  it('never picks a refused language over the default (issue #1315)', () => {
+    const polishFirst = { id: 'c', languages: ['pl-PL', 'en-US'], defaultLanguage: 'pl-PL' };
+    expect(requestScopeLanguage(polishFirst, 'pl;q=0, en;q=0.5')).toBe('en-US');
+    const englishDefault = { id: 'c', languages: ['en-US', 'pl-PL'], defaultLanguage: 'en-US' };
+    expect(requestScopeLanguage(englishDefault, 'de, pl-PL;q=0')).toBe('en-US');
   });
 });
