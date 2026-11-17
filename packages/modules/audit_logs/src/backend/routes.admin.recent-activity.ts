@@ -113,19 +113,12 @@ export async function registerRecentActivityRoutes(
   app.get(
     '/api/v1/admin/audit-log/recent-activity',
     { preHandler: requireAdmin('audit_log:read') },
-    async (request, reply) => {
-      const parsed = querySchema.safeParse(request.query ?? {});
-      if (!parsed.success) {
-        return reply.status(400).send({
-          error: {
-            code: 'validation_error',
-            message: 'Invalid query parameters',
-            details: parsed.error.flatten(),
-          },
-        });
-      }
+    async (request) => {
+      // A failed parse throws a ZodError, which the platform's error envelope
+      // answers as `400 VALIDATION_FAILED` like every other route (issue #1339).
+      const query = querySchema.parse(request.query ?? {});
       const input: { limit?: number } = {};
-      if (parsed.data.limit !== undefined) input.limit = parsed.data.limit;
+      if (query.limit !== undefined) input.limit = query.limit;
       return recentActivityService.list(input);
     },
   );
