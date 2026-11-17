@@ -7,6 +7,7 @@ import {
   type UseOrganizationsQueryOptions,
 } from './useOrganizationsQuery.js';
 import { OrganizationStatusBadge } from './OrganizationStatusBadge.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 export interface OrganizationPickerProps {
   value: string | null;
@@ -41,6 +42,7 @@ export interface OrganizationPickerProps {
  * `<OrganizationPickerMulti>`.
  */
 export function OrganizationPicker(props: OrganizationPickerProps): React.ReactElement {
+  const t = useTranslation('core');
   const [query, setQuery] = useState('');
 
   const queryOptions = useMemo<UseOrganizationsQueryOptions>(
@@ -93,9 +95,9 @@ export function OrganizationPicker(props: OrganizationPickerProps): React.ReactE
       loading={loading}
       clearable={props.clearable ?? true}
       disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Search organizations…'}
-      emptyMessage={props.emptyMessage ?? 'No organizations found'}
-      ariaLabel={props.ariaLabel ?? 'Select organization'}
+      placeholder={props.placeholder ?? t('organizationPicker.placeholder')}
+      emptyMessage={props.emptyMessage ?? t('organizationPicker.empty')}
+      ariaLabel={props.ariaLabel ?? t('organizationPicker.label')}
       id={props.id ?? ''}
       className={props.className ?? ''}
       selectedLabel={props.selectedLabel ?? ''}

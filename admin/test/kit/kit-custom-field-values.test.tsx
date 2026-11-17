@@ -379,8 +379,10 @@ describe('CustomFieldValuesPanel — an empty entity type and a failed load are 
       bundle,
     );
 
+    // The kit's sentence, out of the shipped bundle rather than an English
+    // literal (issue #1433).
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain('Failed to load.');
+    expect(alert.textContent).toContain(CORE_EN['customFields.loadFailed']);
   });
 
   it('clears a previous entity type\'s failure when the next read succeeds', async () => {

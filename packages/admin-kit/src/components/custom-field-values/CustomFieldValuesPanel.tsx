@@ -173,7 +173,9 @@ export function CustomFieldValuesPanel({
   // What the standalone panel compares its draft against (issue #1007): the bag it loaded, then
   // what each successful save wrote. Under a page Save the session holds the baseline instead.
   const [baseline, setBaseline] = useState<Record<string, unknown>>(values);
-  const [error, setError] = useState<string | null>(null);
+  // The server's message when it sent one, otherwise the `core` key of the
+  // translated fallback — resolved at render (issue #1433).
+  const [error, setError] = useState<{ message: string | null; fallbackKey: string } | null>(null);
   const [saving, setSaving] = useState(false);
   // Per-field refusals the host's own `save` answered with (feature 175) — only
   // the ones for a non-`edit` field are shown from here, since an editable
@@ -247,7 +249,12 @@ export function CustomFieldValuesPanel({
           setError(null);
         }
       } catch (err) {
-        if (live) setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+        if (live) {
+          setError({
+            message: err instanceof ApiError ? err.envelope.error.message : null,
+            fallbackKey: 'customFields.loadFailed',
+          });
+        }
       }
     })();
     return () => {
@@ -272,7 +279,10 @@ export function CustomFieldValuesPanel({
       await save(written);
       setBaseline((previous) => ({ ...previous, ...written }));
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Save failed.');
+      setError({
+        message: err instanceof ApiError ? err.envelope.error.message : null,
+        fallbackKey: 'customFields.saveFailed',
+      });
       if (err instanceof ApiError) setSaveRefusals(refusalsOf(err.envelope.error.details));
     } finally {
       setSaving(false);
@@ -311,7 +321,7 @@ export function CustomFieldValuesPanel({
       <CardContent className="space-y-3">
         {error && (
           <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error.message ?? t(error.fallbackKey)}</AlertDescription>
           </Alert>
         )}
         {nonEditRefusals.map((r) => (

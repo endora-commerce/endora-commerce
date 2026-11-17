@@ -6,6 +6,7 @@ import type { CmsPageSummary } from '@endora-commerce/contracts';
 // spelling `vi.mock` can name from outside the package.
 import { ApiError, apiClient } from '../../lib/index.js';
 import { Combobox, type ComboboxOption } from '../../ui/combobox.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
 
 /**
  * Searchable single-select CMS-page picker.
@@ -66,11 +67,19 @@ export interface CmsPagePickerProps {
 const SEARCH_DEBOUNCE_MS = 250;
 const DEFAULT_LIMIT = 20;
 
+/**
+ * A failed read: the server's own message when it sent one, or `null` for the
+ * picker's translated fallback — resolved at render, so the request does not
+ * re-run when the bundle arrives (issue #1433).
+ */
+type ReadFailure = { message: string | null };
+
 export function CmsPagePicker(props: CmsPagePickerProps): ReactNode {
   const [cache, setCache] = useState<Map<string, CmsPageSummary>>(() => new Map());
   const [options, setOptions] = useState<ComboboxOption<string>[]>([]);
   const [searching, setSearching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const t = useTranslation('core');
+  const [error, setError] = useState<ReadFailure | null>(null);
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seqRef = useRef(0);
@@ -105,7 +114,7 @@ export function CmsPagePicker(props: CmsPagePickerProps): ReactNode {
         );
       } catch (err) {
         if (seq !== seqRef.current) return;
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Search failed.');
+        setError({ message: err instanceof ApiError ? err.envelope.error.message : null });
         setOptions([]);
       } finally {
         if (seq === seqRef.current) setSearching(false);
@@ -129,7 +138,12 @@ export function CmsPagePicker(props: CmsPagePickerProps): ReactNode {
   }, [props.value, cache, props.selectedLabel]);
 
   const emptyMessage =
-    props.emptyMessage ?? error ?? (searching ? 'Searching…' : 'No matching pages.');
+    props.emptyMessage ??
+    (error
+      ? (error.message ?? t('cmsPicker.pages.searchFailed'))
+      : searching
+        ? t('cmsPicker.pages.searching')
+        : t('cmsPicker.pages.empty'));
 
   return (
     <Combobox<string>
@@ -141,9 +155,9 @@ export function CmsPagePicker(props: CmsPagePickerProps): ReactNode {
       loading={searching}
       clearable={props.clearable ?? true}
       disabled={props.disabled ?? false}
-      placeholder={props.placeholder ?? 'Search CMS pages…'}
+      placeholder={props.placeholder ?? t('cmsPicker.pages.placeholder')}
       emptyMessage={emptyMessage}
-      ariaLabel={props.ariaLabel ?? 'Select CMS page'}
+      ariaLabel={props.ariaLabel ?? t('cmsPicker.pages.label')}
       id={props.id ?? ''}
       className={props.className ?? ''}
       selectedLabel={selectedLabel}
