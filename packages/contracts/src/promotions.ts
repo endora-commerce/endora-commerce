@@ -510,7 +510,17 @@ export const cartLineSchema = z.object({
   variantId: uuidSchema.nullable(),
   categoryIds: z.array(uuidSchema),
   quantity: lineQuantitySchema,
+  /** The net unit price, as the cart and the order store it. */
   unitPrice: moneySchema,
+  /**
+   * The line's VAT rate as a fraction (`0.23`), as the cart and the order
+   * resolve it (issue #1350). Percent-off and free-unit actions compute on
+   * the gross the buyer pays — VAT per rate on the sum of the nets
+   * (`vatByRate`) — so a surface that prices the line must pass the rate the
+   * order charges, or its discount disagrees with the order's. Absent means
+   * no VAT: the line's gross is its net.
+   */
+  taxRate: z.number().finite().nonnegative().max(1).optional(),
   /**
    * Feature 012 / US8 — optional attribute snapshot for line-level
    * criterion evaluation. Callers MAY omit this field; when omitted, the

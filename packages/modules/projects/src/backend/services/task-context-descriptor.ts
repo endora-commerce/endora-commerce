@@ -4,6 +4,7 @@ import {
   type SupportedLanguage,
   type TaskContextDescription,
   type TaskContextDescriptor,
+  type TaskContextSearchHit,
 } from '@endora-commerce/contracts';
 import { isUuid, PROJECTS_WRITE_PERMISSION, uuidArray, type ProjectAccess } from './project-access.js';
 import { PROJECT_TASK_CONTEXT_TYPE } from './project-tasks.js';
@@ -32,6 +33,10 @@ import { PROJECT_TASK_CONTEXT_TYPE } from './project-tasks.js';
  * the Projects `visibleIds` hands back; an id it leaves out is shown by
  * `tasks` as an unavailable record.
  *
+ * `search` answers the Project/Stage picker a page at a time (issue #504)
+ * through `ProjectAccess.searchVisibleByLabel` — both rules in its one
+ * statement — and describes the page as `describe` would.
+ *
  * `renderNote` words the note a Stage Task leaves on a Task nobody was
  * assigned to: it is **stored as the Role** (`role:<id>`, {@link responsibleRoleNote}),
  * never as a sentence, so each reader sees it in their own language with the
@@ -46,6 +51,8 @@ import { PROJECT_TASK_CONTEXT_TYPE } from './project-tasks.js';
  * registry does not enumerate this descriptor — so nothing is taken for gone.
  */
 
+type ProjectLabelRow = { id: string; number: string; title: string };
+
 const ROLE_NOTE = /^role:([0-9a-f-]{36})$/i;
 
 /** The `contextNote` of a Stage Task's Task left unassigned: the responsible Role, as a key. */
@@ -59,6 +66,24 @@ export function createProjectTaskContext(deps: {
   translate: (key: string, language: SupportedLanguage, params?: Record<string, string | number>) => Promise<string>;
 }): TaskContextDescriptor {
   const { access, emFactory, translate } = deps;
+
+  /** Each Project described — its label, address and Stages — with one read of the Stages. */
+  async function withStages(projects: readonly ProjectLabelRow[]): Promise<TaskContextSearchHit[]> {
+    if (projects.length === 0) return [];
+    const stages = (await emFactory().execute(
+      `select s."id", s."project_id", s."name" from "project_stages" s
+        where s."project_id" = any(?::uuid[]) order by s."position", s."id"`,
+      [uuidArray(projects.map((project) => project.id))],
+    )) as Array<{ id: string; project_id: string; name: string }>;
+    return projects.map((project) => ({
+      id: project.id,
+      description: {
+        label: `${project.number} ${project.title}`,
+        href: `/projects/${project.id}`,
+        groups: new Map(stages.filter((s) => s.project_id === project.id).map((s) => [s.id, s.name])),
+      },
+    }));
+  }
   return {
     contextType: PROJECT_TASK_CONTEXT_TYPE,
     ownerModuleId: 'projects',
@@ -74,26 +99,20 @@ export function createProjectTaskContext(deps: {
     existingContexts: (ids) => access.existingWithStages(ids),
     describe: async (ids) => {
       const visible = [...(await access.visibleIds(ids))];
-      const out = new Map<string, TaskContextDescription>();
-      if (visible.length === 0) return out;
-      const em = emFactory();
-      const projects = (await em.execute(
+      if (visible.length === 0) return new Map<string, TaskContextDescription>();
+      const projects = (await emFactory().execute(
         `select p."id", p."number", p."title" from "projects" p where p."id" = any(?::uuid[])`,
         [uuidArray(visible)],
-      )) as Array<{ id: string; number: string; title: string }>;
-      const stages = (await em.execute(
-        `select s."id", s."project_id", s."name" from "project_stages" s
-          where s."project_id" = any(?::uuid[]) order by s."position", s."id"`,
-        [uuidArray(visible)],
-      )) as Array<{ id: string; project_id: string; name: string }>;
-      for (const project of projects) {
-        out.set(project.id, {
-          label: `${project.number} ${project.title}`,
-          href: `/projects/${project.id}`,
-          groups: new Map(stages.filter((s) => s.project_id === project.id).map((s) => [s.id, s.name])),
-        });
-      }
-      return out;
+      )) as ProjectLabelRow[];
+      return new Map((await withStages(projects)).map((hit) => [hit.id, hit.description]));
+    },
+    // The picker's page (issue #504): one search bounded by `limit` and one
+    // read of those Projects' Stages — never every Project the caller sees.
+    // `changeableOnly` is `canChangeTasks` for the page at once: every Project
+    // the search returns is visible, so it is `projects:write` alone.
+    search: async ({ q, limit, changeableOnly }) => {
+      if (changeableOnly && !(await access.callerHolds(PROJECTS_WRITE_PERMISSION))) return [];
+      return withStages(await access.searchVisibleByLabel(q, limit));
     },
     renderNote: async (note, language) => {
       const roleId = ROLE_NOTE.exec(note)?.[1];

@@ -2,16 +2,10 @@ import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from
 import type { OpportunityWorkflowStatus } from '@endora-commerce/contracts';
 import { Card, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { RANGE_PRESETS, isDayRange, presetRange, type DayRange, type RangePreset } from '@endora-commerce/admin-kit/lib';
 import { crmApi } from '../api.js';
 import type { AnalyticsFilters } from '../analytics-api.js';
 import { AssigneeLookup, SalesChannelLookup } from '../components/LookupPickers.js';
-import {
-  RANGE_PRESETS,
-  isDayRange,
-  presetRange,
-  type DayRange,
-  type RangePreset,
-} from '../lib/analytics-format.js';
 import { ReportingTimeZoneContext } from '../lib/reporting-time-zone.js';
 import { AverageValueCard } from './analytics/AverageValueCard.js';
 import { HandlingTimeCard } from './analytics/HandlingTimeCard.js';

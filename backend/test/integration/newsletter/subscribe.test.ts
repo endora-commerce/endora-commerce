@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 import type { z } from 'zod';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 import { customerAccountPortsFor } from '../../helpers/customer-account-ports.js';
+import { newsletterTestCommandBus } from '../../helpers/newsletter-command-bus.js';
 import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
 import { NewsletterTokenHelper } from '../../../../packages/modules/newsletter/src/backend/services/token.helper.js';
 import { NewsletterOptInService } from '../../../../packages/modules/newsletter/src/backend/services/opt-in.service.js';
@@ -52,6 +53,7 @@ describe('newsletter subscribe/confirm (US1)', () => {
         unsubscribe: (t) => `http://x/unsubscribe?token=${t}`,
       },
       mailer,
+      commandBus: newsletterTestCommandBus(() => db.em()),
     });
   });
   afterEach(async () => {

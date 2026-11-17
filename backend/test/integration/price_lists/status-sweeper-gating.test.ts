@@ -26,7 +26,7 @@ function refusingPort<T extends object>(name: string): T {
 
 const NEIGHBOUR_READS: Pick<
   PriceListsModuleOptions,
-  'targetReads' | 'customerAccountRead' | 'salesRepScope' | 'catalogAvailability'
+  'targetReads' | 'customerAccountRead' | 'adminUserRead' | 'salesRepScope' | 'catalogAvailability'
 > = {
   targetReads: {
     catalogProductRead: refusingPort('catalogProductReadPort'),
@@ -36,6 +36,7 @@ const NEIGHBOUR_READS: Pick<
     catalogAttributeRead: refusingPort('catalogAttributeReadPort'),
   },
   customerAccountRead: refusingPort('customerAccountReadPort'),
+  adminUserRead: refusingPort('adminUserReadPort'),
   salesRepScope: refusingPort('organizationSalesRepScopePort'),
   catalogAvailability: refusingPort('catalogProductAvailabilityPort'),
 };

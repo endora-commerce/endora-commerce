@@ -129,4 +129,76 @@ describe('PromotionService — action + rule engine (feature 045)', () => {
     expect(result.appliedPromotions).toHaveLength(2);
     expect(result.discountTotal).toBe(150);
   });
+  /**
+   * Issue #1350 (owner ruling 2026-11-16) — percent-off and free-unit actions
+   * compute on the gross the buyer pays; fixed amounts and thresholds read the
+   * net as before. 2 × 300.00 at 23 %: net 600.00, gross 738.00.
+   */
+  describe('gross-based discounts (#1350)', () => {
+    const taxed = (): CartSnapshot =>
+      snapshot({
+        lines: [
+          {
+            productId: PROD_A,
+            variantId: null,
+            categoryIds: [CAT_X],
+            quantity: 2,
+            unitPrice: { amount: 300, currency: 'PLN' },
+            taxRate: 0.23,
+          },
+        ],
+      });
+
+    it('takes 10 % of the gross, and answers the gross the buyer pays as the total', async () => {
+      await svc.upsert({ name: '10%', action: { type: 'percentage_off_cart', percent: 10 }, rule: { kind: 'all' } });
+      const result = await svc.applyToCart(taxed());
+      expect(result.subtotal).toBe(600);
+      expect(result.discountTotal).toBe(73.8);
+      expect(result.appliedPromotions[0]).toMatchObject({ amount: 73.8 });
+      // 738.00 − 73.80 + 20.00 delivery.
+      expect(result.total).toBe(684.2);
+    });
+
+    it('takes 100 % of the gross, not only of the net', async () => {
+      await svc.upsert({ name: 'all', action: { type: 'percentage_off_cart', percent: 100 }, rule: { kind: 'all' } });
+      const result = await svc.applyToCart(taxed());
+      expect(result.discountTotal).toBe(738);
+      expect(result.total).toBe(20);
+    });
+
+    it('frees a unit VAT included', async () => {
+      await svc.upsert({
+        name: 'b1g1',
+        action: { type: 'buy_x_get_y_free', buyQuantity: 1, freeQuantity: 1, target: 'cheapest' },
+        rule: { kind: 'all' },
+      });
+      const result = await svc.applyToCart(taxed());
+      expect(result.discountTotal).toBe(369);
+    });
+
+    it('stacks on the gross left after the earlier promotion; fixed amounts are unchanged', async () => {
+      await svc.upsert({
+        name: 'first',
+        priority: 20,
+        action: { type: 'amount_off_cart', amount: 100, currency: 'PLN' },
+        rule: { kind: 'all' },
+      });
+      await svc.upsert({ name: 'second', priority: 10, action: { type: 'percentage_off_cart', percent: 10 }, rule: { kind: 'all' } });
+      const result = await svc.applyToCart(taxed());
+      // 100.00 off → 638.00 gross left; 10 % of it is 63.80.
+      expect(result.appliedPromotions.map((a) => a.amount)).toEqual([100, 63.8]);
+      expect(result.discountTotal).toBe(163.8);
+    });
+
+    it('keeps comparing a cart-total threshold with the net subtotal', async () => {
+      await svc.upsert({
+        name: '10% over 700',
+        action: { type: 'percentage_off_cart', percent: 10 },
+        rule: { kind: 'condition', field: { kind: 'builtin', key: 'cartTotal' }, op: 'gte', values: [700] },
+      });
+      // Gross 738.00 would meet 700; the net 600.00 does not.
+      const result = await svc.applyToCart(taxed());
+      expect(result.discountTotal).toBe(0);
+    });
+  });
 });

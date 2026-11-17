@@ -14,8 +14,7 @@ export interface Figure<T> {
  * answered by a slower, earlier request, and able to be asked again by hand.
  * `load === null` means "do not ask" — the range on screen is not a range.
  *
- * A copy of CRM's `lib/use-figure.ts` (a module may not import another
- * module's internals); the two are candidates for the kit together.
+ * Promoted from CRM's and Projects' identical `lib/use-figure.ts` (issue #464).
  */
 export function useFigure<T>(load: (() => Promise<T>) | null): Figure<T> {
   const [data, setData] = useState<T | null>(null);

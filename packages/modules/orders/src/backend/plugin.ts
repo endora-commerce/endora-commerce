@@ -38,7 +38,6 @@ import type { OrganizationConfirmationEmailsPort } from '../ports/organization-c
 import type {
   AddressReadPort,
   AddressServicePort,
-  AssetReadPort,
   CustomFieldCarryPort,
   CustomFieldListFilterPort,
   CustomFieldValuePort,
@@ -229,7 +228,6 @@ export interface OrdersModuleOptions {
     readonly planning: InventoryFulfilmentPlanningPort;
     readonly reservationApply: InventoryReservationApplyPort;
   } | null;
-  assetRead: AssetReadPort;
   /**
    * `invoices` is deactivatable and declares this module, so its two ports are
    * accessors and the edge is `degrades-without`: `null` ⇒ no invoice surface.
@@ -677,7 +675,6 @@ export function commerceModule(options: OrdersModuleOptions) {
       paymentMethodRead: options.paymentMethodRead,
       invoiceRead: options.invoiceRead,
       invoicePdf: options.invoicePdf,
-      assetRead: options.assetRead,
       ...(options.assertOrganizationCanTransact
         ? { assertOrganizationCanTransact: options.assertOrganizationCanTransact }
         : {}),
