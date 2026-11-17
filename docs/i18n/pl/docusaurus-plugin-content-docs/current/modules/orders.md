@@ -18,7 +18,7 @@ Trasy administracyjne są chronione przez `orders:read` (odczyt) i `orders:write
 | `POST /api/v1/orders` | klient | Złożenie zamówienia z aktywnego koszyka |
 | `GET /api/v1/orders` | klient | Lista zamówień: własne albo całej organizacji z uprawnieniem `orders.view_organization` (zob. niżej) |
 | `GET /api/v1/orders/:id` | klient | Szczegóły zamówienia |
-| `GET /api/v1/orders/:id/invoice` | klient | Starsze pobieranie faktury: uproszczony PDF pierwszej faktury zamówienia (`404 INVOICE_NOT_READY`, dopóki nie jest gotowa); PDF renderowany z szablonu udostępnia moduł `invoices` pod `…/invoices/:invoiceId/pdf` |
+| `GET /api/v1/orders/:id/invoice` | klient | Pobieranie faktury: najnowsza gotowa faktura zamówienia (rodzaj `invoice`, nigdy proforma ani korekta), renderowana z szablonu faktury przez moduł `invoices` (`404 INVOICE_NOT_READY`, dopóki żadna nie jest gotowa). Wszystkie dokumenty zamówienia są wymienione pod `…/invoices` |
 | `GET /api/v1/admin/orders` | administrator | Lista wszystkich zamówień (we wszystkich organizacjach) |
 | `GET /api/v1/admin/orders/:id` | administrator | Szczegóły zamówienia (bez ograniczenia do klienta) |
 | `POST /api/v1/admin/orders/:id/status` | administrator | Zmiana statusu (audytowana) |

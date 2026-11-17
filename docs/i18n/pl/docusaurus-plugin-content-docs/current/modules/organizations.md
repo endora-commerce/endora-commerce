@@ -293,7 +293,10 @@ Endpointy administracyjne:
 Każda treść żądania zawiera `expectedVersion: number` (token blokady optymistycznej z kolumny
 `organizations.version`), a operacja jest wykonywana w `em.transactional`. Nieaktualne
 `expectedVersion` zwraca `409 VERSION_CONFLICT` z `currentVersion` w treści. Niedozwolone przejście
-statusu (np. zatwierdzenie już aktywnej organizacji) zwraca `422 VALIDATION_FAILED`.
+statusu (np. zatwierdzenie już aktywnej organizacji) zwraca `422 ORGANIZATION_STATUS_INVALID` z
+`details.currentStatus` i `details.requiredStatus` oraz ich etykietami w języku odbiorcy jako
+`currentStatusLabel` i `requiredStatusLabel`, które wymienia komunikat (zgłoszenie #629; wcześniej
+`422 VALIDATION_FAILED`).
 
 Po stronie klienta: storefront dostaje przetłumaczony komunikat „dlaczego nie możesz składać
 zamówień” w polach `organization.canTransact` i `organization.moderationMessage` z `GET /api/v1/me`.
@@ -397,7 +400,7 @@ Tę relację obsługują trzy endpointy, należące do tego modułu i przez nieg
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/admin/organizations/:id/sales-reps` | Lista handlowców przypisanych do organizacji. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. *Do których organizacji sięga przedstawiciel handlowy*), jak dla organizacji, która nie istnieje. |
-| `POST /api/v1/admin/organizations/:id/sales-reps` | Przypisanie handlowca. |
+| `POST /api/v1/admin/organizations/:id/sales-reps` | Przypisanie handlowca. Organizacja osobista jest odrzucana z `422 ORGANIZATION_PERSONAL` (token `sales_rep`, `details.organizationId`, `organizationName`). |
 | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | Usunięcie przypisania. |
 
 Są chronione przez `organizations:assign-sales-rep`. Do 2026-08 rejestrował je moduł zapytań
@@ -913,6 +916,11 @@ pokazuje ten zastępczy numer tam, gdzie pokazywał go wtedy. Zamówienia, któr
 znaleźć zapytaniem
 `select id from orders where billing_address->>'taxId' ~ '^[0-9a-f]{32}$'`.
 
+Operator dodający członka bezpośrednio do organizacji osobistej
+(`POST /api/v1/admin/organizations/:id/members`) dostaje odmowę
+`422 ORGANIZATION_PERSONAL` (token `add_member`, `details.organizationId`,
+`organizationName`).
+
 Organizacje firmowe (B2B) pozostają bez zmian — reguła jednoosobowości (`assertMembershipAllowed`)
 odrzuca tylko dodanie drugiego członka do organizacji osobistej.
 
@@ -1313,8 +1321,9 @@ faktycznie ma — aby sklep mógł ukryć to, czego członek nie może zrobić. 
 - **Organizacje osobiste.** Jedyny członek organizacji osobistej ma jej rolę
   Administrator. Trasy członków i zaproszeń odpowiadają mu jak każdemu
   administratorowi (lista członków zawiera tylko jego, lista zaproszeń jest
-  pusta); zaproszenie jest odrzucane z `422 VALIDATION_FAILED`, bo organizacja
-  jest osobista, zanim rola zostanie sprawdzona. Sklep ukrywa tam ekrany
+  pusta); zaproszenie jest odrzucane z `422 ORGANIZATION_PERSONAL` (token
+  `invite`, `details.organizationId`), bo organizacja jest osobista, zanim rola
+  zostanie sprawdzona. Sklep ukrywa tam ekrany
   organizacji na podstawie `organization.isPersonal`, nigdy roli.
 - **Logowanie i koszyk gościa.** Gdy loguje się członek, którego rola nie ma
   uprawnienia *Tworzenie i edycja koszyków*, jego koszyk gościa nie jest łączony:

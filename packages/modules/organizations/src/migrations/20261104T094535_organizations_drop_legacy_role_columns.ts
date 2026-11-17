@@ -25,8 +25,11 @@ import { Migration } from '@mikro-orm/migrations';
  * (R-18): it translates this module's own table back into this module's own column.
  *
  * Every table touched is this module's own. `requires_cart_approval` was added by
- * `carts`' consolidation migration, which belongs to the frozen historical
- * prefix and therefore always runs before this one.
+ * `carts`' frozen consolidation migration until issue #611, which deleted that
+ * statement and its inverse: this migration already owned the column's whole
+ * remaining lifecycle, so a database migrated from empty never has it, and the
+ * `if exists` makes the drop a no-op there. A database that applied the old
+ * consolidation had it, and loses it here as before.
  *
  * Registration is a regeneration: `pnpm --filter backend run composer:generate`.
  */

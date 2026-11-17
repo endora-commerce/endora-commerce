@@ -1,12 +1,12 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import type { ProjectTemplateSummary } from '@endora-commerce/contracts';
 import { Card, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { useFigure } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { RANGE_PRESETS, isDayRange, presetRange, type DayRange, type RangePreset } from '@endora-commerce/admin-kit/lib';
 import { projectsApi } from '../api.js';
 import { projectsAnalyticsApi, type ProjectAnalyticsFilters } from '../analytics-api.js';
 import { AdminUserLookup, OrganizationLookup } from '../components/LookupPickers.js';
-import { RANGE_PRESETS, isDayRange, presetRange, type DayRange, type RangePreset } from '../lib/analytics-format.js';
-import { useFigure } from '../lib/use-figure.js';
 import {
   AverageValueCard,
   DurationsCard,

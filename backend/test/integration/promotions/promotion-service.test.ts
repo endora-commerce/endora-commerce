@@ -72,6 +72,32 @@ describe('PromotionService.applyToCart', () => {
     expect(result.total).toBe(137);
   });
 
+  it('takes a legacy percentage_off of the gross of the matching lines (#1350)', async () => {
+    await svc.upsert({ name: '10% off A', kind: 'percentage_off', value: 10, categoryId: CAT_X });
+    const result = await svc.applyToCart(
+      snapshot({
+        lines: [
+          { productId: PROD_A, variantId: null, categoryIds: [CAT_X], quantity: 2, unitPrice: { amount: 50, currency: 'PLN' }, taxRate: 0.23 },
+          { productId: PROD_B, variantId: null, categoryIds: [], quantity: 1, unitPrice: { amount: 30, currency: 'PLN' }, taxRate: 0.08 },
+        ],
+      }),
+    );
+    // A's net 100.00 at 23 % is 123.00 gross; 10 % of it.
+    expect(result.discountTotal).toBe(12.3);
+  });
+
+  it('keeps a legacy amount_off on the net cap (#1350)', async () => {
+    await svc.upsert({ name: '500 off A', kind: 'amount_off', value: 500, currency: 'PLN', categoryId: CAT_X });
+    const result = await svc.applyToCart(
+      snapshot({
+        lines: [
+          { productId: PROD_A, variantId: null, categoryIds: [CAT_X], quantity: 2, unitPrice: { amount: 50, currency: 'PLN' }, taxRate: 0.23 },
+        ],
+      }),
+    );
+    expect(result.discountTotal).toBe(100);
+  });
+
   it('takes a percentage of the exact line sum (#417): 10 % of 0.01 + 2.34 is 0.24, not the binary 0.23', async () => {
     await svc.upsert({ name: '10% off', kind: 'percentage_off', value: 10 });
     const result = await svc.applyToCart(

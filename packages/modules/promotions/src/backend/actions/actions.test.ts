@@ -2,22 +2,24 @@ import { describe, expect, it } from 'vitest';
 import type { CartLine } from '@endora-commerce/contracts';
 import { createPromotionActionRegistry } from '../services/promotion-action-registry.js';
 import type { CartApplyContext } from './types.js';
+import { linesGross } from './util.js';
 
 const registry = createPromotionActionRegistry();
 
-function line(productId: string, unit: number, qty: number): CartLine {
+function line(productId: string, unit: number, qty: number, taxRate?: number): CartLine {
   return {
     productId,
     variantId: null,
     categoryIds: [],
     quantity: qty,
     unitPrice: { amount: unit, currency: 'PLN' },
+    ...(taxRate !== undefined ? { taxRate } : {}),
   };
 }
 
 function ctx(lines: CartLine[], deliveryTotal = 20): CartApplyContext {
   const subtotal = lines.reduce((a, l) => a + l.unitPrice.amount * l.quantity, 0);
-  return { lines, subtotal, deliveryTotal, currency: 'PLN' };
+  return { lines, subtotal, grossSubtotal: linesGross(lines), deliveryTotal, currency: 'PLN' };
 }
 
 describe('promotion action registry', () => {
@@ -191,5 +193,98 @@ describe('exact step percentages (#417 review)', () => {
       ctx([line('p', 10, 1)]),
     );
     expect(r.discountSubtotalDelta).toBe(0.05);
+  });
+});
+
+/**
+ * Issue #1350 (owner ruling 2026-11-16) — percent-off and free-unit actions
+ * compute on the gross the buyer pays: "10 % off" is 10 % of what the buyer
+ * pays, and a free unit is free VAT included. The gross is VAT per rate on the
+ * sum of the nets (`vatByRate`). Fixed amounts and "spend X" thresholds are
+ * unchanged: the amounts are what the buyer does not pay, the steps count the
+ * net subtotal as before.
+ */
+describe('gross-based percent-off and free-unit actions (#1350)', () => {
+  it('reads the goods gross per rate on the sum of the nets', () => {
+    // 2 × 29.50 at 23 %: net 59.00, VAT round(13.57) → 72.57 (two line grosses would be 72.58).
+    expect(linesGross([line('p', 29.5, 2, 0.23)])).toBe(72.57);
+    // No rate is no VAT.
+    expect(linesGross([line('p', 29.5, 2)])).toBe(59);
+    // Two rates, each on its own net sum: 100.00 → 123.00, 10.00 at 8 % → 10.80.
+    expect(linesGross([line('a', 100, 1, 0.23), line('b', 10, 1, 0.08)])).toBe(133.8);
+  });
+
+  it('takes percentage_off_cart of the gross', () => {
+    const r = registry.apply({ type: 'percentage_off_cart', percent: 10 }, ctx([line('p', 100, 1, 0.23)]));
+    expect(r.discountSubtotalDelta).toBe(12.3);
+  });
+
+  it('takes buy_x_units_percent_off of the gross', () => {
+    const r = registry.apply(
+      { type: 'buy_x_units_percent_off', productId: 'p', buyUnits: 1, percent: 10 },
+      ctx([line('p', 100, 1, 0.23)]),
+    );
+    expect(r.discountSubtotalDelta).toBe(12.3);
+  });
+
+  it('counts spend_x_percent_off steps on the net and takes the percentage of the gross', () => {
+    // Net 250.00 → 2 steps of 100 (the gross 307.50 would be 3) → 10 % of 307.50.
+    const r = registry.apply(
+      { type: 'spend_x_percent_off', spendStep: 100, percent: 5, currency: 'PLN' },
+      ctx([line('p', 250, 1, 0.23)]),
+    );
+    expect(r.discountSubtotalDelta).toBe(30.75);
+  });
+
+  it('frees a unit VAT included (buy_x_get_y_free)', () => {
+    const lines = [line('a', 30, 1, 0.23), line('b', 20, 1, 0.23), line('c', 10, 1, 0.23)];
+    const r = registry.apply(
+      { type: 'buy_x_get_y_free', buyQuantity: 2, freeQuantity: 1, target: 'cheapest' },
+      ctx(lines),
+    );
+    expect(r.discountSubtotalDelta).toBe(12.3);
+  });
+
+  it('frees units VAT included, on the free units net sum per rate (buy_x_units_y_free)', () => {
+    // 4 × 29.50 at 23 %, buy 1 get 1 → 2 free: net 59.00 → gross 72.57.
+    const r = registry.apply(
+      { type: 'buy_x_units_y_free', productId: 'p', buyUnits: 1, freeUnits: 1 },
+      ctx([line('p', 29.5, 4, 0.23)]),
+    );
+    expect(r.discountSubtotalDelta).toBe(72.57);
+  });
+
+  it('picks the cheapest unit by what the buyer pays', () => {
+    // 10.00 at 23 % is 12.30 gross; 11.00 at 8 % is 11.88 — the cheaper one.
+    const lines = [line('a', 10, 1, 0.23), line('b', 11, 1, 0.08)];
+    const r = registry.apply(
+      { type: 'buy_x_get_y_free', buyQuantity: 1, freeQuantity: 1, target: 'cheapest' },
+      ctx(lines),
+    );
+    expect(r.discountSubtotalDelta).toBe(11.88);
+  });
+
+  it('takes every_nth_product_percent_off of the discounted units gross', () => {
+    // 4 × 10.00 at 23 %, nth 2 → 2 units: net 20.00 → gross 24.60 → 50 % = 12.30.
+    const r = registry.apply(
+      { type: 'every_nth_product_percent_off', nth: 2, percent: 50 },
+      ctx([line('p', 10, 4, 0.23)]),
+    );
+    expect(r.discountSubtotalDelta).toBe(12.3);
+  });
+
+  it('leaves fixed amounts and their net caps unchanged', () => {
+    const lines = [line('p', 100, 1, 0.23)];
+    expect(
+      registry.apply({ type: 'amount_off_cart', amount: 30, currency: 'PLN' }, ctx(lines)).discountSubtotalDelta,
+    ).toBe(30);
+    expect(
+      registry.apply({ type: 'spend_x_amount_off', spendStep: 100, amount: 7, currency: 'PLN' }, ctx(lines))
+        .discountSubtotalDelta,
+    ).toBe(7);
+    expect(
+      registry.apply({ type: 'buy_x_units_amount_off', productId: 'p', buyUnits: 1, amount: 15, currency: 'PLN' }, ctx(lines))
+        .discountSubtotalDelta,
+    ).toBe(15);
   });
 });

@@ -214,20 +214,33 @@ export class CartCouponService {
    * the serialized cart can show the real discount amount + per-promotion
    * breakdown (automatic action-based promotions plus any applied coupon).
    * Pure read — never mutates the cart.
+   *
+   * `taxRates` is each line's VAT rate as a fraction, by cart item id — the
+   * rates the read resolved as placement does. A percent-off or free-unit
+   * promotion computes on the gross the buyer pays (issue #1350), so without
+   * them the figure is the net one and disagrees with the order's.
    */
-  async computeApplication(cart: Cart, items: CartItem[]): Promise<PromotionApplication> {
+  async computeApplication(
+    cart: Cart,
+    items: CartItem[],
+    taxRates?: ReadonlyMap<string, number> | null,
+  ): Promise<PromotionApplication> {
     const currency = items[0]?.currency ?? 'PLN';
     const snapshot: CartSnapshot = {
       organizationId: cart.organizationId ?? null,
       customerGroupId: await this.customerGroupIdFor(cart),
       currency,
-      lines: items.map((it) => ({
-        productId: it.productId,
-        variantId: it.variantId ?? null,
-        categoryIds: [],
-        quantity: it.quantity,
-        unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
-      })),
+      lines: items.map((it) => {
+        const taxRate = taxRates?.get(it.id);
+        return {
+          productId: it.productId,
+          variantId: it.variantId ?? null,
+          categoryIds: [],
+          quantity: it.quantity,
+          unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+          ...(taxRate !== undefined ? { taxRate } : {}),
+        };
+      }),
       deliveryTotal: 0,
       promotionCode: cart.appliedPromotionCode ?? null,
       salesChannelId: cart.salesChannelId ?? null,

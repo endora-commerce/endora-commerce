@@ -1,10 +1,12 @@
 import { useId, type ReactNode } from 'react';
 import { BarChart3 } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card } from '@endora-commerce/admin-kit/ui';
-import { cn } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { errorMessage } from '../../lib/labels.js';
-import type { Figure } from '../../lib/use-figure.js';
+import { Alert, AlertDescription } from '../../ui/alert.js';
+import { Button } from '../../ui/button.js';
+import { Card } from '../../ui/card.js';
+import { ApiError } from '../../lib/api-client.js';
+import { cn } from '../../lib/utils.js';
+import { useTranslation } from '../../i18n/useTranslation.js';
+import type { Figure } from './use-figure.js';
 
 export interface FigureCardProps<T> {
   title: string;
@@ -15,8 +17,16 @@ export interface FigureCardProps<T> {
   isEmpty: (data: T) => boolean;
   /** What is said instead of the figure when it holds nothing. */
   emptyMessage: string;
+  /** What is said when a read failed without the server's own words for it. */
+  errorFallback: string;
   /** A control that belongs to this figure alone, beside its title. */
   action?: ReactNode;
+  /**
+   * What is said under every answer, the empty one included — the basis a
+   * module states its figures on (its period, what it counted). Not drawn
+   * while there is no answer.
+   */
+  footer?: (data: T) => ReactNode;
   className?: string;
   children: (data: T) => ReactNode;
 }
@@ -29,10 +39,12 @@ export interface FigureCardProps<T> {
  * A region named by its heading, so each figure is a landmark a screen reader
  * can jump to. The status line is mounted before it has text — a live region
  * that arrives already carrying its message is not reliably announced.
+ *
+ * Promoted from CRM's and Projects' `pages/analytics/FigureCard.tsx` (issue
+ * #464): the module's sentences are props, so the frame names no module.
  */
 export function FigureCard<T>(props: FigureCardProps<T>): ReactNode {
-  const { title, description, figure, isEmpty, emptyMessage, action, className, children } = props;
-  const t = useTranslation('crm');
+  const { title, description, figure, isEmpty, emptyMessage, errorFallback, action, footer, className, children } = props;
   const tCore = useTranslation('core');
   const headingId = useId();
   const { data, loading, error, reload } = figure;
@@ -63,19 +75,24 @@ export function FigureCard<T>(props: FigureCardProps<T>): ReactNode {
         {failed ? (
           <Alert variant="destructive">
             <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-              <span>{errorMessage(error, t('analytics.error.load'))}</span>
+              <span>{error instanceof ApiError ? error.envelope.error.message : errorFallback}</span>
               <Button variant="outline" size="sm" className="min-h-11 sm:min-h-9" onClick={reload}>
                 {tCore('common.action.retry')}
               </Button>
             </AlertDescription>
           </Alert>
-        ) : data === null ? null : isEmpty(data) ? (
-          <div className="flex items-start gap-3 py-2 text-sm text-muted-foreground">
-            <BarChart3 aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
-            <p>{emptyMessage}</p>
-          </div>
-        ) : (
-          children(data)
+        ) : data === null ? null : (
+          <>
+            {isEmpty(data) ? (
+              <div className="flex items-start gap-3 py-2 text-sm text-muted-foreground">
+                <BarChart3 aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+                <p>{emptyMessage}</p>
+              </div>
+            ) : (
+              children(data)
+            )}
+            {footer ? footer(data) : null}
+          </>
         )}
       </div>
     </Card>

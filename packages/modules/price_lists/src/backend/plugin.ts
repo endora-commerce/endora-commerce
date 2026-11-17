@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AdminUserReadPort,
   CatalogProductAvailabilityPort,
   CustomerAccountReadPort,
   DisplayMode,
@@ -15,6 +16,7 @@ import type { ProfilePricingCacheKey } from './services/pricing-cache.js';
 import type { PricingProfile, ProfileMemoKey } from './services/pricing-profile.js';
 import { PriceBookService } from './services/price-book-service.js';
 import { PriceBookReads } from './services/price-book-reads.js';
+import { PriceBookHistory } from './services/price-book-history.js';
 import { readShowListPrice, registerPriceBookRoutes } from './routes.price-books.js';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { PriceListTargetReads } from './services/price-list-service.js';
@@ -138,6 +140,11 @@ export interface PriceListsModuleOptions {
    * `targetReads`.
    */
   customerAccountRead: CustomerAccountReadPort;
+  /**
+   * Issue #470 stage 3 — `admin_users`' read port (a declared dependency): the
+   * price-change history names an administrator actor. One lookup per page.
+   */
+  adminUserRead: AdminUserReadPort;
   /**
    * Feature 146 (threat model T8) — `organizations`' sales-rep scope. The admin
    * resolved-price probe answers a non-platform admin only about organizations
@@ -273,6 +280,11 @@ export function priceListsModule(options: PriceListsModuleOptions): {
     reads: priceBookReads,
     ...(options.requestTableMaintenance ? { requestTableMaintenance: options.requestTableMaintenance } : {}),
   });
+  const priceBookHistory = new PriceBookHistory({
+    emFactory: options.emFactory,
+    reads: priceBookReads,
+    adminUsers: options.adminUserRead,
+  });
   const statusWorker = new PriceListStatusWorker(options.emFactory, pricingGeneration);
   // One engine instance behind the probe and the port alike: a quote's "price
   // at request" and its "current price" must be the same question.
@@ -303,6 +315,7 @@ export function priceListsModule(options: PriceListsModuleOptions): {
       await registerPriceBookRoutes(app, {
         priceBookService,
         reads: priceBookReads,
+        history: priceBookHistory,
         buyerLinePriceService,
         emFactory: options.emFactory,
         requireAdmin: options.requireAdmin,

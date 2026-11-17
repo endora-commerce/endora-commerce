@@ -18,7 +18,7 @@ Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
 | `POST /api/v1/orders` | customer | Place order from active Cart |
 | `GET /api/v1/orders` | customer | List orders: own orders, or the Organization's with `orders.view_organization` (see below) |
 | `GET /api/v1/orders/:id` | customer | Order detail |
-| `GET /api/v1/orders/:id/invoice` | customer | Older invoice download: a minimal PDF of the order's first invoice (`404 INVOICE_NOT_READY` until it is ready); the template-rendered PDF is the `invoices` module's `…/invoices/:invoiceId/pdf` |
+| `GET /api/v1/orders/:id/invoice` | customer | Invoice download: the order's newest ready invoice (kind `invoice`, never a proforma or correction), rendered from the invoice template by the `invoices` module (`404 INVOICE_NOT_READY` until one is ready). Every document of the order is listed at `…/invoices` |
 | `GET /api/v1/admin/orders` | admin | List every order (cross-organization) |
 | `GET /api/v1/admin/orders/:id` | admin | Order detail (bypasses customer scope) |
 | `POST /api/v1/admin/orders/:id/status` | admin | Status transition (audited) |

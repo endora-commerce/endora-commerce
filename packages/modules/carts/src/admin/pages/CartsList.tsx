@@ -167,7 +167,7 @@ export default function CartsList(): ReactNode {
                   header: t('carts.column.owner'),
                   render: (c) => (
                     <span className="text-xs text-muted-foreground">
-                      {c.ownerDisplayName ?? '(anonymous)'}
+                      {c.ownerDisplayName ?? t('carts.owner.anonymous')}
                     </span>
                   ),
                 },
@@ -205,7 +205,7 @@ export default function CartsList(): ReactNode {
                       {formatMoney(c.total.amount, c.total.currency)}
                     </span>
                   ),
-                  meta: (c) => `${c.itemCount} items`,
+                  meta: (c) => t('carts.itemCount', { count: c.itemCount }),
                 },
               ]}
               renderActions={(c) => (

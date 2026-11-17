@@ -52,8 +52,9 @@ zamiast być wyłączane jako przypadek szczególny.
 
 - Lista klientów (wyszukiwanie oraz filtry statusu, organizacji i grupy) i widok szczegółów z datą
   utworzenia, grupą klientów, organizacją, stanem blokady, ostatnim logowaniem i **językiem
-  wiadomości e-mail** klienta — tylko do odczytu, a gdy konto go nie ma: *Nie ustawiono — używany
-  jest domyślny język sklepu*. Widzą go pracownicy z `customers:read`; zmienić go może tylko klient.
+  wiadomości e-mail** klienta — tylko do odczytu, nazwanym w języku panelu z kodem obok (na przykład
+  *Angielski (USA)* `en-US`), a gdy konto go nie ma: *Nie ustawiono — używany jest domyślny język
+  sklepu*. Widzą go pracownicy z `customers:read`; zmienić go może tylko klient.
 - Blokowanie i odblokowanie oraz usunięcie miękkie i przywrócenie, z uprawnieniami zależnymi od roli:
   administrator platformy może działać na każdym kliencie; poza nim uprawniony jest handlowiec
   przypisany do organizacji klienta. Organizacja osobista nigdy nie ma przypisanego handlowca, więc
@@ -66,7 +67,11 @@ zamiast być wyłączane jako przypadek szczególny.
   takiego klienta jest dozwolone.
 - Logowanie jako klient; audytowane jako `impersonation.start` / `impersonation.end`. Odpowiedź
   podaje `organizationRole` klienta, a logowanie jako klient działa dokładnie z jego uprawnieniami
-  w organizacji.
+  w organizacji. Na ekranie klienta *Zaloguj jako klient* najpierw pyta o opcjonalny powód (na
+  przykład numer zgłoszenia), zapisywany przy sesji, a nie w dzienniku audytu. Po rozpoczęciu sesji
+  wsparcia ekran podaje link do sklepu, w którym działasz jako klient w tej samej przeglądarce, oraz
+  przycisk *Zakończ sesję wsparcia*; sesję kończy też pasek w sklepie. Dopóki ta sesja trwa, ekran
+  nie proponuje kolejnego rozpoczęcia. Odmowa rozpoczęcia jest pokazywana w oknie dialogowym.
 - Reset hasła z poziomu panelu (e-mail z linkiem do ustawienia hasła). Wiadomość to e-mail
   transakcyjny `customer_password_reset_by_admin`, który sklep edytuje w ekranie **Maile
   transakcyjne** jak każdy inny; jest wysyłana w języku domyślnego kanału sprzedaży, a link
