@@ -35,6 +35,12 @@ import { promotionServiceFor } from '../../helpers/promotion-service.js';
  */
 
 const SESSION = { b2b_session: 'stub-customer-session' };
+
+interface AdminDetail {
+  discount: { amount: number } | null;
+  total: { amount: number };
+  totalGross: { amount: number } | null;
+}
 const ADMIN = { b2b_session: 'stub-admin-session' };
 
 describe('#1350 / #1396 — promotions discount and compare the gross, on every surface', () => {
@@ -141,7 +147,13 @@ describe('#1350 / #1396 — promotions discount and compare the gross, on every 
     expect(place.statusCode, place.body).toBe(201);
     return (
       place.json() as {
-        data: { discountTotal: number; deliveryTotal: number; paymentSurcharge?: number; total: number };
+        data: {
+          subtotal: number;
+          discountTotal: number;
+          deliveryTotal: number;
+          paymentSurcharge?: number;
+          total: number;
+        };
       }
     ).data;
   }
@@ -161,6 +173,7 @@ describe('#1350 / #1396 — promotions discount and compare the gross, on every 
           id: string;
           subtotal: { amount: number };
           discount: { amount: number } | null;
+          grandTotal: { amount: number };
           vat: { subtotalGross: number; grandTotalGross: number } | null;
         };
       }
@@ -170,10 +183,15 @@ describe('#1350 / #1396 — promotions discount and compare the gross, on every 
     expect(cart.vat?.subtotalGross).toBe(111.77);
     expect(cart.discount?.amount).toBe(11.18);
     expect(cart.vat?.grandTotalGross).toBe(100.59);
+    // #1396 (option C) — the net after the discount, the discount taken off untaxed.
+    expect(cart.grandTotal.amount).toBe(85.11);
 
     const admin = await h.app.inject({ method: 'GET', url: `/api/v1/admin/carts/${cartId}`, cookies: ADMIN });
     expect(admin.statusCode, admin.body).toBe(200);
-    expect((admin.json() as { data: { discount: { amount: number } | null } }).data.discount?.amount).toBe(11.18);
+    const detail = (admin.json() as { data: AdminDetail }).data;
+    expect(detail.discount?.amount).toBe(11.18);
+    expect(detail.total.amount).toBe(cart.grandTotal.amount);
+    expect(detail.totalGross?.amount).toBe(cart.vat?.grandTotalGross);
 
     const preview = await h.app.inject({
       method: 'POST',
@@ -193,6 +211,9 @@ describe('#1350 / #1396 — promotions discount and compare the gross, on every 
       order.paymentSurcharge ?? 0,
     );
     expect(Number(beforeCheckoutCharges)).toBe(cart.vat?.grandTotalGross);
+    expect(Number(beforeCheckoutCharges)).toBe(detail.totalGross?.amount);
+    // The net after the discount is the order's goods net less its discount line.
+    expect(Number(moneyDifference(order.subtotal, order.discountTotal))).toBe(cart.grandTotal.amount);
   });
 
   it('meets a minimum spend with the gross and caps a fixed amount at the gross, on every surface (#1396)', async () => {
@@ -255,6 +276,7 @@ describe('#1350 / #1396 — promotions discount and compare the gross, on every 
           id: string;
           couponDroppedThisRead: unknown;
           discount: { code: string | null; amount: number } | null;
+          grandTotal: { amount: number };
           vat: { subtotalGross: number; grandTotalGross: number } | null;
         };
       }
@@ -265,10 +287,15 @@ describe('#1350 / #1396 — promotions discount and compare the gross, on every 
     expect(cart.discount).toMatchObject({ code: metCode, amount: 111.77 });
     expect(cart.vat?.subtotalGross).toBe(111.77);
     expect(cart.vat?.grandTotalGross).toBe(0);
+    // The discount exceeds the net subtotal 96.29: the net after it reads 0, never below.
+    expect(cart.grandTotal.amount).toBe(0);
 
     const admin = await h.app.inject({ method: 'GET', url: `/api/v1/admin/carts/${newCart.id}`, cookies: ADMIN });
     expect(admin.statusCode, admin.body).toBe(200);
-    expect((admin.json() as { data: { discount: { amount: number } | null } }).data.discount?.amount).toBe(111.77);
+    const detail = (admin.json() as { data: AdminDetail }).data;
+    expect(detail.discount?.amount).toBe(111.77);
+    expect(detail.total.amount).toBe(0);
+    expect(detail.totalGross?.amount).toBe(0);
 
     const preview = await h.app.inject({
       method: 'POST',

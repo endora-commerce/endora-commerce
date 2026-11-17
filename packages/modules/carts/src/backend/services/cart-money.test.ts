@@ -5,6 +5,7 @@ import {
   cartShortfall,
   cartSubtotal,
   cartTotalAfterDiscount,
+  cartTotalGross,
   cartTotalsByCart,
   cartVatMoney,
 } from './cart-money.js';
@@ -65,6 +66,32 @@ describe('cartGoodsGross', () => {
     const lines = [{ id: 'a', unitPrice: '29.50', quantity: 2 }];
     expect(cartGoodsGross(lines, new Map())).toBe('59.00');
     expect(cartGoodsGross(lines, null)).toBe('59.00');
+  });
+});
+
+/** Issue #1396 — the admin cart detail's gross total beside its net one. */
+describe('cartTotalGross', () => {
+  it('is the gross per rate on the net sum, less the discount, never below zero', () => {
+    const lines = [
+      { unitPrice: '29.50', quantity: 2, taxRate: 0.23 },
+      { unitPrice: '10.00', quantity: 1, taxRate: 0.08 },
+    ];
+    // 72.57 + 10.80 = 83.37.
+    expect(cartTotalGross(lines, 0)).toBe(83.37);
+    expect(cartTotalGross(lines, '3.37')).toBe(80);
+    expect(cartTotalGross(lines, 500)).toBe(0);
+  });
+
+  it('is null when a line rate is unresolved', () => {
+    expect(
+      cartTotalGross(
+        [
+          { unitPrice: '29.50', quantity: 1, taxRate: 0.23 },
+          { unitPrice: '10.00', quantity: 1, taxRate: undefined },
+        ],
+        0,
+      ),
+    ).toBeNull();
   });
 });
 

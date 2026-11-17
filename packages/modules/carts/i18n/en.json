@@ -91,6 +91,8 @@
 
   "carts.detail.title": "Cart",
   "carts.detail.lines": "Lines",
+  "carts.detail.netTotal": "Net total",
+  "carts.detail.grossTotal": "Gross total",
   "carts.detail.audit": "History",
   "carts.detail.auditEmpty": "No history entries yet.",
   "carts.detail.notFound": "Cart not found.",

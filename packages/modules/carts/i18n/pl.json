@@ -91,6 +91,8 @@
 
   "carts.detail.title": "Koszyk",
   "carts.detail.lines": "Pozycje",
+  "carts.detail.netTotal": "Razem netto",
+  "carts.detail.grossTotal": "Razem brutto",
   "carts.detail.audit": "Historia",
   "carts.detail.auditEmpty": "Brak wpisów w historii.",
   "carts.detail.notFound": "Nie znaleziono koszyka.",
