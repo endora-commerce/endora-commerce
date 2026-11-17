@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { moneyDifference } from '@endora-commerce/contracts';
 
-import { Cart, Product, Tax } from '../../helpers/package-entities.js';
+import { Cart, Product, Promotion, Tax } from '../../helpers/package-entities.js';
 import { seedBasePriceSql } from '../../helpers/price-book-sql.js';
 import {
   seedCartForStubCustomer,
@@ -35,6 +35,7 @@ const ADMIN = { b2b_session: 'stub-admin-session' };
 describe('#1350 — a percent-off promotion discounts the gross, on every surface', () => {
   let h: BackendServerHandle;
   let cartId: string;
+  let promotionId: string;
   const taxCodes: string[] = [];
 
   async function createProduct(type: 'simple' | 'virtual' | 'configurable', price: string, stamp: string) {
@@ -65,7 +66,6 @@ describe('#1350 — a percent-off promotion discounts the gross, on every surfac
     h = await setupBackendServer();
     const stamp = `${Date.now()}-${randomUUID().slice(0, 6)}`;
     const em = h.em();
-    await em.getConnection().execute('truncate table promotions cascade');
     for (const [productType, rate] of [
       ['simple', '0.2300'],
       ['virtual', '0.0800'],
@@ -100,15 +100,19 @@ describe('#1350 — a percent-off promotion discounts the gross, on every surfac
     await cartService.addItem({ customer }, { productId: virtualId, quantity: 2 });
     await cartService.addItem({ customer }, { productId: configurableId, quantity: 3 });
 
-    await promotionServiceFor(h).upsert({
+    // Above any promotion another file left behind, and the only one applied.
+    const promotion = await promotionServiceFor(h).upsert({
       name: `10 % off ${stamp}`,
+      priority: 1_000_000,
+      stopFurther: true,
       action: { type: 'percentage_off_cart', percent: 10 },
       rule: { kind: 'all' },
     });
+    promotionId = promotion.id;
   }, 60_000);
 
   afterAll(async () => {
-    await h.em().getConnection().execute('truncate table promotions cascade');
+    await h.em().nativeDelete(Promotion, { id: promotionId });
     await h.em().nativeDelete(Tax, { code: { $in: taxCodes } });
     await teardownBackendServer(h);
   });
