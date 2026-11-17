@@ -84,8 +84,9 @@ function getHandler(url: string): unknown {
     }
     return {
       data: [
-        { id: CHANNEL_VIP, code: 'pl_b2b_vip', languages: ['pl-PL'] },
-        { id: CHANNEL_RETAIL, code: 'pl_retail', languages: ['pl-PL', 'en-US'] },
+        // Issue #718 — a channel with no name in any language falls back to its code.
+        { id: CHANNEL_VIP, code: 'pl_b2b_vip', name: {}, languages: ['pl-PL'] },
+        { id: CHANNEL_RETAIL, code: 'pl_retail', name: { en: 'Retail Poland', pl: 'Sprzedaż detaliczna' }, languages: ['pl-PL', 'en-US'] },
       ],
     };
   }
@@ -202,7 +203,7 @@ describe('Import profiles section', () => {
       target: { value: 'pl_PL' },
     });
     fireEvent.click(await within(dialog).findByRole('button', { name: 'importProfiles.mapping.targets, row 1' }));
-    fireEvent.click(await within(dialog).findByLabelText(/^pl_retail \/ Polish/));
+    fireEvent.click(await within(dialog).findByLabelText(/^Retail Poland \/ Polish/));
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.save' }));
     await waitFor(() => expect(api.post).toHaveBeenCalled());
     expect(api.post).toHaveBeenCalledWith('/api/v1/admin/import-export/profiles', {
@@ -213,6 +214,22 @@ describe('Import profiles section', () => {
         { sourceLocale: 'pl_PL', sourceChannel: null, targets: [{ channelId: CHANNEL_RETAIL, languageCode: 'pl-PL' }] },
       ],
     });
+  });
+
+  it('labels each target with the channel name and language, keeping the code as secondary text (#718)', async () => {
+    renderPage(['catalog:write']);
+    const section = await screen.findByRole('region', { name: 'importProfiles.title' });
+    fireEvent.click(await within(section).findByRole('button', { name: `importProfiles.editNamed ${profile.name}` }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'importProfiles.mapping.targets, row 1' }));
+    const option = await within(dialog).findByLabelText(/^Retail Poland \/ Polish \(Poland\)/);
+    expect(option.closest('label')?.textContent).toContain('pl_retail');
+    // The code is no longer the lead of the label.
+    expect(within(dialog).queryByLabelText(/^pl_retail \//)).toBeNull();
+    // A channel without a name in any language is named by its code.
+    expect(within(dialog).getByLabelText(/^pl_b2b_vip \/ Polish \(Poland\)/)).toBeTruthy();
+    // A target whose channel no longer exists is still listed, under a fallback name.
+    expect(within(dialog).getByText('importProfiles.mapping.missingChannelTarget')).toBeTruthy();
   });
 
   it('refuses to save a profile without a name, without calling the server', async () => {
@@ -294,7 +311,7 @@ describe('Import profiles section', () => {
       expect(within(dialog).getByRole('button', { name: 'importProfiles.mapping.targets, row 1' })).toHaveFocus(),
     );
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.mapping.targets, row 1' }));
-    fireEvent.click(await within(dialog).findByLabelText(/^pl_retail \/ Polish/));
+    fireEvent.click(await within(dialog).findByLabelText(/^Retail Poland \/ Polish/));
     fireEvent.click(within(dialog).getByRole('button', { name: 'importProfiles.save' }));
     const second = within(dialog).getByLabelText('importProfiles.mapping.sourceLocale, row 2');
     await waitFor(() => expect(second).toHaveAttribute('aria-invalid', 'true'));

@@ -69,6 +69,7 @@
   "importProfiles.mapping.targets": "Docelowy kanał i język",
   "importProfiles.mapping.targetsPlaceholder": "Wybierz cele",
   "importProfiles.mapping.missingChannel": "Cel wskazuje kanał sprzedaży, który już nie istnieje. Jego wiersze zostaną zgłoszone podczas importu.",
+  "importProfiles.mapping.missingChannelTarget": "Nieistniejący kanał / {language}",
   "importProfiles.mapping.dropMissing": "Usuń nieistniejące cele",
   "importProfiles.error.load": "Nie udało się wczytać profili importu.",
   "importProfiles.error.save": "Nie udało się zapisać profilu importu.",
