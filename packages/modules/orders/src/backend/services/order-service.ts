@@ -1738,6 +1738,15 @@ export class OrderService {
        * language `language` names, else the channel's default, as before.
        */
       languageTag?: string | undefined;
+      /**
+       * Issue #1320 — judge the basket and name the order's lines at the order
+       * channel's default language, whatever `language` names: an operator
+       * naming the channel is answered in its default language (N2, feature
+       * 163), the language this module's admin create wrote the working basket
+       * in. `language` still words the messages. `languageTag` wins over it.
+       * This module's own admin create path only.
+       */
+      atChannelDefaultLanguage?: boolean | undefined;
       lineGrouping?: OrderLineGroupingInput | undefined;
       /**
        * Issue #169 — the working basket to place from instead of the customer's
@@ -1934,13 +1943,15 @@ export class OrderService {
       // over (one-click: the language its basket add judged the line in), so a
       // line admitted there is not refused here for being off in the channel's
       // default; otherwise at the one the message language names, as before.
+      // Issue #1320 — admin create asks for the channel's default (N2), the
+      // language its basket add judged the lines in.
       const orderLanguage = resolveScopeLanguage(
         {
           id: orderChannel.id,
           languages: orderChannel.languages,
           defaultLanguage: orderChannel.defaultLanguage,
         },
-        options?.languageTag ?? options?.language,
+        options?.languageTag ?? (options?.atChannelDefaultLanguage ? undefined : options?.language),
       );
       const catalogue = await readBasketCatalogue(this.neighbours.catalogProductRead, items, (products) =>
         availableOnly(this.neighbours.catalogProductAvailability, products, {
