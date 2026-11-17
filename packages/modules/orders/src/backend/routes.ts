@@ -407,10 +407,18 @@ export async function registerOrderRoutes(
       const ctx = resolveCustomerContext(request);
       // The preview is for the channel the buyer is on, so it refuses a method
       // that channel does not offer — the same answer the placement will give.
+      const requestChannel = getResolvedChannel(request);
+      // Issue #1373 — the basket is judged in the channel language the
+      // request's `Accept-Language` asks for (`requestScopeLanguage`), as
+      // `POST /cart/items` judged its lines and `POST /orders` places them; not
+      // in `request.responseLanguage()`, which only words the messages.
+      const header = request.headers['accept-language'];
+      const languageTag =
+        header === undefined || header.length === 0 ? undefined : requestScopeLanguage(requestChannel, header);
       const totals = await orderService.previewTotal(
         ctx,
-        { ...body, salesChannelId: getResolvedChannel(request).id },
-        { language: await request.responseLanguage() },
+        { ...body, salesChannelId: requestChannel.id },
+        { language: await request.responseLanguage(), ...(languageTag ? { languageTag } : {}) },
       );
       return { data: totals };
     },
