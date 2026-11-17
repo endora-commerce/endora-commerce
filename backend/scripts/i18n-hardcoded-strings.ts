@@ -1302,14 +1302,6 @@ function analyzeStrict(
  * Keys are paths relative to `admin/src`. It is meant to reach `{}`.
  */
 export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
-  // Issue #193 lifted the two federated-provider labels into
-  // `preauth-login-copy.ts`; the four left are the second-step MFA screen.
-  //
-  // Re-keyed, not drained: feature 110's T120 moved `admin/src` into
-  // `@endora-commerce/admin-shell` and this walk's roots moved with it, so the
-  // same four strings in the same component are read at the path they now sit
-  // at. The count is unmoved, which is what says nothing was translated.
-  'packages/admin-shell/src/components/LoginPage.tsx': 5,
   // Feature 091's P5b published the shared page-builder chrome and the e-mail
   // builder as `@endora-commerce/page-builder-admin`, and these **six** entries
   // are **re-keyed**, not raised and not dropped. Every count is unmoved: the
@@ -1365,17 +1357,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // not a sentence: putting it in a bundle would invite a translator to
   // translate a LinkedIn identifier.
   'packages/modules/linkedin_ads/src/admin/pages/ConversionMappingEditPage.tsx': 1,
-  // Feature 091, Phase 4 batch four: the screen moved into `mfa`'s package and
-  // the entry is **re-keyed**, not raised and not dropped — the same sixteen
-  // strings at a new address. This check's two-way ratchet reported both halves
-  // in one run again (unaccounted at the new key, over-baselined at the old
-  // one), which is what the ratchet is for. The debt itself is untouched and is
-  // real: `/security` is the signed-in admin's own two-factor screen and every
-  // one of its sixteen strings is English-only, so a Polish-speaking operator
-  // sets up their second factor in English. Translating them is a screen's
-  // worth of keys and belongs to whoever is repairing this screen, not to a
-  // batch whose subject is where the file lives.
-  'packages/modules/mfa/src/admin/pages/AdminSecuritySettings.tsx': 18,
   // Feature 091, Phase 4, the plan's batch 7 — the same four counts under the
   // same four files, **re-keyed rather than re-baselined**. The ratchet is
   // two-way and keyed by path, so moving a directory strands the old key as a
@@ -1509,10 +1490,9 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // translated in the same change rather than ledgered — `RuleBuilder`, the CMS
   // and organization pickers, `AssetFieldPicker`, `MultiSelect`,
   // `FileDropzone` and `CustomFieldValuesPanel` left with their strings.
-  // `auth.tsx` stays: its two sentences are the login screen's, drained with
-  // it. Measured 2026-11-17: 751 admin findings across 80 files, up from 571
-  // across 75.
-  'packages/admin-kit/src/lib/auth.tsx': 2,
+  // Measured 2026-11-17: 751 admin findings across 80 files, up from 571
+  // across 75. `auth.tsx`'s two sentences were the login screen's and left with
+  // it (issue #1481), together with `LoginPage.tsx` and the `/security` screen.
   'packages/modules/cms/src/admin/components/CarouselFields.tsx': 6,
   'packages/modules/cms/src/admin/components/ListingFields.tsx': 3,
   'packages/modules/cms/src/admin/components/PageBuilderEditor.tsx': 4,
