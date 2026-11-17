@@ -1254,6 +1254,7 @@
   "orderDetail.statusChange.orderConsequence": "Depending on the status, the customer may get an e-mail, and stock and invoices may be updated.",
   "orderDetail.statusChange.orderTitle": "Change order status",
   "orderDetail.statusChange.paymentConsequence": "This records the payment status by hand, for example for a bank transfer confirmed outside the platform.",
+  "orderDetail.statusChange.paymentConsequenceRefunded": "This only records the refund. No money is sent back to the customer, and the payment status cannot be changed afterwards.",
   "orderDetail.statusChange.paymentTitle": "Change payment status",
   "orderDetail.shipments.carrierNotContacted.body": "This shipment was opened, but the module that handles its carrier is not switched on, so no label, tracking number or pickup was ever requested. Switch the module back on and generate the shipment again.",
   "orderDetail.shipments.carrierNotContacted.title": "The carrier was not contacted",

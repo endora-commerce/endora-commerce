@@ -18,7 +18,7 @@ import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { OrderExternalReferences } from '../components/OrderExternalReferences.js';
 import { OrderPendingEffectsNotice } from '../components/OrderPendingEffectsNotice.js';
 import { OrderShipmentsTab } from '../components/OrderShipmentsTab.js';
-import { paymentStatusLabelKey, paymentStatusTargets } from '../lib/paymentStatus.js';
+import { paymentStatusConsequenceKey, paymentStatusLabelKey, paymentStatusTargets } from '../lib/paymentStatus.js';
 import {
   arrangeLineGroups,
   customFieldCarrySkipReasonSchema,
@@ -622,7 +622,7 @@ export function OrderDetail(): ReactNode {
                       label: t(paymentStatusLabelKey(code)),
                     }))}
                     onConfirm={handlePaymentStatus}
-                    consequence={(): string => t('orderDetail.statusChange.paymentConsequence')}
+                    consequence={(to): string => t(paymentStatusConsequenceKey(to))}
                     errorMessage={(err): string =>
                       err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.paymentChange')
                     }

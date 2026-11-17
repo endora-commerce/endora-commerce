@@ -192,6 +192,9 @@ function paymentStatusPort(
         orderId: rows.order.id,
         status: rows.order.status,
         paymentStatus: input.paymentStatus,
+        // The stub applies every move; the graph itself is held by
+        // `settlement-payment-status-graph.test.ts` against the real port.
+        outcome: 'applied',
       };
     },
   };

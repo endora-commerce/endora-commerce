@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
@@ -24,6 +25,10 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * the contract the route parses, so it cannot drift from it again; what is
  * displayed is the order's own value, as a badge, whether or not it is
  * settable — and it is never offered as a target.
+ *
+ * Since issue #1574 what is offered *from* a given status is the server's own
+ * transition graph (`paymentStatusTargets` in the contracts), so the dialog
+ * cannot offer a move the route refuses with 409.
  */
 
 const getSpy = vi.fn();
@@ -91,7 +96,10 @@ const BUNDLE = passthroughBundle('core', [
   'orderDetail.paymentStatus.deferred',
   'orderDetail.paymentStatus.refunded',
   'orderDetail.statusChange.paymentTitle',
+  'orderDetail.statusChange.paymentConsequence',
+  'orderDetail.statusChange.paymentConsequenceRefunded',
   'orderDetail.statusChange.noPermission',
+  'common.statusChange.noTransitions',
   'common.statusChange.change',
   'common.statusChange.continue',
   'common.statusChange.confirm',
@@ -157,9 +165,19 @@ describe('OrderDetail — the payment-status control (085 FR-024, #1470)', () =>
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
-  it('offers only the values the route accepts, minus the current one', async () => {
-    renderDetail('paid');
-    expect(await offered()).toEqual(['refunded']);
+  /**
+   * Issue #1574 — the dialog offers exactly the server's targets, from the
+   * contracts' `paymentStatusTargets(current, 'operator')`: an unpaid order may
+   * be marked paid, a paid one refunded, and a refunded one nothing.
+   */
+  it.each([
+    ['awaiting_payment', ['paid']],
+    ['failed', ['paid']],
+    ['deferred', ['paid']],
+    ['paid', ['refunded']],
+  ] as const)('offers from %s exactly what the server accepts (#1574)', async (current, targets) => {
+    renderDetail(current);
+    expect(await offered()).toEqual([...targets]);
   });
 
   /**
@@ -171,21 +189,70 @@ describe('OrderDetail — the payment-status control (085 FR-024, #1470)', () =>
   it('shows a failed payment without offering it as something to set', async () => {
     renderDetail('failed');
     expect(await screen.findByText('orderDetail.paymentStatus.failed')).toBeInTheDocument();
-    expect(await offered()).toEqual(['paid', 'refunded']);
+    expect(await offered()).toEqual(['paid']);
   });
 
   /**
-   * The pre-existing half of the same defect: `awaiting_payment` and `deferred`
-   * were offered and refused by the server. They are still shown when the order
-   * is in one of them, and never offered.
+   * `awaiting_payment` and `deferred` are still shown when the order is in one
+   * of them, and never offered.
    */
   it('shows an unsettable current value rather than dropping it', async () => {
     for (const current of ['awaiting_payment', 'deferred']) {
       renderDetail(current);
       expect(await screen.findByText(`orderDetail.paymentStatus.${current}`)).toBeInTheDocument();
-      expect(await offered()).toEqual(['paid', 'refunded']);
+      expect(await offered()).toEqual(['paid']);
       cleanup();
     }
+  });
+
+  it('offers nothing from refunded, and says so (#1574)', async () => {
+    renderDetail('refunded');
+    const button = await changeButton();
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription('common.statusChange.noTransitions');
+  });
+
+  it('keeps the dialog open with the server\'s translated refusal (#1574)', async () => {
+    postSpy.mockRejectedValue(
+      new ApiError(409, {
+        error: {
+          code: 'ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED',
+          message: 'Tylko opłacone zamówienie można oznaczyć jako zwrócone.',
+          details: { code: 'payment_not_paid', from: 'paid', to: 'refunded' },
+        },
+      }),
+    );
+    renderDetail('paid');
+    await userEvent.click(await changeButton());
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'orderDetail.paymentStatus.refunded' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.continue' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.confirm' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Tylko opłacone zamówienie można oznaczyć jako zwrócone.',
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('warns that marking refunded moves no money and cannot be undone (#1574)', async () => {
+    renderDetail('paid');
+    await userEvent.click(await changeButton());
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'orderDetail.paymentStatus.refunded' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.continue' }));
+    // The consequence is appended to the confirm step's summary sentence.
+    expect(dialog).toHaveTextContent('orderDetail.statusChange.paymentConsequenceRefunded');
+    expect(dialog).not.toHaveTextContent(/paymentConsequence(?!Refunded)/);
+  });
+
+  it('keeps the bank-transfer sentence for marking paid', async () => {
+    renderDetail('awaiting_payment');
+    await userEvent.click(await changeButton());
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'orderDetail.paymentStatus.paid' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.continue' }));
+    expect(dialog).toHaveTextContent(/orderDetail\.statusChange\.paymentConsequence(?!Refunded)/);
+    expect(dialog).not.toHaveTextContent('paymentConsequenceRefunded');
   });
 
   it('writes only after the confirm step (DEC-11: a bank transfer marked paid by hand)', async () => {

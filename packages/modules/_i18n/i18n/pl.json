@@ -1254,6 +1254,7 @@
   "orderDetail.statusChange.orderConsequence": "W zależności od statusu klient może otrzymać e-mail, a stany magazynowe i faktury mogą zostać zaktualizowane.",
   "orderDetail.statusChange.orderTitle": "Zmień status zamówienia",
   "orderDetail.statusChange.paymentConsequence": "To ręczny zapis statusu płatności, np. dla przelewu bankowego potwierdzonego poza platformą.",
+  "orderDetail.statusChange.paymentConsequenceRefunded": "To tylko odnotowuje zwrot. Żadne pieniądze nie trafiają z powrotem do klienta, a statusu płatności nie będzie można potem zmienić.",
   "orderDetail.statusChange.paymentTitle": "Zmień status płatności",
   "orderDetail.shipments.carrierNotContacted.body": "Przesyłka została utworzona, ale moduł obsługujący jej przewoźnika jest wyłączony, więc etykieta, numer śledzenia ani odbiór nigdy nie zostały zamówione. Włącz moduł ponownie i wygeneruj przesyłkę jeszcze raz.",
   "orderDetail.shipments.carrierNotContacted.title": "Przewoźnik nie został powiadomiony",
