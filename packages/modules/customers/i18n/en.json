@@ -105,5 +105,16 @@
   "actions.onlineCustomers.keywords": "active, online customers",
   "errors.CUSTOMER_ADDRESS_BOOK_RETIRED": "The personal address book has been retired. Addresses are kept in your organization's address book.",
   "errors.PREFERRED_LANGUAGE_NOT_OFFERED": "This store does not offer that language.",
-  "settingGroups.customers.name": "Customers"
+  "settingGroups.customers.name": "Customers",
+  "detail.confirm.block.title": "Block {name}?",
+  "detail.confirm.block.message": "{name} ({email}) is signed out of every session and cannot sign in until the account is unblocked.",
+  "detail.confirm.block.action": "Block customer",
+  "detail.confirm.resetMfa.title": "Reset two-step verification for {name}?",
+  "detail.confirm.resetMfa.message": "The second factor {name} ({email}) set up is removed, and sessions that passed it have to pass it again. They set it up anew at their next sign-in. Use this when they have lost their device.",
+  "detail.confirm.resetMfa.action": "Reset two-step verification",
+  "detail.confirm.delete.title": "Delete {name}?",
+  "detail.confirm.delete.message": "{name} ({email}) is signed out of every session and can no longer sign in. The account can be restored from this page.",
+  "detail.confirm.delete.action": "Delete customer",
+  "detail.dangerZone.title": "Delete this customer",
+  "detail.dangerZone.hint": "Signs the customer out and stops them signing in. The account can be restored afterwards."
 }

@@ -105,5 +105,16 @@
   "actions.onlineCustomers.keywords": "aktywni, klienci online",
   "errors.CUSTOMER_ADDRESS_BOOK_RETIRED": "Osobista książka adresowa została wycofana. Adresy są przechowywane w książce adresowej Twojej organizacji.",
   "errors.PREFERRED_LANGUAGE_NOT_OFFERED": "Ten sklep nie oferuje tego języka.",
-  "settingGroups.customers.name": "Klienci"
+  "settingGroups.customers.name": "Klienci",
+  "detail.confirm.block.title": "Zablokować konto klienta?",
+  "detail.confirm.block.message": "{name} ({email}): wszystkie sesje zostaną zakończone, a zalogowanie będzie niemożliwe do czasu odblokowania konta.",
+  "detail.confirm.block.action": "Zablokuj klienta",
+  "detail.confirm.resetMfa.title": "Zresetować weryfikację dwuetapową?",
+  "detail.confirm.resetMfa.message": "{name} ({email}): skonfigurowany drugi składnik logowania zostanie usunięty, a sesje, które go przeszły, będą musiały przejść go ponownie. Klient skonfiguruje go od nowa przy następnym logowaniu. Użyj tego, gdy klient utracił urządzenie.",
+  "detail.confirm.resetMfa.action": "Resetuj weryfikację dwuetapową",
+  "detail.confirm.delete.title": "Usunąć konto klienta?",
+  "detail.confirm.delete.message": "{name} ({email}): wszystkie sesje zostaną zakończone, a zalogowanie nie będzie już możliwe. Konto można przywrócić z tej strony.",
+  "detail.confirm.delete.action": "Usuń klienta",
+  "detail.dangerZone.title": "Usuń tego klienta",
+  "detail.dangerZone.hint": "Kończy sesje klienta i uniemożliwia mu logowanie. Konto można później przywrócić."
 }

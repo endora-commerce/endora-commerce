@@ -7,6 +7,7 @@ import type { ReactElement } from 'react';
 import type { AdminZoneContribution, AdminZoneProps } from '@endora-commerce/contracts';
 import { useSaveParticipant, type SaveParticipantHandlers } from '@endora-commerce/admin-kit/lib';
 import { adminSession, modulePresence, renderWithSession } from '../../helpers/render-with-session';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 
 /**
  * Feature 180, WP-8 — the customer detail gets one Save
@@ -329,10 +330,13 @@ describe('customer detail — immediate actions stay immediate (feature 180, FR-
     expect(within(screen.getByText(coreEn['customFields.title']!)).queryByText(badge)).toBeNull();
   });
 
-  it('Block applies at once, without Save, and keeps the staged changes', async () => {
+  it('Block applies at once once confirmed, without Save, and keeps the staged changes', async () => {
     renderDetail();
     await editTier('silver');
     fireEvent.click(screen.getByRole('button', { name: en['detail.action.block']! }));
+    // Issue #1471 — Block asks first; the answer, not the page Save, is what applies it.
+    expect(postSpy).not.toHaveBeenCalled();
+    await answerConfirm(true);
     await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
     expect(writes).toEqual([`POST ${DETAIL_URL}/block`]);
     expect(patchSpy).not.toHaveBeenCalled();
