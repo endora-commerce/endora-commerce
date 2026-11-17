@@ -10,11 +10,12 @@ import {
   isUuidShape,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
+import { makeDeactivateSubscriberCommand } from '../commands/deactivate-subscriber.command.js';
+import { makeDeleteSubscriberCommand } from '../commands/delete-subscriber.command.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterTag } from '../entities/newsletter-tag.entity.js';
 import { NewsletterSubscriberTag } from '../entities/newsletter-subscriber-tag.entity.js';
-import { NewsletterSuppression } from '../entities/newsletter-suppression.entity.js';
 
 /** Filter fields shared by list + export (explicit `| undefined` for exactOptionalPropertyTypes). */
 export interface SubscriberFilter {
@@ -34,7 +35,7 @@ function csvCell(value: string): string {
 export class NewsletterSubscriberAdminService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly auditLog?: AuditPort,
+    private readonly commandBus: CommandBus,
   ) {}
 
   private async buildWhere(em: EntityManager, query: SubscriberFilter): Promise<FilterQuery<NewsletterSubscriber>> {
@@ -93,46 +94,16 @@ export class NewsletterSubscriberAdminService {
     return this.toDetail(sub, tagMap.get(id) ?? []);
   }
 
+  /** The `newsletter_deactivate` Command (issue #1381): the write and its entry commit together. */
   async deactivate(id: string, expectedVersion: number): Promise<SubscriberDetail> {
-    const em = this.emFactory();
-    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
-    const sub = await em.findOne(NewsletterSubscriber, { id });
-    if (!sub) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
-    if (sub.version !== expectedVersion) {
-      throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'Subscriber was modified.');
-    }
-    sub.status = 'deactivated';
-    sub.deactivatedAt = new Date();
-    sub.version += 1;
-    await em.persistAndFlush(sub);
-    await this.auditLog?.record({
-      action: 'newsletter_deactivate',
-      objectType: 'newsletter_subscriber',
-      objectId: sub.id,
-      stateAfter: { status: 'deactivated' },
-    });
-    const tagMap = await this.tagsFor(em, [id]);
-    return this.toDetail(sub, tagMap.get(id) ?? []);
+    const sub = await this.commandBus.run(makeDeactivateSubscriberCommand({ subscriberId: id, expectedVersion }));
+    const tagMap = await this.tagsFor(this.emFactory(), [sub.id]);
+    return this.toDetail(sub, tagMap.get(sub.id) ?? []);
   }
 
+  /** The `newsletter_delete` Command (issue #1381): the delete and its entry commit together. */
   async remove(id: string): Promise<void> {
-    const em = this.emFactory();
-    if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
-    const sub = await em.findOne(NewsletterSubscriber, { id });
-    if (!sub) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Subscriber not found.');
-    // Retain a suppression keyed by email so the address stays unmailable (R6).
-    const existing = await em.findOne(NewsletterSuppression, { email: sub.email });
-    if (!existing) {
-      em.create(NewsletterSuppression, { email: sub.email, reason: 'unsubscribe', detail: 'deleted' });
-    }
-    await this.auditLog?.record({
-      action: 'newsletter_delete',
-      objectType: 'newsletter_subscriber',
-      objectId: sub.id,
-      // Which subscriber by id (`objectId`), never the address (#470, D-288).
-      stateBefore: { status: sub.status },
-    });
-    await em.removeAndFlush(sub); // bridges cascade via FK
+    await this.commandBus.run(makeDeleteSubscriberCommand({ subscriberId: id }));
   }
 
   async exportCsv(query: SubscriberFilter): Promise<string> {

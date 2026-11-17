@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import type { CustomerAccountReadPort } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { CustomerAccount, NewsletterSubscriber } from '../../helpers/package-entities.js';
 import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
 import { NewsletterOptInService } from '../../../../packages/modules/newsletter/src/backend/services/opt-in.service.js';
@@ -134,6 +135,7 @@ describe('a newsletter subscriber carries the organisation of the account that o
     const cradle = h.container.cradle as never as {
       customerAccountReadPort: CustomerAccountReadPort;
       settingsReadPort: SettingsReadPort;
+      commandBus: CommandBus;
     };
     const service = new NewsletterSubscriberService({
       emFactory: h.em,
@@ -144,6 +146,7 @@ describe('a newsletter subscriber carries the organisation of the account that o
       resolveDefaultChannelId: async () => null,
       customerAccounts: cradle.customerAccountReadPort,
       links: { confirm: (t) => `confirm?${t}`, unsubscribe: (t) => `unsubscribe?${t}` },
+      commandBus: cradle.commandBus,
     });
 
     const email = `attribution-adopted-${Date.now()}@example.com`;

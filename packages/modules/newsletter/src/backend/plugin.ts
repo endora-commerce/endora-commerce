@@ -13,6 +13,7 @@ import {
 import type { PlatformLogger } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { NewsletterTokenHelper } from './services/token.helper.js';
 import { NewsletterOptInService } from './services/opt-in.service.js';
@@ -115,6 +116,12 @@ export interface NewsletterModuleOptions {
    */
   mailer?: EmailMailerPort;
   auditLog: AuditPort;
+  /**
+   * The platform's Command Bus. Every subscriber write — subscribe, confirm,
+   * unsubscribe, suppress, deactivate, delete — runs a Command on it (issue
+   * #1381, Principle XIII).
+   */
+  commandBus: CommandBus;
   /** Optional observability emitter (wraps the in-process EventBus). */
   emitEvent?: (name: string, payload: Record<string, unknown>) => void;
   /** Redis connection — when present, dispatch is queue-backed (Principle X). */
@@ -181,14 +188,11 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
     links,
     customerAccounts: options.customerAccounts,
     ...(options.mailer ? { mailer: options.mailer } : {}),
-    ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+    commandBus: options.commandBus,
     ...(options.emitEvent ? { emitEvent: options.emitEvent } : {}),
   });
 
-  const subscriberAdmin = new NewsletterSubscriberAdminService(
-    options.emFactory,
-    options.auditLog,
-  );
+  const subscriberAdmin = new NewsletterSubscriberAdminService(options.emFactory, options.commandBus);
   const tags = new NewsletterTagService(options.emFactory, options.auditLog);
   const customFields = new NewsletterCustomFieldService(options.emFactory, options.auditLog);
   const tracking = new NewsletterTrackingService(options.emFactory);
