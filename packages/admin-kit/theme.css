@@ -712,8 +712,10 @@ body,
 .b2b-sidebar__rail-popover-row > .b2b-sidebar__rail-popover-item { flex: 1; min-width: 0; }
 .b2b-sidebar__rail-popover-row > .b2b-nav-pin { opacity: 1; }
 
-/* The palette's pin control beside a result (FR-027). Out of the Tab order —
-   its keyboard equivalent is Alt+Enter on the highlighted row. */
+/* The palette's pin control beside a result (FR-027). A pointer shortcut,
+   hidden from assistive technology inside its `role="option"` row (#481) —
+   its keyboard equivalent is Alt+Enter on the highlighted row, and the pin
+   state is part of the option's accessible name. */
 .b2b-palette__pin {
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -725,7 +727,7 @@ body,
   cursor: pointer;
 }
 .b2b-palette__pin:hover { color: var(--fg); background: var(--bg-muted, rgba(0,0,0,0.06)); }
-.b2b-palette__pin[aria-pressed="true"] { color: var(--fg); }
+.b2b-palette__pin[data-pinned="true"] { color: var(--fg); }
 .b2b-palette__pin-hint {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: 11px; color: var(--fg-muted);
