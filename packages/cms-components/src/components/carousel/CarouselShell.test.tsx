@@ -196,20 +196,20 @@ describe('CarouselShell (T051)', () => {
     const page = (host: HTMLElement) => region(host).getAttribute('data-pb-carousel-page');
 
     const off = clientDom({ effect: 'fade' });
-    act(() => vi.advanceTimersByTime(20_000));
+    act(() => { vi.advanceTimersByTime(20_000); });
     expect(page(off)).toBe('0');
     act(() => root!.unmount());
     root = null;
 
     const on = clientDom({ effect: 'fade', autoplay: true, intervalMs: 3000 });
-    act(() => vi.advanceTimersByTime(3100));
+    act(() => { vi.advanceTimersByTime(3100); });
     expect(page(on)).toBe('1');
     act(() => root!.unmount());
     root = null;
 
     media.reduced = true;
     const reduced = clientDom({ effect: 'fade', autoplay: true, intervalMs: 3000 });
-    act(() => vi.advanceTimersByTime(20_000));
+    act(() => { vi.advanceTimersByTime(20_000); });
     expect(page(reduced)).toBe('0');
   });
 
@@ -646,11 +646,11 @@ describe('CarouselShell — the ends: loop and disabled arrows (T171)', () => {
     expect(arrow(host, 'prev').disabled).toBe(true);
     expect(arrow(host, 'next').disabled).toBe(false);
     geometry.scrollLeft = 600;
-    act(() => track.dispatchEvent(new Event('scroll')));
+    act(() => { track.dispatchEvent(new Event('scroll')); });
     expect(arrow(host, 'prev').disabled).toBe(false);
     expect(arrow(host, 'next').disabled).toBe(true);
     geometry.scrollLeft = 300;
-    act(() => track.dispatchEvent(new Event('scroll')));
+    act(() => { track.dispatchEvent(new Event('scroll')); });
     expect(arrow(host, 'prev').disabled).toBe(false);
     expect(arrow(host, 'next').disabled).toBe(false);
   });
@@ -658,7 +658,7 @@ describe('CarouselShell — the ends: loop and disabled arrows (T171)', () => {
   it('not looping: autoplay stops on the last page', () => {
     vi.useFakeTimers();
     const host = clientDom({ effect: 'fade', autoplay: true, intervalMs: 3000, loop: false });
-    for (let tick = 0; tick < 6; tick += 1) act(() => vi.advanceTimersByTime(3000));
+    for (let tick = 0; tick < 6; tick += 1) act(() => { vi.advanceTimersByTime(3000); });
     expect(page(host)).toBe('2');
     expect(host.querySelector('.cmsc-pb-carousel__arrow--next')?.hasAttribute('disabled')).toBe(true);
   });

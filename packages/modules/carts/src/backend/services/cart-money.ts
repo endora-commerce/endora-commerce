@@ -24,7 +24,28 @@ export function cartSubtotal(lines: ReadonlyArray<{ unitPrice: string | number; 
   return moneySum(lines.map((l) => lineAmountHalfUp(l.unitPrice, l.quantity)));
 }
 
-/** `subtotal − discount`, never below zero. */
+/**
+ * What the buyer pays for the lines, VAT included, as a two-place decimal
+ * string: `vatByRate` over the line nets — per rate, on the sum of the nets,
+ * rounded once — at each line's rate by its id (issue #1396). A line with no
+ * rate carries no VAT, as the promotion engine reads it.
+ */
+export function cartGoodsGross(
+  lines: ReadonlyArray<{ id: string; unitPrice: string | number; quantity: number }>,
+  taxRates?: ReadonlyMap<string, number> | null,
+): string {
+  return vatByRate(
+    lines.map((l) => ({ net: lineAmountHalfUp(l.unitPrice, l.quantity), rate: taxRates?.get(l.id) ?? 0 })),
+    'fraction',
+  ).gross;
+}
+
+/**
+ * `subtotal − discount`, never below zero: the cart's net after the discount
+ * (`grandTotal`, the admin detail's `total`). The discount is a gross amount
+ * taken off untaxed, as the order and the invoice book it until #926; it reads
+ * 0 where the discount exceeds the net subtotal (issue #1396).
+ */
 export function cartTotalAfterDiscount(subtotal: string | number, discount: string | number): number {
   const total = moneyDifference(subtotal, discount);
   return compareDecimals(total, 0) < 0 ? 0 : Number(total);
@@ -105,4 +126,20 @@ export function cartVatMoney(lines: readonly CartVatLine[], discount: string | n
     subtotalGross: Number(gross),
     grandTotalGross: compareDecimals(afterDiscount, 0) < 0 ? 0 : Number(afterDiscount),
   };
+}
+
+/**
+ * The admin cart detail's `totalGross` (issue #1396): the lines' gross, VAT per
+ * rate on the sum of the nets, less the discount, never below zero — the cart
+ * read's `vat.grandTotalGross`. `null` when any line's rate is unresolved.
+ */
+export function cartTotalGross(
+  lines: ReadonlyArray<{ unitPrice: string | number; quantity: number; taxRate: number | undefined }>,
+  discount: string | number,
+): number | null {
+  if (lines.some((l) => l.taxRate === undefined)) return null;
+  return cartVatMoney(
+    lines.map((l) => ({ unitPrice: l.unitPrice, quantity: l.quantity, taxRate: l.taxRate ?? 0 })),
+    discount,
+  ).grandTotalGross;
 }

@@ -7,11 +7,11 @@ import type {
 } from '@endora-commerce/contracts';
 
 /**
- * Built-in payment adapters (feature 034). These formalise the pre-existing
- * `payments/drivers/*` logic as `PaymentAdapter` implementations registered in
- * the PaymentAdapterRegistry. All bundled adapters are offline (no external
- * integration) except `gateway`, which delegates to the GatewayAdapterPort
- * wired by the integrations module.
+ * Built-in payment adapters (feature 034): the `PaymentAdapter`
+ * implementations for the platform's built-in payment kinds, registered in
+ * `payment_methods`' PaymentAdapterRegistry. Every bundled adapter is offline
+ * (no external integration). `gateway` is a placeholder: a payment-gateway
+ * vendor module registers its own adapter in the same registry.
  *
  * Validators default to `() => true` (FR-011). `onReceivePayment` echoes the
  * outcome the ingress already validated — the offline adapters do not
@@ -92,10 +92,10 @@ export class CreditLimitAdapter extends BaseAdapter {
 }
 
 /**
- * Payment gateway (`Bramka płatności`) — a vendor adapter ships separately and
- * overrides `onStorefrontOrderCreated` to return a redirect. The bundled
- * placeholder returns `none`; the real redirect comes from the wired
- * GatewayAdapterPort.
+ * Payment gateway (`Bramka płatności`) — a vendor adapter ships separately, in
+ * its own module, and overrides `onStorefrontOrderCreated` to return a
+ * redirect. The bundled placeholder returns `none`; the real redirect comes
+ * from the adapter the vendor module registers in the PaymentAdapterRegistry.
  */
 export class GatewayAdapter extends BaseAdapter {
   readonly adapterKey = 'gateway';

@@ -182,9 +182,10 @@ Projects by membership, CRM by `crm:read` and your Organization reach.
 - Using it anywhere else is refused as for a missing file too, and a missing
   file is refused there as well. This covers embedding it in a CMS page, block
   or template, a category's page, a product's content, a blog post or a blog
-  category's description, or a document template and its preview. It also
-  covers choosing it as a page's sharing image, the default sharing image, the
-  shop logo, the app icon or a sales channel's logo. A file that is already
+  category's description, a document template and its preview, or an e-mail,
+  e-mail block or e-mail template. It also covers choosing it as a page's
+  sharing image, the default sharing image, the shop logo, the e-mail logo, the
+  app icon or a sales channel's logo. A file that is already
   used there stays: saving that content or setting again works.
 - A permalink refusal (`409 ASSET_PERMALINK_TAKEN`) does not name the file that
   holds the name when you may not see it.

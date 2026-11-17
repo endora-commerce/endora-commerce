@@ -23,11 +23,14 @@
  */
 
 import { Migration20260506T112634DictionariesDictionaryInit } from './20260506T112634_dictionaries_dictionary_init.js';
+import { Migration20261117T065601DictionariesDefaultCurrencyFk } from './20261117T065601_dictionaries_default_currency_fk.js';
 
 export const migrations = [
   Migration20260506T112634DictionariesDictionaryInit,
+  Migration20261117T065601DictionariesDefaultCurrencyFk,
 ];
 
 export {
   Migration20260506T112634DictionariesDictionaryInit,
+  Migration20261117T065601DictionariesDefaultCurrencyFk,
 };

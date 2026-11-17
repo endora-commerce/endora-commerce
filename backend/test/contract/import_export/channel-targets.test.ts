@@ -9,7 +9,8 @@ import { expectModuleAbsent } from '../../helpers/off-state.js';
  * Feature 174 (owner decision 2026-11-03, `contracts/import-profiles-and-csv.md` §1) — the
  * channel × language targets an import profile may name, served by `import_export` itself behind
  * `catalog:write` (the delivery-methods precedent), so an operator who may edit profiles may pick
- * targets without `sales_channels:read`. Each channel answers its id, code and languages, and
+ * targets without `sales_channels:read`. Each channel answers its id, code, per-language name
+ * (issue #718, so the editor names a target rather than showing its code) and languages, and
  * nothing else; `catalog:read` alone is refused; with the module off the route is absent.
  */
 const ADMIN = { b2b_session: 'stub-admin-session' };
@@ -47,20 +48,21 @@ describe('174 — import profile channel targets [contract]', () => {
     await teardownBackendServer(h);
   });
 
-  it('answers every channel with its id, code and languages only — to catalog:write alone', async () => {
+  it('answers every channel with its id, code, name and languages only — to catalog:write alone', async () => {
     const res = await h.app.inject({ method: 'GET', url: URL, cookies: { b2b_session: WRITER } });
     expect(res.statusCode, res.body).toBe(200);
     const data = (res.json() as { data: Array<Record<string, unknown>> }).data;
     const channels = await h
       .em()
       .getConnection()
-      .execute<Array<{ id: string; code: string; languages: string[]; default_language: string }>>(
-        `select id, code, languages, default_language from sales_channels order by code asc`,
+      .execute<Array<{ id: string; code: string; name: Record<string, string>; languages: string[]; default_language: string }>>(
+        `select id, code, name, languages, default_language from sales_channels order by code asc`,
       );
     expect(data.map((c) => c.code)).toEqual(channels.map((c) => c.code));
     for (const entry of data) {
-      expect(Object.keys(entry).sort()).toEqual(['code', 'id', 'languages']);
+      expect(Object.keys(entry).sort()).toEqual(['code', 'id', 'languages', 'name']);
       const row = channels.find((c) => c.id === entry.id)!;
+      expect(entry.name).toEqual(row.name);
       // The channel's languages with its default first when the list omits it (`toScopeChannel`).
       expect(entry.languages).toContain(row.default_language);
       for (const code of row.languages) expect(entry.languages).toContain(code);

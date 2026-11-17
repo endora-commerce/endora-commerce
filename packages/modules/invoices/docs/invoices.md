@@ -26,7 +26,7 @@ and downloading, `invoices:write` for issuing, regenerating and e-mailing.
 | `GET /api/v1/orders/:id/invoices` | customer | The ready invoices of an order the customer may see |
 | `GET /api/v1/orders/:id/invoices/:invoiceId/pdf` | customer | Download one of them; `404 NOT_FOUND` until it is `ready` |
 | `GET /api/v1/account/organization/invoices` | customer | The Organization's ERP-imported sale documents, with their attachments |
-| `GET /api/v1/orders/:id/invoice` | customer | Older single-invoice download, registered by `orders`: `404 INVOICE_NOT_READY` until the order's invoice is `ready`, then a minimal PDF (number and total), not the template layout. Use `…/invoices/:invoiceId/pdf` |
+| `GET /api/v1/orders/:id/invoice` | customer | Single-invoice download, registered by `orders`: the order's newest `ready` document of kind `invoice`, rendered from the invoice template. A proforma or a correction is never served here, so `404 INVOICE_NOT_READY` until an invoice is `ready`. Every other document is at `…/invoices/:invoiceId/pdf` |
 
 ## Generation flow
 
@@ -82,7 +82,8 @@ sale left to document. Issuing answers `422 INVOICE_ORDER_REFUNDED` and draws
 no number; automatic issuance skips the order and logs the reason. An order
 refunded only in part is invoiced, with what was kept as paid. An order
 **returned in full** before it was invoiced — every product line back through
-settled returns, and no delivery or payment surcharge kept — counts the same,
+settled returns, nothing withheld on them, and no delivery or payment surcharge
+kept — counts the same,
 whether or not the refund has been paid out yet (one still waiting for a person
 to make it, or for the payment gateway to confirm it). When the delivery or the
 surcharge is kept, the invoice is issued with only that line. A consumer's
@@ -105,6 +106,25 @@ still calculated per rate on the sum of the nets, so the invoice equals what is
 left paid to the cent. A proforma lists the same kept lines, and is not refused
 for an order refunded in full. With the `returns` module switched off, every
 line is invoiced at its ordered quantity.
+
+An **amount withheld on a return** — the operator approved less than the
+default refund, for example to keep a handling fee — is part of the goods'
+price, at their VAT rate (owner ruling of 2026-11-07). The invoice charges it on
+a line of its own, *Retained on return: product* (`line_kind: retained`), one
+per order line something was withheld from, at that line's VAT rate. Its gross
+is what was withheld; its net is what makes the rate's VAT row the kept goods'
+gross plus that amount, under the same per-rate method. For example, of
+3 × 10.00 net at 23 % one unit comes back, its default refund is 12.30 and 10.00
+is approved: the invoice lists the two kept units and *Retained on return* at
+1.87 net and 2.30 gross, and the 23 % row is 41.87 net and 9.63 VAT — 51.50, what
+was left paid. For the few amounts no net produces under the rule (0.03 at
+23 %), the nearest net is used and the row is 0.01 off. The withheld amount
+carries no share of the order discount: the returned goods take their whole
+share back. An order whose every line came back is invoiced when something was
+withheld on it, with only those lines. When a complaint had already refunded
+part of a line and a return of it was refunded less for that reason, the
+difference is invoiced the same way, and the complaint refund still shows as
+amount due (below).
 
 A **complaint refunded before the order was invoiced** currently shows on the
 invoice as amount due: the invoice lists the goods in full, and the complaint

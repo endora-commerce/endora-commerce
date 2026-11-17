@@ -15,7 +15,7 @@
  */
 
 import type { ChannelUrlLanguage, ChannelUrlLanguageAlias } from '@endora-commerce/contracts';
-import { weightedAcceptLanguage } from '@endora-commerce/contracts/accept-language';
+import { parseAcceptLanguage } from '@endora-commerce/contracts/accept-language';
 import { LANGUAGE_NEUTRAL_SEGMENTS } from '../../app/reserved-segments';
 
 /** The channel's URL languages and the language of the current URL. */
@@ -111,16 +111,14 @@ function matchLanguage(
 
 /**
  * `Accept-Language` tags by descending q-weight, through the shared parse
- * (`weightedAcceptLanguage`, `@endora-commerce/contracts`, issue #1011) — so the bounds
- * (512 characters, ten tags after weighting), a malformed `q` dropping its tag and `q`
- * read case-insensitively are the backend's. What stays the redirect's own: a tag at
- * `q=0` or below is "not acceptable" (RFC 9110) and `*` names no language, so neither is
- * ever a redirect target.
+ * (`parseAcceptLanguage`, `@endora-commerce/contracts`, issue #1011) — so the bounds
+ * (512 characters, ten tags after weighting), a malformed `q` dropping its tag, `q`
+ * read case-insensitively and a tag at `q=0` or below dropped as "not acceptable"
+ * (RFC 9110, issue #1315) are the backend's. What stays the redirect's own: `*` names
+ * no language, so it is never a redirect target.
  */
 export function acceptLanguageTags(header: string | null | undefined): string[] {
-  return weightedAcceptLanguage(header ?? undefined)
-    .filter((entry) => entry.q > 0 && entry.tag !== '*')
-    .map((entry) => entry.tag);
+  return parseAcceptLanguage(header ?? undefined).filter((tag) => tag !== '*');
 }
 
 function matchAcceptLanguage(

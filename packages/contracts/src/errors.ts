@@ -48,6 +48,13 @@ export const ERROR_CODES = {
   SKU_ALREADY_EXISTS: 'SKU_ALREADY_EXISTS',
   VARIANT_COMBINATION_EXISTS: 'VARIANT_COMBINATION_EXISTS',
   VARIANT_AXIS_MISSING: 'VARIANT_AXIS_MISSING',
+  /**
+   * 400 — attribute values the product cannot take. Without a token, keys outside the
+   * product's attribute set (`details: [{ path, issue }]`); token `page_builder_content` —
+   * a Page Builder content attribute's key in `attributeValues` (`details.attributeKeys`,
+   * joined); token `not_content_attribute` — a content `PUT` for a key that is not a
+   * content attribute of the set (`details.attributeKey`). Issue #1223.
+   */
   ATTRIBUTE_VALUE_REJECTED: 'ATTRIBUTE_VALUE_REJECTED',
   FIELD_IMMUTABLE: 'FIELD_IMMUTABLE',
 
@@ -242,6 +249,13 @@ export const ERROR_CODES = {
   ORGANIZATION_HAS_CHILDREN: 'ORGANIZATION_HAS_CHILDREN',
   // Feature 056 — a re-parent would create a cycle or exceed the depth bound.
   ORGANIZATION_TREE_INVALID: 'ORGANIZATION_TREE_INVALID',
+  // Issue #629 (#86) — a personal (B2C) organization is single-member, so the
+  // action is refused (422, `details.code` = `add_member` | `invite` |
+  // `sales_rep`, `details.organizationId`).
+  ORGANIZATION_PERSONAL: 'ORGANIZATION_PERSONAL',
+  // Issue #629 (#86) — a moderation action needs the organization in another
+  // status (422, `details.currentStatus`, `requiredStatus` and their labels).
+  ORGANIZATION_STATUS_INVALID: 'ORGANIZATION_STATUS_INVALID',
   // Feature 170 — organization roles and permissions (`specs/170-organization-roles/`,
   // `contracts/organization-permission-port.md` §3). Declared by `organizations`.
   // A member's role lacks the organization permission a buyer action needs (403).

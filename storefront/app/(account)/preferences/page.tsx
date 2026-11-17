@@ -17,6 +17,7 @@ import { organizationAreaAccess } from '../../../lib/account/organization-area';
 import { saveOrderingPreferencesAction } from '../../../lib/actions/ordering-preferences';
 import { tForLocale, type MessageKey } from '../../../lib/i18n/messages';
 import { format } from '../../../lib/i18n/format';
+import { methodName } from '../../../lib/checkout/method-name';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -63,10 +64,6 @@ interface FieldSpec {
   readonly options: readonly Option[];
 }
 
-function localized(name: Record<string, string>, locale: string): string {
-  return name[locale] ?? name['en-US'] ?? Object.values(name)[0] ?? '';
-}
-
 function addressLabel(a: AddressSummary): string {
   return `${a.recipientName} — ${a.street}, ${a.postalCode} ${a.city}, ${a.country}`;
 }
@@ -75,7 +72,7 @@ function methodOptions(
   methods: readonly (PaymentMethodSummary | DeliveryMethodSummary)[],
   locale: string,
 ): Option[] {
-  return methods.map((m) => ({ id: m.id, label: localized(m.name, locale) }));
+  return methods.map((m) => ({ id: m.id, label: methodName(m.name, locale) }));
 }
 
 export default async function PreferencesPage({

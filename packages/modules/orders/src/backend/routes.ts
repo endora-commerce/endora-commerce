@@ -33,7 +33,6 @@ import type {
   AdminOrderDetail,
   Order as OrderResponse,
   OrderPendingEffect,
-  AssetReadPort,
   CatalogProductAvailabilityPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
@@ -200,8 +199,6 @@ export interface OrdersDeps {
    */
   invoiceRead: () => InvoiceReadPort | null;
   invoicePdf: () => InvoicePdfPort | null;
-  /** `assets_library`, for the stored invoice PDF asset. */
-  assetRead: AssetReadPort;
   /** Feature 055 — validates + persists Order custom-field values (via the Command Bus). */
   customFieldValues?: CustomFieldValuePort;
   /**
@@ -376,10 +373,19 @@ export async function registerOrderRoutes(
           },
         );
       }
+      // Issue #1320 — the basket is judged in the channel language the
+      // request's `Accept-Language` asks for (`requestScopeLanguage`), the one
+      // `POST /cart/items` judged its lines in. A content language, so not
+      // `request.responseLanguage()`, which words the messages: a channel
+      // language the interface does not offer (`de-DE` with only en/pl) used to
+      // be judged at the channel's default here.
+      const header = request.headers['accept-language'];
+      const languageTag =
+        header === undefined || header.length === 0 ? undefined : requestScopeLanguage(requestChannel, header);
       const order = await orderService.placeOrder(
         ctx,
         { ...body, salesChannelId: requestChannel.id },
-        { language: await request.responseLanguage() },
+        { language: await request.responseLanguage(), ...(languageTag ? { languageTag } : {}) },
       );
       reply.status(201);
       return { data: await serializeForBuyer(order, ctx.customerAccountId) };
@@ -398,10 +404,18 @@ export async function registerOrderRoutes(
       const ctx = resolveCustomerContext(request);
       // The preview is for the channel the buyer is on, so it refuses a method
       // that channel does not offer — the same answer the placement will give.
+      const requestChannel = getResolvedChannel(request);
+      // Issue #1373 — the basket is judged in the channel language the
+      // request's `Accept-Language` asks for (`requestScopeLanguage`), as
+      // `POST /cart/items` judged its lines and `POST /orders` places them; not
+      // in `request.responseLanguage()`, which only words the messages.
+      const header = request.headers['accept-language'];
+      const languageTag =
+        header === undefined || header.length === 0 ? undefined : requestScopeLanguage(requestChannel, header);
       const totals = await orderService.previewTotal(
         ctx,
-        { ...body, salesChannelId: getResolvedChannel(request).id },
-        { language: await request.responseLanguage() },
+        { ...body, salesChannelId: requestChannel.id },
+        { language: await request.responseLanguage(), ...(languageTag ? { languageTag } : {}) },
       );
       return { data: totals };
     },
@@ -506,33 +520,25 @@ export async function registerOrderRoutes(
       // already gets.
       const invoiceRead = deps.invoiceRead();
       const invoicePdf = deps.invoicePdf();
-      const invoice = invoiceRead ? (await invoiceRead.listForOrder(order.id))[0] : undefined;
-      if (!invoice || invoice.status !== 'ready' || !invoicePdf) {
+      // Issue #1341: the order's newest ready **invoice**, chosen by kind. The
+      // newest document of any kind may be a proforma or a correction, and the
+      // buyer reaches those through `GET /api/v1/orders/:id/invoices`.
+      const invoice = invoiceRead
+        ? (await invoiceRead.listForOrder(order.id)).find(
+            (candidate) => candidate.kind === 'invoice' && candidate.status === 'ready',
+          )
+        : undefined;
+      if (!invoice || !invoicePdf) {
         throw new HttpError(
           404,
           ERROR_CODES.INVOICE_NOT_READY,
           'Invoice is not ready yet.',
         );
       }
-      let pdfBytes: Buffer | null = null;
-      if (invoice.pdfAssetId) {
-        const asset = await deps.assetRead.findById(invoice.pdfAssetId);
-        if (asset?.storageUrl.startsWith('data:application/pdf;base64,')) {
-          pdfBytes = Buffer.from(
-            asset.storageUrl.slice('data:application/pdf;base64,'.length),
-            'base64',
-          );
-        }
-      }
-      if (!pdfBytes) {
-        pdfBytes = Buffer.from(
-          invoicePdf.renderMinimal({
-            invoiceNumber: invoice.number,
-            total: invoice.total,
-            currency: invoice.currency,
-          }),
-        );
-      }
+      // Rendered from the invoice template, as the admin and the per-invoice
+      // downloads are; `pdfAssetId` is never set, so the stored-asset path this
+      // replaced always fell through to a stub.
+      const pdfBytes = Buffer.from(await invoicePdf.renderInvoice(invoice.id));
       reply.header('content-type', 'application/pdf');
       reply.header(
         'content-disposition',

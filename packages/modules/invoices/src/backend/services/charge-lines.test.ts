@@ -46,4 +46,14 @@ describe('chargeLinesOf (#876, Q3)', () => {
     const delivery = line(3);
     expect(chargeLinesOf([line(2, { taxRate: '0.0800' }), delivery])).toEqual({ delivery, payment_surcharge: delivery });
   });
+
+  // Issue #854 — an amount withheld on a return is a positive line naming no
+  // order item; at a 0 % goods rate it has the legacy charge shape. Its kind is
+  // stated, so it is never read as a charge, and a delivery credit asked of
+  // such an invoice is refused `no_corrected_line`.
+  it('never takes a 0 % `retained` line for a charge', () => {
+    const goods = line(1, { orderItemId: 'a', lineKind: 'goods', grossValue: '30.00' });
+    const retained = line(2, { lineKind: 'retained', grossValue: '5.00' });
+    expect(chargeLinesOf([goods, retained])).toEqual({});
+  });
 });

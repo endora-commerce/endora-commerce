@@ -464,3 +464,37 @@ export function carriedDiscount(
   }
   return quotientHalfUp(decimalProduct(defaultDiscount, approved), defaultRefund);
 }
+
+/** A settled `return` case line, as `return_case_items` stores it. */
+export interface SettledReturnLineRow {
+  defaultRefundAmount: string;
+  defaultDiscountAmount: string;
+  approvedRefundAmount: string;
+}
+
+/**
+ * What a settled `return` line carried back of the order discount, and what it
+ * withheld (issue #854, owner ruling of 2026-11-07: the amount withheld on a
+ * return is part of the goods' price, at the goods' VAT rate).
+ *
+ * - **The discount** is the line's whole default discount: the goods left, and
+ *   their share of the discount left with them, whatever was refunded for them.
+ * - **Withheld** is the stored default less what was approved, never below 0.
+ *   The default is already net of the line's discount share, so what was
+ *   withheld carries no discount of its own.
+ *
+ * A refund the line ceiling lowered below the default, because a complaint
+ * had already refunded part of the line, withholds the difference too: the
+ * complaint's money is what the buyer got for it, and an invoice issued
+ * before the complaint is documented shows that money as still due (the
+ * defaults of the order's returns telescope to the drop in the kept goods'
+ * value, so the invoice less what is left paid is exactly the complaint
+ * money).
+ */
+export function settledReturnLine(row: SettledReturnLineRow): { discount: string; retained: string } {
+  const retained = moneyDifference(row.defaultRefundAmount, row.approvedRefundAmount);
+  return {
+    discount: roundHalfUp(row.defaultDiscountAmount),
+    retained: compareDecimals(retained, 0) > 0 ? retained : '0.00',
+  };
+}

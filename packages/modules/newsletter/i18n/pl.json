@@ -96,7 +96,7 @@
   "errors.NEWSLETTER_AUTOMATION_ACTIVE": "Ta automatyzacja jest aktywna, więc nie można jej edytować. Wstrzymaj ją przed edycją.",
   "errors.NEWSLETTER_CAMPAIGN_NOT_EDITABLE": "Ta kampania ma status „{status}”, więc nie można już jej edytować. Edytować można tylko kampanie w wersji roboczej i zaplanowane.",
   "errors.NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE": "Ta kampania ma status „{status}”, więc nie można już jej anulować. Anulować można tylko kampanie w wersji roboczej i zaplanowane.",
-  "errors.NEWSLETTER_PROVIDER_NOT_CONFIGURED": "Nie skonfigurowano dostawcy wysyłki, więc nie można wysłać kampanii. Najpierw skonfiguruj dostawcę wysyłki.",
+  "errors.NEWSLETTER_PROVIDER_NOT_CONFIGURED": "Dla newslettera nie wybrano działających poświadczeń e-mail, więc nie można wysłać kampanii. Najpierw wybierz poświadczenia SMTP w ustawieniu Email credentials.",
   "errors.NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN": "Pole niestandardowe o kluczu „{key}” już istnieje. Wybierz inny klucz.",
   "errors.NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN": "Blok e-mail o kodzie „{blockCode}” już istnieje. Wybierz inny kod.",
   "errors.NEWSLETTER_EMAIL_BLOCK_SYSTEM": "Blok e-mail „{blockCode}” jest blokiem systemowym, więc nie można go usunąć.",

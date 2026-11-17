@@ -42,5 +42,7 @@
   "actions.openLowStock.keywords": "low, stock level, threshold",
   "actions.openStockNotifications.keywords": "notifications, availability",
   "actions.importStock.keywords": "stock levels, warehouse",
-  "settingGroups.inventory.name": "Inventory"
+  "settingGroups.inventory.name": "Inventory",
+  "settingLabels.inventory.low_stock_alert_recipient_email.name": "Low-stock alert recipient email",
+  "settingLabels.inventory.low_stock_alert_recipient_email.description": "Email address that receives low-stock alerts. When empty, the INVENTORY_LOW_STOCK_RECIPIENT environment variable is used; when that is not set either, no alert is sent."
 }

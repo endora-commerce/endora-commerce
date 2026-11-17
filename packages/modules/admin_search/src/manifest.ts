@@ -77,7 +77,7 @@ export const manifest = defineModuleManifest({
   id: 'admin_search',
   name: 'Global search',
   description:
-    'Find organizations, customers, orders, quote requests, sales opportunities, products and categories from the admin command palette, with configurable searchable fields.',
+    'Find organizations, customers, orders, quote requests, sales opportunities, products, categories, projects and tasks from the admin command palette, with configurable searchable fields.',
   version: '1.0.0',
   // The ports this module resolves: `requireAdmin` (`auth`), the caller's
   // permission list (`admin_roles`), server-side label resolution (`_i18n`) and

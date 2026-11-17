@@ -2090,6 +2090,9 @@ importers:
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.16
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.16(@mikro-orm/core@6.6.16)(@types/node@22.19.17)(pg@8.20.0)
       '@mikro-orm/postgresql':
         specifier: ^6.6.13
         version: 6.6.16(@mikro-orm/core@6.6.16)
@@ -2252,6 +2255,9 @@ importers:
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform

@@ -48,8 +48,28 @@ const FIXTURE = [
   '}', // 33
 ].join('\n');
 
+/**
+ * The fixture exists only in memory, so no TypeScript program contains it and the
+ * project service refuses to parse it. The rule under test is syntactic, so the
+ * typed promise rules (issue #1027) are switched off for it, with the type
+ * information they need.
+ */
+function storefrontLinter(): ESLint {
+  return new ESLint({
+    cwd: STOREFRONT,
+    overrideConfig: {
+      languageOptions: { parserOptions: { projectService: false, project: null } },
+      rules: {
+        '@typescript-eslint/no-floating-promises': 'off',
+        '@typescript-eslint/no-misused-promises': 'off',
+        '@typescript-eslint/await-thenable': 'off',
+      },
+    },
+  });
+}
+
 async function reportedLines(filePath: string): Promise<number[]> {
-  const eslint = new ESLint({ cwd: STOREFRONT });
+  const eslint = storefrontLinter();
   const [result] = await eslint.lintText(FIXTURE, { filePath });
   return (result?.messages ?? [])
     .filter((m) => m.ruleId === RULE)
@@ -63,7 +83,7 @@ describe('the localized-path lint rule', () => {
   });
 
   it('carries the message that names the helpers', async () => {
-    const eslint = new ESLint({ cwd: STOREFRONT });
+    const eslint = storefrontLinter();
     const [result] = await eslint.lintText(FIXTURE, { filePath: `${STOREFRONT}components/locale-href-fixture.tsx` });
     const message = result?.messages.find((m) => m.ruleId === RULE)?.message ?? '';
     expect(message).toContain('LocalizedLink');

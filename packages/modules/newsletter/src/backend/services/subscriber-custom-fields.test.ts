@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { NewsletterSubscriberService, mergeTypedCustomFields } from './subscriber.service.js';
-import type { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
+import { mergeTypedCustomFields } from './subscriber.service.js';
+import {
+  NewsletterSubscriber as NewsletterSubscriberEntity,
+  type NewsletterSubscriber,
+} from '../entities/newsletter-subscriber.entity.js';
+import { makeSubscribeSubscriberCommand } from '../commands/subscribe-subscriber.command.js';
 
 /**
  * `specs/169-page-builder-contact-form/` US7, FR-026, research R-11 (T171) — a
@@ -58,18 +62,33 @@ describe('mergeTypedCustomFields (T171)', () => {
   });
 });
 
-describe('the subscriber service applies the typed merge (T171)', () => {
+describe('the subscribe Command applies the typed merge (T171)', () => {
+  // Since issue #1381 the merge runs inside the subscribe Command, on the
+  // Command's transactional EntityManager.
   it('stores only the type-correct values of a sign-up', async () => {
+    const subscriber = {
+      id: '00000000-0000-4000-8000-000000017101',
+      email: 'a@example.test',
+      status: 'active',
+      customFields: {},
+      confirmedAt: new Date(),
+    } as unknown as NewsletterSubscriber;
     const em = {
+      findOne: async (entity: unknown) => (entity === NewsletterSubscriberEntity ? subscriber : null),
       find: async () => DEFINED.map((field, index) => ({ id: String(index), label: field.key, ...field })),
+      flush: async () => undefined,
     } as unknown as EntityManager;
-    const service = new NewsletterSubscriberService({ emFactory: () => em } as never);
-    const subscriber = { customFields: {} } as NewsletterSubscriber;
-    await (
-      service as unknown as {
-        mergeCustomFields: (em: EntityManager, s: NewsletterSubscriber, v: Record<string, unknown>) => Promise<void>;
-      }
-    ).mergeCustomFields(em, subscriber, { age: 'abc', vip: true, born: 'tomorrow', company: 'Acme', other: 1 });
+    const command = makeSubscribeSubscriberCommand({
+      subscriberId: subscriber.id,
+      isNew: false,
+      email: subscriber.email,
+      salesChannelId: null,
+      mode: 'single',
+      owner: { kind: 'anonymous' },
+      source: null,
+      customFields: { age: 'abc', vip: true, born: 'tomorrow', company: 'Acme', other: 1 } as never,
+    });
+    await command.run({ em, actor: { actorAdminUserId: null, impersonatedCustomerAccountId: null, kind: 'system' } });
     expect(subscriber.customFields).toEqual({ vip: true, company: 'Acme' });
   });
 });

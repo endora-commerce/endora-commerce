@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { Organization } from '../../helpers/package-entities.js';
+import { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import {
   ERROR_CODES,
   organizationSubtreeResponseSchema,
@@ -184,6 +185,23 @@ describe('organization tree HTTP contract (US1)', () => {
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(delChild.statusCode).toBe(204);
+
+    // Issue #1338 — the delete is one `organization.delete` Command: the
+    // refused one recorded nothing, the soft delete exactly one entry with
+    // names and structure only (D-288).
+    const em = h.em().fork();
+    expect(await em.count(AuditLogEntry, { action: 'organization.delete', objectId: parent.id })).toBe(0);
+    const entries = await em.find(AuditLogEntry, { objectType: 'organization', objectId: child.id, action: 'organization.delete' });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.stateBefore).toEqual({
+      status: 'active',
+      vatStatus: 'vat_payer',
+      isPersonal: false,
+      parentId: parent.id,
+      version: expect.any(Number),
+    });
+    expect(entries[0]!.stateAfter ?? null).toBeNull();
+    expect((await em.findOneOrFail(Organization, { id: child.id })).deletedAt).toBeInstanceOf(Date);
   });
 
   /**

@@ -235,12 +235,14 @@ describe('Product content exclusions (feature 172)', () => {
   });
 
   describe('ordinary value path', () => {
-    type Refusal = { error: { code: string; details?: Array<{ path: string; issue: string }> } };
+    type Refusal = { error: { code: string; details?: unknown } };
+    // Issue #1223 — the token `page_builder_content` chooses the sentence that
+    // says why; the refused keys travel joined in `attributeKeys`.
     const expectRefusal = (res: { statusCode: number; body: string; json: () => unknown }): void => {
       expect(res.statusCode, res.body).toBe(400);
       const body = res.json() as Refusal;
       expect(body.error.code).toBe('ATTRIBUTE_VALUE_REJECTED');
-      expect(body.error.details?.map((detail) => detail.path)).toContain(`attributeValues.${CONTENT_KEY}`);
+      expect(body.error.details).toEqual({ code: 'page_builder_content', attributeKeys: CONTENT_KEY });
     };
 
     it('refuses the content key on an admin create (FR-014)', async () => {

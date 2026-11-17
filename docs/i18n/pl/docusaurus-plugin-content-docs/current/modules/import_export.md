@@ -21,7 +21,7 @@ których import produktów mapuje języki źródłowe.
 | `POST /api/v1/admin/import-export/profiles` | administrator (`catalog:write`) | Utworzenie profilu importu |
 | `PATCH /api/v1/admin/import-export/profiles/:id` | administrator (`catalog:write`) | Zmiana profilu importu |
 | `DELETE /api/v1/admin/import-export/profiles/:id` | administrator (`catalog:write`) | Usunięcie profilu importu |
-| `GET /api/v1/admin/import-export/channel-targets` | administrator (`catalog:write`) | Kanały, do których profil może zapisywać: tylko identyfikator, kod i języki |
+| `GET /api/v1/admin/import-export/channel-targets` | administrator (`catalog:write`) | Kanały, do których profil może zapisywać: tylko identyfikator, kod, nazwa w każdym języku i języki |
 
 ## Obsługiwane encje
 

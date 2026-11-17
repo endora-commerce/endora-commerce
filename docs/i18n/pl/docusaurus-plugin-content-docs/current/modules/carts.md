@@ -260,7 +260,7 @@ role.
 | Metoda i ścieżka | Uprawnienie | Przeznaczenie |
 | --- | --- | --- |
 | `GET /api/v1/admin/carts` | `carts:read` | Stronicowana lista koszyków w całej platformie (filtry: status, approvalStatus, organizacja, klient, kanał, data) |
-| `GET /api/v1/admin/carts/:id` | `carts:read` | Szczegóły koszyka tylko do odczytu |
+| `GET /api/v1/admin/carts/:id` | `carts:read` | Szczegóły koszyka tylko do odczytu. `total` to kwota netto po rabacie, jak `grandTotal` koszyka; `totalGross` to kwota, którą płaci kupujący, jak `vat.grandTotalGross` koszyka, albo `null`, gdy nie da się ustalić stawki pozycji. `total` na liście to wartość netto pozycji przed rabatem |
 | `GET /api/v1/admin/carts/:id/audit` | `carts:read` | Historia zmian koszyka |
 | `POST /api/v1/admin/carts/:id/reject` | `carts:reject` | Awaryjne, ostateczne odrzucenie (wymaga powodu); koszyk zrealizowany lub odrzucony daje `422 CART_ALREADY_TERMINAL` |
 
@@ -314,6 +314,10 @@ Pozycja koszyka jest zamawiana po zapisanej cenie `unit_price`, dlatego ta cena 
   zaokrąglenie swojej kwoty brutto, które ma charakter informacyjny: kwoty brutto pozycji mogą
   w sumie różnić się od łącznej o grosz. Sklep pokazuje te kwoty i sam nie liczy VAT; gdy odczyt ich
   nie zawiera (`vat: null`), pokazuje kwoty netto.
+- **`grandTotal` to kwota netto**: `subtotal − discount`, nigdy poniżej zera. Rabat jest kwotą
+  brutto, odejmowaną bez podatku, tak jak księgują go zamówienie i faktura (jedna pozycja rabatu
+  w stawce 0 %). Gdy rabat jest większy niż suma netto — kwota stała jest ograniczona do kwoty
+  brutto — `grandTotal` wynosi 0. Kwotę, którą płaci kupujący, podaje `vat.grandTotalGross`.
 - **VAT koszyka jest szacunkiem do chwili złożenia zamówienia; wiążące są kwoty złożonego
   zamówienia.** Koszyk ustala stawki dla **kraju siedziby** organizacji, bo adres rozliczeniowy nie
   jest jeszcze wybrany. Złożenie zamówienia ustala je dla **adresu rozliczeniowego** wybranego przy

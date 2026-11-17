@@ -25,7 +25,7 @@ Trasy administracyjne są chronione własnymi kodami modułu: `invoices:read` do
 | `GET /api/v1/orders/:id/invoices` | klient | Gotowe faktury zamówienia, które klient może zobaczyć |
 | `GET /api/v1/orders/:id/invoices/:invoiceId/pdf` | klient | Pobranie jednej z nich; `404 NOT_FOUND`, dopóki nie jest `ready` |
 | `GET /api/v1/account/organization/invoices` | klient | Dokumenty sprzedaży organizacji zaimportowane z ERP, wraz z załącznikami |
-| `GET /api/v1/orders/:id/invoice` | klient | Starsze pobieranie pojedynczej faktury, rejestrowane przez moduł `orders`: `404 INVOICE_NOT_READY`, dopóki faktura zamówienia nie jest `ready`, potem uproszczony PDF (numer i kwota), a nie układ z szablonu. Używaj `…/invoices/:invoiceId/pdf` |
+| `GET /api/v1/orders/:id/invoice` | klient | Pobieranie pojedynczej faktury, rejestrowane przez moduł `orders`: najnowszy dokument zamówienia rodzaju `invoice` w stanie `ready`, renderowany z szablonu faktury. Proforma ani korekta nie są tu nigdy zwracane, więc `404 INVOICE_NOT_READY`, dopóki żadna faktura nie jest `ready`. Pozostałe dokumenty są pod `…/invoices/:invoiceId/pdf` |
 
 ## Generowanie
 
@@ -77,8 +77,8 @@ i pokrywają całą kwotę zamówienia — nie jest fakturowane: nie ma już spr
 Wystawienie zwraca `422 INVOICE_ORDER_REFUNDED` i nie pobiera numeru; automatyczne wystawianie
 pomija zamówienie i zapisuje powód w logu. Zamówienie zwrócone tylko częściowo jest fakturowane,
 z zatrzymaną kwotą jako zapłaconą. Zamówienie, którego **towary zwrócono w całości** przed
-wystawieniem faktury — każda pozycja produktu wróciła w rozliczonych zwrotach, a dostawa ani dopłata
-za płatność nie zostały zatrzymane — traktowane jest tak samo, niezależnie od tego, czy pieniądze
+wystawieniem faktury — każda pozycja produktu wróciła w rozliczonych zwrotach, nic z nich nie
+zatrzymano, a dostawa ani dopłata za płatność nie zostały zatrzymane — traktowane jest tak samo, niezależnie od tego, czy pieniądze
 zostały już wypłacone (zwrot wciąż czeka na wykonanie przez człowieka albo na potwierdzenie bramki
 płatności). Gdy dostawa lub dopłata zostaje zatrzymana, faktura jest wystawiana tylko z tą pozycją.
 Odstąpienie konsumenta od całego zamówienia zwraca obie (zob. *Zwroty*), więc zamówienie B2C
@@ -98,6 +98,23 @@ pomijana, gdy nic z niego nie zostaje. VAT nadal liczy się dla każdej stawki o
 więc faktura co do grosza równa się temu, co pozostało zapłacone. Faktura proforma obejmuje te same
 zatrzymane pozycje i nie jest odrzucana dla zamówienia zwróconego w całości. Gdy moduł `returns` jest
 wyłączony, każda pozycja jest fakturowana w zamówionej ilości.
+
+**Kwota zatrzymana przy zwrocie** — operator zatwierdził mniej niż domyślny zwrot, na przykład aby
+zatrzymać opłatę manipulacyjną — jest częścią ceny towarów według ich stawki VAT (decyzja właściciela
+z 2026-11-07). Faktura nalicza ją w osobnej pozycji *Kwota zatrzymana przy zwrocie: produkt*
+(`line_kind: retained`), jednej dla każdej pozycji zamówienia, z której coś zatrzymano, według stawki
+VAT tej pozycji. Jej kwota brutto to to, co zatrzymano; jej wartość netto to ta, przy której wiersz
+VAT stawki równa się kwocie brutto zatrzymanych towarów powiększonej o tę kwotę, według tej samej
+metody liczenia VAT dla każdej stawki. Na przykład z 3 × 10,00 netto przy 23 % wraca jedna sztuka,
+jej domyślny zwrot to 12,30, a zatwierdzono 10,00: faktura obejmuje dwie zatrzymane sztuki i *Kwotę
+zatrzymaną przy zwrocie* 1,87 netto i 2,30 brutto, a wiersz 23 % to 41,87 netto i 9,63 VAT — 51,50,
+czyli to, co pozostało zapłacone. Dla nielicznych kwot, których żadna wartość netto nie daje według
+tej reguły (0,03 przy 23 %), używana jest najbliższa wartość netto, a wiersz różni się o 0,01.
+Zatrzymana kwota nie niesie części rabatu zamówienia: zwrócone towary oddają całą swoją część.
+Zamówienie, którego wszystkie pozycje wróciły, jest fakturowane, gdy coś z nich zatrzymano, i
+obejmuje tylko te pozycje. Gdy reklamacja zwróciła już część wartości pozycji, a zwrot tej pozycji
+został z tego powodu obniżony, różnica jest fakturowana tak samo, a zwrot z reklamacji nadal jest
+widoczny jako kwota do zapłaty (poniżej).
 
 **Reklamacja, za którą zwrócono pieniądze przed wystawieniem faktury**, jest obecnie widoczna na
 fakturze jako kwota do zapłaty: faktura obejmuje towary w całości, a zwrot z reklamacji pomniejsza

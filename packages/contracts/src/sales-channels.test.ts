@@ -186,3 +186,11 @@ describe('channel access error codes', () => {
     expect(ERROR_CODES.ORDER_SALES_CHANNEL_MISMATCH).toBe('ORDER_SALES_CHANNEL_MISMATCH');
   });
 });
+
+describe('channel-side membership list exports (issue #1162)', () => {
+  it('no longer exports the deprecated ChannelMembershipListResponseSchema', async () => {
+    const barrel: Record<string, unknown> = await import('./index.js');
+    expect(barrel).not.toHaveProperty('ChannelMembershipListResponseSchema');
+    expect(barrel).toHaveProperty('ChannelMemberIdListResponseSchema');
+  });
+});

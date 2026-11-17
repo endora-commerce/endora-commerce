@@ -56,7 +56,9 @@ export function CartTotals({
     kind === 'net' ? strings.netSuffix : kind === 'gross' ? strings.grossSuffix : '';
   // Issue #436 — the gross is the backend's VAT per rate, the order's figure;
   // the discount comes off the gross untaxed, so it reads the same on both
-  // sides and `subtotal − discount = total` holds in either column.
+  // sides and `subtotal − discount = total` holds in either column — except
+  // where the discount exceeds the net subtotal (a fixed amount is capped at
+  // the gross, issue #1396): the net total is never below zero and reads 0.
   const renderAmount = (
     m: { amount: number; currency: string },
     gross: number | null,

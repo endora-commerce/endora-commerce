@@ -698,12 +698,23 @@ export interface OrderReturnedQuantity {
   quantity: number;
   /**
    * The part of the order-level discount those cases carried back for the
-   * line, as recorded at settlement — each case line's default discount in
-   * proportion to its approved refund — summed, as a two-place decimal string
+   * line, as recorded at settlement — each case line's whole default discount:
+   * the goods left, and their share of the discount with them, whatever was
+   * refunded for them (issue #854) — summed, as a two-place decimal string
    * (`'0.00'` without a discount). An invoice issued afterwards takes it off
    * its discount line, so the line carries only the kept goods' share.
    */
   discount: string;
+  /**
+   * What those cases withheld for the line (issue #854, owner ruling of
+   * 2026-11-07: the amount withheld on a return is part of the goods' price, at
+   * the goods' VAT rate) — per case line, its stored default refund less what
+   * was approved, never below 0; summed, as a two-place gross decimal string. The default is already net of
+   * the line's discount share, so this carries no discount. An invoice issued
+   * afterwards charges it at the line's VAT rate. Absent or `'0.00'` when
+   * nothing was withheld.
+   */
+  retained?: string;
 }
 
 /**

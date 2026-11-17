@@ -23,7 +23,7 @@ export interface DemoDeliveryMethodRow {
 export const DEMO_DELIVERY_METHOD_ROWS: readonly DemoDeliveryMethodRow[] = [
   {
     code: 'in_person_pickup',
-    name: { 'en-US': 'In-person pickup', 'pl-PL': 'Odbior osobisty' },
+    name: { 'en-US': 'In-person pickup', 'pl-PL': 'Odbiór osobisty' },
     cost: '0',
     currency: 'PLN',
     adapter: 'personal_pickup',

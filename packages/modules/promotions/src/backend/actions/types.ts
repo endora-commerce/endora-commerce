@@ -3,11 +3,24 @@ import type { CartLine, PromotionAction } from '@endora-commerce/contracts';
 /**
  * The cart facts an action operates on. The engine clamps the returned
  * deltas so nothing goes below zero; individual actions also cap their own
- * subtotal delta at `ctx.subtotal` defensively (FR-015).
+ * subtotal delta defensively (FR-015).
+ *
+ * Issue #1350 (owner ruling 2026-11-16): a percent-off or free-unit action
+ * computes on `grossSubtotal` and the lines' gross — what the buyer pays — and
+ * caps there. Issue #1396 (owner ruling 2026-11-17): a "spend X" step counts
+ * `grossSubtotal` too, and a fixed amount is capped at it. No built-in action
+ * reads `subtotal`.
  */
 export interface CartApplyContext {
   lines: readonly CartLine[];
+  /**
+   * The net goods subtotal less the discounts of earlier promotions. A discount
+   * is a gross amount, so this is not a net after discount; read
+   * `grossSubtotal` for what the buyer still pays.
+   */
   subtotal: number;
+  /** The goods gross (`vatByRate` over the line nets) still undiscounted by earlier promotions. */
+  grossSubtotal: number;
   deliveryTotal: number;
   currency: string;
 }

@@ -240,7 +240,7 @@ export interface DefaultTreeScan {
  * One call, exported, because the companion test asks the same question as the
  * CLI and has twice been caught asking a similar one instead (see its last
  * case). The storefront is analysed with {@link AnalyzeOptions.polishLiterals};
- * the admin roots are not, so their two shapes and their ledger are unchanged.
+ * the admin roots are not, which keep the admin shapes and the admin ledger.
  */
 export function scanDefaultTree(): DefaultTreeScan {
   const adminRoots = adminScanRoots();
@@ -338,12 +338,19 @@ export function moduleAdminFloorRefusal(
  * `pnpm --filter backend run i18n:hardcoded [-- <path>… | --strict | --list]` — feature 021.
  *
  * Walks the admin SPA's `.tsx` source for hard-coded user-visible strings.
- * Flags two shapes:
+ * Flags four shapes:
  *   1. JSX text nodes whose trimmed value contains a non-whitespace English
- *      letter (a-z), e.g. `<Button>Save changes</Button>`.
+ *      letter (a-z), e.g. `<Button>Save changes</Button>` — and, since issue
+ *      #1316, a single capitalised word, `<Button>Delete</Button>`.
  *   2. JSX attribute values whose attribute name is in `USER_VISIBLE_ATTRS`
- *      (title, aria-label, placeholder, alt) and whose value is a string
- *      literal, e.g. `<input placeholder="Search…" />`.
+ *      (title, aria-label, placeholder, alt), in the storefront's wider set or
+ *      named for copy (`description`, `label`, `emptyLabel`), e.g.
+ *      `<input placeholder="Search…" />` — read through `{…}`, conditionals
+ *      and fallbacks since issue #1316 (`jsx-attr`).
+ *   3. A literal rendered as a JSX child, `{error ?? 'Not found.'}`
+ *      (`jsx-expression`, issue #1316).
+ *   4. Prose handed to a state setter, `setError('Delete failed.')`
+ *      (`setter-literal`, issue #1316).
  *
  * The storefront (issue #85) is walked as well, over `.ts` and `.tsx`, and is
  * judged strictly ({@link STOREFRONT_ANALYSIS}) — six kinds, each literal
@@ -367,10 +374,13 @@ export function moduleAdminFloorRefusal(
  *   declared: a lone word outside every named context (`const unit = 'szt.'`)
  *   and copy reaching the page only through a call argument are invisible.
  *
- * False-positive controls (the admin's two shapes; the storefront's are on
+ * False-positive controls (the admin's shapes; the storefront's are on
  * {@link analyzeStrict} and its helpers):
  *   - Ignore strings made entirely of code-style characters: identifiers
- *     with dots or underscores, paths, regex shapes, UUID/hex.
+ *     with dots or underscores, paths, regex shapes, UUID/hex — but not a
+ *     single capitalised word, which is a label (issue #1316).
+ *   - Ignore a literal value that is not copy whatever holds it (a URL, a
+ *     catalogue key, a colour), styling attributes, and a setter's state value.
  *   - Ignore JSX inside <code>...</code> (technical identifier display).
  *   - Ignore very short strings (single character, punctuation only).
  *   - Ignore strings already wrapped in `t(...)` — they are JSX expressions,
@@ -414,6 +424,8 @@ const USER_VISIBLE_ATTRS = new Set([
  * - `prose-literal` — a literal shaped like prose anywhere else.
  * - `polish-literal` — a literal carrying a Polish diacritic that none of the
  *   above reported.
+ * - `setter-literal` — the admin's: prose handed to a state setter,
+ *   `setError('Delete failed.')` (issue #1316).
  */
 export type FindingKind =
   | 'jsx-text'
@@ -421,7 +433,8 @@ export type FindingKind =
   | 'jsx-expression'
   | 'copy-property'
   | 'prose-literal'
-  | 'polish-literal';
+  | 'polish-literal'
+  | 'setter-literal';
 
 export interface Finding {
   filePath: string;
@@ -431,12 +444,12 @@ export interface Finding {
   kind: FindingKind;
 }
 
-/** What {@link analyzeSource} asks beyond the two JSX shapes. */
+/** What {@link analyzeSource} asks beyond the admin shapes. */
 export interface AnalyzeOptions {
   /**
    * Also flag a Polish string or template literal outside JSX text (issue #85).
    * On for the storefront, off for the admin roots, whose ledger was measured
-   * over the two JSX shapes.
+   * over the admin shapes alone.
    */
   readonly polishLiterals?: boolean;
   /**
@@ -522,6 +535,91 @@ function isLikelyCodeIdentifier(s: string): boolean {
   return false;
 }
 
+/**
+ * One capitalised word, optionally hyphenated and with a closing mark:
+ * `Delete`, `Inactive`, `Re-activate`, `E-mail`, `Saved.` (issue #1316).
+ *
+ * {@link isLikelyCodeIdentifier} reads every one of them as a code token,
+ * because a single word has nothing but letters in it — so every one-word
+ * button and badge in the admin went unreported. A code token that survives
+ * this is still skipped: lower-case (`px`, `order_id`), all capitals (`SKU`,
+ * `GET`), camel-cased (`ItemList`), or carrying `_`, `.`, `/` or digits.
+ */
+const ONE_WORD_LABEL = /^\p{Lu}\p{Ll}+(?:-\p{L}\p{Ll}*)*[.!?…:]?$/u;
+
+/** The admin's code-token test: {@link isLikelyCodeIdentifier}, minus a one-word label. */
+function isAdminCodeToken(s: string): boolean {
+  return isLikelyCodeIdentifier(s) && !ONE_WORD_LABEL.test(s.trim());
+}
+
+/** A value the admin renders as copy: neither a code token nor a non-copy value. */
+function isAdminCopy(text: string): boolean {
+  return !isAdminCodeToken(text) && !isNonCopyValue(text);
+}
+
+/** A React state setter by the `useState` naming convention: `setError`, `setNotice`. */
+const STATE_SETTER = /^set[A-Z]\w*$/;
+
+/**
+ * The admin's literal shapes (issue #1316), each reached through
+ * {@link passThroughTop} so a literal in a conditional, a `??` fallback or a
+ * `{…}` counts as the context it lands in:
+ *
+ * - `jsx-attr`: the four visible attributes, plus the storefront's wider set and
+ *   every prop named for copy (`description`, `label`, `emptyLabel`, …) — the
+ *   page header's `description` was invisible to the plain-string rule.
+ * - `jsx-expression`: a literal rendered as a JSX child,
+ *   `{error ?? 'Channel not found.'}`.
+ * - `setter-literal`: a prose-shaped literal or one-word label handed to a state
+ *   setter, `setError('Delete failed.')` — state the screen renders. A value
+ *   that is not prose (`setStatus('idle')`, `setTab('general')`) is state, not
+ *   copy, and stays unreported.
+ *
+ * What it still cannot see is declared: copy that reaches the page through any
+ * other call argument (`toast(…)`, `confirm({ title })`) or through a constant.
+ */
+function classifyAdminLiteral(
+  literal: TextLiteral,
+  text: string,
+  insideCode: (node: ts.Node) => boolean,
+): FindingKind | null {
+  if (isNonValueLiteral(literal)) return null;
+  const top = passThroughTop(literal);
+  const ctx = top.parent;
+  if (!ctx) return null;
+  // A template is judged with each substitution read as one plain word, so a
+  // generated id (`select-${id}`, `${prefix}-country`) is the code token it
+  // is, and `Remove ${name}` is the sentence it is.
+  // The static parts alone have to carry a letter, though: `${a} · ${b}` is
+  // punctuation around two values, not a word.
+  const probe = ts.isTemplateExpression(literal) ? text.replace(/\$\{…\}/g, 'x') : text;
+  if (!LETTER.test(text.replace(/\$\{…\}/g, ''))) return null;
+  if (ts.isJsxAttribute(ctx)) {
+    const name = ts.isIdentifier(ctx.name) ? ctx.name.text : ctx.name.getText();
+    if (STYLING_ATTRS.has(name)) return null;
+    if (!STRICT_VISIBLE_ATTRS.has(name) && !namesRenderedCopy(name)) return null;
+    return isAdminCopy(probe) ? 'jsx-attr' : null;
+  }
+  if (
+    ts.isJsxExpression(ctx) &&
+    ctx.parent !== undefined &&
+    (ts.isJsxElement(ctx.parent) || ts.isJsxFragment(ctx.parent))
+  ) {
+    // `<style>{`:host{…}`}</style>` is CSS, and `<code>` is technical text.
+    if (insideCode(ctx) || isInsideElement(ctx, NON_PROSE_ELEMENTS)) return null;
+    return isAdminCopy(probe) ? 'jsx-expression' : null;
+  }
+  if (
+    ts.isCallExpression(ctx) &&
+    ts.isIdentifier(ctx.expression) &&
+    STATE_SETTER.test(ctx.expression.text) &&
+    ctx.arguments.includes(top as ts.Expression)
+  ) {
+    return isProseShaped(text) || ONE_WORD_LABEL.test(text.trim()) ? 'setter-literal' : null;
+  }
+  return null;
+}
+
 function walkFile(filePath: string, findings: Finding[], options: AnalyzeOptions = {}): void {
   findings.push(...analyzeSource(readFileSync(filePath, 'utf8'), filePath, options));
 }
@@ -572,36 +670,31 @@ export function analyzeSource(
     return findings;
   }
 
+  // Every literal an admin shape reported, so the Polish fallback (the
+  // non-strict `polishLiterals` mode) cannot count it a second time.
+  const reported = new Set<ts.Node>();
+  const push = (node: ts.Node, text: string, kind: FindingKind): void => {
+    const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+    findings.push({ filePath, line: line + 1, column: character + 1, text, kind });
+    reported.add(node);
+  };
+
   function visit(node: ts.Node): void {
     if (ts.isJsxText(node)) {
       const trimmed = node.text.trim();
-      if (trimmed.length > 0 && !isLikelyCodeIdentifier(trimmed) && !isInsideCodeElement(node)) {
-        const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
-        findings.push({
-          filePath,
-          line: line + 1,
-          column: character + 1,
-          text: trimmed,
-          kind: 'jsx-text',
-        });
+      if (trimmed.length > 0 && !isAdminCodeToken(trimmed) && !isInsideCodeElement(node)) {
+        push(node, trimmed, 'jsx-text');
       }
-    } else if (ts.isJsxAttribute(node)) {
-      const name = ts.isIdentifier(node.name) ? node.name.text : '';
-      if (USER_VISIBLE_ATTRS.has(name) && node.initializer && ts.isStringLiteral(node.initializer)) {
-        const value = node.initializer.text;
-        if (!isLikelyCodeIdentifier(value)) {
-          const { line, character } = sf.getLineAndCharacterOfPosition(node.initializer.getStart(sf));
-          findings.push({
-            filePath,
-            line: line + 1,
-            column: character + 1,
-            text: value,
-            kind: 'jsx-attr',
-          });
-        }
-      }
+    } else if (
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateExpression(node)
+    ) {
+      const text = literalText(node);
+      const kind = classifyAdminLiteral(node, text, isInsideCodeElement);
+      if (kind !== null) push(node, text, kind);
     }
-    if (options.polishLiterals) {
+    if (options.polishLiterals && !reported.has(node)) {
       if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
         polishLiteral(node, node.text);
       } else if (ts.isTemplateExpression(node)) {
@@ -919,7 +1012,7 @@ function isNonRenderedContext(literal: ts.Node, top: ts.Node): boolean {
 }
 
 /**
- * The storefront's strict shapes (issue #85). The admin's two shapes miss most
+ * The storefront's strict shapes (issue #85). The admin's shapes then missed most
  * of what the storefront renders: a single word of JSX text (`Koszyk`) read as
  * "code-like", a visible attribute written `{'…'}` or `{a ? 'X' : 'Y'}`, a
  * literal rendered as a JSX child, a label table, Next's `metadata`, and any
@@ -1030,7 +1123,10 @@ function analyzeStrict(
 
 /**
  * The standing debt, as measured on 2026-08-16: **274 findings across 47 files**
- * of the 321 `.tsx` files under `admin/src`.
+ * of the 321 `.tsx` files under `admin/src`. Re-measured when issue #1316
+ * widened the admin rule (2026-11-17): **571 findings across 75 files** — the
+ * same screens' one-word labels, copy-named props, rendered literals and
+ * setter messages, which the narrower rule could not see.
  *
  * ## Why a per-file count rather than a per-string ledger
  *
@@ -1059,13 +1155,12 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // `@endora-commerce/admin-shell` and this walk's roots moved with it, so the
   // same four strings in the same component are read at the path they now sit
   // at. The count is unmoved, which is what says nothing was translated.
-  'packages/admin-shell/src/components/LoginPage.tsx': 4,
+  'packages/admin-shell/src/components/LoginPage.tsx': 5,
   // Feature 091's P4c published the asset cluster into the kit; its one
   // finding, AssetFieldPicker's `aria-label="Clear asset"`, became feature
   // 163's translatable `clearLabel` prop (English stays only as its default
   // for callers with no bundle), and the entry went with it.
-  'packages/admin-kit/src/components/rule-builder/RuleBuilder.tsx': 6,
-  'packages/admin-kit/src/ui/color-picker.tsx': 1,
+  'packages/admin-kit/src/components/rule-builder/RuleBuilder.tsx': 9,
   // Feature 091's P5b published the shared page-builder chrome and the e-mail
   // builder as `@endora-commerce/page-builder-admin`, and these **six** entries
   // are **re-keyed**, not raised and not dropped. Every count is unmoved: the
@@ -1078,13 +1173,13 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // *stale* in the same run rather than silently unread, which is the property
   // that makes a self-declared population safe here.
   'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 9,
-  'packages/page-builder-admin/src/email/EmailRichTextField.tsx': 1,
-  'packages/page-builder-admin/src/email/EmailRowLayoutPicker.tsx': 2,
-  'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': 4,
+  'packages/page-builder-admin/src/email/EmailRichTextField.tsx': 2,
+  'packages/page-builder-admin/src/email/EmailRowLayoutPicker.tsx': 3,
+  'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': 5,
   // Feature 163, R17 (T201): the picker's Change / Select / Clear selection and
   // the source's two options read the `core` bundle; lowered from 5.
-  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 2,
-  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 13,
+  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 4,
+  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 32,
   // Feature 091, Phase 4 batch 16 — re-keyed, not raised and not dropped:
   // `cms` took its admin surface into its package and these files went with
   // it. Every count is unmoved; the same strings in the same components, under
@@ -1097,8 +1192,8 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // Feature 163, T016 — drained, not re-keyed: the button link picker's file
   // (4 findings) was deleted, and its successor, `page-builder-admin`'s
   // `LinkField.tsx`, reads every string from the `core` bundle.
-  'packages/modules/cms/src/admin/components/ComponentDragHandle.tsx': 1,
-  'packages/modules/cms/src/admin/components/RowLayoutPicker.tsx': 2,
+  'packages/modules/cms/src/admin/components/ComponentDragHandle.tsx': 2,
+  'packages/modules/cms/src/admin/components/RowLayoutPicker.tsx': 3,
   // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `invoices` took its
   // admin surface into its package and this file went with it. The count is
   // untouched; nothing about the strings changed, only their address. This
@@ -1106,7 +1201,7 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // so the merge request that moves a file is structurally the one that
   // cannot see the entry go stale. Issue #888 lowered it from 4: the canvas
   // now draws its labels from the PDF's `pdf.*` keys.
-  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 2,
+  'packages/modules/invoices/src/admin/templates/invoice-puck-config.tsx': 3,
   // `specs/134-paid-module-extraction/` T063 re-keyed two of the six strings
   // above to the KSeF block's editor preview in the module that declares the
   // block; T069 then took that module out of this repository, and the entry
@@ -1131,7 +1226,7 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // sets up their second factor in English. Translating them is a screen's
   // worth of keys and belongs to whoever is repairing this screen, not to a
   // batch whose subject is where the file lives.
-  'packages/modules/mfa/src/admin/pages/AdminSecuritySettings.tsx': 16,
+  'packages/modules/mfa/src/admin/pages/AdminSecuritySettings.tsx': 18,
   // Feature 091, Phase 4, the plan's batch 7 — the same four counts under the
   // same four files, **re-keyed rather than re-baselined**. The ratchet is
   // two-way and keyed by path, so moving a directory strands the old key as a
@@ -1148,11 +1243,11 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // the new one as a regression. Both halves of all five fired in one run,
   // which is what the ratchet is for: a re-key is visible as a re-key rather
   // than as a debt that quietly moved house.
-  'packages/modules/delivery_methods/src/admin/pages/DeliveryMethodsPage.tsx': 5,
-  'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 5,
-  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 12,
-  'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 4,
-  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 4,
+  'packages/modules/delivery_methods/src/admin/pages/DeliveryMethodsPage.tsx': 6,
+  'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 11,
+  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 24,
+  'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 14,
+  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 11,
   // Feature 091, Phase 4 batch five: the screen moved into `stripe`'s package
   // and the entry is **re-keyed**, not raised and not dropped — the same
   // twenty-nine strings at a new address, which this check's two-way ratchet
@@ -1195,21 +1290,21 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // Translating them is two screens' worth of keys per module and belongs to
   // whoever repairs those screens, not to a batch whose subject is where the
   // file lives.
-  'packages/modules/newsletter/src/admin/pages/AutomationBuilder.tsx': 6,
-  'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 4,
-  'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 8,
-  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 14,
-  'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': 3,
-  'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 4,
-  'packages/modules/newsletter/src/admin/pages/ProviderSettingsPage.tsx': 7,
-  'packages/modules/newsletter/src/admin/pages/SubscribersPage.tsx': 6,
-  'packages/modules/newsletter/src/admin/pages/TagsPage.tsx': 9,
-  'packages/modules/transactional_emails/src/admin/components/BrandingPanel.tsx': 5,
-  'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 3,
-  'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 3,
-  'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 4,
-  'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 17,
-  'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 22,
+  'packages/modules/newsletter/src/admin/pages/AutomationBuilder.tsx': 19,
+  'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 12,
+  'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 20,
+  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 27,
+  'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': 6,
+  'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 9,
+  'packages/modules/newsletter/src/admin/pages/ProviderSettingsPage.tsx': 13,
+  'packages/modules/newsletter/src/admin/pages/SubscribersPage.tsx': 14,
+  'packages/modules/newsletter/src/admin/pages/TagsPage.tsx': 19,
+  'packages/modules/transactional_emails/src/admin/components/BrandingPanel.tsx': 11,
+  'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 10,
+  'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 8,
+  'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 10,
+  'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 21,
+  'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 52,
   'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
   // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `organizations`
   // took its admin surface into its package and this panel went with it. The
@@ -1218,6 +1313,49 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // the batch that cannot see the entry go stale — which is why it is
   // corrected here, in the same merge request.
   'packages/modules/organizations/src/admin/panels/RestrictionsPanel.tsx': 1,
+  // Issue #1316 widened the admin rule — a one-word capitalised label in JSX
+  // text, every copy-named prop read through `{…}` and conditionals, a literal
+  // rendered as a JSX child, and prose handed to a state setter — and the
+  // entries above were **raised** by what the wider rule sees in them, not by
+  // new strings. These are the files the old rule read as clean. Measured
+  // 2026-11-17: 571 admin findings across 75 files, up from 217 across 40.
+  // `color-picker.tsx`'s one finding left with the rule rather than with a
+  // translation: it was a hex colour placeholder, which is not copy.
+  'packages/admin-kit/src/components/FileDropzone.tsx': 1,
+  'packages/admin-kit/src/components/asset-picker/AssetFieldPicker.tsx': 5,
+  'packages/admin-kit/src/components/cms-picker/CmsBlockPicker.tsx': 3,
+  'packages/admin-kit/src/components/cms-picker/CmsPagePicker.tsx': 3,
+  'packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx': 2,
+  'packages/admin-kit/src/components/organization-picker/OrganizationPicker.tsx': 3,
+  'packages/admin-kit/src/components/organization-picker/OrganizationPickerMulti.tsx': 4,
+  'packages/admin-kit/src/ui/multi-select.tsx': 3,
+  'packages/admin-kit/src/zones/ZoneErrorBoundary.tsx': 1,
+  'packages/admin-shell/src/components/AppShell.tsx': 5,
+  'packages/modules/carts/src/admin/pages/CartsList.tsx': 1,
+  'packages/modules/catalog/src/admin/components/ProductInventoryTab.tsx': 3,
+  'packages/modules/catalog/src/admin/pages/AttributeSetsPage.tsx': 3,
+  'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': 2,
+  'packages/modules/cms/src/admin/components/BackgroundFields.tsx': 1,
+  'packages/modules/cms/src/admin/components/CarouselPreviewNav.tsx': 5,
+  'packages/modules/cms/src/admin/components/ContentSliderActionBarExtras.tsx': 2,
+  'packages/modules/cms/src/admin/components/HeroFields.tsx': 2,
+  'packages/modules/cms/src/admin/components/PageBuilderActionBar.tsx': 7,
+  'packages/modules/cms/src/admin/components/SectionBlockFields.tsx': 1,
+  'packages/modules/dictionaries/src/admin/pages/DictionaryPage.tsx': 2,
+  'packages/modules/dictionaries/src/admin/tabs/CountriesTab.tsx': 23,
+  'packages/modules/dictionaries/src/admin/tabs/CurrenciesTab.tsx': 21,
+  'packages/modules/dictionaries/src/admin/tabs/LanguagesTab.tsx': 15,
+  'packages/modules/invoices/src/admin/pages/InvoicesList.tsx': 3,
+  'packages/modules/orders/src/admin/pages/OrderDetail.tsx': 1,
+  'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx': 2,
+  'packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx': 1,
+  'packages/modules/payment_methods/src/admin/pages/PaymentMethodsPage.tsx': 1,
+  'packages/modules/quick_order/src/admin/pages/QuickOrderOnBehalfPage.tsx': 1,
+  'packages/modules/settings/src/admin/components/ConflictBanner.tsx': 2,
+  'packages/modules/settings/src/admin/pages/GroupsPage.tsx': 3,
+  'packages/modules/settings/src/admin/pages/SettingsPage.tsx': 6,
+  'packages/page-builder-admin/src/email/EmailBuilderActionBar.tsx': 5,
+  'packages/page-builder-admin/src/email/EmailVariableFields.tsx': 2,
 };
 
 /**

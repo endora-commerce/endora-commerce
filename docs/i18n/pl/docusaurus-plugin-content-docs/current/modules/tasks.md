@@ -141,8 +141,8 @@ zadania bez rekordu może włączać i wyłączać *Prywatne*. Dalej:
 - **Szczegóły** — opis z odwołaniami jako odnośnikami; osoby przypisane, termin
   z godziną, data rozpoczęcia, priorytet i etykiety, zmieniane przyciskiem
   *Edytuj* i zapisywane razem; *Przypisz do mnie*; kto i kiedy utworzył
-  zadanie oraz kiedy zostało zakończone. *Usuń zadanie* pyta przed usunięciem
-  i podaje, ile zadanie ma podzadań: stają się one zadaniami głównymi, nie są
+  zadanie oraz kiedy zostało zakończone. *Usuń zadanie*, u góry ekranu i z dala
+  od *Edytuj*, pyta przed usunięciem i podaje, ile zadanie ma podzadań: stają się one zadaniami głównymi, nie są
   usuwane. Przycisk nie jest dostępny dla zadania rekordu, którego nie możesz
   zmieniać — projektu, którego nie możesz edytować — a ekran wyjaśnia dlaczego.
 - **Podzadania** — ile jest zrobionych z ilu, każde ze statusem, osobami
@@ -532,6 +532,7 @@ ctx.onBoot(() => {
     allVisibleContextIds: () => /* every record id the caller may see */,
     visibleContextIds: (ids) => /* which of these ids the caller may see */,
     describe: (ids) => /* id → { label, href, groups: groupId → label } */,
+    search: ({ q, limit, changeableOnly }) => /* one page of { id, description }, by label */,
     canSeeAs: (adminUserId, id) => /* may that administrator see this record? */,
     canChangeTasks: (id) => /* may the caller add, take out or delete a task of this record? */,
     existingContexts: (ids) => /* id → the group ids it has now, for each id that still exists */,
@@ -550,6 +551,16 @@ Kontrakt, którego deskryptor przestrzega:
 - `visibleContextIds(ids)` odpowiada dla pojedynczego zadania albo kilku.
 - `describe(ids)` określa, jak zadanie pokazuje swój kontekst: etykietę, adres
   w panelu i etykiety grup rekordu.
+- `search({ q, limit, changeableOnly })`, opcjonalna, odpowiada wyborowi
+  rekordu na ekranie zadania (*Przenieś*, *Umieść w rekordzie*) po jednej
+  stronie naraz: rekordy, które pytający może zobaczyć i których etykieta
+  zawiera `q` bez względu na wielkość liter i znaki diakrytyczne, według
+  etykiety, najwyżej `limit`, każdy opisany tak, jak opisałaby go `describe`.
+  Z `changeableOnly` tylko te, na które pozwoliłaby `canChangeTasks`. Odpowiadaj
+  jednym ograniczonym zapytaniem. Bez niej każde wyszukiwanie wylicza wszystkie
+  rekordy widoczne dla pytającego, opisuje je wszystkie i pyta `canChangeTasks`
+  o każdy, więc wybór zwalnia w miarę przybywania rekordów. Projekty ją
+  implementują.
 - `canSeeAs(adminUserId, id)` to jedyna metoda, która odpowiada za **kogoś
   innego**: czy ten administrator, według własnych uprawnień i zasięgu, może
   zobaczyć rekord. Jest pytana, zanim ktokolwiek dostanie powiadomienie

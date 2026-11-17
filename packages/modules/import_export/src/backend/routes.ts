@@ -195,7 +195,7 @@ export async function registerImportExportRoutes(
   /**
    * Owner decision 2026-11-03 — the targets the profile editor offers, served here so that the
    * code that lets an operator edit a profile is also enough to pick its targets (no
-   * `sales_channels:read`). Id, code and languages only; the delivery-methods precedent
+   * `sales_channels:read`). Id, code, name (issue #718) and languages only; the delivery-methods precedent
    * (`GET /api/v1/admin/delivery-methods/sales-channels`).
    */
   app.get('/api/v1/admin/import-export/channel-targets', { preHandler: [anyImportExportCode, requireAdmin('catalog:write')] }, async () => {

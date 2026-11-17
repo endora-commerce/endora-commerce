@@ -2,7 +2,7 @@
   "adminRoles.permission.admin_search:configure": "Konfiguracja wyszukiwania globalnego",
   "nav.configuration.label": "Wyszukiwanie globalne",
   "actions.openGlobalSearch.label": "Otwórz wyszukiwanie globalne",
-  "actions.openGlobalSearch.description": "Szukaj zamówień, zapytań ofertowych, szans sprzedażowych, organizacji, klientów, produktów i kategorii",
+  "actions.openGlobalSearch.description": "Szukaj zamówień, zapytań ofertowych, szans sprzedażowych, organizacji, klientów, produktów, kategorii, projektów i zadań",
   "actions.openConfiguration.label": "Konfiguruj wyszukiwanie globalne",
   "actions.openConfiguration.description": "Wybierz pola, po których przeszukiwany jest każdy typ rekordu",
   "page.configuration.title": "Wyszukiwanie globalne",

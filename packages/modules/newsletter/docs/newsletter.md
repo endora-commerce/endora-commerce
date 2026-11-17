@@ -57,9 +57,13 @@ it never collides with an external ESP (MailerLite, GetResponse, …).
   returned. The newsletter's **Sending provider** screen sets the sender
   address and name and the send rate, and tests the connection
   (`GET`/`PUT /api/v1/admin/newsletter/provider`,
-  `POST …/provider/test`). With no usable credential chosen, campaign e-mails
-  are written to the server log (the console sink) instead of being sent — the
-  send is not refused.
+  `POST …/provider/test`). A usable credential is one that resolves and is
+  of the SMTP kind; an Amazon SES credential is not usable yet. With none
+  chosen, a production instance (`NODE_ENV=production`) refuses to send a
+  campaign with `NEWSLETTER_PROVIDER_NOT_CONFIGURED`, the connection test
+  fails, and a campaign already scheduled marks each recipient failed with
+  the reason. A development or test instance writes the e-mails to the server
+  log (the console sink) instead.
 
 ## Delivery
 
@@ -138,7 +142,7 @@ sentence names travel in `details`:
 | --- | --- | --- | --- |
 | `NEWSLETTER_CAMPAIGN_NOT_EDITABLE` | 422 | Editing a campaign that is not a draft or scheduled | `campaignId`, `status` |
 | `NEWSLETTER_CAMPAIGN_NOT_CANCELLABLE` | 422 | Cancelling a campaign that is not a draft or scheduled | `campaignId`, `status` |
-| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Sending a campaign while no sending provider is configured. Not answered today: without a credential the console sink is the provider (see *Provider*) | — |
+| `NEWSLETTER_PROVIDER_NOT_CONFIGURED` | 422 | Sending a campaign on a production instance while no usable e-mail credential is chosen (see *Provider*) | — |
 | `NEWSLETTER_AUTOMATION_ACTIVE` | 422 | Editing an active automation; pause it first | `automationId`, `status` |
 | `NEWSLETTER_CUSTOM_FIELD_KEY_TAKEN` | 409 | Creating a custom field whose key exists | `key` |
 | `NEWSLETTER_EMAIL_BLOCK_CODE_TAKEN` | 409 | Creating an email block whose code exists | `blockCode` |

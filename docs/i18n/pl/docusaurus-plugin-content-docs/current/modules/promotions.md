@@ -48,6 +48,38 @@ kolejności priorytetu i pokazuje wynik w koszyku oraz w złożonym zamówieniu.
    `order_applied_promotions` i `orders.discount_total` oraz **zapisuje wykorzystanie** w transakcji
    składania zamówienia.
 
+## Od czego liczony jest rabat
+
+Rabat to kwota, której kupujący nie płaci, odejmowana od sumy brutto.
+
+- **Akcje procentowe** — `percentage_off_cart`, `buy_x_units_percent_off`,
+  `spend_x_percent_off`, `every_nth_product_percent_off` i dawny rodzaj
+  `percentage_off` — liczą procent od kwoty **brutto**, którą kupujący płaci za
+  towary: 10 % rabatu to 10 % tej kwoty brutto.
+- **Akcje z gratisem** — `buy_x_get_y_free` i `buy_x_units_y_free` — odejmują
+  kwotę brutto gratisowych sztuk, więc gratis jest darmowy razem z VAT.
+  Najtańsza albo najdroższa sztuka to ta o najniższej albo najwyższej cenie
+  brutto.
+- **Kwoty stałe** — `amount_off_cart`, `buy_x_units_amount_off`,
+  `spend_x_amount_off` i dawny rodzaj `amount_off` — odejmują skonfigurowaną
+  kwotę, najwyżej do sumy **brutto**: kwota stała może sprawić, że towary są
+  darmowe razem z VAT.
+- **Progi** — kroki „wydaj X”, `minCartSubtotal`, sprawdzenie minimalnej
+  wartości zamówienia przy kuponie i wartość koszyka w kreatorze reguł —
+  porównują kwotę **brutto**, którą kupujący płaci za towary, przed rabatem.
+  Kupon odrzucony poniżej minimalnej wartości podaje brakującą kwotę brutto.
+
+Kwota brutto to VAT liczony dla każdej stawki od sumy netto pozycji, ta sama,
+którą naliczają koszyk i zamówienie. Każda pozycja `CartSnapshot` niesie swoją
+stawkę VAT jako `taxRate`, ułamek (`0.23`). Pozycja bez stawki nie ma VAT.
+Koszyk, szczegóły koszyka w panelu, podgląd w kasie i składanie zamówienia
+przekazują stawki, które naliczają, więc wszystkie cztery pokazują ten sam
+rabat. Wywołanie `POST /api/v1/admin/promotions/preview` musi podać `taxRate` w
+każdej pozycji, żeby otrzymać rabat, jaki naliczy zamówienie. Do zmiany z
+issue #1350 akcje procentowe i z gratisem liczyły rabat od cen netto; do zmiany
+z issue #1396 progi porównywały sumę netto, a kwoty stałe były do niej
+ograniczone.
+
 ## Zapisywanie wykorzystania (odporne na wyścigi)
 
 `finalizeUsage` działa w transakcji składania zamówienia. Każdy licznik w danym zakresie jest

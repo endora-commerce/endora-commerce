@@ -68,6 +68,9 @@ const BUNDLE = passthroughBundle('carts', [
   'carts.column.unit',
   'carts.column.line',
   'carts.column.total',
+  'carts.column.discount',
+  'carts.detail.netTotal',
+  'carts.detail.grossTotal',
   'carts.detail.audit',
   'carts.detail.auditEmpty',
   'carts.audit.when',
@@ -117,6 +120,17 @@ function activeCartFixture(): unknown {
   };
 }
 
+function renderDetailWithHandle(): ReturnType<typeof renderWithI18n> {
+  return renderWithI18n(
+    <MemoryRouter initialEntries={['/carts/00000000-0000-4000-8000-0000000000c1']}>
+      <Routes>
+        <Route path="/carts/:id" element={<CartDetail />} />
+      </Routes>
+    </MemoryRouter>,
+    BUNDLE,
+  );
+}
+
 function renderDetail(): void {
   renderWithI18n(
     <MemoryRouter initialEntries={['/carts/00000000-0000-4000-8000-0000000000c1']}>
@@ -153,6 +167,29 @@ describe('CartDetail', () => {
     // its pl-PL currency style ("39,98 zł") with a non-breaking space before
     // the symbol, so match tolerantly.
     expect(screen.getAllByText(/39,98\s*zł/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  /** Issue #1396 — the net total row, and the gross total row when the detail knows it. */
+  it('shows the net total and the gross total, and omits the gross row when it is unknown', async () => {
+    getSpy
+      .mockResolvedValueOnce({ data: { ...(activeCartFixture() as object), totalGross: { amount: 49.18, currency: 'PLN' } } })
+      .mockResolvedValueOnce({ data: [] });
+    const { unmount } = renderDetailWithHandle();
+    await waitFor(() => {
+      expect(screen.getByText('carts.detail.grossTotal')).toBeInTheDocument();
+    });
+    expect(screen.getByText('carts.detail.netTotal')).toBeInTheDocument();
+    expect(screen.getByText(/49,18\s*zł/)).toBeInTheDocument();
+    unmount();
+
+    getSpy
+      .mockResolvedValueOnce({ data: { ...(activeCartFixture() as object), totalGross: null } })
+      .mockResolvedValueOnce({ data: [] });
+    renderDetailWithHandle();
+    await waitFor(() => {
+      expect(screen.getByText('carts.detail.netTotal')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('carts.detail.grossTotal')).toBeNull();
   });
 
   it('reject button is disabled until a reason is typed; clicking submits', async () => {

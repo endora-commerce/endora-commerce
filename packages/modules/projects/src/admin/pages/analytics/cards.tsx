@@ -1,7 +1,14 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { ProjectSummary } from '@endora-commerce/contracts';
-import { EChart, type EChartProps } from '@endora-commerce/admin-kit/components';
+import {
+  EChart,
+  prefersReducedMotion,
+  useChartColors,
+  type ChartColors,
+  type EChartProps,
+  type Figure,
+} from '@endora-commerce/admin-kit/components';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type {
@@ -16,8 +23,6 @@ import type {
 import { StageDot } from '../../components/StageDot.js';
 import { chartDays, daysLabel, percentLabel } from '../../lib/analytics-format.js';
 import { NO_VALUE, valueLabel } from '../../lib/labels.js';
-import { prefersReducedMotion, useChartColors, type ChartColors } from '../../lib/use-chart-colors.js';
-import type { Figure } from '../../lib/use-figure.js';
 import { FigureCard } from './FigureCard.js';
 
 /**

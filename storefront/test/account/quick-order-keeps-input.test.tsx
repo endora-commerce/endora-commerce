@@ -51,7 +51,7 @@ vi.mock('../../lib/api/quick-order-preview', () => ({
 }));
 
 const { default: QuickOrderPage } = await import('../../app/(account)/quick-order/page');
-const { QuickOrderPasteField, QuickOrderResultQuantity } = await import(
+const { QuickOrderPasteField, QuickOrderResultQuantity, QUICK_ORDER_PASTE_STORAGE_KEY } = await import(
   '../../components/quick-order/QuickOrderKeptFields'
 );
 
@@ -165,6 +165,70 @@ describe('quick order — the pasted list survives a search (issue #1253)', () =
     expect((await load(<PasteForm />)).querySelector('textarea')!.value).toBe('');
   });
 
+});
+
+/**
+ * Issue #1325 — a server action's redirect is a client-side navigation: the page re-renders in
+ * place, so the paste box stays mounted and keeps what is in it unless it is emptied. The page is
+ * rendered into one root and re-rendered with the address the action redirected to.
+ */
+describe('quick order — a successful build clears the pasted list (issue #1325)', () => {
+  async function page(searchParams: Record<string, string>): Promise<React.ReactElement> {
+    return <>{await QuickOrderPage({ searchParams: Promise.resolve(searchParams) })}</>;
+  }
+
+  async function navigate(searchParams: Record<string, string>): Promise<HTMLElement> {
+    const node = await page(searchParams);
+    await act(async () => root!.render(node));
+    return host!;
+  }
+
+  const LIST = 'sku,quantity\nSKU-1,40';
+
+  for (const [name, built] of [
+    ['Add all to cart', { built: 'cart' }],
+    ['Send as quote request', { built: 'quote', rfqId: '00000000-0000-4000-8000-000000000005' }],
+  ] as const) {
+    it(`empties the paste box and forgets its kept copy after ${name} succeeds`, async () => {
+      const before = await load(await page({}));
+      typeInto(before.querySelector('textarea[name="csv"]')!, LIST);
+      expect(window.sessionStorage.getItem(QUICK_ORDER_PASTE_STORAGE_KEY)).toBe(LIST);
+
+      const after = await navigate({ ...built });
+      expect(after.querySelector<HTMLTextAreaElement>('textarea[name="csv"]')!.value).toBe('');
+      expect(window.sessionStorage.getItem(QUICK_ORDER_PASTE_STORAGE_KEY)).toBeNull();
+
+      // Nor does it come back with the next reload.
+      reload();
+      expect((await load(await page({}))).querySelector<HTMLTextAreaElement>('textarea[name="csv"]')!.value).toBe('');
+    });
+  }
+
+  it('keeps the paste box and its kept copy when the build fails', async () => {
+    const before = await load(await page({}));
+    typeInto(before.querySelector('textarea[name="csv"]')!, LIST);
+
+    const after = await navigate({ problem: 'build_failed' });
+    expect(after.querySelector<HTMLTextAreaElement>('textarea[name="csv"]')!.value).toBe(LIST);
+    expect(window.sessionStorage.getItem(QUICK_ORDER_PASTE_STORAGE_KEY)).toBe(LIST);
+
+    reload();
+    expect((await load(await page({}))).querySelector<HTMLTextAreaElement>('textarea[name="csv"]')!.value).toBe(LIST);
+  });
+
+  it('keeps what the buyer types after the build for the next search', async () => {
+    const before = await load(await page({}));
+    typeInto(before.querySelector('textarea[name="csv"]')!, LIST);
+    const built = await navigate({ built: 'quote' });
+    typeInto(built.querySelector('textarea[name="csv"]')!, 'sku,quantity\nSKU-2,3');
+
+    const searched = await navigate({ q: 'SKU' });
+    expect(searched.querySelector<HTMLTextAreaElement>('textarea[name="csv"]')!.value).toBe('sku,quantity\nSKU-2,3');
+    expect(window.sessionStorage.getItem(QUICK_ORDER_PASTE_STORAGE_KEY)).toBe('sku,quantity\nSKU-2,3');
+  });
+});
+
+describe('quick order — the paste field on its own (issue #1253)', () => {
   it('the page server-renders it as the plain paste field it was', async () => {
     const page = await serverMarkup({ q: 'SKU' });
     const textarea = page.querySelector<HTMLTextAreaElement>('form textarea[name="csv"]')!;

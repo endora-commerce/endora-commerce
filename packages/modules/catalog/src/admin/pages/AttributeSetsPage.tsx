@@ -180,7 +180,7 @@ function CreateAttributeSetForm({ onCreated, onError }: CreateFormProps): ReactN
         <CardTitle>{t('attributeSets.create.title')}</CardTitle>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4 md:grid-cols-3" onSubmit={handleSubmit}>
+        <form className="grid gap-4 md:grid-cols-3" onSubmit={(e) => void handleSubmit(e)}>
           <div>
             <Label htmlFor="set-code">{t('attributeSets.field.code')}</Label>
             <Input
@@ -326,13 +326,13 @@ function AttributeSetRow({ set, allAttributes, onChanged, onError }: RowProps): 
         <TableCell>{set.attributeCount}</TableCell>
         <TableCell>{set.productCount}</TableCell>
         <TableCell className="space-x-2 whitespace-nowrap">
-          <Button variant="outline" size="sm" onClick={handleToggleExpanded} disabled={busy}>
+          <Button variant="outline" size="sm" onClick={() => void handleToggleExpanded()} disabled={busy}>
             {expanded ? t('attributeSets.action.collapse') : t('attributeSets.action.manage')}
           </Button>
           <Button
             variant="destructive"
             size="sm"
-            onClick={handleDelete}
+            onClick={() => void handleDelete()}
             disabled={set.isSystem || set.productCount > 0}
             title={
               set.isSystem

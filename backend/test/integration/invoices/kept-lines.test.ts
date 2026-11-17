@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, moneyDifference } from '@endora-commerce/contracts';
 import { CreditLimit, Invoice, Order, OrderItem, Payment, Refund, ReturnCase, ReturnCaseItem } from '../../helpers/package-entities.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { ensureSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
@@ -65,13 +65,15 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
   /**
    * A completed, paid order placed under the per-rate VAT method, the way
    * `OrderService.placeOrder` writes one. Two lines at 23 %: 3 × 10.00 (gross
-   * 36.90) and 1 × 20.00 (gross 24.60); 50.00 net, 11.50 VAT, 61.50 total.
+   * 36.90) and 1 × 20.00 (gross 24.60); 50.00 net, 11.50 VAT, 61.50 total,
+   * less `discountTotal` taken off the gross.
    */
   async function seedOrder(
-    opts: { deliveryTotal?: string; kind?: 'bank_transfer' | 'gateway' } = {},
+    opts: { deliveryTotal?: string; discountTotal?: string; kind?: 'bank_transfer' | 'gateway' } = {},
   ): Promise<{ orderId: string; widget: string; gadget: string }> {
     const em = h.em().fork();
     const delivery = opts.deliveryTotal ?? '0.00';
+    const discount = opts.discountTotal ?? '0.00';
     const order = em.create(Order, {
       organizationId: TEST_ORGANIZATION_ID,
       placedByCustomerAccountId: TEST_CUSTOMER_ID,
@@ -96,8 +98,8 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
       subtotal: '50.00',
       taxTotal: '11.50',
       deliveryTotal: delivery,
-      discountTotal: '0.00',
-      total: ((6150 + Math.round(Number(delivery) * 100)) / 100).toFixed(2),
+      discountTotal: discount,
+      total: ((6150 + Math.round(Number(delivery) * 100) - Math.round(Number(discount) * 100)) / 100).toFixed(2),
       currency: 'PLN',
       placedAt: new Date(),
     });
@@ -183,6 +185,8 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
     orderItemId: string,
     quantity: number,
     resolutionType: 'refund' | 'credit' | 'replacement' | 'repair',
+    /** The amount the operator approves for the line, given the default shown; the default when absent. */
+    approve?: (defaultRefund: number) => number,
   ): Promise<string> {
     const reasonId = await anyReasonId(h.em());
     const created = await h.app.inject({
@@ -216,7 +220,7 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
         resolutionType,
         lines: detail.items.map((it) => ({
           returnCaseItemId: it.id,
-          approvedRefundAmount: movesMoney ? it.defaultRefundAmount : 0,
+          approvedRefundAmount: movesMoney ? (approve ? approve(it.defaultRefundAmount) : it.defaultRefundAmount) : 0,
         })),
         ...(resolutionType === 'refund' ? { refundPaymentMethodId: randomUUID() } : {}),
       },
@@ -440,6 +444,195 @@ describe('invoices — an invoice issued after a return lists the kept lines (#4
     ]);
     // 24.62 − 4.63 = 19.99 = 30.00 − 10.01.
     expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([19.99, 19.99, 0, 0]);
+  });
+
+  // Issue #854, owner ruling of 2026-11-07 — the amount withheld on a return is
+  // part of the goods' price, at the goods' VAT rate: the invoice charges it on
+  // a line of its own at the rate of the line it was withheld from, so it no
+  // longer shows as an overpayment with no VAT on it.
+  describe('an amount withheld on a return (#854)', () => {
+    it('charges what the operator withheld of a line returned in part at the line rate', async () => {
+      const { orderId, widget } = await seedOrder();
+      // The returned widget's default is 12.30; the operator keeps a 2.30 handling fee.
+      await settleReturn(orderId, widget, 1, 'refund', () => 10);
+
+      const invoice = await issueInvoice(orderId);
+      expect(linesOf(invoice)).toEqual([
+        ['Gadget', 1, 20, 24.6],
+        ['Kwota zatrzymana przy zwrocie: Widget', 1, 1.87, 2.3],
+        ['Widget', 2, 20, 24.6],
+      ]);
+      // 40.00 net kept + what 2.30 gross needs at 23 %: 51.50 = 41.87 + 9.63.
+      expect(invoice.vatSummary).toEqual([{ taxRate: 0.23, netTotal: 41.87, vatAmount: 9.63, grossTotal: 51.5 }]);
+      // 61.50 received less the 10.00 refunded.
+      expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([51.5, 51.5, 0, 0]);
+    });
+
+    it('charges it for a line returned in full, which drops out', async () => {
+      const { orderId, gadget } = await seedOrder();
+      await settleReturn(orderId, gadget, 1, 'refund', () => 20);
+
+      const invoice = await issueInvoice(orderId);
+      expect(linesOf(invoice)).toEqual([
+        ['Kwota zatrzymana przy zwrocie: Gadget', 1, 3.74, 4.6],
+        ['Widget', 3, 30, 36.9],
+      ]);
+      expect(invoice.vatSummary).toEqual([{ taxRate: 0.23, netTotal: 33.74, vatAmount: 7.76, grossTotal: 41.5 }]);
+      expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([41.5, 41.5, 0, 0]);
+    });
+
+    it('invoices an order returned in full when something was withheld: that much was sold', async () => {
+      const { orderId, widget, gadget } = await seedOrder();
+      await settleReturn(orderId, widget, 3, 'refund', () => 30);
+      await settleReturn(orderId, gadget, 1, 'refund');
+
+      const res = await issueRaw(orderId);
+      expect(res.statusCode, res.body).toBe(201);
+      const invoice = (res.json() as { data: IssuedInvoice }).data;
+      expect(linesOf(invoice)).toEqual([['Kwota zatrzymana przy zwrocie: Widget', 1, 5.61, 6.9]]);
+      // 61.50 − 30.00 − 24.60.
+      expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([6.9, 6.9, 0, 0]);
+    });
+
+    it('a discounted order: what was withheld carries no discount, and the returned goods take their whole share back', async () => {
+      // 36.94 less 6.94: 30.00 paid. The returned unit's default is 10.01 and carries 2.31; 5.00 approved.
+      const { orderId, item } = await seedTenOhOne('6.94');
+      await settleReturn(orderId, item, 1, 'refund', () => 5);
+
+      const invoice = await issueInvoice(orderId);
+      expect(linesOf(invoice)).toEqual([
+        ['Bolt', 2, 20.02, 24.62],
+        ['Kwota zatrzymana przy zwrocie: Bolt', 1, 4.07, 5.01],
+        ['Rabat', 1, -4.63, -4.63],
+      ]);
+      // 29.63 − 4.63 = 25.00 = 30.00 − 5.00.
+      expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([25, 25, 0, 0]);
+    });
+
+    it('a later return corrects such an invoice, and what was withheld stays on it', async () => {
+      const { orderId, widget } = await seedOrder();
+      await settleReturn(orderId, widget, 1, 'refund', () => 10);
+      const invoice = await issueInvoice(orderId);
+      expect(invoice.grossTotal).toBe(51.5);
+
+      // A second widget comes back after the invoice, at its 12.30 default.
+      await settleReturn(orderId, widget, 1, 'refund');
+      const em = h.em().fork();
+      const original = await em.findOneOrFail(Invoice, { orderId, kind: 'invoice' });
+      const corrections = await em.find(Invoice, { originalInvoiceId: original.id, kind: 'correction' });
+      expect(corrections.map((c) => [c.total, c.netTotal, c.taxTotal])).toEqual([['12.30', '10.00', '2.30']]);
+      // Left: 1 widget, the gadget and the 2.30 withheld — 39.20 = 31.87 + 7.33,
+      // which is 61.50 − 10.00 − 12.30.
+      expect(moneyDifference(original.total, corrections[0]!.total)).toBe('39.20');
+      expect(moneyDifference(original.netTotal ?? '0', corrections[0]!.netTotal ?? '0')).toBe('31.87');
+    });
+
+    it('a complaint refunded first: the invoice less what is left paid is the complaint money, shown as due', async () => {
+      const { orderId, widget } = await seedOrder();
+      // A complaint on one widget refunded 20.00 first, issued: a bank transfer.
+      await withSystemScope('test: seed a settled complaint', async () => {
+        const em = h.em().fork();
+        const rc = em.create(ReturnCase, {
+          kind: 'complaint',
+          orderId,
+          salesChannelId: CH,
+          customerAccountId: TEST_CUSTOMER_ID,
+          organizationId: TEST_ORGANIZATION_ID,
+          statusCode: 'resolved',
+          currency: 'PLN',
+          resolutionType: 'refund',
+          submittedAt: new Date(),
+        });
+        em.create(ReturnCaseItem, {
+          returnCaseId: rc.id,
+          orderItemId: widget,
+          productId: randomUUID(),
+          productName: 'Widget',
+          quantity: 1,
+          defaultRefundAmount: '20.00',
+          approvedRefundAmount: '20.00',
+        });
+        em.create(Refund, { returnCaseId: rc.id, resolutionType: 'refund', amount: '20.00', currency: 'PLN', settlementState: 'issued' });
+        await em.flush();
+      });
+      // Two widgets then come back: their default is 24.60, and the line
+      // ceiling leaves 36.90 − 20.00 = 16.90 of it, which is approved.
+      const caseId = await settleReturn(orderId, widget, 2, 'refund');
+      const refund = await withSystemScope('test: read the refund', () =>
+        h.em().fork().findOneOrFail(Refund, { returnCaseId: caseId }),
+      );
+      expect(refund.amount).toBe('16.90');
+
+      const invoice = await issueInvoice(orderId);
+      expect(linesOf(invoice)).toEqual([
+        ['Gadget', 1, 20, 24.6],
+        ['Kwota zatrzymana przy zwrocie: Widget', 1, 6.26, 7.7],
+        ['Widget', 1, 10, 12.3],
+      ]);
+      // 61.50 − 20.00 − 16.90 = 24.60 left paid; the 20.00 complaint refund is
+      // still shown as due, as it is on an order without a return.
+      expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([44.6, 24.6, 20, 0]);
+    });
+
+    // Issue #939 — a return the line ceiling capped, on a discounted order. The
+    // discount line takes the returned goods' whole default discount off, not a
+    // share scaled by the capped amount, so the invoice matches the settled
+    // money to the cent, discount line included.
+    it('a complaint refunded first on a discounted order: the ceiling-capped return carries its whole discount back', async () => {
+      // 61.50 less a 6.15 discount: 55.35 paid.
+      const { orderId, widget } = await seedOrder({ discountTotal: '6.15' });
+      await withSystemScope('test: seed a settled complaint', async () => {
+        const em = h.em().fork();
+        const rc = em.create(ReturnCase, {
+          kind: 'complaint',
+          orderId,
+          salesChannelId: CH,
+          customerAccountId: TEST_CUSTOMER_ID,
+          organizationId: TEST_ORGANIZATION_ID,
+          statusCode: 'resolved',
+          currency: 'PLN',
+          resolutionType: 'refund',
+          submittedAt: new Date(),
+        });
+        em.create(ReturnCaseItem, {
+          returnCaseId: rc.id,
+          orderItemId: widget,
+          productId: randomUUID(),
+          productName: 'Widget',
+          quantity: 1,
+          defaultRefundAmount: '20.00',
+          approvedRefundAmount: '20.00',
+        });
+        em.create(Refund, { returnCaseId: rc.id, resolutionType: 'refund', amount: '20.00', currency: 'PLN', settlementState: 'issued' });
+        await em.flush();
+      });
+      // Two widgets come back. Their default is 22.14, carrying 2.46 of the
+      // discount; the line is worth 33.21, so the ceiling leaves 33.21 − 20.00
+      // = 13.21 of it, which is approved.
+      const caseId = await settleReturn(orderId, widget, 2, 'refund');
+      const em = h.em().fork();
+      const line = await withSystemScope('test: read the settled line', () =>
+        em.findOneOrFail(ReturnCaseItem, { returnCaseId: caseId }),
+      );
+      expect([line.defaultRefundAmount, line.defaultDiscountAmount, line.approvedRefundAmount]).toEqual([
+        '22.14',
+        '2.46',
+        '13.21',
+      ]);
+
+      const invoice = await issueInvoice(orderId);
+      expect(linesOf(invoice)).toEqual([
+        ['Gadget', 1, 20, 24.6],
+        ['Kwota zatrzymana przy zwrocie: Widget', 1, 7.26, 8.93],
+        // 6.15 − 2.46: the whole default discount of the two widgets came back.
+        // Scaled by 13.21 / 22.14 it would be 1.47, and this line −4.68.
+        ['Rabat', 1, -3.69, -3.69],
+        ['Widget', 1, 10, 12.3],
+      ]);
+      // 55.35 − 20.00 − 13.21 = 22.14 left paid; 45.83 − 3.69 = 42.14 invoiced,
+      // and the difference is the 20.00 complaint refund to the cent.
+      expect([invoice.grossTotal, invoice.paidTotal, invoice.amountDue, invoice.overpayment]).toEqual([42.14, 22.14, 20, 0]);
+    });
   });
 
   // Review of PR #865, F3 — a settlement holds the order's `return_cases` lock

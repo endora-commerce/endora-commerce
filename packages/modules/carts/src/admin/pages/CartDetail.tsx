@@ -49,7 +49,10 @@ interface AdminCartDetail {
   status: string;
   approvalStatus: string;
   items: AdminCartLine[];
+  /** The net after the discount (issue #1396). */
   total: { amount: number; currency: string };
+  /** What the buyer pays after the discount; `null` when a rate is unresolved (issue #1396). */
+  totalGross?: { amount: number; currency: string } | null;
   discount: { code: string | null; amount: number; currency: string } | null;
   appliedPromotionCode: string | null;
   lastActivityAt: string;
@@ -73,13 +76,15 @@ interface AuditRow {
   reason: string | null;
 }
 
+type DetailError = { text: string } | { key: 'carts.detail.loadFailed' | 'carts.detail.rejectFailed' };
+
 export default function CartDetail(): ReactNode {
   const { id } = useParams<{ id: string }>();
   const t = useTranslation('carts');
   const [cart, setCart] = useState<AdminCartDetail | null>(null);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<DetailError | null>(null);
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
@@ -96,7 +101,7 @@ export default function CartDetail(): ReactNode {
       setCart(detail.data);
       setAudit(Array.isArray(auditRes.data) ? auditRes.data : []);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load cart.');
+      setError(err instanceof ApiError ? { text: err.envelope.error.message } : { key: 'carts.detail.loadFailed' });
     } finally {
       setLoading(false);
     }
@@ -116,17 +121,21 @@ export default function CartDetail(): ReactNode {
       setRejectReason('');
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to reject cart.');
+      setError(err instanceof ApiError ? { text: err.envelope.error.message } : { key: 'carts.detail.rejectFailed' });
     } finally {
       setRejecting(false);
     }
   }, [id, rejectReason, load]);
 
+  // The server's message when it sent one, the catalogue's otherwise — resolved
+  // here, at render, so the screen follows a language switch.
+  const errorText = error === null ? null : 'text' in error ? error.text : t(error.key);
+
   if (loading) {
     return <p className="text-sm text-muted-foreground">{t('carts.loading')}</p>;
   }
   if (!cart) {
-    return <Alert variant="destructive"><AlertDescription>{error ?? 'Cart not found.'}</AlertDescription></Alert>;
+    return <Alert variant="destructive"><AlertDescription>{errorText ?? t('carts.detail.notFound')}</AlertDescription></Alert>;
   }
 
   const isTerminal = cart.status === 'completed' || cart.status === 'rejected';
@@ -140,16 +149,16 @@ export default function CartDetail(): ReactNode {
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{errorText}</AlertDescription>
         </Alert>
       ) : null}
 
       <Card className="mb-4">
         <CardContent className="pt-6 space-y-2">
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4 text-sm">
-            <div><Label>{t('carts.column.status')}</Label><Badge>{cart.status}</Badge></div>
-            <div><Label>{t('carts.column.approval')}</Label><Badge>{cart.approvalStatus}</Badge></div>
-            <div><Label>{t('carts.column.owner')}</Label><span>{cart.ownerDisplayName ?? '(anon)'}</span></div>
+            <div><Label>{t('carts.column.status')}</Label><Badge>{t(`carts.status.${cart.status}`)}</Badge></div>
+            <div><Label>{t('carts.column.approval')}</Label><Badge>{t(`carts.approvalStatus.${cart.approvalStatus}`)}</Badge></div>
+            <div><Label>{t('carts.column.owner')}</Label><span>{cart.ownerDisplayName ?? t('carts.owner.anonymous')}</span></div>
             <div><Label>{t('carts.column.org')}</Label><span>{cart.organizationDisplayName ?? '—'}</span></div>
             <div><Label>{t('carts.column.lastActivity')}</Label><span>{formatDateTime(cart.lastActivityAt)}</span></div>
             <div><Label>{t('carts.column.created')}</Label><span>{formatDateTime(cart.createdAt)}</span></div>
@@ -201,9 +210,17 @@ export default function CartDetail(): ReactNode {
                 </TableRow>
               ) : null}
               <TableRow>
-                <TableCell colSpan={3} className="text-right font-semibold">{t('carts.column.total')}</TableCell>
-                <TableCell className="tabular-nums font-semibold">{formatMoney(cart.total.amount, cart.total.currency)}</TableCell>
+                <TableCell colSpan={3} className="text-right">{t('carts.detail.netTotal')}</TableCell>
+                <TableCell className="tabular-nums">{formatMoney(cart.total.amount, cart.total.currency)}</TableCell>
               </TableRow>
+              {cart.totalGross ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-right font-semibold">{t('carts.detail.grossTotal')}</TableCell>
+                  <TableCell className="tabular-nums font-semibold">
+                    {formatMoney(cart.totalGross.amount, cart.totalGross.currency)}
+                  </TableCell>
+                </TableRow>
+              ) : null}
             </TableBody>
           </Table>
         </CardContent>

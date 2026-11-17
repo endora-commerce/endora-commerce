@@ -95,6 +95,18 @@ describe('TaskPrioritiesPage — the table', () => {
     expect(codes).toEqual(['urgent', 'high', 'normal', 'low']);
     expect(within(priorityRow('high')).getByText('3')).toBeInTheDocument();
   });
+
+  it('says so when there is no priority, explains what one is for and offers one Add priority (issue #527)', async () => {
+    getSpy.mockResolvedValue({ data: [] });
+    renderTasks(<TaskPrioritiesPage />, { permissions: CONFIGURER });
+    expect(await screen.findByText(en('priorities.empty.title'))).toBeInTheDocument();
+    expect(screen.getByText(en('priorities.empty.body'))).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
+    const add = screen.getAllByRole('button', { name: en('priorities.add') });
+    expect(add).toHaveLength(1);
+    await userEvent.click(add[0]!);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
 });
 
 describe('TaskPrioritiesPage — the dialog', () => {

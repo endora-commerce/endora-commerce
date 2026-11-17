@@ -148,7 +148,10 @@ nigdy jego wartości:
   niestandardowej;
 - zmiana preferowanego języka (`customer_account.set_preferred_language`)
   zapisuje `changedFields: ['preferredLanguage']` i jej źródło jako `source`
-  (`self_service` albo `sign_in`), nigdy sam język.
+  (`self_service` albo `sign_in`), nigdy sam język;
+- zmiana zbiorczego widoku (`customer_account.set_subtree_rollup`) zapisuje
+  flagę `subtreeRollupEnabled` przed zmianą i po niej. To polecenie, więc wpis
+  powstaje w transakcji zmiany.
 
 Wartości przechowuje samo konto.
 

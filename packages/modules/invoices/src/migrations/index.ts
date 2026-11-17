@@ -31,6 +31,7 @@ import { Migration20260926T230239InvoicesImportIdentity } from './20260926T23023
 import { Migration20261017T075839InvoicesDropInvoiceTemplates } from './20261017T075839_invoices_drop_invoice_templates.js';
 import { Migration20261024T145631InvoicesVatSummary } from './20261024T145631_invoices_vat_summary.js';
 import { Migration20261108T073244InvoicesInvoiceLineKind } from './20261108T073244_invoices_invoice_line_kind.js';
+import { Migration20261116T204304InvoicesInvoiceLineKindRetained } from './20261116T204304_invoices_invoice_line_kind_retained.js';
 
 export const migrations = [
   Migration20260629T125121InvoicesModule,
@@ -42,6 +43,7 @@ export const migrations = [
   Migration20261017T075839InvoicesDropInvoiceTemplates,
   Migration20261024T145631InvoicesVatSummary,
   Migration20261108T073244InvoicesInvoiceLineKind,
+  Migration20261116T204304InvoicesInvoiceLineKindRetained,
 ];
 
 export {
@@ -54,4 +56,5 @@ export {
   Migration20261017T075839InvoicesDropInvoiceTemplates,
   Migration20261024T145631InvoicesVatSummary,
   Migration20261108T073244InvoicesInvoiceLineKind,
+  Migration20261116T204304InvoicesInvoiceLineKindRetained,
 };

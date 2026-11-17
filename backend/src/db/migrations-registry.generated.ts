@@ -188,6 +188,9 @@ import { Migration20261027T020030CrmOpportunityReferenceDocuments } from '@endor
 import { Migration20261028T143444CrmOpportunityReferenceKinds } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261109T163616CrmOpportunityValueChanges } from '@endora-commerce/mod-crm/migrations';
 
+// ── currencies ──────────────────────────────────────────────────────────────
+import { Migration20261117T065542CurrenciesTable } from '@endora-commerce/mod-currencies/migrations';
+
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
 import { Migration20261010T090000CustomFieldsDefinitionAudience } from '@endora-commerce/mod-custom-fields/migrations';
@@ -224,6 +227,7 @@ import { Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods } fr
 
 // ── dictionaries ────────────────────────────────────────────────────────────
 import { Migration20260506T112634DictionariesDictionaryInit } from '@endora-commerce/mod-dictionaries/migrations';
+import { Migration20261117T065601DictionariesDefaultCurrencyFk } from '@endora-commerce/mod-dictionaries/migrations';
 
 // ── document_templates ──────────────────────────────────────────────────────
 import { Migration20261017T071754DocumentTemplatesInit } from '@endora-commerce/mod-document-templates/migrations';
@@ -268,6 +272,7 @@ import { Migration20260926T230239InvoicesImportIdentity } from '@endora-commerce
 import { Migration20261017T075839InvoicesDropInvoiceTemplates } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20261024T145631InvoicesVatSummary } from '@endora-commerce/mod-invoices/migrations';
 import { Migration20261108T073244InvoicesInvoiceLineKind } from '@endora-commerce/mod-invoices/migrations';
+import { Migration20261116T204304InvoicesInvoiceLineKindRetained } from '@endora-commerce/mod-invoices/migrations';
 
 // ── languages ───────────────────────────────────────────────────────────────
 import { Migration20260425T161557LanguagesCurrenciesInit } from '@endora-commerce/mod-languages/migrations';
@@ -340,6 +345,7 @@ import { Migration20261110T135922OrganizationsPersonalTaxIdRemoval } from '@endo
 import { Migration20261110T135941OrganizationsTaxIdScope } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261110T173752OrganizationsTaxIdWriteLock } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261110T183238OrganizationsTaxIdNormalise } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20261117T033143OrganizationsCustomerGroupColumn } from '@endora-commerce/mod-organizations/migrations';
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/mod-payment-methods/migrations';
@@ -629,6 +635,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('crm', Migration20261028T143444CrmOpportunityReferenceKinds),
   migration('crm', Migration20261109T163616CrmOpportunityValueChanges),
 
+  // ── currencies ──────────────────────────────────────────────────────────────
+  migration('currencies', Migration20261117T065542CurrenciesTable),
+
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),
   migration('custom_fields', Migration20261010T090000CustomFieldsDefinitionAudience),
@@ -665,6 +674,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── dictionaries ────────────────────────────────────────────────────────────
   migration('dictionaries', Migration20260506T112634DictionariesDictionaryInit),
+  migration('dictionaries', Migration20261117T065601DictionariesDefaultCurrencyFk),
 
   // ── document_templates ──────────────────────────────────────────────────────
   migration('document_templates', Migration20261017T071754DocumentTemplatesInit),
@@ -709,6 +719,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('invoices', Migration20261017T075839InvoicesDropInvoiceTemplates),
   migration('invoices', Migration20261024T145631InvoicesVatSummary),
   migration('invoices', Migration20261108T073244InvoicesInvoiceLineKind),
+  migration('invoices', Migration20261116T204304InvoicesInvoiceLineKindRetained),
 
   // ── languages ───────────────────────────────────────────────────────────────
   migration('languages', Migration20260425T161557LanguagesCurrenciesInit),
@@ -781,6 +792,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('organizations', Migration20261110T135941OrganizationsTaxIdScope),
   migration('organizations', Migration20261110T173752OrganizationsTaxIdWriteLock),
   migration('organizations', Migration20261110T183238OrganizationsTaxIdNormalise),
+  migration('organizations', Migration20261117T033143OrganizationsCustomerGroupColumn),
 
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),

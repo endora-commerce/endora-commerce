@@ -1306,6 +1306,9 @@ export class OrderService {
           categoryIds: [],
           quantity: it.quantity,
           unitPrice: { amount: Number(it.unitPrice), currency: it.currency },
+          // Issue #1350 — the rate this order charges the line at: a percent-off
+          // or free-unit promotion computes on the gross the buyer pays.
+          taxRate: rateForProductId(it.productId),
         })),
         deliveryTotal: Number(roundHalfUp(input.deliveryCost)),
         promotionCode: input.appliedPromotionCode ?? null,
@@ -1369,8 +1372,18 @@ export class OrderService {
        */
       salesChannelId?: string | undefined;
     },
-    /** The language the response is answered in — names a below-minimum line's product (feature 155). */
-    options: { language?: string | undefined } = {},
+    options: {
+      /** The language the response is answered in — names a below-minimum line's product (feature 155). */
+      language?: string | undefined;
+      /**
+       * Issue #1373 — the channel language the request's `Accept-Language`
+       * asks for (`requestScopeLanguage`), the one the basket's lines were
+       * judged in and the one `placeOrder` takes as `languageTag`. When given,
+       * the basket's availability and names are judged in it; otherwise in the
+       * channel language `language` names, else the channel's default.
+       */
+      languageTag?: string | undefined;
+    } = {},
   ): Promise<{
     subtotal: number;
     taxTotal: number;
@@ -1444,6 +1457,8 @@ export class OrderService {
     }
     // Feature 163 (FR-006) — the lines whose product is no longer available
     // in the basket's channel are reported as placement will refuse them.
+    // Issue #1373 — in the request's scope language when it is given, as
+    // placement judges them, so the preview and the order agree.
     const basketChannel = await this.emFactory().findOne(SalesChannel, { id: basketChannelId });
     const basketLanguage = basketChannel
       ? resolveScopeLanguage(
@@ -1452,7 +1467,7 @@ export class OrderService {
             languages: basketChannel.languages,
             defaultLanguage: basketChannel.defaultLanguage,
           },
-          options.language,
+          options.languageTag ?? options.language,
         )
       : null;
     const catalogue = await readBasketCatalogue(this.neighbours.catalogProductRead, items, (products) =>
@@ -1738,6 +1753,15 @@ export class OrderService {
        * language `language` names, else the channel's default, as before.
        */
       languageTag?: string | undefined;
+      /**
+       * Issue #1320 — judge the basket and name the order's lines at the order
+       * channel's default language, whatever `language` names: an operator
+       * naming the channel is answered in its default language (N2, feature
+       * 163), the language this module's admin create wrote the working basket
+       * in. `language` still words the messages. `languageTag` wins over it.
+       * This module's own admin create path only.
+       */
+      atChannelDefaultLanguage?: boolean | undefined;
       lineGrouping?: OrderLineGroupingInput | undefined;
       /**
        * Issue #169 — the working basket to place from instead of the customer's
@@ -1934,13 +1958,15 @@ export class OrderService {
       // over (one-click: the language its basket add judged the line in), so a
       // line admitted there is not refused here for being off in the channel's
       // default; otherwise at the one the message language names, as before.
+      // Issue #1320 — admin create asks for the channel's default (N2), the
+      // language its basket add judged the lines in.
       const orderLanguage = resolveScopeLanguage(
         {
           id: orderChannel.id,
           languages: orderChannel.languages,
           defaultLanguage: orderChannel.defaultLanguage,
         },
-        options?.languageTag ?? options?.language,
+        options?.languageTag ?? (options?.atChannelDefaultLanguage ? undefined : options?.language),
       );
       const catalogue = await readBasketCatalogue(this.neighbours.catalogProductRead, items, (products) =>
         availableOnly(this.neighbours.catalogProductAvailability, products, {

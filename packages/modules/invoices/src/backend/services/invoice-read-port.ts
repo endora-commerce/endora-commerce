@@ -1,6 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { InvoicePdfPort, InvoiceReadPort, InvoiceRecord } from '@endora-commerce/contracts';
+import type {
+  DocumentRenderPort,
+  InvoiceDetail,
+  InvoicePdfPort,
+  InvoiceReadPort,
+  InvoiceRecord,
+} from '@endora-commerce/contracts';
 import { Invoice } from '../entities/invoice.entity.js';
+import { renderInvoicePdf } from '../document/render-invoice.js';
 import { buildBulkInvoicesPdf, buildMinimalInvoicePdf } from './invoice-pdf.js';
 
 /**
@@ -57,7 +64,8 @@ export class InvoiceReadService implements InvoiceReadPort {
 }
 
 /**
- * The PDF surface, as a **port** even though both builders behind it are pure.
+ * The PDF surface, as a **port**. Two of its builders are pure; `renderInvoice`
+ * is the template render and is not.
  *
  * FR-013's test — "does switching the owner off change the answer?" — asks
  * whether the bytes would differ, and they would not. The question that
@@ -71,8 +79,17 @@ export class InvoiceReadService implements InvoiceReadPort {
  * would call hashing "an `auth` surface". A VAT document is an `invoices`
  * surface.
  */
-export function createInvoicePdfPort(): InvoicePdfPort {
+export function createInvoicePdfPort(deps: {
+  /** This module's own detail builder — the render input of every invoice PDF. */
+  invoiceService: { buildDetail(invoiceId: string): Promise<InvoiceDetail> };
+  /** `document_templates`' render port (`specs/152-compare-pdf-template/`). */
+  documents: Pick<DocumentRenderPort, 'render'>;
+}): InvoicePdfPort {
   return {
+    // Issue #1341: the template render every other invoice download uses, so
+    // `orders`' buyer route stops answering with the stub below.
+    renderInvoice: async (invoiceId) =>
+      renderInvoicePdf(deps.documents, await deps.invoiceService.buildDetail(invoiceId)),
     renderMinimal: (params) => buildMinimalInvoicePdf(params),
     renderBulk: (invoices) => buildBulkInvoicesPdf([...invoices]),
   };

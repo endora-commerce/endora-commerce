@@ -5,8 +5,8 @@ import { acceptLanguageTags } from '../../lib/i18n/locale-path';
  * Issue #1011 — the middleware's unprefixed-URL redirect (feature 167, url-shape §3) reads
  * `Accept-Language` through the shared parse in `@endora-commerce/contracts` rather than a
  * private one, so it carries the same bounds and the same reading of `q`. What stays the
- * storefront's own: a tag at `q=0` (RFC 9110 "not acceptable") and `*` are never a redirect
- * target.
+ * storefront's own: `*` is never a redirect target. A tag at `q=0` (RFC 9110 "not acceptable")
+ * is dropped by the shared parse itself since issue #1315.
  */
 describe('acceptLanguageTags', () => {
   it('orders by descending q, keeping the written order among equals', () => {

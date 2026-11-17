@@ -69,7 +69,8 @@ export function SalesChannelEditPage(): ReactNode {
   useEffect(() => {
     if (isCreate) return;
     let cancelled = false;
-    (async () => {
+    // Fire-and-forget: the body catches its own errors.
+    void (async () => {
       setLoading(true);
       setError(null);
       try {
@@ -80,9 +81,7 @@ export function SalesChannelEditPage(): ReactNode {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof ApiError ? err.envelope.error.message : 'Failed to load channel.',
-          );
+          setError(err instanceof ApiError ? err.envelope.error.message : t('edit.error.load'));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -91,7 +90,7 @@ export function SalesChannelEditPage(): ReactNode {
     return () => {
       cancelled = true;
     };
-  }, [isCreate, routeCode]);
+  }, [isCreate, routeCode, t]);
 
   const handleCreate = useCallback(
     async (value: ChannelIdentityFormValue): Promise<void> => {
@@ -112,14 +111,12 @@ export function SalesChannelEditPage(): ReactNode {
         });
         navigate(`/sales-channels/${encodeURIComponent(created.code)}`, { replace: true });
       } catch (err) {
-        setError(
-          err instanceof ApiError ? err.envelope.error.message : 'Save failed.',
-        );
+        setError(err instanceof ApiError ? err.envelope.error.message : t('edit.error.save'));
       } finally {
         setSaving(false);
       }
     },
-    [navigate],
+    [navigate, t],
   );
 
   const handleDeactivate = useCallback(async (): Promise<void> => {
@@ -189,7 +186,7 @@ export function SalesChannelEditPage(): ReactNode {
       }
       navigate('/sales-channels');
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Delete failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : t('edit.error.delete'));
     } finally {
       setSaving(false);
     }
@@ -202,7 +199,7 @@ export function SalesChannelEditPage(): ReactNode {
   if (!isCreate && !channel) {
     return (
       <Alert variant="destructive">
-        <AlertDescription>{error ?? 'Channel not found.'}</AlertDescription>
+        <AlertDescription>{error ?? t('edit.notFound')}</AlertDescription>
       </Alert>
     );
   }
@@ -212,14 +209,14 @@ export function SalesChannelEditPage(): ReactNode {
       <PageHeader
         title={
           isCreate ? (
-            'New Sales Channel'
+            t('edit.page.newTitle')
           ) : (
             <span className="flex items-center gap-2">
               <span className="font-mono text-base">{channel!.code}</span>
               <DefaultChannelBadge systemDefault={channel!.systemDefault} />
               {!channel!.active && (
                 <Badge variant="outline" className="text-[10px]">
-                  Inactive
+                  {t('status.inactive')}
                 </Badge>
               )}
             </span>
@@ -227,8 +224,8 @@ export function SalesChannelEditPage(): ReactNode {
         }
         description={
           isCreate
-            ? 'Create a new place of sale. After saving, manage its product / customer / price-list memberships from the channel detail page or from the entity edit screens.'
-            : 'Edit the channel’s identity. Lifecycle actions live in the toolbar; membership tabs land in a follow-up.'
+            ? t('edit.page.createDescription')
+            : t('edit.page.editDescription')
         }
         actions={
           channel ? (
@@ -251,7 +248,7 @@ export function SalesChannelEditPage(): ReactNode {
                 onClick={() => void handleDelete()}
                 disabled={saving || channel.systemDefault}
               >
-                Delete
+                {tc('common.action.delete')}
               </Button>
             </div>
           ) : null
@@ -270,7 +267,7 @@ export function SalesChannelEditPage(): ReactNode {
             onSaving={setSaving}
             onChannel={setChannelFromForm}
             reseedKeepsEdits={reseedKeepsEdits}
-            onCancel={() => navigate('/sales-channels')}
+            onCancel={() => { navigate('/sales-channels'); }}
           />
         </SaveSessionProvider>
       ) : (
@@ -281,7 +278,7 @@ export function SalesChannelEditPage(): ReactNode {
           saving={saving}
           readOnly={!canWrite}
           onSubmit={(v) => void handleCreate(v)}
-          onCancel={() => navigate('/sales-channels')}
+          onCancel={() => { navigate('/sales-channels'); }}
         />
       )}
       {confirmDialog}

@@ -107,5 +107,15 @@
   "edit.error.deactivate": "Deactivate failed.",
   "edit.error.activate": "Activate failed.",
   "channelEditor.save.hostPartLabel": "Sales channel",
-  "channelEditor.save.failed": "Save failed."
+  "channelEditor.save.failed": "Save failed.",
+  "edit.page.newTitle": "New sales channel",
+  "edit.page.createDescription": "Create a new place of sale. After saving, add products, customers and price lists to it from their own edit screens.",
+  "edit.page.editDescription": "Edit the channel’s identity. Activate, deactivate or delete the channel from the page header.",
+  "edit.notFound": "Channel not found.",
+  "edit.error.load": "Failed to load the channel.",
+  "edit.error.save": "Could not save the channel.",
+  "edit.error.delete": "Could not delete the channel.",
+  "membership.error.load": "Failed to load channel memberships.",
+  "membership.error.add": "Could not add to the channel.",
+  "membership.error.remove": "Could not remove from the channel."
 }

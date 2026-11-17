@@ -1258,6 +1258,22 @@ export interface TaskContextDescription {
   groups: Map<string, string>;
 }
 
+/** What `TaskContextDescriptor.search` is asked (issue #504). */
+export interface TaskContextSearchQuery {
+  /** Trimmed; empty matches every context. */
+  q: string;
+  /** The most contexts to answer. */
+  limit: number;
+  /** Only the contexts `canChangeTasks` would answer `true` for. */
+  changeableOnly: boolean;
+}
+
+/** One context `TaskContextDescriptor.search` found, described as `describe` would. */
+export interface TaskContextSearchHit {
+  id: string;
+  description: TaskContextDescription;
+}
+
 /**
  * What a module registers to own Tasks: its context type and the answers only
  * it can give. Every method runs under the **caller's** ambient context.
@@ -1272,6 +1288,17 @@ export interface TaskContextDescriptor {
   /** Which of `ids` the caller may see. */
   visibleContextIds(ids: readonly string[]): Promise<Set<string>>;
   describe(ids: readonly string[]): Promise<Map<string, TaskContextDescription>>;
+  /**
+   * The Project/Stage picker's search (`GET /tasks/lookups/contexts`, issue
+   * #504): the contexts the caller may see whose label contains `q` — case-
+   * and diacritic-insensitively, every one for an empty `q` — by label, at
+   * most `limit`, each described as `describe` would describe it; with
+   * `changeableOnly`, only those `canChangeTasks` would allow. Its cost is
+   * bounded by `limit`, never by how many contexts the caller may see.
+   * Without this method `tasks` lists every visible context and describes
+   * them all on each search.
+   */
+  search?(query: TaskContextSearchQuery): Promise<TaskContextSearchHit[]>;
   /**
    * Whether **another** administrator — not the caller — may see context `id`:
    * asked before somebody is told about a Task of it (the assignment bell),

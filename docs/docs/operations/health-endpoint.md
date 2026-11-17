@@ -55,4 +55,7 @@ shown at all. With the sidebar collapsed, the release is in the logo's tooltip.
 
 Add new dependencies to the probe by extending the check list in
 `packages/platform/src/http/health.ts`. Each probe should be cheap (single ping
-/ `SELECT 1`) and bounded (≤ 200 ms timeout).
+/ `SELECT 1`). The endpoint bounds every probe at 200 ms
+(`HEALTH_PROBE_TIMEOUT_MS`): a probe that has not answered by then counts as an
+unreachable dependency, so a hung database or search server yields `503`
+within that time instead of holding the request open.

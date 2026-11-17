@@ -438,7 +438,8 @@ export async function pauseWorkersFor(moduleId: string): Promise<void> {
  */
 export async function resumeWorkersFor(moduleId: string): Promise<void> {
   for (const w of moduleWorkers.get(moduleId) ?? []) {
-    await w.resume();
+    // BullMQ resumes synchronously; only `pause` returns a Promise.
+    w.resume();
   }
 }
 

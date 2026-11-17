@@ -116,7 +116,7 @@ export default function CartsList(): ReactNode {
                 <option value="">{t('carts.filter.all')}</option>
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {t(`carts.status.${s}`)}
                   </option>
                 ))}
               </Select>
@@ -131,7 +131,7 @@ export default function CartsList(): ReactNode {
                 <option value="">{t('carts.filter.all')}</option>
                 {APPROVAL_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {t(`carts.approvalStatus.${s}`)}
                   </option>
                 ))}
               </Select>
@@ -167,7 +167,7 @@ export default function CartsList(): ReactNode {
                   header: t('carts.column.owner'),
                   render: (c) => (
                     <span className="text-xs text-muted-foreground">
-                      {c.ownerDisplayName ?? '(anonymous)'}
+                      {c.ownerDisplayName ?? t('carts.owner.anonymous')}
                     </span>
                   ),
                 },
@@ -185,7 +185,7 @@ export default function CartsList(): ReactNode {
                   id: 'status',
                   header: t('carts.column.status'),
                   render: (c) => (
-                    <Badge variant={STATUS_VARIANT[c.status] ?? 'secondary'}>{c.status}</Badge>
+                    <Badge variant={STATUS_VARIANT[c.status] ?? 'secondary'}>{t(`carts.status.${c.status}`)}</Badge>
                   ),
                 },
                 {
@@ -193,7 +193,7 @@ export default function CartsList(): ReactNode {
                   header: t('carts.column.approval'),
                   render: (c) => (
                     <Badge variant={APPROVAL_VARIANT[c.approvalStatus] ?? 'secondary'}>
-                      {c.approvalStatus}
+                      {t(`carts.approvalStatus.${c.approvalStatus}`)}
                     </Badge>
                   ),
                 },
@@ -205,7 +205,7 @@ export default function CartsList(): ReactNode {
                       {formatMoney(c.total.amount, c.total.currency)}
                     </span>
                   ),
-                  meta: (c) => `${c.itemCount} items`,
+                  meta: (c) => t('carts.itemCount', { count: c.itemCount }),
                 },
               ]}
               renderActions={(c) => (
