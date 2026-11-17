@@ -149,6 +149,8 @@ describe('Admin block / unblock — round-trip with transaction gate', () => {
       payload: { expectedVersion: blockedVersion, reason: 'Second block' },
     });
     expect(second.statusCode).toBe(422);
+    // Issue #629 (#86) — the status guard's own code.
+    expect((second.json() as { error: { code: string } }).error.code).toBe('ORGANIZATION_STATUS_INVALID');
   });
 
   it('refuses to unblock a non-blocked organization (422)', async () => {
@@ -159,5 +161,6 @@ describe('Admin block / unblock — round-trip with transaction gate', () => {
       payload: { expectedVersion: initialVersion },
     });
     expect(res.statusCode).toBe(422);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('ORGANIZATION_STATUS_INVALID');
   });
 });

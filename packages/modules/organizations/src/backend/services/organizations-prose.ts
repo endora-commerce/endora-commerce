@@ -35,6 +35,11 @@ export const ORGANIZATIONS_PROSE_EN = {
     "Your organization's registration was rejected. Please contact the platform administration.",
   'moderation.checkout.unavailable':
     'Placing orders is currently unavailable.',
+  // Issue #629 (#86) — the status labels the moderation status refusal names.
+  'status.pending_verification': 'Pending verification',
+  'status.active': 'Active',
+  'status.blocked': 'Blocked',
+  'status.rejected': 'Rejected',
 } as const;
 
 export type OrganizationsProseKey = keyof typeof ORGANIZATIONS_PROSE_EN;

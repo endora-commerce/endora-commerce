@@ -241,10 +241,13 @@ export class SalesRepAssignmentService implements SalesRepAssignmentPort {
     // personal (B2C) orgs.
     const org = await em.findOne(Organization, { id: input.organizationId });
     if (org?.isPersonal) {
+      // Issue #629 (#86) — the organization refuses a well-formed request: a
+      // code of its own, the token naming the action.
       throw new HttpError(
         422,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORGANIZATION_PERSONAL,
         'A sales representative cannot be assigned to a personal (individual) organization.',
+        { code: 'sales_rep', organizationId: org.id, organizationName: org.name },
       );
     }
     const existing = await em.findOne(OrganizationSalesRepAssignment, {

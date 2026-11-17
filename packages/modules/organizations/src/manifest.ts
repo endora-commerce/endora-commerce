@@ -804,6 +804,10 @@ export const manifest = defineModuleManifest({
       tokens: ['cycle', 'max_depth_exceeded', 'path_unreadable', 'tax_id_shared_across_trees'],
     },
     { code: 'ORG_OWNER_DEPLETION' },
+    // Issue #629 (#86) — every raise carries one of the three tokens.
+    { code: 'ORGANIZATION_PERSONAL', tokens: ['add_member', 'invite', 'sales_rep'] },
+    // Issue #629 (#86) — `{currentStatusLabel}` and `{requiredStatusLabel}` are always filled.
+    { code: 'ORGANIZATION_STATUS_INVALID' },
     // Feature 170 (`contracts/organization-permission-port.md` §3). The first is
     // raised by this module's permission port on behalf of every module that
     // gates a buyer action on an organization permission: the rule — what a
