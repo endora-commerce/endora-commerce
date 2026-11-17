@@ -42,5 +42,7 @@
   "actions.openLowStock.keywords": "niskie, stan, próg",
   "actions.openStockNotifications.keywords": "powiadomienia, dostępność",
   "actions.importStock.keywords": "stany, magazyn",
-  "settingGroups.inventory.name": "Stany magazynowe"
+  "settingGroups.inventory.name": "Stany magazynowe",
+  "settingLabels.inventory.low_stock_alert_recipient_email.name": "Adres e-mail odbiorcy alertów o niskim stanie",
+  "settingLabels.inventory.low_stock_alert_recipient_email.description": "Adres e-mail, na który trafiają alerty o niskim stanie magazynowym. Gdy jest pusty, używana jest zmienna środowiskowa INVENTORY_LOW_STOCK_RECIPIENT; gdy i ona nie jest ustawiona, alert nie jest wysyłany."
 }

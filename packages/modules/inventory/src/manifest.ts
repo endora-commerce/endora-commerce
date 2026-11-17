@@ -116,7 +116,8 @@ const settings = defineModuleSettingsManifest({
     {
       code: INVENTORY_SETTING_CODES.LOW_STOCK_ALERT_RECIPIENT_EMAIL,
       name: 'Low-stock alert recipient email',
-      description: 'Email to receive low-stock alerts. Empty falls back to the platform admin.',
+      description:
+        'Email address that receives low-stock alerts. When empty, the INVENTORY_LOW_STOCK_RECIPIENT environment variable is used; when that is not set either, no alert is sent.',
       groupCode: 'inventory',
       valueType: 'string',
       defaultValue: '',
