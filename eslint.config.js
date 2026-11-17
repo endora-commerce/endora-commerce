@@ -162,9 +162,9 @@ export default [
   //
   // Type information costs heap. `backend` lints in two processes, one per
   // TypeScript program (its `package.json` `lint`), because one process
-  // holding both died `heap out of memory` under CI's 3072 MB; measured on
-  // 2026-11-17, the `src` + `test/unit` half dies at 2048 and the
-  // `test/{contract,integration,perf}` half at 2816, and both pass at 3072.
+  // holding both died `heap out of memory` under CI's 3072 MB; the larger,
+  // test, program still needs more than the type-check does, so CI's lint
+  // step has its own heap (`.github/workflows/quality.yml`).
   {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
@@ -184,6 +184,23 @@ export default [
     },
   },
   ...splitProgramBlocks(),
+  // `backend` is two programs whose configs nest: `test/tsconfig.json` sits
+  // between `test/unit/**` and `backend/tsconfig.json`, so the project service
+  // would load the larger test program just to learn that a unit test is not
+  // in it, and hold both. Each tree names its own program instead; the two
+  // `lint` processes in `backend/package.json` then hold one program each.
+  {
+    files: ['backend/**/*.ts'],
+    languageOptions: {
+      parserOptions: { projectService: false, project: ['backend/tsconfig.json'], tsconfigRootDir: ROOT },
+    },
+  },
+  {
+    files: ['backend/test/contract/**/*.ts', 'backend/test/integration/**/*.ts', 'backend/test/perf/**/*.ts'],
+    languageOptions: {
+      parserOptions: { projectService: false, project: ['backend/test/tsconfig.json'], tsconfigRootDir: ROOT },
+    },
+  },
   // React rules, in the shared root and scoped to `.tsx` (feature 091, Phase 4).
   //
   // The header above calls this config framework-agnostic, and it still is for
