@@ -56,8 +56,9 @@ export function useBreakpointVideo(
             // React does not reliably reflect `muted` as an attribute; an unmuted
             // video would be refused autoplay, so the property is set here.
             video.muted = true;
-            const played = video.play();
-            if (played && typeof played.catch === 'function') played.catch(() => undefined);
+            // A refused autoplay is expected and not an error; `Promise.resolve`
+            // also covers engines whose `play()` still returns nothing.
+            void Promise.resolve(video.play()).catch(() => undefined);
           }
         } else if (!video.paused) {
           video.pause();

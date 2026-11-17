@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type Mock } from 'vitest';
 import type { AdminUserRecord } from '@endora-commerce/contracts';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import type { ProjectNotification, ProjectNotificationOutcome } from './project-notifier.js';
@@ -117,7 +117,7 @@ const admin = (id: string, overrides: Partial<AdminUserRecord> = {}): AdminUserR
 interface Harness {
   service: StageAlertService;
   store: {
-    [K in keyof StageAlertStorePort]: ReturnType<typeof vi.fn>;
+    [K in keyof StageAlertStorePort]: Mock<(...args: never[]) => Promise<unknown>>;
   };
   bells: ProjectNotification[];
   mails: StageAlertEmailInput[];

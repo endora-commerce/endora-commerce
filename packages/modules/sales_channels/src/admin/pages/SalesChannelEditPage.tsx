@@ -69,7 +69,8 @@ export function SalesChannelEditPage(): ReactNode {
   useEffect(() => {
     if (isCreate) return;
     let cancelled = false;
-    (async () => {
+    // Fire-and-forget: the body catches its own errors.
+    void (async () => {
       setLoading(true);
       setError(null);
       try {
@@ -270,7 +271,7 @@ export function SalesChannelEditPage(): ReactNode {
             onSaving={setSaving}
             onChannel={setChannelFromForm}
             reseedKeepsEdits={reseedKeepsEdits}
-            onCancel={() => navigate('/sales-channels')}
+            onCancel={() => { navigate('/sales-channels'); }}
           />
         </SaveSessionProvider>
       ) : (
@@ -281,7 +282,7 @@ export function SalesChannelEditPage(): ReactNode {
           saving={saving}
           readOnly={!canWrite}
           onSubmit={(v) => void handleCreate(v)}
-          onCancel={() => navigate('/sales-channels')}
+          onCancel={() => { navigate('/sales-channels'); }}
         />
       )}
       {confirmDialog}

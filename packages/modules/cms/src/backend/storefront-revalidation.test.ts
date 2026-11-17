@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   ASSET_CHANGED_EVENT,
   CMS_CONTENT_CHANGED_EVENT,
@@ -25,7 +25,7 @@ import { registerModule } from './index.js';
 
 const MODULE_ID = 'cms';
 
-type FetchSpy = ReturnType<typeof vi.fn>;
+type FetchSpy = Mock<typeof fetch>;
 
 /** Every composition a case made; `afterEach` disposes them, presence included. */
 const composed: ComposedModule[] = [];

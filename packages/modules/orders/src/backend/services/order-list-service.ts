@@ -317,7 +317,9 @@ export class OrderListService {
 
     // One predicate per selected field, OR-combined. Id sets go through
     // `whereIn` (knex expands an array binding into a list, never an array).
-    const matches: Array<(qb: Knex.QueryBuilder) => void> = [];
+    // A matcher mutates the builder and its return is ignored; it is `unknown`
+    // rather than `void` because a Knex builder is thenable (issue #1027).
+    const matches: Array<(qb: Knex.QueryBuilder) => unknown> = [];
     if (fields.has('number')) matches.push((qb) => qb.orWhereRaw('"business_id" ilike ?', [contains]));
     if (orgIds.length > 0) matches.push((qb) => qb.orWhereIn('organization_id', orgIds));
     if (customerIds.length > 0) {

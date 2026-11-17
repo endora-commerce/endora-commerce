@@ -131,7 +131,7 @@ export function FormCreatePage(): ReactNode {
                 <Button type="submit" disabled={busy}>
                   {t('create.submit')}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => navigate('/forms')} disabled={busy}>
+                <Button type="button" variant="outline" onClick={() => { navigate('/forms'); }} disabled={busy}>
                   {t('create.cancel')}
                 </Button>
               </div>

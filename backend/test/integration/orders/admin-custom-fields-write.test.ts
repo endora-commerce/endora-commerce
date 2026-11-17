@@ -180,7 +180,8 @@ describe('orders — the admin custom-field write and a concurrent writer of the
     const response = await patch(order.id, { [adminKey]: 'web' });
     expect(response.statusCode, response.body).toBe(200);
     expect(carry, 'the hook between the read and the write did not run').not.toBeNull();
-    expect(await carry).toEqual({ outcome: 'applied', carried: [carriedKey], skipped: [] });
+    // Assigned inside the hook, which control-flow narrowing cannot see.
+    expect(await (carry as Promise<unknown> | null)).toEqual({ outcome: 'applied', carried: [carriedKey], skipped: [] });
     expect(await storedValues(order.id)).toEqual({ [adminKey]: 'web', [carriedKey]: 'fair' });
   });
 });

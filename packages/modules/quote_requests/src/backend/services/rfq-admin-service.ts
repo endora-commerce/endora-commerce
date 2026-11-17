@@ -421,7 +421,9 @@ export class RfqAdminService {
       fields.has('organizationName') ? this.deps.organizations.searchIdsByName(query.text) : [],
       fields.has('customer') ? this.deps.customerAccounts.searchIdsByName(query.text) : [],
     ]);
-    const matches: Array<(qb: Knex.QueryBuilder) => void> = [];
+    // A matcher mutates the builder and its return is ignored; it is `unknown`
+    // rather than `void` because a Knex builder is thenable (issue #1027).
+    const matches: Array<(qb: Knex.QueryBuilder) => unknown> = [];
     if (fields.has('number')) matches.push((qb) => qb.orWhereRaw('"business_id" ilike ?', [contains]));
     if (orgIds.length > 0) matches.push((qb) => qb.orWhereIn('organization_id', orgIds));
     if (customerIds.length > 0) matches.push((qb) => qb.orWhereIn('customer_account_id', customerIds));
