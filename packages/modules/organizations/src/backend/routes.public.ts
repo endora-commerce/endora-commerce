@@ -268,40 +268,30 @@ export async function registerOrganizationsPublicRoutes(
    * verification link above), and the message is written in that language — so
    * the message and the page it opens agree. The account's preferred language
    * is issue #652's PR B.
+   *
+   * Everything the request knows is read here, **before** the reply, and for
+   * every request whether or not an account matched: the send itself runs after
+   * the 202 (architect ruling on PR #1418) and must not touch `request`,
+   * `currentSalesChannel()` or the request's context once the reply is out.
+   * The sender needs none of them — `transactional_emails` forks its own
+   * EntityManager per send and reads no request-scoped state.
    */
-  const mailPasswordResetLink = async (
+  const passwordResetScope = async (
     request: FastifyRequest,
-    typedEmail: string,
-    rawToken: string,
-  ): Promise<void> => {
+  ): Promise<{ channel: ReturnType<typeof currentSalesChannel>; language: string | null; origin: string }> => {
     const channel = currentSalesChannel();
     const language = channel ? requestScopeLanguage(channel, request.headers['accept-language']) : null;
-    const path = storefrontPagePathFor({
-      path: `/password-reset/confirm?token=${encodeURIComponent(rawToken)}`,
-      channel,
-      requestedLanguage: language,
-    });
-    const origin = deps.storefrontOriginFor
-      ? await deps.storefrontOriginFor(channel?.id ?? null)
-      : deps.storefrontBaseUrl.replace(/\/+$/, '');
-    // The folded address is the one the lookup matched, which is the account's
-    // own: never mail the link to the address as typed (a look-alike that folds
-    // onto an account must not receive that account's link).
-    const sent = await sendPasswordResetEmail(
-      { templateEmail: deps.templateEmail, mailer: deps.mailer },
-      {
-        to: normalizeEmailAddress(typedEmail),
-        messageId: `customer-pwd-reset.${rawToken.slice(0, 8)}`,
-        resetUrl: `${origin}${path}`,
-        salesChannelId: channel?.id ?? null,
-        language,
-      },
-    );
-    // `logged` (issue #186) is the console driver's own answer and already in
-    // the log; only the transport's refusal is named here.
-    if (sent.via === 'mailer' && sent.outcome.status === 'suppressed') {
-      request.log.warn({ reason: sent.outcome.reason }, '[organizations] the password-reset e-mail was not sent');
+    const fallbackOrigin = deps.storefrontBaseUrl.replace(/\/+$/, '');
+    let origin = fallbackOrigin;
+    if (deps.storefrontOriginFor) {
+      try {
+        origin = await deps.storefrontOriginFor(channel?.id ?? null);
+      } catch (err) {
+        // A failed read must not change the answer, which would enumerate.
+        request.log.error({ err }, '[organizations] the storefront URL of the channel could not be read');
+      }
     }
+    return { channel, language, origin };
   };
 
   app.post(
@@ -326,19 +316,47 @@ export async function registerOrganizationsPublicRoutes(
         deps.latestTokenByEmail.set(`reset:${normalizeEmailAddress(body.email)}`, result.rawToken);
         deps.latestTokenByEmail.set('__latest_reset__', result.rawToken);
       }
-      if (result.rawToken) {
-        // Issue #1371 — the port mints the token and leaves the mail to its
-        // caller, and this caller never sent it. Any failure of the send is
-        // logged and swallowed: an answer that differed for a known address
-        // would tell the requester the account exists.
-        try {
-          await mailPasswordResetLink(request, body.email, result.rawToken);
-        } catch (err) {
-          request.log.error({ err }, '[organizations] the password-reset e-mail could not be sent');
-        }
-      }
+      const scope = await passwordResetScope(request);
+      const log = request.log;
+      // The folded address is the one the lookup matched, which is the
+      // account's own: never mail the link to the address as typed (a
+      // look-alike that folds onto an account must not receive its link).
+      const mail = result.rawToken
+        ? {
+            to: normalizeEmailAddress(body.email),
+            messageId: `customer-pwd-reset.${result.rawToken.slice(0, 8)}`,
+            resetUrl:
+              scope.origin +
+              storefrontPagePathFor({
+                path: `/password-reset/confirm?token=${encodeURIComponent(result.rawToken)}`,
+                channel: scope.channel,
+                requestedLanguage: scope.language,
+              }),
+            salesChannelId: scope.channel?.id ?? null,
+            language: scope.language,
+          }
+        : null;
       // Always 202 — defends against account enumeration.
-      return reply.status(202).send();
+      reply.status(202).send();
+      if (mail) {
+        // Issue #1371 — the port mints the token and leaves the mail to its
+        // caller, and this caller never sent it. Sent after the reply and not
+        // awaited (architect ruling on PR #1418), so how long the transport
+        // takes says nothing about whether the account exists; a failure is
+        // logged and goes nowhere else. Nothing below reads the request.
+        void sendPasswordResetEmail({ templateEmail: deps.templateEmail, mailer: deps.mailer }, mail)
+          .then((sent) => {
+            // `logged` (issue #186) is the console driver's own answer and
+            // already in the log; only the transport's refusal is named here.
+            if (sent.via === 'mailer' && sent.outcome.status === 'suppressed') {
+              log.warn({ reason: sent.outcome.reason }, '[organizations] the password-reset e-mail was not sent');
+            }
+          })
+          .catch((err: unknown) => {
+            log.error({ err }, '[organizations] the password-reset e-mail could not be sent');
+          });
+      }
+      return reply;
     },
   );
 

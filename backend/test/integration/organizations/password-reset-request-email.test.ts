@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { channelUrlLanguages } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 
@@ -26,6 +26,12 @@ import { predefinedRoleIdOf } from '../../helpers/seed-organization-roles.js';
  *
  * The unknown address is the half that keeps the route from enumerating
  * accounts: the same 202, and nothing sent.
+ *
+ * The send runs **after** the 202 and is not awaited (architect ruling on PR
+ * #1418: how long the transport takes must not say whether the account
+ * exists), so each case waits for the mail with a bounded poll rather than
+ * expecting it when the response arrives — and one case proves the reply does
+ * not wait for a transport that never answers.
  */
 
 interface SentMessage {
@@ -36,16 +42,24 @@ interface SentMessage {
 }
 
 const NEW_PASSWORD = 'Replaced-pass-1371!';
+/** The bounded wait for a mail sent after the reply. */
+const MAIL_WAIT = { timeout: 10_000, interval: 50 };
 
 describe('organizations — the self-service password reset e-mails the link (issue #1371)', () => {
   let h: BackendServerHandle;
   const sent: SentMessage[] = [];
+  /** Messages handed to a transport that never answers. */
+  const hanging: SentMessage[] = [];
 
   beforeAll(async () => {
     h = await setupBackendServer({
       organizationsMailer: {
         send: async (message: SentMessage) => {
           if (message.to.startsWith('reset-1371-failing-')) throw new Error('transport down');
+          if (message.to.startsWith('reset-1371-hanging-')) {
+            hanging.push(message);
+            return new Promise<never>(() => {});
+          }
           sent.push(message);
           return { status: 'sent' as const };
         },
@@ -90,6 +104,9 @@ describe('organizations — the self-service password reset e-mails the link (is
     return email;
   };
 
+  const waitForMailTo = (email: string): Promise<void> =>
+    vi.waitFor(() => expect(sent.some((m) => m.to === email)).toBe(true), MAIL_WAIT);
+
   const requestReset = (email: string) =>
     h.app.inject({
       method: 'POST',
@@ -103,6 +120,7 @@ describe('organizations — the self-service password reset e-mails the link (is
     const res = await requestReset(email);
     expect(res.statusCode).toBe(202);
 
+    await waitForMailTo(email);
     const mine = sent.filter((m) => m.to === email);
     expect(mine, 'exactly one reset e-mail must go to the address').toHaveLength(1);
     expect(
@@ -136,12 +154,30 @@ describe('organizations — the self-service password reset e-mails the link (is
     expect(res.body).toBe('');
   });
 
+  it('answers an empty 202 promptly while the transport never answers', async () => {
+    const email = await seedCustomer('reset-1371-hanging-');
+
+    const started = Date.now();
+    const res = await requestReset(email);
+    const elapsed = Date.now() - started;
+    expect(res.statusCode).toBe(202);
+    expect(res.body).toBe('');
+    expect(elapsed, 'the reply must not wait for the transport').toBeLessThan(5_000);
+    // The send did start: the reply simply did not wait for it.
+    await vi.waitFor(() => expect(hanging.filter((m) => m.to === email)).toHaveLength(1), MAIL_WAIT);
+  });
+
   it('answers 202 and sends nothing for an address no account has', async () => {
     const email = `nobody-1371-${Date.now()}@example.test`;
 
     const res = await requestReset(email);
     expect(res.statusCode).toBe(202);
     expect(res.body).toBe('');
+    // A barrier: a known address's mail, requested afterwards, has arrived —
+    // so a send for the unknown one, had any been scheduled, has had its turn.
+    const known = await seedCustomer();
+    await requestReset(known);
+    await waitForMailTo(known);
     expect(sent.filter((m) => m.to === email)).toHaveLength(0);
   });
 });
