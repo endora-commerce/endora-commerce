@@ -122,18 +122,18 @@ describe('the inventory list', () => {
   it('links each row’s Edit stock to the Inventory tab', async () => {
     const en = await mount();
     const row = screen.getByText('Product high').closest('tr') as HTMLElement;
-    const link = within(row).getByRole('link', { name: en['inventory.action.editStock'] });
+    const link = within(row).getByRole('link', { name: en['inventory.action.editStock'] as string });
     expect(link.getAttribute('href')).toBe(`/catalog/products/${PRODUCT_ID}?tab=inventory`);
   });
 
   it('names the search input programmatically, not by its placeholder alone', async () => {
     const en = await mount();
-    expect(screen.getByRole('searchbox', { name: en['inventory.search.label'] })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: en['inventory.search.label'] as string })).toBeInTheDocument();
   });
 
   it('exposes the filter chips’ state with aria-pressed', async () => {
     const en = await mount();
-    const low = screen.getByRole('button', { name: en['inventory.stat.lowStock'] });
+    const low = screen.getByRole('button', { name: en['inventory.stat.lowStock'] as string });
     expect(low.getAttribute('aria-pressed')).toBe('false');
     low.click();
     await waitFor(() => expect(low.getAttribute('aria-pressed')).toBe('true'));
