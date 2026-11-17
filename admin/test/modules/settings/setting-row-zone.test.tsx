@@ -6,6 +6,7 @@ import { cleanup, screen, waitFor } from '@testing-library/react';
 import type { AdminZoneProps, SettingDto } from '@endora-commerce/contracts';
 import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
 import { passthroughBundle, renderWithI18n } from '../../helpers/render-with-i18n';
+import { markup as rowMarkup } from '../../helpers/react-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import {
   SettingRowEditor,
@@ -135,10 +136,13 @@ async function probeProps(): Promise<ZoneProps> {
   return JSON.parse(probe.textContent ?? '') as ZoneProps;
 }
 
-/** A row's markup with React's per-render ids taken out, so two renders compare. */
-function markup(container: HTMLElement): string {
-  return container.innerHTML.replace(/(id|for|aria-[a-z]+)="(:r[0-9a-z]+:|«r[0-9a-z]+»)"/g, '$1="_"');
-}
+/**
+ * A row's markup with React's per-render ids taken out, so two renders compare.
+ * The shared helper, because the row's `FormField` derives ids from one
+ * (`<id>-label`, `<id>-control`) in React 19.2's `_r_1a_` form, which a
+ * whole-attribute match does not see (issue #1478).
+ */
+const markup = rowMarkup;
 
 afterEach(() => cleanup());
 
