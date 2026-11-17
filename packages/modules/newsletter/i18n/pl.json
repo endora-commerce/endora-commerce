@@ -35,6 +35,8 @@
   "settingLabels.newsletter.tracking.opens_enabled.description": "Dodaje do każdego e-maila kampanii niewidoczny obrazek 1×1, dzięki któremu statystyki kampanii liczą, kto ją otworzył. Otwarcia są zapisywane dla każdego odbiorcy. Po wyłączeniu e-maile kampanii nie zawierają obrazka, a otwarcia nie są liczone. Domyślnie wyłączone. E-maile automatyzacji nigdy nie są śledzone.",
   "settingLabels.newsletter.tracking.clicks_enabled.name": "Śledź kliknięcia linków w kampaniach",
   "settingLabels.newsletter.tracking.clicks_enabled.description": "Kieruje linki w każdym e-mailu kampanii przez przekierowanie na tej platformie, dzięki czemu statystyki kampanii liczą kliknięcia każdego odbiorcy i każdego linku. Po wyłączeniu linki prowadzą prosto do celu, a kliknięcia nie są liczone. Domyślnie wyłączone. E-maile automatyzacji nigdy nie są śledzone.",
+  "settingLabels.newsletter.opt_in_mode.options.single": "Pojedyncza zgoda (od razu)",
+  "settingLabels.newsletter.opt_in_mode.options.double": "Podwójna zgoda (e-mail z potwierdzeniem)",
   "blocks.category.forms": "Formularze",
   "blocks.signup.label": "Zapis do newslettera",
   "blocks.signup.description": "Formularz zapisu do newslettera tego sklepu, z opcjonalnymi tematami i wymaganą zgodą.",
