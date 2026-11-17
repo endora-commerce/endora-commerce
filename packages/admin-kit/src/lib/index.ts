@@ -51,6 +51,8 @@ export type { GatedSurface, PermissionRequirement } from './surface-visibility.j
 export { normalize } from './text-normalization.js';
 export { usePageSizePreference } from './use-page-size-preference.js';
 export { useUnsavedChangesPrompt } from './use-unsaved-changes-prompt.js';
+// Issue #1446 (DS-13) — the `dirty` an unsaved-changes guard is armed with.
+export { isDraftEqual } from './draft-equality.js';
 // Feature 180 — the save session (`specs/180-one-save-zone-editors/contracts/save-participation.md`).
 export {
   INERT_SAVE_SESSION,

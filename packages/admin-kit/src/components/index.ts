@@ -127,6 +127,14 @@ export type { ModalDialogProps } from './modal-dialog/ModalDialog.js';
 // Issue #313 — the design-system replacement for the browser's `confirm()`.
 export { ConfirmDialog, useConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
 export type { ConfirmDialogProps, ConfirmOptions, UseConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
+// Issue #1446 (DS-13) — the one unsaved-changes guard: Save / Discard / Stay before a navigation drops edits.
+export { UnsavedChangesDialog, UnsavedChangesHint, useUnsavedChangesGuard } from './unsaved-changes/UnsavedChangesGuard.js';
+export type {
+  UnsavedChangesDialogProps,
+  UnsavedChangesGuard,
+  UnsavedChangesGuardOptions,
+  UnsavedChangesHintProps,
+} from './unsaved-changes/UnsavedChangesGuard.js';
 // Issue #1435 (DS-18) — a status changed through a confirmed dialog, never a select that writes on change.
 export { StatusChangeControl } from './status-change/StatusChangeControl.js';
 export type { StatusChangeControlProps, StatusChangeOption } from './status-change/StatusChangeControl.js';

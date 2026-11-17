@@ -441,3 +441,60 @@ describe('PageBuilderEditorLayout — an entity that has no canvas yet', () => {
     expect(container.querySelector('.b2b-page')).not.toBeNull();
   });
 });
+
+/**
+ * Issue #1446 (DS-13) / #1461 (CONTENT-02) — `dirty` arms the kit's unsaved-changes
+ * guard over the whole editor: a link out of it asks Save / Discard / Stay.
+ */
+describe('PageBuilderEditorLayout — unsaved changes', () => {
+  const guardBundle = {
+    core: {
+      ...bundle.core,
+      'form.unsavedChanges.title': 'Unsaved changes',
+      'form.unsavedChanges.body': 'Save or discard?',
+      'form.unsavedChanges.save': 'Save and continue',
+      'form.unsavedChanges.saving': 'Saving…',
+      'form.unsavedChanges.discard': 'Discard changes',
+      'form.unsavedChanges.stay': 'Stay here',
+    },
+  };
+
+  function DirtyHarness({ dirty, onDiscard }: { dirty: boolean; onDiscard?: () => void }): ReactElement {
+    return (
+      <>
+        <a href="/cms/pages">Back to pages</a>
+        <PageBuilderEditorLayout
+          header={<h1>Home page</h1>}
+          builder={<button type="button">Canvas</button>}
+          dirty={dirty}
+          onSave={async () => true}
+          onDiscard={onDiscard}
+        />
+      </>
+    );
+  }
+
+  it('asks before a link leaves a dirty editor', () => {
+    renderWithI18n(<DirtyHarness dirty />, guardBundle);
+    fireEvent.click(screen.getByRole('link', { name: 'Back to pages' }));
+    const dialog = screen.getByRole('dialog', { name: 'Unsaved changes' });
+    expect(within(dialog).getByRole('button', { name: 'Save and continue' })).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'Discard changes' })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stay here' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('asks nothing while the editor is clean', () => {
+    renderWithI18n(<DirtyHarness dirty={false} />, guardBundle);
+    let preventedByGuard: boolean | null = null;
+    const probe = (e: MouseEvent): void => {
+      preventedByGuard = e.defaultPrevented;
+      e.preventDefault(); // jsdom does not navigate; keep it from trying
+    };
+    document.addEventListener('click', probe);
+    fireEvent.click(screen.getByRole('link', { name: 'Back to pages' }));
+    document.removeEventListener('click', probe);
+    expect(preventedByGuard).toBe(false);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
