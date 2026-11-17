@@ -234,6 +234,12 @@ describe('the Change history tab', () => {
     expect(getSpy).toHaveBeenCalledWith(`${HISTORY_PATH}?limit=50`);
   });
 
+  it('opens on the entries, with no paragraph explaining what a history is (#1487)', async () => {
+    const panel = await openHistory();
+    await within(panel).findByRole('list', { name: core('history.title') });
+    expect(within(panel).queryByText(/^Everything that was done/)).toBeNull();
+  });
+
   it('labels each entry from auditLog.<action>, with who did it and when', async () => {
     const panel = await openHistory();
     await within(panel).findByRole('list', { name: core('history.title') });

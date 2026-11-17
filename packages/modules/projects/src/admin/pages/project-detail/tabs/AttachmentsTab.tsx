@@ -134,8 +134,6 @@ export function AttachmentsTab(props: ProjectTabProps): ReactNode {
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-muted-foreground">{t('attachments.hint')}</p>
-
       {error ? (
         <Alert variant="destructive">
           <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
