@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ADMIN_PERMISSION_WILDCARD,
   ERROR_CODES,
+  foldDiacritics,
   projectVisibilitySettingSchema,
   type AdminTenantScopePort,
   type AdminUserReadPort,
@@ -122,7 +123,7 @@ export const PROJECT_ACCESS_READERS: Readonly<Record<string, string>> = {
     'valuable open Projects are summarised from the rows that statement returned.',
   'services/task-context-descriptor.ts':
     'The `project` Task context answers `allVisibleIds` / `visibleIds` and describes only the ids ' +
-    '`visibleIds` handed back; Projects and their Stages are read by those ids only.' +
+    '`visibleIds` or `searchVisibleByLabel` handed back; Projects and their Stages are read by those ids only.' +
     ' Which Projects and Stages still exist (`existingContexts`) is `existingWithStages`, in this file.',
 };
 
@@ -259,6 +260,24 @@ export function isSystemActor(): boolean {
   return getTenantContext()?.actor.kind === 'system';
 }
 
+/**
+ * {@link foldDiacritics} as a Postgres `translate(text, from, to)`: every
+ * Latin letter with a diacritic, upper and lower case, that folds to one
+ * character. A letter folding to more than one (`ß`) is left as it is.
+ */
+const SQL_FOLD = ((): { from: string; to: string } => {
+  let from = '';
+  let to = '';
+  for (let code = 0xc0; code <= 0x24f; code += 1) {
+    const character = String.fromCodePoint(code);
+    const target = foldDiacritics(character);
+    if ([...target].length !== 1 || target === character) continue;
+    from += character;
+    to += target;
+  }
+  return { from, to };
+})();
+
 function holds(held: readonly string[], code: string): boolean {
   return held.includes(ADMIN_PERMISSION_WILDCARD) || held.includes(code);
 }
@@ -386,6 +405,38 @@ export class ProjectAccess {
         limit ?`,
       [...params, Math.trunc(limit)],
     )) as VisibleProjectRow[];
+  }
+
+  /**
+   * The Task context picker's search (`TaskContextDescriptor.search`, issue
+   * #504): Projects the caller may see whose label — `number title`, as the
+   * `project` Task context names one — contains `q`, case- and
+   * diacritic-insensitively ({@link foldDiacritics}; every visible one for an
+   * empty `q`), by label, at most `limit`. One statement, bounded by `limit`.
+   */
+  async searchVisibleByLabel(q: string, limit: number): Promise<Array<{ id: string; number: string; title: string }>> {
+    const viewer = await this.currentViewer();
+    if (!viewer.canRead || limit <= 0) return [];
+    const visible = await this.visibleProjectSql(viewer);
+    const label = `(p."number" || ' ' || p."title")`;
+    const where: string[] = [];
+    const params: unknown[] = [];
+    if (visible) {
+      where.push(visible.sql);
+      params.push(...visible.params);
+    }
+    const needle = foldDiacritics(q.trim()).toLowerCase();
+    if (needle !== '') {
+      where.push(`lower(translate(${label}, ?, ?)) like ?`);
+      params.push(SQL_FOLD.from, SQL_FOLD.to, `%${needle.replace(/[\\%_]/g, (match) => `\\${match}`)}%`);
+    }
+    return (await this.deps.emFactory().execute(
+      `select p."id", p."number", p."title" from "projects" p
+        ${where.length > 0 ? `where ${where.join(' and ')}` : ''}
+        order by ${label}, p."id"
+        limit ?`,
+      [...params, Math.trunc(limit)],
+    )) as Array<{ id: string; number: string; title: string }>;
   }
 
   /**
