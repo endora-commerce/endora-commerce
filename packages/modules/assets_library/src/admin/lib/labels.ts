@@ -1,5 +1,5 @@
 import { defineEnumLabels } from '@endora-commerce/admin-kit/lib';
-import type { AssetReferenceKind } from '@endora-commerce/contracts';
+import type { AssetReferenceKind, AssetVisibility } from '@endora-commerce/contracts';
 
 /**
  * What points at an asset, as the detail drawer's "Referenced by" list names it
@@ -24,4 +24,13 @@ export const assetReferenceKindLabels = defineEnumLabels<AssetReferenceKind>({
   task_attachment: 'detail.referenceKind.task_attachment',
   admin_user_avatar: 'detail.referenceKind.admin_user_avatar',
   product_content: 'detail.referenceKind.product_content',
+});
+
+/**
+ * An asset's visibility, as the detail drawer's badge and its "Change…" dialog
+ * name it (issue #1575). Keys are in the `assets_library` bundle.
+ */
+export const assetVisibilityLabels = defineEnumLabels<AssetVisibility>({
+  public: 'visibility.public',
+  private: 'visibility.private',
 });
