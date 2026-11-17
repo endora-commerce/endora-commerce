@@ -97,7 +97,7 @@ export function LedgerRoutingPage(): ReactNode {
         </Alert>
       ) : null}
       {info ? (
-        <Alert className="mb-4">
+        <Alert live="polite" className="mb-4">
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}

@@ -128,7 +128,8 @@ export function TemplatePreviewVerdict(props: TemplatePreviewVerdictProps): Reac
   if (loading || !preview) return null;
 
   return (
-    <Alert variant={preview.wouldEmitItem ? 'success' : 'destructive'}>
+    // A verdict that follows the operator's edits: announced politely, even when it is "skipped" (#1484).
+    <Alert variant={preview.wouldEmitItem ? 'success' : 'destructive'} live="polite">
       <AlertDescription className="flex items-center gap-2">
         {preview.wouldEmitItem ? (
           <Check size={14} aria-hidden="true" />

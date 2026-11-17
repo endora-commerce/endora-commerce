@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { Badge, type BadgeProps } from '../../ui/badge.js';
 import { Button } from '../../ui/button.js';
+import { InlineStatus } from '../../ui/inline-status.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { ModalDialog } from '../modal-dialog/ModalDialog.js';
 
@@ -184,9 +185,7 @@ export function StatusChangeControl(props: StatusChangeControlProps): ReactNode 
         </p>
       ) : null}
       {/* Mounted before it has text, so the change is announced (WCAG 4.1.3). */}
-      <p role="status" className="sr-only">
-        {announcement}
-      </p>
+      <InlineStatus visuallyHidden>{announcement}</InlineStatus>
 
       {open
         ? createPortal(

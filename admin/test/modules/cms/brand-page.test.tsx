@@ -245,7 +245,7 @@ describe('BrandPage', () => {
     setColor(copy('brand.colors.primary'), '#ffff00');
 
     const title = await screen.findByText(copy('brand.contrast.title'));
-    const alert = title.closest('[role="alert"]') as HTMLElement;
+    const alert = title.closest('[role="status"]') as HTMLElement;
     expect(alert).toBeTruthy();
     expect(alert.textContent).toContain(copy('brand.colors.onPrimary'));
     expect(alert.textContent).toContain(copy('brand.colors.primary'));

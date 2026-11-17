@@ -253,7 +253,7 @@ describe('ReturnDetail — a consumer withdrawal settles as a refund unless cons
     expect(screen.queryByText('settlement.refundMethodDiffers')).not.toBeInTheDocument();
     await userEvent.selectOptions(select, OTHER_METHOD);
     const warning = screen.getByText('settlement.refundMethodDiffers');
-    expect(select.getAttribute('aria-describedby')).toBe(warning.closest('[role="alert"]')?.id);
+    expect(select.getAttribute('aria-describedby')).toBe(warning.closest('[role="status"]')?.id);
   });
 
   it('falls back to the method id, with a hint, when the list cannot be read', async () => {

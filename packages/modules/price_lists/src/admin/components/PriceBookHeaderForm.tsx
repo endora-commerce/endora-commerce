@@ -180,7 +180,7 @@ export function PriceBookHeaderForm(props: {
         </Alert>
       ) : null}
       {notice?.kind === 'notApplicable' ? (
-        <Alert variant="warning">
+        <Alert variant="warning" live="assertive">
           <AlertDescription className="space-y-2">
             <p className="font-medium">{t('priceBooks.activate.refused')}</p>
             <ul className="space-y-2">

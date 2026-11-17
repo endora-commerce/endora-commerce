@@ -400,7 +400,7 @@ describe('CustomFieldsPage — the Carries to column (US4-5, US4-7)', () => {
     db.failAll = true;
     await renderPage('quote_request', bundle);
     const unavailable = sentence(bundle, 'customFields.carry.checksUnavailable');
-    const alert = (await screen.findByText(unavailable)).closest('[role="alert"]') as HTMLElement;
+    const alert = (await screen.findByText(unavailable)).closest('[role="status"]') as HTMLElement;
     expect(alert).not.toBeNull();
     const retry = within(alert).getByRole('button', { name: sentence(bundle, 'customFields.carry.retry') });
 

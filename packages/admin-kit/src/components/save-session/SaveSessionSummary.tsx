@@ -16,6 +16,7 @@ import { useTranslationContext } from '../../i18n/TranslationProvider.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import type { ParticipantIssues, SaveOutcome, SaveOutcomePart } from '../../save-session/run-save.js';
 import { Alert, AlertDescription, AlertTitle } from '../../ui/alert.js';
+import { InlineStatus } from '../../ui/inline-status.js';
 
 export interface SaveSessionSummaryProps {
   readonly outcome: SaveOutcome | null;
@@ -57,14 +58,13 @@ export function SaveSessionSummary({ outcome, notices, onShow }: SaveSessionSumm
       ? t('saveSession.summary.notAttempted')
       : (part.message ?? t('saveSession.summary.unknownReason'));
 
+  // Mounted before it has text (InlineStatus), so a full save is announced (WCAG 4.1.3).
+  const savedMessage =
+    outcome !== null && outcome.result === 'saved'
+      ? t('saveSession.summary.saved', { labels: labels(outcome.parts) })
+      : null;
   let body: ReactNode = null;
-  if (outcome !== null && outcome.result === 'saved') {
-    body = (
-      <p role="status" className="sr-only">
-        {t('saveSession.summary.saved', { labels: labels(outcome.parts) })}
-      </p>
-    );
-  } else if (outcome !== null && outcome.result === 'refused') {
+  if (outcome !== null && outcome.result === 'refused') {
     const refused = outcome.parts.filter((part) => part.result === 'refused');
     body = (
       <Alert variant="destructive">
@@ -86,12 +86,13 @@ export function SaveSessionSummary({ outcome, notices, onShow }: SaveSessionSumm
         </AlertDescription>
       </Alert>
     );
-  } else if (outcome !== null) {
+  } else if (outcome !== null && outcome.result !== 'saved') {
     const saved = outcome.parts.filter((part) => part.result === 'saved');
     const notSaved = outcome.parts.filter((part) => part.result !== 'saved');
     const partial = outcome.result === 'partial';
     body = (
-      <Alert variant={partial ? 'warning' : 'destructive'}>
+      // A partial save is a warning that needs attention, as a failure does.
+      <Alert variant={partial ? 'warning' : 'destructive'} live="assertive">
         <AlertTitle ref={headingRef} tabIndex={-1} className="outline-none">
           {partial ? t('saveSession.summary.partial') : t('saveSession.summary.failed')}
         </AlertTitle>
@@ -110,12 +111,12 @@ export function SaveSessionSummary({ outcome, notices, onShow }: SaveSessionSumm
     );
   }
 
-  if (body === null && notices.length === 0) return null;
   return (
-    <div className="space-y-2">
+    <div className={body === null && notices.length === 0 ? undefined : 'space-y-2'}>
+      <InlineStatus visuallyHidden>{savedMessage}</InlineStatus>
       {body}
       {notices.length > 0 ? (
-        <Alert variant="warning">
+        <Alert variant="warning" live="polite">
           <AlertDescription>
             <ul className="list-disc pl-5">
               {notices.map((notice) => (

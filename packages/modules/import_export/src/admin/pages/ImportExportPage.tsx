@@ -273,7 +273,7 @@ function EntityCard({
           </Alert>
         ) : null}
         {importMessage ? (
-          <Alert variant={importErrors.length > 0 ? 'warning' : 'success'}>
+          <Alert variant={importErrors.length > 0 ? 'warning' : 'success'} live="polite">
             <AlertDescription>{importMessage}</AlertDescription>
           </Alert>
         ) : null}

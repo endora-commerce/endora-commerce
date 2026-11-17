@@ -307,7 +307,10 @@ describe('ModulesPage — platform diagnostics (T062)', () => {
     degraded = true;
     await renderPage();
 
-    expect(screen.getByRole('alert').textContent).toContain('platform.modules.degraded');
+    // Present when the page loads: shown, not announced as an interruption (#1484).
+    const banner = screen.getByText('platform.modules.degraded').closest('[data-slot="alert"]');
+    expect(banner).not.toBeNull();
+    expect(banner).not.toHaveAttribute('role');
   });
 
   it('renders no degraded warning when the projection is fresh', async () => {
@@ -315,6 +318,6 @@ describe('ModulesPage — platform diagnostics (T062)', () => {
     presence = [presenceItem({ id: 'blog' })];
     await renderPage();
 
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText('platform.modules.degraded')).toBeNull();
   });
 });

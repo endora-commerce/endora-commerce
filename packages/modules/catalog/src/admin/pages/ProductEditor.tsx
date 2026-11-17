@@ -1690,7 +1690,7 @@ function VariantsSection({ productId, readOnly = false }: { productId: string; r
           </Alert>
         ) : null}
         {info ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{info}</AlertDescription>
           </Alert>
         ) : null}
@@ -1951,7 +1951,7 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
           </Alert>
         ) : null}
         {info ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{info}</AlertDescription>
           </Alert>
         ) : null}
@@ -2197,7 +2197,7 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
           </Alert>
         ) : null}
         {info ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{info}</AlertDescription>
           </Alert>
         ) : null}
@@ -2437,7 +2437,7 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
           </Alert>
         ) : null}
         {info ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{info}</AlertDescription>
           </Alert>
         ) : null}

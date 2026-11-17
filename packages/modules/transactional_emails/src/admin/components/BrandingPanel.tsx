@@ -70,7 +70,7 @@ export function BrandingPanel({ salesChannelId }: BrandingPanelProps): React.Rea
           </Alert>
         ) : null}
         {notice ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{notice}</AlertDescription>
           </Alert>
         ) : null}

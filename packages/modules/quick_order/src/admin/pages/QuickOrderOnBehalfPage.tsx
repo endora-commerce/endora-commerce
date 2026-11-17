@@ -126,7 +126,7 @@ export function QuickOrderOnBehalfPage(): ReactNode {
       ) : null}
 
       {result ? (
-        <Alert>
+        <Alert live="polite">
           <AlertDescription>
             {result.target === 'cart'
               ? t('onBehalf.success.cart', { id: result.cartId ?? '' })
@@ -139,7 +139,7 @@ export function QuickOrderOnBehalfPage(): ReactNode {
           Amber, not red: the build succeeded, and the remedy is the operator's
           (raise the quantity, or build a quote request instead). */}
       {result?.rejected && result.rejected.length > 0 ? (
-        <Alert variant="warning">
+        <Alert variant="warning" live="assertive">
           <AlertTitle>{t('onBehalf.build.rejectedTitle')}</AlertTitle>
           <AlertDescription>
             <ul className="list-disc space-y-0.5 pl-5">
