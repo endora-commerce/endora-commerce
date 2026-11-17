@@ -249,6 +249,13 @@ export const ERROR_CODES = {
   ORGANIZATION_HAS_CHILDREN: 'ORGANIZATION_HAS_CHILDREN',
   // Feature 056 — a re-parent would create a cycle or exceed the depth bound.
   ORGANIZATION_TREE_INVALID: 'ORGANIZATION_TREE_INVALID',
+  // Issue #629 (#86) — a personal (B2C) organization is single-member, so the
+  // action is refused (422, `details.code` = `add_member` | `invite` |
+  // `sales_rep`, `details.organizationId`).
+  ORGANIZATION_PERSONAL: 'ORGANIZATION_PERSONAL',
+  // Issue #629 (#86) — a moderation action needs the organization in another
+  // status (422, `details.currentStatus`, `requiredStatus` and their labels).
+  ORGANIZATION_STATUS_INVALID: 'ORGANIZATION_STATUS_INVALID',
   // Feature 170 — organization roles and permissions (`specs/170-organization-roles/`,
   // `contracts/organization-permission-port.md` §3). Declared by `organizations`.
   // A member's role lacks the organization permission a buyer action needs (403).

@@ -69,6 +69,7 @@
   "importProfiles.mapping.targets": "Target channel and language",
   "importProfiles.mapping.targetsPlaceholder": "Choose targets",
   "importProfiles.mapping.missingChannel": "A target points at a sales channel that no longer exists. Its rows will be reported at import.",
+  "importProfiles.mapping.missingChannelTarget": "Missing channel / {language}",
   "importProfiles.mapping.dropMissing": "Remove missing targets",
   "importProfiles.error.load": "Could not load the import profiles.",
   "importProfiles.error.save": "Could not save the import profile.",

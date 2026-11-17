@@ -33,6 +33,11 @@ file for each locale in `docs/locales.config.json` → `translateLocales`
 Paths listed in `docs/translation-skip.json` are excluded (today:
 `docs/docs/contributing/translations.md`, which is the Admin UI glossary).
 
+The hand-authored layer includes the pages the site itself keeps under
+`docs/docs/modules/`, such as `README.md` and `lifecycle.md`. The module pages
+that `composer:generate` copies into that directory are not sources there: each
+is checked once, under its module's own path.
+
 Chrome — the navbar, the footer and the sidebar **category** labels declared in
 `docs/sidebars.js` and `docs/sidebars.modules.generated.js` — is translated in
 the files Docusaurus reads it from, which are **not** `code.json`. The next

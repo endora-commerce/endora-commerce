@@ -418,7 +418,7 @@ export class PriceBookService {
           priceListId: bookId,
           action: 'price_list.base_prices_set',
           actor,
-          headerAfter: toCreate.includes(code) ? createdHeaderValues({ name: baseBookName(code), priority: 0, memberIds: [] }) : null,
+          headerAfter: toCreate.includes(code) ? createdHeaderValues({ name: baseBookName(code), priority: 0, audienceKind: 'everyone', memberIds: [] }) : null,
           lines: rowValueLines(baseRowChanges(removed.map(plannedOfEntity), inserted)),
         });
         if (valueChangeId) valueChangeIds[code] = valueChangeId;
@@ -522,7 +522,12 @@ export class PriceBookService {
         priceListId: id,
         action: 'price_list.create',
         actor,
-        headerAfter: createdHeaderValues({ name: view.name, priority: view.priority, memberIds: view.audience.memberIds }),
+        headerAfter: createdHeaderValues({
+          name: view.name,
+          priority: view.priority,
+          audienceKind: view.audience.kind,
+          memberIds: view.audience.memberIds,
+        }),
       });
       return { result: view, before: null, after: { ...view, channelIds: [...input.channelIds], valueChangeId } };
       // A new book is a draft: it prices nowhere until it is activated.
@@ -663,11 +668,11 @@ export class PriceBookService {
     await this.#command('price_list.update', bookId, async (txEm, actor) => {
       const row = await txEm.findOneOrFail(PriceList, { id: bookId });
       const header = headerValueChange(
-        { name: row.name, priority: row.priority, memberIds: members.map(memberIdOf) },
+        { name: row.name, priority: row.priority, audienceKind: row.audienceKind, memberIds: members.map(memberIdOf) },
         {
           ...(patch.name !== undefined ? { name: patch.name } : {}),
           ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
-          ...(patch.audience ? { memberIds: patch.audience.memberIds } : {}),
+          ...(patch.audience ? { audienceKind: patch.audience.kind, memberIds: patch.audience.memberIds } : {}),
         },
       );
       const before: Record<string, unknown> = {};
@@ -1217,6 +1222,7 @@ export class PriceBookService {
         headerAfter: createdHeaderValues({
           name: view.name,
           priority: view.priority,
+          audienceKind: view.audience.kind,
           memberIds: view.audience.memberIds,
           amountMultiplier: input.amountMultiplier,
         }),

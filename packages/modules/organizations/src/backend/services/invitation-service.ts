@@ -130,10 +130,13 @@ export class InvitationService {
     // Organization's kind, whatever role id it sent.
     const actorOrg = await em.findOne(Organization, { id: actor.organizationId });
     if (actorOrg?.isPersonal) {
+      // Issue #629 (#86) — the organization refuses a well-formed request: a
+      // code of its own, the token naming the action.
       throw new HttpError(
         422,
-        ERROR_CODES.VALIDATION_FAILED,
+        ERROR_CODES.ORGANIZATION_PERSONAL,
         'A personal (individual) account cannot invite members.',
+        { code: 'invite', organizationId: actorOrg.id },
       );
     }
 

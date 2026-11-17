@@ -531,20 +531,6 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         couponDroppedThisRead = null;
       }
     }
-    // Feature 045 — compute the real discount + per-promotion breakdown on
-    // read so the cart shows applied promotions (FR-031/FR-033). Never block
-    // a cart read on a promotion-engine hiccup.
-    let application: PromotionApplication | null = null;
-    if (items.length > 0) {
-      try {
-        application = await deps.cartCouponService.computeApplication(cart, items);
-      } catch (err) {
-        // Same rule as the coupon re-evaluation above: a hiccup degrades to "no
-        // breakdown", an absent `promotions` does not degrade at all.
-        rethrowIfModuleDisabled(err);
-        application = null;
-      }
-    }
     // Issue #436 — each line's VAT rate, by its product's tax class, as
     // placement resolves it; a line whose product record is gone is priced as
     // `simple`, as placement prices it. The breakdown is the order's figure or
@@ -564,6 +550,22 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         rethrowIfModuleDisabled(err);
         request.log.warn({ err, cartId: cart.id }, 'cart VAT resolution failed; answering no VAT');
         taxRates = null;
+      }
+    }
+    // Feature 045 — compute the real discount + per-promotion breakdown on
+    // read so the cart shows applied promotions (FR-031/FR-033). Never block
+    // a cart read on a promotion-engine hiccup.
+    let application: PromotionApplication | null = null;
+    if (items.length > 0) {
+      try {
+        // Issue #1350 — with the rates placement charges, so a percent-off or
+        // free-unit promotion reads the gross the order will discount.
+        application = await deps.cartCouponService.computeApplication(cart, items, taxRates);
+      } catch (err) {
+        // Same rule as the coupon re-evaluation above: a hiccup degrades to "no
+        // breakdown", an absent `promotions` does not degrade at all.
+        rethrowIfModuleDisabled(err);
+        application = null;
       }
     }
     return answer(

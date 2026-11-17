@@ -19,7 +19,8 @@ import { bindOrganizationsToFixtureChannelsSql } from '../../helpers/sales-chann
  * The member and invitation routes answer as for any administrator: the members
  * list shows the one member, the invitations list is empty, revoking another
  * Organization's invitation is `404` (the lookup is scoped to the caller's
- * Organization). Inviting is refused `422 VALIDATION_FAILED` because the
+ * Organization). Inviting is refused `422 ORGANIZATION_PERSONAL` (token
+ * `invite`, issue #629) because the
  * Organization is personal, **before** the role id is read — a role id the
  * Organization does not have would otherwise be `404`. Removing or demoting
  * oneself is the last-administrator refusal. The role routes stay `404`
@@ -178,14 +179,17 @@ describe('a personal Organization’s administrator (PR-3)', () => {
       'with a role id the Organization does not have — refused before it is resolved',
       async (): Promise<object> => ({ roleId: await predefinedRoleIdOf(h.em(), OTHER_TEST_ORGANIZATION_ID, 'member') }),
     ],
-  ])('cannot invite %s → 422 VALIDATION_FAILED', async (_label, roleBody) => {
+  ])('cannot invite %s → 422 ORGANIZATION_PERSONAL', async (_label, roleBody) => {
     const res = await inject({
       method: 'POST',
       url: '/api/v1/organizations/mine/invitations',
       payload: { email: `personal-invite-${randomUUID().slice(0, 8)}@example.com`, ...(await roleBody()) },
     });
     expect(res.statusCode, res.body).toBe(422);
-    expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+    // Issue #629 (#86) — the organization's own refusal, the token naming the action.
+    const error = (res.json() as { error: { code: string; details?: Record<string, unknown> } }).error;
+    expect(error.code).toBe(ERROR_CODES.ORGANIZATION_PERSONAL);
+    expect(error.details).toEqual({ code: 'invite', organizationId: personalOrganizationId });
   });
 
   it('cannot revoke another Organization’s invitation → 404', async () => {

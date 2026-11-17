@@ -4,6 +4,8 @@ import type { PriceBook } from '@endora-commerce/contracts';
 import { setupBackendServer, teardownBackendServer, type BackendServerHandle } from '../../helpers/test-server.js';
 import { setupPricingFixture, type PricingFixture } from '../../helpers/pricing-fixture.js';
 import { priceBookApi, type ApiClient } from '../../helpers/price-book-admin.js';
+import { recordValueChange } from '../../../../packages/modules/price_lists/src/backend/services/price-book-value-changes.js';
+import type { RowValueLine } from '../../../../packages/modules/price_lists/src/backend/services/price-book-row-write.js';
 
 /**
  * Issue #470 (D-288; owner ruling O-3), Stage 2 — what the price-change
@@ -22,6 +24,18 @@ import { priceBookApi, type ApiClient } from '../../helpers/price-book-admin.js'
  * without Stage 2, skips the history assertions and gives the baseline the
  * figures are compared with.
  *
+ * **The D-5 budget** (architect, 2026-11-17, #470 stage 3; recorded in
+ * `specs/pricing/read-paths-and-performance.md` §7), asserted unless
+ * `PERF_BASELINE=true`:
+ * - the 10 000-line `replace`-mode import commits in **< 3 s median**
+ *   (`PERF_HISTORY_WRITE_10K_MS`);
+ * - the history write adds **≤ 100 µs per line**
+ *   (`PERF_HISTORY_WRITE_LINE_US`): measured directly, as the median time of
+ *   the writer's own statements (`recordValueChange`) for 10 000 lines in a
+ *   transaction that is rolled back, divided by the line count. The difference
+ *   against a baseline run is the same figure seen from the route, and is how
+ *   stage 2 measured ~90 µs.
+ *
  * Environment: `PERF_RUN=true` to run.
  */
 
@@ -29,6 +43,9 @@ const shouldRun = process.env['PERF_RUN'] === 'true';
 const baseline = process.env['PERF_BASELINE'] === 'true';
 const RUNS = 3;
 const ROWS = 5000;
+const REPLACE_BUDGET_MS = Number(process.env['PERF_HISTORY_WRITE_10K_MS'] ?? '3000');
+const LINE_BUDGET_US = Number(process.env['PERF_HISTORY_WRITE_LINE_US'] ?? '100');
+const median = (samples: readonly number[]): number => [...samples].sort((a, b) => a - b)[Math.floor(samples.length / 2)]!;
 
 describe.skipIf(!shouldRun)('the price-change history’s cost on the largest price-book writes (#470, Stage 2)', () => {
   let h: BackendServerHandle;
@@ -129,5 +146,56 @@ describe.skipIf(!shouldRun)('the price-change history’s cost on the largest pr
     report('change', ROWS);
     report('replace', 2 * ROWS);
     report('duplicate', ROWS);
+    if (!baseline) expect(median(timings['replace']!), 'D-5: a 10 000-line batch commits in < 3 s median').toBeLessThan(REPLACE_BUDGET_MS);
   }, 10 * 60_000);
+
+  it.skipIf(baseline)('D-5: the history write adds ≤ 100 µs per line (the writer’s statements for 10 000 lines, rolled back)', async () => {
+    const book = await emptyBook();
+    const LINES = 2 * ROWS;
+    const lines: RowValueLine[] = Array.from({ length: LINES }, (_, i) => ({
+      kind: i % 2 === 0 ? 'added' : 'removed',
+      variantId: null,
+      productId: products()[i % 5]!.id,
+      categoryId: null,
+      attributeKey: null,
+      attributeValue: null,
+      minQuantity: i + 1,
+      maxQuantity: i + 1,
+      beforePriceType: i % 2 === 0 ? null : 'fixed',
+      beforeAmount: i % 2 === 0 ? null : '0.0125',
+      beforePercent: null,
+      afterPriceType: i % 2 === 0 ? 'fixed' : null,
+      afterAmount: i % 2 === 0 ? '0.0130' : null,
+      afterPercent: null,
+    }));
+    const rollback = new Error('rollback');
+    const samples: number[] = [];
+    for (let run = 0; run < RUNS + 1; run += 1) {
+      let ms = 0;
+      await h
+        .em()
+        .fork()
+        .transactional(async (tx) => {
+          const started = performance.now();
+          const id = await recordValueChange(tx, {
+            priceListId: book.id,
+            action: 'price_list.rows_replace',
+            actor: { kind: 'system', actorAdminUserId: null, impersonatedCustomerAccountId: null, actorCustomerAccountId: null },
+            lines,
+          });
+          ms = performance.now() - started;
+          expect(id).not.toBeNull();
+          throw rollback;
+        })
+        .catch((err: unknown) => {
+          if (err !== rollback) throw err;
+        });
+      if (run > 0) samples.push(ms); // the first is a warm-up
+    }
+    const perLineUs = (median(samples) * 1000) / LINES;
+    results.push(
+      `history statements: ${LINES} lines — median ${median(samples).toFixed(0)} ms, ${perLineUs.toFixed(1)} µs per line (runs: ${samples.map((m) => m.toFixed(0)).join(', ')})`,
+    );
+    expect(perLineUs, 'D-5: ≤ 100 µs per line').toBeLessThanOrEqual(LINE_BUDGET_US);
+  }, 5 * 60_000);
 });

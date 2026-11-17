@@ -1588,6 +1588,24 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'approved. The raise site is `orders`\' placement, which asks `carts` through ' +
       '`CartPlacementApplyPort.awaitsApproval`; the noun is the order being placed.',
   },
+  ORGANIZATION_PERSONAL: {
+    to: 'organizations',
+    reason:
+      'Minted by issue #629 (#86) for the actions a personal (B2C) organization refuses because it ' +
+      'is single-member: an operator adding a member (token `add_member`), a buyer inviting one ' +
+      '(`invite`) and an operator assigning a sales representative (`sales_rep`). Each was `422 ' +
+      'VALIDATION_FAILED` with an English sentence; the noun is the organization, which ' +
+      '`organizations` owns and raises it for. `details.organizationId` always, and ' +
+      '`organizationName` where an operator reads the sentence.',
+  },
+  ORGANIZATION_STATUS_INVALID: {
+    to: 'organizations',
+    reason:
+      'Minted by issue #629 (#86) for a moderation action (approve, reject, block, unblock) refused ' +
+      'because the organization is in another status. It was `422 VALIDATION_FAILED` with an ' +
+      'English sentence naming the raw statuses; `details` keeps `currentStatus` and ' +
+      '`requiredStatus` and adds their labels in the reader\'s language, which fill the sentence.',
+  },
   ORGANIZATION_PERMISSION_REQUIRED: {
     to: 'organizations',
     reason:

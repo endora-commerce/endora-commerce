@@ -341,6 +341,7 @@ import { Migration20261110T135922OrganizationsPersonalTaxIdRemoval } from '@endo
 import { Migration20261110T135941OrganizationsTaxIdScope } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261110T173752OrganizationsTaxIdWriteLock } from '@endora-commerce/mod-organizations/migrations';
 import { Migration20261110T183238OrganizationsTaxIdNormalise } from '@endora-commerce/mod-organizations/migrations';
+import { Migration20261117T033143OrganizationsCustomerGroupColumn } from '@endora-commerce/mod-organizations/migrations';
 
 // ── payment_methods ─────────────────────────────────────────────────────────
 import { Migration20260611T140353PaymentMethodsAdapter } from '@endora-commerce/mod-payment-methods/migrations';
@@ -783,6 +784,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('organizations', Migration20261110T135941OrganizationsTaxIdScope),
   migration('organizations', Migration20261110T173752OrganizationsTaxIdWriteLock),
   migration('organizations', Migration20261110T183238OrganizationsTaxIdNormalise),
+  migration('organizations', Migration20261117T033143OrganizationsCustomerGroupColumn),
 
   // ── payment_methods ─────────────────────────────────────────────────────────
   migration('payment_methods', Migration20260611T140353PaymentMethodsAdapter),

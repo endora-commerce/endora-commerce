@@ -102,6 +102,23 @@ function rowOf(dialog: HTMLElement, text: string): HTMLElement {
   return row;
 }
 
+/**
+ * The row's pin control. Issue #481 — a row is a `role="option"`, whose
+ * children are presentational, so the control is a pointer shortcut hidden
+ * from assistive technology (`Alt+Enter` is its keyboard path); the pin state
+ * a screen reader hears is in the option's name.
+ */
+function pinControl(row: HTMLElement): HTMLElement | null {
+  return row.querySelector<HTMLElement>('[data-palette-pin]');
+}
+
+function pinControlOf(row: HTMLElement, title: string): HTMLElement {
+  const control = pinControl(row);
+  if (!control) throw new Error('no pin control in the row');
+  expect(control.getAttribute('title')).toBe(title);
+  return control;
+}
+
 function location(): string {
   return screen.getByTestId('location').textContent ?? '';
 }
@@ -138,29 +155,31 @@ describe('which palette rows are pinnable', () => {
   it('a Navigate row and a server Action whose destinations are sidebar entries get a pin button', async () => {
     renderShell(AppShell);
     const dialog = await openPalette();
-    const orders = within(rowOf(dialog, 'Open orders')).getByRole('button', { name: 'Pin Orders' });
-    expect(orders.getAttribute('aria-pressed')).toBe('false');
-    expect(orders.getAttribute('aria-keyshortcuts')).toBe('Alt+Enter');
-    expect(orders.tabIndex).toBe(-1);
-    expect(within(rowOf(dialog, 'Home')).getByRole('button', { name: 'Pin Home' })).toBeTruthy();
+    const ordersRow = rowOf(dialog, 'Open orders');
+    const orders = pinControlOf(ordersRow, 'Pin Orders');
+    expect(orders.getAttribute('data-pinned')).toBe('false');
+    expect(orders.getAttribute('aria-hidden')).toBe('true');
+    expect(ordersRow.getAttribute('role')).toBe('option');
+    expect(ordersRow.getAttribute('aria-keyshortcuts')).toBe('Alt+Enter');
+    expect(pinControlOf(rowOf(dialog, 'Home'), 'Pin Home')).toBeTruthy();
   });
 
   it('a create action, the assistant row, a record and "see all" get none', async () => {
     recordHits = [{ title: 'Order SO-1', targetRoute: '/orders/o-1' }];
     renderShell(AppShell);
     const dialog = await openPalette();
-    await act(async () => fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'o' } }));
+    await act(async () => fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: 'o' } }));
     await waitFor(() => expect(rowOf(dialog, 'Order SO-1')).toBeTruthy());
-    expect(within(rowOf(dialog, 'Order SO-1')).queryByRole('button')).toBeNull();
-    await act(async () => fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: '' } }));
-    expect(within(rowOf(dialog, 'New opportunity')).queryByRole('button')).toBeNull();
+    expect(pinControl(rowOf(dialog, 'Order SO-1'))).toBeNull();
+    await act(async () => fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: '' } }));
+    expect(pinControl(rowOf(dialog, 'New opportunity'))).toBeNull();
     const assistantLabel = realBundle('en').prompt_actions!['palette.entry.label']!;
     await waitFor(() => expect(rowOf(dialog, assistantLabel)).toBeTruthy());
-    expect(within(rowOf(dialog, assistantLabel)).queryByRole('button')).toBeNull();
-    await act(async () => fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'so' } }));
+    expect(pinControl(rowOf(dialog, assistantLabel))).toBeNull();
+    await act(async () => fireEvent.change(within(dialog).getByRole('combobox'), { target: { value: 'so' } }));
     const seeAll = [...dialog.querySelectorAll<HTMLElement>('.b2b-palette__item')].at(-1)!;
     expect(seeAll.textContent).toContain('so');
-    expect(within(seeAll).queryByRole('button')).toBeNull();
+    expect(pinControl(seeAll)).toBeNull();
   });
 
   it('no control when the destination module is off (US1 AS-14)', async () => {
@@ -168,13 +187,13 @@ describe('which palette rows are pinnable', () => {
       presence: modulePresence({ present: everyDeclaredModule(), absent: ['orders'] }),
     });
     const dialog = await openPalette();
-    expect(within(rowOf(dialog, 'Open orders')).queryByRole('button')).toBeNull();
+    expect(pinControl(rowOf(dialog, 'Open orders'))).toBeNull();
   });
 
   it('no control when the permission is withdrawn (US1 AS-14)', async () => {
     renderShell(AppShell, { session: adminSession({ permissions: ['prompt_actions:use'] }) });
     const dialog = await openPalette();
-    expect(within(rowOf(dialog, 'Open orders')).queryByRole('button')).toBeNull();
+    expect(pinControl(rowOf(dialog, 'Open orders'))).toBeNull();
   });
 });
 
@@ -182,9 +201,9 @@ describe('pinning from the palette', () => {
   it('a click pins without navigating or closing; focus stays in the input; the control flips (AS-13)', async () => {
     renderShell(AppShell, { preferences: { sidebarPins: ['/customers'] }, path: '/somewhere' });
     const dialog = await openPalette();
-    const input = within(dialog).getByRole('textbox');
+    const input = within(dialog).getByRole('combobox');
     expect(document.activeElement).toBe(input);
-    const button = within(rowOf(dialog, 'Open orders')).getByRole('button', { name: 'Pin Orders' });
+    const button = pinControlOf(rowOf(dialog, 'Open orders'), 'Pin Orders');
     await act(async () => {
       fireEvent.mouseDown(button);
       fireEvent.click(button);
@@ -192,8 +211,8 @@ describe('pinning from the palette', () => {
     expect(screen.getByRole('dialog')).toBe(dialog);
     expect(location()).toBe('/somewhere');
     expect(document.activeElement).toBe(input);
-    const flipped = within(rowOf(dialog, 'Open orders')).getByRole('button', { name: 'Unpin Orders' });
-    expect(flipped.getAttribute('aria-pressed')).toBe('true');
+    const flipped = pinControlOf(rowOf(dialog, 'Open orders'), 'Unpin Orders');
+    expect(flipped.getAttribute('data-pinned')).toBe('true');
     expect(within(pinnedSection()!).getAllByRole('link').map((el) => el.textContent)).toEqual([
       'Customers',
       'Orders',
@@ -210,10 +229,10 @@ describe('pinning from the palette', () => {
     await act(async () => fireEvent.keyDown(window, { key: 'Enter', altKey: true }));
     expect(screen.getByRole('dialog')).toBe(dialog);
     expect(location()).toBe('/somewhere');
-    expect(within(rowOf(dialog, 'Open orders')).getByRole('button', { name: 'Unpin Orders' })).toBeTruthy();
+    expect(pinControlOf(rowOf(dialog, 'Open orders'), 'Unpin Orders')).toBeTruthy();
     expect(within(dialog).getByTestId('palette-pin-status').textContent).toBe('Orders pinned');
     await act(async () => fireEvent.keyDown(window, { key: 'Enter', altKey: true }));
-    expect(within(rowOf(dialog, 'Open orders')).getByRole('button', { name: 'Pin Orders' })).toBeTruthy();
+    expect(pinControlOf(rowOf(dialog, 'Open orders'), 'Pin Orders')).toBeTruthy();
     expect(within(dialog).getByTestId('palette-pin-status').textContent).toBe('Orders unpinned');
     await act(async () => fireEvent.keyDown(window, { key: 'Enter' }));
     expect(location()).toBe('/orders');
@@ -237,7 +256,7 @@ describe('pinning from the palette', () => {
     fireEvent.mouseEnter(rowOf(dialog, 'Open orders'));
     const en = realBundle('en').core!;
     expect(rowOf(dialog, 'Open orders').textContent).toContain(en['appShell.palette.pin.hintPin']!);
-    const input = within(dialog).getByRole('textbox');
+    const input = within(dialog).getByRole('combobox');
     const describedBy = (input.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean);
     expect(describedBy.map((id) => document.getElementById(id)?.textContent)).toContain(
       en['appShell.palette.pin.instructions'],

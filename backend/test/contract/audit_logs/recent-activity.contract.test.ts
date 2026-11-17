@@ -6,7 +6,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { KnownIconNameSchema } from '@endora-commerce/contracts';
+import { ERROR_CODES, KnownIconNameSchema } from '@endora-commerce/contracts';
 import { RecentActivityCatalog } from '../../../../packages/modules/audit_logs/src/backend/services/recent-activity-catalog.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { AuditLogEntry } from '@endora-commerce/platform/kernel';
@@ -113,15 +113,23 @@ describe('GET /api/v1/admin/audit-log/recent-activity', () => {
     expect(fiveBody.data.length).toBeLessThanOrEqual(5);
   });
 
-  it('rejects an out-of-range limit with 400', async () => {
+  // Issue #1339 — the platform's error envelope, not a route-local
+  // `validation_error` code with a raw zod `flatten()` in `details`.
+  it('rejects an out-of-range limit with 400 VALIDATION_FAILED in the standard envelope', async () => {
     const res = await h.app.inject({
       method: 'GET',
       url: '/api/v1/admin/audit-log/recent-activity?limit=999',
       cookies: { b2b_session: 'stub-admin-session' },
     });
     expect(res.statusCode).toBe(400);
-    const body = res.json() as { error: { code: string } };
-    expect(body.error.code).toBe('validation_error');
+    expect(res.json()).toEqual({
+      error: {
+        code: ERROR_CODES.VALIDATION_FAILED,
+        message: expect.any(String),
+        requestId: expect.any(String),
+        details: [{ path: 'limit', issue: expect.any(String) }],
+      },
+    });
   });
 
   it('rejects callers without audit_log:read scope', async () => {

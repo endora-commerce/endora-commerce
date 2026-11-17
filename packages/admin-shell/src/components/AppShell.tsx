@@ -1756,6 +1756,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   // region while it is open: it announces in its own (research R-16).
   const [pinAnnouncement, setPinAnnouncement] = useState('');
   const instructionsId = useId();
+  const listboxId = useId();
   const tp = useTranslation('prompt_actions');
   const { hasPermission } = useAuth();
   const isVisible = useSurfaceVisibility();
@@ -2044,7 +2045,12 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
     return (
       <>
         <div className="b2b-scrim" onClick={onClose} />
-        <div className="b2b-palette" role="dialog" aria-modal="true">
+        <div
+          className="b2b-palette"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('appShell.palette.title')}
+        >
           <PromptModePanel
             onExit={(): void => {
               setInitialRequest(undefined);
@@ -2069,6 +2075,14 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   const recordCount = records.groups.reduce((sum, group) => sum + group.hits.length, 0);
   const nothingAtAll = items.length === 0 && !recordsLoading && !records.groups.some((g) => g.status !== 'ok');
 
+  // Issue #481 — the ARIA combobox-with-listbox pattern. DOM focus stays in
+  // the input; `aria-activedescendant` names the highlighted `option` so a
+  // screen reader announces it as the arrow keys move. Option ids are derived
+  // from the row's position in `items`, the same index the cursor walks.
+  const optionId = (i: number): string => `${listboxId}-option-${i}`;
+  const showListbox = !nothingAtAll;
+  const activeItem = showListbox ? items[cursor] : undefined;
+
   const renderRow = (it: PaletteItem, i: number): ReactNode => {
     const Icon = it.icon;
     const label = resolveLabel(it);
@@ -2081,10 +2095,17 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
         : t(pinned ? 'appShell.pinned.unpin' : 'appShell.pinned.pin', {
             label: navLabel(pinTarget.item),
           });
+    const current = i === cursor;
     return (
       <div
         key={`${it.group}-${it.groupKey ?? ''}-${it.to}-${i}`}
-        className={cn('b2b-palette__item', i === cursor && 'is-cur')}
+        id={optionId(i)}
+        role="option"
+        aria-selected={current}
+        // The pin chord acts on the highlighted row (feature 164, FR-027);
+        // advertised on the option because the option is what is announced.
+        {...(pinTarget !== undefined ? { 'aria-keyshortcuts': 'Alt+Enter' } : {})}
+        className={cn('b2b-palette__item', current && 'is-cur')}
         onMouseEnter={(): void => setCursor(i)}
         onClick={(): void => activate(it.to)}
       >
@@ -2094,20 +2115,29 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
           {sub ? <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{sub}</div> : null}
         </div>
         {it.badge ? <Badge variant="secondary">{it.badge}</Badge> : null}
-        {pinTarget !== undefined && i === cursor ? (
-          <span className="b2b-palette__pin-hint">
+        {/* The pin state, in the option's accessible name — the visual cue
+            (the Pin / PinOff glyph) is hidden from assistive technology. */}
+        {pinTarget !== undefined ? (
+          <span className="sr-only">
+            {t(pinned ? 'appShell.palette.pin.statePinned' : 'appShell.palette.pin.stateUnpinned')}
+          </span>
+        ) : null}
+        {pinTarget !== undefined && current ? (
+          <span className="b2b-palette__pin-hint" aria-hidden="true">
             <span className="b2b-kbd-sm">{ALT_ENTER_GLYPH}</span>
             {t(pinned ? 'appShell.palette.pin.hintUnpin' : 'appShell.palette.pin.hintPin')}
           </span>
         ) : null}
         {pinTarget !== undefined ? (
-          <button
-            type="button"
-            tabIndex={-1}
+          // A pointer shortcut for `Alt+Enter`, not a second widget: an
+          // `option`'s children are presentational, so a nested button would
+          // be flattened by the browser and reported by axe
+          // (`nested-interactive`). Its state is in the option's name above.
+          <span
             className="b2b-palette__pin"
-            aria-pressed={pinned}
-            aria-keyshortcuts="Alt+Enter"
-            aria-label={pinName}
+            aria-hidden="true"
+            data-palette-pin=""
+            data-pinned={pinned ? 'true' : 'false'}
             title={pinName}
             // Focus stays in the search input; the row's own activation (open
             // the destination) must not fire.
@@ -2118,23 +2148,57 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
             }}
           >
             {pinned ? <PinOff size={14} aria-hidden="true" /> : <Pin size={14} aria-hidden="true" />}
-          </button>
+          </span>
         ) : null}
-        <span className="meta">{i === cursor ? <span className="b2b-kbd-sm">↵</span> : null}</span>
+        <span className="meta" aria-hidden="true">
+          {current ? <span className="b2b-kbd-sm">↵</span> : null}
+        </span>
       </div>
     );
   };
 
-  let lastGroup = '';
+  // The leading rows (assistant, Navigate, Actions) as runs of one group each,
+  // so every heading labels a `role="group"` holding that group's options.
+  const leadingGroups: Array<{ key: string; label: string; start: number; rows: PaletteItem[] }> = [];
+  leadingItems.forEach((it, i) => {
+    const last = leadingGroups[leadingGroups.length - 1];
+    if (last && last.key === it.group) {
+      last.rows.push(it);
+      return;
+    }
+    leadingGroups.push({
+      key: it.group,
+      label:
+        it.group === 'Navigate'
+          ? t('appShell.palette.group.navigate')
+          : it.group === 'Assistant'
+            ? tp('palette.group.label')
+            : t('appShell.palette.group.actions'),
+      start: i,
+      rows: [it],
+    });
+  });
+
   let recordIndex = firstRecordIndex;
   return (
     <>
       <div className="b2b-scrim" onClick={onClose} />
-      <div className="b2b-palette" role="dialog" aria-modal="true">
+      <div
+        className="b2b-palette"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('appShell.palette.title')}
+      >
         <div className="b2b-palette__input">
-          <Search size={18} style={{ color: 'var(--fg-muted)' }} />
+          <Search size={18} style={{ color: 'var(--fg-muted)' }} aria-hidden="true" />
           <input
             ref={inputRef}
+            role="combobox"
+            aria-label={t('appShell.search.commandPalettePlaceholder')}
+            aria-autocomplete="list"
+            aria-expanded={showListbox}
+            {...(showListbox ? { 'aria-controls': listboxId } : {})}
+            {...(activeItem ? { 'aria-activedescendant': optionId(cursor) } : {})}
             placeholder={t('appShell.search.commandPalettePlaceholder')}
             aria-describedby={instructionsId}
             value={query}
@@ -2188,20 +2252,15 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
               {t('appShell.search.noMatches')}
             </div>
           ) : (
-            <>
-              {leadingItems.map((it, i) => {
-                const showGroup = it.group !== lastGroup;
-                lastGroup = it.group;
-                const groupHeader =
-                  it.group === 'Navigate'
-                    ? t('appShell.palette.group.navigate')
-                    : it.group === 'Assistant'
-                      ? tp('palette.group.label')
-                      : t('appShell.palette.group.actions');
+            <div id={listboxId} role="listbox" aria-label={t('appShell.palette.results')}>
+              {leadingGroups.map((group) => {
+                const headingId = `${listboxId}-group-${group.key}`;
                 return (
-                  <div key={`${it.group}-${it.label}`}>
-                    {showGroup ? <div className="b2b-palette__group">{groupHeader}</div> : null}
-                    {renderRow(it, i)}
+                  <div key={group.key} role="group" aria-labelledby={headingId}>
+                    <div className="b2b-palette__group" id={headingId}>
+                      {group.label}
+                    </div>
+                    {group.rows.map((it, offset) => renderRow(it, group.start + offset))}
                   </div>
                 );
               })}
@@ -2218,37 +2277,51 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
                 </div>
               ) : null}
               {showRecords
-                ? records.groups.map((group) => (
-                    <div key={group.entityType} data-testid={`palette-records-${group.entityType}`}>
-                      <div className="b2b-palette__group">
-                        {group.label}
-                        {group.hasMore ? (
-                          <span style={{ marginLeft: 8, fontWeight: 400 }}>
-                            · {t('appShell.palette.records.more')}
-                          </span>
-                        ) : null}
-                      </div>
-                      {group.status === 'ok' ? (
-                        group.hits.map(() => {
-                          const index = recordIndex;
-                          recordIndex += 1;
-                          const it = items[index];
-                          return it ? renderRow(it, index) : null;
-                        })
-                      ) : (
-                        <div
-                          className="b2b-palette__item"
-                          data-palette-note=""
-                          style={{ color: 'var(--fg-muted)', cursor: 'default' }}
-                        >
-                          <div>{t('appShell.palette.records.unavailable', { label: group.label })}</div>
+                ? records.groups.map((group) => {
+                    const headingId = `${listboxId}-records-${group.entityType}`;
+                    return (
+                      <div
+                        key={group.entityType}
+                        role="group"
+                        aria-labelledby={headingId}
+                        data-testid={`palette-records-${group.entityType}`}
+                      >
+                        <div className="b2b-palette__group" id={headingId}>
+                          {group.label}
+                          {group.hasMore ? (
+                            <span style={{ marginLeft: 8, fontWeight: 400 }}>
+                              · {t('appShell.palette.records.more')}
+                            </span>
+                          ) : null}
                         </div>
-                      )}
-                    </div>
-                  ))
+                        {group.status === 'ok' ? (
+                          group.hits.map(() => {
+                            const index = recordIndex;
+                            recordIndex += 1;
+                            const it = items[index];
+                            return it ? renderRow(it, index) : null;
+                          })
+                        ) : (
+                          // Never a row the cursor stops on, but still read
+                          // when the list is browsed: a disabled option.
+                          <div
+                            id={`${headingId}-note`}
+                            role="option"
+                            aria-selected={false}
+                            aria-disabled="true"
+                            className="b2b-palette__item"
+                            data-palette-note=""
+                            style={{ color: 'var(--fg-muted)', cursor: 'default' }}
+                          >
+                            <div>{t('appShell.palette.records.unavailable', { label: group.label })}</div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 : null}
               {seeAllItem ? renderRow(seeAllItem, items.length - 1) : null}
-            </>
+            </div>
           )}
         </div>
       </div>
