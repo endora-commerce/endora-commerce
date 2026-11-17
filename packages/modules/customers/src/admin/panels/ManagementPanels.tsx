@@ -3,6 +3,7 @@ import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label } from '@endora-commerce/admin-kit/ui';
 import { OrganizationPicker, CustomerGroupPicker, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { addressKindLabels } from '../lib/labels.js';
 
 interface CommonProps {
   customerId: string;
@@ -195,7 +196,7 @@ export function AddressesPanel({ customerId }: CommonProps): ReactNode {
 
   const line = (a: AdminAddressLine): ReactNode => (
     <>
-      <span className="text-muted-foreground">{a.kind}</span> · {a.recipientName} — {a.street}, {a.postalCode}{' '}
+      <span className="text-muted-foreground">{addressKindLabels.label(t, a.kind)}</span> · {a.recipientName} — {a.street}, {a.postalCode}{' '}
       {a.city}, {a.country}
       {a.isDefault ? ` (${t('detail.addresses.default')})` : ''}
     </>

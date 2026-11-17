@@ -36,6 +36,11 @@ export {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './dropdown-menu.js';
+// Issue #1432 (UX audit DS-08) — the label / control / hint / error wiring every form field uses.
+export { FormField } from './form-field.js';
+export type { FormFieldControlProps, FormFieldProps } from './form-field.js';
+export { HelpTip } from './help-tip.js';
+export type { HelpTipProps } from './help-tip.js';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { MultiCombobox } from './multi-combobox.js';
