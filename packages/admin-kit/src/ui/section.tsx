@@ -24,6 +24,7 @@ export function Section(props: SectionProps): ReactNode {
     <section className={cn('space-y-3', props.className)}>
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold tracking-tight">{props.title}</h2>
+        {/* eslint-disable-next-line no-restricted-syntax -- a ReactNode slot named `action`, not an enum value */}
         {props.action ?? null}
       </div>
       {props.children}

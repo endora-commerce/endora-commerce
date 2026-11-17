@@ -91,8 +91,12 @@ interface OrderDetail {
   customFieldValues?: Record<string, unknown>;
   deliveryAddress: OrderAddress;
   billingAddress: OrderAddress;
-  deliveryMethod: { code: string; name: Record<string, string>; cost: number };
-  paymentMethod: { code: string; name: Record<string, string>; kind: string };
+  /**
+   * The method as the buyer saw it at placement. `name` is the snapshot's
+   * string; an older shape carried a per-language map, read by `methodName`.
+   */
+  deliveryMethod: { code: string; name: string | Record<string, string>; cost: number };
+  paymentMethod: { code: string; name: string | Record<string, string>; kind: string };
   /** Feature 159 — the order's groups, by position; absent from an older server. */
   itemGroups?: LineGroup[];
   /** In display order. */
@@ -169,6 +173,22 @@ const SKIP_REASONS: ReadonlySet<string> = new Set(customFieldCarrySkipReasonSche
 const NOTE_SOURCES: ReadonlySet<string> = new Set(orderCommentSystemNoteSchema.shape.source.shape.entityType.options);
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+/**
+ * A delivery or payment method's name as the order recorded it (issue #1477),
+ * never its code unless no name was recorded. A per-language map is read in
+ * the admin's language, then its regional variant, then any entry.
+ */
+function methodName(method: { code: string; name: string | Record<string, string> }, language: string): string {
+  if (typeof method.name === 'string') return method.name.trim() || method.code;
+  const regional = Object.keys(method.name).find((key) => key.startsWith(`${language}-`));
+  return (
+    method.name[language] ||
+    (regional ? method.name[regional] : undefined) ||
+    Object.values(method.name).find((name) => name.trim() !== '') ||
+    method.code
+  );
+}
 
 /**
  * The name a skip line gives its field (owner ruling V3, 2026-10-21): the
@@ -469,12 +489,7 @@ export function OrderDetail(): ReactNode {
             </Badge>
           </>
         }
-        description={
-          <span>
-            {t('orderDetail.placedAt', { date: formatDateTime(order.placedAt) })}{' '}
-            <code className="font-mono text-xs">({order.id})</code>
-          </span>
-        }
+        description={<span>{t('orderDetail.placedAt', { date: formatDateTime(order.placedAt) })}</span>}
         actions={
           <>
             <Button
@@ -643,9 +658,7 @@ export function OrderDetail(): ReactNode {
                       </p>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      <code className="font-mono text-xs">{order.organizationId}</code>
-                    </p>
+                    <p className="text-sm text-muted-foreground">{t('orderDetail.org.unavailable')}</p>
                   )}
                 </Section>
                 <Section title={t('orderDetail.sections.customer')}>
@@ -662,9 +675,7 @@ export function OrderDetail(): ReactNode {
                       </p>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      <code className="font-mono text-xs">{order.placedByCustomerAccountId}</code>
-                    </p>
+                    <p className="text-sm text-muted-foreground">{t('orderDetail.customer.unavailable')}</p>
                   )}
                 </Section>
               </div>
@@ -686,7 +697,7 @@ export function OrderDetail(): ReactNode {
                       {order.deliveryAddress.country}
                     </p>
                     <p className="text-muted-foreground">
-                      {t('orderDetail.deliveryVia')} <strong>{order.deliveryMethod.code}</strong>
+                      {t('orderDetail.deliveryVia')} <strong>{methodName(order.deliveryMethod, language)}</strong>
                     </p>
                   </div>
                 </Section>
@@ -718,8 +729,7 @@ export function OrderDetail(): ReactNode {
                       {order.billingAddress.country}
                     </p>
                     <p className="text-muted-foreground">
-                      {t('orderDetail.paidBy')} <strong>{order.paymentMethod.code}</strong> (
-                      {order.paymentMethod.kind})
+                      {t('orderDetail.paidBy')} <strong>{methodName(order.paymentMethod, language)}</strong>
                     </p>
                   </div>
                 </Section>
