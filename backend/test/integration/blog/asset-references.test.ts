@@ -179,6 +179,54 @@ describe('blog asset references (T017 — registry descriptors)', () => {
     expect(refs.filter((r) => r.kind === 'blog_category_main_image')).toEqual([]);
   });
 
+  // Issue #1359 — only a string under a key ending in `assetId` is a
+  // reference: the rule every renderer reads embeds by (`walkAssetIds`). An id
+  // under any other key is never rendered, so it protects nothing and makes
+  // nothing visible.
+  it('counts an id under a key ending in assetId, never one under another key (issue #1359)', async () => {
+    const conn = db.em().getConnection();
+    const underFoo = randomUUID();
+    const underIcon = randomUUID();
+    const underMainImage = randomUUID();
+    const tree = JSON.stringify({
+      schema_version: 1,
+      languages: {
+        'en-US': {
+          root: { props: { foo: underFoo } },
+          content: [
+            { type: 'cms.Button', props: { label: underFoo, iconAssetId: underIcon } },
+            { type: 'cms.Card', props: { items: [{ mainImageAssetId: underMainImage, caption: underFoo }] } },
+          ],
+        },
+      },
+    });
+    const postId = randomUUID();
+    const categoryId = randomUUID();
+    await conn.execute(
+      `insert into blog_posts (id, slug, name, content, version, created_at, updated_at)
+       values (?, 'i1359-post', '{"en-US":"Post"}'::jsonb, ?::jsonb, 1, now(), now())`,
+      [postId, tree],
+    );
+    await conn.execute(
+      `insert into blog_categories (id, slug, name, description, version, created_at, updated_at)
+       values (?, 'i1359-category', '{"en-US":"Category"}'::jsonb, ?::jsonb, 1, now(), now())`,
+      [categoryId, tree],
+    );
+
+    const out = await registry.findReferencesMany([underFoo, underIcon, underMainImage]);
+
+    expect(out.get(underFoo)).toEqual([]);
+    for (const id of [underIcon, underMainImage]) {
+      expect(out.get(id)).toHaveLength(2);
+      expect(out.get(id)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: 'blog_post_content', entityId: postId, assetId: id }),
+          expect.objectContaining({ kind: 'blog_category_description', entityId: categoryId, assetId: id }),
+        ]),
+      );
+    }
+  });
+
   // Feature 166, research R-6 — both descriptors answer a batch in one
   // statement each, every hit tagged with the asset it points at.
   it('attributes a two-asset batch to each asset, one statement per descriptor', async () => {

@@ -40,9 +40,19 @@ export async function requireLinkableAsset(assets: LinkableAssetReader, assetId:
 }
 
 /**
+ * The answer for an asset id a Page Builder save cannot store — missing or
+ * hidden, byte for byte — `assets_library`'s own for a hidden file, as the CMS
+ * and the other modules answer it (issue #1359, Q2). The column paths above
+ * still answer with {@link assetNotFound}.
+ */
+export function contentAssetNotLinkable(assetId: string): HttpError {
+  return new HttpError(404, ERROR_CODES.ASSET_NOT_FOUND, `Asset ${assetId} not found.`, { assetId });
+}
+
+/**
  * Refuse a Page Builder save that newly adds an asset id the caller may not
- * see, a missing id included, with {@link assetNotFound} (issue #544, owner
- * ruling 2026-10-30, option a). A category's page content and a product's
+ * see, a missing id included, with {@link contentAssetNotLinkable} (issue #544,
+ * owner ruling 2026-10-30, option a). A category's page content and a product's
  * content attributes are unrestricted references, like the gallery: an id
  * they store is listed in the library for every reader.
  *
@@ -62,5 +72,5 @@ export async function requireLinkableContentAssets(
   );
   if (refused === undefined) return;
   if (!assets) throw new Error('catalog: the asset read port is not wired — content cannot link an asset.');
-  throw assetNotFound(refused);
+  throw contentAssetNotLinkable(refused);
 }

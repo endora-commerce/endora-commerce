@@ -144,6 +144,68 @@ describe('cms body scan (T093)', () => {
     await fresh.removeAndFlush(await fresh.findOneOrFail(Asset, { id: asset.id }));
   });
 
+  // Issue #1359 — only a string under a key ending in `assetId` is a
+  // reference: the rule every renderer reads embeds by (`walkAssetIds`). An id
+  // under any other key is never rendered, so it protects nothing and makes
+  // nothing visible.
+  it('counts an id under a key ending in assetId, never one under another key (issue #1359)', async () => {
+    const em = h.em();
+    const underFoo = randomUUID();
+    const underIcon = randomUUID();
+    const underMainImage = randomUUID();
+    const tree = {
+      schema_version: 1,
+      languages: {
+        'en-US': {
+          root: { props: { foo: underFoo } },
+          content: [
+            { type: 'cms.Button', props: { label: underFoo, iconAssetId: underIcon } },
+            { type: 'cms.Card', props: { items: [{ mainImageAssetId: underMainImage, caption: underFoo }] } },
+          ],
+        },
+      },
+    };
+    const slug = `i1359-${randomUUID().slice(0, 8)}`;
+    const page = em.create(CmsPage, {
+      path: slug,
+      title: { 'en-US': slug },
+      body: {} as Record<string, string>,
+      name: slug,
+      slug,
+      status: 'published',
+      active: true,
+      content: tree,
+      languages: ['en-US'],
+    });
+    await em.persistAndFlush(page);
+    const conn = h.orm.em.getConnection();
+    const blockId = randomUUID();
+    const templateId = randomUUID();
+    await conn.execute(
+      `insert into cms_blocks (id, code, name, content, created_at, updated_at)
+       values (?, ?, ?, ?::jsonb, now(), now())`,
+      [blockId, `i1359-${blockId.slice(0, 8)}`, `i1359 block`, JSON.stringify(tree)],
+    );
+    await conn.execute(
+      `insert into cms_templates (id, code, name, content, created_at, updated_at)
+       values (?, ?, ?, ?::jsonb, now(), now())`,
+      [templateId, `i1359-${templateId.slice(0, 8)}`, `i1359 template`, JSON.stringify(tree)],
+    );
+
+    const registry = new AssetReferenceRegistry();
+    registerCmsAssetReferences(registry, () => h.em());
+    const out = await registry.findReferencesMany([underFoo, underIcon, underMainImage]);
+
+    expect(out.get(underFoo)).toEqual([]);
+    for (const id of [underIcon, underMainImage]) {
+      expect(out.get(id)!.map((hit) => hit.entityId).sort()).toEqual([page.id, blockId, templateId].sort());
+    }
+
+    await conn.execute(`delete from cms_blocks where id = ?`, [blockId]);
+    await conn.execute(`delete from cms_templates where id = ?`, [templateId]);
+    await conn.execute(`delete from cms_pages where id = ?`, [page.id]);
+  });
+
   // Feature 166, research R-6 — a batch of assets is answered in one statement,
   // each hit tagged with the asset it points at, so `findReferencesMany` can
   // attribute it (the recursive folder delete and the visibility rescue ask

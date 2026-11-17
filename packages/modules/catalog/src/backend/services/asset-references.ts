@@ -6,7 +6,8 @@
 // parent row's display info for the human-readable label rendered in the
 // admin "in use by" dialog; the fifth looks inside a category's page content,
 // and the sixth inside a product's Page Builder content attributes (feature
-// 172), where the reference is a string in a Page Builder document.
+// 172), where the reference is a string under an `*assetId` key of a Page
+// Builder document.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
@@ -160,19 +161,22 @@ function categoryMainImageDescriptor(
  * A library asset embedded in a category's page content — an image block, a
  * hero background, a slide.
  *
- * The Page Builder stores the asset's id as a string somewhere in the block's
- * props, at a depth that depends on the block, so the lookup walks the whole
- * envelope rather than comparing a column: the idiom the CMS and the blog use
- * for their own Page Builder columns. Soft-deleted categories are skipped, as
- * they are there — a deleted category's page is not served, so its content
- * holds nothing in use.
+ * The Page Builder stores the asset's id as a string under a key ending in
+ * `assetId` (case-insensitive) somewhere in the block's props, at a depth that
+ * depends on the block, so the lookup walks the whole envelope rather than
+ * comparing a column: the idiom the CMS and the blog use for their own Page
+ * Builder columns, and the rule every renderer reads embeds by. An id under
+ * any other key is never rendered, so it is no reference (issue #1359).
+ * Soft-deleted categories are skipped, as they are there — a deleted
+ * category's page is not served, so its content holds nothing in use.
  *
  * **One statement for the whole batch** (`specs/166-asset-reference-visibility/`
- * research R-6): every string value of each document (`strict $.**` visits
- * every level, array elements included) is matched against the asked ids, so
- * a document is walked once however many ids are asked, and the matched value
- * is the asset id the hit is tagged with. It used to be one recursive jsonpath
- * query per asked id.
+ * research R-6): every object of each document (`strict $.**` visits every
+ * level, array elements included) is walked once and its `*assetId` entries
+ * are matched against the asked ids, so a document is walked once however many
+ * ids are asked, and the matched value is the asset id the hit is tagged with.
+ * The jsonpath filter's `?` is written `\\?`: `em.execute` reads a bare `?` as
+ * a placeholder.
  */
 function categoryContentDescriptor(
   emFactory: () => EntityManager,
@@ -183,13 +187,14 @@ function categoryContentDescriptor(
       const asked = textArrayLiteral(assetIds);
       if (asked === null) return [];
       const rows = (await emFactory().execute(
-        `select distinct c.id::text as category_id, c.name as category_name, v.value #>> '{}' as asset_id
+        `select distinct c.id::text as category_id, c.name as category_name, e.value as asset_id
            from categories c
-           cross join lateral jsonb_path_query(c.content, 'strict $.**') as v(value)
+           cross join lateral jsonb_path_query(c.content, 'strict $.** \\? (@.type() == "object")') as o(node)
+           cross join lateral jsonb_each_text(o.node) as e(key, value)
           where c.deleted_at is null
             and c.content is not null
-            and jsonb_typeof(v.value) = 'string'
-            and v.value #>> '{}' = any(?::text[])`,
+            and e.key ~* 'assetid$'
+            and e.value = any(?::text[])`,
         [asked],
       )) as Array<{ category_id: string; category_name: Record<string, string> | string; asset_id: string }>;
       return rows.map((r) => ({
@@ -206,8 +211,8 @@ function categoryContentDescriptor(
  * Feature 172 (`specs/172-product-content-attributes/`, FR-062, FR-063, research
  * R-17) — a library asset embedded in a product's Page Builder content
  * attribute. The category-content idiom over `product_content_values`: one
- * statement per batch, every string value of each document walked once
- * (`strict $.**`). The hit names the **product**, so the "in use by" dialog
+ * statement per batch, every object of each document walked once
+ * (`strict $.**`), only a string under an `*assetId` key counted (issue #1359). The hit names the **product**, so the "in use by" dialog
  * points at the product whose content holds it. A soft-deleted product's
  * content is unreachable (owner ruling OR-6), so it holds nothing in use.
  */
@@ -222,13 +227,14 @@ function productContentDescriptor(
       if (asked === null) return [];
       const rows = (await emFactory().execute(
         `select distinct p.id::text as product_id, p.name as product_name,
-                pcv.product_attribute_id::text as attribute_id, v.value #>> '{}' as asset_id
+                pcv.product_attribute_id::text as attribute_id, e.value as asset_id
            from product_content_values pcv
            join products p on p.id = pcv.product_id
-           cross join lateral jsonb_path_query(pcv.content, 'strict $.**') as v(value)
+           cross join lateral jsonb_path_query(pcv.content, 'strict $.** \\? (@.type() == "object")') as o(node)
+           cross join lateral jsonb_each_text(o.node) as e(key, value)
           where p.deleted_at is null
-            and jsonb_typeof(v.value) = 'string'
-            and v.value #>> '{}' = any(?::text[])`,
+            and e.key ~* 'assetid$'
+            and e.value = any(?::text[])`,
         [asked],
       )) as Array<{
         product_id: string;
