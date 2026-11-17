@@ -308,6 +308,16 @@
   "changeTaxId.page.empty": "No company organizations match.",
   "changeTaxId.page.next": "Next",
   "changeTaxId.page.loadError": "The organization could not be loaded.",
+  "changeVatStatus.button": "Change VAT status…",
+  "changeVatStatus.dialogTitle": "Change the VAT status",
+  "changeVatStatus.explanation": "The VAT status decides the tax on every order this organization places from now on. Orders, invoices and quote documents already issued keep the tax they were issued with.",
+  "changeVatStatus.field.vatStatus": "New VAT status",
+  "changeVatStatus.error.conflict": "This organization was changed elsewhere, so nothing was changed. It has been reloaded; choose the VAT status again.",
+  "changeVatStatus.error.generic": "The VAT status could not be changed.",
+  "changeVatStatus.submit": "Change VAT status",
+  "changeVatStatus.cancel": "Cancel",
+  "changeVatStatus.success.changed": "The VAT status has been changed.",
+  "changeVatStatus.success.unchanged": "The VAT status is already this value; nothing was changed.",
   "detail.save.hostPartLabel": "Organization",
   "detail.save.conflict": "This organization was changed elsewhere. Nothing was saved: the page was reloaded with the latest values and your unsaved changes on it were discarded."
 }

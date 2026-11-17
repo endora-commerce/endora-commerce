@@ -335,6 +335,11 @@ price-negotiation setting, and presses one Save for the screen.
   save-on-change and save-on-blur go. Immediate actions (members, hierarchy, moderation, VAT
   validation, sales channels, organization assignment, customer group, addresses, block / reset /
   impersonate / delete) MUST stay immediate and be labelled so.
+  *Narrowed by issue #1468 (SALES-01, DEC-07; owner ruling OQ-1 = B, 2026-11-17): the organization
+  status and VAT status are no longer host sections. The status is changed only by moderation;
+  the VAT status is read-only in the header and changed by the immediate "Change VAT status…"
+  dialog. The host part covers order-confirmation e-mails, fulfilment strategy, restrictions and
+  custom fields.*
 - **FR-062**: `CustomFieldValuesPanel` (admin-kit) MUST be able to take part as a host-owned section
   (FR-006) while keeping its current standalone behaviour for hosts that do not adopt (OQ-11 = A).
 

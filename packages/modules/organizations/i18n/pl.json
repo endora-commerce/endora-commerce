@@ -308,6 +308,16 @@
   "changeTaxId.page.empty": "Brak pasujących organizacji firmowych.",
   "changeTaxId.page.next": "Dalej",
   "changeTaxId.page.loadError": "Nie udało się wczytać organizacji.",
+  "changeVatStatus.button": "Zmień status VAT…",
+  "changeVatStatus.dialogTitle": "Zmiana statusu VAT",
+  "changeVatStatus.explanation": "Status VAT decyduje o podatku w każdym zamówieniu, które ta organizacja złoży od teraz. Wystawione już zamówienia, faktury i dokumenty ofert zachowują podatek, z którym je wystawiono.",
+  "changeVatStatus.field.vatStatus": "Nowy status VAT",
+  "changeVatStatus.error.conflict": "Ta organizacja została zmieniona w innym miejscu, więc niczego nie zmieniono. Wczytano ją ponownie; wybierz status VAT jeszcze raz.",
+  "changeVatStatus.error.generic": "Nie udało się zmienić statusu VAT.",
+  "changeVatStatus.submit": "Zmień status VAT",
+  "changeVatStatus.cancel": "Anuluj",
+  "changeVatStatus.success.changed": "Status VAT został zmieniony.",
+  "changeVatStatus.success.unchanged": "Organizacja ma już ten status VAT; nic nie zmieniono.",
   "detail.save.hostPartLabel": "Organizacja",
   "detail.save.conflict": "Ta organizacja została zmieniona w innym miejscu. Niczego nie zapisano: strona została wczytana ponownie z aktualnymi wartościami, a niezapisane zmiany na niej odrzucono."
 }

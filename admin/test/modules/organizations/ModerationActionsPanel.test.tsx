@@ -85,6 +85,7 @@ describe('ModerationActionsPanel — interaction', () => {
         organizationId="org-1"
         status="pending_verification"
         version={0}
+        canModerate
         onChanged={onChangedSpy}
       />,
       BUNDLE,
@@ -110,6 +111,7 @@ describe('ModerationActionsPanel — interaction', () => {
         organizationId="org-1"
         status="active"
         version={3}
+        canModerate
         onChanged={onChangedSpy}
       />,
       BUNDLE,
@@ -132,6 +134,7 @@ describe('ModerationActionsPanel — interaction', () => {
         status="blocked"
         version={5}
         blockedReason="Past-due AR"
+        canModerate
         onChanged={onChangedSpy}
       />,
       BUNDLE,
@@ -152,6 +155,7 @@ describe('ModerationActionsPanel — interaction', () => {
         organizationId="org-42"
         status="pending_verification"
         version={7}
+        canModerate
         onChanged={onChangedSpy}
       />,
       BUNDLE,
@@ -175,6 +179,7 @@ describe('ModerationActionsPanel — interaction', () => {
         organizationId="org-42"
         status="pending_verification"
         version={2}
+        canModerate
         onChanged={onChangedSpy}
       />,
       BUNDLE,
@@ -204,6 +209,35 @@ describe('ModerationActionsPanel — interaction', () => {
   });
 });
 
+/**
+ * Issue #1468 (SALES-01, DEC-07) — moderation is the organization status's one writer, and its
+ * routes require `customers:manage`. A reader without it sees the status and the reason, and is
+ * offered no action that the server would refuse.
+ */
+describe('ModerationActionsPanel — without customers:manage (#1468)', () => {
+  it('renders no action, and keeps the badge and the reason for readers', () => {
+    renderWithI18n(
+      <ModerationActionsPanel
+        organizationId="org-1"
+        status="blocked"
+        version={5}
+        blockedReason="Past-due AR"
+        canModerate={false}
+        onChanged={onChangedSpy}
+      />,
+      { core: { ...BUNDLE['core'], 'organizationStatusBadge.blocked': 'organizationStatusBadge.blocked' } },
+    );
+    for (const action of ['approve', 'reject', 'block', 'unblock']) {
+      expect(screen.queryByRole('button', { name: `organizations.moderation.action.${action}` })).toBeNull();
+    }
+    expect(screen.getByText(/Past-due AR/)).toBeDefined();
+    expect(screen.getByText('organizations.moderation.title')).toBeDefined();
+    // The status badge, which stays for readers.
+    expect(screen.getByText('organizationStatusBadge.blocked')).toBeDefined();
+  });
+});
+
+
 describe('ModerationActionsPanel — registry divergence notice (feature 173, T060)', () => {
   const NOTICE_BUNDLE = {
     ...BUNDLE,
@@ -221,6 +255,7 @@ describe('ModerationActionsPanel — registry divergence notice (feature 173, T0
         version={0}
         registryDivergenceCount={2}
         vatValidationAnchorId="organization-vat-validation"
+        canModerate
         onChanged={onChangedSpy}
       />,
       NOTICE_BUNDLE,
@@ -242,6 +277,7 @@ describe('ModerationActionsPanel — registry divergence notice (feature 173, T0
         status="active"
         version={1}
         registryDivergenceCount={2}
+        canModerate
         onChanged={onChangedSpy}
       />,
       NOTICE_BUNDLE,
