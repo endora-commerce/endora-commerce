@@ -30,6 +30,9 @@ const ROOT = import.meta.dirname;
 function splitProgramBlocks() {
   const blocks = [];
   for (const parent of ['packages', 'packages/modules']) {
+    // `endora new storefront` vendors this file into a standalone storefront,
+    // which has no `packages/`.
+    if (!existsSync(join(ROOT, parent))) continue;
     for (const entry of readdirSync(join(ROOT, parent), { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const dir = `${parent}/${entry.name}`;
