@@ -38,9 +38,13 @@ przy przeniesieniu.
 
 ## Wartości domyślne
 
-Ten sam wzorzec częściowego indeksu unikalnego co w `languages`. Migracja inicjalizująca tworzy
-`PLN` (domyślną) i `EUR`; symbole są zapisane jako literały Unicode Postgresa, więc kod migracji
-pozostaje w ASCII.
+Ten sam wzorzec częściowego indeksu unikalnego co w `languages`. Własna migracja modułu,
+`Migration20261117T065542CurrenciesTable`, tworzy tabelę i dodaje `PLN` (domyślną) i `EUR`;
+symbole są zapisane jako literały Unicode Postgresa, więc kod migracji pozostaje w ASCII. Wiersze
+dodaje tylko wtedy, gdy sama tworzy tabelę, więc w bazie, która już ją ma, nie zmienia żadnego
+wiersza: waluta usunięta przez operatora pozostaje usunięta. Do zgłoszenia #611 tę tabelę, jej
+wiersze i kolumny `symbol_position` / `decimal_places` tworzyły migracje modułów `languages` i
+`dictionaries`.
 
 Ustawienie nieaktywnej waluty jako domyślnej jest odrzucane odpowiedzią
 `409 DICTIONARY_DEFAULT_ENTRY_INACTIVE`, a utworzenie waluty o istniejącym kodzie — odpowiedzią
