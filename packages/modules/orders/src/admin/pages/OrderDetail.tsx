@@ -10,19 +10,15 @@ import {
   RotateCcw,
   Truck,
 } from 'lucide-react';
-import { ApiError, apiBaseUrl, apiClient, cn, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section } from '@endora-commerce/admin-kit/ui';
-import { CustomFieldValuesPanel, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
+import { ApiError, apiBaseUrl, apiClient, cn, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section } from '@endora-commerce/admin-kit/ui';
+import { CustomFieldValuesPanel, StatusChangeControl, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { OrderExternalReferences } from '../components/OrderExternalReferences.js';
 import { OrderPendingEffectsNotice } from '../components/OrderPendingEffectsNotice.js';
 import { OrderShipmentsTab } from '../components/OrderShipmentsTab.js';
-import {
-  SELECTABLE_PAYMENT_STATUSES,
-  paymentStatusLabelKey,
-  paymentStatusOptions,
-} from '../lib/paymentStatus.js';
+import { paymentStatusLabelKey, paymentStatusTargets } from '../lib/paymentStatus.js';
 import {
   arrangeLineGroups,
   customFieldCarrySkipReasonSchema,
@@ -126,23 +122,28 @@ interface StatusGraph {
   transitions: Array<{ fromStatusCode: string; toStatusCode: string }>;
 }
 
-function statusName(graph: StatusGraph | null, code: string): string {
+function statusName(graph: StatusGraph | null, code: string, language = 'en'): string {
   const s = graph?.statuses.find((x) => x.code === code);
   if (!s) return code;
-  return s.name['en'] ?? Object.values(s.name)[0] ?? code;
+  return s.name[language] ?? s.name['en'] ?? Object.values(s.name)[0] ?? code;
 }
 
 function statusColor(graph: StatusGraph | null, code: string): string {
   return graph?.statuses.find((x) => x.code === code)?.color ?? 'neutral';
 }
 
-/** Current status plus the statuses reachable from it (valid next transitions). */
-function statusOptions(graph: StatusGraph | null, current: string): string[] {
-  if (!graph) return [current];
+/**
+ * The statuses reachable from `current` — the configured transition graph's
+ * outgoing edges, deduplicated, never `current` itself (issue #1470). The
+ * server enforces the same graph on `POST …/status`; this only decides what the
+ * "Change…" dialog offers. No graph loaded: nothing is offered.
+ */
+function orderStatusTargets(graph: StatusGraph | null, current: string): string[] {
+  if (!graph) return [];
   const targets = graph.transitions
-    .filter((tr) => tr.fromStatusCode === current)
+    .filter((tr) => tr.fromStatusCode === current && tr.toStatusCode !== current)
     .map((tr) => tr.toStatusCode);
-  return [current, ...targets.filter((c, i) => targets.indexOf(c) === i)];
+  return targets.filter((c, i) => targets.indexOf(c) === i);
 }
 
 // The displayable/selectable split this screen introduced (feature 085 Phase C,
@@ -244,6 +245,9 @@ export function OrderDetail(): ReactNode {
   const sectionSummaryText = useOrderSectionSummaryText();
   // Feature 162 — the system note's sentences are this module's own.
   const { language } = useTranslationContext();
+  const { hasPermission } = useAuth();
+  // Both status writes are gated on `orders:write` server-side (`routes.ts`).
+  const canWrite = hasPermission('orders:write');
   const { id = '' } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const returnTo = readReturnTo(searchParams);
@@ -281,8 +285,10 @@ export function OrderDetail(): ReactNode {
   // Warn before leaving with an unsent comment draft.
   useUnsavedChangesPrompt(commentBody.trim() !== '');
 
-  const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
+  // `silent` re-reads without the page-wide loading state, so a control that
+  // just wrote keeps its place and its focus (issue #1470).
+  const refresh = useCallback(async (options?: { silent?: boolean }): Promise<void> => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       const res = await apiClient.get<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}`);
@@ -408,33 +414,25 @@ export function OrderDetail(): ReactNode {
     }
   }, [id, loadInvoices, t]);
 
+  // Both run from the confirm step of a `StatusChangeControl` dialog (issue
+  // #1470, DS-18) and let a refusal propagate, so the dialog stays open and
+  // shows it; the page-level notice reports the change once it committed.
   const handleStatus = useCallback(
     async (to: string): Promise<void> => {
-      try {
-        await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/status`, { to });
-        setInfo(t('orderDetail.messages.orderMoved', { status: statusName(graph, to) }));
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.statusChange'));
-      }
+      await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/status`, { to });
+      setInfo(t('orderDetail.messages.orderMoved', { status: statusName(graph, to, language) }));
+      await refresh({ silent: true });
     },
-    [id, refresh, graph, t],
+    [id, refresh, graph, language, t],
   );
 
   const handlePaymentStatus = useCallback(
     async (to: string): Promise<void> => {
-      try {
-        await apiClient.post<{ data: OrderDetail }>(
-          `/api/v1/admin/orders/${id}/payment-status`,
-          { to },
-        );
-        setInfo(t('orderDetail.messages.paymentMoved', { status: t(paymentStatusLabelKey(to)) }));
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.paymentChange'));
-      }
+      await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/payment-status`, { to });
+      setInfo(t('orderDetail.messages.paymentMoved', { status: t(paymentStatusLabelKey(to)) }));
+      await refresh({ silent: true });
     },
-    [id, refresh],
+    [id, refresh, t],
   );
 
   if (loading) return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
@@ -465,7 +463,7 @@ export function OrderDetail(): ReactNode {
               <Copy className="size-3.5 opacity-60" />
             </button>
             <Badge className="text-xs font-medium" style={statusBadgeStyle(statusColor(graph, order.status))}>
-              {statusName(graph, order.status)}
+              {statusName(graph, order.status, language)}
             </Badge>
           </>
         }
@@ -582,40 +580,39 @@ export function OrderDetail(): ReactNode {
             <>
               <Section title={t('orderDetail.sections.status')}>
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="ostat">{t('orderDetail.fields.orderStatus')}</Label>
-                    <Select
-                      id="ostat"
-                      value={order.status}
-                      onChange={(e): void => {
-                        if (e.target.value !== order.status) void handleStatus(e.target.value);
-                      }}
-                    >
-                      {statusOptions(graph, order.status).map((code) => (
-                        <option key={code} value={code}>
-                          {statusName(graph, code)}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="pstat">{t('orderDetail.fields.paymentStatus')}</Label>
-                    <Select
-                      id="pstat"
-                      value={order.paymentStatus}
-                      onChange={(e): void => void handlePaymentStatus(e.target.value)}
-                    >
-                      {paymentStatusOptions(order.paymentStatus).map((s) => (
-                        <option
-                          key={s}
-                          value={s}
-                          disabled={!SELECTABLE_PAYMENT_STATUSES.includes(s)}
-                        >
-                          {t(paymentStatusLabelKey(s))}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
+                  <StatusChangeControl
+                    label={t('orderDetail.fields.orderStatus')}
+                    dialogTitle={t('orderDetail.statusChange.orderTitle')}
+                    current={order.status}
+                    currentLabel={statusName(graph, order.status, language)}
+                    badgeStyle={statusBadgeStyle(statusColor(graph, order.status))}
+                    options={orderStatusTargets(graph, order.status).map((code) => ({
+                      value: code,
+                      label: statusName(graph, code, language),
+                    }))}
+                    onConfirm={handleStatus}
+                    consequence={(): string => t('orderDetail.statusChange.orderConsequence')}
+                    errorMessage={(err): string =>
+                      err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.statusChange')
+                    }
+                    disabledReason={canWrite ? undefined : t('orderDetail.statusChange.noPermission')}
+                  />
+                  <StatusChangeControl
+                    label={t('orderDetail.fields.paymentStatus')}
+                    dialogTitle={t('orderDetail.statusChange.paymentTitle')}
+                    current={order.paymentStatus}
+                    currentLabel={t(paymentStatusLabelKey(order.paymentStatus))}
+                    options={paymentStatusTargets(order.paymentStatus).map((code) => ({
+                      value: code,
+                      label: t(paymentStatusLabelKey(code)),
+                    }))}
+                    onConfirm={handlePaymentStatus}
+                    consequence={(): string => t('orderDetail.statusChange.paymentConsequence')}
+                    errorMessage={(err): string =>
+                      err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.paymentChange')
+                    }
+                    disabledReason={canWrite ? undefined : t('orderDetail.statusChange.noPermission')}
+                  />
                 </div>
               </Section>
 
