@@ -336,6 +336,7 @@
   "common.statusChange.noTransitions": "Z tego statusu nie można przejść do żadnego innego.",
   "common.statusChange.summary": "{field}: z „{from}” na „{to}”.",
   "common.statusChange.target": "Zmień na",
+  "common.tabs.counted": "{label}, liczba pozycji: {count}",
   "common.field.code": "Kod",
   "common.field.name": "Nazwa",
   "common.formField.required": "(wymagane)",

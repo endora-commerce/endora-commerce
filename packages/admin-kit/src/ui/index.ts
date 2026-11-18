@@ -65,5 +65,8 @@ export { SettingRow } from './setting-row.js';
 export type { SettingRowProps } from './setting-row.js';
 export { Switch } from './switch.js';
 export type { SwitchProps } from './switch.js';
+// Issue #1445 (UX audit DS-12) — in-page tabs and the record-section frame; no tabs inside tabs.
+export { RecordTabs, TabPanel, Tabs, nextTabValue, tabId, tabPanelId } from './tabs.js';
+export type { RecordTabsProps, TabItem, TabPanelProps, TabsProps } from './tabs.js';
 export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from './table.js';
 export { Textarea } from './textarea.js';

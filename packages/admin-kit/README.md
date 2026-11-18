@@ -9,7 +9,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 
 | Subpath | What it is |
 | --- | --- |
-| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
+| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `tabs` (`Tabs`, `TabPanel`, `RecordTabs`, see below), `separator` |
 | `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
@@ -367,6 +367,48 @@ what the message is:
   has no role without matching on class names.
 
 The behaviour is pinned in `admin/test/kit/kit-inline-status.test.tsx`, including an axe pass.
+
+## Tabs — `Tabs`, `TabPanel` and `RecordTabs`
+
+Issue #1445 (UX audit 2026-11-17, DS-12). The one in-page tab strip; `RouteTabs` stays the strip
+whose tabs are routes. Both draw `.b2b-tabs` / `.b2b-tab`, so an operator cannot tell them apart.
+
+```tsx
+<Tabs items={items} value={tab} onValueChange={setTab} idBase="dictionary" aria-label={t('tabs.label')} />
+<TabPanel idBase="dictionary" value={tab}>{panel}</TabPanel>
+
+// A record's sections: the strip across the top of one card, the panel as its body.
+<RecordTabs
+  items={[{ value: 'notes', label: t('tab.notes'), count: notes.length }, …]}
+  value={tab}
+  onValueChange={setTab}
+  idBase="crm-opportunity"
+  aria-label={t('opportunity.tabs.label')}
+>
+  {panel}
+</RecordTabs>
+```
+
+- **The WAI-ARIA tabs pattern, automatic activation**, taken from the product editor's working
+  strip: one tab in the tab order (roving `tabindex`), ←/→ select and wrap, Home/End jump to the
+  ends, a `disabled` tab is skipped. Every tab has `aria-controls` on the strip's **one** panel
+  (`${idBase}-tabpanel`) and the panel is `aria-labelledby` the selected tab
+  (`${idBase}-tab-${value}`); `tabId` / `tabPanelId` derive them. Only the selected panel is
+  rendered.
+- **Controlled**: `value` + `onValueChange(next)`. A screen that keeps the tab in `?tab=` writes
+  the search params there. The pure keyboard model is `nextTabValue(items, current, key)`.
+- **Counts** (`RecordTabs`): `count` draws a badge after the label; zero draws nothing. The
+  accessible name says what is counted — `common.tabs.counted`, "Notes, items: 3", or the
+  item's own `countLabel` ("Messages, unread: 2"), which must start with the label (SC 2.5.3).
+- `icon` is decorative (`aria-hidden`). The panel is focusable (`tabIndex` 0) unless the screen
+  passes `-1` because it only focuses the panel programmatically.
+- **No tabs inside tabs.** A second level inside a panel hides content two clicks deep and gives
+  the keyboard two strips with the same keys: make the second level `Section`s. In development a
+  `Tabs` rendered inside a `TabPanel` logs a warning; a `ModalDialog` opened from a panel is a new
+  context and does not.
+
+The behaviour is pinned in `admin/test/kit/kit-tabs.test.tsx`, including the keyboard path and an
+axe pass.
 
 ## Known rough edge
 
