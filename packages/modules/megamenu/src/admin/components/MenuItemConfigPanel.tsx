@@ -9,7 +9,7 @@ import {
   type MegamenuItemKind,
   type MegamenuPresentation,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Checkbox, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Checkbox, FormField, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import {
   AssetFieldPicker,
   CategorySelect,
@@ -289,28 +289,27 @@ function KindSpecificFields({
   const t = useTranslation('megamenu');
   const fieldId = useId();
   const target = item.target as Record<string, unknown>;
+  const assetLabel = t(target.kind === 'video' ? 'fields.assetVideo' : 'fields.assetImage');
 
   switch (item.kind) {
     case 'category-link':
       return (
-        <div className="space-y-1">
-          <Label>{t('fields.categoryId')}</Label>
+        <FormField label={t('fields.category')}>
           <CategorySelect
             value={typeof target.categoryId === 'string' && target.categoryId ? target.categoryId : null}
             onChange={(v) => setTarget({ categoryId: v ?? '' } as never)}
           />
-        </div>
+        </FormField>
       );
 
     case 'cms-page-link':
       return (
-        <div className="space-y-1">
-          <Label>{t('fields.cmsPageId')}</Label>
+        <FormField label={t('fields.cmsPage')}>
           <CmsPagePicker
             value={typeof target.pageId === 'string' && target.pageId ? target.pageId : null}
             onChange={(v) => setTarget({ pageId: v ?? '' } as never)}
           />
-        </div>
+        </FormField>
       );
 
     case 'external-link':
@@ -353,15 +352,17 @@ function KindSpecificFields({
     case 'asset':
       return (
         <>
-          <div className="space-y-1">
-            <Label>{t('fields.assetId')}</Label>
+          <FormField label={assetLabel}>
             <AssetFieldPicker
+              // The picker names its read-only input itself ("Asset"), and an
+              // `aria-label` outranks the `<label for>`, so hand it the same name.
+              ariaLabel={assetLabel}
               value={typeof target.assetId === 'string' ? target.assetId : ''}
               onChange={(id) => setTarget({ assetId: id } as never)}
               acceptMimePrefix={target.kind === 'video' ? 'video/' : 'image/'}
               allowUpload
             />
-          </div>
+          </FormField>
           <div className="space-y-1">
             <Label>{t('fields.kind')}</Label>
             <Select
@@ -378,13 +379,12 @@ function KindSpecificFields({
     case 'cms-block-embed':
       return (
         <>
-          <div className="space-y-1">
-            <Label>{t('fields.cmsBlockId')}</Label>
+          <FormField label={t('fields.cmsBlock')}>
             <CmsBlockPicker
               value={typeof target.blockId === 'string' && target.blockId ? target.blockId : null}
               onChange={(v) => setTarget({ blockId: v ?? '' } as never)}
             />
-          </div>
+          </FormField>
           <div className="space-y-1">
             <Label>{t('fields.embedSide')}</Label>
             <Select
