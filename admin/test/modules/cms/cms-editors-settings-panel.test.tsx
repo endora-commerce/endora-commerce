@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { orphanLabels } from '../../helpers/orphan-labels';
 import { withLocalStorage } from '../../helpers/with-local-storage';
 import { withViewportWidth } from '../../helpers/with-viewport-width';
 import { PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY } from '../../../../packages/page-builder-admin/src/chrome/PageBuilderEditorLayout';
@@ -106,6 +107,8 @@ interface Screen {
   element: ReactElement;
   metadataTitle: string;
   missingChannel: string;
+  /** The metadata card's text fields, by the label each must be named by (#1465). */
+  labelledFields: string[];
 }
 
 const screens: Screen[] = [
@@ -115,6 +118,7 @@ const screens: Screen[] = [
     element: <PageEditor />,
     metadataTitle: copy('pageEditor.metadata'),
     missingChannel: copy('pageEditor.errors.selectChannel'),
+    labelledFields: [copy('fields.name'), copy('fields.slug'), copy('fields.description')],
   },
   {
     name: 'BlockEditor',
@@ -122,6 +126,7 @@ const screens: Screen[] = [
     element: <BlockEditor />,
     metadataTitle: copy('blockEditor.metadata'),
     missingChannel: copy('blockEditor.errors.selectChannel'),
+    labelledFields: [copy('fields.name'), copy('fields.code'), copy('fields.description')],
   },
   {
     name: 'TemplateEditor',
@@ -129,6 +134,7 @@ const screens: Screen[] = [
     element: <TemplateEditor />,
     metadataTitle: copy('templateEditor.metadata'),
     missingChannel: copy('templateEditor.errors.selectChannel'),
+    labelledFields: [copy('fields.name'), copy('fields.code'), copy('fields.description')],
   },
 ];
 
@@ -169,6 +175,25 @@ afterEach(() => {
 });
 
 describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => {
+  it('names each metadata field by the label above it (#1465)', () => {
+    renderEditor(screenUnderTest, 'new');
+    const settings = screen.getByRole('complementary', { name: shell('settings') });
+    for (const label of screenUnderTest.labelledFields) {
+      expect(within(settings).getByRole('textbox', { name: label })).toBeInTheDocument();
+    }
+    // The metadata card: its title sits in the card's header (CardTitle → CardHeader → Card).
+    const metadataCard = within(settings).getByText(screenUnderTest.metadataTitle).parentElement!.parentElement!;
+    expect(within(metadataCard).getByRole('textbox', { name: screenUnderTest.labelledFields[0]! })).toBeInTheDocument();
+    expect(orphanLabels(metadataCard)).toEqual([]);
+    if (screenUnderTest.name === 'PageEditor') {
+      expect(within(settings).getByRole('combobox', { name: copy('fields.status') })).toBeDisabled();
+      // The public address under the slug describes it.
+      expect(within(settings).getByRole('textbox', { name: copy('fields.slug') })).toHaveAccessibleDescription(
+        new RegExp(copy('pageEditor.publicAddress')),
+      );
+    }
+  });
+
   it('hands the metadata card and the scope picker to the settings panel, metadata first', async () => {
     renderEditor(screenUnderTest, 'new');
 

@@ -37,6 +37,7 @@ function statusName(s: ReturnStatusDto): string {
 /** Returns / RMA admin list (feature 046, US8). */
 export function ReturnsList(): ReactNode {
   const t = useTranslation('core');
+  const tr = useTranslation('returns');
   const { pageSize, setPageSize } = usePageSizePreference('returns');
 
   const [rows, setRows] = useState<AdminReturnRow[]>([]);
@@ -214,12 +215,17 @@ export function ReturnsList(): ReactNode {
   const selectColumn: ResponsiveColumn<AdminReturnRow> = {
     id: 'select',
     header: (
-      <input type="checkbox" aria-label="select-all" checked={allSelected} onChange={toggleAll} />
+      <input
+        type="checkbox"
+        aria-label={tr('list.selection.selectAll')}
+        checked={allSelected}
+        onChange={toggleAll}
+      />
     ),
     render: (r) => (
       <input
         type="checkbox"
-        aria-label={`select-${r.rmaNumber ?? r.id}`}
+        aria-label={tr('list.selection.selectRow', { number: r.rmaNumber ?? r.id })}
         checked={selected.has(r.id)}
         onChange={(): void => toggleOne(r.id)}
       />

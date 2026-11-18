@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link, useParams } from 'react-router-dom';
 import { isDraftEqual, randomUUID } from '@endora-commerce/admin-kit/lib';
 import { UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { MegamenuDetail, MegamenuItem, MegamenuItemKind } from '@endora-commerce/contracts';
 
@@ -218,17 +218,15 @@ export function MegamenuEditor(): ReactNode {
               <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label>{t('fields.name')}</Label>
+              <FormField label={t('fields.name')}>
                 <Input value={name} onChange={(event) => setName(event.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('fields.description')}</Label>
+              </FormField>
+              <FormField label={t('fields.description')}>
                 <Textarea
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                 />
-              </div>
+              </FormField>
               <div className="flex items-center justify-end gap-2">
                 <UnsavedChangesHint dirty={metadataDirty} />
                 <Button onClick={() => void saveMetadata()} disabled={saving}>

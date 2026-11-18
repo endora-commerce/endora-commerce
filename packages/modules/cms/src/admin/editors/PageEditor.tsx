@@ -13,7 +13,7 @@ import {
   type CmsPageSummary,
   type CmsPageTranslations,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup, Select, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, Label, PageHeader, SaveButtonGroup, Select, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   AssetFieldPicker,
@@ -683,8 +683,7 @@ export function PageEditor(): ReactNode {
               <CardTitle className="text-base">{t('pageEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label>{t('fields.name')}</Label>
+              <FormField label={t('fields.name')}>
                 <Input
                   value={form.name}
                   onChange={(event) => {
@@ -696,17 +695,18 @@ export function PageEditor(): ReactNode {
                     }));
                   }}
                 />
-              </div>
+              </FormField>
               <div className="space-y-1">
-                <Label>{t('fields.slug')}</Label>
-                <Input
-                  value={form.slug}
-                  onChange={(event) => {
-                    setSlugEdited(true);
-                    setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }));
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
+                <FormField label={t('fields.slug')} describedBy="cms-page-slug-address">
+                  <Input
+                    value={form.slug}
+                    onChange={(event) => {
+                      setSlugEdited(true);
+                      setForm((f) => ({ ...f, slug: event.target.value.toLowerCase() }));
+                    }}
+                  />
+                </FormField>
+                <p id="cms-page-slug-address" className="text-xs text-muted-foreground">
                   <span className="mr-1">{t('pageEditor.publicAddress')}:</span>
                   {publicPath ? (
                     <code className="font-mono">{publicPath}</code>
@@ -729,14 +729,13 @@ export function PageEditor(): ReactNode {
                   </Alert>
                 ) : null}
               </div>
-              <div className="space-y-1">
-                <Label>{t('fields.status')}</Label>
+              <FormField label={t('fields.status')}>
                 <Select value={page?.status ?? 'draft'} disabled>
                   <option value="draft">{t('status.draft')}</option>
                   <option value="published">{t('status.published')}</option>
                   <option value="archived">{t('status.archived')}</option>
                 </Select>
-              </div>
+              </FormField>
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -745,13 +744,12 @@ export function PageEditor(): ReactNode {
                 />
                 {t('fields.active')}
               </label>
-              <div className="space-y-1">
-                <Label>{t('fields.description')}</Label>
+              <FormField label={t('fields.description')}>
                 <Textarea
                   value={form.description}
                   onChange={(event) => setForm({ ...form, description: event.target.value })}
                 />
-              </div>
+              </FormField>
               <p className="text-xs text-muted-foreground">{t('pageEditor.pageFieldsHelp')}</p>
             </CardContent>
           </Card>

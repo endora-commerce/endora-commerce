@@ -45,6 +45,7 @@ const BUNDLE = passthroughBundle('prompt_actions', [
   'panel.expiresHint',
   'panel.success',
   'panel.resultSucceeded',
+  'panel.inputLabel',
 ]);
 
 function awaitingRequest(): PromptActionRequestDto {
@@ -152,5 +153,33 @@ describe('PromptModePanel — US1 journey (T040)', () => {
     // Input is editable again with the original text preserved.
     expect(input.value).toBe('ustaw stan na 120');
     expect(input.disabled).toBe(false);
+  });
+});
+
+describe('PromptModePanel — labels and live status (#1465)', () => {
+  beforeEach(() => {
+    submitSpy.mockReset();
+  });
+
+  it('names the prompt input by a label, not only by its placeholder', () => {
+    renderWithI18n(<PromptModePanel onExit={vi.fn()} />, BUNDLE);
+    expect(screen.getByRole('textbox', { name: 'panel.inputLabel' })).toBe(screen.getByTestId('prompt-input'));
+  });
+
+  it('announces the busy line through a status region mounted before it has text', async () => {
+    const user = userEvent.setup();
+    let resolve: (value: PromptActionRequestDto) => void = () => {};
+    submitSpy.mockReturnValue(new Promise<PromptActionRequestDto>((r) => (resolve = r)));
+    renderWithI18n(<PromptModePanel onExit={vi.fn()} />, BUNDLE);
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('');
+    await user.type(screen.getByTestId('prompt-input'), 'set stock to 120');
+    await user.click(screen.getByRole('button', { name: 'panel.submit' }));
+
+    expect(await screen.findByRole('status')).toBe(status);
+    expect(status).toHaveTextContent('panel.interpreting');
+    resolve(awaitingRequest());
+    await waitFor(() => expect(status).toHaveTextContent(''));
   });
 });

@@ -142,8 +142,10 @@ const CONFIRMATION = {
 };
 
 async function switchOnAndSave(): Promise<void> {
-  const select = (await screen.findByDisplayValue('false')) as HTMLSelectElement;
-  fireEvent.change(select, { target: { value: 'true' } });
+  // Issue #1479 — the boolean setting is a switch, staged until the Save.
+  const toggle = await screen.findByRole('switch', { name: 'Enforced' });
+  expect(toggle.getAttribute('aria-checked')).toBe('false');
+  fireEvent.click(toggle);
   fireEvent.click(await screen.findByRole('button', { name: 'actions.saveChanges' }));
 }
 

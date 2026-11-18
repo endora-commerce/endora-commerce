@@ -285,6 +285,13 @@ describe('the Notes tab', () => {
     expect(await screen.findByRole('tab', { name: countedTab('opportunity.tabs.notes', 1) })).toBeInTheDocument();
   });
 
+  it('says in one line that notes are internal, with no helper under the composer (#1487)', async () => {
+    const panel = await open();
+    await within(panel).findByLabelText(en('comments.notes.composer.label'));
+    expect(within(panel).getByText('Internal. Customers never see this.')).toBeInTheDocument();
+    expect(within(panel).queryByText(en('comments.messages.composerHint'))).toBeNull();
+  });
+
   it('shows a reader the notes and nothing to write with', async () => {
     const panel = await open(['crm:read', 'orders:read']);
     await within(panel).findByText('Call back on Friday.');
@@ -306,6 +313,15 @@ describe('the Messages tab', () => {
     expect(within(panel).queryByRole('button', { name: core('comments.edit') })).toBeNull();
     expect(within(panel).queryByRole('button', { name: core('comments.delete') })).toBeNull();
     expect(within(panel).getByText(en('comments.messages.hint'))).toBeInTheDocument();
+  });
+
+  it('says in one line that messages are internal, and that one cannot be edited under the composer (#1487)', async () => {
+    const panel = await open();
+    expect(en('comments.messages.hint')).toBe('Internal. Customers never see this.');
+    const field = await within(panel).findByLabelText(en('comments.messages.composer.label'));
+    const helper = within(panel).getByText(en('comments.messages.composerHint'));
+    expect(helper.textContent).toBe('Cannot be edited after sending.');
+    expect(field.getAttribute('aria-describedby')?.split(' ')).toContain(helper.id);
   });
 
   it('sends a message', async () => {

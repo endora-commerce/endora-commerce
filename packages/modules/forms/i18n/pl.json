@@ -521,5 +521,8 @@
   "settings.retention.readOnly": "Zmiana okresu przechowywania wymaga uprawnienia do obsługi i usuwania zgłoszeń oraz dostępu do wszystkich organizacji.",
   "errors.FORM_CAPTCHA_FAILED": "Nie udało się potwierdzić, że nie jesteś robotem. Wykonaj weryfikację i wyślij formularz ponownie.",
   "errors.FORM_CAPTCHA_UNAVAILABLE": "Usługa weryfikacji jest teraz niedostępna. Odczekaj chwilę i wyślij formularz ponownie.",
-  "settingGroups.forms.name": "Formularze"
+  "settingGroups.forms.name": "Formularze",
+  "settingLabels.forms.captcha_provider.options.none": "Brak",
+  "settingLabels.forms.captcha_provider.options.turnstile": "Cloudflare Turnstile",
+  "settingLabels.forms.captcha_provider.options.hcaptcha": "hCaptcha"
 }

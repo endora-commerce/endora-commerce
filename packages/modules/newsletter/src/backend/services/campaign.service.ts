@@ -12,6 +12,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { NewsletterCampaign } from '../entities/newsletter-campaign.entity.js';
 import { NewsletterCampaignSubscriber } from '../entities/newsletter-campaign-subscriber.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
+import type { NewsletterAudienceResolver } from './audience-resolver.js';
 import type { NewsletterCampaignDispatchService } from './campaign-dispatch.service.js';
 import type {
   NewsletterContentService,
@@ -24,6 +25,8 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 export interface CampaignServiceDeps {
   emFactory: () => EntityManager;
+  /** Counts the audience a draft would reach — `CampaignDetail.audienceEstimate` (issue #1462). */
+  audience: Pick<NewsletterAudienceResolver, 'count'>;
   dispatch: NewsletterCampaignDispatchService;
   content: NewsletterContentService;
   isProviderConfigured: () => Promise<boolean>;
@@ -233,7 +236,17 @@ export class NewsletterCampaignService {
     };
   }
 
-  private toDetail(c: NewsletterCampaign): CampaignDetail {
+  /**
+   * `audienceEstimate` is who a send would reach *now*, so it is answered only
+   * while one is still possible — a draft or a scheduled campaign. Once a
+   * campaign has gone out its audience is its send records, which the stats
+   * report; a live count there would describe a send that never happened.
+   */
+  private async toDetail(c: NewsletterCampaign): Promise<CampaignDetail> {
+    const audienceEstimate =
+      c.status === 'draft' || c.status === 'scheduled'
+        ? await this.deps.audience.count({ type: c.targetType, tagIds: c.targetTagIds, campaignId: c.id })
+        : null;
     return {
       ...this.toSummary(c),
       content: c.content,
@@ -241,7 +254,7 @@ export class NewsletterCampaignService {
       language: c.language,
       targetTagIds: c.targetTagIds,
       trackingEnabled: c.trackingEnabled,
-      audienceEstimate: null,
+      audienceEstimate,
       stats: null,
       version: c.version,
       updatedAt: c.updatedAt.toISOString(),

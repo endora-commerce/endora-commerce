@@ -45,9 +45,9 @@ export function AutomationsPage(): React.ReactElement {
         description="Linear send/wait sequences."
         actions={
           canWrite ? (
-            <Link to="/newsletter/automations/new">
-              <Button>New automation</Button>
-            </Link>
+            <Button asChild>
+              <Link to="/newsletter/automations/new">New automation</Link>
+            </Button>
           ) : null
         }
       />

@@ -108,6 +108,8 @@ export function BlogPostListPage(): ReactNode {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void load();
               }}
+              type="search"
+              aria-label={t('postList.searchLabel')}
               placeholder={t('postList.searchPlaceholder')}
               className="w-64"
             />

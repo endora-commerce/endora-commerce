@@ -7,6 +7,7 @@ import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { EditorField, useProductEditor } from './editor/editor-context.js';
 import { PRODUCT_CONTENT_LANGUAGES, ProductContentCard, type ProductContentCardBlocker } from './ProductContentCard.js';
+import { pickAttributeLabel as pickLabel } from '../lib/variant-axes.js';
 import { BooleanControl, NumberControl, SelectControl, TextControl, type SelectOption } from './editor/scoped-controls.js';
 
 /**
@@ -42,13 +43,6 @@ interface AttributeOption {
 }
 
 const OPTION_TYPES = new Set(['enum', 'select', 'multiselect']);
-
-/** A label in the admin's language (`pl` reads `pl-PL`), then English, then any. */
-function pickLabel(label: Record<string, string>, fallback: string, language = 'en'): string {
-  const entries = Object.entries(label);
-  const own = entries.find(([code]) => code === language || code.split('-')[0] === language)?.[1];
-  return own ?? label['en-US'] ?? entries[0]?.[1] ?? fallback;
-}
 
 type ContentAttribute = AdminProductContentList['attributes'][number];
 

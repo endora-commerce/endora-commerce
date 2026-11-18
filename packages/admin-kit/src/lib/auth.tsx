@@ -95,13 +95,22 @@ export interface AdminMe {
 interface AuthState {
   status: 'loading' | 'authenticated' | 'unauthenticated';
   me: AdminMe | null;
-  /** Last error from a login attempt, surfaced by LoginPage. */
+  /**
+   * Last error from a login attempt, surfaced by LoginPage: the backend's own
+   * sentence. `null` when the attempt failed without one — see
+   * `lastLoginReason`.
+   */
   lastLoginError: string | null;
   /**
-   * Why `lastLoginError` is set, where the screen words it differently from a
-   * refused attempt: `'session_expired'` for the notice set when a signed-in
-   * session answers 401. `null` for every other message. Set and cleared with
-   * `lastLoginError`, so the title never has to be guessed from the text.
+   * Why the sign-in screen shows a notice, where it words it itself:
+   * `'session_expired'` for the notice set when a signed-in session answers
+   * 401; `'sign_in_failed'` / `'verification_failed'` for a password or code
+   * step that failed with no backend sentence to show (the network dropped, the
+   * answer was no error envelope), with `lastLoginError` left `null`. The kit
+   * holds no copy for these: the sign-in screen renders before any translation
+   * bundle can be fetched, so its words are the shell's pre-auth copy (issue
+   * #1481). `null` for every other message, so the title never has to be
+   * guessed from the text.
    */
   lastLoginReason: LoginErrorReason | null;
   /**
@@ -137,7 +146,7 @@ interface AuthContextValue extends AuthState {
 }
 
 /** See {@link AuthState.lastLoginReason}. */
-export type LoginErrorReason = 'session_expired';
+export type LoginErrorReason = 'session_expired' | 'sign_in_failed' | 'verification_failed';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -322,12 +331,11 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
         }
         await refresh();
       } catch (err) {
-        const message =
-          err instanceof ApiError ? err.envelope.error.message : 'Sign-in failed.';
+        const worded = err instanceof ApiError;
         setState((prev) => ({
           ...prev,
-          lastLoginError: message,
-          lastLoginReason: null,
+          lastLoginError: worded ? err.envelope.error.message : null,
+          lastLoginReason: worded ? null : 'sign_in_failed',
           federatedSignInError: null,
         }));
       }
@@ -354,12 +362,11 @@ export function AuthProvider({ initial, children }: AuthProviderProps): ReactNod
         }));
         await refresh();
       } catch (err) {
-        const message =
-          err instanceof ApiError ? err.envelope.error.message : 'Verification failed.';
+        const worded = err instanceof ApiError;
         setState((prev) => ({
           ...prev,
-          lastLoginError: message,
-          lastLoginReason: null,
+          lastLoginError: worded ? err.envelope.error.message : null,
+          lastLoginReason: worded ? null : 'verification_failed',
           federatedSignInError: null,
         }));
       }

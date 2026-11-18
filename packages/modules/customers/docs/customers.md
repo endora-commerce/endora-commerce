@@ -116,6 +116,9 @@ Save is shown to an operator with `customers:manage`, or one who may change one 
 The **Actions** (block / unblock, password reset, two-factor reset, impersonate, delete /
 restore), the **Organization** assignment and the **Customer group** are not part of the Save: they
 apply the moment you use them, and each section carries an **Applies immediately** badge.
+Block, two-factor reset and delete ask for confirmation first, naming the customer and what the
+action does; a refusal is shown in the confirmation. Delete is in its own section at the end of
+the page, away from the other actions.
 
 ## Deletion & anonymization
 

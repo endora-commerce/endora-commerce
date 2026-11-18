@@ -1,5 +1,5 @@
 /**
- * `transactional_emails`' admin surface — six routes and three sidebar
+ * `transactional_emails`' admin surface — seven routes and four sidebar
  * entries, declared by the module that owns them (feature 091, Phase 4, batch
  * 11; `specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md`).
  *
@@ -48,6 +48,8 @@ const ROUTE_PATH = '/transactional-emails';
 
 const BLOCKS_ROUTE = `${ROUTE_PATH}/blocks`;
 const TEMPLATES_ROUTE = `${ROUTE_PATH}/templates`;
+/** Issue #1466 — the logo and accent colour every e-mail renders with. */
+const BRANDING_ROUTE = `${ROUTE_PATH}/branding`;
 
 /**
  * The one code every screen below needs to open.
@@ -87,6 +89,13 @@ export const contributions: AdminContributions = {
     {
       path: `${TEMPLATES_ROUTE}/:id`,
       component: () => import('./pages/EmailTemplateEditorPage.js'),
+      requiredPermission: READ_PERMISSION,
+    },
+    {
+      // Issue #1466: the branding service, its API and the `EmailLogo` block
+      // that reads it shipped in feature 047; the screen to set it did not.
+      path: BRANDING_ROUTE,
+      component: () => import('./pages/EmailBrandingPage.js'),
       requiredPermission: READ_PERMISSION,
     },
     {
@@ -133,6 +142,14 @@ export const contributions: AdminContributions = {
       icon: 'Inbox',
       section: 'messaging',
       weight: 300,
+      requiredPermission: READ_PERMISSION,
+    },
+    {
+      to: BRANDING_ROUTE,
+      labelKey: 'nav.emailBranding.label',
+      icon: 'Inbox',
+      section: 'messaging',
+      weight: 400,
       requiredPermission: READ_PERMISSION,
     },
   ],

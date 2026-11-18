@@ -6,6 +6,7 @@ import type {
   OrderPaymentStatusApplyPort,
 } from '../../ports/index.js';
 import { isUuidShape } from '@endora-commerce/contracts';
+import { decidePaymentStatusChange } from '../domain/payment-status-transition.js';
 
 /**
  * `orderPaymentStatusApplyPort` — the money axis of an order, written on the
@@ -39,7 +40,12 @@ export class OrderPaymentStatusApplyService implements OrderPaymentStatusApplyPo
     if (!isUuidShape(input.orderId)) return null;
     const order = await em.findOne(Order, { id: input.orderId });
     if (!order) return null;
-    order.paymentStatus = input.paymentStatus;
+    // Issue #1574 — settlement respects the money axis's graph. A refused move
+    // is answered, not thrown, so the caller's settlement transaction still
+    // commits the payment row it is recording.
+    const decision = decidePaymentStatusChange(order.paymentStatus, input.paymentStatus, 'settlement');
+    const outcome = decision.kind === 'apply' ? 'applied' : decision.kind;
+    if (outcome === 'applied') order.paymentStatus = input.paymentStatus;
     // A published record, never the managed entity (D-77's first narrowing).
     // Handing `payments` the live `Order` would hand it the ability to move any
     // column of this module's aggregate on a transaction it happens to hold,
@@ -48,6 +54,7 @@ export class OrderPaymentStatusApplyService implements OrderPaymentStatusApplyPo
       orderId: order.id,
       status: order.status,
       paymentStatus: order.paymentStatus,
+      outcome,
     };
   }
 }

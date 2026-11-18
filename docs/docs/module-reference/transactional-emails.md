@@ -47,6 +47,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | Action | Opens | Permission |
 | --- | --- | --- |
 | `open-email-blocks` | `/transactional-emails/blocks` | `transactional_emails:read` |
+| `open-email-branding` | `/transactional-emails/branding` | `transactional_emails:read` |
 | `open-email-templates` | `/transactional-emails/templates` | `transactional_emails:read` |
 | `open-transactional-emails` | `/transactional-emails` | `transactional_emails:read` |
 

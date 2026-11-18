@@ -57,5 +57,10 @@ export { Section } from './section.js';
 export type { SectionProps } from './section.js';
 export { Select } from './select.js';
 export { Separator } from './separator.js';
+// Issue #1442 (UX audit DS-09) — the on/off control and the settings-list row it sits in.
+export { SettingRow } from './setting-row.js';
+export type { SettingRowProps } from './setting-row.js';
+export { Switch } from './switch.js';
+export type { SwitchProps } from './switch.js';
 export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from './table.js';
 export { Textarea } from './textarea.js';

@@ -40,6 +40,19 @@ export const loginCopy = {
   federatedDivider: 'or',
   federatedGoogle: 'Continue with Google',
   federatedMicrosoft: 'Continue with Microsoft',
+  /**
+   * Issue #1481 — the lines for a failed step the backend sent no sentence for
+   * (`AuthProvider`'s `lastLoginReason`), which the kit used to word itself in
+   * English it hard-coded.
+   */
+  signInFailedLine: 'Sign-in failed. Check your connection and try again.',
+  verificationFailedLine: 'The code could not be checked. Check your connection and try again.',
+  /** Issue #1481 — the second step (feature 042), moved here from the screen's JSX. */
+  mfaTitle: 'Two-step verification',
+  mfaDescription: 'Enter the 6-digit code from your authenticator app, or a recovery code.',
+  mfaCodeLabel: 'Authentication code',
+  mfaSubmit: 'Verify',
+  mfaBack: 'Back to sign in',
 } as const;
 
 /**

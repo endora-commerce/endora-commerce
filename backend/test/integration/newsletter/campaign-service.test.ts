@@ -19,6 +19,7 @@ import {
   NewsletterSendRecord,
   NewsletterSubscriber,
   NewsletterSubscriberTag,
+  NewsletterSuppression,
   NewsletterTag,
 } from '../../helpers/package-entities.js';
 
@@ -77,6 +78,7 @@ describe('newsletter campaign service (US2)', () => {
     });
     service = new NewsletterCampaignService({
       emFactory: () => db.em(),
+      audience: new NewsletterAudienceResolver(() => db.em()),
       dispatch,
       content,
       isProviderConfigured: async () => providerConfigured,
@@ -170,6 +172,49 @@ describe('newsletter campaign service (US2)', () => {
     expect(records.map((r) => [r.status, r.error])).toEqual([['failed', NO_USABLE_CREDENTIAL_ERROR]]);
   });
 
+  it('reports the audience a draft would reach, so the send confirmation can name it (issue #1462)', async () => {
+    // A fresh tag keeps the count exact: `setupTestDb` truncates nothing, so an
+    // `all` audience also holds whatever subscribers other files left behind.
+    const em = db.em();
+    const tag = em.create(NewsletterTag, { code: `a${randomUUID().slice(0, 8)}`, name: 'A' });
+    const active = [1, 2, 3].map((n) =>
+      em.create(NewsletterSubscriber, { email: `aud${n}-${randomUUID()}@x.test`, status: 'active' }),
+    );
+    const pending = em.create(NewsletterSubscriber, { email: `aud-p-${randomUUID()}@x.test`, status: 'pending' });
+    const suppressedEmail = `aud-s-${randomUUID()}@x.test`;
+    const suppressed = em.create(NewsletterSubscriber, { email: suppressedEmail, status: 'active' });
+    em.create(NewsletterSuppression, { email: suppressedEmail, reason: 'bounce' });
+    await em.flush();
+    for (const s of [...active, pending, suppressed]) em.create(NewsletterSubscriberTag, { subscriberId: s.id, tagId: tag.id });
+    await em.flush();
+
+    const created = await service.create({
+      name: 'C',
+      language: 'en-US',
+      subject: 'S',
+      content: textTree('B'),
+      targetType: 'tag',
+      targetTagIds: [tag.id],
+    });
+    // Pending and suppressed subscribers are not reached, exactly as at dispatch.
+    expect(created.audienceEstimate).toBe(3);
+    expect((await service.get(created.id)).audienceEstimate).toBe(3);
+
+    const retargeted = await service.update(created.id, { targetType: 'tag', targetTagIds: [], expectedVersion: created.version });
+    expect(retargeted.audienceEstimate).toBe(0);
+
+    const grouped = await service.update(created.id, { targetType: 'group', expectedVersion: retargeted.version });
+    expect(grouped.audienceEstimate).toBe(0);
+    const withGroup = await service.setGroup(created.id, [active[0]!.id, pending.id]);
+    expect(withGroup.audienceEstimate).toBe(1);
+  });
+
+  it('reports no audience estimate once a campaign has left draft', async () => {
+    const c = await service.create({ name: 'C', language: 'en-US', subject: 'S', content: textTree('B'), targetType: 'all' });
+    const cancelled = await service.cancel(c.id, c.version);
+    expect(cancelled.audienceEstimate).toBeNull();
+  });
+
   it('cancels a draft campaign', async () => {
     const c = await service.create({ name: 'C', language: 'en-US', subject: 'S', content: textTree('B'), targetType: 'all' });
     const cancelled = await service.cancel(c.id, c.version);
@@ -197,6 +242,7 @@ describe('newsletter campaign service (US2)', () => {
       });
       branded = new NewsletterCampaignService({
         emFactory: () => db.em(),
+        audience: new NewsletterAudienceResolver(() => db.em()),
         dispatch,
         content,
         isProviderConfigured: async () => true,

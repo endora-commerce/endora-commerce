@@ -2,11 +2,12 @@ import { StrictMode } from 'react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { PwaAdminConfig } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../helpers/render-with-session';
+import { orphanLabels } from '../helpers/orphan-labels';
 
 /**
  * `specs/149-pwa-order-status-push/` T019 — the two status push category
@@ -159,5 +160,20 @@ describe('PWA screen — status push category switches', () => {
     expect(
       screen.getByRole('checkbox', { name: /Powiadamiaj o zmianach statusu zapytań ofertowych/ }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('PWA screen — labelled controls (#1465)', () => {
+  beforeEach(() => {
+    config = BASE_CONFIG;
+  });
+
+  it('leaves no label naming nothing, and names the audience choice', async () => {
+    await mount({ present: ['pwa'] });
+    expect(orphanLabels(document.body)).toEqual([]);
+    expect(screen.getByRole('button', { name: 'Theme color' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Background color' })).toBeInTheDocument();
+    const audience = screen.getByRole('radiogroup', { name: 'Audience' });
+    expect(within(audience).getAllByRole('radio')).toHaveLength(2);
   });
 });

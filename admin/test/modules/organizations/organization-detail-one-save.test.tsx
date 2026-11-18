@@ -16,13 +16,17 @@ import { organizationSalesChannelsAnswer } from '../../helpers/organization-sale
  * (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §2; US9, OQ-9 = A,
  * OQ-11 = A; FR-060, FR-061).
  *
- * The host part gathers the screen's own sections — status, VAT status, order-confirmation
- * e-mails, fulfilment strategy, custom fields — into one `PATCH …/organizations/:id` with
+ * The host part gathers the screen's own sections — order-confirmation e-mails, fulfilment
+ * strategy, custom fields — into one `PATCH …/organizations/:id` with
  * `expectedUpdatedAt`, and writes the restrictions after it with the version that `PATCH`
  * answered. Then the participants, in zone order: `price_lists`' display mode (200),
  * `quick_order`'s ordering defaults (300), `quote_requests`' price negotiation (500). The three
  * participants are the real contributions, through the packages' own `contributions`. Every write
  * lands in one ordered log, so "the host first, then the panels" is the order of that log.
+ *
+ * Issue #1468 (SALES-01, DEC-07) — the organization status and the VAT status are no longer
+ * host sections: moderation is the status's one writer, and the VAT status is read-only in the
+ * header and changed by its own immediate "Change VAT status…" dialog.
  */
 
 const getSpy = vi.fn();
@@ -226,11 +230,12 @@ async function ready(): Promise<void> {
   await waitFor(() => expect((screen.getByLabelText(bundle.quote_requests['negotiation.organization.label']!) as HTMLInputElement).disabled).toBe(false));
 }
 
-/** Edit every host section and every participant: eight changes. */
+const EMAILS_LABEL = orgEn['detail.orderConfirmationEmails']!;
+const emailsField = (): HTMLElement => screen.getByLabelText(EMAILS_LABEL);
+
+/** Edit every host section and every participant: seven changes. */
 async function editEverything(): Promise<void> {
-  fireEvent.change(screen.getByLabelText(coreEn['organizations.detail.accountStatus']!), { target: { value: 'blocked' } });
-  fireEvent.change(screen.getByLabelText(coreEn['organizations.detail.vatStatus']!), { target: { value: 'vat_exempt' } });
-  const emails = screen.getByLabelText('order-confirmation-emails');
+  const emails = emailsField();
   fireEvent.change(emails, { target: { value: 'ops@example.com\nsales@example.com' } });
   fireEvent.blur(emails);
   fireEvent.change(screen.getByLabelText(coreEn['fulfilment.label']!), { target: { value: 'any' } });
@@ -289,7 +294,7 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     );
     renderDetail();
     await ready();
-    fireEvent.change(screen.getByLabelText(coreEn['organizations.detail.vatStatus']!), { target: { value: 'vat_exempt' } });
+    fireEvent.change(emailsField(), { target: { value: 'ops@example.com' } });
     await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save 1 change'));
 
     const trade = await screen.findByRole('checkbox', { name: /Trade/ });
@@ -298,21 +303,21 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     expect(putSpy).toHaveBeenCalledWith(CHANNELS_URL, { salesChannelIds: [RETAIL, TRADE] });
     await waitFor(() => expect(trade.getAttribute('aria-busy')).toBeNull());
     expect(trade).toBeChecked();
-    // The tick is not a staged change: the count still counts only the VAT status.
+    // The tick is not a staged change: the count still counts only the e-mails.
     expect(saveButton()).toHaveAccessibleName('Save 1 change');
-    expect(screen.getByLabelText(coreEn['organizations.detail.vatStatus']!)).toHaveValue('vat_exempt');
+    expect(emailsField()).toHaveValue('ops@example.com');
   });
 
   it('writes nothing on change or on blur; Save counts every change', async () => {
     renderDetail();
     await ready();
     await editEverything();
-    // The status select, the e-mails' blur, the display-mode select and the negotiation
-    // checkbox all used to write at once.
+    // The e-mails' blur, the display-mode select and the negotiation checkbox all used to
+    // write at once.
     expect(writes).toEqual([]);
-    // status, VAT status, e-mails, fulfilment, custom field, restrictions (one list) — six host
-    // changes — plus the three participants.
-    expect(saveButton()).toHaveAccessibleName('Save 9 changes');
+    // e-mails, fulfilment, custom field, restrictions (one list) — four host changes — plus the
+    // three participants.
+    expect(saveButton()).toHaveAccessibleName('Save 7 changes');
   });
 
   it('writes the host part first — one PATCH with expectedUpdatedAt, then the restrictions — then the panels in zone order', async () => {
@@ -330,9 +335,8 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
       `PUT ${NEGOTIATION_URL}`,
     ]);
     expect(patchSpy).toHaveBeenCalledTimes(1);
+    // Never the status or the VAT status (#1468).
     expect(patchSpy.mock.calls[0]?.[1]).toEqual({
-      status: 'blocked',
-      vatStatus: 'vat_exempt',
       orderConfirmationEmails: ['ops@example.com', 'sales@example.com'],
       fulfilmentStrategy: 'any',
       fulfilmentStrategyWarehouseOrder: null,
@@ -405,7 +409,7 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     // Reloaded, and every change on the page is gone.
     expect(getSpy.mock.calls.filter(([url]) => url === ORG_URL).length).toBeGreaterThan(readsBefore);
     await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save'));
-    expect(screen.getByLabelText(coreEn['organizations.detail.accountStatus']!)).toHaveValue('active');
+    expect(emailsField()).toHaveValue('');
     expect(await screen.findByLabelText('Account manager')).toHaveValue('Ada');
     await waitFor(() => expect(screen.getByLabelText(coreEn['priceLists.displayMode.rowLabel']!)).toHaveValue('gross_only'));
     await waitFor(() => expect(screen.getByLabelText('Card')).not.toBeChecked());
@@ -436,7 +440,7 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     });
     renderDetail();
     await ready();
-    fireEvent.change(screen.getByLabelText(coreEn['organizations.detail.vatStatus']!), { target: { value: 'vat_exempt' } });
+    fireEvent.change(emailsField(), { target: { value: 'ops@example.com' } });
     fireEvent.change(screen.getByLabelText(coreEn['priceLists.displayMode.rowLabel']!), { target: { value: 'both' } });
     fireEvent.click(saveButton());
 
@@ -465,15 +469,15 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
       expect(heading.textContent, title).toContain(badge);
     }
     // The section Save covers carry none.
-    const statusTitle = screen.getByText(coreEn['organizations.detail.statusCard']!);
-    expect(statusTitle.textContent).not.toContain(badge);
+    const notificationsTitle = screen.getByText(coreEn['organizations.detail.notificationsCard']!);
+    expect(notificationsTitle.textContent).not.toContain(badge);
 
     // Removing a member still applies at once, and a staged host change stays staged.
-    fireEvent.change(screen.getByLabelText(coreEn['organizations.detail.vatStatus']!), { target: { value: 'vat_exempt' } });
+    fireEvent.change(emailsField(), { target: { value: 'ops@example.com' } });
     fireEvent.click(within(screen.getByText(MEMBER.email).closest('tr') as HTMLElement).getByRole('button', { name: coreEn['organizations.detail.remove']! }));
     await waitFor(() => expect(writes).toEqual([`DELETE ${ORG_URL}/members/${MEMBER.id}`]));
     await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save 1 change'));
-    expect(screen.getByLabelText(coreEn['organizations.detail.vatStatus']!)).toHaveValue('vat_exempt');
+    expect(emailsField()).toHaveValue('ops@example.com');
   });
 
   it('without customers:manage the screen\'s own sections are read-only and there is no Save', async () => {
@@ -481,9 +485,7 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     await screen.findByText('Ada');
     await screen.findByLabelText('Card');
     for (const control of [
-      screen.getByLabelText(coreEn['organizations.detail.accountStatus']!),
-      screen.getByLabelText(coreEn['organizations.detail.vatStatus']!),
-      screen.getByLabelText('order-confirmation-emails'),
+      emailsField(),
       screen.getByLabelText(coreEn['fulfilment.label']!),
       screen.getByLabelText('Card'),
     ]) {
@@ -492,6 +494,9 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     // The custom field is shown as its value, with no input to type into.
     expect(screen.queryByRole('textbox', { name: 'Account manager' })).toBeNull();
     expect(screen.queryByRole('button', { name: SAVE })).toBeNull();
+    // Neither the moderation actions nor the VAT status change are offered (#1468).
+    expect(screen.queryByRole('button', { name: coreEn['organizations.moderation.action.block']! })).toBeNull();
+    expect(screen.queryByRole('button', { name: orgEn['changeVatStatus.button']! })).toBeNull();
     expect(writes).toEqual([]);
   });
 
@@ -502,5 +507,38 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     const event = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(event);
     expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('has no status or VAT status control; the header shows the VAT status as text (#1468)', async () => {
+    renderDetail();
+    await ready();
+    expect(screen.queryByLabelText('Account status')).toBeNull();
+    expect(screen.queryByLabelText(coreEn['organizations.detail.vatStatus']!)).toBeNull();
+    expect(screen.queryByRole('combobox', { name: /status/i })).toBeNull();
+    const vat = screen.getByText(orgEn['vatStatus.vat_payer']!);
+    expect(vat.parentElement?.textContent).toContain(`${coreEn['organizations.detail.vatStatus']!}:`);
+    // The moderation panel is the one place the organization status is shown and changed.
+    expect(screen.getByRole('button', { name: coreEn['organizations.moderation.action.block']! })).toBeEnabled();
+  });
+
+  it('shows the VAT status in the header of a personal organization too', async () => {
+    stored = { ...initialOrg(), name: 'Jan Kowalski', taxId: null, isPersonal: true, vatStatus: 'vat_exempt' };
+    renderDetail();
+    await ready();
+    const vat = screen.getByText(orgEn['vatStatus.vat_exempt']!);
+    expect(vat.parentElement?.textContent).toContain(`${coreEn['organizations.detail.vatStatus']!}:`);
+  });
+
+  it('"Show" on a refused host part focuses the order-confirmation e-mails', async () => {
+    patchSpy.mockRejectedValue(
+      new ApiError(400, { error: { code: 'VALIDATION_ERROR', message: 'Refused.', requestId: 'r' } } as never),
+    );
+    renderDetail();
+    await ready();
+    fireEvent.change(emailsField(), { target: { value: 'ops@example.com' } });
+    fireEvent.click(saveButton());
+    const show = await screen.findByRole('button', { name: new RegExp(coreEn['saveSession.summary.show']!) });
+    fireEvent.click(show);
+    await waitFor(() => expect(document.activeElement?.id).toBe('orderConfEmails'));
   });
 });

@@ -47,6 +47,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
 | `open-email-blocks` | `/transactional-emails/blocks` | `transactional_emails:read` |
+| `open-email-branding` | `/transactional-emails/branding` | `transactional_emails:read` |
 | `open-email-templates` | `/transactional-emails/templates` | `transactional_emails:read` |
 | `open-transactional-emails` | `/transactional-emails` | `transactional_emails:read` |
 

@@ -166,7 +166,7 @@ const SUBJECTS: readonly Subject[] = [
     module: 'transactional_emails',
     route: '/transactional-emails',
     permission: 'transactional_emails:read',
-    // The module's write code. Every one of its six screens opens on the read
+    // The module's write code. Every one of its seven screens opens on the read
     // code and gates its own saves on this one, so holding it alone opens
     // nothing — the codes are opaque strings.
     nearMiss: 'transactional_emails:write',
@@ -179,12 +179,15 @@ const SUBJECTS: readonly Subject[] = [
       '/transactional-emails/blocks/:id',
       '/transactional-emails/templates',
       '/transactional-emails/templates/:id',
+      // Issue #1466 — the branding screen, which shipped unmounted.
+      '/transactional-emails/branding',
       '/transactional-emails/:code',
     ],
     navTargets: [
       '/transactional-emails',
       '/transactional-emails/blocks',
       '/transactional-emails/templates',
+      '/transactional-emails/branding',
     ],
     retiredSharedKeys: [
       'appShell.nav.transactionalEmails',
@@ -634,10 +637,11 @@ describe('the moved screens take no reach the package cannot resolve', () => {
     'newsletter/src/admin/pages/SubscribersPage.tsx',
     'newsletter/src/admin/pages/TagsPage.tsx',
     'transactional_emails/src/admin/api/transactional-emails-client.ts',
-    'transactional_emails/src/admin/components/BrandingPanel.tsx',
+    'transactional_emails/src/admin/components/branding-draft.ts',
     'transactional_emails/src/admin/components/EmailEditorPane.tsx',
     'transactional_emails/src/admin/pages/EmailBlockEditorPage.tsx',
     'transactional_emails/src/admin/pages/EmailBlocksPage.tsx',
+    'transactional_emails/src/admin/pages/EmailBrandingPage.tsx',
     'transactional_emails/src/admin/pages/EmailEditor.tsx',
     'transactional_emails/src/admin/pages/EmailFragmentEditor.tsx',
     'transactional_emails/src/admin/pages/EmailTemplateEditorPage.tsx',
