@@ -52,6 +52,8 @@ import type { NewsletterTag as NewsletterTagRow } from '../../../packages/module
 import type { PromptActionRequest as PromptActionRequestRow } from '../../../packages/modules/prompt_actions/src/backend/entities/prompt-action-request.entity.js';
 import type { Refund as RefundRow } from '../../../packages/modules/returns/src/backend/entities/refund.entity.js';
 import type { ReturnCase as ReturnCaseRow } from '../../../packages/modules/returns/src/backend/entities/return-case.entity.js';
+import type { ReturnCaseAttachment as ReturnCaseAttachmentRow } from '../../../packages/modules/returns/src/backend/entities/return-case-attachment.entity.js';
+import type { ReturnCaseClause as ReturnCaseClauseRow } from '../../../packages/modules/returns/src/backend/entities/return-case-clause.entity.js';
 import type { ReturnCaseComment as ReturnCaseCommentRow } from '../../../packages/modules/returns/src/backend/entities/return-case-comment.entity.js';
 import type { ReturnCaseItem as ReturnCaseItemRow } from '../../../packages/modules/returns/src/backend/entities/return-case-item.entity.js';
 import type { ReturnReason as ReturnReasonRow } from '../../../packages/modules/returns/src/backend/entities/return-reason.entity.js';
@@ -579,6 +581,16 @@ export const ReturnCase = classNamed<ReturnCaseRow>(
   installedModuleEntities,
   'returns',
   'ReturnCase',
+);
+export const ReturnCaseAttachment = classNamed<ReturnCaseAttachmentRow>(
+  installedModuleEntities,
+  'returns',
+  'ReturnCaseAttachment',
+);
+export const ReturnCaseClause = classNamed<ReturnCaseClauseRow>(
+  installedModuleEntities,
+  'returns',
+  'ReturnCaseClause',
 );
 export const ReturnCaseComment = classNamed<ReturnCaseCommentRow>(
   installedModuleEntities,

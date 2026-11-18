@@ -1375,9 +1375,9 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // than as a debt that quietly moved house.
   'packages/modules/delivery_methods/src/admin/pages/DeliveryMethodsPage.tsx': 6,
   'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 11,
-  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 24,
+  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 14,
   'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 14,
-  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 11,
+  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 4,
   // Feature 091, Phase 4 batch five: the screen moved into `stripe`'s package
   // and the entry is **re-keyed**, not raised and not dropped — the same
   // twenty-nine strings at a new address, which this check's two-way ratchet

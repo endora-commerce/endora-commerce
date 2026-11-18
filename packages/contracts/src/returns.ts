@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoDateTimeSchema, uuidSchema } from './common.js';
+import { calendarDateSchema, isoDateTimeSchema, uuidSchema } from './common.js';
 import { twoDecimalAmount } from './money-input.js';
 import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 
@@ -20,7 +20,12 @@ export const returnKindSchema = z.enum(['return', 'complaint']);
 export type ReturnKind = z.infer<typeof returnKindSchema>;
 
 /** Settlement resolution chosen by the admin. */
-export const resolutionTypeSchema = z.enum(['refund', 'credit', 'replacement', 'repair']);
+/**
+ * `settled_outside` (`specs/180-off-platform-complaints/` FR-B33a, research R-19): a
+ * case without a platform order settled the way the purchase was made — no money moves
+ * through the platform, and an operator note says how.
+ */
+export const resolutionTypeSchema = z.enum(['refund', 'credit', 'replacement', 'repair', 'settled_outside']);
 export type ResolutionType = z.infer<typeof resolutionTypeSchema>;
 
 /**
@@ -84,6 +89,14 @@ export const returnStatusSchema = z.object({
   isSystem: z.boolean(),
   weight: z.number().int(),
   color: z.string(),
+  /**
+   * `specs/180-off-platform-complaints/` FR-A30: a transition into this status
+   * e-mails the filing customer (`return_status_entered`). Ignored for
+   * `authorized` and `rejected`, which send their dedicated e-mail — the write
+   * refuses `true` on those two (`dedicated_email_status`). Filing a case is not
+   * an entry into the initial status (D-2), so it never sends this e-mail.
+   */
+  notifyCustomerOnEntry: z.boolean(),
 });
 export type ReturnStatusDto = z.infer<typeof returnStatusSchema>;
 
@@ -107,6 +120,7 @@ export const returnStatusCreateSchema = z.object({
   isTerminal: z.boolean().optional(),
   weight: z.number().int().optional(),
   color: z.string().max(16).optional(),
+  notifyCustomerOnEntry: z.boolean().optional(),
 });
 
 export const returnStatusUpdateSchema = z.object({
@@ -115,6 +129,7 @@ export const returnStatusUpdateSchema = z.object({
   isTerminal: z.boolean().optional(),
   weight: z.number().int().optional(),
   color: z.string().max(16).optional(),
+  notifyCustomerOnEntry: z.boolean().optional(),
 });
 
 export const returnTransitionsSetSchema = z.object({
@@ -129,8 +144,10 @@ export const returnTransitionsSetSchema = z.object({
 
 export const returnCaseItemSchema = z.object({
   id: uuidSchema,
-  orderItemId: uuidSchema,
-  productId: uuidSchema,
+  /** `null` on a line of a case without a platform order (180 FR-B12). */
+  orderItemId: uuidSchema.nullable(),
+  /** `null` for a free-text model (180 FR-B12). */
+  productId: uuidSchema.nullable(),
   productName: z.string(),
   quantity: z.number().int().positive(),
   reasonId: uuidSchema.nullable(),
@@ -147,6 +164,8 @@ export const returnCaseItemSchema = z.object({
    * wire, so an older producer still parses.
    */
   returnableAtPurchase: z.boolean().nullable().optional(),
+  /** 180 FR-B12 — the serial number the customer gave, on a complaint line. */
+  serialNumber: z.string().nullable(),
 });
 export type ReturnCaseItemDto = z.infer<typeof returnCaseItemSchema>;
 
@@ -155,6 +174,12 @@ export const returnCaseCommentSchema = z.object({
   authorKind: z.enum(['admin', 'customer']),
   body: z.string(),
   isCustomerVisible: z.boolean(),
+  /**
+   * `specs/180-off-platform-complaints/` FR-A20: the operator asked for the
+   * comment to be e-mailed. Admin view only — the buyer's view leaves it out —
+   * and it says "requested", not "sent": delivery is asynchronous (FR-A50).
+   */
+  notifyCustomer: z.boolean().optional(),
   createdAt: isoDateTimeSchema,
 });
 export type ReturnCaseCommentDto = z.infer<typeof returnCaseCommentSchema>;
@@ -163,7 +188,8 @@ export const returnCaseSummarySchema = z.object({
   id: uuidSchema,
   rmaNumber: z.string().nullable(),
   kind: returnKindSchema,
-  orderId: uuidSchema,
+  /** `null` = a case without a platform order (180 R5, FR-B34). */
+  orderId: uuidSchema.nullable(),
   statusCode: returnStatusCodeSchema,
   statusLabel: z.string(),
   totalRefundAmount: z.number().finite(),
@@ -179,8 +205,119 @@ export const returnCaseSummarySchema = z.object({
    * row (`adminReturnRowSchema`) inherits it through `.extend`.
    */
   customerAccountId: uuidSchema,
+  /**
+   * `specs/180-off-platform-complaints/` FR-A44 (D-4, research R-20): the case's
+   * readable reference — its RMA number once assigned, until then `#` plus the
+   * first eight hex characters of its id, upper-cased. Computed on read, never
+   * stored; a display aid, not a key (the link carries the id).
+   */
+  reference: z.string(),
+  /** 180 FR-B34 — derived: the case has no platform order. Never written. */
+  offPlatform: z.boolean(),
+  /** 180 D-3 — the first line's product name; the reader composes "+N more" from `lineCount`. */
+  productLabel: z.string(),
+  lineCount: z.number().int().nonnegative(),
+  /** 180 D-3 — the purchase date of a case without an order; `null` on order cases. */
+  purchaseDate: calendarDateSchema.nullable(),
 });
 export type ReturnCaseSummary = z.infer<typeof returnCaseSummarySchema>;
+
+/** 180 FR-B16 — the ship-back address as submitted. */
+export const returnAddressSnapshotSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  company: z.string().trim().max(200).optional(),
+  street: z.string().trim().min(1).max(255),
+  postalCode: z.string().trim().min(1).max(20),
+  city: z.string().trim().min(1).max(120),
+  countryCode: z.string().regex(/^[A-Z]{2}$/, 'ISO 3166-1 alpha-2'),
+  phone: z.string().trim().max(40).optional(),
+});
+export type ReturnAddressSnapshot = z.infer<typeof returnAddressSnapshotSchema>;
+
+/** 180 FR-B16 — the contact data as submitted. */
+export const returnContactSchema = z.object({
+  name: z.string(),
+  email: z.string(),
+  phone: z.string().nullable(),
+});
+export type ReturnContact = z.infer<typeof returnContactSchema>;
+
+export const returnClauseModeSchema = z.enum(['must_accept', 'inform_only']);
+export type ReturnClauseMode = z.infer<typeof returnClauseModeSchema>;
+
+/**
+ * 180 FR-B31 — a clause as the submission showed it, stored with the case: every
+ * clause shown (both modes), in the submission language, with the link as shown.
+ */
+export const shownClauseSchema = z.object({
+  clauseId: uuidSchema,
+  revision: z.number().int(),
+  mode: returnClauseModeSchema,
+  language: z.string(),
+  label: z.string(),
+  text: z.string(),
+  linkUrl: z.string().url().nullable(),
+});
+export type ShownClause = z.infer<typeof shownClauseSchema>;
+
+/** 180 FR-B20 — what an attachment is. */
+export const returnAttachmentTypeSchema = z.enum(['photo', 'proof_of_purchase', 'other']);
+export type ReturnAttachmentType = z.infer<typeof returnAttachmentTypeSchema>;
+
+/**
+ * An attachment of a case (180 FR-B20, FR-B23; research R-12). Its bytes are served by
+ * the case's own guarded file routes; it is never a media-library asset.
+ */
+export const returnAttachmentSchema = z.object({
+  id: uuidSchema,
+  returnCaseId: uuidSchema,
+  /** The line the file shows (a photo of that product's defect); `null` for the whole case. */
+  returnCaseItemId: uuidSchema.nullable(),
+  type: returnAttachmentTypeSchema,
+  filename: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  createdAt: isoDateTimeSchema,
+});
+export type ReturnAttachmentDto = z.infer<typeof returnAttachmentSchema>;
+
+/** `POST /api/v1/returns/uploads` — a pending upload, claimed by the create request (180 §C2). */
+export const returnUploadSchema = z.object({
+  uploadId: uuidSchema,
+  type: returnAttachmentTypeSchema,
+  filename: z.string(),
+  mimeType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  expiresAt: isoDateTimeSchema,
+});
+export type ReturnUploadDto = z.infer<typeof returnUploadSchema>;
+
+/** The non-file fields of a multipart upload (180 §C2, §C4). */
+export const returnAttachmentUploadFieldsSchema = z.object({
+  type: returnAttachmentTypeSchema,
+  returnCaseItemId: uuidSchema.optional(),
+});
+
+/** The limits an upload is judged by (180 FR-B20). */
+export const RETURN_ATTACHMENT_LIMITS = {
+  maxFileBytes: 10 * 1024 * 1024,
+  maxSubmissionBytes: 30 * 1024 * 1024,
+  maxFilesPerCase: 10,
+  acceptedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+} as const;
+
+/**
+ * Who authorized a case (`specs/180-off-platform-complaints/` FR-A40 – FR-A43).
+ * `adminUserId` null: authorized before the authorizer was recorded and the
+ * audit log names nobody (*unknown*). `name` null with an id: the id resolves to
+ * no administrator any more (*former administrator*). The name is resolved at
+ * read, never stored.
+ */
+export const returnCaseAuthorizerSchema = z.object({
+  adminUserId: uuidSchema.nullable(),
+  name: z.string().nullable(),
+});
+export type ReturnCaseAuthorizer = z.infer<typeof returnCaseAuthorizerSchema>;
 
 /**
  * What became of the corrective invoice for a settled case (D-92, issue #156).
@@ -248,6 +385,26 @@ export const returnCaseDetailSchema = returnCaseSummarySchema.extend({
   consumerWithdrawal: z.boolean().nullable(),
   /** The consumer's consent to a resolution other than a refund, when one is on record (design D1). */
   alternativeResolutionConsent: alternativeResolutionConsentSchema.nullable(),
+  /** When the case entered `authorized`; null while it has not. */
+  authorizedAt: isoDateTimeSchema.nullable(),
+  /**
+   * `specs/180-off-platform-complaints/` FR-A41: who authorized it. Null while the
+   * case is not authorized — and on the buyer's view, which names no operator.
+   */
+  authorizedBy: returnCaseAuthorizerSchema.nullable(),
+  // --- 180 phase B (contracts/admin-api.md §B2) ---
+  /** The purchase as the customer stated it; `null` on order cases. */
+  purchase: z.object({ proofNumber: z.string().nullable(), date: calendarDateSchema }).nullable(),
+  /** `null` on order cases and after erasure (FR-B43). */
+  contact: returnContactSchema.nullable(),
+  returnAddress: returnAddressSnapshotSchema.nullable(),
+  attachments: z.array(returnAttachmentSchema),
+  acceptedClauses: z.array(shownClauseSchema),
+  clausesAcceptedAt: isoDateTimeSchema.nullable(),
+  /** The note of a `settled_outside` settlement — admin view only (`null` on the buyer's). */
+  resolutionNote: z.string().nullable(),
+  /** When the filer's personal data was erased (D-8) — admin view only. */
+  personalDataErasedAt: isoDateTimeSchema.nullable(),
 });
 export type ReturnCaseDetail = z.infer<typeof returnCaseDetailSchema>;
 
@@ -286,40 +443,178 @@ export const returnableResponseSchema = z.object({
 });
 export type ReturnableResponse = z.infer<typeof returnableResponseSchema>;
 
-export const createReturnCaseRequestSchema = z.object({
+/** The refusal of a no-order line naming both or neither a product and a model (180 FR-B12). */
+export const PRODUCT_OR_MODEL_REQUIRED = 'product_or_model_required';
+
+const clauseReferenceSchema = z.object({ id: uuidSchema, revision: z.number().int().positive() });
+
+/** What both branches of the create request may carry (180 §C3). */
+const createReturnCaseCommon = {
+  /**
+   * Pending uploads of the caller, claimed in the case's transaction (research R-12).
+   * `line` ties a file to one line of this request — its index in `lines` — so a photo
+   * shows the defect of that product; without it the file belongs to the whole case.
+   */
+  attachments: z
+    .array(z.object({ uploadId: uuidSchema, line: z.number().int().min(0).max(REQUEST_LINE_ITEMS_MAX - 1).optional() }))
+    .max(RETURN_ATTACHMENT_LIMITS.maxFilesPerCase)
+    .optional(),
+  /** Every clause the form rendered (research R-14). */
+  shownClauses: z.array(clauseReferenceSchema).optional(),
+  /** The `must_accept` clauses ticked. */
+  acceptedClauses: z.array(clauseReferenceSchema).optional(),
+  comment: z.string().max(2000).optional(),
+  /** Idempotency key of the post (research R-18). */
+  submissionKey: uuidSchema.optional(),
+};
+
+const orderReturnLineSchema = z.strictObject({
+  orderItemId: uuidSchema,
+  quantity: lineQuantitySchema,
+  reasonId: uuidSchema,
+  description: z.string().max(2000).optional(),
+  serialNumber: z.string().trim().max(100).optional(),
+});
+
+const offPlatformReturnLineSchema = z
+  .strictObject({
+    productId: uuidSchema.optional(),
+    modelName: z.string().trim().min(1).max(255).optional(),
+    quantity: lineQuantitySchema,
+    reasonId: uuidSchema,
+    description: z.string().trim().min(1).max(2000),
+    serialNumber: z.string().trim().max(100).optional(),
+  })
+  .refine((l) => Boolean(l.productId) !== Boolean(l.modelName), {
+    message: PRODUCT_OR_MODEL_REQUIRED,
+    params: { code: PRODUCT_OR_MODEL_REQUIRED },
+  });
+
+/** A case against a platform order (unchanged but for the fields of 180 §C3). */
+export const createOrderReturnCaseRequestSchema = z.strictObject({
   orderId: uuidSchema,
   kind: returnKindSchema,
-  lines: z
-    .array(
-      z.object({
-        orderItemId: uuidSchema,
-        quantity: lineQuantitySchema,
-        reasonId: uuidSchema,
-        description: z.string().max(2000).optional(),
-      }),
-    )
-    .min(1)
-    .max(REQUEST_LINE_ITEMS_MAX),
-  attachmentAssetIds: z.array(uuidSchema).optional(),
-  comment: z.string().max(2000).optional(),
+  lines: z.array(orderReturnLineSchema).min(1).max(REQUEST_LINE_ITEMS_MAX),
+  ...createReturnCaseCommon,
 });
+
+/** A complaint without a platform order (180 FR-B10 – FR-B16). */
+export const createOffPlatformComplaintRequestSchema = z.strictObject({
+  orderId: z.null(),
+  kind: z.literal('complaint'),
+  lines: z.array(offPlatformReturnLineSchema).min(1).max(REQUEST_LINE_ITEMS_MAX),
+  purchase: z.strictObject({ proofNumber: z.string().trim().max(100).optional(), date: calendarDateSchema }),
+  contact: z.strictObject({
+    name: z.string().trim().min(1).max(200),
+    email: z.string().trim().email().max(254),
+    phone: z.string().trim().max(40).optional(),
+  }),
+  returnAddress: returnAddressSnapshotSchema,
+  ...createReturnCaseCommon,
+});
+
+/**
+ * `POST /api/v1/returns` (180 §C3). `attachmentAssetIds` is **removed**: no customer
+ * could create an asset, and it linked any asset id unchecked (research F5, R-12). It is
+ * refused as an unknown key, so a caller still sending it learns it at once.
+ */
+export const createReturnCaseRequestSchema = z.union([
+  createOrderReturnCaseRequestSchema,
+  createOffPlatformComplaintRequestSchema,
+]);
 export type CreateReturnCaseRequest = z.infer<typeof createReturnCaseRequestSchema>;
+export type CreateOrderReturnCaseRequest = z.infer<typeof createOrderReturnCaseRequestSchema>;
+export type CreateOffPlatformComplaintRequest = z.infer<typeof createOffPlatformComplaintRequestSchema>;
 
 export const customerAddCommentRequestSchema = z.object({ body: z.string().min(1).max(2000) });
 
-export const addReturnAttachmentRequestSchema = z.object({
-  assetId: uuidSchema,
-  returnCaseItemId: uuidSchema.optional(),
+/** A clause as the form renders it, in the request language (180 §C1). */
+export const returnFormClauseSchema = z.object({
+  id: uuidSchema,
+  revision: z.number().int(),
+  mode: returnClauseModeSchema,
+  label: z.string(),
+  text: z.string(),
+  linkUrl: z.string().url().nullable(),
+});
+export type ReturnFormClause = z.infer<typeof returnFormClauseSchema>;
+
+/** `GET /api/v1/returns/form-config` (180 §C1, research R-21). */
+export const returnFormConfigSchema = z.object({
+  offPlatformComplaintsEnabled: z.boolean(),
+  proofOfPurchaseRequired: z.boolean(),
+  /** D-11 — the confirmation e-mail (`return_submitted`) is active. */
+  confirmationEmailEnabled: z.boolean(),
+  /** D-12 — the shop's day in `returns.time_zone`. */
+  today: calendarDateSchema,
+  clauses: z.array(returnFormClauseSchema),
+  attachmentLimits: z.object({
+    maxFileBytes: z.number().int(),
+    maxSubmissionBytes: z.number().int(),
+    maxFilesPerCase: z.number().int(),
+    acceptedMimeTypes: z.array(z.string()),
+  }),
+});
+export type ReturnFormConfig = z.infer<typeof returnFormConfigSchema>;
+
+export const returnFormConfigQuerySchema = z.object({
+  kind: returnKindSchema.optional(),
+  orderId: uuidSchema.optional(),
 });
 
-export const returnAttachmentSchema = z.object({
+// ---------------------------------------------------------------------------
+// Clauses (180 US7, contracts/admin-api.md §B5)
+// ---------------------------------------------------------------------------
+
+const localizedClauseText = (max: number) => z.record(z.string().min(2), z.string().trim().min(1).max(max));
+const localizedHttpsUrl = z.record(
+  z.string().min(2),
+  z.string().url().max(2000).refine((u) => u.startsWith('https://'), { message: 'https_required' }),
+);
+
+export const returnClauseAppliesToSchema = z.enum(['return', 'complaint', 'both']);
+
+export const returnCaseClauseSchema = z.object({
   id: uuidSchema,
-  returnCaseId: uuidSchema,
-  returnCaseItemId: uuidSchema.nullable(),
-  assetId: uuidSchema,
+  label: localizedClauseText(120),
+  text: localizedClauseText(5000),
+  linkUrl: localizedHttpsUrl.nullable(),
+  appliesTo: returnClauseAppliesToSchema,
+  mode: returnClauseModeSchema,
+  salesChannelId: uuidSchema.nullable(),
+  weight: z.number().int(),
+  isActive: z.boolean(),
+  revision: z.number().int().positive(),
   createdAt: isoDateTimeSchema,
+  updatedAt: isoDateTimeSchema,
 });
-export type ReturnAttachmentDto = z.infer<typeof returnAttachmentSchema>;
+export type ReturnCaseClauseDto = z.infer<typeof returnCaseClauseSchema>;
+
+export const createReturnCaseClauseRequestSchema = returnCaseClauseSchema
+  .pick({ label: true, text: true, linkUrl: true, appliesTo: true, mode: true, salesChannelId: true, weight: true, isActive: true })
+  .partial({ linkUrl: true, appliesTo: true, mode: true, salesChannelId: true, weight: true, isActive: true });
+export type CreateReturnCaseClauseRequest = z.infer<typeof createReturnCaseClauseRequestSchema>;
+
+export const updateReturnCaseClauseRequestSchema = createReturnCaseClauseRequestSchema.partial();
+export type UpdateReturnCaseClauseRequest = z.infer<typeof updateReturnCaseClauseRequestSchema>;
+
+// ---------------------------------------------------------------------------
+// Events (180 settings-emails-events.md §3)
+// ---------------------------------------------------------------------------
+
+/** Emitted by Command `return_case.create`, dispatched after commit. Ids only. */
+export const RETURN_CASE_CREATED_EVENT = 'return_case.created.v1';
+
+export const ReturnCaseCreatedEventV1Schema = z.strictObject({
+  eventId: uuidSchema,
+  occurredAt: isoDateTimeSchema,
+  returnCaseId: uuidSchema,
+  organizationId: uuidSchema,
+  salesChannelId: uuidSchema,
+  kind: returnKindSchema,
+  offPlatform: z.boolean(),
+});
+export type ReturnCaseCreatedEventV1 = z.infer<typeof ReturnCaseCreatedEventV1Schema>;
 
 // ---------------------------------------------------------------------------
 // Admin requests (US2 / US3)
@@ -332,15 +627,35 @@ export const adminTransitionRequestSchema = z.object({
 
 export const adminRejectRequestSchema = z.object({ reason: z.string().min(1).max(2000) });
 
-export const adminAddCommentRequestSchema = z.object({
-  body: z.string().min(1).max(2000),
-  isCustomerVisible: z.boolean(),
-  notifyCustomer: z.boolean(),
-});
+/**
+ * The refusal of `notifyCustomer` on an internal comment
+ * (`specs/180-off-platform-complaints/` FR-A21): the issue's message and the
+ * `details.code` of the route's 422 `VALIDATION_FAILED`.
+ */
+export const NOTIFY_REQUIRES_CUSTOMER_VISIBLE = 'notify_requires_customer_visible';
+
+export const adminAddCommentRequestSchema = z
+  .object({
+    body: z.string().min(1).max(2000),
+    isCustomerVisible: z.boolean(),
+    notifyCustomer: z.boolean(),
+  })
+  .refine((b) => !(b.notifyCustomer && !b.isCustomerVisible), {
+    path: ['notifyCustomer'],
+    message: NOTIFY_REQUIRES_CUSTOMER_VISIBLE,
+    params: { code: NOTIFY_REQUIRES_CUSTOMER_VISIBLE },
+  });
+export type AdminAddCommentRequest = z.infer<typeof adminAddCommentRequestSchema>;
 
 export const adminReturnRowSchema = returnCaseSummarySchema.extend({
   customerName: z.string().nullable(),
   organizationName: z.string().nullable(),
+  /**
+   * `specs/180-off-platform-complaints/` FR-A41: the *Authorized by* column,
+   * resolved per page in one batched lookup. Not sortable
+   * ({@link adminReturnsSortSchema} is unchanged).
+   */
+  authorizedBy: returnCaseAuthorizerSchema.nullable(),
 });
 export type AdminReturnRow = z.infer<typeof adminReturnRowSchema>;
 
@@ -444,6 +759,8 @@ export const settlementRequestSchema = z.object({
    */
   deliveryRefundAmount: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
   surchargeRefundAmount: twoDecimalAmount(z.number().finite().nonnegative()).optional(),
+  /** 180 FR-B33a — how a `settled_outside` case was settled; required for that resolution. */
+  resolutionNote: z.string().trim().min(1).max(2000).optional(),
 });
 export type SettlementRequest = z.infer<typeof settlementRequestSchema>;
 
@@ -597,6 +914,8 @@ export const adminReturnsListQuerySchema = z.object({
   status: z.string().optional(),
   kind: returnKindSchema.optional(),
   rmaNumber: z.string().optional(),
+  /** 180 FR-B35 — absent = all; `off_platform` = the cases without a platform order. */
+  origin: z.enum(['platform', 'off_platform']).optional(),
   q: z.string().optional(),
   sort: adminReturnsSortSchema.optional(),
   page: z.coerce.number().int().positive().optional(),
@@ -616,6 +935,20 @@ export const bulkTransitionRequestSchema = z.object({
   to: returnStatusCodeSchema,
   reason: z.string().max(2000).optional(),
 });
+
+/**
+ * `GET /api/v1/admin/returns/notification-health` (`specs/180-off-platform-complaints/`
+ * D-7, research R-22): where the new-case e-mail goes to nobody. `global` — the
+ * global `returns.new_case_recipients` holds no valid address; `salesChannelIds`
+ * — the channels whose effective value (the channel's, else the global) holds none.
+ */
+export const returnNotificationHealthSchema = z.object({
+  recipientsMissing: z.object({
+    global: z.boolean(),
+    salesChannelIds: z.array(uuidSchema),
+  }),
+});
+export type ReturnNotificationHealth = z.infer<typeof returnNotificationHealthSchema>;
 
 export const bulkTransitionResultSchema = z.object({
   moved: z.array(uuidSchema),

@@ -29,12 +29,17 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 
 | Moduł | Wiążąca | Co to oznacza |
 | --- | --- | --- |
+| `_i18n` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
+| `admin_users` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
+| `assets_library` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `auth` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
+| `catalog` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `customer_accounts` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `orders` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `organizations` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `settings` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `transactional_emails` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
+| `admin_notifications` | nie | degrades-without `adminNotificationRecordPort` — przy nowym zwrocie lub reklamacji nie powstaje wpis w dzwonku; sprawa, wiadomość do sklepu i wiadomości do klienta działają bez zmian |
 | `credit_limits` | nie | refuses-without `creditTopupPort` — zwrotu nie można rozliczyć jako środków na koncie w sklepie — takie rozliczenie jest odrzucane; zwroty pieniędzy, wymiany i naprawy działają bez zmian |
 | `invoices` | nie | refuses-without `correctiveInvoicePort` — nie można rozliczyć żadnego zwrotu z przepływem pieniędzy, gdy wymagana jest faktura korygująca — odznaczenie tego pola w rozliczeniu pozwala zamknąć sprawę, a wymiana i naprawa działają bez zmian |
 | `payments` | nie | refuses-without `paymentRefundPort` — zwrotu nie można rozliczyć jako zwrotu pieniędzy — takie rozliczenie jest odrzucane, a sprawa zostaje w dotychczasowym stanie i można spróbować ponownie; pozostałe rodzaje rozliczeń i reszta obsługi zwrotów działają bez zmian |
@@ -51,6 +56,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
 | `open-returns` | `/returns` | `returns:read` |
+| `return-clauses` | `/returns/clauses` | `returns:read` |
 | `return-statuses` | `/returns/statuses` | `returns:read` |
 
 ## Ustawienia
@@ -60,6 +66,9 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `returns.default_cost_bearer_outside_window` | Return cost bearer outside the free-return window | `string` |
 | `returns.enabled` | Returns enabled | `boolean` |
 | `returns.free_return_days` | Free-return window (days) | `number` |
+| `returns.new_case_recipients` | New-case recipients | `string_list` |
+| `returns.off_platform_complaints_enabled` | Complaints without a platform order | `boolean` |
+| `returns.proof_of_purchase_required` | Proof of purchase required | `boolean` |
 | `returns.rma_number_prefix` | RMA number prefix | `string` |
 | `returns.rma_number_suffix` | RMA number suffix | `string` |
 | `returns.time_zone` | Time zone of the return windows | `string` |

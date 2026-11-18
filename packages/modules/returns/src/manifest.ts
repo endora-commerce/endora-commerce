@@ -29,6 +29,15 @@ export const RETURNS_SETTING_CODES = {
   DEFAULT_COST_BEARER_OUTSIDE_WINDOW: 'returns.default_cost_bearer_outside_window',
   /** The IANA zone the free-return window and the withdrawal period count calendar days in (issue #905). */
   TIME_ZONE: 'returns.time_zone',
+  /**
+   * `specs/180-off-platform-complaints/` FR-A01 — who receives the *new case*
+   * e-mail. Validated when it is sent, not when it is saved (research R-4).
+   */
+  NEW_CASE_RECIPIENTS: 'returns.new_case_recipients',
+  /** 180 FR-B01 — complaints without a platform order are accepted on the channel. */
+  OFF_PLATFORM_COMPLAINTS_ENABLED: 'returns.off_platform_complaints_enabled',
+  /** 180 FR-B21 — a complaint without a platform order needs a proof-of-purchase attachment. */
+  PROOF_OF_PURCHASE_REQUIRED: 'returns.proof_of_purchase_required',
 } as const;
 
 /** `returns.time_zone`'s default, and what a value the runtime does not know falls back to. */
@@ -94,8 +103,44 @@ const settings = defineModuleSettingsManifest({
       valueType: 'string',
       defaultValue: RETURNS_DEFAULT_TIME_ZONE,
     },
+    {
+      // `specs/180-off-platform-complaints/` FR-A01, research R-4. The shape of
+      // `orders.confirmation_recipients`; the settings store validates no list
+      // item, so an invalid entry is skipped and reported at send time.
+      code: RETURNS_SETTING_CODES.NEW_CASE_RECIPIENTS,
+      name: 'New-case recipients',
+      description:
+        'E-mail addresses that receive the "new case" e-mail for every return and complaint filed. Up to 10 addresses are used. An invalid address is skipped and reported in the e-mail log. Sales-channel value replaces the global value.',
+      groupCode: 'returns',
+      valueType: 'string_list',
+      defaultValue: [],
+    },
+    {
+      // `specs/180-off-platform-complaints/` FR-B01. Evaluated inside an active
+      // module: the module's own off state always wins over it.
+      code: RETURNS_SETTING_CODES.OFF_PLATFORM_COMPLAINTS_ENABLED,
+      name: 'Complaints without a platform order',
+      description:
+        'Customers may file a complaint about goods they did not buy on this platform: they name the product or model, the purchase date and how to reach them. Such a complaint is settled by repair, replacement or outside the platform, never by a refund here. Sales-channel value overrides the global value.',
+      groupCode: 'returns',
+      valueType: 'boolean',
+      defaultValue: false,
+    },
+    {
+      // `specs/180-off-platform-complaints/` FR-B21 (Clarifications).
+      code: RETURNS_SETTING_CODES.PROOF_OF_PURCHASE_REQUIRED,
+      name: 'Proof of purchase required',
+      description:
+        'A complaint without a platform order is accepted only with an attachment typed "proof of purchase". Applies to complaints without a platform order only; has no effect while those are switched off. Sales-channel value overrides the global value.',
+      groupCode: 'returns',
+      valueType: 'boolean',
+      defaultValue: false,
+    },
   ],
 });
+
+/** A transactional e-mail variable as the e-mail editor lists it. */
+const variable = (key: string, label: string, sampleValue: string) => ({ key, label, sampleValue });
 
 export const manifest = defineModuleManifest({
   id: 'returns',
@@ -123,8 +168,24 @@ export const manifest = defineModuleManifest({
   // routes ask `organizationPermissionPort` whether the caller may open a case
   // and whether they see the Organization's cases. `organizations` declares
   // `nonDeactivatable`, so the bind costs no operator a control.
+  //
+  // `admin_users` arrives with `specs/180-off-platform-complaints/` phase A: its
+  // `adminUserReadPort` names the administrator who authorized a case (FR-A41) and
+  // lists the administrators the new-case bell entry goes to (research R-3). It
+  // declares `nonDeactivatable`, so the bind costs no operator a control. So does
+  // `_i18n`, whose `adminI18nService` words the CSV export's *former administrator*
+  // and *unknown* in the request's language (FR-A41).
+  //
+  // `specs/180-off-platform-complaints/` phase B adds `assets_library`, whose
+  // `objectStoragePort` holds the attachments' bytes (research R-12), and `catalog`,
+  // whose `catalogProductAvailabilityPort` judges a no-order line's product (R-17).
+  // Both declare `nonDeactivatable`, so neither bind costs an operator a control.
   dependencies: [
+    '_i18n',
+    'admin_users',
+    'assets_library',
     'auth',
+    'catalog',
     'customer_accounts',
     'orders',
     'organizations',
@@ -155,6 +216,20 @@ export const manifest = defineModuleManifest({
    * add is the sentence the operator reads.
    */
   nonBindingDependencies: [
+    {
+      // `specs/180-off-platform-complaints/` FR-A03, FR-A04, research R-3.
+      moduleId: 'admin_notifications',
+      name: 'adminNotificationRecordPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'no bell entry is recorded for a new return or complaint; the case, the shop e-mail and the customer e-mails are unaffected',
+      reason:
+        'The one call into this owner records the new-case bell entries, inside the ' +
+        '`returns-notifications` job after the case committed. The job asks ' +
+        "`effectiveState.isPresent('admin_notifications')` first and records `not_present` " +
+        'rather than catching a refusal, so an operator who switches the bell off loses ' +
+        'nothing else of the notification. No table of that owner is referenced.',
+    },
     {
       moduleId: 'payments',
       name: 'paymentRefundPort',
@@ -257,6 +332,55 @@ export const manifest = defineModuleManifest({
         { key: 'returnCaseId', label: 'Return case ID', sampleValue: '…' },
       ],
     },
+    // `specs/180-off-platform-complaints/` phase A (contracts/settings-emails-events.md
+    // §2): `caseReference` is the RMA number, else the derived `#XXXXXXXX` (FR-A44).
+    {
+      code: 'return_new_case',
+      name: 'New return or complaint (to the shop)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', '#3F9A21C0'),
+        variable('kindLabel', 'Kind', 'Complaint'),
+        variable('customerName', 'Customer', 'Ewa Nowak'),
+        variable('organizationName', 'Organization', 'Acme Sp. z o.o.'),
+        variable('productList', 'Products', '1 × Cordless drill'),
+        variable('offPlatform', 'Bought elsewhere ("yes" or empty)', ''),
+        variable('submittedAt', 'Filed at', '13 Nov 2026, 10:30'),
+        variable('adminCaseUrl', 'Link to the case in the admin panel', 'https://admin.example.com/returns/…'),
+      ],
+    },
+    {
+      code: 'return_submitted',
+      name: 'Return or complaint received (to the customer)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', '#3F9A21C0'),
+        variable('kindLabel', 'Kind', 'Complaint'),
+        variable('productList', 'Products', '1 × Cordless drill'),
+        variable('submittedAt', 'Filed at', '13 Nov 2026, 10:30'),
+        variable('caseUrl', 'Link to the case in the customer account', 'https://shop.example.com/returns/…'),
+      ],
+    },
+    {
+      code: 'return_comment_added',
+      name: 'Message on a return or complaint (to the customer)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', 'RMA-1042'),
+        variable('commentBody', 'Message', 'We received your parcel and are checking the goods.'),
+        variable('caseUrl', 'Link to the case in the customer account', 'https://shop.example.com/returns/…'),
+      ],
+    },
+    {
+      code: 'return_status_entered',
+      name: 'Return or complaint status changed (to the customer)',
+      group: 'returns',
+      variables: [
+        variable('caseReference', 'Case reference', 'RMA-1042'),
+        variable('statusName', 'New status', 'Received'),
+        variable('caseUrl', 'Link to the case in the customer account', 'https://shop.example.com/returns/…'),
+      ],
+    },
   ],
   permissions: [
     { code: 'returns:read', label: 'View returns / RMA cases' },
@@ -287,6 +411,19 @@ export const manifest = defineModuleManifest({
       keywords: ['return status', 'rma workflow'],
       keywordsKey: 'actions.returnStatusConfig.keywords',
       weight: 235,
+    },
+    {
+      // `specs/180-off-platform-complaints/` contracts/settings-emails-events.md §8:
+      // read-gated like `return-statuses` (issue #232's reasoning).
+      id: 'return-clauses',
+      labelKey: 'actions.returnClauses.label',
+      descriptionKey: 'actions.returnClauses.description',
+      icon: 'FileCheck',
+      targetRoute: '/returns/clauses',
+      requiredPermission: 'returns:read',
+      keywords: ['return terms', 'complaint clauses'],
+      keywordsKey: 'actions.returnClauses.keywords',
+      weight: 236,
     },
   ],
   activation: { settingCode: 'returns.enabled', default: true },
@@ -331,5 +468,14 @@ export const manifest = defineModuleManifest({
     { code: 'RETURN_STATUS_TERMINAL_HAS_TRANSITIONS', tokens: ['mark_terminal', 'add_transition'] },
     { code: 'RETURN_STATUS_NOT_DELETABLE', tokens: ['initial'] },
     { code: 'RETURN_STATUS_IN_USE' },
+    // `specs/180-off-platform-complaints/` contracts/settings-emails-events.md §4.
+    { code: 'RETURN_OFF_PLATFORM_DISABLED' },
+    { code: 'RETURN_PROOF_OF_PURCHASE_REQUIRED' },
+    { code: 'RETURN_CLAUSES_NOT_ACCEPTED' },
+    // The refusal travels in `details.reason` (too_large, type_not_accepted,
+    // unknown_upload, too_many, submission_too_large), never in `details.code`:
+    // one sentence, the reason beside it.
+    { code: 'RETURN_ATTACHMENT_REJECTED', tokens: [] },
+    { code: 'RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM' },
   ],
 });

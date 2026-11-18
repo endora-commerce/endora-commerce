@@ -1,6 +1,28 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
+import type { Redis } from 'ioredis';
+import { z } from 'zod';
+import {
+  CUSTOMER_ACCOUNT_ANONYMIZED_EVENT,
+  RETURN_CASE_CREATED_EVENT,
+  supportedLanguageOf,
+  type CustomerAccountAnonymizedEventV1,
+} from '@endora-commerce/contracts';
+import { ReturnErasureService } from './services/return-erasure-service.js';
+import {
+  RETURNS_ERASURE_SCOPE_REASON,
+  RETURNS_UPLOAD_SWEEP_SCOPE_REASON,
+  startReturnsMaintenance,
+  type ReturnsMaintenanceJobDeps,
+} from './workers/returns-maintenance-worker.js';
 import type {
+  AdminI18nTranslatePort,
+  AdminNotificationRecordPort,
+  AdminUserReadPort,
+  CatalogProductAvailabilityPort,
+  ObjectStoragePort,
+  ReturnCaseCreatedEventV1,
+  TransactionalEmailStatePort,
   CorrectiveInvoicePort,
   CreditTopupPort,
   CustomerAccountReadPort,
@@ -11,6 +33,7 @@ import type {
   OrganizationDetailsPort,
   OrganizationPermissionPort,
   PaymentRefundPort,
+  PermissionReadPort,
   ReturnRefundReadPort,
   SettingWriteValidatorRegistryPort,
   TransactionalEmailSender,
@@ -19,7 +42,7 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { configuredAdminBaseUrl, effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { returnsModule, type ReturnsModuleOptions } from './plugin.js';
 import { ReturnEmailNotifier } from './services/return-email-notifier.js';
@@ -29,9 +52,30 @@ import {
   createChannelLanguageResolver,
   createCustomerEmailResolver,
 } from './services/notification-context.js';
-import { RETURN_AUTHORIZED_DEFAULT, RETURN_REJECTED_DEFAULT } from './email-templates/transactional-defaults.js';
+import {
+  RETURN_AUTHORIZED_DEFAULT,
+  RETURN_COMMENT_ADDED_DEFAULT,
+  RETURN_NEW_CASE_DEFAULT,
+  RETURN_REJECTED_DEFAULT,
+  RETURN_STATUS_ENTERED_DEFAULT,
+  RETURN_SUBMITTED_DEFAULT,
+} from './email-templates/transactional-defaults.js';
+import { RETURNS_DEFAULT_TIME_ZONE, RETURNS_SETTING_CODES } from '../manifest.js';
+import { isKnownTimeZone } from './services/time-zone-validator.js';
+import { createAdminBell } from './services/notifications/admin-bell.js';
+import { ReturnsNotificationDispatch, type ReturnsNotificationJob } from './services/notifications/dispatch.js';
+import { createNewCaseRecipientResolver } from './services/notifications/recipients.js';
+import { createNotificationStore } from './services/notifications/store.js';
+import {
+  createReturnsNotificationProducer,
+  returnsNotificationProcessor,
+  startReturnsNotifications,
+  type ReturnsNotificationJobLike,
+  type ReturnsNotificationProducer,
+} from './workers/returns-notifications-worker.js';
 import { Refund } from './entities/refund.entity.js';
 import { ReturnCaseAttachment } from './entities/return-case-attachment.entity.js';
+import { ReturnCaseClause } from './entities/return-case-clause.entity.js';
 import { ReturnCaseComment } from './entities/return-case-comment.entity.js';
 import { ReturnCaseItem } from './entities/return-case-item.entity.js';
 import { ReturnCase } from './entities/return-case.entity.js';
@@ -116,6 +160,39 @@ export interface ReturnsCradle {
   readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
   /** The factory returns a bare plugin, not a `{ plugin, handle }` pair. */
   readonly returns: ReturnType<typeof returnsModule>;
+  // --- Notifications (`specs/180-off-platform-complaints/` research R-2) ---
+  readonly processRunsWorkers: boolean;
+  readonly moduleQueueRedis: Redis | undefined;
+  /** Where a customer's case page lives: `<storefrontBaseUrl>/returns/<id>` (R-5). */
+  readonly storefrontBaseUrl: string;
+  readonly returnsNotificationProducer: ReturnsNotificationProducer;
+  readonly returnsNotificationDispatch: ReturnsNotificationDispatch;
+  readonly returnsNotificationProcessor: (job: ReturnsNotificationJobLike) => Promise<unknown>;
+  // --- Erasure and maintenance (180 research R-15) ---
+  readonly returnsErasureService: ReturnErasureService;
+  readonly returnsMaintenanceDeps: ReturnsMaintenanceJobDeps;
+}
+
+/**
+ * Hand one notification job to the queue after the write it announces committed
+ * (`specs/180-off-platform-complaints/` research R-2). A failure to enqueue is
+ * logged and goes no further: the action it follows has already been answered
+ * (FR-A50). This is the accepted loss window R-2 states.
+ */
+function enqueueAfterCommit(
+  ctx: ModuleContext,
+  producer: () => ReturnsNotificationProducer,
+): (job: ReturnsNotificationJob) => Promise<void> {
+  return async (job) => {
+    try {
+      await producer().enqueue(job);
+    } catch (error) {
+      ctx.log.warn(
+        { kind: job.kind, error: error instanceof Error ? error.message : String(error) },
+        '[returns] a notification job could not be enqueued',
+      );
+    }
+  };
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -189,6 +266,24 @@ export function registerModule(ctx: ModuleContext): void {
           correctiveInvoice: lazyPort<CorrectiveInvoicePort>(ctx, 'correctiveInvoicePort'),
           creditTopup: lazyPort<CreditTopupPort>(ctx, 'creditTopupPort'),
           notifier,
+          // `specs/180-off-platform-complaints/` research R-2: filing, a notifying
+          // comment and a transition into a marked status each enqueue a job.
+          enqueueNotification: enqueueAfterCommit(ctx, () => cradle().returnsNotificationProducer),
+          adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          // 180 phase B — a no-order line's product (R-17) and the attachments' bytes
+          // (R-12). Both owners are non-deactivatable.
+          catalog: lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
+          objectStorage: lazyPort<ObjectStoragePort>(ctx, 'objectStoragePort'),
+          // 180 D-11 — the confirmation e-mail's state, from its owner (a binding dependency).
+          emailState: lazyPort<TransactionalEmailStatePort>(ctx, 'transactionalEmailStatePort'),
+          // The CSV export's wording, from this module's own bundle in the
+          // request's language (`_i18n`, non-deactivatable).
+          translate: (key, language) =>
+            lazyPort<AdminI18nTranslatePort>(ctx, 'adminI18nService').translate(
+              'returns',
+              key,
+              supportedLanguageOf(language),
+            ),
         });
       })
       .singleton(),
@@ -197,6 +292,138 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.routes(async (app) => {
     await ctx.cradle<ReturnsCradle>().returns(app);
   });
+
+  // --- Notifications (`specs/180-off-platform-complaints/` research R-2 – R-5) -----
+  // The four e-mails and the bell, sent from the `returns-notifications` queue. The
+  // producer is built on the host's queue connection (none on the shared test
+  // server, which enqueues nothing); the dispatch is the worker's body, and the
+  // processor is it inside the system scope — what the worker runs, and what a test
+  // drives. Modelled on `forms`' notifications.
+  ctx.di.register({
+    returnsNotificationProducer: ctx
+      .asFunction(({ moduleQueueRedis }: ReturnsCradle) => createReturnsNotificationProducer(moduleQueueRedis))
+      .singleton(),
+    returnsNotificationDispatch: ctx
+      .asFunction(({ emFactory, storefrontBaseUrl }: ReturnsCradle) => {
+        const settings = lazyPort<ReturnsModuleOptions['settingsService']>(ctx, 'settingsReadPort');
+        return new ReturnsNotificationDispatch({
+          isPresent: () => effectiveState.isPresent('returns'),
+          store: createNotificationStore(emFactory),
+          sender: () => ctx.cradle<ReturnsCradle>().transactionalEmailSenderAccessor(),
+          customers: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+          organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+          language: createChannelLanguageResolver(emFactory),
+          // The zone the filing date is shown in; an unknown value falls back to the
+          // manifest default, as the return windows do.
+          timeZone: async (salesChannelId) => {
+            try {
+              const value = await settings.get(RETURNS_SETTING_CODES.TIME_ZONE, salesChannelId, z.string());
+              return isKnownTimeZone(value) ? value : RETURNS_DEFAULT_TIME_ZONE;
+            } catch {
+              return RETURNS_DEFAULT_TIME_ZONE;
+            }
+          },
+          newCaseRecipients: createNewCaseRecipientResolver({ settings }),
+          bell: createAdminBell({
+            // `degrades-without` (R-3): asked first, never caught as a refusal.
+            isPresent: () => effectiveState.isPresent('admin_notifications'),
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            permissions: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
+            notifications: lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort'),
+          }),
+          storefrontBaseUrl,
+          adminBaseUrl: configuredAdminBaseUrl(),
+          log: (message, context) => ctx.log.warn(context, message),
+        });
+      })
+      .singleton(),
+    returnsNotificationProcessor: ctx
+      .asFunction(({ returnsNotificationDispatch }: ReturnsCradle) =>
+        returnsNotificationProcessor(returnsNotificationDispatch),
+      )
+      .singleton(),
+  });
+
+  // Every filed case asks for its notifications (`specs/180-off-platform-complaints/`
+  // T060, research R-2): `return_case.created.v1` is dispatched by the bus after the
+  // `return_case.create` Command commits — a refused filing emits nothing. A failure to
+  // enqueue is logged and never reaches the customer, whose answer was already written.
+  // `ctx.subscribe` stops it with the module.
+  ctx.subscribe(RETURN_CASE_CREATED_EVENT, (payload) =>
+    enqueueAfterCommit(ctx, () => ctx.cradle<ReturnsCradle>().returnsNotificationProducer)({
+      kind: 'case_submitted',
+      returnCaseId: (payload as ReturnCaseCreatedEventV1).returnCaseId,
+    }),
+  );
+
+  // The consumer: attached where `app.log` exists and through `ctx.worker`, which
+  // stops it with the module and puts back a job taken while it is off. Built only
+  // where the host says this process consumes queues and offers a connection.
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<ReturnsCradle>();
+    app.addHook('onClose', () => cradle.returnsNotificationProducer.close());
+    startReturnsNotifications({
+      dispatch: cradle.returnsNotificationDispatch,
+      processRunsWorkers: cradle.processRunsWorkers,
+      moduleQueueRedis: cradle.moduleQueueRedis,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+    });
+  });
+  // --- end of Notifications -----------------------------------------------------------
+
+  // --- Erasure and the maintenance clock (`specs/180-off-platform-complaints/` R-15) ---
+  // The anonymisation erases the cases' personal data at once; the daily
+  // `returns-maintenance` tick deletes unclaimed uploads and catches an anonymisation
+  // missed while the module was off. Both stop with the module (`ctx.subscribe`,
+  // `ctx.worker`).
+  ctx.di.register({
+    returnsErasureService: ctx
+      .asFunction(
+        ({ emFactory, commandBus }: ReturnsCradle) =>
+          new ReturnErasureService({
+            emFactory,
+            commandBus,
+            customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+            storage: lazyPort<ObjectStoragePort>(ctx, 'objectStoragePort'),
+          }),
+      )
+      .singleton(),
+    returnsMaintenanceDeps: ctx
+      .asFunction(
+        ({ returnsErasureService }: ReturnsCradle): ReturnsMaintenanceJobDeps => ({
+          isPresent: () => effectiveState.isPresent('returns'),
+          uploads: {
+            scopeReason: RETURNS_UPLOAD_SWEEP_SCOPE_REASON,
+            hasWork: async () => true,
+            run: (now) => returnsErasureService.sweepExpiredUploads(now),
+          },
+          erasure: {
+            scopeReason: RETURNS_ERASURE_SCOPE_REASON,
+            hasWork: () => returnsErasureService.hasWork(),
+            run: () => returnsErasureService.reconcile(),
+          },
+          log: ctx.log,
+        }),
+      )
+      .singleton(),
+  });
+
+  ctx.subscribe(CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, async (payload) => {
+    const { customerAccountId } = payload as CustomerAccountAnonymizedEventV1;
+    await ctx.cradle<ReturnsCradle>().returnsErasureService.eraseForAccount(customerAccountId);
+  });
+
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<ReturnsCradle>();
+    await startReturnsMaintenance({
+      deps: cradle.returnsMaintenanceDeps,
+      processRunsWorkers: cradle.processRunsWorkers,
+      moduleQueueRedis: cradle.moduleQueueRedis,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => app.addHook('onClose', close),
+    });
+  });
+  // --- end of Erasure and maintenance --------------------------------------------------
 
   /**
    * What an order's settled return cases refunded (issue #428), for the invoice
@@ -209,7 +436,7 @@ export function registerModule(ctx: ModuleContext): void {
   );
 
   /**
-   * The default subject and content for the 2 transactional emails this
+   * The default subject and content for the 6 transactional emails this
    * module declares in its manifest (T143a).
    *
    * These were fourteen `emailDefaultsRegistry.register(...)` calls in
@@ -226,6 +453,10 @@ export function registerModule(ctx: ModuleContext): void {
     const defaults = lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort');
     defaults.register('return_authorized', RETURN_AUTHORIZED_DEFAULT, 'returns');
     defaults.register('return_rejected', RETURN_REJECTED_DEFAULT, 'returns');
+    defaults.register('return_new_case', RETURN_NEW_CASE_DEFAULT, 'returns');
+    defaults.register('return_submitted', RETURN_SUBMITTED_DEFAULT, 'returns');
+    defaults.register('return_comment_added', RETURN_COMMENT_ADDED_DEFAULT, 'returns');
+    defaults.register('return_status_entered', RETURN_STATUS_ENTERED_DEFAULT, 'returns');
   });
 
   /**
@@ -254,6 +485,7 @@ export function registerModule(ctx: ModuleContext): void {
 export const entities = [
   Refund,
   ReturnCaseAttachment,
+  ReturnCaseClause,
   ReturnCaseComment,
   ReturnCaseItem,
   ReturnCase,

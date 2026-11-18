@@ -18,7 +18,11 @@ Admin routes are gated by `returns:read` (read) / `returns:write` (mutations).
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/orders/:orderId/returnable` | customer | Returnable lines + eligibility for an order |
-| `POST /api/v1/returns` | customer | Open a return/complaint case |
+| `POST /api/v1/returns` | customer | Open a return/complaint case — against an order, or a complaint without one (see *Complaints without a platform order*) |
+| `GET /api/v1/returns/form-config` | customer | What the form offers: complaints without an order, proof of purchase, the clauses, the file limits |
+| `POST /api/v1/returns/uploads` | customer | Upload one file (multipart) before the case is filed (see *Attachments*) |
+| `POST /api/v1/returns/:id/attachments` | customer | Add one file (multipart) to a filed case |
+| `GET /api/v1/returns/:id/attachments/:attachmentId/file` | customer | Download a file of a case the caller may see |
 | `GET /api/v1/returns` | customer | List the caller's cases, or the Organization's (see *Who may open, see and act on a case*) |
 | `GET /api/v1/returns/:id` | customer | Case detail (customer-visible comments only) |
 | `POST /api/v1/returns/:id/comments` | customer | Reply on a case |
@@ -35,8 +39,11 @@ Admin routes are gated by `returns:read` (read) / `returns:write` (mutations).
 | `POST /api/v1/admin/returns/:id/transition` | admin | Guarded status transition |
 | `GET\|POST /api/v1/admin/returns/:id/settlement` | admin | Prefill / execute settlement |
 | `POST\|DELETE /api/v1/admin/returns/:id/alternative-consent` | admin | Record / revoke the consumer's consent to a resolution other than a refund (see *Consumer withdrawal*) |
-| `GET\|POST /api/v1/admin/returns/:id/comments` | admin | List / add comment (visibility + notify) |
+| `GET\|POST /api/v1/admin/returns/:id/comments` | admin | List / add comment (visibility + notify; see *Notifications*) |
+| `GET /api/v1/admin/returns/notification-health` | admin | Where the new-case e-mail goes to nobody (see *Notifications*) |
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | admin | Return shipments |
+| `GET /api/v1/admin/returns/:id/attachments/:attachmentId/file` | admin | Download a case's file |
+| `GET\|POST /api/v1/admin/returns/clauses`, `PATCH\|DELETE …/clauses/:id` | admin | The clauses of the returns form (see *Clauses*) |
 | `GET\|POST /api/v1/admin/returns/list-views` | admin | The caller's own saved views plus every shared one / save a view |
 | `PATCH\|DELETE /api/v1/admin/returns/list-views/:id` | admin | Change / delete a saved view (owner, or a platform admin for a shared one) |
 | `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods` | admin | Configuration |
@@ -117,6 +124,167 @@ Transitions are enforced; the initial status is immutable; terminal statuses
 have no outgoing edges. Each transition emits templated `return.status.*`
 before/after events and is written to the audit log — whether it had a reason
 (`hasReason`), never the reason's text.
+
+## Notifications
+
+Every e-mail below is a transactional e-mail an operator edits, and may switch
+off, under **Transactional emails** (group *returns*), shipped in English and
+Polish. Each is sent in the language of the case's sales channel and names the
+case by its **reference**: the RMA number once there is one, and until then `#`
+followed by the first eight characters of the case id (`#3F9A21C0`). The same
+reference is the case's link text in the admin list and its title on the detail
+page, and the admin search finds a case by it, with or without the `#`.
+
+| E-mail | Sent to | When |
+| --- | --- | --- |
+| *New return or complaint* (`return_new_case`) | the addresses in **New-case recipients** | a case is filed |
+| *Return or complaint received* (`return_submitted`) | the customer who filed the case | a case is filed |
+| *Message on a return or complaint* (`return_comment_added`) | the customer who filed the case | an operator posts a customer-visible comment with *Notify customer by e-mail* |
+| *Return or complaint status changed* (`return_status_entered`) | the customer who filed the case | the case enters a status marked *E-mail customer on entry* |
+
+- **New-case recipients** — the setting `returns.new_case_recipients` on
+  **Settings → Returns**, globally or per sales channel (a channel's list
+  replaces the global one). Up to 10 addresses are used. An entry that is not an
+  e-mail address is skipped when the e-mail is sent and reported in the log as
+  `invalid_recipient`; the other addresses still receive it. While no address is
+  configured for a channel, the **Returns → Workflow** page shows a warning that
+  links to the setting.
+- **Confirmation** — goes to the account that filed the case, also when the
+  order was placed by a colleague.
+- **Comments** — a new comment is internal until the operator ticks *Visible to
+  customer*. *Notify customer by e-mail* is available only for a visible comment,
+  and the API refuses it on an internal one (422 `VALIDATION_FAILED`, detail
+  `notify_requires_customer_visible`). A comment posted with it shows *E-mail
+  requested* in the thread. Comments posted before this release are never sent.
+- **Status e-mails** — mark a status *E-mail customer on entry* in the
+  **E-mail customer on entry** column of **Returns → Workflow**. The e-mail is sent
+  when an operator or the platform (for example, receiving a return shipment)
+  moves a case into that status; never when the customer moves it themselves
+  (cancelling their case), and never when a case is filed — the confirmation covers
+  that, so marking the initial status only acts on a later transition into it.
+  Marking a status sends nothing for the cases already in it. *Authorized* and
+  *Rejected* cannot be marked: they send their own e-mail, so a customer gets one
+  e-mail per transition.
+- **Admin bell** — every active administrator who may view returns
+  (`returns:read`) gets one bell entry per new case, naming its kind, reference and
+  filing date and linking to it. The entry names no customer or organization.
+  While **Admin notifications** is switched off no entry is recorded and nothing
+  else changes.
+- **Delivery** — the e-mails and the bell entries are sent from the
+  `returns-notifications` queue after the action that triggered them was saved, so
+  they never slow down, fail or undo it. A failed send is retried; a message that
+  went out is not sent again. An e-mail that is not sent — switched off, no
+  recipient, no mail server — is recorded with its reason in the log.
+
+## Who authorized a case
+
+Entering *Authorized* — through **Authorize**, the status buttons on the case, or
+the bulk action on the list — assigns the RMA number, records the time and records
+the administrator who did it. The case detail shows it on the *Case* card as
+`{time} by {name}`; the list has a non-sortable **Authorized by** column, and the
+CSV export carries `reference` and `authorizedBy`.
+
+- An administrator whose account no longer exists is shown as *former
+  administrator*.
+- Cases authorized before this release were filled in from the audit log when the
+  release was installed. Where the audit log names nobody, the authorizer is shown
+  as *unknown*.
+
+## Complaints without a platform order
+
+A shop can accept complaints about goods the customer bought elsewhere — in a
+physical store, from a distributor, on another marketplace. Switch on
+**Complaints without a platform order** (`returns.off_platform_complaints_enabled`)
+on **Settings → Returns**, globally or per sales channel. It is off by default.
+
+- **On the storefront** — *Start a return or complaint* offers, above the list of
+  orders, *Bought it somewhere else? File a complaint without an order*. A customer
+  with no orders gets it as the main action. The form asks for the product (up to
+  five, each with a quantity, reason and description, optionally a serial number, and
+  its own defect photos); the customer adds and removes products on the form. The
+  product does not have to be in the catalogue — a product no longer sold is filed by
+  its model name. The product field searches the shop's catalogue and also takes a typed
+  model name: a product chosen from the suggestions is checked against the sales
+  channel and its name copied to the case; without JavaScript the field takes the
+  model name only. A chosen product the channel does not sell is refused on that
+  line, with the name kept for resubmitting as a typed model. The form also asks for
+  the purchase date, an optional receipt or invoice number, the proof of purchase and
+  other documents, the contact details and the address the
+  product should go back to. Contact and address are prefilled from the account and
+  its delivery address; changing them on the form changes neither. The form works
+  without JavaScript.
+- **Proof of purchase** — with **Proof of purchase required**
+  (`returns.proof_of_purchase_required`) a complaint without an order is accepted
+  only with a file typed *Proof of purchase*. It has no effect on order cases.
+- **Switching it off** — new complaints without an order are refused
+  (`403 RETURN_OFF_PLATFORM_DISABLED`); the ones already filed stay and are
+  handled as before.
+- **The case** — it is always a complaint, with no order and no amounts. The admin
+  list marks it *Bought elsewhere* and can filter by **Origin**; the detail shows the
+  purchase, the contact and the return address as the customer gave them.
+- **Submitting twice** — the form carries a submission key, so submitting it again
+  (a double click, the browser's back button) returns the case already filed.
+
+## Attachments
+
+A customer attaches files to a case: photos, a proof of purchase and other
+documents. JPEG, PNG, WebP or PDF, up to 10 MB each, up to 30 MB per submission
+and 10 files per case. The type is checked from the file's content, not its name.
+
+- **Uploading** — a file is uploaded first (`POST /api/v1/returns/uploads`) and
+  then filed with the case (`attachments: [{ uploadId }]`); a file uploaded and
+  never filed is deleted after 24 hours. After filing, the customer adds files on
+  the case page (`POST /api/v1/returns/:id/attachments`). A refused file is answered
+  `422 RETURN_ATTACHMENT_REJECTED` with the reason.
+- **A file of one product** — a defect photo can belong to one line of the case:
+  send `attachments: [{ uploadId, line }]`, where `line` is the line's position in
+  the request's `lines` (from 0), or `returnCaseItemId` with a file added later. A
+  line the case does not have is refused with the reason `unknown_line`. A file
+  without a line belongs to the whole case; the administration case page shows a
+  line's files beside that product and the rest under *Attachments*.
+- **Who sees them** — the files are stored privately: only the customer who filed
+  the case, a colleague who may see the Organization's cases, and administrators
+  holding `returns:read` download them. They are served for download, never
+  rendered in the shop's own pages.
+- **Changed in this release** — `attachmentAssetIds` on `POST /api/v1/returns` and
+  the JSON `{ assetId }` body on `POST /api/v1/returns/:id/attachments` are gone:
+  upload the file, then send `attachments: [{ uploadId }]`, or post the file as
+  multipart to `/:id/attachments`. The old calls linked any asset id without
+  checking it and nothing displayed the link. Attachments recorded the old way stay
+  in the database, typed *Other*, but are not listed on the case and cannot be
+  downloaded.
+
+## Clauses
+
+**Returns → Terms** (also in the command palette) holds the clauses the returns form shows: a label, a text and
+optionally a link to the full terms, per language, for returns, complaints or both,
+on every sales channel or one. A clause is either *Must be accepted* — the customer
+ticks it, and the case is refused without it — or *Information only*.
+
+- A case stores the clauses shown with it, in the language shown, with the time
+  they were accepted; the admin detail shows them under *Terms shown*.
+- Changing a clause's text or link starts a new revision. A customer who submits
+  while the terms changed is asked to read and accept them again
+  (`422 RETURN_CLAUSES_NOT_ACCEPTED`).
+- The label and the text are required in the default language. The customer sees
+  them in their language, falling back to the default one.
+
+## Settling an off-platform case
+
+A complaint without a platform order has no payment to refund and no invoice to
+correct. **Settle** offers *Replacement*, *Repair* and *Settled outside the
+platform* — the last for a complaint the shop resolved some other way (a refund in
+store, a voucher). It needs a note saying how, which only staff see. Refund, store
+credit and a corrective invoice are refused
+(`422 RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM`). *Settled outside the platform*
+moves the case to *Resolved* from any open status.
+
+## Erasing personal data
+
+When a customer account is anonymised, its cases keep their lines, purchase data
+and comments, and lose the contact details, the return address and every file. A
+case shows when this happened. If `returns` was switched off at that moment, the
+daily `returns-maintenance` pass catches up once it is back on.
 
 ## Key behaviours
 
@@ -273,9 +441,9 @@ unchanged. The status code travels as `details.statusCode`, because
 | --- | --- | --- | --- |
 | `RETURN_ORDER_NOT_ELIGIBLE` | `422` | `POST /api/v1/returns` — the order is not completed yet | `orderId` |
 | `RETURN_QUANTITY_EXCEEDS_RETURNABLE` | `422` | `POST /api/v1/returns` — a line asks for more than it can still return | `orderItemId`, `requested`, `remaining` |
-| `RETURN_REASON_INACTIVE` | `422` | `POST /api/v1/returns` — the reason was switched off | `reasonId` |
+| `RETURN_REASON_INACTIVE` | `422` | `POST /api/v1/returns` — the reason was switched off (an order's case or a complaint without an order) | `reasonId` |
 | `RETURN_COMMENTS_CLOSED` | `409` | a comment on a case in a terminal status | `returnCaseId`, `statusCode` |
-| `RETURN_CASE_CLOSED` | `409` | `POST /api/v1/returns/:id/select-delivery-method` on a case in a terminal status | `returnCaseId`, `statusCode` |
+| `RETURN_CASE_CLOSED` | `409` | `POST /api/v1/returns/:id/select-delivery-method` or `POST /api/v1/returns/:id/attachments` on a case in a terminal status | `returnCaseId`, `statusCode` |
 | `RETURN_DELIVERY_METHOD_UNAVAILABLE` | `422` | the same route — the return delivery method is not offered | `returnDeliveryMethodId` |
 | `RETURN_SETTLEMENT_IN_PROGRESS` | `409` | `POST /api/v1/admin/returns/:id/settlement` — another return of the order is being settled; try again | `orderId` |
 | `RETURN_REFUND_EXCEEDS_PAID` | `422` | the same route — a refund above what may be refunded, for a line or, with `code` `delivery` / `surcharge`, a charge | `returnCaseItemId` (a line), `requested`, `maximum`, `currency` |
@@ -461,6 +629,13 @@ passed to the status events that change emits and
 is not recorded anywhere else. Entries recorded before this change keep what they
 were written with.
 
+A complaint without a platform order settled outside the platform records
+`offPlatform: true` and whether a note was given, never the note. Filing a case
+(`return_case.create`), adding a file and changing a clause are recorded without the
+customer's or the clause's text. Erasing an account's data
+(`return_case.erase_personal_data`) records the number of cases and files and the
+names of the fields erased.
+
 ## Cross-module interfaces
 
 The module reads/affects other domains only through documented ports, never
@@ -490,6 +665,20 @@ internal imports:
   refunds (`charges`).
 - `CreditTopupPort` (credit_limits) — credit the organization grant.
 - `ShipmentService` (shipments) — optional replacement outbound shipment.
+- `TransactionalEmailSender` (transactional_emails) — every e-mail of this module.
+- `CustomerAccountReadPort` (customer_accounts) — the filer's address and name.
+- `AdminUserReadPort` (admin_users) — the authorizer's name and the administrators
+  the new-case bell entry goes to; `PermissionReadPort` (admin_roles) — which of
+  them hold `returns:read`.
+- `AdminNotificationRecordPort` (admin_notifications) — the bell entries, only
+  while that module is present.
+- `AdminI18nTranslatePort` (_i18n) — the CSV export's *former administrator* and
+  *unknown* in the administrator's language.
+- `ObjectStoragePort` (assets_library) — the attachments' bytes, stored privately.
+- `CatalogProductAvailabilityPort` (catalog) — whether a product named on a
+  complaint without an order exists on the channel, and its name.
+- `TransactionalEmailStatePort` (transactional_emails) — whether the confirmation
+  e-mail is switched on, so the storefront promises it only then.
 
 ## Schema
 
@@ -509,3 +698,19 @@ Migration `20261108T125405_returns_case_charge_refunds.ts` adds four columns to
 `return_cases`: `default_delivery_refund`, `approved_delivery_refund`,
 `default_surcharge_refund` and `approved_surcharge_refund`, each `0.00` by
 default. Existing cases keep `0.00`.
+
+Migration `20261113T145001_returns_authorizer_status_notifications.ts` adds
+`return_cases.authorized_by_admin_user_id` and
+`return_statuses.notify_customer_on_entry` (`false` for every status), and fills
+the authorizer of already authorized cases from the newest authorizing entry of the
+kernel's audit log that names an administrator.
+
+Migration `20261113T155433_returns_off_platform_complaints.ts` makes
+`return_cases.order_id` nullable — a case without an order must be a complaint with
+a purchase date — and adds the purchase, contact, return address, accepted clauses,
+resolution note, submission key and erasure columns. `return_case_items` gets a
+nullable order line and product and a `serial_number`; `return_case_attachments`
+gets the organization, the customer, the type, the file's name, type and size, where
+it is stored and when an unfiled upload expires; the organization of existing
+attachments is filled in from their case. It creates `return_case_clauses`. Rolling
+it back is refused while a case without a platform order exists.

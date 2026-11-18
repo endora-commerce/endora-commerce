@@ -69,6 +69,12 @@ export const contributions: AdminContributions = {
       requiredPermission: RETURNS_READ,
     },
     {
+      // `specs/180-off-platform-complaints/` US7 — the clauses of the returns form.
+      path: '/returns/clauses',
+      component: () => import('./pages/ReturnClausesPage.js'),
+      requiredPermission: RETURNS_READ,
+    },
+    {
       path: '/returns/:id',
       component: () => import('./pages/ReturnDetail.js'),
       requiredPermission: RETURNS_READ,

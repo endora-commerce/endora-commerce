@@ -10,6 +10,8 @@ import {
 } from '../../helpers/test-server.js';
 import { assignOrganizationRole, seedCustomOrganizationRole } from '../../helpers/seed-organization-roles.js';
 import { ReturnCase } from '../../helpers/package-entities.js';
+import { useTemporaryAssetStore } from '../../helpers/crm-attachment-upload.js';
+import { TINY_PNG, upload } from './off-platform-fixtures.js';
 import { ADMIN_COOKIE, resetReturnGraph, type SeededOrder } from './helpers.js';
 import {
   asMember,
@@ -160,10 +162,18 @@ describe('170 WP-14 — opening a return or complaint needs returns.create (FR-0
       });
       expect(comment.statusCode, comment.body).toBe(201);
 
-      const attachment = await asMember(h, m.changed, 'POST', `/api/v1/returns/${changedCaseId}/attachments`, {
-        assetId: '00000000-0000-4000-8000-0000000170f1',
-      });
-      expect(attachment.statusCode, attachment.body).toBe(201);
+      // 180 §C4 — the file is uploaded as multipart (the JSON `{ assetId }` body is gone).
+      const store = await useTemporaryAssetStore(h);
+      try {
+        const attachment = await upload(
+          h,
+          { type: 'photo', filename: 'p.png', mime: 'image/png', value: TINY_PNG },
+          { caseId: changedCaseId, cookies: { b2b_session: m.changed.cookie } },
+        );
+        expect(attachment.statusCode, attachment.body).toBe(201);
+      } finally {
+        await store.undo();
+      }
 
       const delivery = await asMember(h, m.changed, 'POST', `/api/v1/returns/${changedCaseId}/select-delivery-method`, {
         returnDeliveryMethodId: deliveryMethodId,

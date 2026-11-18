@@ -89,6 +89,8 @@ packages/contracts/src/generated/
 
 # PDFs and uploaded assets (dev only)
 uploads/
+# …but not the storefront's returns upload route handler (feature 180), which is source.
+!storefront/app/returns/uploads/
 tmp/
 # Local-FS storage adapter for the Assets Library — dev-only blob store.
 backend/var/assets/

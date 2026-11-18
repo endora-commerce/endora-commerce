@@ -1,14 +1,20 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, isUuidShape } from '@endora-commerce/contracts';
+import { ERROR_CODES, NOTIFY_REQUIRES_CUSTOMER_VISIBLE, isUuidShape } from '@endora-commerce/contracts';
 import type { ReturnCaseCommentDto } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { ReturnCase } from '../entities/return-case.entity.js';
 import { ReturnCaseComment } from '../entities/return-case-comment.entity.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
+import type { ReturnsNotificationJob } from './notifications/dispatch.js';
 
 export interface ReturnCommentServiceDeps {
   emFactory: () => EntityManager;
   graphService: ReturnStatusGraphService;
+  /**
+   * `specs/180-off-platform-complaints/` FR-A20 — hand `comment_notify` to the
+   * notification queue after the comment is stored. Never throws.
+   */
+  enqueueNotification?: (job: ReturnsNotificationJob) => Promise<void>;
 }
 
 /**
@@ -28,6 +34,16 @@ export class ReturnCommentService {
   ): Promise<ReturnCaseCommentDto> {
     // command-coverage-ignore: return-case comments are an append-only
     // communication thread, not audited domain-state (no before-state, no undo).
+    if (input.notifyCustomer && !input.isCustomerVisible) {
+      // FR-A21: the operator would believe a customer was told about a comment
+      // the customer cannot see.
+      throw new HttpError(
+        422,
+        ERROR_CODES.VALIDATION_FAILED,
+        'Only a comment visible to the customer can be e-mailed to them.',
+        { code: NOTIFY_REQUIRES_CUSTOMER_VISIBLE },
+      );
+    }
     const em = this.deps.emFactory();
     const rc = await this.loadOpenCase(em, { id });
     const comment = em.create(ReturnCaseComment, {
@@ -39,16 +55,16 @@ export class ReturnCommentService {
     });
     em.persist(comment);
     await em.flush();
-    // `notifyCustomer` is recorded on the row and nothing sends on it. The
-    // optional `notifier` that used to stand here went with
-    // `specs/110-instance-repository/` T118c: it was declared, guarded and
-    // supplied by nobody — `plugin.ts` builds this service with `emFactory` and
-    // `graphService` and no third member — so its `catch` was a tolerance around
-    // an expression that could not run. This module's own `exposeServices` was
-    // deleted on the same argument in feature 072. Sending on a comment is a
-    // product decision; when it is taken, it takes a notifier the composition
-    // really supplies and an off-state answer of its own.
-    return toDto(comment);
+    // `specs/180-off-platform-complaints/` FR-A20, research R-6 — the product
+    // decision this flag waited for: a customer-visible comment with *notify
+    // customer* e-mails the filer, from the `returns-notifications` queue, after the
+    // row is stored. Only this path enqueues, so a comment stored before the
+    // feature is never sent (FR-A22). The queue is `ctx.worker`'s, so it answers
+    // the module's off state of its own.
+    if (comment.notifyCustomer && comment.isCustomerVisible) {
+      await this.deps.enqueueNotification?.({ kind: 'comment_notify', returnCaseCommentId: comment.id });
+    }
+    return toDto(comment, { adminView: true });
   }
 
   async addByCustomer(
@@ -95,7 +111,7 @@ export class ReturnCommentService {
       { returnCaseId: id },
       { orderBy: { createdAt: 'asc' } },
     );
-    return comments.map(toDto);
+    return comments.map((c) => toDto(c, { adminView: true }));
   }
 
   async listForCustomer(id: string, customerAccountId: string): Promise<ReturnCaseCommentDto[]> {
@@ -108,7 +124,7 @@ export class ReturnCommentService {
       { returnCaseId: id, isCustomerVisible: true },
       { orderBy: { createdAt: 'asc' } },
     );
-    return comments.map(toDto);
+    return comments.map((c) => toDto(c));
   }
 
   private async loadOpenCase(
@@ -129,12 +145,17 @@ export class ReturnCommentService {
   }
 }
 
-function toDto(c: ReturnCaseComment): ReturnCaseCommentDto {
+/**
+ * The comment as a reader sees it. `notifyCustomer` is the operator's ("E-mail
+ * requested", FR-A20): the admin view carries it, the buyer's view leaves it out.
+ */
+export function toDto(c: ReturnCaseComment, opts: { adminView?: boolean } = {}): ReturnCaseCommentDto {
   return {
     id: c.id,
     authorKind: c.authorAdminUserId ? 'admin' : 'customer',
     body: c.body,
     isCustomerVisible: c.isCustomerVisible,
+    ...(opts.adminView ? { notifyCustomer: c.notifyCustomer } : {}),
     createdAt: c.createdAt.toISOString(),
   };
 }

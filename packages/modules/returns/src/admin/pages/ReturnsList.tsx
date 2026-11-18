@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Download, ListChecks, Search, Settings, X } from 'lucide-react';
+import { ArrowRight, Download, ListChecks, Search, Settings, Store, X } from 'lucide-react';
 import {
   ApiError,
   apiBaseUrl,
@@ -28,6 +28,8 @@ const DEFAULT_SORT = 'submittedAt:desc';
 /** The sort options the toolbar offers; a saved sort outside them loads the default. */
 const SORTS = ['submittedAt:desc', 'submittedAt:asc', 'rmaNumber:asc', 'rmaNumber:desc'] as const;
 const KINDS = ['return', 'complaint'] as const;
+/** 180 FR-B35 — the origin filter; absent = every case. */
+const ORIGINS = ['platform', 'off_platform'] as const;
 
 /** Resolve the admin-facing label for a status: default name → English → first → code. */
 function statusName(s: ReturnStatusDto): string {
@@ -53,6 +55,8 @@ export function ReturnsList(): ReactNode {
   // Filters.
   const [statusCodes, setStatusCodes] = useState<string[]>([]);
   const [kindFilter, setKindFilter] = useState('');
+  // 180 FR-B35, D-6 — kept in saved views, never in the URL, as the other filters.
+  const [originFilter, setOriginFilter] = useState('');
   const [rma, setRma] = useState('');
   const [debouncedRma, setDebouncedRma] = useState('');
   const [sort, setSort] = useState<string>(DEFAULT_SORT);
@@ -80,9 +84,10 @@ export function ReturnsList(): ReactNode {
     p.set('sort', sort);
     if (statusCodes.length) p.set('status', statusCodes.join(','));
     if (kindFilter) p.set('kind', kindFilter);
+    if (originFilter) p.set('origin', originFilter);
     if (debouncedRma.trim()) p.set('rmaNumber', debouncedRma.trim());
     return `?${p.toString()}`;
-  }, [page, pageSize, sort, statusCodes, kindFilter, debouncedRma]);
+  }, [page, pageSize, sort, statusCodes, kindFilter, originFilter, debouncedRma]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -107,7 +112,7 @@ export function ReturnsList(): ReactNode {
   // Reset to the first page whenever a filter narrows the result set.
   useEffect(() => {
     setPage(0);
-  }, [statusCodes, kindFilter, debouncedRma, sort, pageSize]);
+  }, [statusCodes, kindFilter, originFilter, debouncedRma, sort, pageSize]);
 
   const statusLabel = useCallback(
     (code: string): string => {
@@ -169,6 +174,15 @@ export function ReturnsList(): ReactNode {
           },
         ]
       : []),
+    ...(originFilter
+      ? [
+          {
+            key: 'origin',
+            label: `${tr('list.filter.origin')}: ${tr(`list.origin.${originFilter}`)}`,
+            onRemove: (): void => setOriginFilter(''),
+          },
+        ]
+      : []),
     ...(rma.trim()
       ? [{ key: 'rma', label: `${t('returns.filter.rmaNumber')}: ${rma.trim()}`, onRemove: (): void => setRma('') }]
       : []),
@@ -184,6 +198,7 @@ export function ReturnsList(): ReactNode {
     filters: {
       ...(statusCodes.length ? { status: statusCodes } : {}),
       ...(kindFilter ? { kind: kindFilter } : {}),
+      ...(originFilter ? { origin: originFilter } : {}),
       ...(trimmedRma ? { rmaNumber: trimmedRma } : {}),
     },
     sort: { field: sortField, dir: sortDir === 'asc' ? 'asc' : 'desc' },
@@ -199,6 +214,8 @@ export function ReturnsList(): ReactNode {
     setStatusCodes(Array.isArray(f['status']) ? f['status'].filter((c): c is string => typeof c === 'string') : []);
     const kind = f['kind'];
     setKindFilter(typeof kind === 'string' && (KINDS as readonly string[]).includes(kind) ? kind : '');
+    const origin = f['origin'];
+    setOriginFilter(typeof origin === 'string' && (ORIGINS as readonly string[]).includes(origin) ? origin : '');
     const savedRma = typeof f['rmaNumber'] === 'string' ? f['rmaNumber'] : '';
     setRma(savedRma);
     setDebouncedRma(savedRma);
@@ -209,6 +226,7 @@ export function ReturnsList(): ReactNode {
   const clearAllFilters = (): void => {
     setStatusCodes([]);
     setKindFilter('');
+    setOriginFilter('');
     setRma('');
   };
 
@@ -225,7 +243,7 @@ export function ReturnsList(): ReactNode {
     render: (r) => (
       <input
         type="checkbox"
-        aria-label={tr('list.selection.selectRow', { number: r.rmaNumber ?? r.id })}
+        aria-label={tr('list.selection.selectRow', { number: r.reference })}
         checked={selected.has(r.id)}
         onChange={(): void => toggleOne(r.id)}
       />
@@ -239,8 +257,10 @@ export function ReturnsList(): ReactNode {
       header: t('returns.col.rma'),
       primary: true,
       render: (r) => (
+        // 180 FR-A44, D-4 — the RMA number, else the derived reference: a link
+        // whose text is a dash names nothing (WCAG 2.4.4).
         <Link to={`/returns/${r.id}`} className="font-mono text-xs underline underline-offset-2">
-          {r.rmaNumber ?? '—'}
+          {r.reference}
         </Link>
       ),
       meta: (r) => formatDateTime(r.submittedAt),
@@ -248,7 +268,18 @@ export function ReturnsList(): ReactNode {
     {
       id: 'kind',
       header: t('returns.col.kind'),
-      render: (r) => t(`returns.kind.${r.kind}`),
+      render: (r) => (
+        <span className="flex flex-wrap items-center gap-1">
+          {t(`returns.kind.${r.kind}`)}
+          {r.offPlatform && (
+            // 180 FR-B35 — text and an icon, never colour alone (design review R-4.2).
+            <Badge variant="outline" className="gap-1">
+              <Store className="size-3" aria-hidden="true" />
+              {tr('list.offPlatform')}
+            </Badge>
+          )}
+        </span>
+      ),
     },
     {
       id: 'status',
@@ -260,13 +291,39 @@ export function ReturnsList(): ReactNode {
       ),
     },
     {
+      // 180 FR-A41 — who authorized the case. Not sortable: the name is
+      // `admin_users`' and the list cannot be ordered on it (spec Clarifications).
+      id: 'authorizedBy',
+      header: tr('list.col.authorizedBy'),
+      hideOnMobile: true,
+      render: (r) => {
+        if (!r.authorizedBy) return '—';
+        if (!r.authorizedBy.adminUserId) {
+          return (
+            <span className="text-muted-foreground" title={tr('list.authorizedBy.unknownHint')}>
+              {tr('list.authorizedBy.unknown')}
+              <span className="sr-only"> ({tr('list.authorizedBy.unknownHint')})</span>
+            </span>
+          );
+        }
+        if (r.authorizedBy.name === null) {
+          return <span className="italic text-muted-foreground">{tr('list.authorizedBy.former')}</span>;
+        }
+        return r.authorizedBy.name;
+      },
+    },
+    {
       id: 'refund',
       header: t('returns.col.refund'),
-      render: (r) => (
-        <span className="tabular-nums">
-          {formatMoney(r.totalRefundAmount, r.currency)}
-        </span>
-      ),
+      render: (r) =>
+        r.offPlatform ? (
+          <span>
+            <span aria-hidden="true">—</span>
+            <span className="sr-only">{tr('list.notApplicable')}</span>
+          </span>
+        ) : (
+          <span className="tabular-nums">{formatMoney(r.totalRefundAmount, r.currency)}</span>
+        ),
     },
     {
       id: 'customer',
@@ -305,6 +362,9 @@ export function ReturnsList(): ReactNode {
             </Button>
             <Button asChild variant="outline" size="sm">
               <Link to="/returns/delivery-methods">{t('returns.nav.returnMethods')}</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/returns/clauses">{tr('clauses.navLink')}</Link>
             </Button>
             <Button asChild variant="outline" size="sm">
               {/* `apiBaseUrl` and not `import.meta.env`: this file compiles
@@ -366,6 +426,20 @@ export function ReturnsList(): ReactNode {
               <option value="">{t('returns.filter.kind')}</option>
               <option value="return">{t('returns.kind.return')}</option>
               <option value="complaint">{t('returns.kind.complaint')}</option>
+            </Select>
+            <Select
+              id="origin"
+              aria-label={tr('list.filter.origin')}
+              value={originFilter}
+              onChange={(e): void => setOriginFilter(e.target.value)}
+              className="w-auto"
+            >
+              <option value="">{tr('list.filter.origin')}</option>
+              {ORIGINS.map((o) => (
+                <option key={o} value={o}>
+                  {tr(`list.origin.${o}`)}
+                </option>
+              ))}
             </Select>
             <Select
               id="rsort"
