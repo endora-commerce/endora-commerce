@@ -12,6 +12,7 @@
   "list.title": "Email templates",
   "list.empty": "No transactional emails found.",
   "list.search": "Search by name or code…",
+  "list.searchLabel": "Search e-mails",
   "activation.column": "Status",
   "activation.on": "On",
   "activation.off": "Off",

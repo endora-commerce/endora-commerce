@@ -135,6 +135,7 @@
   "pagesList.loading": "Loading CMS pages...",
   "pagesList.new": "New page",
   "pagesList.searchPlaceholder": "Search name or slug...",
+  "pagesList.searchLabel": "Search pages",
   "pagesList.title": "CMS pages",
   "templatesList.cardTitle": "Templates",
   "templatesList.description": "Reusable Page Builder layouts. Use Save as template / Apply template in the page builder. Insert template is no longer in the component drawer (legacy embeds still render).",

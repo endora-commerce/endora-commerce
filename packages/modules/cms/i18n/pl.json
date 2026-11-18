@@ -135,6 +135,7 @@
   "pagesList.loading": "Ładowanie stron CMS...",
   "pagesList.new": "Nowa strona",
   "pagesList.searchPlaceholder": "Szukaj nazwy lub sluga...",
+  "pagesList.searchLabel": "Szukaj stron",
   "pagesList.title": "Strony CMS",
   "templatesList.cardTitle": "Szablony",
   "templatesList.description": "Układy Page Buildera wielokrotnego użytku. Użyj Zapisz jako szablon / Zastosuj szablon w edytorze. Wstaw szablon nie jest już w szufladzie komponentów (stare osadzenia nadal się renderują).",
