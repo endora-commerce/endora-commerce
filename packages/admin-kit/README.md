@@ -10,7 +10,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 | Subpath | What it is |
 | --- | --- |
 | `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
-| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
+| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
 | `./contributions` | the declaration types, re-exported from `@endora-commerce/contracts` so a module needs one import for the shapes and not two |
@@ -367,6 +367,54 @@ what the message is:
   has no role without matching on class names.
 
 The behaviour is pinned in `admin/test/kit/kit-inline-status.test.tsx`, including an axe pass.
+
+## List filters — `ListToolbar`, `ListToolbarSearch` and `FilterChip`
+
+Issue #1440 (UX audit 2026-11-17, DS-06). `ListToolbar` (`./components`) is a list page's filter row,
+extracted from the Orders list's toolbar and the Tasks list's *More filters (n)* disclosure (#512). A
+page composes it. It is not a page shell, and it draws no card or border of its own.
+
+```tsx
+<ListToolbar
+  label={t('orders.toolbar.label')}
+  search={<ListToolbarSearch label={t('orders.field.search')} value={q} onValueChange={setQ} />}
+  filters={<>{statusMultiSelect}{channelMultiSelect}{sortSelect}</>}
+  actions={<SavedViewsControl … />}
+  moreFilters={<>{/* labelled cells, laid out four to a row */}</>}
+  moreFiltersActiveCount={hiddenInUse}
+  appliedFilters={chips}
+  onClearFilters={clearAll}
+/>
+```
+
+- **Three or four primary filters**, and no more. Search, the filters operators use most, and the
+  list's own controls (`actions`, pushed to the right) are always visible. The long tail goes in
+  `moreFilters`, behind a **More filters** button. While the panel is closed the button shows
+  **More filters (n)** from `moreFiltersActiveCount`, so a folded bar still tells the operator that
+  the list is narrowed (Hick's Law). The page computes the count, and each value of a multi-valued
+  filter may count as one.
+- **The panel is always mounted** and `hidden` while closed, so the toggle's `aria-controls` always
+  names an element. Its controls render only while it is open, so a filter that loads its own
+  options does so only when the operator opens the panel.
+- **Every control is labelled.** A primary filter takes `aria-label` (`Select`) or `ariaLabel`
+  (`MultiSelect`). A cell in the panel takes a visible label: `<Label htmlFor>` for a native
+  control, or a `<span id>` plus `ariaLabelledBy` for a `MultiSelect`. Never a `<label htmlFor>`
+  pointing at an id that no control has. The placeholder is never the name, so
+  `ListToolbarSearch` requires `label`.
+- **Applied filters** (`appliedFilters`) are chips named by what pressing them does ("Remove
+  filter: Status: Paid", or `removeLabel`), followed by **Clear all filters** when
+  `onClearFilters` is given. The search box is not a chip, because it is always visible.
+- The toolbar is a `search` landmark named by `label` ("Filter orders").
+- **`FilterChip`** is a one-press toggle for an on/off filter ("Low stock"). It is a
+  `<button type="button" aria-pressed>` in the theme's `b2b-filterchip` style, controlled through
+  `pressed` and `onPressedChange(next)`. It has a 44 px hit area on a coarse pointer, and its icon
+  is decorative. A filter with several values is a labelled `Select` or `MultiSelect`. A chip that
+  steps to the next value on each press does not tell the operator what the next press will do.
+- **No dead controls.** A chip or button that looks like a working filter must work like one. If
+  the filter does not exist yet, leave the control out (CAT-02, #1455).
+
+The behaviour is pinned in `admin/test/kit/kit-list-toolbar.test.tsx`, including an axe pass. The
+screens that use it are the Orders, Products and Inventory lists.
 
 ## Known rough edge
 

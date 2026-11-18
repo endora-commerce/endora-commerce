@@ -3,15 +3,17 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { adminSession, withSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+
+// Issue #1455 (CAT-02) — the list asks whether `import_export` is on before it offers Import / export.
+const PRESENCE = modulePresence({ present: ['catalog', 'import_export'] });
 
 /**
  * Issue #501, item 4 — with the admin in Polish the product list's Type,
  * Visibility and Updated cells stayed English ("Simple", "Public", "39m ago"),
- * and so did the Type chip's value. They render through the catalog bundle now,
+ * and so did the Type filter's values. They render through the catalog bundle now,
  * in the admin's language. The real Polish bundle is mounted, so a key missing
  * from it shows up here as a raw key rather than as a pass.
  */
@@ -91,7 +93,7 @@ function renderList(language: 'en' | 'pl'): void {
       <MemoryRouter>
         <ProductsList />
       </MemoryRouter>,
-      { session: adminSession({ permissions: ['*'] }) },
+      { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
     ),
     { catalog: catalogBundle(language) },
     { language },
@@ -133,12 +135,14 @@ describe('ProductsList cells speak the admin language (issue #501)', () => {
     }
   });
 
-  it('renders the Type chip value in Polish', async () => {
+  it('renders the Type filter and its values in Polish', async () => {
     renderList('pl');
     await rowOf('Alpha');
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /^Rodzaj/ }));
-    expect(await screen.findByRole('button', { name: /^Rodzaj: Prosty/ })).toBeTruthy();
+    const type = screen.getByRole('combobox', { name: 'Rodzaj' });
+    const options = within(type).getAllByRole('option').map((option) => option.textContent);
+    expect(options).toContain('Wszystkie rodzaje');
+    expect(options).toContain('Prosty');
+    expect(options).toContain('Konfigurowalny');
   });
 
   it('keeps the English wording in English', async () => {

@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
-import { adminSession, withSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+
+// Issue #1455 (CAT-02) — the list asks whether `import_export` is on before it offers Import / export.
+const PRESENCE = modulePresence({ present: ['catalog', 'import_export'] });
 
 /**
  * The product create affordance is gated on the code its destination takes
@@ -87,8 +90,7 @@ function answerList(response: unknown): void {
 const BUNDLE = passthroughBundle('catalog', [
   'productsList.title',
   'productsList.subtitle',
-  'productsList.action.import',
-  'productsList.action.export',
+  'productsList.action.importExport',
   'productsList.action.newProduct',
   'productsList.loading',
   'productsList.empty.title',
@@ -102,10 +104,8 @@ const BUNDLE = passthroughBundle('catalog', [
   'productsList.column.type',
   'productsList.column.visibility',
   'productsList.column.updated',
-  'productsList.chip.type',
-  'productsList.chip.stock',
-  'productsList.chip.category',
-  'productsList.chip.channel',
+  'productsList.filter.type',
+  'productsList.filter.typeAll',
   'productsList.search.placeholder',
   'productsList.tab.all',
   'productsList.tab.active',
@@ -143,7 +143,7 @@ function mount(permissions: readonly string[]): void {
       <MemoryRouter>
         <ProductsList />
       </MemoryRouter>,
-      { session: adminSession({ permissions }) },
+      { presence: PRESENCE, session: adminSession({ permissions }) },
     ),
     BUNDLE,
   );
