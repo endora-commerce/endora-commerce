@@ -159,7 +159,7 @@ export function BlogTagListPage(): ReactNode {
         </Alert>
       ) : null}
       {info ? (
-        <Alert>
+        <Alert live="polite">
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
@@ -229,6 +229,8 @@ export function BlogTagListPage(): ReactNode {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void load();
               }}
+              type="search"
+              aria-label={t('tagList.searchLabel')}
               placeholder={t('tagList.searchPlaceholder')}
               className="w-64"
             />

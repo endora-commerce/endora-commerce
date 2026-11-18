@@ -9,7 +9,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 
 | Subpath | What it is |
 | --- | --- |
-| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
+| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
 | `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
@@ -286,6 +286,88 @@ const guard = useUnsavedChangesGuard({ dirty, onSave: save, onDiscard: reset });
 
 The behaviour is pinned in `admin/test/kit/kit-unsaved-changes-guard.test.tsx`, including an axe pass.
 
+## On/off — `Switch` and `SettingRow`
+
+Issue #1442 (UX audit 2026-11-17, DS-09). `Switch` is the one on/off control; `SettingRow` is the
+settings-list layout it reads best in — label and description on the left, control on the right.
+
+```tsx
+<SettingRow label={t('settings.listPrice.label')} description={t('settings.listPrice.help')}>
+  <Switch checked={value} onCheckedChange={setValue} />
+</SettingRow>
+```
+
+**When to use a switch** (owner decision DEC-04): every **boolean setting**, and every **toggle that
+takes effect immediately**. In a form that is saved later, only where the label **describes a
+state** ("Visible on the storefront", "Active"); a label that is a statement the operator agrees to
+or an action ("I accept the terms", "Send a copy to me") stays a `Checkbox`. Never a `true`/`false`
+`Select`, and never a filled "Enable" button per row.
+
+- **It is a native `<button type="button" role="switch" aria-checked>`** — no new dependency
+  (there is no `@radix-ui/react-switch` in the tree, and the button already brings Space/Enter,
+  focus and `<label for>` naming). It never submits a surrounding form. `FormField` and
+  `SettingRow` clone it with the id and descriptions like any other control; it carries
+  `data-state="checked" | "unchecked"` for styling.
+- **Always controlled**: `checked` + `onCheckedChange(next)`. A staged setting writes the draft and
+  leaves the write to the page's Save; an immediate toggle starts its write in `onCheckedChange`,
+  sets **`busy`** while it is in flight (`aria-busy`; further presses are ignored, so the write
+  cannot be doubled) and puts the kit's `ImmediateBadge` on its section heading, as every other
+  immediately-applied control does.
+- **Disabled**: `disabled` is the native attribute, for a control inside a disabled `fieldset` or
+  one whose reason is already on screen. **`disabledReason`** is for one whose reason is not: the
+  switch stays focusable, is `aria-disabled`, ignores presses and is described by the reason (also
+  its `title`) — a natively disabled button drops out of the tab order and its reason is never
+  heard. Show the reason visibly too, in the row's `hint` or `description`.
+- **State is never colour alone**: the thumb's position carries it as well (SC 1.4.1); the
+  unchecked track is `muted-foreground`, so its boundary meets 3:1 against the page (SC 1.4.11).
+- **Target**: the track is 36 × 20 px; on a coarse pointer an invisible pseudo-element grows the hit
+  area to 44 × 44 px (Fitts's Law), and the label toggles it too. The slide is `motion-safe` only.
+- `SettingRow` is `FormField` with `layout="row"`: the same wiring, `error`, `hint`, `help`,
+  `labelAddon` and `action`. A screen that needs the row inside a larger editor can pass
+  `layout="row"` to `FormField` directly, as the Settings screen's row editor does.
+
+The behaviour is pinned in `admin/test/kit/kit-switch.test.tsx`, including an axe pass.
+
+## Messages — `Alert` and `InlineStatus`
+
+Issues #1484 and #1443 (UX audit 2026-11-17, SHELL-08 and DS-10). Two primitives, chosen by
+what the message is:
+
+- **The result of an action** ("Saved", "Copied", "Status changed") is an **`InlineStatus`** next
+  to the button that produced it — owner decision DEC-12 (a). It is a `role="status"`,
+  `aria-live="polite"`, `aria-atomic` region that is **always mounted** and empty until there is
+  something to say, because a live region that arrives already carrying its text is not reliably
+  announced (WCAG 2.2 SC 4.1.3). `useInlineStatus()` holds its state: `show(message, tone?)` after
+  the action, `clear()` on the next edit; showing the same text again re-announces it. The message
+  does not disappear on a timer.
+
+  ```tsx
+  const status = useInlineStatus();
+  // on success: status.show(t('settings.saved')); on the next edit: status.clear();
+  <div className="flex items-center gap-3">
+    <Button onClick={save}>{t('common.save')}</Button>
+    <InlineStatus {...status.props} />
+  </div>
+  ```
+
+  `tone` is `success` (default), `error` or `info`; success and error carry an icon, so colour is
+  never the only signal. `visuallyHidden` announces without showing — for a control whose visible
+  state already changed (a badge, a reordered row). An `InlineStatus` is always polite; an error
+  that has to interrupt is an `Alert`.
+- **A banner** — a page-level error, a warning about the record, a static notice — is an
+  **`Alert`**. Its role follows its variant: `destructive` is `role="alert"` (interrupts),
+  `success` is `role="status"` (polite), `default` and `warning` have **no live role**, because
+  most of them are present when the page loads and announcing them is noise. `live` chooses
+  explicitly: `live="assertive"` for a warning that needs attention now (a refused or partly
+  failed action), `live="polite"` for a banner that appears as the result of an action,
+  `live="off"` for a static error. An explicit `role` still wins (`role="note"`). The default
+  table is exported as `ALERT_DEFAULT_LIVE` and the mapping as `alertRole(variant, live)`.
+  Success and warning colours come from `--success-soft` / `--warn-soft` and their `-fg` tokens.
+  Every `Alert` carries `data-slot="alert"` and `data-variant`, so a test can find a banner that
+  has no role without matching on class names.
+
+The behaviour is pinned in `admin/test/kit/kit-inline-status.test.tsx`, including an axe pass.
+
 ## Known rough edge
 
 `./i18n` publishes `resolve` (the translation resolver) under that bare name, because it
@@ -293,3 +375,34 @@ is the name every existing caller and both of its tests already use and this mer
 is a move. It is a poor name on a public barrel and renaming it is a `major` under R12 —
 worth doing before the first package is published, not inside a change whose subject is a
 file relocation.
+
+## Dialogs — `ModalDialog` is the only one
+
+Issue #1444 (UX audit 2026-11-17, DS-11). Every modal question or form in the admin is
+`ModalDialog` (`./components`), or its yes/no form `ConfirmDialog` / `useConfirmDialog`. It carries
+what a hand-drawn scrim leaves out:
+
+- `role="dialog"`, `aria-modal`, the accessible name from `title` (`aria-labelledby`) and, through
+  `aria-describedby`, the question or warning read with it;
+- a focus trap: focus moves in on open (`initialFocusRef`, else the first focusable control, else the
+  panel itself) and back to the opener — or `finalFocusRef` — on close;
+- Escape and a press on the scrim close it; with two open, only the topmost answers Escape;
+  `dismissOnScrim={false}` keeps a dialog holding typed input open on a stray click;
+- `busy` — Escape and the scrim are inert while a request is in flight, and `aria-busy` says so;
+- a **portal to `document.body`**, so a dialog opened inside a drawer moved with `transform`, a table
+  row or a `<ul>` is placed against the viewport and does not nest a `<div>` where markup forbids it;
+- `layer` — `page` (default, `z-50`, the layer the kit's popovers share, so a select inside still
+  opens above the dialog) or `overlay` (`MODAL_OVERLAY_Z_INDEX`, above the fullscreen Page Builder
+  and its 9999 floating action bar), for a dialog opened from inside the builder.
+
+```tsx
+<ModalDialog title={t('x.dialog.title')} onClose={close} busy={busy} footer={<>{cancel}{apply}</>}>
+  …
+</ModalDialog>
+```
+
+A `fixed inset-0` overlay, a `position: 'fixed'` style object, `createPortal`, or a `role="dialog"`
+written by hand anywhere under the admin, the shell, the kit, the page-builder chrome or a module's
+`src/admin/` / `src/admin-ui/` fails `admin/test/unit/no-hand-rolled-overlays.test.ts`, whose
+two-way ledger names each remaining one and the issue that migrates it. The behaviour is pinned in
+`admin/test/components/ModalDialog.test.tsx`, including an axe pass.

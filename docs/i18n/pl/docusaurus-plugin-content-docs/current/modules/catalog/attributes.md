@@ -218,6 +218,18 @@ których co najmniej jeden porównywany produkt ma wartość. Listę dostarcza
 Produkty konfigurowalne mają wybór wariantu, którego osie pochodzą z atrybutów z flagą
 `isVariantAxis = true` w zestawie atrybutów obecnie przypisanym do produktu.
 
+Z tych samych osi korzysta zakładka **Warianty** edytora produktu. Tworzenie lub
+edycja wariantu oferuje jedno pole na oś — listę opcji atrybutu dla atrybutu
+jednokrotnego wyboru, *Tak* / *Nie* dla atrybutu tak/nie oraz zwykłe pole dla
+atrybutu liczbowego, daty lub tekstu — a tabela wariantów pokazuje jedną kolumnę
+na oś, z etykietami opcji w języku panelu. Każda oś wymaga wartości, a dwa warianty
+produktu nie mogą mieć tych samych wartości. Wartość jest zapisywana w typie
+atrybutu, tak jak wartości samego produktu. Gdy zestaw nie ma żadnej osi wariantu,
+zakładka o tym informuje i nie oferuje wiersza tworzenia. Stanu magazynowego nie
+ustawia się tutaj: przechowuje go zakładka **Magazyn**, osobno dla każdego magazynu.
+Zapisany klucz, który nie jest osią — zapisany, zanim zakładka zaczęła korzystać z
+osi — widnieje w kolumnie *Inne atrybuty* i zostaje zachowany przy edycji wariantu.
+
 ## Przechowywanie
 
 Od migracji `20260723T230401_catalog_attributes_on_custom_fields.ts` atrybut jest podzielony między ogólną warstwę pól niestandardowych, należącą do

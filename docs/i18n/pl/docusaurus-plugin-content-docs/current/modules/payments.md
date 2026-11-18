@@ -71,6 +71,21 @@ Ponowienie przez kupującego najpierw odpowiada z własnych sprawdzeń kodem `PA
 `PAYMENT_ORDER_CLOSED` albo `PAYMENT_ADAPTER_UNAVAILABLE`; do trzech powyższych dochodzi tylko wtedy,
 gdy ostatnia próba zmieniła się po tym, jak te sprawdzenia odczytały zamówienie.
 
+## Gdy zamówienie odmawia zmiany
+
+Status płatności zamówienia podlega grafowi przejść opisanemu przy module `orders` i rozliczenie
+również go przestrzega. Gdy bramka zgłosi coś, na co bieżący status płatności zamówienia nie
+pozwala — odrzucenie płatności zamówienia, które operator już oznaczył jako opłacone, powodzenie dla
+zwróconego zamówienia, pełny zwrot zamówienia, które nigdy nie zostało opłacone — płatność i tak
+zapisuje to, co zgłosiła bramka, a zamówienie zachowuje swój status płatności. Status metody na
+wypadek powodzenia lub niepowodzenia nie jest wtedy stosowany, więc spóźnione odrzucenie nie
+wstrzymuje opłaconego zamówienia. Odmowa trafia do logu z płatnością, zamówieniem i oboma statusami.
+Pełny zwrot nieopłaconego zamówienia nadal wstrzymuje zamówienie do sprawdzenia przez operatora.
+
+Zdarzenia `payment.received.v1` i `payment.failed.v1` są nadal emitowane, bo opisują płatność.
+E-mail do kupującego o statusie płatności jest wysyłany tylko wtedy, gdy zgadza się z zamówieniem:
+„opłacone”, gdy zamówienie jest opłacone, „nieudane”, gdy jest nieudane.
+
 ## Zwroty przez bramkę płatności
 
 Bramka zgłasza każdy zwrot — wykonany w jej panelu albo przy rozliczeniu zwrotu towaru — przez swój

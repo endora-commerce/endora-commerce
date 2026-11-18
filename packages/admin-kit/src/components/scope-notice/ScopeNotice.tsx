@@ -38,8 +38,8 @@ export function ScopeNotice({ notice }: ScopeNoticeProps): ReactNode {
   const t = useTranslation('core');
   if (notice !== 'ORGANIZATION_ATTRIBUTION_PENDING') return null;
   return (
-    <Alert>
-      <Info className="size-4" />
+    <Alert live="polite">
+      <Info className="size-4" aria-hidden="true" />
       <AlertTitle>{t('scopeNotice.organizationAttributionPending.title')}</AlertTitle>
       <AlertDescription>
         {t('scopeNotice.organizationAttributionPending.body')}

@@ -79,7 +79,24 @@ import type { OrderPaymentStatus, OrderStatus } from '@endora-commerce/contracts
 export interface OrderPaymentStatusApplied {
   readonly orderId: string;
   readonly status: OrderStatus | string;
+  /** The payment status the order is at **after** the call — unmoved unless `outcome` is `applied`. */
   readonly paymentStatus: OrderPaymentStatus;
+  /**
+   * Issue #1574 — what became of the asked-for status, judged against the
+   * money axis's transition graph (`PAYMENT_STATUS_TRANSITIONS` in the
+   * contracts) for the `settlement` actor:
+   *
+   * - `applied` — an edge of the graph; the column moved.
+   * - `unchanged` — the order was already there; nothing was written.
+   * - `refused` — not an edge (a late decline on a paid order, a late success
+   *   on a refunded one, a full refund of an unpaid one); nothing was written.
+   *
+   * A refusal is an answer, never a throw: throwing would roll back the
+   * settlement transaction and with it the payment row, which records a true
+   * provider fact. The caller decides what a refused move means for the rest
+   * of its work — `payments` asks for no lifecycle move behind one.
+   */
+  readonly outcome: 'applied' | 'unchanged' | 'refused';
 }
 
 /**
@@ -117,7 +134,8 @@ export interface OrderPaymentStatusApplied {
  */
 export interface OrderPaymentStatusApplyPort {
   /**
-   * Stamp `paymentStatus` on the order and report what it was found at.
+   * Stamp `paymentStatus` on the order — when the graph allows it — and
+   * report where the order is and whether it moved (`outcome`).
    *
    * `em` is **required** (D-169). Its one caller is the settlement handler,
    * which always passes the `EntityManager` its own transaction runs on; an

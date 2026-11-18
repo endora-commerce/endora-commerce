@@ -145,8 +145,12 @@ export function useRecordHistory<E extends RecordHistoryEntryShape>(
 
 /** The sentences that name the record; the rest are the kit's. */
 export interface RecordHistoryCopy {
-  /** Above the list: what this history is. */
-  hint: string;
+  /**
+   * Above the list: a rule about this history the entries do not show. Omit it
+   * when there is none — a history that only says what a history is adds
+   * noise, not information (UX audit 2026-11-17, WORK-17).
+   */
+  hint?: string;
   /** Nothing recorded yet. */
   empty: string;
   /** Under the last page of a history that is whole. */
@@ -210,7 +214,7 @@ export function RecordHistory<E extends RecordHistoryEntryShape>(props: RecordHi
 
   return (
     <div className="space-y-4" aria-busy={loading}>
-      <p className="max-w-prose text-sm text-muted-foreground">{copy.hint}</p>
+      {copy.hint ? <p className="max-w-prose text-sm text-muted-foreground">{copy.hint}</p> : null}
 
       {error ? (
         <Alert variant="destructive">

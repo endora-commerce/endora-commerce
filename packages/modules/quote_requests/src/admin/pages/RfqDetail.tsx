@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -10,6 +10,7 @@ import {
   FileDown,
   FileText,
   History,
+  Loader2,
   PencilLine,
   Send,
   Split,
@@ -21,6 +22,7 @@ import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label
 import {
   CustomFieldValuesPanel,
   LineGroupsEditor,
+  ModalDialog,
   ProductPicker,
   SplitLineDialog,
   canSplitLine,
@@ -495,7 +497,10 @@ export function RfqDetail(): ReactNode {
         variant="outline"
         size="sm"
         className="bg-card border-destructive/40 text-destructive hover:bg-destructive/10"
-        onClick={(): void => setCancelOpen(true)}
+        onClick={(): void => {
+          setError(null);
+          setCancelOpen(true);
+        }}
         disabled={busy}
       >
         <XCircle />
@@ -574,7 +579,7 @@ export function RfqDetail(): ReactNode {
         </Alert>
       ) : null}
       {pdfNotice ? (
-        <Alert variant={pdfNotice.kind} className="mb-4">
+        <Alert variant={pdfNotice.kind} live="polite" className="mb-4">
           <AlertDescription>{pdfNotice.message}</AlertDescription>
         </Alert>
       ) : null}
@@ -925,6 +930,7 @@ export function RfqDetail(): ReactNode {
           onConfirm={(): void => void cancel()}
           onClose={(): void => setCancelOpen(false)}
           busy={busy}
+          error={error}
         />
       ) : null}
       {confirmDialog}
@@ -936,6 +942,12 @@ export function RfqDetail(): ReactNode {
 /**
  * Cancellation modal — captures the (optional) cancellation reason on an
  * overlay rather than stretching the status row, then confirms the cancel.
+ *
+ * The kit's `ModalDialog` since issue #1474 (SALES-09): named by its title,
+ * the reason labelled and focused, Tab held inside, Escape and *Keep RFQ*
+ * returning focus to *Cancel RFQ*. A click on the scrim does not close it, so
+ * a typed reason is not lost to a stray click, and a refused cancellation is
+ * announced here rather than on the page behind the scrim.
  */
 function CancelDialog(props: {
   reason: string;
@@ -943,41 +955,52 @@ function CancelDialog(props: {
   onConfirm: () => void;
   onClose: () => void;
   busy: boolean;
+  error: string | null;
 }): ReactNode {
   const t = useTranslation('core');
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const errorId = useId();
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      role="dialog"
-      aria-modal="true"
-      onClick={props.onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-lg border bg-card p-5 shadow-lg"
-        onClick={(e): void => e.stopPropagation()}
-      >
-        <h2 className="mb-3 text-base font-semibold">{t('rfq.detail.cancelDialog.title')}</h2>
-        <div className="space-y-2">
-          <Label htmlFor="cancel-reason">{t('rfq.detail.cancelReason')}</Label>
-          <Textarea
-            id="cancel-reason"
-            autoFocus
-            value={props.reason}
-            onChange={(e): void => props.onReasonChange(e.target.value)}
-            placeholder={t('rfq.detail.cancelReasonPlaceholder')}
-            rows={3}
-          />
-        </div>
-        <div className="mt-4 flex justify-end gap-2">
+    <ModalDialog
+      title={t('rfq.detail.cancelDialog.title')}
+      onClose={props.onClose}
+      busy={props.busy}
+      dismissOnScrim={false}
+      initialFocusRef={reasonRef}
+      widthClassName="max-w-md"
+      footer={
+        <>
           <Button variant="outline" onClick={props.onClose} disabled={props.busy}>
             {t('rfq.detail.cancelDialog.dismiss')}
           </Button>
-          <Button variant="destructive" onClick={props.onConfirm} disabled={props.busy}>
-            <XCircle size={14} className="mr-1" /> {t('rfq.detail.cancelDialog.confirm')}
+          <Button variant="destructive" onClick={props.onConfirm} disabled={props.busy} aria-busy={props.busy}>
+            {props.busy ? (
+              <Loader2 size={14} aria-hidden="true" className="mr-1 motion-safe:animate-spin" />
+            ) : (
+              <XCircle size={14} aria-hidden="true" className="mr-1" />
+            )}{' '}
+            {t('rfq.detail.cancelDialog.confirm')}
           </Button>
-        </div>
+        </>
+      }
+    >
+      <div className="space-y-2">
+        <Label htmlFor="cancel-reason">{t('rfq.detail.cancelReason')}</Label>
+        <Textarea
+          ref={reasonRef}
+          id="cancel-reason"
+          value={props.reason}
+          onChange={(e): void => props.onReasonChange(e.target.value)}
+          placeholder={t('rfq.detail.cancelReasonPlaceholder')}
+          rows={3}
+          aria-describedby={errorId}
+        />
+        {/* Mounted before it has text, so a refusal that arrives is announced. */}
+        <p id={errorId} role="alert" className="text-sm text-destructive">
+          {props.error}
+        </p>
       </div>
-    </div>
+    </ModalDialog>
   );
 }
 

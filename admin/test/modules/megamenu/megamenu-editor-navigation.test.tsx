@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fireEvent, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import {
   MenuItemConfigPanel,
@@ -14,25 +15,34 @@ import { MenuItemTree } from '../../../../packages/modules/megamenu/src/admin/co
  * tab's presentation and alignment, offers the kinds a level allows, sets an
  * audience, configures a category tree, and says when a label is inherited.
  */
-vi.mock('@endora-commerce/admin-kit/components', () => {
+// The pickers are stubbed; everything else is the kit's own — `MenuItemTree`
+// asks through the real `useConfirmDialog` before deleting (issue #1464).
+vi.mock('@endora-commerce/admin-kit/components', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  // A picker named by its own `ariaLabel`, or — when the panel wires it to a
+  // `<label for>` through `id` — by that label, as the real pickers are.
   const picker =
     (name: string) =>
     ({
       value,
       onChange,
       ariaLabel,
+      id,
     }: {
       value: string | null;
       onChange: (next: string | null) => void;
       ariaLabel?: string;
+      id?: string;
     }) => (
       <input
-        aria-label={ariaLabel ?? name}
+        id={id}
+        {...(id === undefined ? { 'aria-label': ariaLabel ?? name } : {})}
         value={value ?? ''}
         onChange={(event) => onChange(event.target.value || null)}
       />
     );
   return {
+    ...actual,
     CategorySelect: picker('category picker'),
     CmsPagePicker: picker('page picker'),
     CmsBlockPicker: picker('block picker'),
@@ -190,5 +200,99 @@ describe('MenuItemTree — audience badge (feature 168)', () => {
       bundle,
     );
     expect(screen.getAllByText('Signed-in customers')).toHaveLength(1);
+  });
+});
+
+describe('MenuItemConfigPanel — targets named in the operator\'s words (UX audit CONTENT-17, #1467)', () => {
+  it('labels the category picker "Category" and wires the label to it', () => {
+    const onChange = renderPanel(item({ parentId: 'tab', kind: 'category-link', labels: {}, target: { categoryId: '' } }));
+    fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'cat-1' } });
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ target: { categoryId: 'cat-1' } }));
+  });
+
+  it('labels the CMS page picker "Page"', () => {
+    renderPanel(item({ parentId: 'tab', kind: 'cms-page-link', labels: {}, target: { pageId: '' } }));
+    expect(screen.getByLabelText('Page')).toBeTruthy();
+  });
+
+  it('labels the CMS block picker "Content block"', () => {
+    renderPanel(item({ parentId: 'tab', kind: 'cms-block-embed', labels: {}, target: { blockId: '', embedSide: 'right' } }));
+    expect(screen.getByLabelText('Content block')).toBeTruthy();
+  });
+
+  it('names the asset picker after the chosen kind: "Image", or "Video"', () => {
+    const { unmount } = renderWithI18n(
+      <MenuItemConfigPanel
+        item={item({ parentId: 'tab', kind: 'asset', labels: {}, target: { assetId: '', kind: 'image' } })}
+        languages={['pl-PL']}
+        onChange={() => {}}
+      />,
+      bundle,
+    );
+    expect(screen.getByLabelText('Image')).toBeTruthy();
+    unmount();
+    renderPanel(item({ parentId: 'tab', kind: 'asset', labels: {}, target: { assetId: '', kind: 'video' } }));
+    expect(screen.getByLabelText('Video')).toBeTruthy();
+  });
+
+  it('shows no "id" in any target label', () => {
+    for (const key of Object.keys(bundle.megamenu).filter((k) => k.startsWith('fields.'))) {
+      expect(bundle.megamenu[key], key).not.toMatch(/\bid\b/i);
+    }
+  });
+});
+
+describe('MenuItemTree — row actions (UX audit CONTENT-17, #1467)', () => {
+  function renderTree(over: { onDelete?: () => void; onAddChild?: () => void } = {}) {
+    renderWithI18n(
+      <MenuItemTree
+        items={[
+          item({ presentation: 'link', labels: { 'pl-PL': 'Usługi' } }),
+          item({ id: 'item-2', position: 1, presentation: 'link', labels: { 'pl-PL': 'Kontakt' } }),
+        ]}
+        selectedItemId={null}
+        onSelect={() => {}}
+        onMove={() => {}}
+        onDelete={over.onDelete ?? (() => {})}
+        onAddChild={over.onAddChild ?? (() => {})}
+      />,
+      bundle,
+    );
+  }
+
+  it('names the move buttons and disables the move that has nowhere to go', () => {
+    renderTree();
+    const up = screen.getAllByRole('button', { name: 'Move up' });
+    const down = screen.getAllByRole('button', { name: 'Move down' });
+    expect(up).toHaveLength(2);
+    expect(up[0]).toBeDisabled();
+    expect(up[1]).toBeEnabled();
+    expect(down[0]).toBeEnabled();
+    expect(down[1]).toBeDisabled();
+  });
+
+  it('gives each icon button at least a 24 px target (WCAG 2.5.8)', () => {
+    renderTree();
+    for (const button of screen.getAllByRole('button', { name: /^Move (up|down)$/ })) {
+      expect(button.className).toMatch(/\bh-8\b/);
+      expect(button.className).toMatch(/\bw-8\b/);
+    }
+  });
+
+  it('moves adding a child and deleting into a named row menu, delete last', async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const onAddChild = vi.fn();
+    renderTree({ onDelete, onAddChild });
+    expect(screen.queryByRole('button', { name: 'Delete item' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Actions for Kontakt' }));
+    const items = await screen.findAllByRole('menuitem');
+    expect(items.map((el) => el.textContent)).toEqual(['Add child item', 'Delete item']);
+    await user.click(screen.getByRole('menuitem', { name: 'Delete item' }));
+    // The menu item asks first (issue #1464); confirming deletes.
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this menu item?' });
+    expect(onDelete).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete item' }));
+    expect(onDelete).toHaveBeenCalledWith('item-2');
   });
 });

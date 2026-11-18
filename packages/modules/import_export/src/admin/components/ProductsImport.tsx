@@ -245,7 +245,10 @@ export function ProductsImport({ profiles, profilesLoading }: ProductsImportProp
 
       {applied !== null ? (
         <div className="space-y-3">
-          <Alert variant={applied.errors.length > 0 || (applied.fieldErrors?.length ?? 0) > 0 ? 'warning' : 'success'}>
+          <Alert
+            variant={applied.errors.length > 0 || (applied.fieldErrors?.length ?? 0) > 0 ? 'warning' : 'success'}
+            live="polite"
+          >
             <AlertDescription>
               {t('products.applied', { count: applied.imported, refused: applied.errors.length })}
             </AlertDescription>
@@ -293,7 +296,7 @@ function ReportDetails({ report }: { report: ProductsImportReport }): ReactNode 
       ) : null}
 
       {warnings.length > 0 ? (
-        <Alert variant="warning">
+        <Alert variant="warning" live="polite">
           <AlertDescription>
             <ul className="list-disc space-y-1 pl-4">
               {warnings.map((warning) => (

@@ -9,7 +9,7 @@ import {
   type MegamenuItemKind,
   type MegamenuPresentation,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Checkbox, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Checkbox, FormField, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import {
   AssetFieldPicker,
   CategorySelect,
@@ -174,8 +174,8 @@ export function MenuItemConfigPanel({
         </div>
       ) : null}
 
-      <div className="space-y-2">
-        <Label>{t('fields.labelsPerLanguage')}</Label>
+      <div className="space-y-2" role="group" aria-labelledby={`${fieldId}-labels`}>
+        <span id={`${fieldId}-labels`} className="text-sm font-medium leading-none">{t('fields.labelsPerLanguage')}</span>
         {languages.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             {t('itemConfig.addBindingFirst')}
@@ -183,8 +183,9 @@ export function MenuItemConfigPanel({
         ) : null}
         {languages.map((lang) => (
           <div key={lang} className="grid grid-cols-12 items-center gap-2">
-            <span className="col-span-2 font-mono text-xs text-muted-foreground">{lang}</span>
+            <span id={`${fieldId}-label-${lang}`} className="col-span-2 font-mono text-xs text-muted-foreground">{lang}</span>
             <Input
+              aria-labelledby={`${fieldId}-labels ${fieldId}-label-${lang}`}
               className="col-span-10"
               value={item.labels[lang] ?? ''}
               onChange={(event) => setLabel(lang, event.target.value)}
@@ -289,35 +290,35 @@ function KindSpecificFields({
   const t = useTranslation('megamenu');
   const fieldId = useId();
   const target = item.target as Record<string, unknown>;
+  const assetLabel = t(target.kind === 'video' ? 'fields.assetVideo' : 'fields.assetImage');
 
   switch (item.kind) {
     case 'category-link':
       return (
-        <div className="space-y-1">
-          <Label>{t('fields.categoryId')}</Label>
+        <FormField label={t('fields.category')}>
           <CategorySelect
             value={typeof target.categoryId === 'string' && target.categoryId ? target.categoryId : null}
             onChange={(v) => setTarget({ categoryId: v ?? '' } as never)}
           />
-        </div>
+        </FormField>
       );
 
     case 'cms-page-link':
       return (
-        <div className="space-y-1">
-          <Label>{t('fields.cmsPageId')}</Label>
+        <FormField label={t('fields.cmsPage')}>
           <CmsPagePicker
             value={typeof target.pageId === 'string' && target.pageId ? target.pageId : null}
             onChange={(v) => setTarget({ pageId: v ?? '' } as never)}
           />
-        </div>
+        </FormField>
       );
 
     case 'external-link':
       return (
         <div className="space-y-1">
-          <Label>{t('fields.url')}</Label>
+          <Label htmlFor={`${fieldId}-url`}>{t('fields.url')}</Label>
           <Input
+            id={`${fieldId}-url`}
             value={typeof target.url === 'string' ? target.url : ''}
             onChange={(event) => setTarget({ url: event.target.value } as never)}
             placeholder={t('placeholders.externalUrl')}
@@ -329,16 +330,18 @@ function KindSpecificFields({
       return (
         <>
           <div className="space-y-1">
-            <Label>{t('fields.linkTarget')}</Label>
+            <Label htmlFor={`${fieldId}-link-target`}>{t('fields.linkTarget')}</Label>
             <Input
+              id={`${fieldId}-link-target`}
               value={typeof target.url === 'string' ? target.url : ''}
               onChange={(event) => setTarget({ url: event.target.value } as never)}
               placeholder="/promotions"
             />
           </div>
           <div className="space-y-1">
-            <Label>{t('fields.variant')}</Label>
+            <Label htmlFor={`${fieldId}-variant`}>{t('fields.variant')}</Label>
             <Select
+              id={`${fieldId}-variant`}
               value={typeof target.variant === 'string' ? target.variant : 'primary'}
               onChange={(event) => setTarget({ variant: event.target.value } as never)}
             >
@@ -353,18 +356,21 @@ function KindSpecificFields({
     case 'asset':
       return (
         <>
-          <div className="space-y-1">
-            <Label>{t('fields.assetId')}</Label>
+          <FormField label={assetLabel}>
             <AssetFieldPicker
+              // The picker names its read-only input itself ("Asset"), and an
+              // `aria-label` outranks the `<label for>`, so hand it the same name.
+              ariaLabel={assetLabel}
               value={typeof target.assetId === 'string' ? target.assetId : ''}
               onChange={(id) => setTarget({ assetId: id } as never)}
               acceptMimePrefix={target.kind === 'video' ? 'video/' : 'image/'}
               allowUpload
             />
-          </div>
+          </FormField>
           <div className="space-y-1">
-            <Label>{t('fields.kind')}</Label>
+            <Label htmlFor={`${fieldId}-asset-kind`}>{t('fields.kind')}</Label>
             <Select
+              id={`${fieldId}-asset-kind`}
               value={typeof target.kind === 'string' ? target.kind : 'image'}
               onChange={(event) => setTarget({ kind: event.target.value } as never)}
             >
@@ -378,16 +384,16 @@ function KindSpecificFields({
     case 'cms-block-embed':
       return (
         <>
-          <div className="space-y-1">
-            <Label>{t('fields.cmsBlockId')}</Label>
+          <FormField label={t('fields.cmsBlock')}>
             <CmsBlockPicker
               value={typeof target.blockId === 'string' && target.blockId ? target.blockId : null}
               onChange={(v) => setTarget({ blockId: v ?? '' } as never)}
             />
-          </div>
+          </FormField>
           <div className="space-y-1">
-            <Label>{t('fields.embedSide')}</Label>
+            <Label htmlFor={`${fieldId}-embed-side`}>{t('fields.embedSide')}</Label>
             <Select
+              id={`${fieldId}-embed-side`}
               value={typeof target.embedSide === 'string' ? target.embedSide : 'right'}
               onChange={(event) => setTarget({ embedSide: event.target.value } as never)}
             >
@@ -406,8 +412,9 @@ function KindSpecificFields({
       return (
         <>
           <div className="space-y-1">
-            <Label>{t('fields.rootCategory')}</Label>
+            <Label htmlFor={`${fieldId}-root-category`}>{t('fields.rootCategory')}</Label>
             <CategorySelect
+              id={`${fieldId}-root-category`}
               ariaLabel={t('fields.rootCategory')}
               clearable
               value={typeof target.rootCategoryId === 'string' && target.rootCategoryId ? target.rootCategoryId : null}

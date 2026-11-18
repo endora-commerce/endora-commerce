@@ -155,7 +155,7 @@ export function InvoicesList(): ReactNode {
         </Alert>
       ) : null}
       {notice ? (
-        <Alert className="mb-4">
+        <Alert live="polite" className="mb-4">
           <AlertDescription>{notice}</AlertDescription>
         </Alert>
       ) : null}

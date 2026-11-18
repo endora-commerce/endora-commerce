@@ -7,11 +7,9 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  FormField,
   Input,
-  Label,
+  PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -43,13 +41,38 @@ interface MfaSetup {
   qrSvg: string;
 }
 
+/**
+ * Which form a failure belongs to. A refused code is reported on the field that
+ * sent it (issue #1481); `page` is a failure no field caused — starting the
+ * setup.
+ */
+type ErrorTarget = 'page' | 'confirm' | 'disable' | 'regenerate';
+
+/**
+ * What every code field shares. `one-time-code` lets the browser and the phone
+ * offer the code. The keyboard is **not** forced numeric here: the disable and
+ * regenerate fields also take a recovery code, which is hexadecimal, so only
+ * the setup confirmation — a TOTP code alone — asks for `inputMode="numeric"`.
+ */
+const CODE_INPUT = {
+  autoComplete: 'one-time-code',
+  autoCapitalize: 'off',
+  autoCorrect: 'off',
+  spellCheck: false,
+  required: true,
+} as const;
+
 export default function AdminSecuritySettings(): ReactNode {
   const [status, setStatus] = useState<MfaStatus | null>(null);
   const t = useTranslation('mfa');
   const [setup, setSetup] = useState<MfaSetup | null>(null);
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
-  const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // One code per form (issue #1481): the disable and regenerate fields were
+  // bound to one state, so typing in either filled both.
+  const [confirmCode, setConfirmCode] = useState('');
+  const [disableCode, setDisableCode] = useState('');
+  const [regenerateCode, setRegenerateCode] = useState('');
+  const [error, setError] = useState<{ target: ErrorTarget; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const loadStatus = useCallback(async (): Promise<void> => {
@@ -62,22 +85,28 @@ export default function AdminSecuritySettings(): ReactNode {
   }, [loadStatus]);
 
   const run = useCallback(
-    async (fn: () => Promise<void>): Promise<void> => {
+    async (target: ErrorTarget, fn: () => Promise<void>): Promise<void> => {
       setBusy(true);
       setError(null);
       try {
         await fn();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Something went wrong.');
+        setError({
+          target,
+          message: err instanceof ApiError ? err.envelope.error.message : t('security.error.generic'),
+        });
       } finally {
         setBusy(false);
       }
     },
-    [],
+    [t],
   );
 
+  const errorFor = (target: ErrorTarget): string | undefined =>
+    error?.target === target ? error.message : undefined;
+
   const startSetup = (): void =>
-    void run(async () => {
+    void run('page', async () => {
       const res = await apiClient.post<{ data: MfaSetup }>(`${BASE}/setup`);
       setSetup(res.data);
       setRecoveryCodes(null);
@@ -85,22 +114,23 @@ export default function AdminSecuritySettings(): ReactNode {
 
   const confirm = (e: FormEvent): void => {
     e.preventDefault();
-    void run(async () => {
+    void run('confirm', async () => {
       const res = await apiClient.post<{ data: { recoveryCodes: string[] } }>(`${BASE}/activate`, {
-        code,
+        code: confirmCode,
       });
       setRecoveryCodes(res.data.recoveryCodes);
       setSetup(null);
-      setCode('');
+      setConfirmCode('');
       await loadStatus();
     });
   };
 
   const disable = (e: FormEvent): void => {
     e.preventDefault();
-    void run(async () => {
-      await apiClient.post(`${BASE}/disable`, { code });
-      setCode('');
+    void run('disable', async () => {
+      await apiClient.post(`${BASE}/disable`, { code: disableCode });
+      setDisableCode('');
+      setRegenerateCode('');
       setRecoveryCodes(null);
       await loadStatus();
     });
@@ -108,43 +138,45 @@ export default function AdminSecuritySettings(): ReactNode {
 
   const regenerate = (e: FormEvent): void => {
     e.preventDefault();
-    void run(async () => {
+    void run('regenerate', async () => {
       const res = await apiClient.post<{ data: { recoveryCodes: string[] } }>(
         `${BASE}/recovery-codes/regenerate`,
-        { code },
+        { code: regenerateCode },
       );
       setRecoveryCodes(res.data.recoveryCodes);
-      setCode('');
+      setRegenerateCode('');
       await loadStatus();
     });
   };
 
+  const pageError = errorFor('page');
+
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ShieldCheck className="size-5 text-primary" />
-            Two-step verification
-          </CardTitle>
-          <CardDescription>
-            Protect your admin account with a time-based code from an authenticator app.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error ? (
+    <>
+      <PageHeader
+        title={
+          <>
+            <ShieldCheck className="size-6 text-primary" aria-hidden="true" />
+            {t('security.page.title')}
+          </>
+        }
+        description={t('security.page.description')}
+      />
+      <Card className="max-w-2xl">
+        <CardContent className="space-y-4 pt-6">
+          {pageError ? (
             <Alert variant="destructive">
               <ShieldAlert className="size-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
+              <AlertTitle>{t('security.error.title')}</AlertTitle>
+              <AlertDescription>{pageError}</AlertDescription>
             </Alert>
           ) : null}
 
           {recoveryCodes ? (
             <Alert>
-              <AlertTitle>Save your recovery codes</AlertTitle>
+              <AlertTitle>{t('security.recoveryCodes.title')}</AlertTitle>
               <AlertDescription>
-                <p>Each code works once. They are shown only now.</p>
+                <p>{t('security.recoveryCodes.body')}</p>
                 <ul className="mt-2 grid grid-cols-2 gap-1 font-mono text-sm">
                   {recoveryCodes.map((c) => (
                     <li key={c}>{c}</li>
@@ -155,18 +187,28 @@ export default function AdminSecuritySettings(): ReactNode {
           ) : null}
 
           {status === null ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t('security.loading')}</p>
           ) : status.totpActive ? (
             <div className="space-y-6">
               <p className="text-sm">
-                Two-step verification is <strong>enabled</strong>. Unused recovery codes: {status.recoveryCodesRemaining}.
+                {t('security.status.enabled', { count: status.recoveryCodesRemaining })}
               </p>
               {status.canDisable ? (
                 <form className="space-y-2" onSubmit={disable}>
-                  <Label htmlFor="disable-code">Enter a current code to disable two-step verification</Label>
-                  <Input id="disable-code" value={code} onChange={(e): void => setCode(e.target.value)} required />
+                  <FormField
+                    label={t('security.disable.label')}
+                    hint={t('security.code.hint')}
+                    error={errorFor('disable')}
+                    required
+                  >
+                    <Input
+                      {...CODE_INPUT}
+                      value={disableCode}
+                      onChange={(e): void => setDisableCode(e.target.value)}
+                    />
+                  </FormField>
                   <Button type="submit" variant="destructive" disabled={busy}>
-                    Disable two-step verification
+                    {t('security.disable.submit')}
                   </Button>
                 </form>
               ) : (
@@ -177,16 +219,26 @@ export default function AdminSecuritySettings(): ReactNode {
                 </Alert>
               )}
               <form className="space-y-2" onSubmit={regenerate}>
-                <Label htmlFor="regen-code">Enter a current code to regenerate recovery codes</Label>
-                <Input id="regen-code" value={code} onChange={(e): void => setCode(e.target.value)} required />
+                <FormField
+                  label={t('security.regenerate.label')}
+                  hint={t('security.code.hint')}
+                  error={errorFor('regenerate')}
+                  required
+                >
+                  <Input
+                    {...CODE_INPUT}
+                    value={regenerateCode}
+                    onChange={(e): void => setRegenerateCode(e.target.value)}
+                  />
+                </FormField>
                 <Button type="submit" variant="outline" disabled={busy}>
-                  Regenerate recovery codes
+                  {t('security.regenerate.submit')}
                 </Button>
               </form>
             </div>
           ) : setup ? (
             <form className="space-y-3" onSubmit={confirm}>
-              <p className="text-sm">Add this account to your authenticator app:</p>
+              <p className="text-sm">{t('security.setup.intro')}</p>
               {/* An <img> of the server-drawn SVG, never inserted as markup. */}
               <img
                 src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(setup.qrSvg)}`}
@@ -198,28 +250,28 @@ export default function AdminSecuritySettings(): ReactNode {
               <p className="text-sm text-muted-foreground">{t('security.setup.qrHint')}</p>
               <p className="break-all rounded bg-muted px-2 py-1 font-mono text-xs">{setup.otpauthUri}</p>
               <p className="text-sm">
-                Manual key: <code className="font-mono">{setup.secret}</code>
+                {t('security.setup.manualKey')} <code className="font-mono">{setup.secret}</code>
               </p>
-              <Label htmlFor="confirm-code">Enter the 6-digit code to confirm</Label>
-              <Input
-                id="confirm-code"
-                inputMode="numeric"
-                value={code}
-                onChange={(e): void => setCode(e.target.value)}
-                required
-                placeholder="123456"
-              />
+              <FormField label={t('security.setup.codeLabel')} error={errorFor('confirm')} required>
+                <Input
+                  {...CODE_INPUT}
+                  inputMode="numeric"
+                  value={confirmCode}
+                  onChange={(e): void => setConfirmCode(e.target.value)}
+                  placeholder="123456"
+                />
+              </FormField>
               <Button type="submit" disabled={busy}>
-                Confirm and enable
+                {t('security.setup.submit')}
               </Button>
             </form>
           ) : (
             <Button onClick={startSetup} disabled={busy}>
-              Enable two-step verification
+              {t('security.enable.submit')}
             </Button>
           )}
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }

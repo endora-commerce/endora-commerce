@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import type { Data } from '@puckeditor/core';
 import type { NewsletterCustomField, NewsletterEmailBlockSummary } from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import {
   EmailEditorPane,
@@ -12,6 +14,7 @@ import {
 } from '@endora-commerce/page-builder-admin/email';
 import { newsletterVariables } from '../email-variables.js';
 import { newsletterClient } from '../api/newsletter-client.js';
+import { describeDeleteError } from '../describe-delete-error.js';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 
@@ -22,6 +25,8 @@ function asData(content: unknown): Data {
 
 export function BlocksPage(): React.ReactElement {
   const { hasPermission } = useAuth();
+  const t = useTranslation('newsletter');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const canWrite = hasPermission('newsletter:write');
   const [items, setItems] = useState<NewsletterEmailBlockSummary[]>([]);
   const [customFields, setCustomFields] = useState<NewsletterCustomField[]>([]);
@@ -68,6 +73,22 @@ export function BlocksPage(): React.ReactElement {
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
   }, []);
+
+  /** Issue #1464 — a delete asks first, and runs inside the dialog. */
+  async function confirmDelete(block: NewsletterEmailBlockSummary): Promise<void> {
+    setError(null);
+    await confirm({
+      title: t('delete.block.title'),
+      message: t('delete.block.message', { name: block.name, code: block.code }),
+      confirmLabel: t('delete.block.action'),
+      destructive: true,
+      action: async () => {
+        await newsletterClient.deleteBlock(block.id);
+        load();
+      },
+      describeError: describeDeleteError(t),
+    });
+  }
 
   async function run(fn: () => Promise<unknown>): Promise<void> {
     setError(null);
@@ -237,7 +258,7 @@ export function BlocksPage(): React.ReactElement {
                           Edit
                         </Button>
                         {!b.isSystem ? (
-                          <Button variant="ghost" size="sm" onClick={() => void run(() => newsletterClient.deleteBlock(b.id))}>
+                          <Button variant="ghost" size="sm" onClick={() => void confirmDelete(b)}>
                             Delete
                           </Button>
                         ) : (
@@ -259,6 +280,7 @@ export function BlocksPage(): React.ReactElement {
           </table>
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

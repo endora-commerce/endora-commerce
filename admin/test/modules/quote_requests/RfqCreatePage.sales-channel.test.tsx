@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { byId } from '../../helpers/developer-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
@@ -111,8 +112,8 @@ beforeEach(() => {
   );
 });
 
-async function pick(comboLabel: string, optionLabel: string): Promise<void> {
-  await userEvent.click(screen.getByLabelText(comboLabel));
+async function pick(comboLabel: string | HTMLElement, optionLabel: string): Promise<void> {
+  await userEvent.click(typeof comboLabel === 'string' ? screen.getByLabelText(comboLabel) : comboLabel);
   await userEvent.click(await screen.findByRole('option', { name: new RegExp(optionLabel) }));
 }
 
@@ -277,7 +278,7 @@ describe('RfqCreatePage — the sales channel', () => {
       path === `/api/v1/admin/organizations/${ORGANIZATION_ID}/sales-channels` ? pending : read(path),
     );
     openForCustomer();
-    await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue('Jan Kowalski'));
+    await waitFor(() => expect(byId('customerAccountId')).toHaveValue('Jan Kowalski'));
     await addUnpricedLine();
     const submit = screen.getByText('rfqCreate.submit');
     expect(submit).toBeDisabled();

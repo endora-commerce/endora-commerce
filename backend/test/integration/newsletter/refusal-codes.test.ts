@@ -119,6 +119,7 @@ describe('newsletter refusals carry their own code and sentence (issue #626)', (
             async (request) => {
               const service = new NewsletterCampaignService({
                 emFactory: () => h.em(),
+                audience: undefined as never,
                 dispatch: undefined as never,
                 content: undefined as never,
                 isProviderConfigured: async () => false,

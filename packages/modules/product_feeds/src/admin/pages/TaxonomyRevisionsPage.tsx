@@ -241,7 +241,7 @@ export function TaxonomyRevisionsPage(): ReactNode {
       )}
 
       {refused && !mechanismOff ? (
-        <Alert variant="warning">
+        <Alert variant="warning" live="assertive">
           <AlertDescription>{refused}</AlertDescription>
         </Alert>
       ) : null}

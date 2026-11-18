@@ -58,6 +58,7 @@ import { ModalDialog, ProductPicker, SaveSessionSummary, ImmediateBadge } from '
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from '../components/ProductInventoryTab.js';
+import { ProductVariantsSection } from '../components/ProductVariantsSection.js';
 import { PackagingUnitsEditor } from '../components/PackagingUnitsEditor.js';
 import { ProductOrderRulesCard } from '../components/ProductOrderRulesCard.js';
 import { ProductAttributesTab } from '../components/ProductAttributesTab.js';
@@ -1075,7 +1076,7 @@ function ScopedProductEditor({
         return (
           <>
             {notice}
-            <VariantsSection productId={productId} readOnly={structuralReadOnly} />
+            <ProductVariantsSection productId={productId} readOnly={structuralReadOnly} />
           </>
         );
       case 'composite':
@@ -1582,231 +1583,6 @@ function ScopedProductEditor({
 
 
 // ---------------------------------------------------------------------------
-// Variants section (T054) — admin CRUD for ProductVariants under a
-// configurable Product. Lives outside the Product editor's <form> so its
-// own buttons don't submit the parent.
-// ---------------------------------------------------------------------------
-
-interface AdminVariant {
-  id: string;
-  parentProductId: string;
-  sku: string;
-  variantAttributeValues: Record<string, unknown>;
-  stockLevel: number | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-function VariantsSection({ productId, readOnly = false }: { productId: string; readOnly?: boolean }): ReactNode {
-  const t = useTranslation('catalog');
-  const { ask, dialog: removalDialog } = useConfirmRemoval();
-  const [variants, setVariants] = useState<AdminVariant[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-
-  const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Issue #410 — the admin read answers every variant whatever the
-      // product's status or channels; the storefront's product read answers
-      // an inactive product 410 and an out-of-channel one 404.
-      const res = await apiClient.get<{ data: AdminVariant[] }>(
-        `/api/v1/admin/catalog/products/${productId}/variants`,
-      );
-      setVariants(res.data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.variants.error.load'));
-    } finally {
-      setLoading(false);
-    }
-  }, [productId, t]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const handleCreate = useCallback(
-    async (input: {
-      sku: string;
-      attrs: string;
-      stockLevel: string;
-    }): Promise<void> => {
-      // attrs is a comma-separated list of `key=value` pairs.
-      const variantAttributeValues: Record<string, string> = {};
-      for (const pair of input.attrs.split(',')) {
-        const trimmed = pair.trim();
-        if (!trimmed) continue;
-        const [k, v] = trimmed.split('=');
-        if (k && v !== undefined) variantAttributeValues[k.trim()] = v.trim();
-      }
-      try {
-        const payload: Record<string, unknown> = {
-          sku: input.sku,
-          variantAttributeValues,
-        };
-        if (input.stockLevel.trim()) {
-          payload['stockLevel'] = Number(input.stockLevel);
-        }
-        await apiClient.post<{ data: AdminVariant }>(
-          `/api/v1/admin/catalog/products/${productId}/variants`,
-          payload,
-        );
-        setInfo(t('productEditor.variants.success.create', { sku: input.sku }));
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.variants.error.create'));
-      }
-    },
-    [productId, refresh, t],
-  );
-
-  const handleDelete = useCallback(
-    async (variantId: string, sku: string): Promise<void> => {
-      if (!(await ask(t('productEditor.variants.deleteConfirm', { sku })))) return;
-      try {
-        await apiClient.delete<void>(
-          `/api/v1/admin/catalog/products/${productId}/variants/${variantId}`,
-        );
-        setInfo(t('productEditor.variants.success.delete', { sku }));
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.variants.error.delete'));
-      }
-    },
-    [productId, refresh, ask, t],
-  );
-
-  return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>{t('productEditor.variants.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {info ? (
-          <Alert>
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
-        ) : variants.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.variants.empty')}</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('productEditor.variants.column.sku')}</TableHead>
-                <TableHead>{t('productEditor.variants.column.attributes')}</TableHead>
-                <TableHead>{t('productEditor.variants.column.stock')}</TableHead>
-                {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.variants.column.actions')}</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {variants.map((v) => (
-                <TableRow key={v.id}>
-                  <TableCell className="font-mono">{v.sku}</TableCell>
-                  <TableCell>
-                    {Object.entries(v.variantAttributeValues)
-                      .map(([k, val]) => `${k}=${String(val)}`)
-                      .join(', ') || '—'}
-                  </TableCell>
-                  <TableCell>{v.stockLevel ?? '—'}</TableCell>
-                  {readOnly ? null : (
-                    <TableCell>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="max-lg:min-h-11"
-                        onClick={() => void handleDelete(v.id, v.sku)}
-                      >
-                        {t('productEditor.variants.action.delete')}
-                      </Button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-
-        {readOnly ? null : <CreateVariantInline onCreate={handleCreate} />}
-      </CardContent>
-      {removalDialog}
-    </Card>
-  );
-}
-
-function CreateVariantInline({
-  onCreate,
-}: {
-  onCreate: (input: {
-    sku: string;
-    attrs: string;
-    stockLevel: string;
-  }) => Promise<void>;
-}): ReactNode {
-  const t = useTranslation('catalog');
-  const [sku, setSku] = useState('');
-  const [attrs, setAttrs] = useState('');
-  const [stockLevel, setStockLevel] = useState('');
-
-  return (
-    <div
-      className="grid gap-3 md:grid-cols-4 border-t pt-4"
-      role="group"
-      aria-label={t('productEditor.variants.createTitle')}
-    >
-      <div className="space-y-1">
-        <Label htmlFor="vsku">{t('productEditor.variants.field.sku')}</Label>
-        <Input id="vsku" value={sku} onChange={(e): void => setSku(e.target.value)} required />
-      </div>
-      <div className="space-y-1 md:col-span-2">
-        <Label htmlFor="vattrs">{t('productEditor.variants.field.attributes')}</Label>
-        <Input
-          id="vattrs"
-          value={attrs}
-          onChange={(e): void => setAttrs(e.target.value)}
-          placeholder={t('productEditor.variants.field.attributesPlaceholder')}
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="vstock">{t('productEditor.variants.field.stock')}</Label>
-        <Input
-          id="vstock"
-          type="number"
-          min="0"
-          value={stockLevel}
-          onChange={(e): void => setStockLevel(e.target.value)}
-        />
-      </div>
-      <div className="md:col-span-4">
-        <Button
-          type="button"
-          onClick={() => {
-            void onCreate({ sku, attrs, stockLevel }).then(() => {
-              setSku('');
-              setAttrs('');
-              setStockLevel('');
-            });
-          }}
-        >
-          {t('productEditor.variants.action.add')}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Product Links section (T109, US4) — Related / Up-sell / Cross-sell.
 // Three sub-lists, one product picker (paste id) + kind selector +
 // "Add" button per kind. Backend bulkCreate is all-or-nothing and
@@ -1951,7 +1727,7 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
           </Alert>
         ) : null}
         {info ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{info}</AlertDescription>
           </Alert>
         ) : null}
@@ -2197,7 +1973,7 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
           </Alert>
         ) : null}
         {info ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{info}</AlertDescription>
           </Alert>
         ) : null}
@@ -2437,7 +2213,7 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
           </Alert>
         ) : null}
         {info ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{info}</AlertDescription>
           </Alert>
         ) : null}

@@ -866,7 +866,7 @@ function GridNotice(props: {
   if (notice.kind === 'existing') {
     const shown = notice.products.slice(0, 5);
     return (
-      <Alert variant="warning">
+      <Alert variant="warning" live="polite">
         <AlertDescription className="space-y-2">
           <p>{t('grid.notice.existing', { names: notice.products.map((p) => p.name).join(', ') })}</p>
           <span className="flex flex-wrap gap-2">
@@ -882,7 +882,8 @@ function GridNotice(props: {
   }
   if (notice.kind === 'stale') {
     return (
-      <Alert variant="warning">
+      // A refused save: the operator has to decide before anything else (#1484).
+      <Alert variant="warning" live="assertive">
         <AlertDescription className="space-y-2">
           <p>{t('grid.notice.stale', { count: notice.count })}</p>
           <span className="flex flex-wrap gap-2">

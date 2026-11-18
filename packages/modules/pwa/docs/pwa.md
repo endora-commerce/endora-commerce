@@ -24,7 +24,9 @@ abstraction.
   the shell from the device and a clear offline page shows when the network drops.
   Prices, stock and cart are never cached — they always reflect live data.
 - **Push notifications** — when enabled, buyers can opt in to notifications.
-  You can send a broadcast or targeted message from the admin. On top of that,
+  You can send a broadcast or targeted message from the admin; the admin asks
+  for confirmation first, with the number of subscribed devices for a
+  broadcast, because a sent notification cannot be recalled. On top of that,
   customers are notified automatically about their orders and quote requests:
   - **Order status changes** — whenever one of the customer's orders moves to
     a new status. The notification names the order number and the status the

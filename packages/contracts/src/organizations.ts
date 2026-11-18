@@ -481,11 +481,26 @@ export const acceptInvitationRequestSchema = z.object({
   lastName: z.string().min(1).max(120),
 });
 
+/**
+ * Issue #1468 (SALES-01, DEC-07) — the refusal of `status` on the admin PATCH. Moderation is the
+ * one writer of an organization's status: only it checks the state machine, stamps
+ * `approvedAt` / `blockedAt` / `blockedReason`, emits `organization.status_changed.v1` and sends
+ * the customer e-mail.
+ */
+export const ADMIN_PATCH_ORGANIZATION_STATUS_REFUSAL =
+  'Organization status cannot be set here; use approve, reject, block or unblock ' +
+  '(POST /api/v1/admin/organizations/:id/approve|reject|block|unblock).';
+
 /** Platform admin — PATCH `/admin/organizations/:id` */
 export const adminPatchOrganizationRequestSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   vatStatus: vatStatusSchema.optional(),
-  status: organizationStatusSchema.optional(),
+  /**
+   * Refused, not silently stripped (issue #1468): a strip would answer `200` to an integrator
+   * who believes they blocked an organization. The body is refused as a whole, so nothing else
+   * it carries is written either.
+   */
+  status: z.never({ error: ADMIN_PATCH_ORGANIZATION_STATUS_REFUSAL }).optional(),
   /** Feature 038 (US4) — additional emails CC'd on this org's order confirmations. */
   orderConfirmationEmails: z.array(z.string()).optional(),
   /**

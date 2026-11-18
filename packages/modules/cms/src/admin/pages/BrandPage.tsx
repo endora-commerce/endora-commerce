@@ -702,7 +702,7 @@ export function BrandPage(): ReactNode {
           <section aria-label={t('brand.preview.title')} className="lg:col-span-4">
             <div className="space-y-4 lg:sticky lg:top-4">
               {findings.length > 0 ? (
-                <Alert variant="warning">
+                <Alert variant="warning" live="polite">
                   <AlertTitle>{t('brand.contrast.title')}</AlertTitle>
                   <AlertDescription className="space-y-2">
                     <p>{t('brand.contrast.description')}</p>

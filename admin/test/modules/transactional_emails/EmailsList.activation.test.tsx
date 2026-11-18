@@ -57,6 +57,8 @@ const bundle = passthroughBundle('transactional_emails', [
   'activation.locked',
   'activation.action.enable',
   'activation.action.disable',
+  'list.search',
+  'list.searchLabel',
 ]);
 
 function summary(patch: Partial<TransactionalEmailSummary> & { code: string }): TransactionalEmailSummary {
@@ -173,5 +175,13 @@ describe('EmailsList — per-email activation (issue #89)', () => {
     expect(
       within(row('demo_notice')).getByRole('button', { name: /activation.action.disable/ }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('EmailsList — search box (#1465)', () => {
+  it('names the search box by a label, not only by its placeholder', async () => {
+    await renderList();
+    const search = screen.getByRole('searchbox', { name: 'list.searchLabel' });
+    expect(search).toHaveAttribute('placeholder', 'list.search');
   });
 });

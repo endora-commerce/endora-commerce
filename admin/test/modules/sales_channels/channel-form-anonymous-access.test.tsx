@@ -79,7 +79,6 @@ const bundle = { sales_channels: en };
 const NEW_KEYS = [
   'identity.anonymousAccess.label',
   'identity.anonymousAccess.hint',
-  'identity.anonymousAccess.pricesHint',
   'identity.anonymousAccess.pricesLink',
   'list.badge.signInRequired',
 ] as const;
@@ -130,10 +129,12 @@ describe('bundle', () => {
     // the admin never had (issue #467); it names no price setting now.
     expect(en['identity.anonymousAccess.hint']).not.toMatch(/price/i);
     expect(pl['identity.anonymousAccess.hint']).not.toMatch(/cen/i);
-    // Issue #492 — the price question has its own hint, naming the setting
-    // that answers it.
-    expect(en['identity.anonymousAccess.pricesHint']).toMatch(/display mode/i);
-    expect(pl['identity.anonymousAccess.pricesHint']).toMatch(/tryb wyświetlania/i);
+    // Issue #492 — the price question has its own link, to the setting that
+    // answers it; since #1482 the link is the whole hint, so it names prices.
+    expect(en['identity.anonymousAccess.pricesLink']).toMatch(/price/i);
+    expect(pl['identity.anonymousAccess.pricesLink']).toMatch(/cen/i);
+    expect(en['identity.anonymousAccess.pricesHint']).toBeUndefined();
+    expect(pl['identity.anonymousAccess.pricesHint']).toBeUndefined();
   });
 });
 
@@ -153,7 +154,7 @@ describe('ChannelIdentityForm — Open to anonymous visitors', () => {
     expect(hintIds).toHaveLength(2);
     expect(document.getElementById(hintIds[0]!)?.textContent).toBe(en['identity.anonymousAccess.hint']);
     expect(document.getElementById(hintIds[1]!)?.textContent).toBe(
-      `${en['identity.anonymousAccess.pricesHint']} ${en['identity.anonymousAccess.pricesLink']}`,
+      en['identity.anonymousAccess.pricesLink'],
     );
     await expectNoAxeViolations(container);
   });

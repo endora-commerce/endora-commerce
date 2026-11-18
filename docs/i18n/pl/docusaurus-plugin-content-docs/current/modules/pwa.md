@@ -24,7 +24,9 @@ workera oraz opcjonalne powiadomienia push za warstwą niezależną od dostawcy.
   offline. Ceny, stany magazynowe i koszyk nigdy nie trafiają do pamięci podręcznej — zawsze
   pokazują aktualne dane.
 - **Powiadomienia push** — po włączeniu kupujący mogą sami zgodzić się na powiadomienia. W panelu
-  administracyjnym można wysłać wiadomość do wszystkich albo do wybranych odbiorców. Dodatkowo
+  administracyjnym można wysłać wiadomość do wszystkich albo do wybranych odbiorców; panel najpierw
+  prosi o potwierdzenie, a przy wysyłce do wszystkich podaje liczbę subskrybowanych urządzeń, bo
+  wysłanego powiadomienia nie da się wycofać. Dodatkowo
   klienci są automatycznie powiadamiani o swoich zamówieniach i zapytaniach ofertowych:
   - **Zmiany statusu zamówienia** — za każdym razem, gdy zamówienie klienta przechodzi do nowego
     statusu. Powiadomienie podaje numer zamówienia i status w brzmieniu nadanym przez sklep, a po

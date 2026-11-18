@@ -9,6 +9,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { ADMIN_PREFERENCES_DEFAULTS, ADMIN_PRODUCT_SELECTION_MAX } from '@endora-commerce/contracts';
 import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { byId } from '../../helpers/developer-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { orgSalesChannels } from './org-sales-channels';
 
@@ -332,8 +333,8 @@ function submitButton(): HTMLElement {
   return screen.getByRole('button', { name: 'Create order' });
 }
 
-async function pickOption(user: User, comboLabel: string, optionLabel: string): Promise<void> {
-  await user.click(screen.getByLabelText(comboLabel));
+async function pickOption(user: User, comboLabel: string | HTMLElement, optionLabel: string): Promise<void> {
+  await user.click(typeof comboLabel === 'string' ? screen.getByLabelText(comboLabel) : comboLabel);
   await user.click(await screen.findByRole('option', { name: new RegExp(optionLabel) }));
 }
 
@@ -436,12 +437,12 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
       { productId: 'a02', quantity: 1 },
     ];
 
-    await pickOption(user, 'deliveryMethodId', 'Delivery 1');
+    await pickOption(user, byId('deliveryMethodId'), 'Delivery 1');
     await waitFor(() => expect(previewBodies().at(-1)).toMatchObject({ deliveryMethodId: 'del-1', items }));
     expect(previewBodies().at(-1)).not.toHaveProperty('paymentMethodId');
     await waitFor(() => expect(summaryTotal()).toBe(money(35)));
 
-    await pickOption(user, 'paymentMethodId', 'Payment 1');
+    await pickOption(user, byId('paymentMethodId'), 'Payment 1');
     await waitFor(() =>
       expect(previewBodies().at(-1)).toMatchObject({ deliveryMethodId: 'del-1', paymentMethodId: 'pay-1', items }),
     );
@@ -556,8 +557,8 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
     };
     const user = userEvent.setup();
     await renderPage();
-    await pickOption(user, 'paymentMethodId', 'Payment 1');
-    await pickOption(user, 'deliveryMethodId', 'Delivery 1');
+    await pickOption(user, byId('paymentMethodId'), 'Payment 1');
+    await pickOption(user, byId('deliveryMethodId'), 'Delivery 1');
     await addThroughPicker(user, ['Widget 01', 'Widget 02', 'Widget 03', 'Widget 04', 'Widget 05', 'Widget 06']);
 
     await waitFor(() =>
@@ -584,8 +585,8 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
     unavailableCodes = { a01: 'PRODUCT_ARCHIVED' };
     const user = userEvent.setup();
     await renderPage();
-    await pickOption(user, 'paymentMethodId', 'Payment 1');
-    await pickOption(user, 'deliveryMethodId', 'Delivery 1');
+    await pickOption(user, byId('paymentMethodId'), 'Payment 1');
+    await pickOption(user, byId('deliveryMethodId'), 'Delivery 1');
     await addThroughPicker(user, ['Widget 01', 'Widget 02']);
 
     const reason = CORE['orderCreate.line.archived'];
@@ -601,8 +602,8 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
     async (bad) => {
       const user = userEvent.setup();
       await renderPage();
-      await pickOption(user, 'paymentMethodId', 'Payment 1');
-      await pickOption(user, 'deliveryMethodId', 'Delivery 1');
+      await pickOption(user, byId('paymentMethodId'), 'Payment 1');
+      await pickOption(user, byId('deliveryMethodId'), 'Delivery 1');
       await addThroughPicker(user, ['Widget 01', 'Widget 02']);
       await waitFor(() => expect(submitButton()).toBeEnabled());
 
@@ -641,8 +642,8 @@ describe('OrderCreatePage — Browse products and the quick search (US1)', () =>
   it('creates the order with exactly the visible lines and quantities (FR-026)', async () => {
     const user = userEvent.setup();
     await renderPage();
-    await pickOption(user, 'paymentMethodId', 'Payment 1');
-    await pickOption(user, 'deliveryMethodId', 'Delivery 1');
+    await pickOption(user, byId('paymentMethodId'), 'Payment 1');
+    await pickOption(user, byId('deliveryMethodId'), 'Delivery 1');
     await addThroughPicker(user, ['Widget 01', 'Widget 02', 'Widget 03']);
     await user.click(within(lineRow('Widget 02')).getByRole('button', { name: 'Delete Widget 02' }));
     const qty = screen.getByRole('textbox', { name: 'Quantity Widget 03' });

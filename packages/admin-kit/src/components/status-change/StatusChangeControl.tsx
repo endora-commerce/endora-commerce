@@ -1,8 +1,8 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { Badge, type BadgeProps } from '../../ui/badge.js';
 import { Button } from '../../ui/button.js';
+import { InlineStatus } from '../../ui/inline-status.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { ModalDialog } from '../modal-dialog/ModalDialog.js';
 
@@ -184,12 +184,11 @@ export function StatusChangeControl(props: StatusChangeControlProps): ReactNode 
         </p>
       ) : null}
       {/* Mounted before it has text, so the change is announced (WCAG 4.1.3). */}
-      <p role="status" className="sr-only">
-        {announcement}
-      </p>
+      <InlineStatus visuallyHidden>{announcement}</InlineStatus>
 
+      {/* ModalDialog renders into document.body itself (issue #1444). */}
       {open
-        ? createPortal(
+        ? (
             <ModalDialog
               title={step === 'choose' ? dialogTitle : t('common.statusChange.confirmTitle')}
               onClose={close}
@@ -280,8 +279,7 @@ export function StatusChangeControl(props: StatusChangeControlProps): ReactNode 
                   </p>
                 </div>
               )}
-            </ModalDialog>,
-            document.body,
+            </ModalDialog>
           )
         : null}
     </div>

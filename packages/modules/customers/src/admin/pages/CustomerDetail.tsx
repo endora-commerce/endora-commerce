@@ -22,6 +22,7 @@ import {
   CardTitle,
   Label,
   PageHeader,
+  Section,
   Textarea,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
@@ -104,6 +105,13 @@ function EmailLanguage({ tag, adminLanguage }: { tag: string; adminLanguage: str
  */
 type ImpersonationState = { phase: 'idle' } | { phase: 'active' } | { phase: 'ended' };
 
+/**
+ * Issue #1471 — the account actions that take something away from the
+ * customer, each asked about before it runs: its request, and the bundle prefix
+ * of its question (`detail.confirm.<kind>.{title,message,action}`).
+ */
+type ConfirmedAction = 'block' | 'resetMfa' | 'delete';
+
 /** The host part's unsaved changes: one per edited custom field (feature 180, WP-8). */
 function customFieldChangeCount(
   edited: Record<string, unknown> | undefined,
@@ -145,10 +153,16 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
   const [impersonateError, setImpersonateError] = useState<string | null>(null);
   const [impersonation, setImpersonation] = useState<ImpersonationState>({ phase: 'idle' });
   const [endingImpersonation, setEndingImpersonation] = useState(false);
+  // Issue #1471 — the account action being asked about, its in-flight request and refusal.
+  const [confirming, setConfirming] = useState<ConfirmedAction | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   // Where focus goes once the dialog or the session closes: the button that held it is
   // disabled or gone by then (WCAG 2.4.3).
   const storefrontLinkRef = useRef<HTMLAnchorElement>(null);
   const impersonateButtonRef = useRef<HTMLButtonElement>(null);
+  // After a delete the Delete button is gone; Restore, which replaces it, takes focus.
+  const restoreButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (impersonation.phase === 'active') storefrontLinkRef.current?.focus();
     if (impersonation.phase === 'ended') impersonateButtonRef.current?.focus();
@@ -239,6 +253,33 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
     },
     [refresh, t],
   );
+
+  const askToConfirm = (action: ConfirmedAction): void => {
+    setConfirmError(null);
+    setConfirming(action);
+  };
+
+  /**
+   * Runs the confirmed action with its dialog still open: busy, so it cannot
+   * be sent twice; a refusal stays in the dialog, next to the button that
+   * retries it; success closes it and re-reads the customer.
+   */
+  const runConfirmed = async (action: ConfirmedAction): Promise<void> => {
+    setConfirmBusy(true);
+    setConfirmError(null);
+    try {
+      if (action === 'block') await apiClient.post(`/api/v1/admin/customers/${id}/block`, {});
+      else if (action === 'resetMfa') await apiClient.post(`/api/v1/admin/customers/${id}/mfa/reset`, {});
+      else await apiClient.delete(`/api/v1/admin/customers/${id}`);
+      setConfirming(null);
+      await refresh();
+      if (action === 'delete') setTimeout(() => restoreButtonRef.current?.focus(), 0);
+    } catch (err) {
+      setConfirmError(err instanceof ApiError ? err.envelope.error.message : t('detail.actionError'));
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
 
   const startImpersonation = async (): Promise<void> => {
     setImpersonateBusy(true);
@@ -372,11 +413,9 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
               {t('detail.action.unblock')}
             </Button>
           ) : (
-            <Button
-              variant="destructive"
-              disabled={busy || c.deleted}
-              onClick={(): void => void act(() => apiClient.post(`/api/v1/admin/customers/${id}/block`, {}))}
-            >
+            // Reversible (Unblock), so not styled as the page's destructive action;
+            // its weight is in the confirmation (issue #1471).
+            <Button variant="outline" disabled={busy || c.deleted} onClick={(): void => askToConfirm('block')}>
               {t('detail.action.block')}
             </Button>
           )}
@@ -393,7 +432,7 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
           <Button
             variant="outline"
             disabled={busy || c.deleted}
-            onClick={(): void => void act(() => apiClient.post(`/api/v1/admin/customers/${id}/mfa/reset`, {}))}
+            onClick={(): void => askToConfirm('resetMfa')}
           >
             {t('detail.action.resetMfa')}
           </Button>
@@ -411,23 +450,18 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
             {t('detail.action.impersonate')}
           </Button>
 
+          {/* Restoring gives the account back, so it stays with the everyday actions;
+              Delete is in its own section at the end of the page (issue #1471). */}
           {c.deleted ? (
             <Button
+              ref={restoreButtonRef}
               variant="outline"
               disabled={busy}
               onClick={(): void => void act(() => apiClient.post(`/api/v1/admin/customers/${id}/restore`, {}))}
             >
               {t('detail.action.restore')}
             </Button>
-          ) : (
-            <Button
-              variant="destructive"
-              disabled={busy}
-              onClick={(): void => void act(() => apiClient.delete(`/api/v1/admin/customers/${id}`))}
-            >
-              {t('detail.action.delete')}
-            </Button>
-          )}
+          ) : null}
 
           {/* Mounted before it has text, so the outcome that arrives is announced. */}
           <div role="status" data-testid="impersonation-status" className="w-full empty:hidden">
@@ -529,6 +563,42 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
       <OrdersPanel customerId={id} />
       <QuoteRequestsPanel customerId={id} />
       <CartsPanel customerId={id} />
+
+      {/* Issue #1471 — Delete at the end of the page, away from the everyday actions (Fitts). */}
+      {!c.deleted ? (
+        <Card className="mt-4 border-destructive/40">
+          <CardContent className="pt-6">
+            <Section
+              title={t('detail.dangerZone.title')}
+              action={
+                <Button
+                  variant="outline"
+                  className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                  disabled={busy}
+                  onClick={(): void => askToConfirm('delete')}
+                >
+                  {t('detail.action.delete')}
+                </Button>
+              }
+            >
+              <p className="text-sm text-muted-foreground">{t('detail.dangerZone.hint')}</p>
+            </Section>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {confirming ? (
+        <ConfirmDialog
+          title={t(`detail.confirm.${confirming}.title`, { name: `${c.firstName} ${c.lastName}` })}
+          message={t(`detail.confirm.${confirming}.message`, { name: `${c.firstName} ${c.lastName}`, email: c.email })}
+          confirmLabel={t(`detail.confirm.${confirming}.action`)}
+          destructive
+          busy={confirmBusy}
+          error={confirmError}
+          onConfirm={(): void => void runConfirmed(confirming)}
+          onCancel={(): void => setConfirming(null)}
+        />
+      ) : null}
     </>
   );
 }

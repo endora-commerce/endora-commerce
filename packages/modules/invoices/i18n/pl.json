@@ -90,5 +90,7 @@
   "errors.INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING": "Ten zwrot przekracza kwotę, którą faktura nadal nalicza w stawce VAT {vatRatePercent}% ({remaining} {currency}). Zmniejsz kwotę.",
   "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING": "Zwrot opłaty przekracza kwotę, którą faktura nadal za nią nalicza ({remaining} {currency}). Zmniejsz kwotę.",
   "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.delivery": "Zwrot kosztów dostawy przekracza kwotę, którą faktura nadal za nią nalicza ({remaining} {currency}). Zmniejsz kwotę.",
-  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.payment_surcharge": "Zwrot dopłaty za płatność przekracza kwotę, którą faktura nadal za nią nalicza ({remaining} {currency}). Zmniejsz kwotę."
+  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.payment_surcharge": "Zwrot dopłaty za płatność przekracza kwotę, którą faktura nadal za nią nalicza ({remaining} {currency}). Zmniejsz kwotę.",
+  "settingLabels.invoices.email.delivery_mode.options.attachment": "PDF w załączniku",
+  "settingLabels.invoices.email.delivery_mode.options.link": "Link do panelu klienta"
 }

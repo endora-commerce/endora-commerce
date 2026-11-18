@@ -459,7 +459,7 @@ export function CustomFieldsPage(): ReactNode {
         </CardHeader>
         <CardContent className="space-y-3">
           {offersCarry && allFailed ? (
-            <Alert variant="warning">
+            <Alert variant="warning" live="polite">
               <AlertDescription className="flex flex-wrap items-center gap-2">
                 <span className="break-words">{t('customFields.carry.checksUnavailable')}</span>
                 <Button

@@ -31,5 +31,11 @@
   "customEvents.actions.add_to_shopping_list": "Add to shopping list",
   "customEvents.actions.button_click_by_id": "Button click (by ID)",
   "actions.newCustomEvent.keywords": "event",
-  "settingGroups.google_analytics.name": "Google Analytics"
+  "settingGroups.google_analytics.name": "Google Analytics",
+  "customEvents.dangerZone.title": "Delete this event",
+  "customEvents.dangerZone.hint": "The storefront stops sending it to Google Analytics. Deleting cannot be undone.",
+  "customEvents.deleteConfirm.title": "Delete this custom event?",
+  "customEvents.deleteConfirm.message": "“{name}” is deleted, and the storefront stops sending it to Google Analytics. Reports keep the data already collected.",
+  "customEvents.deleteConfirm.action": "Delete event",
+  "customEvents.deleteConfirm.failed": "The event could not be deleted, and nothing was changed. Try again."
 }

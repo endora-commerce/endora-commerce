@@ -18,8 +18,10 @@ import {
   Input,
   Label,
   PageHeader,
+  Section,
   Select,
 } from '@endora-commerce/admin-kit/ui';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { googleAnalyticsClient, type GaActionCatalogue } from '../api/google-analytics-client.js';
 
@@ -41,6 +43,7 @@ export default function CustomEventEditPage(): ReactNode {
   const t = useTranslation('google_analytics');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const isCreate = id === 'new' || id === undefined;
 
   const [catalogue, setCatalogue] = useState<GaActionCatalogue | null>(null);
@@ -166,17 +169,24 @@ export default function CustomEventEditPage(): ReactNode {
     staticFields,
   ]);
 
-  const remove = useCallback(async (): Promise<void> => {
+  /**
+   * Issue #1464 — Delete asks first, naming the event, and runs inside the
+   * dialog; it sits in its own section below the form, away from Save.
+   */
+  const remove = async (): Promise<void> => {
     if (isCreate) return;
-    setSaving(true);
-    try {
-      await googleAnalyticsClient.remove(id!);
-      navigate('/google-analytics');
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : String(err));
-      setSaving(false);
-    }
-  }, [id, isCreate, navigate]);
+    setError(null);
+    const deleted = await confirm({
+      title: t('customEvents.deleteConfirm.title'),
+      message: t('customEvents.deleteConfirm.message', { name: eventName }),
+      confirmLabel: t('customEvents.deleteConfirm.action'),
+      destructive: true,
+      action: () => googleAnalyticsClient.remove(id!),
+      describeError: (err) =>
+        err instanceof ApiError ? err.envelope.error.message : t('customEvents.deleteConfirm.failed'),
+    });
+    if (deleted) navigate('/google-analytics');
+  };
 
   if (loading) return <p className="p-6 text-muted-foreground">…</p>;
 
@@ -310,14 +320,31 @@ export default function CustomEventEditPage(): ReactNode {
             <Button onClick={() => void save()} disabled={saving}>
               {t('customEvents.save')}
             </Button>
-            {!isCreate && (
-              <Button variant="destructive" onClick={() => void remove()} disabled={saving}>
-                {t('customEvents.delete')}
-              </Button>
-            )}
           </div>
         </CardContent>
       </Card>
+      {!isCreate && (
+        <Card className="mt-6 border-destructive/40">
+          <CardContent className="pt-6">
+            <Section
+              title={t('customEvents.dangerZone.title')}
+              action={
+                <Button
+                  variant="outline"
+                  className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                  onClick={() => void remove()}
+                  disabled={saving}
+                >
+                  {t('customEvents.delete')}
+                </Button>
+              }
+            >
+              <p className="text-sm text-muted-foreground">{t('customEvents.dangerZone.hint')}</p>
+            </Section>
+          </CardContent>
+        </Card>
+      )}
+      {confirmDialog}
     </>
   );
 }

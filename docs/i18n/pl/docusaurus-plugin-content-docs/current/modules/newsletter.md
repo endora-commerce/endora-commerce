@@ -37,7 +37,10 @@ wyłączać**, aby nie kolidował z zewnętrzną usługą e-mail marketingu (Mai
 - **Kampania** — jednorazowa wysyłka do odbiorców `all` / ręcznie wybranej grupy `group` / `tag` /
   `tag_list`. Tworzona we wspólnym edytorze e-maili Page Builder (ta sama paleta bloków co e-maile
   transakcyjne): temat, drzewo treści Puck i zmienne; podgląd na przykładowych danych; wysyłka od
-  razu albo w zaplanowanym terminie.
+  razu albo w zaplanowanym terminie. **Wyślij** zapisuje kampanię, a potem prosi o potwierdzenie,
+  podając temat i liczbę subskrybentów, do których trafi wysyłka (aktywnych i niewykluczonych —
+  według tej samej reguły co sama wysyłka); odbiorców, do których nic by nie trafiło, panel
+  odrzuca, zanim o cokolwiek zapyta.
 - **Automatyzacja** — liniowa sekwencja kroków `send` / `wait N days`, uruchamiana dla odbiorców
   all / tag / tag-list. Kroki wysyłki korzystają z tego samego edytora e-maili. Model kroków
   zaprojektowano tak, by później można było dodać rozgałęzienia warunkowe bez przebudowy.

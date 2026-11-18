@@ -19,7 +19,13 @@ import {
   ORDER_EXTERNAL_REFERENCE_STATES,
   orderExternalReferenceSystemSchema,
   orderExternalReferenceWriteSchema,
+  adminOrderPaymentStatusTransitionSchema,
+  orderPaymentStatusRefusalDetailsSchema,
+  PAYMENT_STATUS_TRANSITIONS,
+  paymentStatusTargets,
+  paymentStatusTransitionActorSchema,
 } from './orders.js';
+import { paymentStatusSchema } from './common.js';
 
 const ADDRESS = {
   recipientName: 'Jan Kowalski',
@@ -559,5 +565,58 @@ describe('order external references (issue #1030)', () => {
     expect(accepts('')).toBe(false);
     expect(accepts('   ')).toBe(false);
     expect(accepts('r'.repeat(256))).toBe(false);
+  });
+});
+
+describe('payment-status transitions (issue #1574)', () => {
+  it('C1 — an operator may move an unpaid order to paid, a paid one to refunded, and a refunded one nowhere', () => {
+    expect(paymentStatusTargets('awaiting_payment', 'operator')).toEqual(['paid']);
+    expect(paymentStatusTargets('failed', 'operator')).toEqual(['paid']);
+    expect(paymentStatusTargets('deferred', 'operator')).toEqual(['paid']);
+    expect(paymentStatusTargets('paid', 'operator')).toEqual(['refunded']);
+    expect(paymentStatusTargets('refunded', 'operator')).toEqual([]);
+  });
+
+  it('C1 — the targets never include the current status', () => {
+    for (const from of paymentStatusSchema.options) {
+      for (const actor of paymentStatusTransitionActorSchema.options) {
+        expect(paymentStatusTargets(from, actor)).not.toContain(from);
+      }
+    }
+  });
+
+  it('C2 — the operator edges reach exactly what the admin route parses (the graph and the schema cannot drift)', () => {
+    const reachable = new Set(
+      PAYMENT_STATUS_TRANSITIONS.filter((edge) => edge.actors.includes('operator')).map((edge) => edge.to),
+    );
+    expect([...reachable].sort()).toEqual([...adminOrderPaymentStatusTransitionSchema.shape.to.options].sort());
+  });
+
+  it('C3 — settlement adds exactly awaiting_payment -> failed to the operator edges', () => {
+    const edges = (actor: 'operator' | 'settlement'): string[] =>
+      PAYMENT_STATUS_TRANSITIONS.filter((edge) => edge.actors.includes(actor))
+        .map((edge) => `${edge.from}->${edge.to}`)
+        .sort();
+    const operator = edges('operator');
+    const settlement = edges('settlement');
+    expect(operator.every((edge) => settlement.includes(edge))).toBe(true);
+    expect(settlement.filter((edge) => !operator.includes(edge))).toEqual(['awaiting_payment->failed']);
+  });
+
+  it('C3 — no edge leaves refunded, and none enters awaiting_payment or deferred', () => {
+    for (const edge of PAYMENT_STATUS_TRANSITIONS) {
+      expect(edge.from).not.toBe('refunded');
+      expect(['awaiting_payment', 'deferred']).not.toContain(edge.to);
+      expect(edge.from).not.toBe(edge.to);
+    }
+  });
+
+  it('describes a refusal by its token and the two statuses', () => {
+    expect(
+      orderPaymentStatusRefusalDetailsSchema.parse({ code: 'payment_refunded', from: 'refunded', to: 'paid' }),
+    ).toEqual({ code: 'payment_refunded', from: 'refunded', to: 'paid' });
+    expect(() =>
+      orderPaymentStatusRefusalDetailsSchema.parse({ code: 'other', from: 'refunded', to: 'paid' }),
+    ).toThrow();
   });
 });

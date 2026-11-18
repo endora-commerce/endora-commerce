@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type { CmsTemplateDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
@@ -237,21 +237,18 @@ export function TemplateEditor(): ReactNode {
               <CardTitle className="text-base">{t('templateEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label>{t('fields.name')}</Label>
+              <FormField label={t('fields.name')}>
                 <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('fields.code')}</Label>
+              </FormField>
+              <FormField label={t('fields.code')}>
                 <Input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('fields.description')}</Label>
+              </FormField>
+              <FormField label={t('fields.description')}>
                 <Textarea
                   value={form.description}
                   onChange={(event) => setForm({ ...form, description: event.target.value })}
                 />
-              </div>
+              </FormField>
             </CardContent>
           </Card>
           <ScopePicker value={scope} onChange={setScope} />

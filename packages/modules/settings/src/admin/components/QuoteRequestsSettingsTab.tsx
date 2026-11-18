@@ -90,7 +90,7 @@ export function QuoteRequestsSettingsTab(): ReactNode {
           </Alert>
         ) : null}
         {info ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{info}</AlertDescription>
           </Alert>
         ) : null}
