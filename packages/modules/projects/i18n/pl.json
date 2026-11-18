@@ -267,7 +267,7 @@
   "create.template.replace.restore": "Wybierz ponownie „Bez szablonu”, aby przywrócić to, co wpisano.",
   "create.template.replace.confirm": "Użyj szablonu",
   "templates.list.title": "Szablony projektów",
-  "templates.list.description": "Projekt dostaje kopię; późniejsze zmiany jej nie zmieniają.",
+  "templates.list.description": "Projekt dostaje kopię; późniejsze zmiany szablonu jej nie zmieniają.",
   "templates.list.new": "Nowy szablon",
   "templates.list.showArchived": "Pokaż zarchiwizowane szablony",
   "templates.list.col.name": "Nazwa",
