@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { shippedCoreBundle, shippedModuleBundle } from '../../helpers/core-bundle';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
@@ -42,9 +43,11 @@ const BUNDLE = { ...shippedCoreBundle('pl'), ...shippedModuleBundle('product_fee
 function renderPage(): ReturnType<typeof renderWithI18n> {
   return renderWithI18n(
     withSession(
-      <MemoryRouter initialEntries={['/product-feeds/taxonomy-revisions']}>
-        <TaxonomyRevisionsPage />
-      </MemoryRouter>,
+      <AppLanguageContext.Provider value={{ language: 'pl', setLanguage: (): void => {} }}>
+        <MemoryRouter initialEntries={['/product-feeds/taxonomy-revisions']}>
+          <TaxonomyRevisionsPage />
+        </MemoryRouter>
+      </AppLanguageContext.Provider>,
       { presence: modulePresence({ present: ['product_feeds'] }), session: adminSession({ permissions: ['*'] }) },
     ),
     BUNDLE,

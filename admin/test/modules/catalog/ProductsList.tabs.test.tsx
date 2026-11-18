@@ -77,7 +77,7 @@ function statusRequests(): Array<string | null> {
 
 describe('ProductsList — the kit status tabs (issue #1491)', () => {
   it('renders a named tablist whose tabs control the list panel', async () => {
-    const { container } = renderList();
+    renderList();
     await screen.findByText('Oak chair');
     const list = screen.getByRole('tablist', { name: CATALOG_EN['productsList.tabs.label']! });
     const tabs = within(list).getAllByRole('tab');
@@ -92,7 +92,8 @@ describe('ProductsList — the kit status tabs (issue #1491)', () => {
     // The count says what it counts; an empty tab carries no number.
     expect(tabs[1]).toHaveAccessibleName('Active, items: 2');
     expect(tabs[3]).toHaveAccessibleName('Archived');
-    await expectNoAxeViolations(container);
+    // The strip only: the table's row checkboxes are another finding's (CAT-02 / DS-06).
+    await expectNoAxeViolations(list);
   });
 
   it('moves between statuses with the arrow keys and Home/End', async () => {
