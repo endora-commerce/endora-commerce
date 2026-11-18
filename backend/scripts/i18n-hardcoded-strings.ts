@@ -1442,7 +1442,7 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/newsletter/src/admin/pages/AutomationBuilder.tsx': 20,
   'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 12,
   'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 20,
-  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 28,
+  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 26,
   'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': 7,
   'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 9,
   'packages/modules/newsletter/src/admin/pages/ProviderSettingsPage.tsx': 13,
@@ -1453,7 +1453,7 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 8,
   'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 10,
   'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 22,
-  'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 52,
+  'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 51,
   'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
   // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `organizations`
   // took its admin surface into its package and this panel went with it. The
