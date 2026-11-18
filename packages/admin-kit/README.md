@@ -241,8 +241,11 @@ through `FormField`, so no screen wires `htmlFor`, `aria-describedby` or `aria-i
 - `labelAddon` (badges, a copy button — outside the `<label>`, so not in the accessible name),
   `action` (end of the label line, as in `Section`) and `describedBy` (ids of descriptions rendered
   elsewhere) cover the editor rows that carry more than a label.
+- **`ScopedField`** (`./components`, the scoped editors' field) splits copy the same way since
+  issue #1459: `note` is the one clause read with the control, `help` the ⓘ beside the label.
 
-The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass.
+The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass;
+`ScopedField`'s `help` in `admin/test/kit/kit-scoped-field.test.tsx`.
 
 ## Page headers — `PageHeader`
 

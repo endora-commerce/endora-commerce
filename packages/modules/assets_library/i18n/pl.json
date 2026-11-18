@@ -90,7 +90,7 @@
   "detail.shareUrl.copyFailed": "Nie udało się skopiować linku. Zaznacz go i skopiuj ręcznie.",
   "detail.shareUrl.privateNotice": "Ten link nie jest publicznie dostępny, dopóki zasób jest prywatny.",
   "detail.permalink.label": "Stały link",
-  "detail.permalink.help": "Czytelny adres tego pliku, na przykład certificate.pdf lub docs/iso-9001.pdf. Działa dalej po podmianie pliku.",
+  "detail.permalink.help": "Czytelny adres; działa także po podmianie pliku.",
   "detail.permalink.save": "Zapisz stały link",
   "detail.permalink.remove": "Usuń stały link",
   "detail.permalink.invalid.empty": "Wpisz stały link.",

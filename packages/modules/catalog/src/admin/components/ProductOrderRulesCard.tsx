@@ -30,7 +30,6 @@ export function ProductOrderRulesCard({ productType }: { productType: string }):
               fieldPath="minOrderQuantity"
               label={t('orderRules.minimum.label')}
               emptyMeaning={t('orderRules.minimum.emptyMeaning')}
-              note={t('orderRules.minimum.help')}
               render={(p): ReactNode => <NumberControl {...p} min={1} />}
             />
           ) : null}
@@ -38,6 +37,7 @@ export function ProductOrderRulesCard({ productType }: { productType: string }):
             fieldPath="returnable"
             label={t('orderRules.returnable.label')}
             note={t('orderRules.returnable.help')}
+            help={t('orderRules.returnable.helpTip')}
             render={(p): ReactNode => (
               <BooleanControl {...p} trueLabel={t('orderRules.returnable.yes')} falseLabel={t('orderRules.returnable.no')} />
             )}

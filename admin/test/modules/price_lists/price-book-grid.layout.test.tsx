@@ -93,7 +93,7 @@ describe('price-book grid — layout', () => {
   it('says that the precedence decides between lines, and links it', async () => {
     open();
     await screen.findByRole('grid');
-    expect(screen.getByText(/Which line wins for a buyer is decided by the price precedence/)).toBeInTheDocument();
+    expect(screen.getByText(/The most specific line wins/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'See the price precedence' })).toHaveAttribute('href', '/price-lists/display-modes#precedence');
   });
 

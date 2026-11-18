@@ -361,7 +361,6 @@ export function ProductBasePrices({ productId, saveSession }: ProductBasePricesP
   return (
     <div>
       <Section title={t('basePrices.title')}>
-        <p className="text-sm text-muted-foreground">{t('basePrices.description')}</p>
         {loadError !== null ? (
           <Alert variant="destructive">
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
@@ -381,11 +380,15 @@ export function ProductBasePrices({ productId, saveSession }: ProductBasePricesP
           </div>
         ) : (
           <div className="space-y-4">
+            {/* What a base price is, said once — where there is none yet (issue #1459). */}
             {anyPrice ? null : (
-              <Alert variant="warning">
-                <AlertTriangle aria-hidden="true" />
-                <AlertDescription>{t('basePrices.notOrderable')}</AlertDescription>
-              </Alert>
+              <>
+                <p className="text-sm text-muted-foreground">{t('basePrices.description')}</p>
+                <Alert variant="warning">
+                  <AlertTriangle aria-hidden="true" />
+                  <AlertDescription>{t('basePrices.notOrderable')}</AlertDescription>
+                </Alert>
+              </>
             )}
             {writable ? null : <p className="text-sm text-muted-foreground">{t('basePrices.readOnly')}</p>}
             {refusal ? (

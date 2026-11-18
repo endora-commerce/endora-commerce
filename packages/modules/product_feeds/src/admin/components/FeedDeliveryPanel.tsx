@@ -470,15 +470,11 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
                   </p>
                 </div>
                 {protocol === 'ftp' && (
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="delivery-passive">{t('delivery.field.passiveMode')}</Label>
-                    <Select id="delivery-passive" value="on" disabled title={writeTitle}>
-                      <option value="on">{t('delivery.field.enabled.on')}</option>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {t('delivery.field.passiveMode.help')}
-                    </p>
-                  </div>
+                  // Passive mode is the only one supported, so it is a fact, not a control (issue #1459).
+                  <p className="flex items-center gap-2 text-sm" data-testid="delivery-passive">
+                    <span className="font-medium">{t('delivery.field.passiveMode')}</span>
+                    <span>{t('delivery.field.enabled.on')}</span>
+                  </p>
                 )}
               </>
             )}

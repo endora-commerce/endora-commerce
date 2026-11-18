@@ -85,7 +85,7 @@ describe('ProductsBulkEditDialog — Returnable (155)', () => {
     renderDialog();
     await screen.findByText('Returnable', { selector: 'label' });
     expect(
-      screen.getByText(/Products are not returnable until you mark them/),
+      screen.getByText(/Products are not returnable until marked/),
     ).toBeInTheDocument();
   });
 
@@ -136,7 +136,7 @@ describe('ProductsBulkEditDialog — Returnable (155)', () => {
     expect(screen.getByRole('radio', { name: 'Tak — podlega zwrotowi' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Nie — nie podlega zwrotowi' })).toBeInTheDocument();
     expect(
-      screen.getByText(/Produkty nie podlegają zwrotowi, dopóki ich nie oznaczysz/),
+      screen.getByText(/Produkty bez oznaczenia nie podlegają zwrotowi/),
     ).toBeInTheDocument();
   });
 });

@@ -60,6 +60,8 @@ export interface EditorFieldProps<T> {
   textField?: boolean;
   emptyMeaning?: string;
   note?: ReactNode;
+  /** A longer explanation behind a ⓘ beside the label (issue #1459); the note stays one clause. */
+  help?: ReactNode;
   required?: boolean;
   wide?: boolean;
   headExtra?: ReactNode;
@@ -151,6 +153,7 @@ export function EditorField<T>(props: EditorFieldProps<T>): ReactNode {
       textField={props.textField ?? false}
       emptyMeaning={props.emptyMeaning}
       note={note}
+      help={props.help}
       missing={ctx.missingText(props.fieldPath)}
       required={props.required ?? view.required}
       wide={props.wide ?? false}

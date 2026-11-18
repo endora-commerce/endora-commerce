@@ -164,7 +164,6 @@ export function PackagingUnitsEditor({
       </div>
       <div className="b2b-card__body b2b-col" style={{ gap: 12 }}>
         <div className="b2b-help">{t('packagingUnits.help')}</div>
-        <div className="b2b-help">{t('packagingUnits.minOrderUnitsHelp')}</div>
         {!canWrite ? <div className="b2b-help">{t('packagingUnits.readOnly')}</div> : null}
         {invalidMinimum !== null ? (
           <Alert id={errorId} variant="destructive">

@@ -113,7 +113,6 @@ export function ProductSeoSection(props: ProductSeoSectionProps): ReactNode {
       <h3 id="product-seo-heading" className="text-base font-semibold">
         {t('productSeo.title')}
       </h3>
-      <p className="m-0 text-sm text-muted-foreground">{t('productSeo.help')}</p>
       <ScopedFieldGrid>
         {FIELDS.map((field) => {
           const fieldView = views[field];
