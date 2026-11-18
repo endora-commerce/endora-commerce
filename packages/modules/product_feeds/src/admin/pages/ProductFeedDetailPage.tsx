@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { Download, History, Play } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader, TabPanel, Tabs } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -17,6 +17,8 @@ import { FeedSettingsForm } from '../components/FeedSettingsForm.js';
 import { FeedStatusBadge } from '../components/FeedStatusBadge.js';
 
 type Tab = 'overview' | 'runs' | 'delivery' | 'settings';
+
+const TABS: readonly Tab[] = ['overview', 'runs', 'delivery', 'settings'];
 
 const POLL_INTERVAL_MS = 5_000;
 
@@ -241,23 +243,18 @@ export function ProductFeedDetailPage(): ReactNode {
         </Alert>
       )}
 
-      <div className="b2b-tabs-scroll mb-4">
-        <div className="b2b-tabs" role="tablist">
-          {(['overview', 'runs', 'delivery', 'settings'] as const).map((id) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={tab === id}
-              className={`b2b-tab ${tab === id ? 'is-active' : ''}`}
-              onClick={() => setTab(id)}
-            >
-              {t(`feeds.tab.${id}`)}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* The kit's strip (issue #1491): named, one tab stop, ←/→ and Home/End,
+          and the selected section in the one panel its tab labels. */}
+      <Tabs
+        items={TABS.map((id) => ({ value: id, label: t(`feeds.tab.${id}`) }))}
+        value={tab}
+        onValueChange={setTab}
+        idBase="product-feed"
+        aria-label={t('feeds.tabs.label')}
+        className="mb-4"
+      />
 
+      <TabPanel idBase="product-feed" value={tab}>
       {tab === 'overview' && (
         <FeedLinkCard
           feed={feed}
@@ -295,6 +292,7 @@ export function ProductFeedDetailPage(): ReactNode {
       {tab === 'delivery' && <FeedDeliveryPanel feedId={feed.id} />}
 
       {tab === 'settings' && <FeedSettingsForm feed={feed} onSaved={setFeed} />}
+      </TabPanel>
     </div>
   );
 }

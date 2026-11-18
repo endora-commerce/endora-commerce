@@ -35,7 +35,7 @@ import {
   adminLanguageToLocale,
   useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, PageHeader, Select, TabPanel, Tabs, type TabItem } from '@endora-commerce/admin-kit/ui';
 import type { SavedViewState } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
@@ -55,6 +55,9 @@ interface AdminProduct {
 }
 
 type StatusFilter = ProductListTab;
+
+/** The status strip's tabs, in reading order. */
+const STATUS_TABS: readonly StatusFilter[] = ['all', 'active', 'inactive', 'archived'];
 type TypeFilter = 'all' | 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
 type SelectionMode = 'none' | 'page' | 'collection';
 
@@ -482,16 +485,21 @@ export function ProductsList(): ReactNode {
 
       <div className="b2b-card">
         <div style={{ padding: '4px 12px 0', overflow: 'hidden' }}>
-          <div className="b2b-tabs-scroll">
-          <div className="b2b-tabs" role="tablist">
-            <Tab id="all" label={t('productsList.tab.all')} count={counts.all} active={statusFilter} onChange={chooseTab} />
-            <Tab id="active" label={t('productsList.tab.active')} count={counts.active} active={statusFilter} onChange={chooseTab} />
-            <Tab id="inactive" label={t('productsList.tab.inactive')} count={counts.inactive} active={statusFilter} onChange={chooseTab} />
-            <Tab id="archived" label={t('productsList.tab.archived')} count={counts.archived} active={statusFilter} onChange={chooseTab} />
-          </div>
-          </div>
+          <Tabs
+            items={STATUS_TABS.map((id): TabItem<StatusFilter> => ({
+              value: id,
+              label: t(`productsList.tab.${id}`),
+              count: counts[id],
+            }))}
+            value={statusFilter}
+            onValueChange={chooseTab}
+            idBase="products-list"
+            aria-label={t('productsList.tabs.label')}
+          />
         </div>
 
+        {/* Everything below the strip is the selected status's list (issue #1491). */}
+        <TabPanel idBase="products-list" value={statusFilter}>
         <ListToolbar
           label={t('productsList.toolbar.label')}
           className="border-b border-border px-3 py-2.5"
@@ -839,30 +847,10 @@ export function ProductsList(): ReactNode {
           onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
           onNext={(): void => setPage((p) => p + 1)}
         />
+        </TabPanel>
       </div>
       {confirmDialog}
     </div>
-  );
-}
-
-function Tab(props: {
-  id: StatusFilter;
-  label: string;
-  count: number;
-  active: StatusFilter;
-  onChange: (next: StatusFilter) => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={props.active === props.id}
-      className={cn('b2b-tab', props.active === props.id && 'is-active')}
-      onClick={(): void => props.onChange(props.id)}
-    >
-      <span>{props.label}</span>
-      <span className="b2b-badge b2b-badge--outline">{props.count}</span>
-    </button>
   );
 }
 

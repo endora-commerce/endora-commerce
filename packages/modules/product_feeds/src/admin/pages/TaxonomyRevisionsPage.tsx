@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate } from 'react-router-dom';
 import { Info, Loader2 } from 'lucide-react';
 import type { FeedTaxonomyCheck, FeedTaxonomyRevision, TaxonomyProviderCode } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, PageHeader, TabPanel, Tabs } from '@endora-commerce/admin-kit/ui';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { feedTaxonomiesClient } from '../taxonomy-api.js';
@@ -157,23 +157,17 @@ export function TaxonomyRevisionsPage(): ReactNode {
         {announcement}
       </p>
 
-      <div role="tablist" aria-label={t('revisions.title')} className="flex gap-2">
-        {PROVIDERS.map((code) => (
-          <button
-            key={code}
-            type="button"
-            role="tab"
-            aria-selected={providerCode === code}
-            className={`rounded-md border px-3 py-1 text-sm ${
-              providerCode === code ? 'border-primary bg-muted font-medium' : 'border-border'
-            }`}
-            onClick={(): void => setProviderCode(code)}
-          >
-            {t(`revisions.provider.${code}`)}
-          </button>
-        ))}
-      </div>
+      {/* The kit's strip (issue #1491): one tab stop, ←/→ and Home/End, and
+          everything below it is the selected provider's, in the one panel. */}
+      <Tabs
+        items={PROVIDERS.map((code) => ({ value: code, label: t(`revisions.provider.${code}`) }))}
+        value={providerCode}
+        onValueChange={setProviderCode}
+        idBase="taxonomy-provider"
+        aria-label={t('revisions.providerTabs')}
+      />
 
+      <TabPanel idBase="taxonomy-provider" value={providerCode} className="space-y-4">
       {loadFailed ? (
         <Alert variant="destructive">
           <AlertDescription>
@@ -373,6 +367,7 @@ export function TaxonomyRevisionsPage(): ReactNode {
           )
         ) : null}
       </section>
+      </TabPanel>
 
       {reviewing ? (
         <RevisionImpactDrawer

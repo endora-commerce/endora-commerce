@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useId, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Copy, HelpCircle, History, RotateCcw, SearchX } from 'lucide-react';
 import type { PriceBook, PriceBookAudienceKind, PriceBookTargetSalesChannel } from '@endora-commerce/contracts';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, PageHeader, buttonVariants } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, PageHeader, TabPanel, Tabs, buttonVariants } from '@endora-commerce/admin-kit/ui';
 import { DuplicateDialog } from '../components/DuplicateDialog.js';
 import { PriceBookGrid } from '../components/PriceBookGrid.js';
 import { PriceBookHeaderForm } from '../components/PriceBookHeaderForm.js';
@@ -15,8 +15,10 @@ import { usePriceBooksApi } from '../lib/use-price-books-api.js';
 /**
  * One price book, `/price-lists/:id` (feature 161, US1 and US2; the address
  * P1's audit reference resolver links to): its settings and its prices, as two
- * tabs. The tab is in the URL (`?tab=prices`), so a link can open the prices;
- * both panels stay mounted, so unsaved prices survive a look at the settings.
+ * tabs. The tab is in the URL (`?tab=prices`), so a link can open the prices.
+ * The strip is the kit's `Tabs` (issue #1491); both sections stay mounted in
+ * its one `TabPanel`, the other one `hidden`, so unsaved prices survive a look
+ * at the settings.
  *
  * A book the caller may not see answers exactly as an unknown one — the server
  * says `404` for both (R10, SC-006) and so does this page. The history link is
@@ -43,7 +45,6 @@ export function PriceBookPage(): ReactNode {
   const [duplicating, setDuplicating] = useState(false);
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get('tab') === 'prices' ? 'prices' : 'settings';
-  const tabsId = useId();
   const selectTab = (next: Tab): void => {
     setParams(
       (current) => {
@@ -54,13 +55,6 @@ export function PriceBookPage(): ReactNode {
       },
       { replace: true },
     );
-  };
-  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>): void => {
-    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
-    event.preventDefault();
-    const next: Tab = tab === 'settings' ? 'prices' : 'settings';
-    selectTab(next);
-    document.getElementById(`${tabsId}-${next}-tab`)?.focus();
   };
 
   const load = useCallback(async (): Promise<void> => {
@@ -164,45 +158,35 @@ export function PriceBookPage(): ReactNode {
           </>
         }
       />
-      <div role="tablist" aria-label={t('priceBooks.book.tabs')} className="mb-4 flex gap-1 border-b">
-        {TABS.map((name) => (
-          <button
-            key={name}
-            id={`${tabsId}-${name}-tab`}
-            type="button"
-            role="tab"
-            aria-selected={tab === name}
-            aria-controls={`${tabsId}-${name}-panel`}
-            tabIndex={tab === name ? 0 : -1}
-            className={`-mb-px min-h-11 border-b-2 px-4 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-9 ${
-              tab === name ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-            onClick={(): void => selectTab(name)}
-            onKeyDown={onTabKey}
-          >
-            {t(`priceBooks.book.tab.${name}`)}
-          </button>
-        ))}
-      </div>
-      <div id={`${tabsId}-settings-panel`} role="tabpanel" aria-labelledby={`${tabsId}-settings-tab`} hidden={tab !== 'settings'}>
-        <PriceBookHeaderForm
-          book={book}
-          channels={channels}
-          kinds={kinds}
-          editable={editable}
-          onChanged={(next): void => setState({ kind: 'ready', book: next })}
-          onReload={(): void => void load()}
-        />
-      </div>
+      <Tabs
+        items={TABS.map((name) => ({ value: name, label: t(`priceBooks.book.tab.${name}`) }))}
+        value={tab}
+        onValueChange={selectTab}
+        idBase="price-book"
+        aria-label={t('priceBooks.book.tabs')}
+        className="mb-4"
+      />
+      <TabPanel idBase="price-book" value={tab}>
+        <div hidden={tab !== 'settings'}>
+          <PriceBookHeaderForm
+            book={book}
+            channels={channels}
+            kinds={kinds}
+            editable={editable}
+            onChanged={(next): void => setState({ kind: 'ready', book: next })}
+            onReload={(): void => void load()}
+          />
+        </div>
+        <div hidden={tab !== 'prices'}>
+          <PriceBookGrid
+            book={book}
+            editable={editable}
+            initialSearch={params.get('search') ?? ''}
+            onBookChanged={(next): void => setState({ kind: 'ready', book: next })}
+          />
+        </div>
+      </TabPanel>
       {duplicating ? <DuplicateDialog book={book} channels={channels} kinds={kinds} onClose={(): void => setDuplicating(false)} /> : null}
-      <div id={`${tabsId}-prices-panel`} role="tabpanel" aria-labelledby={`${tabsId}-prices-tab`} hidden={tab !== 'prices'}>
-        <PriceBookGrid
-          book={book}
-          editable={editable}
-          initialSearch={params.get('search') ?? ''}
-          onBookChanged={(next): void => setState({ kind: 'ready', book: next })}
-        />
-      </div>
     </>
   );
 }
