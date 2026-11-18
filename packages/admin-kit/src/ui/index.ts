@@ -63,6 +63,9 @@ export { Section } from './section.js';
 export type { SectionProps } from './section.js';
 export { Select } from './select.js';
 export { Separator } from './separator.js';
+// Issue #1447 (UX audit DS-14) — the first-load placeholder; a refresh keeps the content (`useDetailResource`).
+export { DetailSkeleton, Skeleton } from './skeleton.js';
+export type { DetailSkeletonProps } from './skeleton.js';
 // Issue #1442 (UX audit DS-09) — the on/off control and the settings-list row it sits in.
 export { SettingRow } from './setting-row.js';
 export type { SettingRowProps } from './setting-row.js';

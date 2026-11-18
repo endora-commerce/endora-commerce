@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { FileDown, Mail, RefreshCw } from 'lucide-react';
 import type {
   InvoiceDetail as InvoiceDetailData,
   SendInvoiceEmailResult,
 } from '@endora-commerce/contracts';
-import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoiceEmailMessage, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoiceEmailMessage, useAuth, useDetailResource } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 
@@ -22,8 +22,6 @@ export function InvoiceDetail(): ReactNode {
   const { id = '' } = useParams<{ id: string }>();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('invoices:write');
-  const [invoice, setInvoice] = useState<InvoiceDetailData | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,26 +36,30 @@ export function InvoiceDetail(): ReactNode {
    */
   const baseUrl = apiBaseUrl;
 
-  const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
+  // Issue #1447 (DS-14, SALES-06) — a skeleton on the first load only; the
+  // re-read after Regenerate keeps the invoice on screen, marked `aria-busy`.
+  const resource = useDetailResource<InvoiceDetailData>(id, async () => {
     try {
       const res = await apiClient.get<{ data: InvoiceDetailData }>(`/api/v1/admin/invoices/${id}`);
-      setInvoice(res.data);
+      return res.data;
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        setInvoice(null);
-      } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('invoiceDetail.error.load'));
-      }
-    } finally {
-      setLoading(false);
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
     }
-  }, [id, t]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  });
+  const invoice = resource.data;
+  const reread = resource.refresh;
+  // A re-read clears the previous action's error, as the old full reload did.
+  const refresh = useCallback(async (): Promise<void> => {
+    setError(null);
+    await reread();
+  }, [reread]);
+  const loadError =
+    resource.error === null
+      ? null
+      : resource.error instanceof ApiError
+        ? resource.error.envelope.error.message
+        : t('invoiceDetail.error.load');
 
   const regenerate = useCallback(async (): Promise<void> => {
     setBusy(true);
@@ -93,9 +95,18 @@ export function InvoiceDetail(): ReactNode {
     }
   }, [id, t]);
 
-  if (loading) return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
+  if (resource.initialLoading) return <DetailSkeleton />;
   if (!invoice)
-    return (
+    return loadError !== null ? (
+      <Alert variant="destructive">
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+          {loadError}
+          <Button variant="outline" size="sm" onClick={(): void => void refresh()}>
+            {t('common.action.retry')}
+          </Button>
+        </AlertDescription>
+      </Alert>
+    ) : (
       <Alert variant="warning">
         <AlertDescription>{t('invoiceDetail.notFound')}</AlertDescription>
       </Alert>
@@ -159,9 +170,9 @@ export function InvoiceDetail(): ReactNode {
         }
       />
 
-      {error ? (
+      {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error ?? loadError}</AlertDescription>
         </Alert>
       ) : null}
       {notice ? (
@@ -175,6 +186,7 @@ export function InvoiceDetail(): ReactNode {
         </Alert>
       ) : null}
 
+      <div {...resource.busyProps}>
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
@@ -372,6 +384,7 @@ export function InvoiceDetail(): ReactNode {
             }}
           />
         </div>
+      </div>
       </div>
     </>
   );
