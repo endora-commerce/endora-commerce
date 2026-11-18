@@ -248,6 +248,7 @@ export function TaskWorkflowPage(): ReactNode {
         <TaskStatusDialog
           status={dialog.kind === 'edit' ? dialog.status : null}
           nextWeight={nextWeight}
+          takenCodes={workflow.statuses.map((status) => status.code)}
           language={language}
           onSubmit={submitStatus}
           onClose={(): void => setDialog(null)}

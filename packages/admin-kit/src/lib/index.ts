@@ -33,6 +33,9 @@ export {
 } from './admin-preferences/use-admin-preference.js';
 export type { AdminPreferencesStatus, SidebarPreferenceKey } from './admin-preferences/use-admin-preference.js';
 export type { AdminMe, AuthProviderProps, LoginErrorReason } from './auth.js';
+// Issue #1450 (DS-22) — a slug, key or code proposed from the name.
+export { deriveKey, useDerivedKey } from './derive-key.js';
+export type { DerivedKeyField, DeriveKeyOptions, UseDerivedKeyOptions } from './derive-key.js';
 export { defineEnumLabels } from './enum-labels.js';
 export type { EnumLabels, EnumTranslate } from './enum-labels.js';
 export { formatDateTime } from './format.js';
