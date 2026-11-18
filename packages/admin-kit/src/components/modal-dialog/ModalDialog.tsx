@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { cn } from '../../lib/utils.js';
 import { useFocusTrap } from '../hooks/useFocusTrap.js';
 
 /**
@@ -133,7 +134,7 @@ export function ModalDialog(props: ModalDialogProps): ReactNode {
 
   const dialog = (
     <div
-      className={`fixed inset-0 flex items-center justify-center bg-black/40 p-4${layer === 'page' ? ' z-50' : ''}`}
+      className={cn('fixed inset-0 flex items-center justify-center bg-black/40 p-4', layer === 'page' && 'z-50')}
       style={layerStyle}
       data-layer={layer}
       onMouseDown={(event): void => {
