@@ -1,5 +1,4 @@
 import { useCallback, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../../ui/button.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
@@ -194,7 +193,8 @@ export function UnsavedChangesDialog(props: UnsavedChangesDialogProps): ReactNod
       </p>
     </ModalDialog>
   );
-  return typeof document === 'undefined' ? dialog : createPortal(dialog, document.body);
+  // ModalDialog portals itself into document.body (#1444, DS-11).
+  return dialog;
 }
 
 export interface UnsavedChangesHintProps {
