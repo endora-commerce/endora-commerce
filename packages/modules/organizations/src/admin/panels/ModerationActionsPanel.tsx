@@ -1,7 +1,7 @@
-import { useCallback, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useId, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Textarea } from '@endora-commerce/admin-kit/ui';
-import { OrganizationStatusBadge, ImmediateBadge } from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label, Textarea } from '@endora-commerce/admin-kit/ui';
+import { ModalDialog, OrganizationStatusBadge, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { TriangleAlert } from 'lucide-react';
 import { showRegistryDivergenceNotice } from './vat-validation-view.js';
@@ -64,6 +64,9 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const descriptionId = useId();
+  const reasonId = useId();
+  const errorId = useId();
 
   const openModal = (kind: ActionKind): void => {
     setError(null);
@@ -207,26 +210,14 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
         ) : null}
 
         {modal && props.canModerate ? (
-          <div style={OVERLAY_STYLE} onClick={(): void => setModal(null)}>
-            <div style={PANEL_STYLE} onClick={(e): void => e.stopPropagation()}>
-              <h2 className="mb-2 text-lg font-semibold">
-                {t(`organizations.moderation.modal.${modal.kind}.title`)}
-              </h2>
-              <p className="mb-3 text-sm text-muted-foreground">
-                {t(`organizations.moderation.modal.${modal.kind}.description`)}
-              </p>
-              <Textarea
-                value={reason}
-                onChange={(e): void => setReason(e.target.value)}
-                placeholder={
-                  modal.requiresReason
-                    ? t('organizations.moderation.modal.reasonRequired')
-                    : t('organizations.moderation.modal.reasonOptional')
-                }
-                rows={5}
-                disabled={busy}
-              />
-              <div className="mt-4 flex justify-end gap-2">
+          <ModalDialog
+            title={t(`organizations.moderation.modal.${modal.kind}.title`)}
+            onClose={(): void => setModal(null)}
+            busy={busy}
+            dismissOnScrim={false}
+            aria-describedby={descriptionId}
+            footer={
+              <>
                 <Button variant="outline" onClick={(): void => setModal(null)} disabled={busy}>
                   {t('common.action.cancel')}
                 </Button>
@@ -234,35 +225,38 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
                   variant={modal.kind === 'reject' ? 'destructive' : 'default'}
                   onClick={(): void => void execute(modal.kind, reason)}
                   disabled={busy || (modal.requiresReason && reason.trim().length === 0)}
+                  aria-busy={busy}
                 >
                   {t(`organizations.moderation.modal.${modal.kind}.confirm`)}
                 </Button>
-              </div>
+              </>
+            }
+          >
+            <p id={descriptionId} className="mb-3 text-sm text-muted-foreground">
+              {t(`organizations.moderation.modal.${modal.kind}.description`)}
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor={reasonId}>
+                {modal.requiresReason
+                  ? t('organizations.moderation.modal.reasonRequired')
+                  : t('organizations.moderation.modal.reasonOptional')}
+              </Label>
+              <Textarea
+                id={reasonId}
+                value={reason}
+                onChange={(e): void => setReason(e.target.value)}
+                required={modal.requiresReason}
+                aria-describedby={errorId}
+                rows={5}
+              />
+              {/* Mounted before it has text, so a refusal that arrives is announced. */}
+              <p id={errorId} role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
             </div>
-          </div>
+          </ModalDialog>
         ) : null}
       </CardContent>
     </Card>
   );
 }
-
-const OVERLAY_STYLE: CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0, 0, 0, 0.4)',
-  zIndex: 50,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const PANEL_STYLE: CSSProperties = {
-  background: 'var(--bg-surface, #fff)',
-  borderRadius: 8,
-  width: 520,
-  maxWidth: '90vw',
-  maxHeight: '90vh',
-  overflow: 'auto',
-  boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-  padding: '20px',
-};

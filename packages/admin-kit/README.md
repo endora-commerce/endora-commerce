@@ -375,3 +375,34 @@ is the name every existing caller and both of its tests already use and this mer
 is a move. It is a poor name on a public barrel and renaming it is a `major` under R12 —
 worth doing before the first package is published, not inside a change whose subject is a
 file relocation.
+
+## Dialogs — `ModalDialog` is the only one
+
+Issue #1444 (UX audit 2026-11-17, DS-11). Every modal question or form in the admin is
+`ModalDialog` (`./components`), or its yes/no form `ConfirmDialog` / `useConfirmDialog`. It carries
+what a hand-drawn scrim leaves out:
+
+- `role="dialog"`, `aria-modal`, the accessible name from `title` (`aria-labelledby`) and, through
+  `aria-describedby`, the question or warning read with it;
+- a focus trap: focus moves in on open (`initialFocusRef`, else the first focusable control, else the
+  panel itself) and back to the opener — or `finalFocusRef` — on close;
+- Escape and a press on the scrim close it; with two open, only the topmost answers Escape;
+  `dismissOnScrim={false}` keeps a dialog holding typed input open on a stray click;
+- `busy` — Escape and the scrim are inert while a request is in flight, and `aria-busy` says so;
+- a **portal to `document.body`**, so a dialog opened inside a drawer moved with `transform`, a table
+  row or a `<ul>` is placed against the viewport and does not nest a `<div>` where markup forbids it;
+- `layer` — `page` (default, `z-50`, the layer the kit's popovers share, so a select inside still
+  opens above the dialog) or `overlay` (`MODAL_OVERLAY_Z_INDEX`, above the fullscreen Page Builder
+  and its 9999 floating action bar), for a dialog opened from inside the builder.
+
+```tsx
+<ModalDialog title={t('x.dialog.title')} onClose={close} busy={busy} footer={<>{cancel}{apply}</>}>
+  …
+</ModalDialog>
+```
+
+A `fixed inset-0` overlay, a `position: 'fixed'` style object, `createPortal`, or a `role="dialog"`
+written by hand anywhere under the admin, the shell, the kit, the page-builder chrome or a module's
+`src/admin/` / `src/admin-ui/` fails `admin/test/unit/no-hand-rolled-overlays.test.ts`, whose
+two-way ledger names each remaining one and the issue that migrates it. The behaviour is pinned in
+`admin/test/components/ModalDialog.test.tsx`, including an axe pass.
