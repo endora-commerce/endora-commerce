@@ -75,6 +75,24 @@ The buyer's retry answers `PAYMENT_NOT_DUE`, `PAYMENT_ORDER_CLOSED` or
 `PAYMENT_ADAPTER_UNAVAILABLE` from its own gates first; it reaches the three
 above only when the latest attempt changed after those gates read the order.
 
+## When the order refuses the move
+
+The order's payment status follows the transition graph the `orders` module
+documents, and settlement follows it too. When a gateway reports something the
+order's current payment status does not allow — a decline for an order an
+operator has already marked paid, a success for a refunded order, a full refund
+for an order that was never paid — the payment still records what the gateway
+reported, and the order keeps its payment status. The method's status on success
+or on failure is then not applied, so a paid order is not put on hold by a late
+decline. The refusal is logged with the payment, the order and both statuses. A
+full refund for an unpaid order still puts the order on hold, for an operator to
+review.
+
+The `payment.received.v1` and `payment.failed.v1` events are still emitted,
+because they describe the payment. The buyer's payment-status e-mail is sent
+only when it matches the order: "paid" while the order is paid, "failed" while
+it is failed.
+
 ## Gateway refunds
 
 A gateway reports each refund — made from its dashboard or by a return

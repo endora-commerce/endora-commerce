@@ -48,5 +48,18 @@
   "actions.openSettings.label": "PWA settings",
   "actions.openSettings.description": "App identity, caching and push notifications",
   "actions.openSettings.keywords": "notifications, app",
-  "settingGroups.pwa.name": "Progressive web app"
+  "settingGroups.pwa.name": "Progressive web app",
+  "push.confirm.title": "Send this push notification?",
+  "push.confirm.message.one": "“{title}” will be pushed to {count} subscribed device on this sales channel. A sent notification cannot be recalled.",
+  "push.confirm.message.few": "“{title}” will be pushed to {count} subscribed devices on this sales channel. A sent notification cannot be recalled.",
+  "push.confirm.message.many": "“{title}” will be pushed to {count} subscribed devices on this sales channel. A sent notification cannot be recalled.",
+  "push.confirm.message.other": "“{title}” will be pushed to {count} subscribed devices on this sales channel. A sent notification cannot be recalled.",
+  "push.confirm.messageAll": "“{title}” will be pushed to every subscribed device on this sales channel. A sent notification cannot be recalled.",
+  "push.confirm.messageTargeted": "“{title}” will be pushed to every subscribed device on this sales channel that matches the criteria. A sent notification cannot be recalled.",
+  "push.confirm.action.one": "Send to {count} device",
+  "push.confirm.action.few": "Send to {count} devices",
+  "push.confirm.action.many": "Send to {count} devices",
+  "push.confirm.action.other": "Send to {count} devices",
+  "push.confirm.actionUnknown": "Send notification",
+  "push.confirm.failed": "The notification could not be sent, and nothing went out. Try again."
 }

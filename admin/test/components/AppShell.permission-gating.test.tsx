@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { setMobileViewport } from '../setup';
@@ -109,7 +109,7 @@ function sidebarHrefs(): (string | null)[] {
  * row while the palette leaked — which is exactly the defect under test.
  */
 async function openPaletteItems(): Promise<string[]> {
-  await userEvent.click(screen.getByPlaceholderText('appShell.search.placeholder'));
+  await userEvent.click(within(document.querySelector<HTMLElement>('aside.b2b-sidebar')!).getByRole('button', { name: 'appShell.search.openPalette' }));
   const dialog = await screen.findByRole('dialog');
   return [...dialog.querySelectorAll('.b2b-palette__item')].map((el) => el.textContent ?? '');
 }

@@ -83,14 +83,16 @@ function mount(ui: ReactElement): void {
   );
 }
 
-function thread(props: { kind?: 'note' | 'message'; canWrite?: boolean; keepDeleted?: boolean } = {}): ReactElement {
+function thread(
+  props: { kind?: 'note' | 'message'; canWrite?: boolean; keepDeleted?: boolean; copy?: CommentThreadCopy } = {},
+): ReactElement {
   return (
     <CommentThread
       kind={props.kind ?? 'note'}
       canWrite={props.canWrite ?? true}
       {...(props.keepDeleted ? { keepDeleted: true } : {})}
       api={API}
-      copy={COPY}
+      copy={props.copy ?? COPY}
       referenceKinds={[]}
       lookups={{}}
       onCountChange={counted}
@@ -111,6 +113,19 @@ describe('CommentThread', () => {
     expect(items[0]).toHaveTextContent('First call went well.');
     expect(items[1]).toHaveTextContent(core('comments.edited'));
     expect(screen.getByText(COPY.hint)).toBeInTheDocument();
+  });
+
+  it('describes the composer by the helper line the tab gives, and by none when it gives none (#1487)', async () => {
+    mount(thread({ kind: 'message', copy: { ...COPY, composerHint: 'Cannot be edited after sending.' } }));
+    const field = await screen.findByLabelText(COPY.composerLabel);
+    const helper = screen.getByText('Cannot be edited after sending.');
+    expect(field.getAttribute('aria-describedby')?.split(' ')).toContain(helper.id);
+  });
+
+  it('draws no composer helper when the tab gives none', async () => {
+    mount(thread());
+    const field = await screen.findByLabelText(COPY.composerLabel);
+    expect(field.hasAttribute('aria-describedby')).toBe(false);
   });
 
   it('says it is empty, in the words it was given', async () => {

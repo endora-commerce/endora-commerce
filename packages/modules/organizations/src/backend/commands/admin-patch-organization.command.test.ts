@@ -152,7 +152,6 @@ describe('organization.admin_patch — audit state (D-288, #470 O-2)', () => {
           organizationId: ORG,
           changes: {
             name: S.newName,
-            status: 'active',
             orderConfirmationEmails: [S.email, S.newEmail],
             fulfilmentStrategy: 'defined_order',
             fulfilmentStrategyWarehouseOrder: [WAREHOUSE],
@@ -180,10 +179,11 @@ describe('organization.admin_patch — audit state (D-288, #470 O-2)', () => {
       objectId: ORG,
       stateBefore: { status: 'blocked', vatStatus: 'vat_payer', fulfilmentStrategy: null },
       stateAfter: {
-        status: 'active',
+        // Issue #1468 — moderation writes the status; the PATCH only records it as context.
+        status: 'blocked',
         vatStatus: 'vat_payer',
         fulfilmentStrategy: 'defined_order',
-        changedFields: ['fulfilmentStrategy', 'fulfilmentStrategyWarehouseOrder', 'name', 'orderConfirmationEmails', 'status'],
+        changedFields: ['fulfilmentStrategy', 'fulfilmentStrategyWarehouseOrder', 'name', 'orderConfirmationEmails'],
         changedCustomFields: ['acquisition_source', 'legacy', 'tier'],
       },
     });
@@ -210,7 +210,7 @@ describe('organization.admin_patch — audit state (D-288, #470 O-2)', () => {
       h.bus.run(
         makeAdminPatchOrganizationCommand({
           organizationId: ORG,
-          changes: { name: S.newName, status: 'active' },
+          changes: { name: S.newName, vatStatus: 'reverse_charge' },
           assertCurrent: () => {},
           mergeCustomFieldValues: async (current) => ({ ...current, tier: S.customField }),
         }),

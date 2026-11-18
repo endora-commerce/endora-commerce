@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { byId } from '../../helpers/developer-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { ORGANIZATION_CHANNEL_ID, organizationSalesChannelsAnswer } from '../../helpers/organization-sales-channels';
 
@@ -63,6 +64,7 @@ const BUNDLE = passthroughBundle('core', [
   'common.action.back',
   'rfqCreate.items.quickSearch',
   'rfqCreate.field.agreedUnitPrice',
+  'rfqCreate.field.customer',
 ]);
 
 beforeEach(() => {
@@ -86,8 +88,8 @@ beforeEach(() => {
   );
 });
 
-async function pick(comboLabel: string, optionLabel: string): Promise<void> {
-  await userEvent.click(screen.getByLabelText(comboLabel));
+async function pick(comboLabel: string | HTMLElement, optionLabel: string): Promise<void> {
+  await userEvent.click(typeof comboLabel === 'string' ? screen.getByLabelText(comboLabel) : comboLabel);
   await userEvent.click(await screen.findByRole('option', { name: new RegExp(optionLabel) }));
 }
 
@@ -121,6 +123,13 @@ async function addLineAndSubmit(): Promise<void> {
 }
 
 describe('RfqCreatePage opened with an origin', () => {
+  it('names the customer picker by its visible label, not a developer id (#1475)', async () => {
+    renderPage();
+    const picker = await screen.findByRole('combobox', { name: 'rfqCreate.field.customer' });
+    expect(picker).toHaveAttribute('id', 'customerAccountId');
+    expect(picker).not.toHaveAttribute('aria-label');
+  });
+
   it('preselects the customer, sends the origin, and returns to where it came from', async () => {
     renderPage({
       originType: 'crm_opportunity',
@@ -130,7 +139,7 @@ describe('RfqCreatePage opened with an origin', () => {
       returnTo: RETURN_TO,
     });
     // The picker is not touched: the customer arrives chosen, by name.
-    await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue('Jan Kowalski'));
+    await waitFor(() => expect(byId('customerAccountId')).toHaveValue('Jan Kowalski'));
     await addLineAndSubmit();
 
     expect(postSpy).toHaveBeenCalledWith('/api/v1/admin/quote-requests', {
@@ -154,7 +163,7 @@ describe('RfqCreatePage opened with an origin', () => {
         .map(([path]) => String(path))
         .filter((path) => path.startsWith('/api/v1/admin/customers?'));
     await waitFor(() => expect(searches().length).toBeGreaterThan(0));
-    await userEvent.type(screen.getByLabelText('customerAccountId'), 'Jan');
+    await userEvent.type(byId('customerAccountId'), 'Jan');
     await waitFor(() => expect(searches().some((path) => path.includes('q=Jan'))).toBe(true));
     for (const path of searches()) {
       expect(new URLSearchParams(path.split('?')[1]).get('organizationId')).toBe(ORGANIZATION_ID);
@@ -178,7 +187,7 @@ describe('RfqCreatePage opened with an origin', () => {
 
   it('sends no origin for one that is not well-formed', async () => {
     renderPage({ originType: 'crm_opportunity', originId: 'nope', customerAccountId: 'cust-1' });
-    await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue('Jan Kowalski'));
+    await waitFor(() => expect(byId('customerAccountId')).toHaveValue('Jan Kowalski'));
     await addLineAndSubmit();
     const [, body] = creates()[0] ?? [];
     expect(body).not.toHaveProperty('origin');
@@ -189,8 +198,8 @@ describe('RfqCreatePage opened with an origin', () => {
 describe('RfqCreatePage opened on its own', () => {
   it('sends the request it always sent, and goes to the new quote request', async () => {
     renderPage();
-    await userEvent.type(screen.getByLabelText('customerAccountId'), 'Jan');
-    await pick('customerAccountId', 'Jan Kowalski');
+    await userEvent.type(byId('customerAccountId'), 'Jan');
+    await pick(byId('customerAccountId'), 'Jan Kowalski');
     await addLineAndSubmit();
 
     expect(creates()).toHaveLength(1);

@@ -17,3 +17,15 @@ export function shippedCoreBundle(language: 'en' | 'pl'): Bundle {
   );
   return { core: JSON.parse(raw) as Record<string, string> };
 }
+
+/**
+ * A module's own bundle as it ships — `packages/modules/<moduleId>/i18n` — under
+ * the module's scope, for a test asserting copy that module owns.
+ */
+export function shippedModuleBundle(moduleId: string, language: 'en' | 'pl'): Bundle {
+  const raw = readFileSync(
+    resolve(process.cwd(), '../packages/modules', moduleId, 'i18n', `${language}.json`),
+    'utf8',
+  );
+  return { [moduleId]: JSON.parse(raw) as Record<string, string> };
+}

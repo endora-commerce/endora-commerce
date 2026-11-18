@@ -14,10 +14,14 @@ import {
   type OrganizationCustomFieldMerge,
 } from './set-custom-field-values.command.js';
 
-/** The plain columns the admin PATCH may set; the bag and the version token travel separately. */
+/**
+ * The plain columns the admin PATCH may set; the bag and the version token travel separately.
+ * `status` is not one of them (issue #1468): the contract refuses it, and moderation
+ * (`OrganizationModerationService`) is its one writer.
+ */
 export type AdminOrganizationPatch = Omit<
   z.infer<typeof adminPatchOrganizationRequestSchema>,
-  'customFieldValues' | 'expectedUpdatedAt'
+  'customFieldValues' | 'expectedUpdatedAt' | 'status'
 >;
 
 /**
@@ -31,7 +35,8 @@ export type AdminOrganizationPatch = Omit<
  *
  * **The entry names, it does not quote** (`specs/conventions/audit-state.md`,
  * D-288, issue #470 ruling O-2): the status, VAT and fulfilment-strategy codes
- * before and after, and the sorted names of the columns (`changedFields`) and
+ * before and after (the status as context only — since issue #1468 the PATCH
+ * never changes it, so `changedFields` cannot name it), and the sorted names of the columns (`changedFields`) and
  * custom fields (`changedCustomFields`) whose value differs — never the name,
  * the order e-mails or a custom-field value ({@link organizationPatchAuditState}).
  *
@@ -73,7 +78,6 @@ export function makeAdminPatchOrganizationCommand(input: {
       const { changes } = input;
       if (changes.name !== undefined) org.name = changes.name;
       if (changes.vatStatus !== undefined) org.vatStatus = changes.vatStatus;
-      if (changes.status !== undefined) org.status = changes.status;
       if (changes.orderConfirmationEmails !== undefined) org.orderConfirmationEmails = changes.orderConfirmationEmails;
       if (changes.fulfilmentStrategy !== undefined) org.fulfilmentStrategy = changes.fulfilmentStrategy;
       if (changes.fulfilmentStrategyWarehouseOrder !== undefined) {

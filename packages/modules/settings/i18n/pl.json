@@ -100,6 +100,8 @@
   "editor.perChannelOverrides": "{count} nadpisań per kanał",
   "editor.defaultPrefix": "Domyślnie:",
   "editor.globalPrefix": "Globalnie:",
+  "editor.booleanValue.on": "Włączone",
+  "editor.booleanValue.off": "Wyłączone",
   "editor.savedNotice": "Zapisano ustawień: {count}.",
   "context.label": "Edycja dla",
   "context.allChannels": "Wszystkie kanały (domyślnie)",
@@ -184,5 +186,8 @@
   "actions.clearCache.keywords": "wyczyść, pamięć",
   "settingGroups.general.name": "Ogólne",
   "settingGroups.shop.name": "Informacje o sklepie",
-  "settingGroups.storefront.name": "Sklep internetowy"
+  "settingGroups.storefront.name": "Sklep internetowy",
+  "settingLabels.storefront.speculation_rules.eagerness.options.conservative": "Ostrożnie (po wciśnięciu)",
+  "settingLabels.storefront.speculation_rules.eagerness.options.moderate": "Umiarkowanie (po najechaniu, zalecane)",
+  "settingLabels.storefront.speculation_rules.eagerness.options.eager": "Od razu (gdy pojawią się linki)"
 }

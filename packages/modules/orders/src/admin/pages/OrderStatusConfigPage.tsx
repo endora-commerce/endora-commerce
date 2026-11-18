@@ -57,6 +57,7 @@ function statusLabel(s: StatusDef): string {
 
 export function OrderStatusConfigPage(): ReactNode {
   const t = useTranslation('core');
+  const tOrders = useTranslation('orders');
   const [graph, setGraph] = useState<StatusGraph | null>(null);
   const [languages, setLanguages] = useState<ActiveLanguage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -231,7 +232,9 @@ export function OrderStatusConfigPage(): ReactNode {
                 <TableHead>{t('orderStatusConfig.col.name')}</TableHead>
                 <TableHead>{t('orderStatusConfig.col.flags')}</TableHead>
                 <TableHead>{t('orderStatusConfig.col.inUse')}</TableHead>
-                <TableHead aria-label="actions" />
+                <TableHead>
+                  <span className="sr-only">{tOrders('statusConfig.column.actions')}</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -307,7 +310,7 @@ export function OrderStatusConfigPage(): ReactNode {
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label={`edit-${s.code}`}
+                        aria-label={tOrders('statusConfig.action.edit', { name: statusLabel(s) })}
                         onClick={(): void => startEdit(s)}
                       >
                         <Pencil />
@@ -316,7 +319,7 @@ export function OrderStatusConfigPage(): ReactNode {
                         variant="ghost"
                         size="sm"
                         disabled={locked}
-                        aria-label={`delete-${s.code}`}
+                        aria-label={tOrders('statusConfig.action.delete', { name: statusLabel(s) })}
                         onClick={(): void => void confirmDelete(s)}
                       >
                         <Trash2 />

@@ -75,8 +75,8 @@
   "detail.softDeleteTitle": "Przenieś zasób do kosza",
   "detail.softDeleteBlockedTitle": "Najpierw usuń wszystkie odwołania",
   "detail.softDelete": "Do kosza",
-  "visibility.public": "publiczny",
-  "visibility.private": "prywatny",
+  "visibility.public": "Publiczny",
+  "visibility.private": "Prywatny",
   "folders.title": "Foldery",
   "folders.root": "Nieposortowane (root)",
   "folders.namePlaceholder": "Nazwa folderu",
@@ -132,5 +132,12 @@
   "actions.openLibrary.label": "Biblioteka zasobów",
   "actions.openLibrary.description": "Przeglądaj, przesyłaj i podmieniaj pliki oraz zarządzaj stałymi linkami.",
   "actions.openLibrary.keywords": "pliki, zasoby",
-  "settingGroups.storage.name": "Przechowywanie plików"
+  "settingGroups.storage.name": "Przechowywanie plików",
+  "detail.mimeTypeHelp": "Wykryty z pliku podczas przesyłania. Zmień go tylko wtedy, gdy plik jest serwowany z niewłaściwym typem; zastąpienie pliku wykrywa go ponownie.",
+  "detail.mimeTypeSave": "Zapisz typ MIME",
+  "detail.visibilityChangeTitle": "Zmień widoczność",
+  "detail.visibilityConsequence.private": "Link do udostępniania i permalink przestaną otwierać plik dla każdego, kto nie ma czasowo podpisanego linku. Kopie przechowywane już przez przeglądarki lub CDN nie są usuwane.",
+  "detail.visibilityConsequence.public": "Każdy, kto ma link do udostępniania lub permalink, będzie mógł otworzyć plik.",
+  "detail.visibilityConsequence.referenced": "Rekordy, które go używają: {count}.",
+  "detail.visibilityNoPermission": "Twoja rola nie pozwala zmieniać widoczności zasobów."
 }

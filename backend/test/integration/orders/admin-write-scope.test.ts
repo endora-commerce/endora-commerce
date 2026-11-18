@@ -188,6 +188,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
       'ownInvoice',
       'foreignInvoice',
       'platformAdminForeign',
+      'foreignRefundedPayment',
     ] as const;
     const rows = keys.map((key) =>
       newOrder(em, key.startsWith('own') ? assignedOrgId : foreignOrgId),
@@ -196,6 +197,11 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     keys.forEach((key, i) => {
       orders[key] = rows[i]!.id;
     });
+    // Issue #1574 — a refunded order outside the scope: the 404 has to win over
+    // the 409 its payment status would earn, or the refusal confirms it exists.
+    const refundedRow = rows[keys.indexOf('foreignRefundedPayment')]!;
+    refundedRow.paymentStatus = 'refunded';
+    await em.flush();
 
     for (const key of ['ownComment', 'foreignComment'] as const) {
       await em.persistAndFlush(
@@ -249,6 +255,19 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     const row = await h.em().findOne(Order, { id: orderId });
     return row?.status ?? null;
   };
+
+  it('refuses a payment-status change on an order outside the scope as not found, before the transition graph is asked (#1574)', async () => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orders['foreignRefundedPayment']}/payment-status`,
+      payload: { to: 'paid' },
+      cookies: { b2b_session: repCookie },
+    });
+    expect(res.statusCode, res.body).toBe(404);
+    expect((res.json() as { error: { code: string } }).error.code).toBe(ERROR_CODES.ORDER_NOT_FOUND);
+    const row = await h.em().fork().findOne(Order, { id: orders['foreignRefundedPayment']! });
+    expect(row?.paymentStatus).toBe('refunded');
+  });
 
   it('refuses a status write on an order outside the scope, as not found', async () => {
     const res = await h.app.inject({

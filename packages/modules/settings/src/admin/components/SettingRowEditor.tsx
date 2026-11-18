@@ -5,7 +5,14 @@ import {
 } from 'react';
 import { AlertTriangle, Check, Copy, RotateCcw } from 'lucide-react';
 import type { SettingDto } from '@endora-commerce/contracts';
-import { Badge, Button, FormField, Input, type FormFieldControlProps } from '@endora-commerce/admin-kit/ui';
+import {
+  Badge,
+  Button,
+  FormField,
+  Input,
+  Switch,
+  type FormFieldControlProps,
+} from '@endora-commerce/admin-kit/ui';
 import { cn } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
@@ -85,7 +92,21 @@ export function SettingRowEditor({
   const isMultiline = setting.valueType === 'string' && setting.multiline === true;
   // The line under the field is a hint, not a second copy of the value: a
   // multi-line text printed inline loses its line breaks and can be very long.
-  const preview = isMultiline ? formatMultilinePreview : formatPreview;
+  const formatRaw = isMultiline ? formatMultilinePreview : formatPreview;
+  const isBoolean = setting.valueType === 'boolean';
+  const hasEnum = Boolean(setting.enumOptions && setting.enumOptions.length > 0);
+  // Issue #1479 (UX audit SHELL-02) — the default and global values under the
+  // field read in the operator's words: "On" / "Off", an option's label — not
+  // `true`, `false` or a machine code.
+  const preview = (value: unknown): string => {
+    if (isBoolean && typeof value === 'boolean') {
+      return value ? t('editor.booleanValue.on') : t('editor.booleanValue.off');
+    }
+    if (hasEnum && typeof value === 'string' && value !== '') {
+      return labels.settingOption(setting, value);
+    }
+    return formatRaw(value);
+  };
   const description = labels.settingDescription(setting);
   // Issue #930 — the owning module says the stored value is not in force.
   const notice = labels.settingNotice(setting);
@@ -129,6 +150,10 @@ export function SettingRowEditor({
       <FormField
         label={labels.settingName(setting)}
         group={isComposite}
+        // Issue #1479 (SHELL-02) — an on/off setting is a switch, and a switch
+        // reads as a settings row: what it is on the left, the switch on the
+        // right (Jakob's Law). Every other type keeps the stacked field.
+        layout={isBoolean && !hasEnum ? 'row' : 'stack'}
         labelAddon={
           <>
             <button
@@ -245,7 +270,7 @@ export function SettingRowEditor({
               >
                 {setting.enumOptions.map((opt) => (
                   <option key={opt} value={opt}>
-                    {opt}
+                    {labels.settingOption(setting, opt)}
                   </option>
                 ))}
               </select>
@@ -370,17 +395,17 @@ function renderInput(
   control: FormFieldControlProps,
 ): ReactNode {
   if (valueType === 'boolean') {
+    // Issue #1479 (SHELL-02, owner decision DEC-04) — a switch, staged like
+    // every other field: it changes the draft, and the page's one Save writes
+    // it. The draft keeps its `"true"` / `"false"` spelling, which
+    // `parseValue` reads; a value that is neither shows as off.
     return (
-      <select
+      <Switch
         {...control}
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-        value={value}
-        onChange={(e: ChangeEvent<HTMLSelectElement>) => setValue(e.target.value)}
+        checked={value === 'true'}
+        onCheckedChange={(next) => setValue(next ? 'true' : 'false')}
         disabled={readOnly}
-      >
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </select>
+      />
     );
   }
   if (valueType === 'json') {

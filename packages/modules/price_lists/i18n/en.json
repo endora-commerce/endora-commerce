@@ -580,5 +580,13 @@
   "actions.newPriceBook.keywords": "new price list, create price list",
   "actions.openPriceExplainer.keywords": "price explanation, why this price",
   "actions.openPricingSettings.keywords": "pricing settings, price precedence, list price",
-  "settingGroups.pricing.name": "Pricing"
+  "settingGroups.pricing.name": "Pricing",
+  "settingLabels.pricing.default_display_mode.options.gross_only": "Gross only",
+  "settingLabels.pricing.default_display_mode.options.net_only": "Net only",
+  "settingLabels.pricing.default_display_mode.options.both": "Net and gross",
+  "settingLabels.pricing.default_display_mode.options.none": "Hide prices",
+  "settingLabels.pricing.unauthenticated_display_mode.options.gross_only": "Gross only",
+  "settingLabels.pricing.unauthenticated_display_mode.options.net_only": "Net only",
+  "settingLabels.pricing.unauthenticated_display_mode.options.both": "Net and gross",
+  "settingLabels.pricing.unauthenticated_display_mode.options.none": "Hide prices"
 }

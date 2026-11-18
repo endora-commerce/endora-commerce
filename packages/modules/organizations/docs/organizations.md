@@ -49,7 +49,7 @@ writes need `customers:manage`, unless a row names another code.
 | `GET /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:read` or `customers:manage`) | The channels assigned to the Organization, and the channels it could be assigned. `404 NOT_FOUND` for an Organization outside a sales representative's reach (see below the table), as for one that does not exist |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | admin (`customers:manage`) | Replace the assigned channels (`{ salesChannelIds }`, at least one); `404 NOT_FOUND` outside a sales representative's reach, as for the read |
 | `GET /api/v1/admin/organizations/:id` | admin | Org + member roster (`updatedAt`, members include `lastLoginAt` and `organizationRole`; `predefinedRoles` names the Administrator and Member roles) |
-| `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `status` / `vatStatus` / `orderConfirmationEmails` / `fulfilmentStrategy` (with `fulfilmentStrategyWarehouseOrder`) and merge custom-field values (`customFieldValues`); optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale. One audit entry, `organization.admin_patch`, written with the change: the status, VAT and fulfilment-strategy codes before and after, and the names of the changed fields (`changedFields`) and custom fields (`changedCustomFields`) — never the name, the order-confirmation e-mails or a custom-field value |
+| `PATCH /api/v1/admin/organizations/:id` | admin | Update name / `vatStatus` / `orderConfirmationEmails` / `fulfilmentStrategy` (with `fulfilmentStrategyWarehouseOrder`) and merge custom-field values (`customFieldValues`); optional `expectedUpdatedAt` → `409 VERSION_CONFLICT` when stale. **`status` is refused** with `400 VALIDATION_ERROR` at `status`, and nothing in the request is written: the status changes only through `POST …/approve`, `…/reject`, `…/block` and `…/unblock`. One audit entry, `organization.admin_patch`, written with the change: the status (as context; the PATCH never changes it), VAT and fulfilment-strategy codes before and after, and the names of the changed fields (`changedFields`) and custom fields (`changedCustomFields`) — never the name, the order-confirmation e-mails or a custom-field value |
 | `DELETE /api/v1/admin/organizations/:id` | admin (`customers:manage`) | Soft-delete (`204`); refused `409 ORGANIZATION_HAS_CHILDREN` while it has a sub-organization (see *Organization hierarchy*) |
 | `GET /api/v1/admin/organizations/:id/addresses` | admin | The Organization's address book |
 | `POST /api/v1/admin/organizations/:id/members/invite` | admin | Invite by email (`{ email, roleId? }`, Member by default; platform-scope) |
@@ -1410,10 +1410,10 @@ audited against the organization, naming the member or the operator who acted.
 The organization screen (`/organizations/:id`) has **one Save**, in the page header. It covers
 every setting on the screen that is edited rather than acted on:
 
-- the organization's own settings — status, VAT status, order-confirmation e-mails, fulfilment
-  strategy, the restrictions (the allowed payment methods, delivery methods and warehouses) and
-  custom fields. They no longer save on change, when you leave a field, or through
-  a button of their own;
+- the organization's own settings — order-confirmation e-mails (in the **Contact & notifications**
+  section), fulfilment strategy, the restrictions (the allowed payment methods, delivery methods
+  and warehouses) and custom fields. They no longer save on change, when you leave a field, or
+  through a button of their own;
 - the panels other modules contribute, each while its module is on: the **ordering defaults**
   (Quick order), the **price display mode** (Price lists) and **price negotiation** on quote
   requests (Quote requests).
@@ -1445,6 +1445,19 @@ written the moment you use them, and leave the unsaved changes as they are. Each
 carries an **Applies immediately** badge: inviting and directly adding members, the member list,
 the hierarchy, moderation (approve, reject, block, unblock), VAT validation, the sales channels,
 the roles and the sales representatives.
+
+**Status and VAT status.** Each has one place where it is changed, and neither is part of the Save:
+
+- The organization's **status** (pending verification, active, blocked, rejected) is shown and
+  changed only in the **Moderation** section, by approving, rejecting, blocking or unblocking.
+  Those actions check which change is allowed from the current status, record the dates and the
+  reason, and notify the customer. They are offered only with `customers:manage`; without it the
+  section shows the status and the reason alone.
+- The **VAT status** (VAT payer, VAT exempt, reverse charge) is shown in the page header, after the
+  tax ID. To change it, use **Change VAT status…** in the header, next to **Change tax ID**. It
+  needs `customers:manage`, applies immediately and is recorded in the audit log. The VAT status
+  decides the tax on every order the organization places from then on; orders, invoices and quote
+  documents already issued keep theirs. Validating the tax ID does not change the VAT status.
 
 ## Audit entries
 

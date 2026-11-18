@@ -526,7 +526,6 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
     <RecordHistory<OpportunityHistoryEntry>
       history={history}
       copy={{
-        hint: t('history.hint'),
         empty: t('history.empty'),
         end: t('history.end'),
         truncated: t('history.truncated'),

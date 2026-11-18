@@ -405,6 +405,12 @@ export const ERROR_CODES = {
   /** 409 — orders are in the status, so it is not deleted (`details.statusCode`, `orderCount`). */
   ORDER_STATUS_IN_USE: 'ORDER_STATUS_IN_USE',
   /**
+   * 409 — the order's payment status may not move to the one asked for (issue
+   * #1574): token `payment_refunded` (nothing follows a refund) or
+   * `payment_not_paid` (only a paid order is refunded); `details.from`, `details.to`.
+   */
+  ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED: 'ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED',
+  /**
    * 422 — the external API intake refused one or more lines; `details` stays the
    * per-line array of `{ path, issue, sku }` (`SKU_NOT_IN_ASSORTMENT`, `PRICE_UNAVAILABLE`).
    */
