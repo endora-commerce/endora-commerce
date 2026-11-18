@@ -1462,7 +1462,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/dictionaries/src/admin/tabs/CurrenciesTab.tsx': 27,
   'packages/modules/dictionaries/src/admin/tabs/LanguagesTab.tsx': 23,
   'packages/modules/invoices/src/admin/pages/InvoicesList.tsx': 3,
-  'packages/modules/orders/src/admin/pages/OrderDetail.tsx': 1,
   'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx': 2,
   'packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx': 1,
   'packages/modules/payment_methods/src/admin/pages/PaymentMethodsPage.tsx': 1,

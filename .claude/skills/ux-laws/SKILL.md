@@ -298,7 +298,9 @@ Hard constraints that shape the design:
 Never deliver only the happy path:
 
 1. **Loading** — skeleton matching the final layout (no layout shift), or an inline spinner
-   for actions.
+   for actions. A skeleton is for the **first load only**: a refresh after an action keeps the
+   content on screen and marks it `aria-busy`, or the open tab, the scroll position and the
+   focus are lost (admin: `useDetailResource` + `DetailSkeleton`/`Skeleton`, DS-14).
 2. **Empty** — icon/illustration + one-line explanation + one primary action.
 3. **Error** — specific, constructive, actionable, and it never blames the user; a retry path.
 4. **Partial / degraded** — out of stock, price unavailable, quote-only, over credit limit.
