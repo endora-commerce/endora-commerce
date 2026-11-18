@@ -110,13 +110,16 @@ export const EXPECTED_DIFFERENCES: Readonly<Record<string, ExpectedDifference>> 
     before: FORBIDDEN,
     after: { status: 200 },
   },
-  // 9 — the personal-Organization refusal (feature 051), checked before the role is resolved
+  // 9 — the personal-Organization refusal (feature 051), checked before the role is resolved.
+  // Issue #629 (#1406) gave that refusal its own code, `ORGANIZATION_PERSONAL` with the
+  // token `invite`, in place of `VALIDATION_FAILED`; the status and the order of the
+  // checks are unchanged.
   'invitation.createMember:P.owner': {
     family: 'F1',
     ruling: 'PR-3',
     landedBy: 'WP-03',
     before: FORBIDDEN,
-    after: { status: 422, code: 'VALIDATION_FAILED' },
+    after: { status: 422, code: 'ORGANIZATION_PERSONAL/invite' },
   },
   // 10 — as row 9
   'invitation.createAdministrator:P.owner': {
@@ -124,7 +127,7 @@ export const EXPECTED_DIFFERENCES: Readonly<Record<string, ExpectedDifference>> 
     ruling: 'PR-3',
     landedBy: 'WP-03',
     before: FORBIDDEN,
-    after: { status: 422, code: 'VALIDATION_FAILED' },
+    after: { status: 422, code: 'ORGANIZATION_PERSONAL/invite' },
   },
   // 11 — the target is A's invitation; the lookup is scoped to P
   'invitation.revoke:P.owner': {
