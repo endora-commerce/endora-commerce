@@ -210,7 +210,6 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
           <Select
             id={`${fieldId}-category`}
             value={category}
-            aria-describedby={`${fieldId}-category-hint`}
             onChange={(event): void => setCategory(event.target.value as TaskStatusCategory)}
           >
             {TASK_STATUS_CATEGORIES.map((option) => (
@@ -219,9 +218,6 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
               </option>
             ))}
           </Select>
-          <p id={`${fieldId}-category-hint`} className="text-xs text-muted-foreground">
-            {t('workflow.field.categoryHint')}
-          </p>
         </div>
 
         <div className="space-y-1">

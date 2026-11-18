@@ -97,7 +97,7 @@ export function TagsPage(): ReactNode {
 
   return (
     <>
-      <PageHeader title={t('tags.title')} description={t('tags.description')} actions={addButton} />
+      <PageHeader title={t('tags.title')} actions={addButton} />
 
       {/* Mounted before it has text, so the announcement is reliable. */}
       <p role="status" className="sr-only">

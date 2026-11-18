@@ -9,7 +9,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   PageHeader,
@@ -100,7 +99,6 @@ export function TaskPrioritiesPage(): ReactNode {
   const header = (
     <PageHeader
       title={t('priorities.title')}
-      description={t('priorities.description')}
       back={{ label: t('settings.back'), to: TASK_WORKFLOW_PATH }}
     />
   );
@@ -137,7 +135,6 @@ export function TaskPrioritiesPage(): ReactNode {
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
             <CardTitle>{t('priorities.list.title')}</CardTitle>
-            <CardDescription>{t('priorities.list.description')}</CardDescription>
           </div>
           {ordered.length > 0 ? (
             <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>

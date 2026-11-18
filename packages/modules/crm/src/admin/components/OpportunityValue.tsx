@@ -196,9 +196,7 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
         </Alert>
       ) : null}
 
-      <p className="max-w-prose text-xs text-muted-foreground">
-        {computed ? t('value.hint.computed') : t('value.hint.manual')}
-      </p>
+      {computed ? <p className="max-w-prose text-xs text-muted-foreground">{t('value.hint.computed')}</p> : null}
 
       {computed && opportunity.manualValue !== null ? (
         <p className="text-sm text-muted-foreground">

@@ -440,7 +440,6 @@ export function ProjectsList(): ReactNode {
     <>
       <PageHeader
         title={t('list.title')}
-        description={t('list.description')}
         // With nothing listed the empty state carries the one action.
         actions={canWrite && (rows.length > 0 || filtered || !loaded) ? newProject : undefined}
       />

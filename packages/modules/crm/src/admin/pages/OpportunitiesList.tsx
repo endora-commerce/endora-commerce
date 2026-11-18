@@ -449,7 +449,6 @@ export function OpportunitiesList(): ReactNode {
     <>
       <PageHeader
         title={t('opportunity.list.title')}
-        description={t('opportunity.list.description')}
         // With nothing listed the empty state carries the one action; two
         // filled buttons for the same thing would compete.
         actions={canWrite && (rows.length > 0 || filtered || !loaded) ? newOpportunity : undefined}
