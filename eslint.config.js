@@ -245,14 +245,6 @@ export default [
       'no-restricted-syntax': ['error', ...rawEnumInJsxSelectors(), ...developerIdAriaLabelSelectors()],
     },
   },
-  // The one site left to #1578 (SALES-01), which rewrites that field: drop this
-  // entry when it merges.
-  {
-    files: ['packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx'],
-    rules: {
-      'no-restricted-syntax': ['error', ...rawEnumInJsxSelectors()],
-    },
-  },
 ];
 
 /**
