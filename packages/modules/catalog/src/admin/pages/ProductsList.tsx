@@ -35,7 +35,7 @@ import {
   adminLanguageToLocale,
   useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import type { SavedViewState } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
@@ -453,29 +453,26 @@ export function ProductsList(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('productsList.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('productsList.subtitle', { count: counts.all })}
-          </div>
-        </div>
-        <div className="b2b-page-head__actions">
-          {/* CAT-02 — the dead Import / Export buttons became this place: the
-              module that imports and exports contributes its own link, gated by
-              its own presence and permission, so the list names no other module. */}
-          <AdminZone name="product.list.actions" props={{}} />
-          {canWrite ? (
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--primary"
-              onClick={(): void => { navigate('/catalog/products/new'); }}
-            >
-              <Plus size={14} /> {t('productsList.action.newProduct')}
-            </button>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        title={t('productsList.title')}
+        actions={
+          <>
+            {/* CAT-02 — the dead Import / Export buttons became this place: the
+                module that imports and exports contributes its own link, gated by
+                its own presence and permission, so the list names no other module. */}
+            <AdminZone name="product.list.actions" props={{}} />
+            {canWrite ? (
+              <button
+                type="button"
+                className="b2b-btn b2b-btn--primary"
+                onClick={(): void => { navigate('/catalog/products/new'); }}
+              >
+                <Plus size={14} /> {t('productsList.action.newProduct')}
+              </button>
+            ) : null}
+          </>
+        }
+      />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">

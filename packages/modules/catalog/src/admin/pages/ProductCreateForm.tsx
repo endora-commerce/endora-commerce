@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Save } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { ApiError, apiClient, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import { CategoryTreePicker, StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -101,21 +101,18 @@ export function ProductCreateForm(): ReactNode {
   return (
     <div className="b2b-page b2b-page--wide">
       <form noValidate onSubmit={(e): void => void submit(e)}>
-        <div className="b2b-page-head">
-          <div className="b2b-grow">
-            <button type="button" className="b2b-page-head__back" onClick={(): void => void navigate('/catalog/products')}>
-              <ChevronLeft size={14} /> {t('productEditor.back')}
-            </button>
-            <div className="b2b-page-head__title">
-              <span>{t('productEditor.newTitle')}</span>
-            </div>
-          </div>
-          <StickyFormActions className="b2b-page-head__actions">
-            <button type="submit" className="b2b-btn b2b-btn--primary" disabled={saving}>
-              <Save size={14} aria-hidden="true" /> {t('productEditor.save.action')}
-            </button>
-          </StickyFormActions>
-        </div>
+        <PageHeader
+          back={{ label: t('productEditor.back'), to: '/catalog/products' }}
+          title={t('productEditor.newTitle')}
+          actions={
+            <StickyFormActions>
+              {/* Full width in the mobile bottom bar, where the thumb already is (Fitts's Law). */}
+              <button type="submit" className="b2b-btn b2b-btn--primary max-lg:w-full" disabled={saving}>
+                <Save size={14} aria-hidden="true" /> {t('productEditor.save.action')}
+              </button>
+            </StickyFormActions>
+          }
+        />
         {error ? (
           <Alert variant="destructive" className="mb-4">
             <AlertDescription>{error}</AlertDescription>

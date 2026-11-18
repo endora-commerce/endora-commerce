@@ -11,6 +11,7 @@ import {
 import type { DisplayMode } from '@endora-commerce/contracts';
 import { ApiError, apiClient, normalize, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 import { useLocalizedName } from '../lib/localized-name.js';
 import { PrecedenceView } from '../components/PrecedenceView.js';
 import { ShowListPriceSwitch } from '../components/ShowListPriceSwitch.js';
@@ -182,15 +183,8 @@ export function DisplayModeOverridesPage(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          {/* Feature 161 (FR-025): the page is *Pricing settings*. */}
-          <h1 className="b2b-page-head__title">{t('priceLists.displayModes.title')}</h1>
-          <div className="b2b-page-head__sub">
-            {t('priceLists.displayModes.description')}
-          </div>
-        </div>
-      </div>
+      {/* Feature 161 (FR-025): the page is *Pricing settings*. */}
+      <PageHeader title={t('priceLists.displayModes.title')} help={t('priceLists.displayModes.help')} />
 
       {info ? (
         <Banner kind="info" message={info} onDismiss={(): void => setInfo(null)} />

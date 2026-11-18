@@ -18,7 +18,7 @@
   "translations.error.save": "Zapis nie powiódł się.",
   "translations.error.remove": "Usunięcie nie powiodło się.",
   "audit.page.title": "Audyt słowników",
-  "audit.page.description": "Nierozwiązane referencje krajów, walut i języków u konsumentów platformy.",
+  "audit.page.description": "Używane kody krajów, walut i języków bez pasującej pozycji słownika.",
   "audit.refresh": "Odśwież",
   "audit.copyCsv": "Kopiuj CSV",
   "audit.invalidateCache": "Unieważnij cache",

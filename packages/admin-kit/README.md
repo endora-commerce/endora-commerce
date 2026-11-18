@@ -9,7 +9,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 
 | Subpath | What it is |
 | --- | --- |
-| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `empty-state` (`EmptyState`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `tabs` (`Tabs`, `TabPanel`, `RecordTabs`, see below), `separator` |
+| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header` (`PageHeader`, see below), `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `empty-state` (`EmptyState`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `tabs` (`Tabs`, `TabPanel`, `RecordTabs`, see below), `separator` |
 | `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
@@ -243,6 +243,36 @@ through `FormField`, so no screen wires `htmlFor`, `aria-describedby` or `aria-i
   elsewhere) cover the editor rows that carry more than a label.
 
 The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass.
+
+## Page headers — `PageHeader`
+
+Issue #1436 (UX audit 2026-11-17, DS-02). Every admin page draws its one `h1` through
+`PageHeader`; the `.b2b-page-head` classes that drew a title as a `<div>` are gone from
+`theme.css`.
+
+```tsx
+<PageHeader
+  back={{ label: t('list.back'), to: '/warehouses' }}
+  title={warehouse.name}
+  titleActions={<Badge variant="secondary">{t('status.archived')}</Badge>}
+  description={warehouse.code}
+  help={t('warehouses.page.help')}
+  actions={<Button onClick={onNew}>{t('action.new')}</Button>}
+/>
+```
+
+- **`description` is opt-in and one line**, clamped to it (`line-clamp-1`). Give one only when it
+  says something the screen does not already show — a code, a scope, a state — never a restatement
+  of the title. The content rule (≤ 80 characters) is in `specs/conventions/module-i18n.md`.
+- **`help`** is where a longer explanation goes: a `HelpTip` (ⓘ) beside the title, named
+  *"More information: <title>"*, opened by click, tap or keyboard. It is outside the `h1`, so the
+  heading's accessible name stays the title.
+- **`titleActions`** holds what belongs to the title — an *Edit*, a status badge — beside the
+  heading and likewise outside it.
+- **`back`** is a link above the title. Its optional `onClick` runs first; call
+  `event.preventDefault()` to hold the navigation while an editor asks about unsaved changes.
+
+The behaviour is pinned in `admin/test/kit/kit-page-header.test.tsx`, including an axe pass.
 
 ## Unsaved changes — `useUnsavedChangesGuard`
 

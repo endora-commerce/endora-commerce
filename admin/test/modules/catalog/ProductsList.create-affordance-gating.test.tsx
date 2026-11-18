@@ -89,7 +89,6 @@ function answerList(response: unknown): void {
 
 const BUNDLE = passthroughBundle('catalog', [
   'productsList.title',
-  'productsList.subtitle',
   'productsList.action.newProduct',
   'productsList.loading',
   'productsList.empty.title',

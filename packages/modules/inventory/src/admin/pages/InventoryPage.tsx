@@ -14,6 +14,7 @@ import { ApiError, apiClient, usePageSizePreference, useSurfaceVisibility } from
 import { FilterChip, ListToolbar, ListToolbarSearch, PaginationFooter } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 import { productInventoryHref, stockDisplayBandLabels, stockDisplayBandTone } from '../lib/labels.js';
 interface RosterResponse {
   items: StockLevelRow[];
@@ -138,26 +139,20 @@ export function InventoryPage(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('inventory.page.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('inventory.page.subPrefix')}{' '}
-            <code className="b2b-mono">stock_levels</code>{t('inventory.page.subSuffix')}
-          </div>
-        </div>
-        <div className="b2b-page-head__actions">
-          {canWrite ? (
+      <PageHeader
+        title={t('inventory.page.title')}
+        actions={
+          canWrite ? (
             <Link
               to="/inventory/import"
               className="b2b-btn b2b-btn--default b2b-btn--sm"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              <Upload size={13} /> {t('inventory.action.import')}
+              <Upload size={13} aria-hidden="true" /> {t('inventory.action.import')}
             </Link>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">

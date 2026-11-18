@@ -1,6 +1,6 @@
 {
   "customFields.title": "Custom fields",
-  "customFields.description": "Define runtime typed fields on core entities without a code change or migration.",
+  "customFields.description": "Extra fields for products, orders, customers and more.",
   "customFields.entity.category": "Category",
   "customFields.entity.order": "Order",
   "customFields.entity.organization": "Organization",

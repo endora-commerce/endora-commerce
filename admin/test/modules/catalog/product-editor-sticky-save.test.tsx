@@ -46,7 +46,7 @@ describe('Save in the sticky scope bar (issue #717)', () => {
     expect(bar.className).toMatch(/(^|\s)lg:sticky(\s|$)/);
     expect(bar).toContainElement(save);
     expect(bar).toContainElement(save.closest<HTMLElement>('.b2b-sticky-form-actions'));
-    const head = document.querySelector<HTMLElement>('.b2b-page-head')!;
+    const head = screen.getByRole('heading', { level: 1 }).closest<HTMLElement>('header')!;
     expect(within(head).queryByRole('button', { name: SAVE })).toBeNull();
     // The staged-changes count rides on the one Save.
     fireEvent.change(await screen.findByLabelText(en['productEditor.field.name']!), { target: { value: 'Wiertarka' } });
