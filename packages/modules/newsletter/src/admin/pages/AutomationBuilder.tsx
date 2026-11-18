@@ -8,7 +8,8 @@ import type {
   NewsletterCustomField,
   NewsletterTag,
 } from '@endora-commerce/contracts';
-import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { isDraftEqual, useAuth } from '@endora-commerce/admin-kit/lib';
+import { UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import {
   EmailEditorPane,
@@ -44,6 +45,31 @@ function fromApiSteps(steps: AutomationStep[]): LocalStep[] {
       content: (s.content as Data) ?? emptyData,
     };
   });
+}
+
+/** What a save sends, from the builder's fields (issue #1461: what `dirty` compares). */
+interface AutomationDraft {
+  name: string;
+  triggerType: AutomationTriggerType;
+  triggerTagIds: string[];
+  steps: LocalStep[];
+}
+
+const blankDraft: AutomationDraft = {
+  name: '',
+  triggerType: 'all',
+  triggerTagIds: [],
+  steps: [{ type: 'send', subject: '', content: emptyData }],
+};
+
+function draftOf(detail: AutomationDetail | null): AutomationDraft {
+  if (!detail) return blankDraft;
+  return {
+    name: detail.name,
+    triggerType: detail.triggerType,
+    triggerTagIds: detail.triggerTagIds,
+    steps: fromApiSteps(detail.steps),
+  };
 }
 
 export function AutomationBuilder(): React.ReactElement {
@@ -129,6 +155,22 @@ export function AutomationBuilder(): React.ReactElement {
     }
   }
 
+  // Issue #1461 (CONTENT-02) — the fields and every step against the last saved automation.
+  const dirty =
+    (isNew || detail !== null) &&
+    !isDraftEqual({ name, triggerType, triggerTagIds, steps }, draftOf(detail));
+  const unsavedGuard = useUnsavedChangesGuard({
+    dirty,
+    onSave: canWrite ? async () => (await save()) !== null : undefined,
+    onDiscard: () => {
+      const saved = draftOf(detail);
+      setName(saved.name);
+      setTriggerType(saved.triggerType);
+      setTriggerTagIds(saved.triggerTagIds);
+      setSteps(saved.steps);
+    },
+  });
+
   if (!hasPermission('newsletter:read')) {
     return (
       <Alert>
@@ -147,6 +189,7 @@ export function AutomationBuilder(): React.ReactElement {
         actions={
           canWrite ? (
             <>
+              <UnsavedChangesHint dirty={dirty} />
               <Button variant="outline" onClick={() => void save()}>
                 Save
               </Button>
@@ -301,6 +344,7 @@ export function AutomationBuilder(): React.ReactElement {
           </CardContent>
         </Card>
       </EmailVariablesProvider>
+      {unsavedGuard.dialog}
     </div>
   );
 }

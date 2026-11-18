@@ -36,7 +36,7 @@
  * React context and `action-bar-target` is a module-scoped store, and two copies
  * of either are a `null` context and an action bar that never updates.
  */
-export { emptyPageBuilderData, isEmptyPageBuilderData } from './chrome/page-builder-data.js';
+export { emptyPageBuilderData, hasUnsavedCanvas, isEmptyPageBuilderData } from './chrome/page-builder-data.js';
 export {
   getActionBarTarget,
   getHoverActionBarTarget,

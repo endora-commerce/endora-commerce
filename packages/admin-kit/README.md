@@ -11,7 +11,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 | --- | --- |
 | `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
 | `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
-| `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt, the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
+| `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
 | `./contributions` | the declaration types, re-exported from `@endora-commerce/contracts` so a module needs one import for the shapes and not two |
 
@@ -243,6 +243,48 @@ through `FormField`, so no screen wires `htmlFor`, `aria-describedby` or `aria-i
   elsewhere) cover the editor rows that carry more than a label.
 
 The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass.
+
+## Unsaved changes — `useUnsavedChangesGuard`
+
+Issue #1446 (UX audit 2026-11-17, DS-13). A screen that holds edits a navigation would lose arms
+**one** guard; there is no second implementation to pick from:
+
+```tsx
+const dirty = !isDraftEqual(draft, saved);          // ./lib — key order and undefined keys ignored
+const guard = useUnsavedChangesGuard({ dirty, onSave: save, onDiscard: reset });
+…
+<UnsavedChangesHint dirty={dirty} />                 // beside the Save button
+<Select onChange={(e) => guard.confirm(() => switchLanguage(e.target.value))} />
+{guard.dialog}
+```
+
+- **What it intercepts**: `beforeunload` (the browser's own prompt — it cannot be replaced); every
+  same-origin link click, the sidebar and Back links included, in the capture phase before React
+  Router; with `guardTabsOutside`, a `role="tab"` outside the given element; and whatever the screen
+  routes through **`confirm(action)`** — its own `navigate()` calls and any in-screen switch that
+  would reload over the draft (a channel or a language select).
+- **What it asks**: *Save and continue* (the one primary action; the navigation goes ahead only if
+  `onSave` resolves `true`, and a refused save leaves the operator on the screen with its own error),
+  *Discard changes* (`onDiscard`, then the navigation), *Stay here* (the initial focus, so an Enter
+  pressed by accident keeps the work). Without `onSave` — no permission, nothing valid to send — the
+  choice is Discard or Stay. Copy is `core`'s `form.unsavedChanges.*`; `title` and `message` override it.
+- **The blocked link or tab is replayed**, not re-routed: the same element is clicked again with the
+  guard stood down, so the guard needs no router and keeps whatever the link does.
+- **Not interceptable here**: Back / Forward. The admin mounts a component `<BrowserRouter>`, not a
+  data router, so React Router's `useBlocker` is unavailable; that would take moving `AdminRoot` to
+  `createBrowserRouter`.
+- **`dirty` is the draft against the last saved version**, never "the operator typed something":
+  compare what a save would send, so a canvas that re-emits an equal tree, or a field typed and
+  cleared again, is not an edit.
+- `UnsavedChangesHint` is a polite live region mounted empty (WCAG 4.1.3) and deliberately not a
+  `role="status"`, so it never competes with the screen's own save-result region.
+- `useUnsavedChangesPrompt` (`./lib`) is the same interception with the browser's two-way `confirm()`
+  and stays for screens that have no Save to offer; `UnsavedChangesDialog` is the question on its own,
+  for a screen that decides itself when to ask. `PageBuilderEditorLayout`
+  (`@endora-commerce/page-builder-admin`) takes `dirty` / `onSave` / `onDiscard` and arms the guard
+  for the whole editor.
+
+The behaviour is pinned in `admin/test/kit/kit-unsaved-changes-guard.test.tsx`, including an axe pass.
 
 ## On/off — `Switch` and `SettingRow`
 

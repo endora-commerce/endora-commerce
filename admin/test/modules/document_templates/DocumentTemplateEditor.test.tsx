@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Config, Data } from '@puckeditor/core';
 // Puck paints into an iframe jsdom will not draw; the editor takes `<Puck>` from
@@ -20,12 +20,12 @@ import { BUNDLE, comparisonConfig, detail, invoiceConfig, typeDetail } from './f
  * read-only and preview behaviour.
  */
 
-let lastPuck: { config: Config; data: Data } | null = null;
+let lastPuck: { config: Config; data: Data; onChange?: (data: Data) => void } | null = null;
 vi.mock('@endora-commerce/page-builder-core/editor', async (importOriginal) => {
   const { useBlockRenderEnvironment } = await import('@endora-commerce/page-builder-core/contributions');
   return {
     ...(await importOriginal<typeof import('@endora-commerce/page-builder-core/editor')>()),
-    Puck: (props: { config: Config; data: Data }) => {
+    Puck: (props: { config: Config; data: Data; onChange?: (data: Data) => void }) => {
       lastPuck = props;
       // What a block on the canvas reads as the language of the tree it draws (issue #888).
       const { language, preview } = useBlockRenderEnvironment();
@@ -187,5 +187,56 @@ describe('DocumentTemplateEditor (spec 152)', () => {
     renderEditor();
     await waitFor(() => expect(screen.getByTestId('puck').getAttribute('data-language')).toBe('pl-PL'));
     expect(screen.getByTestId('puck').getAttribute('data-preview')).toBe('true');
+  });
+});
+
+/**
+ * Issue #1461 (UX audit CONTENT-02) — the canvas against the edited language's
+ * stored tree: an edit says so beside Save, and a language switch, which
+ * replaces the canvas, asks Save / Discard / Stay first.
+ */
+describe('DocumentTemplateEditor — unsaved changes (issue #1461)', () => {
+  beforeEach(() => {
+    lastPuck = null;
+    for (const fn of Object.values(api)) fn.mockReset();
+    api.getTemplate.mockResolvedValue(detail());
+    api.getDocumentType.mockResolvedValue(typeDetail());
+    api.getBuilderConfig.mockResolvedValue(comparisonConfig());
+    api.listContentLanguages.mockResolvedValue(['en-US', 'pl-PL', 'de-DE']);
+  });
+
+  async function editCanvas(): Promise<void> {
+    await waitFor(() => expect(lastPuck?.onChange).toBeDefined());
+    const edited = { ...lastPuck!.data, content: [] };
+    act(() => lastPuck!.onChange!(edited));
+  }
+
+  it('is clean as loaded, and an echo of the stored tree is not an edit', async () => {
+    renderEditor();
+    await waitFor(() => expect(lastPuck?.onChange).toBeDefined());
+    act(() => lastPuck!.onChange!(structuredClone(lastPuck!.data)));
+    expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe('');
+  });
+
+  it('a canvas edit shows the hint and a language switch asks first; Stay keeps the language', async () => {
+    renderEditor();
+    await editCanvas();
+    expect(screen.getByTestId('unsaved-changes-hint').textContent).not.toBe('');
+    fireEvent.change(screen.getByLabelText('editor.language'), { target: { value: 'pl-PL' } });
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('unsaved-changes-stay'));
+    expect((screen.getByLabelText('editor.language') as HTMLSelectElement).value).toBe('en-US');
+    expect(lastPuck!.data.content).toEqual([]);
+  });
+
+  it('Save and continue saves the edited language before switching', async () => {
+    api.saveTemplateContent.mockResolvedValue({ version: 4, languages: ['en-US'] });
+    renderEditor();
+    await editCanvas();
+    fireEvent.change(screen.getByLabelText('editor.language'), { target: { value: 'pl-PL' } });
+    fireEvent.click(screen.getByTestId('unsaved-changes-save'));
+    await waitFor(() => expect(api.saveTemplateContent).toHaveBeenCalledTimes(1));
+    expect(api.saveTemplateContent.mock.calls[0]?.[1]).toBe('en-US');
+    await waitFor(() => expect((screen.getByLabelText('editor.language') as HTMLSelectElement).value).toBe('pl-PL'));
   });
 });

@@ -39,7 +39,9 @@ const GLOBAL_RECEIVERS = new Set(['window', 'globalThis', 'self']);
  */
 const EXCEPTIONS: Record<string, { count: number; reason: string }> = {
   'packages/admin-kit/src/lib/use-unsaved-changes-prompt.ts': {
-    count: 2,
+    // One call since #1446: both interceptions share `useLeaveInterception`, and the
+    // kit's `useUnsavedChangesGuard` asks in its own dialog instead.
+    count: 1,
     reason: 'unsaved-changes navigation guard; must answer synchronously inside the click/popstate handler',
   },
   'packages/modules/settings/src/admin/pages/SettingsPage.tsx': {
