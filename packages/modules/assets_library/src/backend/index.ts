@@ -207,7 +207,9 @@ export function registerModule(ctx: ModuleContext): void {
   // `pim_ergonode` uses during an import — upload, read, patch the alternate
   // text, soft-delete what an item stopped pointing at. Since T118c it is also
   // what `cms` resolves to turn an embedded asset id into the detail a
-  // storefront response carries.
+  // storefront response carries. Since issue #694 it also replaces a file in
+  // place, for a module keeping an asset in step with an external source —
+  // the service's own `replace`, under the same gate as the other four.
   //
   // **Phase C has retired the root's entry** (`specs/110-instance-repository/`
   // T118c). This note used to read *"the existing `assetsLibraryService` name is

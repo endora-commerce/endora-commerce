@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ClipboardList, Plus, SearchX } from 'lucide-react';
+import { ClipboardList, Plus } from 'lucide-react';
 import { FORM_STATUSES, type FormStatus, type FormSummary } from '@endora-commerce/contracts';
 import {
   PaginationFooter,
@@ -12,7 +12,19 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  EmptyState,
+  Input,
+  Label,
+  PageHeader,
+  Select,
+} from '@endora-commerce/admin-kit/ui';
 import { formsApi } from '../api.js';
 import { DeleteFormDialog, FormStatusBadge, FormWarningList } from '../components/FormStatus.js';
 import { errorMessage } from '../lib/errors.js';
@@ -36,6 +48,7 @@ export function FormsListPage(): ReactNode {
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('forms:write');
   const searchId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
   const statusId = useId();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<FormStatus | ''>('');
@@ -109,21 +122,28 @@ export function FormsListPage(): ReactNode {
   ];
 
   const filtered = q.trim() !== '' || status !== '';
+  const clearFilters = (): void => {
+    setQ('');
+    setStatus('');
+    setPage(1);
+  };
+  const createLink = (
+    <Button asChild className="min-h-11 sm:min-h-9">
+      <Link to="/forms/new">
+        <Plus size={16} aria-hidden="true" />
+        {t('list.create')}
+      </Link>
+    </Button>
+  );
+  // With no form at all the empty state carries the one create action; a second
+  // filled button for the same thing in the header would compete (Von Restorff).
+  const nothingYet = load.kind === 'ready' && load.total === 0 && !filtered;
   return (
     <div className="space-y-4">
       <PageHeader
         title={t('list.title')}
         description={t('list.description')}
-        actions={
-          canWrite ? (
-            <Button asChild>
-              <Link to="/forms/new">
-                <Plus size={16} aria-hidden="true" />
-                {t('list.create')}
-              </Link>
-            </Button>
-          ) : null
-        }
+        actions={canWrite && !nothingYet ? createLink : null}
       />
       <Card>
         <CardHeader className="border-b border-border p-4">
@@ -131,6 +151,7 @@ export function FormsListPage(): ReactNode {
             <div className="min-w-56 flex-1 space-y-1">
               <Label htmlFor={searchId}>{t('list.search')}</Label>
               <Input
+                ref={searchRef}
                 id={searchId}
                 type="search"
                 value={q}
@@ -182,35 +203,21 @@ export function FormsListPage(): ReactNode {
                 data={load.items}
                 keyExtractor={(form) => form.id}
                 emptyState={
-                  <div className="flex flex-col items-center gap-3 py-10 text-center">
-                    {filtered ? (
-                      <SearchX size={32} aria-hidden="true" className="text-muted-foreground" />
-                    ) : (
-                      <ClipboardList size={32} aria-hidden="true" className="text-muted-foreground" />
-                    )}
-                    <p className="text-sm text-muted-foreground">{filtered ? t('list.emptyFiltered') : t('list.empty')}</p>
-                    {filtered ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setQ('');
-                          setStatus('');
-                          setPage(1);
-                        }}
-                      >
-                        {t('list.clearFilters')}
-                      </Button>
-                    ) : canWrite ? (
-                      <Button asChild size="sm">
-                        <Link to="/forms/new">
-                          <Plus size={14} aria-hidden="true" />
-                          {t('list.create')}
-                        </Link>
-                      </Button>
-                    ) : null}
-                  </div>
+                  filtered ? (
+                    <EmptyState
+                      variant="no-results"
+                      title={t('list.emptyFiltered')}
+                      onClearFilters={clearFilters}
+                      focusAfterClear={searchRef}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={<ClipboardList size={20} />}
+                      title={t('list.empty.title')}
+                      description={canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}
+                      action={canWrite ? createLink : null}
+                    />
+                  )
                 }
                 {...(canWrite
                   ? {

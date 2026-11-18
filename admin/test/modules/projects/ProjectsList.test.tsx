@@ -185,6 +185,16 @@ describe('ProjectsList', () => {
     });
   });
 
+  it('clears a filter that found nothing from the empty state, and puts focus on the search box (WCAG 2.4.3)', async () => {
+    await renderList();
+    page = { items: [], nextCursor: null, total: 0 };
+    await userEvent.selectOptions(screen.getByLabelText(en('list.filter.state')), 'open');
+    expect(await screen.findByText(en('list.noResults.title'))).toBeTruthy();
+    const block = document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!;
+    await userEvent.click(within(block).getByRole('button', { name: en('list.filter.clear') }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('list.search'))));
+  });
+
   it('searches by number or title once typing pauses', async () => {
     await renderList();
     await userEvent.type(screen.getByLabelText(en('list.search')), 'PRJ-7');

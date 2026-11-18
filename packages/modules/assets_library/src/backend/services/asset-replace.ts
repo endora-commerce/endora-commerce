@@ -50,7 +50,12 @@ export interface AssetReplaceDeps {
   loadRetentionDays?: () => Promise<number>;
 }
 
-export interface AssetReplaceInput {
+/**
+ * What {@link replaceAssetFile} reads. The published `AssetReplaceInput` of
+ * `@endora-commerce/contracts` is the module-facing half; the service turns its
+ * byte source into a Node stream, and `afterStaged` is the admin route's alone.
+ */
+export interface ReplaceAssetFileInput {
   assetId: string;
   filename: string;
   declaredMime: string;
@@ -176,7 +181,7 @@ function newSwapState(): SwapState {
  */
 export async function replaceAssetFile(
   deps: AssetReplaceDeps,
-  input: AssetReplaceInput,
+  input: ReplaceAssetFileInput,
 ): Promise<Asset> {
   if (!isUuidShape(input.assetId)) {
     throw assetNotFound(input.assetId);

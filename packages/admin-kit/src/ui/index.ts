@@ -36,6 +36,9 @@ export {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './dropdown-menu.js';
+// Issue #1448 (UX audit DS-15) — the icon / title / one line / one action block for an empty list.
+export { EmptyState } from './empty-state.js';
+export type { EmptyStateNoDataProps, EmptyStateNoResultsProps, EmptyStateProps } from './empty-state.js';
 // Issue #1432 (UX audit DS-08) — the label / control / hint / error wiring every form field uses.
 export { FormField } from './form-field.js';
 export type { FormFieldControlProps, FormFieldProps } from './form-field.js';

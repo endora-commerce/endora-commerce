@@ -183,7 +183,7 @@ export async function registerAssetsLibraryAdminRoutes(
         );
       }
       let expectedContentVersion: string | undefined;
-      let detail: Awaited<ReturnType<typeof service.replace>> | null = null;
+      let detail: Awaited<ReturnType<typeof service.replaceFromRoute>> | null = null;
       const parts = req.parts()[Symbol.asyncIterator]();
       // The parts after the file, read once its bytes are staged and before the
       // swap commits: a guard field there arrived too late to guard anything and
@@ -215,7 +215,7 @@ export async function registerAssetsLibraryAdminRoutes(
         if (next.done) break;
         const part = next.value;
         if (part.type === 'file') {
-          detail = await service.replace({
+          detail = await service.replaceFromRoute({
             assetId: req.params.id,
             filename: part.filename ?? 'unknown',
             declaredMime: part.mimetype ?? 'application/octet-stream',
