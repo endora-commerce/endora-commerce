@@ -339,6 +339,7 @@
   "common.field.code": "Code",
   "common.field.name": "Name",
   "common.formField.required": "(required)",
+  "common.list.loadError": "This list could not be loaded. Try again.",
   "common.helpTip.label": "More information",
   "common.combobox.clearSelection": "Clear selection",
   "common.combobox.loading": "Loading…",

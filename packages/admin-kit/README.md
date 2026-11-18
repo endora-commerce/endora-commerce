@@ -406,3 +406,53 @@ written by hand anywhere under the admin, the shell, the kit, the page-builder c
 `src/admin/` / `src/admin-ui/` fails `admin/test/unit/no-hand-rolled-overlays.test.ts`, whose
 two-way ledger names each remaining one and the issue that migrates it. The behaviour is pinned in
 `admin/test/components/ModalDialog.test.tsx`, including an axe pass.
+
+## List pages — `ListPage` and `useListPagination`
+
+Issue #1439 (UX audit 2026-11-17, DS-05). An admin list came in several shapes: a create form drawn
+open above the rows, the filters in a card of their own, a red *Delete* in every row, and on
+Customers, Organizations and Carts no pager at all (#1473) — the API paged and the screen showed
+page one. Every list is now the same page:
+
+| Part | What it is | Why |
+| --- | --- | --- |
+| Header | `PageHeader` with **one** primary *New …* in `actions`, and at most a `RowActionMenu` beside it for screen-wide secondary actions | One primary per view (Von Restorff); the create action where every admin looks for it (Jakob) |
+| Create / edit | *New …* opens a `ModalDialog` when the form has up to five fields, its own route otherwise — never a form drawn open above the list | A form always open competes with the list it sits on (Hick) |
+| Toolbar | A plain row of labelled filters and the search, **not a card**; the result count at its end in a live region | A card around the toolbar reads as a second region (Common Region); the count is announced as it changes (WCAG 4.1.3) |
+| Results | One `ResponsiveTable` in one card; the record's name in the primary column **is the link** to it | No *Open* button repeating the name in every row (signal-to-noise) |
+| Row actions | `RowActionMenu`; destructive items last, after a `RowActionMenuSeparator`, and each confirmed through `useConfirmDialog` (`action` + `describeError`, so the request runs inside the dialog) | Destructive actions get distance, not a button in every row (Fitts) |
+| Pager | `PaginationFooter` under the table, fed by `useListPagination` | Every row reachable without a search |
+| States | Loading (a skeleton, `aria-busy`, *Loading…* through the count's live region), an error with the server's message or the kit's, and *Retry*; *no records yet* distinct from *no record matches — Clear filters* | A list that fails or comes back empty still says what to do next |
+
+```tsx
+const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
+// request: { ...filters, ...pager.query }  → page is one-based
+// on success: pager.syncTotal(total); on a filter change: pager.resetPage()
+<ListPage
+  title={t('list.title')}
+  actions={<Button asChild><Link to="/x/new"><Plus aria-hidden="true" />{t('list.create')}</Link></Button>}
+  toolbar={<>{search}{statusSelect}</>}
+  count={t('list.count', { count: total })}
+  load={load}                       // { kind: 'loading' } | { kind: 'error', message? } | { kind: 'ready' }
+  onRetry={reload}
+  pagination={pager.footer(total)}
+>
+  <ResponsiveTable columns={columns} data={rows} keyExtractor={(r) => r.id} emptyState={empty} renderActions={menu} />
+</ListPage>
+```
+
+- **`useListPagination` offers only the page sizes the endpoint serves.** The shared options run to
+  500 and most admin list endpoints stop at 100 or 200; `pageSizesUpTo(maxPageSize)` drops the rest,
+  and `fitPageSize` reads a remembered 500 as the largest size offered, leaving the stored
+  preference alone for the lists that do serve it. The size is the admin's per-list preference
+  (`usePageSizePreference(scope)`), so the hook needs `AuthProvider` above it, as every screen has.
+- **`syncTotal(total)`** moves back to the last page that exists when a response says the list has
+  shrunk under the current page — after the last rows were deleted, or another operator's change.
+- **Server-side paging only.** A list whose endpoint does not page gets `page` / `pageSize` and a
+  total in its contract first (`packages/contracts`), as the Organizations list did in #1473; paging
+  a fetched-whole array in the browser is not this pattern.
+- **What the kit deliberately leaves to the screen:** the filters themselves and their "More
+  filters" disclosure (DS-06, #1440, the kit `ListToolbar`), and the empty state's icon and copy
+  (DS-15, #1448, the kit `EmptyState`). Both slot into `toolbar` and `emptyState` when they land.
+- Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
+  adopters are `CustomersList`, `OrganizationsList` and `CartsList`.

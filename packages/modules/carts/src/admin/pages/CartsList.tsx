@@ -1,48 +1,42 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { SearchX, ShoppingCart } from 'lucide-react';
+import type { AdminCartSummary, AdminCartsListResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
+import { Badge, Button, Label, Select } from '@endora-commerce/admin-kit/ui';
 import {
-  Alert,
-  AlertDescription,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  Label,
-  PageHeader,
-  Select,
-} from '@endora-commerce/admin-kit/ui';
-import { ResponsiveTable } from '@endora-commerce/admin-kit/components';
+  ListPage,
+  ResponsiveTable,
+  useListPagination,
+  type ListPageLoad,
+} from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cartApprovalStatusLabels, cartStatusLabels } from '../lib/labels.js';
 
+type StatusFilter = '' | (typeof cartStatusLabels.values)[number];
+type ApprovalFilter = '' | (typeof cartApprovalStatusLabels.values)[number];
+
+/** `GET /api/v1/admin/carts` serves at most 200 rows a page. */
+const MAX_PAGE_SIZE = 200;
+
 /**
- * CartsList (feature 027 US6).
- *
- * Paginated platform-wide list of carts. Mirrors the OrdersList pattern.
- * Filters: status, approvalStatus. Sort: lastActivityAt desc by default.
- *
- * Browser-verification note: layout and filter interaction need eyes;
- * the data-flow is plain fetch + filter, RTL coverage would be limited.
+ * The request for one page of the list (issue #1473): the filters that are
+ * set, and the page. Exported so the request a filter state makes is
+ * assertable without a rendered screen.
  */
-
-interface AdminCartRow {
-  id: string;
-  ownerCustomerAccountId: string | null;
-  ownerDisplayName: string | null;
-  organizationId: string | null;
-  organizationDisplayName: string | null;
-  salesChannelCode: string | null;
-  status: 'active' | 'abandoned' | 'completed' | 'rejected';
-  approvalStatus: 'not_required' | 'pending' | 'approved' | 'rejected_by_org_admin';
-  itemCount: number;
-  total: { amount: number; currency: string };
-  appliedPromotionCode: string | null;
-  lastActivityAt: string;
-  createdAt: string;
+export function cartsListPath(filters: {
+  status: StatusFilter;
+  approvalStatus: ApprovalFilter;
+  page: number;
+  pageSize: number;
+}): string {
+  const params = new URLSearchParams();
+  if (filters.status) params.set('status', filters.status);
+  if (filters.approvalStatus) params.set('approvalStatus', filters.approvalStatus);
+  params.set('page', String(filters.page));
+  params.set('pageSize', String(filters.pageSize));
+  return `/api/v1/admin/carts?${params.toString()}`;
 }
-
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
   active: 'default',
@@ -58,161 +52,167 @@ const APPROVAL_VARIANT: Record<string, 'default' | 'secondary' | 'success' | 'wa
   rejected_by_org_admin: 'destructive',
 };
 
+/**
+ * CartsList (feature 027 US6) — every cart on the platform, most recent
+ * activity first, filtered by status and approval status. The kit's `ListPage`
+ * pattern (issue #1439, DS-05) with the pager (issue #1473: the API always
+ * paged, and the screen showed its first 50 carts and nothing else).
+ */
 export default function CartsList(): ReactNode {
   const t = useTranslation('carts');
-  const [rows, setRows] = useState<AdminCartRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'' | (typeof cartStatusLabels.values)[number]>('');
-  const [approvalFilter, setApprovalFilter] = useState<'' | (typeof cartApprovalStatusLabels.values)[number]>('');
-
-  const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (statusFilter) params.set('status', statusFilter);
-      if (approvalFilter) params.set('approvalStatus', approvalFilter);
-      const qs = params.toString();
-      const res = await apiClient.get<{ data: AdminCartRow[] }>(
-        `/api/v1/admin/carts${qs ? `?${qs}` : ''}`,
-      );
-      setRows(res.data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load carts.');
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter, approvalFilter]);
+  const pager = useListPagination({ scope: 'carts', maxPageSize: MAX_PAGE_SIZE });
+  const { resetPage, syncTotal } = pager;
+  const [rows, setRows] = useState<AdminCartSummary[]>([]);
+  const [total, setTotal] = useState(0);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('');
+  const [approvalFilter, setApprovalFilter] = useState<ApprovalFilter>('');
+  const [reloadKey, setReloadKey] = useState(0);
+  const path = cartsListPath({ status: statusFilter, approvalStatus: approvalFilter, ...pager.query });
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    // A response that lands after a newer request was sent is dropped, so a
+    // slow page cannot overwrite the one the operator is looking at now.
+    let alive = true;
+    setLoad({ kind: 'loading' });
+    apiClient
+      .get<AdminCartsListResponse>(path)
+      .then((res) => {
+        if (!alive) return;
+        setRows(res.data);
+        setTotal(res.meta.totalCount);
+        syncTotal(res.meta.totalCount);
+        setLoad({ kind: 'ready' });
+      })
+      .catch((err: unknown) => {
+        if (!alive) return;
+        setLoad({ kind: 'error', ...(err instanceof ApiError ? { message: err.envelope.error.message } : {}) });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [path, reloadKey, syncTotal]);
+
+  const filtered = statusFilter !== '' || approvalFilter !== '';
+  const clearFilters = useCallback((): void => {
+    setStatusFilter('');
+    setApprovalFilter('');
+    resetPage();
+  }, [resetPage]);
 
   return (
-    <>
-      <PageHeader
-        title={t('carts.page.title')}
-        description={t('carts.page.description')}
-      />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card className="mb-4">
-        <CardContent className="pt-6">
-          <div className="grid gap-4 md:grid-cols-2 md:max-w-xl">
-            <div className="space-y-2">
-              <Label htmlFor="cstatus">{t('carts.column.status')}</Label>
-              <Select
-                id="cstatus"
-                value={statusFilter}
-                onChange={(e): void => setStatusFilter(e.target.value as typeof statusFilter)}
-              >
-                <option value="">{t('carts.filter.all')}</option>
-                {cartStatusLabels.options(t).map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="capproval">{t('carts.column.approval')}</Label>
-              <Select
-                id="capproval"
-                value={approvalFilter}
-                onChange={(e): void => setApprovalFilter(e.target.value as typeof approvalFilter)}
-              >
-                <option value="">{t('carts.filter.all')}</option>
-                {cartApprovalStatusLabels.options(t).map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
+    <ListPage
+      title={t('carts.page.title')}
+      description={t('carts.page.description')}
+      load={load}
+      onRetry={() => setReloadKey((key) => key + 1)}
+      count={t('carts.count', { count: total })}
+      toolbar={
+        <>
+          <div className="space-y-1">
+            <Label htmlFor="cstatus">{t('carts.column.status')}</Label>
+            <Select
+              id="cstatus"
+              value={statusFilter}
+              onChange={(e): void => {
+                setStatusFilter(e.target.value as StatusFilter);
+                resetPage();
+              }}
+            >
+              <option value="">{t('carts.filter.all')}</option>
+              {cartStatusLabels.options(t).map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="pt-6">
-          {loading ? (
-            <p className="text-sm text-muted-foreground">{t('carts.loading')}</p>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('carts.empty')}</p>
-          ) : (
-            <ResponsiveTable
-              data={rows}
-              keyExtractor={(c) => c.id}
-              columns={[
-                {
-                  // Issue #1477 — a cart has no business ID, and the UUID
-                  // prefix this column used to lead with told the operator
-                  // nothing. The owner is what they recognise.
-                  id: 'owner',
-                  header: t('carts.column.owner'),
-                  primary: true,
-                  render: (c) => (
-                    <Link to={`/carts/${c.id}`} className="font-medium underline underline-offset-2">
-                      {c.ownerDisplayName ?? t('carts.owner.anonymous')}
-                    </Link>
-                  ),
-                  meta: (c) => formatDateTime(c.lastActivityAt),
-                },
-                {
-                  id: 'org',
-                  header: t('carts.column.org'),
-                  hideOnMobile: true,
-                  render: (c) => (
-                    <span className="text-xs text-muted-foreground">
-                      {c.organizationDisplayName ?? '—'}
-                    </span>
-                  ),
-                },
-                {
-                  id: 'status',
-                  header: t('carts.column.status'),
-                  render: (c) => (
-                    <Badge variant={STATUS_VARIANT[c.status] ?? 'secondary'}>{cartStatusLabels.label(t, c.status)}</Badge>
-                  ),
-                },
-                {
-                  id: 'approval',
-                  header: t('carts.column.approval'),
-                  render: (c) => (
-                    <Badge variant={APPROVAL_VARIANT[c.approvalStatus] ?? 'secondary'}>
-                      {cartApprovalStatusLabels.label(t, c.approvalStatus)}
-                    </Badge>
-                  ),
-                },
-                {
-                  id: 'total',
-                  header: t('carts.column.total'),
-                  render: (c) => (
-                    <span className="tabular-nums">
-                      {formatMoney(c.total.amount, c.total.currency)}
-                    </span>
-                  ),
-                  meta: (c) => t('carts.itemCount', { count: c.itemCount }),
-                },
-              ]}
-              renderActions={(c) => (
-                <Button asChild variant="outline" size="sm" className="min-h-11">
-                  <Link to={`/carts/${c.id}`}>
-                    {t('carts.open')}
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              )}
-            />
-          )}
-        </CardContent>
-      </Card>
-    </>
+          <div className="space-y-1">
+            <Label htmlFor="capproval">{t('carts.column.approval')}</Label>
+            <Select
+              id="capproval"
+              value={approvalFilter}
+              onChange={(e): void => {
+                setApprovalFilter(e.target.value as ApprovalFilter);
+                resetPage();
+              }}
+            >
+              <option value="">{t('carts.filter.all')}</option>
+              {cartApprovalStatusLabels.options(t).map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </>
+      }
+      pagination={pager.footer(total)}
+    >
+      <ResponsiveTable
+        data={rows}
+        keyExtractor={(c) => c.id}
+        emptyState={
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            {filtered ? (
+              <SearchX size={32} aria-hidden="true" className="text-muted-foreground" />
+            ) : (
+              <ShoppingCart size={32} aria-hidden="true" className="text-muted-foreground" />
+            )}
+            <p className="text-sm text-muted-foreground">{filtered ? t('carts.emptyFiltered') : t('carts.empty')}</p>
+            {filtered ? (
+              <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
+                {t('carts.clearFilters')}
+              </Button>
+            ) : null}
+          </div>
+        }
+        columns={[
+          {
+            // Issue #1477 — a cart has no business ID, and the UUID prefix this
+            // column used to lead with told the operator nothing. The owner is
+            // what they recognise, and the way into the cart; a separate "Open"
+            // button in each row only repeated it.
+            id: 'owner',
+            header: t('carts.column.owner'),
+            primary: true,
+            render: (c) => (
+              <Link to={`/carts/${c.id}`} className="font-medium text-primary hover:underline">
+                {c.ownerDisplayName ?? t('carts.owner.anonymous')}
+              </Link>
+            ),
+            meta: (c) => formatDateTime(c.lastActivityAt),
+          },
+          {
+            id: 'org',
+            header: t('carts.column.org'),
+            hideOnMobile: true,
+            render: (c) => <span className="text-xs text-muted-foreground">{c.organizationDisplayName ?? '—'}</span>,
+          },
+          {
+            id: 'status',
+            header: t('carts.column.status'),
+            render: (c) => (
+              <Badge variant={STATUS_VARIANT[c.status] ?? 'secondary'}>{cartStatusLabels.label(t, c.status)}</Badge>
+            ),
+          },
+          {
+            id: 'approval',
+            header: t('carts.column.approval'),
+            render: (c) => (
+              <Badge variant={APPROVAL_VARIANT[c.approvalStatus] ?? 'secondary'}>
+                {cartApprovalStatusLabels.label(t, c.approvalStatus)}
+              </Badge>
+            ),
+          },
+          {
+            id: 'total',
+            header: t('carts.column.total'),
+            render: (c) => <span className="tabular-nums">{formatMoney(c.total.amount, c.total.currency)}</span>,
+            meta: (c) => t('carts.itemCount', { count: c.itemCount }),
+          },
+        ]}
+      />
+    </ListPage>
   );
 }

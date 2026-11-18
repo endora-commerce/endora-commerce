@@ -339,6 +339,7 @@
   "common.field.code": "Kod",
   "common.field.name": "Nazwa",
   "common.formField.required": "(wymagane)",
+  "common.list.loadError": "Nie udało się wczytać listy. Spróbuj ponownie.",
   "common.helpTip.label": "Więcej informacji",
   "common.combobox.clearSelection": "Wyczyść wybór",
   "common.combobox.loading": "Wczytywanie…",

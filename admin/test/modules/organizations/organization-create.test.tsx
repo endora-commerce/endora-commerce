@@ -94,7 +94,7 @@ beforeEach(() => {
   postSpy.mockReset();
   getSpy.mockImplementation(async (url: string) => {
     if (url === '/api/v1/admin/organizations/sales-channel-options') return OPTIONS;
-    if (url.startsWith('/api/v1/admin/organizations')) return { data: [] };
+    if (url.startsWith('/api/v1/admin/organizations')) return { data: [], meta: { page: 1, pageSize: 20, total: 0 } };
     throw new Error(`unexpected request: ${url}`);
   });
 });
