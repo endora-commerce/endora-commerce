@@ -255,43 +255,43 @@ export function ProductFeedDetailPage(): ReactNode {
       />
 
       <TabPanel idBase="product-feed" value={tab}>
-      {tab === 'overview' && (
-        <FeedLinkCard
-          feed={feed}
-          issuedToken={issuedToken}
-          onChanged={(issued) => {
-            setIssuedToken(issued);
-            void load();
-          }}
-        />
-      )}
+        {tab === 'overview' && (
+          <FeedLinkCard
+            feed={feed}
+            issuedToken={issuedToken}
+            onChanged={(issued) => {
+              setIssuedToken(issued);
+              void load();
+            }}
+          />
+        )}
 
-      {tab === 'runs' && (
-        // Same card surface as every other admin list, and the same `.b2b-empty`
-        // block the feed list uses — the hand-rolled dashed box was a third
-        // empty-state design in one module.
-        <Card>
-          <CardContent>
-            <ResponsiveTable
-              columns={runColumns}
-              data={runs}
-              keyExtractor={(row) => row.id}
-              emptyState={
-                <EmptyState
-                  icon={<History size={20} />}
-                  title={t('feeds.runs.empty.title')}
-                  description={t('feeds.runs.empty.subtitle')}
-                />
-              }
-            />
-          </CardContent>
-        </Card>
-      )}
+        {tab === 'runs' && (
+          // Same card surface as every other admin list, and the same `.b2b-empty`
+          // block the feed list uses — the hand-rolled dashed box was a third
+          // empty-state design in one module.
+          <Card>
+            <CardContent>
+              <ResponsiveTable
+                columns={runColumns}
+                data={runs}
+                keyExtractor={(row) => row.id}
+                emptyState={
+                  <EmptyState
+                    icon={<History size={20} />}
+                    title={t('feeds.runs.empty.title')}
+                    description={t('feeds.runs.empty.subtitle')}
+                  />
+                }
+              />
+            </CardContent>
+          </Card>
+        )}
 
-      {/* Feature 070 — where this feed is pushed, and whether the partner got it. */}
-      {tab === 'delivery' && <FeedDeliveryPanel feedId={feed.id} />}
+        {/* Feature 070 — where this feed is pushed, and whether the partner got it. */}
+        {tab === 'delivery' && <FeedDeliveryPanel feedId={feed.id} />}
 
-      {tab === 'settings' && <FeedSettingsForm feed={feed} onSaved={setFeed} />}
+        {tab === 'settings' && <FeedSettingsForm feed={feed} onSaved={setFeed} />}
       </TabPanel>
     </div>
   );

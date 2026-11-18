@@ -500,353 +500,353 @@ export function ProductsList(): ReactNode {
 
         {/* Everything below the strip is the selected status's list (issue #1491). */}
         <TabPanel idBase="products-list" value={statusFilter}>
-        <ListToolbar
-          label={t('productsList.toolbar.label')}
-          className="border-b border-border px-3 py-2.5"
-          search={
-            <ListToolbarSearch
-              label={t('productsList.search.label')}
-              placeholder={t('productsList.search.placeholder')}
-              value={query}
-              onValueChange={setQuery}
-            />
-          }
-          filters={
-            // A labelled select, not a chip that cycles through six values on
-            // each press: the operator sees every type and picks one (Jakob's Law).
-            <Select
-              aria-label={t('productsList.filter.type')}
-              value={typeFilter === 'all' ? '' : typeFilter}
-              onChange={(e): void => setTypeFilter(isTypeFilter(e.target.value) ? e.target.value : 'all')}
-              className="w-auto"
-            >
-              <option value="">{t('productsList.filter.typeAll')}</option>
-              {TYPE_OPTIONS.filter((type) => type !== 'all').map((type) => (
-                <option key={type} value={type}>
-                  {t(`productEditor.type.${type}`)}
-                </option>
-              ))}
-            </Select>
-          }
-          actions={
-            <SavedViewsControl
-              endpoint="/api/v1/admin/catalog/products/list-views"
-              current={toSavedViewState()}
-              onApply={applySavedView}
-              onError={setError}
-            />
-          }
-        />
+          <ListToolbar
+            label={t('productsList.toolbar.label')}
+            className="border-b border-border px-3 py-2.5"
+            search={
+              <ListToolbarSearch
+                label={t('productsList.search.label')}
+                placeholder={t('productsList.search.placeholder')}
+                value={query}
+                onValueChange={setQuery}
+              />
+            }
+            filters={
+              // A labelled select, not a chip that cycles through six values on
+              // each press: the operator sees every type and picks one (Jakob's Law).
+              <Select
+                aria-label={t('productsList.filter.type')}
+                value={typeFilter === 'all' ? '' : typeFilter}
+                onChange={(e): void => setTypeFilter(isTypeFilter(e.target.value) ? e.target.value : 'all')}
+                className="w-auto"
+              >
+                <option value="">{t('productsList.filter.typeAll')}</option>
+                {TYPE_OPTIONS.filter((type) => type !== 'all').map((type) => (
+                  <option key={type} value={type}>
+                    {t(`productEditor.type.${type}`)}
+                  </option>
+                ))}
+              </Select>
+            }
+            actions={
+              <SavedViewsControl
+                endpoint="/api/v1/admin/catalog/products/list-views"
+                current={toSavedViewState()}
+                onApply={applySavedView}
+                onError={setError}
+              />
+            }
+          />
 
-        {/* Mounted before it has text, so the note is announced when a view brings it. */}
-        <div role="status">
-          {legacyDraftView ? (
+          {/* Mounted before it has text, so the note is announced when a view brings it. */}
+          <div role="status">
+            {legacyDraftView ? (
+              <div
+                className="b2b-help"
+                data-testid="saved-view-draft-note"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '6px 12px',
+                  borderBottom: '1px solid var(--border, #e5e7eb)',
+                }}
+              >
+                <span style={{ flex: 1 }}>{t('productsList.savedView.draftRemoved')}</span>
+                <button
+                  type="button"
+                  className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                  onClick={(): void => setLegacyDraftView(false)}
+                >
+                  {t('productsList.savedView.dismiss')}
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+          {showSelectAllBanner ? (
             <div
-              className="b2b-help"
-              data-testid="saved-view-draft-note"
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '6px 12px',
+                padding: '8px 12px',
+                fontSize: 13,
+                background: 'var(--bg-subtle, #f6f6f7)',
                 borderBottom: '1px solid var(--border, #e5e7eb)',
               }}
             >
-              <span style={{ flex: 1 }}>{t('productsList.savedView.draftRemoved')}</span>
+              {t('productsList.selection.allPageSelected', { pageCount: filtered.length })}{' '}
               <button
                 type="button"
-                className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-                onClick={(): void => setLegacyDraftView(false)}
+                data-testid="select-all-matching"
+                className="b2b-btn b2b-btn--ghost"
+                style={{ display: 'inline', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
+                onClick={selectCollectionMode}
               >
-                {t('productsList.savedView.dismiss')}
+                {t('productsList.selection.selectAllMatching', { total })}
               </button>
             </div>
           ) : null}
-        </div>
 
-        {showSelectAllBanner ? (
-          <div
-            style={{
-              padding: '8px 12px',
-              fontSize: 13,
-              background: 'var(--bg-subtle, #f6f6f7)',
-              borderBottom: '1px solid var(--border, #e5e7eb)',
-            }}
-          >
-            {t('productsList.selection.allPageSelected', { pageCount: filtered.length })}{' '}
-            <button
-              type="button"
-              data-testid="select-all-matching"
-              className="b2b-btn b2b-btn--ghost"
-              style={{ display: 'inline', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
-              onClick={selectCollectionMode}
-            >
-              {t('productsList.selection.selectAllMatching', { total })}
-            </button>
-          </div>
-        ) : null}
+          {selectionError ? (
+            <Alert variant="destructive" className="mx-3 my-2 w-auto">
+              <AlertDescription>{selectionError}</AlertDescription>
+            </Alert>
+          ) : null}
 
-        {selectionError ? (
-          <Alert variant="destructive" className="mx-3 my-2 w-auto">
-            <AlertDescription>{selectionError}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        {selectedCount > 0 ? (
-          <div className="b2b-bulkbar">
-            <input
-              type="checkbox"
-              className="b2b-cbx"
-              checked={allVisibleSelected}
-              ref={(el): void => {
-                if (el) el.indeterminate = someVisibleSelected;
-              }}
-              onChange={toggleAll}
-            />
-            <span className="count" data-testid="selection-summary">
-              {t('productsList.selection.selected', { count: selectedCount })}{' '}
-              {selection.mode === 'collection'
-                ? t('productsList.selection.scopeCollection')
-                : t('productsList.selection.scopePage')}
-            </span>
-            <div className="actions">
-              {/* On the Archived tab the one thing a selection is for is bringing it
-                  back, so Restore leads as the primary and Bulk edit steps down (Von
-                  Restorff), and Delete stays last (owner P-4 → B). */}
-              {restoreFromBar ? (
+          {selectedCount > 0 ? (
+            <div className="b2b-bulkbar">
+              <input
+                type="checkbox"
+                className="b2b-cbx"
+                checked={allVisibleSelected}
+                ref={(el): void => {
+                  if (el) el.indeterminate = someVisibleSelected;
+                }}
+                onChange={toggleAll}
+              />
+              <span className="count" data-testid="selection-summary">
+                {t('productsList.selection.selected', { count: selectedCount })}{' '}
+                {selection.mode === 'collection'
+                  ? t('productsList.selection.scopeCollection')
+                  : t('productsList.selection.scopePage')}
+              </span>
+              <div className="actions">
+                {/* On the Archived tab the one thing a selection is for is bringing it
+                    back, so Restore leads as the primary and Bulk edit steps down (Von
+                    Restorff), and Delete stays last (owner P-4 → B). */}
+                {restoreFromBar ? (
+                  <button
+                    type="button"
+                    className="b2b-btn b2b-btn--primary"
+                    disabled={resolvingSelection}
+                    onClick={(): void => {
+                      void openBulkEdit('confirmArchive');
+                    }}
+                  >
+                    <ArchiveRestore size={13} aria-hidden="true" /> {t('productsList.bulk.restore')}
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  className="b2b-btn b2b-btn--primary"
+                  className={restoreFromBar ? 'b2b-btn' : 'b2b-btn b2b-btn--primary'}
                   disabled={resolvingSelection}
                   onClick={(): void => {
-                    void openBulkEdit('confirmArchive');
+                    void openBulkEdit();
                   }}
                 >
-                  <ArchiveRestore size={13} aria-hidden="true" /> {t('productsList.bulk.restore')}
+                  <PenSquare size={13} />{' '}
+                  {resolvingSelection
+                    ? t('productsList.selection.resolving')
+                    : t('productsList.bulk.edit')}
                 </button>
-              ) : null}
-              <button
-                type="button"
-                className={restoreFromBar ? 'b2b-btn' : 'b2b-btn b2b-btn--primary'}
-                disabled={resolvingSelection}
-                onClick={(): void => {
-                  void openBulkEdit();
-                }}
-              >
-                <PenSquare size={13} />{' '}
-                {resolvingSelection
-                  ? t('productsList.selection.resolving')
-                  : t('productsList.bulk.edit')}
-              </button>
-              <button
-                type="button"
-                className="b2b-btn b2b-btn--danger"
-                disabled={deleting || resolvingSelection}
-                onClick={(): void => void handleBulkDelete()}
-              >
-                <Trash2 size={13} /> {deleting ? '…' : t('productsList.bulk.delete')}
-              </button>
-            </div>
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
-              aria-label={t('productsList.selection.clear')}
-              onClick={clearSelection}
-            >
-              <X size={14} aria-hidden="true" />
-            </button>
-          </div>
-        ) : null}
-
-        {bulkEditOpen && bulkEditProductIds.length > 0 ? (
-          <ProductsBulkEditDialog
-            productIds={bulkEditProductIds}
-            productLabels={bulkEditLabels}
-            selectionScope={selection.mode === 'collection' ? 'collection' : 'page'}
-            // One archive action, the one that changes something: the Archived tab
-            // holds only archived products, every other tab only products that are
-            // not. On the Archived tab Restore lives on the bar (P-4 → B), so the
-            // form opened by Bulk edit offers none.
-            archiveAction={
-              !canWrite
-                ? null
-                : statusFilter !== 'archived'
-                  ? 'archive'
-                  : bulkInitialStep === 'confirmArchive'
-                    ? 'restore'
-                    : null
-            }
-            initialStep={bulkInitialStep}
-            onClose={(): void => {
-              setBulkEditOpen(false);
-              setBulkEditProductIds([]);
-            }}
-            onApplied={(): void => {
-              // Refresh the list and drop the selection in the background, but
-              // keep the dialog open: it now shows the queued-acknowledgement
-              // ("sent to the queue, you'll be notified when it finishes") or
-              // the synchronous summary. The user dismisses it via the dialog's
-              // own Close / "View bulk actions" buttons.
-              void refresh();
-              clearSelection();
-            }}
-          />
-        ) : null}
-
-        <div className="b2b-card__body b2b-card__body--flush">
-          {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('productsList.loading')}</div>
-          ) : filtered.length === 0 ? (
-            <div className="b2b-empty">
-              <div className="b2b-empty__icon">
-                <Package size={20} />
-              </div>
-              <div className="b2b-empty__title">
-                {archivedEmpty ? t('productsList.empty.archivedTitle') : t('productsList.empty.title')}
-              </div>
-              {/*
-                The empty state's sentence is *"Try clearing filters, or use
-                + New product to create one."* — half advice, half affordance.
-                A read-only operator gets the advice and not the affordance:
-                the sentence degrades to its own key rather than losing the
-                button out of the middle of it, which would read as
-                *"Try clearing filters, or use  to create one."*
-              */}
-              <div className="b2b-empty__sub">
-                {archivedEmpty ? (
-                  t('productsList.empty.archivedSub')
-                ) : canWrite ? (
-                  <>
-                    {t('productsList.empty.prefix')}{' '}
-                    <button
-                      type="button"
-                      className="b2b-btn b2b-btn--ghost"
-                      onClick={(): void => { navigate('/catalog/products/new'); }}
-                      style={{ display: 'inline-flex', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
-                    >
-                      {t('productsList.empty.button')}
-                    </button>{' '}
-                    {t('productsList.empty.suffix')}
-                  </>
-                ) : (
-                  t('productsList.empty.readOnly')
-                )}
-              </div>
-              {searchArchivedHint ? (
                 <button
                   type="button"
-                  className="b2b-btn b2b-btn--ghost"
-                  style={{ marginTop: 8, color: 'var(--primary-color)' }}
-                  onClick={(): void => chooseTab('archived')}
+                  className="b2b-btn b2b-btn--danger"
+                  disabled={deleting || resolvingSelection}
+                  onClick={(): void => void handleBulkDelete()}
                 >
-                  {t('productsList.empty.searchArchived')}
+                  <Trash2 size={13} /> {deleting ? '…' : t('productsList.bulk.delete')}
                 </button>
-              ) : null}
+              </div>
+              <button
+                type="button"
+                className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
+                aria-label={t('productsList.selection.clear')}
+                onClick={clearSelection}
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
             </div>
-          ) : (
-            <div className="b2b-table-scroll">
-            <table className="b2b-tbl">
-              <thead>
-                <tr>
-                  <th className="col-cb">
-                    <input
-                      type="checkbox"
-                      className="b2b-cbx"
-                      checked={allVisibleSelected}
-                      ref={(el): void => {
-                        if (el) el.indeterminate = someVisibleSelected;
-                      }}
-                      onChange={toggleAll}
-                    />
-                  </th>
-                  <th>{t('productsList.column.product')}</th>
-                  <th>{t('productsList.column.sku')}</th>
-                  <th>{t('productsList.column.status')}</th>
-                  <th>{t('productsList.column.type')}</th>
-                  <th>{t('productsList.column.visibility')}</th>
-                  <th>{t('productsList.column.updated')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr
-                    key={r.id}
-                    className={cn('is-clickable', isRowSelected(r.id) && 'is-selected')}
-                    onClick={(): void => { navigate(`/catalog/products/${r.id}`); }}
+          ) : null}
+
+          {bulkEditOpen && bulkEditProductIds.length > 0 ? (
+            <ProductsBulkEditDialog
+              productIds={bulkEditProductIds}
+              productLabels={bulkEditLabels}
+              selectionScope={selection.mode === 'collection' ? 'collection' : 'page'}
+              // One archive action, the one that changes something: the Archived tab
+              // holds only archived products, every other tab only products that are
+              // not. On the Archived tab Restore lives on the bar (P-4 → B), so the
+              // form opened by Bulk edit offers none.
+              archiveAction={
+                !canWrite
+                  ? null
+                  : statusFilter !== 'archived'
+                    ? 'archive'
+                    : bulkInitialStep === 'confirmArchive'
+                      ? 'restore'
+                      : null
+              }
+              initialStep={bulkInitialStep}
+              onClose={(): void => {
+                setBulkEditOpen(false);
+                setBulkEditProductIds([]);
+              }}
+              onApplied={(): void => {
+                // Refresh the list and drop the selection in the background, but
+                // keep the dialog open: it now shows the queued-acknowledgement
+                // ("sent to the queue, you'll be notified when it finishes") or
+                // the synchronous summary. The user dismisses it via the dialog's
+                // own Close / "View bulk actions" buttons.
+                void refresh();
+                clearSelection();
+              }}
+            />
+          ) : null}
+
+          <div className="b2b-card__body b2b-card__body--flush">
+            {loading ? (
+              <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('productsList.loading')}</div>
+            ) : filtered.length === 0 ? (
+              <div className="b2b-empty">
+                <div className="b2b-empty__icon">
+                  <Package size={20} />
+                </div>
+                <div className="b2b-empty__title">
+                  {archivedEmpty ? t('productsList.empty.archivedTitle') : t('productsList.empty.title')}
+                </div>
+                {/*
+                  The empty state's sentence is *"Try clearing filters, or use
+                  + New product to create one."* — half advice, half affordance.
+                  A read-only operator gets the advice and not the affordance:
+                  the sentence degrades to its own key rather than losing the
+                  button out of the middle of it, which would read as
+                  *"Try clearing filters, or use  to create one."*
+                */}
+                <div className="b2b-empty__sub">
+                  {archivedEmpty ? (
+                    t('productsList.empty.archivedSub')
+                  ) : canWrite ? (
+                    <>
+                      {t('productsList.empty.prefix')}{' '}
+                      <button
+                        type="button"
+                        className="b2b-btn b2b-btn--ghost"
+                        onClick={(): void => { navigate('/catalog/products/new'); }}
+                        style={{ display: 'inline-flex', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
+                      >
+                        {t('productsList.empty.button')}
+                      </button>{' '}
+                      {t('productsList.empty.suffix')}
+                    </>
+                  ) : (
+                    t('productsList.empty.readOnly')
+                  )}
+                </div>
+                {searchArchivedHint ? (
+                  <button
+                    type="button"
+                    className="b2b-btn b2b-btn--ghost"
+                    style={{ marginTop: 8, color: 'var(--primary-color)' }}
+                    onClick={(): void => chooseTab('archived')}
                   >
-                    <td className="col-cb" onClick={(e): void => e.stopPropagation()}>
+                    {t('productsList.empty.searchArchived')}
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <div className="b2b-table-scroll">
+              <table className="b2b-tbl">
+                <thead>
+                  <tr>
+                    <th className="col-cb">
                       <input
                         type="checkbox"
                         className="b2b-cbx"
-                        checked={isRowSelected(r.id)}
-                        onChange={(): void => toggleOne(r.id)}
+                        checked={allVisibleSelected}
+                        ref={(el): void => {
+                          if (el) el.indeterminate = someVisibleSelected;
+                        }}
+                        onChange={toggleAll}
                       />
-                    </td>
-                    <td>
-                      <div className="b2b-row" style={{ gap: 12 }}>
-                        <div
-                          className="b2b-thumb"
-                          style={{
-                            width: 36,
-                            height: 36,
-                            background: hashColor(r.id),
-                          }}
+                    </th>
+                    <th>{t('productsList.column.product')}</th>
+                    <th>{t('productsList.column.sku')}</th>
+                    <th>{t('productsList.column.status')}</th>
+                    <th>{t('productsList.column.type')}</th>
+                    <th>{t('productsList.column.visibility')}</th>
+                    <th>{t('productsList.column.updated')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((r) => (
+                    <tr
+                      key={r.id}
+                      className={cn('is-clickable', isRowSelected(r.id) && 'is-selected')}
+                      onClick={(): void => { navigate(`/catalog/products/${r.id}`); }}
+                    >
+                      <td className="col-cb" onClick={(e): void => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="b2b-cbx"
+                          checked={isRowSelected(r.id)}
+                          onChange={(): void => toggleOne(r.id)}
                         />
-                        <div style={{ minWidth: 0 }}>
+                      </td>
+                      <td>
+                        <div className="b2b-row" style={{ gap: 12 }}>
                           <div
+                            className="b2b-thumb"
                             style={{
-                              fontWeight: 500,
-                              color: 'var(--fg)',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              maxWidth: 360,
+                              width: 36,
+                              height: 36,
+                              background: hashColor(r.id),
                             }}
-                          >
-                            {r.name}
+                          />
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontWeight: 500,
+                                color: 'var(--fg)',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                maxWidth: 360,
+                              }}
+                            >
+                              {r.name}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="b2b-mono" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                        {r.sku}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="b2b-row" style={{ gap: 4, flexWrap: 'wrap' }}>
-                        <ProductStatusPill status={r.status} archived={Boolean(r.archivedAt)} />
-                        {/* On the Archived tab every row is archived; the tab already says so. */}
-                        {r.archivedAt && statusFilter !== 'archived' ? <ArchivedPill /> : null}
-                      </span>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: 12 }}>{t(`productEditor.type.${r.type}`)}</span>
-                    </td>
-                    <td>
-                      <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                        {t(`productEditor.visibility.${r.visibility}`)}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="b2b-muted" style={{ fontSize: 12 }}>{relTime(r.updatedAt, t, language)}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-          )}
-        </div>
+                      </td>
+                      <td>
+                        <span className="b2b-mono" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                          {r.sku}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="b2b-row" style={{ gap: 4, flexWrap: 'wrap' }}>
+                          <ProductStatusPill status={r.status} archived={Boolean(r.archivedAt)} />
+                          {/* On the Archived tab every row is archived; the tab already says so. */}
+                          {r.archivedAt && statusFilter !== 'archived' ? <ArchivedPill /> : null}
+                        </span>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 12 }}>{t(`productEditor.type.${r.type}`)}</span>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
+                          {t(`productEditor.visibility.${r.visibility}`)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="b2b-muted" style={{ fontSize: 12 }}>{relTime(r.updatedAt, t, language)}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            )}
+          </div>
 
-        <PaginationFooter
-          page={page}
-          pageSize={pageSize}
-          total={total}
-          onPageSizeChange={setPageSize}
-          onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
-          onNext={(): void => setPage((p) => p + 1)}
-        />
+          <PaginationFooter
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageSizeChange={setPageSize}
+            onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
+            onNext={(): void => setPage((p) => p + 1)}
+          />
         </TabPanel>
       </div>
       {confirmDialog}
