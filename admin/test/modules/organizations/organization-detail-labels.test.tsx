@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
@@ -13,7 +13,8 @@ import { setMobileViewport } from '../../setup';
  * Issues #1321 and #1322 — the organization detail screen rendered the
  * order-confirmation e-mail field's label and hint as raw catalogue keys, and
  * listed the account and VAT status codes (`active`, `vat_payer`, …) as option
- * text. Both languages are rendered against the shipped catalogues, with the
+ * text. Since issue #1468 the two selects are gone: the VAT status is header text
+ * and the "Change VAT status…" dialog's options. Both languages are rendered against the shipped catalogues, with the
  * Polish one as its own fallback, so a key Polish lacks shows up as a raw key
  * here rather than as English.
  */
@@ -148,17 +149,35 @@ describe.each(['en', 'pl'] as const)('organization detail labels (%s) — issues
     expect(screen.getByText(hint!)).toBeInTheDocument();
   });
 
-  it('lists the account status options by their translated labels', async () => {
+  it('names the e-mails textarea by its visible label, not a developer aria-label (#1468)', async () => {
     renderDetail(language);
-    const select = await screen.findByLabelText(core['organizations.detail.accountStatus']!);
-    const expected = STATUSES.map((s) => own[`status.${s}`]);
-    expect(expected.every(Boolean)).toBe(true);
-    expect(optionTexts(select)).toEqual(expected);
+    const label = own['detail.orderConfirmationEmails']!;
+    const field = await screen.findByLabelText(label);
+    expect(field).toHaveAccessibleName(label);
+    expect(field).not.toHaveAttribute('aria-label');
   });
 
-  it('lists the VAT status options by their translated labels', async () => {
+  it('titles the card "Contact & notifications" (#1468)', async () => {
     renderDetail(language);
-    const select = await screen.findByLabelText(core['organizations.detail.vatStatus']!);
+    expect(core['organizations.detail.notificationsCard']).toBe(
+      language === 'en' ? 'Contact & notifications' : 'Kontakt i powiadomienia',
+    );
+    expect(await screen.findByText(core['organizations.detail.notificationsCard']!)).toBeInTheDocument();
+  });
+
+  it('shows the VAT status in the header by its translated label', async () => {
+    renderDetail(language);
+    const label = own['vatStatus.vat_payer']!;
+    expect(label).toBeTruthy();
+    const badge = await screen.findByText(label);
+    expect(badge.parentElement?.textContent).toContain(`${core['organizations.detail.vatStatus']!}:`);
+  });
+
+  it('lists the VAT status options of the change dialog by their translated labels', async () => {
+    renderDetail(language);
+    fireEvent.click(await screen.findByRole('button', { name: own['changeVatStatus.button']! }));
+    const dialog = await screen.findByRole('dialog');
+    const select = within(dialog).getByLabelText(own['changeVatStatus.field.vatStatus']!);
     const expected = VAT_STATUSES.map((v) => own[`vatStatus.${v}`]);
     expect(expected.every(Boolean)).toBe(true);
     expect(optionTexts(select)).toEqual(expected);
@@ -166,11 +185,11 @@ describe.each(['en', 'pl'] as const)('organization detail labels (%s) — issues
 
   it('shows no raw catalogue key and no raw status code as an option anywhere on the screen', async () => {
     renderDetail(language);
-    await screen.findByLabelText(core['organizations.detail.vatStatus']!);
+    await screen.findByLabelText(own['detail.orderConfirmationEmails']!);
     expect(document.body.textContent ?? '').not.toMatch(/\b(core|organizations)\.[A-Za-z_]+\.[A-Za-z_.]+/);
     const codes = new Set([...STATUSES, ...VAT_STATUSES]);
     const rawOptions = screen
-      .getAllByRole('option')
+      .queryAllByRole('option')
       .map((o) => (o.textContent ?? '').trim())
       .filter((text) => codes.has(text));
     expect(rawOptions).toEqual([]);
