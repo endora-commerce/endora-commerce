@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   type CreateOpportunityStatusRequest,
+  type ReorderOpportunityStatusesRequest,
   type SetOpportunityTransitionsRequest,
   type SetOrderStatusMappingsRequest,
   type SetValueCountingStatusesRequest,
@@ -18,6 +19,7 @@ import { CrmOpportunityStatus } from '../entities/crm-opportunity-status.entity.
 import { CrmOpportunityStatusTransition } from '../entities/crm-opportunity-status-transition.entity.js';
 import { CrmOrderStatusMapping } from '../entities/crm-order-status-mapping.entity.js';
 import { CrmValueCountingStatus } from '../entities/crm-value-counting-status.entity.js';
+import { REORDER_WEIGHT_STEP, assertCompleteOrder } from './status-reorder.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
 type AuditState = Record<string, unknown> | null;
@@ -281,6 +283,34 @@ export class WorkflowConfigService {
         em.remove(mappings);
         em.remove(status);
         return { before, after: null };
+      },
+    );
+  }
+
+  /**
+   * `PUT /crm/statuses/order` (issue #1560): the whole list in its new order,
+   * one Command, so one audit entry and no half-moved list. Every status row
+   * is locked first, so a concurrent create, delete or reorder waits for this
+   * one and then sees the list it left. The weights are rewritten as
+   * {@link REORDER_WEIGHT_STEP} apart, leaving room for a status added later.
+   */
+  async reorderStatuses(input: ReorderOpportunityStatusesRequest): Promise<void> {
+    await this.#configure(
+      { action: 'crm.status.reorder', objectType: 'crm_opportunity_status', objectId: 'order' },
+      async (em) => {
+        const statuses = await em.find(
+          CrmOpportunityStatus,
+          {},
+          { orderBy: { weight: 'asc', code: 'asc' }, lockMode: LockMode.PESSIMISTIC_WRITE },
+        );
+        const before = statuses.map((status) => status.code);
+        assertCompleteOrder(before, input.orderedCodes);
+        const byCode = new Map(statuses.map((status) => [status.code, status]));
+        input.orderedCodes.forEach((code, index) => {
+          const status = byCode.get(code);
+          if (status) status.weight = (index + 1) * REORDER_WEIGHT_STEP;
+        });
+        return { before: { order: before }, after: { order: [...input.orderedCodes] } };
       },
     );
   }

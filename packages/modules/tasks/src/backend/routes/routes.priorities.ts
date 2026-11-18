@@ -2,13 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import {
   CreateTaskPriorityBodySchema,
   DeleteTaskPriorityQuerySchema,
+  ReorderTaskPrioritiesBodySchema,
   UpdateTaskPriorityBodySchema,
 } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { TaskPriorityService } from '../services/priority-service.js';
 
 export interface TaskPriorityRoutesDeps {
-  priorityService: Pick<TaskPriorityService, 'list' | 'create' | 'update' | 'delete'>;
+  priorityService: Pick<TaskPriorityService, 'list' | 'create' | 'update' | 'reorder' | 'delete'>;
   requireAdmin: RequireAdminFactory;
 }
 
@@ -35,6 +36,13 @@ export async function registerTaskPriorityRoutes(app: FastifyInstance, deps: Tas
       reply.code(201);
       return { data };
     },
+  );
+
+  // Issue #1560 — the whole list in its new order, one Command.
+  app.put(
+    `${API}/priorities/order`,
+    { preHandler: requireAdmin('tasks:configure'), schema: { body: ReorderTaskPrioritiesBodySchema } },
+    async (request) => ({ data: await priorityService.reorder(ReorderTaskPrioritiesBodySchema.parse(request.body)) }),
   );
 
   app.patch<{ Params: { code: string } }>(
