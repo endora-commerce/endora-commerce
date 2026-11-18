@@ -1,7 +1,8 @@
 // Asset detail drawer — feature 013 / US2 / T068, extended by feature 156
 // (specs/156-asset-stable-url/ contracts/admin-surfaces.md §3).
 // Displays a single asset's metadata + reference list, supports inline edits
-// (filename, label, mimeType, visibility), the shareable link and permalink,
+// (filename, label, mimeType — each written by its own Save), a visibility
+// change confirmed in a dialog (issue #1575), the shareable link and permalink,
 // replacing the file, restoring its previous version, and soft delete.
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
@@ -10,9 +11,9 @@ import { validateAssetPermalink } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { AssetUploader, ModalDialog } from '@endora-commerce/admin-kit/components';
+import { AssetUploader, ModalDialog, StatusChangeControl } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { assetReferenceKindLabels } from '../lib/labels.js';
+import { assetReferenceKindLabels, assetVisibilityLabels } from '../lib/labels.js';
 import {
   assetsLibraryClient,
   type AssetDetail,
@@ -20,7 +21,11 @@ import {
 
 // Curated set of MIME types the Assets Library handles (image / video / pdf).
 // The MIME type is a technical identifier, so it is offered as a fixed dropdown
-// rather than a free-text field to prevent typos and unsupported values.
+// rather than a free-text field to prevent typos and unsupported values. It is
+// sniffed from the file on upload; what an admin picks here is an override of
+// the served Content-Type (`mimeTypeOverridden`), which a replace clears
+// (specs/156-asset-stable-url/ spec Edge Cases), so it stays editable — but
+// staged and written by its own Save, never on `change` (WCAG 3.2.2).
 const MIME_TYPE_OPTIONS = [
   'image/jpeg',
   'image/png',
@@ -117,7 +122,8 @@ function AssetDetailDrawerBody({
   const permalinkErrorId = useId();
   const previousTitleId = useId();
   const mimeTypeId = useId();
-  const visibilityId = useId();
+  const mimeTypeHelpId = useId();
+  const [mimeTypeDraft, setMimeTypeDraft] = useState<string | null>(null);
   // Where focus goes when a permalink dialog closes: its opener may be gone (a
   // removal) or never have been focused (a dialog opened by a refusal).
   const permalinkInput = useRef<HTMLInputElement>(null);
@@ -162,6 +168,10 @@ function AssetDetailDrawerBody({
   useEffect(() => {
     setPermalinkDraft(detail?.permalink ?? '');
   }, [detail?.permalink]);
+
+  useEffect(() => {
+    setMimeTypeDraft(detail?.mimeType ?? null);
+  }, [detail?.mimeType]);
 
   useEffect(() => {
     if (copyStatus !== 'copied') return undefined;
@@ -210,6 +220,25 @@ function AssetDetailDrawerBody({
       if (alive.current) setBusy(false);
     }
   };
+
+  // Runs from the confirm step of the visibility dialog and lets a refusal
+  // propagate, so the dialog stays open and shows it (StatusChangeControl).
+  const saveVisibility = async (to: string): Promise<void> => {
+    if (to !== 'public' && to !== 'private') return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const next = await assetsLibraryClient.patchAsset(assetId, { visibility: to });
+      if (!alive.current) return;
+      setDetail(next);
+      onChanged();
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  };
+
+  const mimeTypeValue = mimeTypeDraft ?? detail.mimeType;
+  const mimeTypeDirty = mimeTypeValue !== detail.mimeType;
 
   const copyShareUrl = async (): Promise<void> => {
     try {
@@ -511,43 +540,61 @@ function AssetDetailDrawerBody({
         />
         <div className="space-y-1">
           <Label htmlFor={mimeTypeId}>{t('detail.mimeType')}</Label>
-          <Select
-            id={mimeTypeId}
-            value={detail.mimeType}
-            onChange={(e): void => {
-              const v = e.target.value;
-              if (v !== detail.mimeType) void save({ mimeType: v });
-            }}
-            disabled={busy}
-          >
-            {/* Preserve an existing value that falls outside the curated list
-                so the current MIME type is shown and not silently lost. */}
-            {MIME_TYPE_OPTIONS.includes(detail.mimeType as (typeof MIME_TYPE_OPTIONS)[number]) ? null : (
-              <option value={detail.mimeType}>{detail.mimeType}</option>
-            )}
-            {MIME_TYPE_OPTIONS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select
+              id={mimeTypeId}
+              value={mimeTypeValue}
+              aria-describedby={mimeTypeHelpId}
+              onChange={(e): void => setMimeTypeDraft(e.target.value)}
+              disabled={!canWrite || busy}
+            >
+              {/* Preserve an existing value that falls outside the curated list
+                  so the current MIME type is shown and not silently lost. */}
+              {MIME_TYPE_OPTIONS.includes(detail.mimeType as (typeof MIME_TYPE_OPTIONS)[number]) ? null : (
+                <option value={detail.mimeType}>{detail.mimeType}</option>
+              )}
+              {MIME_TYPE_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </Select>
+            {canWrite && mimeTypeDirty ? (
+              <Button
+                type="button"
+                size="sm"
+                disabled={busy}
+                onClick={(): void => void save({ mimeType: mimeTypeValue })}
+              >
+                {t('detail.mimeTypeSave')}
+              </Button>
+            ) : null}
+          </div>
+          <p id={mimeTypeHelpId} className="text-xs text-muted-foreground">
+            {t('detail.mimeTypeHelp')}
+          </p>
         </div>
 
-        <div className="space-y-1">
-          <Label htmlFor={visibilityId}>{t('detail.visibility')}</Label>
-          <Select
-            id={visibilityId}
-            value={detail.visibility}
-            onChange={(e): void => {
-              const v = e.target.value as 'public' | 'private';
-              void save({ visibility: v });
-            }}
-            disabled={busy}
-          >
-            <option value="public">{t('visibility.public')}</option>
-            <option value="private">{t('visibility.private')}</option>
-          </Select>
-        </div>
+        {/* Visibility decides who may open the file, so a change is confirmed
+            with what it does rather than written on `change` (issue #1575). */}
+        <StatusChangeControl
+          label={t('detail.visibility')}
+          dialogTitle={t('detail.visibilityChangeTitle')}
+          current={detail.visibility}
+          currentLabel={assetVisibilityLabels.label(t, detail.visibility)}
+          options={assetVisibilityLabels.options(t)}
+          onConfirm={saveVisibility}
+          consequence={(to): ReactNode => (
+            <>
+              {t(to === 'private' ? 'detail.visibilityConsequence.private' : 'detail.visibilityConsequence.public')}
+              {to === 'private' && detail.references.length > 0
+                ? ` ${t('detail.visibilityConsequence.referenced', { count: detail.references.length })}`
+                : null}
+            </>
+          )}
+          errorMessage={(e): ReactNode => sentenceOf(refusalOf(e))}
+          {...(canWrite ? {} : { disabledReason: t('detail.visibilityNoPermission') })}
+        />
 
         <div className="text-xs text-muted-foreground">
           {t('detail.storage')}: {detail.storageBackend} · {t('detail.size')}: {detail.sizeBytes} {t('detail.bytes')}

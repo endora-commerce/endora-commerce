@@ -75,8 +75,8 @@
   "detail.softDeleteTitle": "Soft-delete this asset",
   "detail.softDeleteBlockedTitle": "Remove every reference first",
   "detail.softDelete": "Soft-delete",
-  "visibility.public": "public",
-  "visibility.private": "private",
+  "visibility.public": "Public",
+  "visibility.private": "Private",
   "folders.title": "Folders",
   "folders.root": "Unsorted (root)",
   "folders.namePlaceholder": "Folder name",
@@ -132,5 +132,12 @@
   "actions.openLibrary.label": "Assets library",
   "actions.openLibrary.description": "Browse, upload and replace files, and manage permalinks.",
   "actions.openLibrary.keywords": "files, assets",
-  "settingGroups.storage.name": "Storage"
+  "settingGroups.storage.name": "Storage",
+  "detail.mimeTypeHelp": "Detected from the file when it was uploaded. Change it only if the file is served with the wrong type; replacing the file detects it again.",
+  "detail.mimeTypeSave": "Save MIME type",
+  "detail.visibilityChangeTitle": "Change visibility",
+  "detail.visibilityConsequence.private": "Its shareable link and permalink stop opening the file for anyone without a time-limited signed link. Copies browsers or CDNs already hold are not purged.",
+  "detail.visibilityConsequence.public": "Anyone with its shareable link or permalink can open the file.",
+  "detail.visibilityConsequence.referenced": "Records that use it: {count}.",
+  "detail.visibilityNoPermission": "Your role cannot change the visibility of assets."
 }
