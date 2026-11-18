@@ -9,7 +9,6 @@ import {
   Boxes,
   ChevronDown,
   ChevronRight,
-  HelpCircle,
   Home as HomeIcon,
   Menu,
   LayoutDashboard,
@@ -53,6 +52,7 @@ import { SpeechToTextButton } from './SpeechToTextButton.js';
 import type { PromptActionRequestDto } from '@endora-commerce/contracts';
 
 import type { NavItem, NavSection } from './sidebar/nav-types.js';
+import { sidebarGroupItemsId } from './sidebar/group-ids.js';
 import { PinnedSection } from './sidebar/PinnedSection.js';
 import { PinToggleButton } from './sidebar/PinToggleButton.js';
 import { PreferencesSaveNotice } from './sidebar/PreferencesSaveNotice.js';
@@ -1200,17 +1200,24 @@ export function AppShell(): ReactNode {
               <Search size={16} />
             </button>
           ) : (
-            <>
-              <Search size={14} className="b2b-sidebar__search-icon" />
-              <input
-                className="b2b-sidebar__search-input"
-                placeholder={t('appShell.search.placeholder')}
-                readOnly
-                onClick={(): void => setPaletteOpen(true)}
-                onFocus={(): void => setPaletteOpen(true)}
-              />
-              <span className="b2b-sidebar__search-kbd">{t('appShell.search.shortcutSymbol')}</span>
-            </>
+            // Issue #1480 — a button styled as a search field, not a read-only
+            // input that opened the palette on focus: tabbing through the
+            // sidebar must never launch a dialog (WCAG 3.2.1 On Focus). Only an
+            // explicit activation (click, Enter, Space) or the shortcut opens it.
+            <button
+              type="button"
+              className="b2b-sidebar__search-input"
+              onClick={(): void => setPaletteOpen(true)}
+              aria-label={t('appShell.search.openPalette')}
+              aria-haspopup="dialog"
+              aria-keyshortcuts="Meta+K Control+K"
+            >
+              <Search size={14} className="b2b-sidebar__search-icon" aria-hidden="true" />
+              <span className="b2b-sidebar__search-placeholder">{t('appShell.search.placeholder')}</span>
+              <span className="b2b-sidebar__search-kbd" aria-hidden="true">
+                {t('appShell.search.shortcutSymbol')}
+              </span>
+            </button>
           )}
         </div>
 
@@ -1287,16 +1294,20 @@ export function AppShell(): ReactNode {
                 )}
               >
                 {section.labelKey ? (
+                  // Issue #1480 — the header is a disclosure: it says whether
+                  // its group is open and which region it folds (WCAG 4.1.2).
                   <button
                     type="button"
                     className="b2b-sidebar__group-label"
+                    aria-expanded={isOpen}
+                    aria-controls={sidebarGroupItemsId(section.key)}
                     onClick={(): void => toggleSection(section.key)}
                   >
-                    <ChevronDown size={11} />
+                    <ChevronDown size={11} aria-hidden="true" />
                     <span>{translatedLabel}</span>
                   </button>
                 ) : null}
-                <div className="b2b-sidebar__items">
+                <div className="b2b-sidebar__items" id={sidebarGroupItemsId(section.key)}>
                   {visibleItems.map((item) => {
                     const Icon = item.icon;
                     // Force exact-match (`end`) when another item in the same
@@ -1459,14 +1470,12 @@ export function AppShell(): ReactNode {
             {isModulePresent('admin_notifications') ? (
               <NotificationBell />
             ) : null}
-            <button
-              type="button"
-              className="b2b-topbar__icon-btn b2b-topbar__hide-mobile"
-              title={t('appShell.topbar.help')}
-              aria-label={t('appShell.topbar.help')}
-            >
-              <HelpCircle size={16} />
-            </button>
+            {/*
+              Issue #1480 — the top bar carried a Help button with no action. A
+              control that looks interactive and does nothing is worse than no
+              control (Jakob's Law, Similarity); it returns once there is a
+              help destination to point it at.
+            */}
             <div style={{ width: 1, height: 22, background: 'var(--border-color)', margin: '0 4px' }} />
             {/*
               Feature 019 / FR-017 — language picker. Same backend round-trip

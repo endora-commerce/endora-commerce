@@ -598,12 +598,26 @@ body,
   padding: 0 36px 0 32px;
   font-family: inherit;
   cursor: pointer;
+  /* Issue #1480 — a button styled as a search field. */
+  display: flex; align-items: center;
+  text-align: left;
 }
-.b2b-sidebar__search-input::placeholder { color: var(--sidebar-fg-muted); }
-.b2b-sidebar__search-input:focus {
-  outline: none;
+.b2b-sidebar__search-placeholder {
+  color: var(--sidebar-fg-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.b2b-sidebar__search-input:hover {
   background: rgba(255,255,255,0.12);
   border-color: rgba(255,255,255,0.25);
+}
+.b2b-sidebar__search-input:focus-visible {
+  outline: 2px solid var(--ring-color);
+  outline-offset: 2px;
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.25);
+}
+@media (pointer: coarse) {
+  .b2b-sidebar__search-input { height: 44px; }
 }
 .b2b-sidebar__search-icon {
   position: absolute; left: 22px; top: 50%; transform: translateY(-50%);
@@ -640,6 +654,7 @@ body,
   text-align: left;
 }
 .b2b-sidebar__group-label:hover { color: var(--sidebar-fg); }
+.b2b-sidebar__group-label:focus-visible { outline: 2px solid var(--ring-color); outline-offset: -2px; }
 .b2b-sidebar__group-label svg { transition: transform .12s; }
 .b2b-sidebar__group--collapsed .b2b-sidebar__group-label svg { transform: rotate(-90deg); }
 .b2b-sidebar__group--collapsed .b2b-sidebar__items { display: none; }
@@ -1721,9 +1736,6 @@ textarea.b2b-field {
   .b2b-topbar__actions {
     flex-shrink: 0;
     gap: 4px;
-  }
-  .b2b-topbar__hide-mobile {
-    display: none !important;
   }
   .b2b-lang-picker__label {
     display: none;
