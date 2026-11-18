@@ -325,6 +325,7 @@
   "common.action.save": "Zapisz",
   "common.action.search": "Szukaj",
   "common.action.saveAndExit": "Zapisz i wyjdź",
+  "common.action.more": "Więcej",
   "common.confirm.title": "Czy na pewno?",
   "common.statusChange.change": "Zmień…",
   "common.statusChange.changed": "{field} — zmieniono na: {status}.",
