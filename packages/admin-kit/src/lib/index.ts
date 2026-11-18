@@ -51,6 +51,9 @@ export type { GatedSurface, PermissionRequirement } from './surface-visibility.j
 export { normalize } from './text-normalization.js';
 export { usePageSizePreference } from './use-page-size-preference.js';
 export { useUnsavedChangesPrompt } from './use-unsaved-changes-prompt.js';
+// Issue #1447 (UX audit DS-14) — a detail screen's record, first load kept apart from a refresh.
+export { useDetailResource } from './use-detail-resource.js';
+export type { DetailResource } from './use-detail-resource.js';
 // Issue #1446 (DS-13) — the `dirty` an unsaved-changes guard is armed with.
 export { isDraftEqual } from './draft-equality.js';
 // Feature 180 — the save session (`specs/180-one-save-zone-editors/contracts/save-participation.md`).

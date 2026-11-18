@@ -17,8 +17,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { AdminPrepareCustomerBasketResponse } from '@endora-commerce/contracts';
-import { apiClient, ApiError, cn, formatDateTime, readReturnTo, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from '@endora-commerce/admin-kit/ui';
+import { apiClient, ApiError, cn, formatDateTime, readReturnTo, useDetailResource, useModulePresence } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, Input, Label, PageHeader, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldValuesPanel,
   LineGroupsEditor,
@@ -217,8 +217,6 @@ export function RfqDetail(): ReactNode {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const returnTo = readReturnTo(searchParams);
-  const [rfq, setRfq] = useState<AdminRfqDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -238,28 +236,36 @@ export function RfqDetail(): ReactNode {
   // rather than at the top of a form the operator then has to scan.
   const [validityFocusNonce, setValidityFocusNonce] = useState(0);
 
-  const refresh = useCallback(async (): Promise<void> => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
+  // Issue #1447 (DS-14, SALES-06) — a skeleton on the first load only. Approve,
+  // Cancel, a Modify save and a custom-field save re-read with the request still
+  // on screen and its tab open, marked `aria-busy`.
+  const resource = useDetailResource<AdminRfqDetail>(id ?? '', async () => {
+    if (!id) return null;
     try {
       const res = await apiClient.get<{ data: AdminRfqDetail }>(
         `/api/v1/admin/quote-requests/${id}`,
       );
-      setRfq(res.data);
+      return res.data;
     } catch (err) {
       // An unknown id and an out-of-scope request both answer 404 (feature
       // 146, C1); either is "not found" here, in the operator's language.
-      if (err instanceof ApiError && err.status === 404) setError(t('rfq.detail.notFound'));
-      else setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.error.load'));
-    } finally {
-      setLoading(false);
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
     }
-  }, [id, t]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  });
+  const rfq = resource.data;
+  const reread = resource.refresh;
+  // A re-read clears the previous action's error, as the old full reload did.
+  const refresh = useCallback(async (): Promise<void> => {
+    setError(null);
+    await reread();
+  }, [reread]);
+  const loadError =
+    resource.error === null
+      ? null
+      : resource.error instanceof ApiError
+        ? resource.error.envelope.error.message
+        : t('rfq.detail.error.load');
 
   // Feature 146 (FR-006) — the customer's current price for every line with no
   // stored reference, read by both Overview and Modify.
@@ -350,12 +356,19 @@ export function RfqDetail(): ReactNode {
     }
   }, [rfq, t]);
 
-  if (loading) return <p className="text-sm text-muted-foreground">{t('rfq.detail.loading')}</p>;
+  if (resource.initialLoading) return <DetailSkeleton label={t('rfq.detail.loading')} />;
 
   if (!rfq)
     return (
       <Alert variant="destructive">
-        <AlertDescription>{error ?? t('rfq.detail.notFound')}</AlertDescription>
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+          {loadError ?? t('rfq.detail.notFound')}
+          {loadError !== null ? (
+            <Button variant="outline" size="sm" onClick={(): void => void refresh()}>
+              {t('common.action.retry')}
+            </Button>
+          ) : null}
+        </AlertDescription>
       </Alert>
     );
 
@@ -522,9 +535,9 @@ export function RfqDetail(): ReactNode {
         actions={headerActions.length > 0 ? headerActions : null}
       />
 
-      {error ? (
+      {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error ?? loadError}</AlertDescription>
         </Alert>
       ) : null}
       {info ? (
@@ -592,7 +605,7 @@ export function RfqDetail(): ReactNode {
       {/* `overflow-hidden` rounds the tab strip's corners, but it also clips the
           Modify tab's product-picker dropdown. Drop the clip while the Modify
           tab is active so the dropdown can overlay outside the card. */}
-      <Card className={cn('mb-4', tab !== 'modify' && 'overflow-hidden')}>
+      <Card className={cn('mb-4', tab !== 'modify' && 'overflow-hidden')} {...resource.busyProps}>
         <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
           <div className="b2b-tabs-scroll">
             <div className="b2b-tabs" role="tablist">
