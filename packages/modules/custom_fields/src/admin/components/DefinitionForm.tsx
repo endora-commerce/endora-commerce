@@ -1,6 +1,7 @@
 import { useId, type ReactNode, type Ref } from 'react';
 import { Checkbox, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import type { DerivedKeyField } from '@endora-commerce/admin-kit/lib';
 import type {
   CustomFieldAdminAccess,
   CustomFieldAudience,
@@ -67,15 +68,19 @@ interface CommonProps {
   /** A refused save's carry sentence (R16), said beside the carry options. */
   carryError: string | null;
   carryErrorRef: Ref<HTMLParagraphElement>;
-  /** The key input in the create view, focused when the dialog opens. */
-  keyInputRef?: Ref<HTMLInputElement>;
+  /** The default-label input in the create view, focused when the dialog opens: the key is derived from it. */
+  labelInputRef?: Ref<HTMLInputElement>;
   /** The options heading, which takes focus when the list or a removed option leaves none to hold it. */
   optionsHeadingRef?: Ref<HTMLHeadingElement>;
 }
 
 export type DefinitionFormProps = CommonProps &
   (
-    | { mode: 'create' }
+    | {
+        mode: 'create';
+        /** The key input's behaviour — it follows the default label until edited (issue #1531). */
+        keyField?: Pick<DerivedKeyField, 'onChange' | 'onBlur'>;
+      }
     | {
         mode: 'edit';
         /** The definition as last read — its options are edited live, one action at a time. */
@@ -188,7 +193,6 @@ export function DefinitionForm(props: DefinitionFormProps): ReactNode {
             <div className="min-w-0 space-y-1 sm:col-span-2">
               <Label htmlFor={`${id}-key`}>{t('customFields.form.key')}</Label>
               <Input
-                ref={props.keyInputRef}
                 id={`${id}-key`}
                 data-field="key"
                 className="font-mono"
@@ -199,7 +203,8 @@ export function DefinitionForm(props: DefinitionFormProps): ReactNode {
                 placeholder={t('customFields.form.keyPlaceholder')}
                 aria-invalid={errors.key !== undefined || undefined}
                 aria-describedby={describedBy(errors.key !== undefined && errorId('key'), `${id}-key-help`)}
-                onChange={(event): void => onChange({ key: event.target.value })}
+                onChange={props.keyField?.onChange ?? ((event): void => onChange({ key: event.target.value }))}
+                {...(props.keyField ? { onBlur: props.keyField.onBlur } : {})}
               />
               {errorLine('key')}
               <p id={`${id}-key-help`} className="break-words text-sm text-muted-foreground">
@@ -215,6 +220,7 @@ export function DefinitionForm(props: DefinitionFormProps): ReactNode {
         <div className="space-y-1">
           <Label htmlFor={`${id}-default`}>{t('customFields.editor.labelDefault')}</Label>
           <Input
+            {...(props.mode === 'create' && props.labelInputRef ? { ref: props.labelInputRef } : {})}
             id={`${id}-default`}
             data-field="labelDefault"
             value={value.labelDefault}

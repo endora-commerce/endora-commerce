@@ -206,6 +206,7 @@ export function TaskPrioritiesPage(): ReactNode {
         <TaskPriorityDialog
           priority={dialog.kind === 'edit' ? dialog.priority : null}
           nextWeight={nextWeight}
+          takenCodes={ordered.map((priority) => priority.code)}
           language={language}
           onSubmit={submitPriority}
           onClose={(): void => setDialog(null)}

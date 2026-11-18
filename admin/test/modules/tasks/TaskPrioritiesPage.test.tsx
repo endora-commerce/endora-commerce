@@ -132,22 +132,67 @@ describe('TaskPrioritiesPage — the dialog', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('refuses a malformed code, `none` and a missing name before they reach the server', async () => {
+  it('refuses a code with a leading digit, `none` and a missing name before they reach the server', async () => {
     await renderPage();
     await userEvent.click(screen.getByRole('button', { name: en('priorities.add') }));
     const dialog = screen.getByRole('dialog');
     const codeField = within(dialog).getByLabelText(en('workflow.field.code'));
-    await userEvent.type(codeField, 'Top Priority');
+    await userEvent.type(codeField, '1 Top Priority');
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+    expect(codeField).toHaveValue('1_top_priority');
     expect(await within(dialog).findByText(en('workflow.error.code'))).toBeInTheDocument();
     expect(within(dialog).getByText(en('workflow.error.name'))).toBeInTheDocument();
     // Focus goes to the first invalid field (WCAG 3.3.1, #512).
     await waitFor(() => expect(codeField).toHaveFocus());
     await userEvent.clear(codeField);
-    await userEvent.type(codeField, 'none');
+    await userEvent.type(codeField, 'None');
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
     expect(await within(dialog).findByText(en('priorities.error.codeNone'))).toBeInTheDocument();
     expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('derives the code from the English name until it is edited, and says where it comes from (WORK-09)', async () => {
+    await renderPage();
+    await userEvent.click(screen.getByRole('button', { name: en('priorities.add') }));
+    const dialog = screen.getByRole('dialog');
+    const codeField = within(dialog).getByLabelText(en('workflow.field.code'));
+    expect(codeField).toHaveAccessibleDescription(en('priorities.field.codeHint'));
+    const english = within(dialog).getByLabelText(en('workflow.field.name.en'));
+    await userEvent.type(english, 'Pilne — dziś');
+    expect(codeField).toHaveValue('pilne_dzis');
+    await userEvent.type(codeField, 'x');
+    await userEvent.type(english, '!');
+    expect(codeField).toHaveValue('pilne_dzisx');
+  });
+
+  it('refuses a taken code at the code — from the list and from the server — never suffixing it', async () => {
+    await renderPage();
+    await userEvent.click(screen.getByRole('button', { name: en('priorities.add') }));
+    const dialog = screen.getByRole('dialog');
+    const codeField = within(dialog).getByLabelText(en('workflow.field.code'));
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.en')), 'High');
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.pl')), 'Wysoki');
+    await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+    expect(codeField).toHaveValue('high');
+    expect(codeField).toHaveAccessibleDescription(en('priorities.error.codeTaken'));
+    expect(postSpy).not.toHaveBeenCalled();
+
+    postSpy.mockRejectedValue(
+      new ApiError(422, {
+        error: {
+          code: 'TASK_WORKFLOW_INVALID',
+          message: 'A priority with the code "blocker" already exists.',
+          details: { rule: 'priority_code_taken', code: 'priority_code_taken' },
+        },
+      }),
+    );
+    await userEvent.clear(codeField);
+    await userEvent.type(codeField, 'blocker');
+    await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(codeField).toHaveAccessibleDescription(en('priorities.error.codeTaken')));
+    expect(codeField).toHaveAttribute('aria-invalid', 'true');
+    await waitFor(() => expect(codeField).toHaveFocus());
   });
 
   it('reorders a priority by its position, sending only what changed — never the code', async () => {

@@ -168,7 +168,7 @@ describe('CustomFieldsPage — the list-filter option', () => {
     expect(await screen.findByText('No fields for this record type yet.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Add a field' }));
     const dialog = await screen.findByRole('dialog', { name: 'New field' });
-    expect(within(dialog).getByLabelText('Key')).toHaveFocus();
+    expect(within(within(dialog).getByRole('group', { name: 'Labels' })).getByLabelText('Default label')).toHaveFocus();
     expect(within(dialog).getByLabelText('Record type')).toHaveValue('order');
   });
 

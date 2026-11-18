@@ -325,6 +325,7 @@
   "common.action.save": "Zapisz",
   "common.action.search": "Szukaj",
   "common.action.saveAndExit": "Zapisz i wyjdź",
+  "common.action.more": "Więcej",
   "common.confirm.title": "Czy na pewno?",
   "common.emptyState.clearFilters": "Wyczyść filtry",
   "common.emptyState.noResults.body": "Zmień wyszukiwanie lub filtry albo wyczyść je, aby zobaczyć wszystko.",
