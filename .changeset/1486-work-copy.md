@@ -15,6 +15,6 @@ ones kept — a rule the screen does not show — fit on one line. Translation k
 `field.assigneeHint`, `comments.hint`, `workflow.description`, `workflow.statuses.description`,
 `workflow.field.categoryHint`, `boardCard.description`, `tags.description`, `tags.list.description`,
 `priorities.description`, `priorities.list.description`; Projects `list.description`,
-`create.stages.hint`, `editor.hint`, `editor.movesHint`, `tasks.hint`, `templates.editor.intro`,
-`templates.editor.rolesHint`, `lossReasons.description`. A deployment overriding one of these keys
+`create.requiredHint`, `create.stages.hint`, `editor.hint`, `editor.movesHint`, `tasks.hint`, `templates.editor.intro`,
+`templates.editor.rolesHint`, `templates.editor.stagesHint`, `lossReasons.description`. A deployment overriding one of these keys
 can drop the override.

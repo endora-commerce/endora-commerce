@@ -383,8 +383,6 @@ export function ProjectCreate(): ReactNode {
 
         <Card>
           <CardContent className="space-y-5">
-            <p className="text-xs text-muted-foreground">{t('create.requiredHint')}</p>
-
             <div className="space-y-1">
               <Label htmlFor="project-create-title">
                 {t('field.title')}

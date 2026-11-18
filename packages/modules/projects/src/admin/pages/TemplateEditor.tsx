@@ -493,7 +493,6 @@ export function TemplateEditor(): ReactNode {
 
         <Card>
           <CardContent className="space-y-5">
-            <p className="text-xs text-muted-foreground">{t('create.requiredHint')}</p>
             <div className="space-y-1">
               <Label htmlFor="template-name">
                 {t('templates.editor.name')}
@@ -560,14 +559,11 @@ export function TemplateEditor(): ReactNode {
 
         <Card>
           <CardContent>
-            <fieldset className="space-y-3" aria-describedby="template-stages-hint">
+            <fieldset className="space-y-3">
               <legend className="text-base font-semibold">
                 {t('templates.editor.stages')}
                 {required}
               </legend>
-              <p id="template-stages-hint" className="text-sm text-muted-foreground">
-                {t('templates.editor.stagesHint')}
-              </p>
               <ol className="space-y-3">
                 {graph.stages.map((row, index) => {
                   const position = index + 1;
