@@ -210,6 +210,18 @@ describe('Customer Quote Requests routes (US1)', () => {
     };
     expect(body.data.id).not.toBe(createdRfqId);
     expect(body.data.status).toBe('Pending');
+    // The new request draws its number from the business-id generator like any
+    // other, never the entity's `QR-<uuid>` placeholder.
+    const created = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/quote-requests/${createdRfqId}`,
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    const createdNumber = (created.json() as { data: { businessId: string } }).data.businessId;
+    const resubmittedNumber = (body.data as unknown as { businessId: string }).businessId;
+    expect(resubmittedNumber).not.toMatch(/^QR-[0-9a-f]{8}-[0-9a-f]{4}-/);
+    expect(resubmittedNumber).not.toBe(createdNumber);
+    expect(resubmittedNumber.length).toBe(createdNumber.length);
     expect(body.data.items[0]?.productId).toBe(SEED_PRODUCT_101_ID);
     // Resubmit pre-fills at the customer's current price list — desiredUnitPrice
     // is intentionally cleared, not carried over from the source.

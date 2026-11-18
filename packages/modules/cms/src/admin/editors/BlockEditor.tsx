@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import { slugify, type CmsBlockDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
 import { PageBuilderEditor } from '../components/PageBuilderEditor.js';
 import {
   emptyPageBuilderData,
+  hasUnsavedCanvas,
   PageBuilderEditorLayout,
   usePageBuilderEditorSettingsPanel,
 } from '@endora-commerce/page-builder-admin';
@@ -16,7 +18,7 @@ import {
   loadCmsTemplateCanvas,
   saveCanvasAsCmsTemplate,
 } from '../components/cms-template-layout.js';
-import { resolveScopedContentLanguage } from '../components/scope-utils.js';
+import { isSameScope, resolveScopedContentLanguage } from '../components/scope-utils.js';
 import { cmsClient } from '../api/cms-client.js';
 
 interface FormState {
@@ -42,6 +44,15 @@ const blankForm: FormState = { name: '', code: '', active: true, description: ''
  */
 function codeFromName(input: string): string {
   return slugify(input, { maxLength: 180 });
+}
+
+function formFor(block: CmsBlockDetail | null): FormState {
+  if (!block) return blankForm;
+  return { name: block.name, code: block.code, active: block.active, description: block.description ?? '' };
+}
+
+function scopeFor(block: CmsBlockDetail | null): ScopePickerValue {
+  return block ? { salesChannelIds: block.salesChannelIds, languages: block.languages } : { salesChannelIds: [], languages: [] };
 }
 
 function dataFor(block: CmsBlockDetail | null, language: string | null): Data | null {
@@ -73,13 +84,8 @@ export function BlockEditor(): ReactNode {
     if (isNew || !id) return;
     const loaded = await cmsClient.getBlock(id);
     setBlock(loaded);
-    setForm({
-      name: loaded.name,
-      code: loaded.code,
-      active: loaded.active,
-      description: loaded.description ?? '',
-    });
-    setScope({ salesChannelIds: loaded.salesChannelIds, languages: loaded.languages });
+    setForm(formFor(loaded));
+    setScope(scopeFor(loaded));
     setActiveLanguage(loaded.languages[0] ?? null);
   }, [id, isNew]);
 
@@ -122,6 +128,24 @@ export function BlockEditor(): ReactNode {
     }
     return dataFor(block, activeLanguage);
   }, [activeLanguage, block, draftData, languageContentOverrides]);
+
+  // Issue #1461 (CONTENT-02) — the draft against the last saved version.
+  const dirty =
+    !isDraftEqual(form, formFor(block)) ||
+    !isSameScope(scope, scopeFor(block)) ||
+    hasUnsavedCanvas({
+      draft: draftData,
+      activeLanguage,
+      overrides: languageContentOverrides,
+      saved: (language) => (block ? dataFor(block, language) : null),
+    });
+
+  const discard = (): void => {
+    setForm(formFor(block));
+    setScope(scopeFor(block));
+    setDraftData(null);
+    setLanguageContentOverrides({});
+  };
 
   const save = async (): Promise<boolean> => {
     if (scope.salesChannelIds.length === 0) {
@@ -199,13 +223,17 @@ export function BlockEditor(): ReactNode {
   return (
     <PageBuilderEditorLayout
       settingsPanel={settingsPanel}
+      dirty={dirty}
+      onSave={save}
+      onDiscard={discard}
       header={
         <>
           <PageHeader
             title={isNew ? t('blockEditor.title.new') : form.name || t('blockEditor.title.edit')}
             description={t('blockEditor.description')}
             actions={
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <UnsavedChangesHint dirty={dirty} />
                 <Button asChild variant="outline">
                   <Link to="/cms/blocks">{t('common.back')}</Link>
                 </Button>
@@ -234,8 +262,7 @@ export function BlockEditor(): ReactNode {
               <CardTitle className="text-base">{t('blockEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="space-y-1">
-                <Label>{t('fields.name')}</Label>
+              <FormField label={t('fields.name')}>
                 <Input
                   value={form.name}
                   onChange={(event) => {
@@ -247,9 +274,8 @@ export function BlockEditor(): ReactNode {
                     }));
                   }}
                 />
-              </div>
-              <div className="space-y-1">
-                <Label>{t('fields.code')}</Label>
+              </FormField>
+              <FormField label={t('fields.code')}>
                 <Input
                   value={form.code}
                   className="font-mono"
@@ -258,7 +284,7 @@ export function BlockEditor(): ReactNode {
                     setForm((f) => ({ ...f, code: event.target.value.toLowerCase() }));
                   }}
                 />
-              </div>
+              </FormField>
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -267,13 +293,12 @@ export function BlockEditor(): ReactNode {
                 />
                 {t('fields.active')}
               </label>
-              <div className="space-y-1">
-                <Label>{t('fields.description')}</Label>
+              <FormField label={t('fields.description')}>
                 <Textarea
                   value={form.description}
                   onChange={(event) => setForm({ ...form, description: event.target.value })}
                 />
-              </div>
+              </FormField>
             </CardContent>
           </Card>
           <ScopePicker value={scope} onChange={setScope} />

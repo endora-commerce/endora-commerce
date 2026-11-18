@@ -138,7 +138,7 @@ export function CachePage(): ReactNode {
         </Alert>
       ) : null}
       {result ? (
-        <Alert>
+        <Alert live="polite">
           <AlertDescription>{result}</AlertDescription>
         </Alert>
       ) : null}
@@ -186,13 +186,13 @@ export function CachePage(): ReactNode {
 
       <div className="flex flex-wrap gap-3">
         <Button
-          onClick={() => clear([...selected])}
+          onClick={() => void clear([...selected])}
           disabled={busy || selected.size === 0}
         >
           <Eraser className="mr-2 h-4 w-4" />
           {t('cache.clearSelected')}
         </Button>
-        <Button variant="outline" onClick={() => clear('all')} disabled={busy}>
+        <Button variant="outline" onClick={() => void clear('all')} disabled={busy}>
           <Eraser className="mr-2 h-4 w-4" />
           {t('cache.clearAll')}
         </Button>

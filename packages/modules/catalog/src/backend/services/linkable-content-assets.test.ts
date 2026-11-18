@@ -58,7 +58,8 @@ describe('category content — asset ids a save newly adds (issue #544)', () => 
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(HttpError);
     expect((err as HttpError).statusCode).toBe(404);
-    expect((err as HttpError).code).toBe(ERROR_CODES.NOT_FOUND);
+    expect((err as HttpError).code).toBe(ERROR_CODES.ASSET_NOT_FOUND);
+    expect((err as HttpError).details).toEqual({ assetId: id });
     expect((err as HttpError).message).toBe(`Asset ${id} not found.`);
     expect(h.category.content).toEqual({ languages: { 'pl-PL': doc(STORED) } });
   });
@@ -118,7 +119,8 @@ describe('product content attributes — asset ids a save newly adds (issue #544
       .replace(PRODUCT_ID, 'guide', { languages: { 'en-US': doc(id) } } as never)
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(HttpError);
-    expect((err as HttpError).code).toBe(ERROR_CODES.NOT_FOUND);
+    expect((err as HttpError).code).toBe(ERROR_CODES.ASSET_NOT_FOUND);
+    expect((err as HttpError).details).toEqual({ assetId: id });
     expect((err as HttpError).message).toBe(`Asset ${id} not found.`);
     expect(h.stored()).toEqual({ languages: { 'pl-PL': doc(STORED) } });
   });

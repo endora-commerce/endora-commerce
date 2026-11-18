@@ -70,8 +70,7 @@ Edytor e-maili transakcyjnych (i newslettera) korzysta ze wspólnego `EmailEdito
   nagłówka CMS, ale działają na szablonach e-maili transakcyjnych (`email_templates`).
 - `EmailLogo` pokazuje logo z oznakowania marki (bez pola na adres URL). `EmailImage` przyjmuje adres
   URL albo zasób z biblioteki mediów, tak jak w CMS. Pola kolorów korzystają ze wspólnej palety
-  kolorów CMS. Logo w ustawieniach oznakowania marki (`*_asset_id`) wybiera się w selektorze
-  Biblioteki mediów.
+  kolorów CMS. Samo logo ustawia się na ekranie **Branding maili** (poniżej).
 - `EmailRichText` korzysta z edytora tekstu sformatowanego TipTap z CMS (z dodatkiem zmiennych).
 - `EmailProductCard` wybiera produkt z katalogu; `EmailOrderSummary` to przełączniki kolumn i sum i
   pojawia się w palecie tylko wtedy, gdy e-mail deklaruje `order.items` (obecnie tylko **Order
@@ -83,6 +82,23 @@ Edytor e-maili transakcyjnych (i newslettera) korzysta ze wspólnego `EmailEdito
   (`EmailImage`, `EmailLogo`), handel (`EmailProductCard`, `EmailOrderSummary` i opisane wyżej bloki
   szczegółów zamówienia), `EmailSocial` (ikony, etykiety i włączanie każdego linku osobno) oraz
   `EmailInsertBlock`.
+
+## Branding maili {#email-branding}
+
+**Wiadomości → Branding maili** (`/transactional-emails/branding`, dostępny też pod ⌘K / CTRL+K)
+ustawia dwie wartości, z którymi renderuje się każdy e-mail:
+
+- **Logo nagłówka** — obraz z Biblioteki mediów. Pokazuje go wspólny blok `default_email_header`
+  i każdy blok `EmailLogo`; bez logo nagłówek go nie zawiera.
+- **Kolor akcentu** — używany przez przyciski i wyróżnienia, które nie mają własnego koloru.
+
+Lista **Zakres** wybiera *Wszystkie kanały (domyślnie)* albo jeden kanał sprzedaży. Kanał
+dziedziczy wartość wszystkich kanałów dla wszystkiego, czego nie nadpisuje: zapis wysyła tylko
+pola zmienione przy wybranym zakresie, więc zmiana koloru akcentu dla jednego kanału zostawia mu
+logo wszystkich kanałów. Zmiana zakresu przy niezapisanych zmianach pyta, czy je zapisać, odrzucić,
+czy zostać. Podgląd wymaga `transactional_emails:read`, zapis — `transactional_emails:write`.
+Wartości to ustawienia `transactional_emails.logo_asset_id` i `transactional_emails.accent_color`,
+więc widać je także na ekranie Ustawień.
 
 ## Renderowanie
 
@@ -154,7 +170,8 @@ usuwa treści, nadpisań ani dostosowań dla kanałów. Wyłączony e-mail w chw
 `{ status: 'deactivated' }` i **nie jest wysyłana żadna wiadomość zastępcza**.
 
 E-maili potrzebnych do założenia konta lub odzyskania do niego dostępu w ogóle nie można wyłączyć:
-obecnie są to `email_verification`, `organization_invitation` i `customer_password_reset_by_admin`.
+obecnie są to `email_verification`, `organization_invitation`, `customer_password_reset` i
+`customer_password_reset_by_admin`.
 Deklaracja znajduje się we wpisie
 rejestru modułu, do którego należy e-mail (`EmailDefaults.nonDeactivatable`), a nie na liście
 utrzymywanej przez ten moduł czy panel administracyjny, a odrzucone przełączenie zwraca

@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
   Combobox,
+  FormField,
   Input,
   Label,
   PageHeader,
@@ -159,6 +160,8 @@ function customerLabel(c: AdminCustomerListItem): string {
  * to the parent (we need its `organizationId`, not just the id).
  */
 function CustomerPicker(props: {
+  /** The input's id — `FormField`'s, so its label names the picker (issue #1475). */
+  id: string;
   value: AdminCustomerListItem | null;
   onChange: (next: AdminCustomerListItem | null) => void;
   /** Narrows the search to one organization's customers, and offers them at once. */
@@ -226,8 +229,7 @@ function CustomerPicker(props: {
 
   return (
     <Combobox<string>
-      id="customerAccountId"
-      ariaLabel="customerAccountId"
+      id={props.id}
       options={options}
       value={props.value?.id ?? null}
       selectedLabel={props.value ? customerLabel(props.value) : ''}
@@ -661,12 +663,16 @@ export function RfqCreatePage(): ReactNode {
           <CardTitle>{t('rfqCreate.section.customer')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <Label htmlFor="customerAccountId">{t('rfqCreate.field.customer')}</Label>
-          <CustomerPicker
-            value={customer}
-            onChange={setCustomer}
-            organizationId={openedWith.organizationId}
-          />
+          <FormField label={t('rfqCreate.field.customer')} id="customerAccountId">
+            {(control) => (
+              <CustomerPicker
+                id={control.id}
+                value={customer}
+                onChange={setCustomer}
+                organizationId={openedWith.organizationId}
+              />
+            )}
+          </FormField>
           {customer && !hasOrg ? (
             <Alert variant="destructive">
               <AlertDescription>{t('rfqCreate.noOrgWarning')}</AlertDescription>
@@ -932,7 +938,7 @@ export function RfqCreatePage(): ReactNode {
       ) : null}
 
       {created ? (
-        <Alert variant="warning" className="mb-4">
+        <Alert variant="warning" live="assertive" className="mb-4">
           <AlertTitle>{t('rfqCreate.warnings.title')}</AlertTitle>
           <AlertDescription>
             <p>{t('rfqCreate.warnings.description')}</p>

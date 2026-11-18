@@ -70,12 +70,17 @@ function renderZone(
 ): HTMLElement {
   cleanup();
   const { container } = renderTasks(<AdminZone name={entry.zone as AdminZoneName} props={entry.props as never} />, {
+    path: RECORD_SCREEN,
     permissions: options.permissions ?? ['tasks:read', 'tasks:write'],
     present: options.present ?? ['tasks'],
     contributions: REGISTRY,
   });
   return container;
 }
+
+/** The record screen the panel is drawn on; its links lead back here (`?returnTo=`, #512). */
+const RECORD_SCREEN = `/records/${RECORD_ID}?tab=tasks`;
+const BACK_HERE = new URLSearchParams({ returnTo: RECORD_SCREEN }).toString();
 
 const listPath = (kind: string): string =>
   `/api/v1/admin/tasks?linkedKind=${kind}&linkedId=${RECORD_ID}&limit=20`;
@@ -106,9 +111,9 @@ describe('tasks contributes the Tasks panel', () => {
       const heading = await screen.findByRole('heading', { name: en('panel.title') });
       const panel = heading.closest('section') as HTMLElement;
       const first = await within(panel).findByRole('link', { name: /TSK-000001/ });
-      expect(first).toHaveAttribute('href', `/tasks/${TASK_ID}`);
+      expect(first).toHaveAttribute('href', `/tasks/${TASK_ID}?${BACK_HERE}`);
       expect(within(panel).getByText('Call the buyer')).toBeInTheDocument();
-      expect(within(panel).getByRole('link', { name: /TSK-000002/ })).toHaveAttribute('href', `/tasks/${OTHER_TASK_ID}`);
+      expect(within(panel).getByRole('link', { name: /TSK-000002/ })).toHaveAttribute('href', `/tasks/${OTHER_TASK_ID}?${BACK_HERE}`);
       expect(within(panel).getByText(STATUS.in_progress.name)).toBeInTheDocument();
       expect(within(panel).getByText('Anna Nowak')).toBeInTheDocument();
       expect(within(panel).getByText(en('list.unassigned'))).toBeInTheDocument();
@@ -116,7 +121,7 @@ describe('tasks contributes the Tasks panel', () => {
       expect(within(panel).getByText(new RegExp(en('list.overdue')))).toBeInTheDocument();
       expect(within(panel).getByRole('link', { name: en('panel.add') })).toHaveAttribute(
         'href',
-        `/tasks/new?link=${entry.kind}:${RECORD_ID}`,
+        `/tasks/new?link=${encodeURIComponent(`${entry.kind}:${RECORD_ID}`)}&${BACK_HERE}`,
       );
       expect(within(panel).getByRole('link', { name: en('panel.all') })).toHaveAttribute(
         'href',

@@ -11,6 +11,50 @@ import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
 import reactHooks from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
+import { readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+const ROOT = import.meta.dirname;
+
+/**
+ * Issue #1027 — a package whose sources are split across several TypeScript
+ * programs. `projectService` asks for the nearest `tsconfig.json` only, so a
+ * module's `src/admin/**` (compiled by `tsconfig.ui.json`, and its tests by
+ * `tsconfig.ui.test.json`) or the platform's co-located tests
+ * (`tsconfig.test.json`) would be "not found by the project service". Such a
+ * package names every non-build configuration it has, `tsconfig.json` first;
+ * typescript-eslint takes the first program that contains the file. The list
+ * is derived from the directory, so a package that gains a configuration needs
+ * no edit here.
+ */
+function splitProgramBlocks() {
+  const blocks = [];
+  for (const parent of ['packages', 'packages/modules']) {
+    // `endora new storefront` vendors this file into a standalone storefront,
+    // which has no `packages/`.
+    if (!existsSync(join(ROOT, parent))) continue;
+    for (const entry of readdirSync(join(ROOT, parent), { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const dir = `${parent}/${entry.name}`;
+      if (!existsSync(join(ROOT, dir, 'tsconfig.json'))) continue;
+      const configs = readdirSync(join(ROOT, dir))
+        .filter((name) => /^tsconfig(\.[a-z]+)*\.json$/.test(name) && !name.includes('.build.'))
+        .sort((a, b) => (a === 'tsconfig.json' ? -1 : b === 'tsconfig.json' ? 1 : a.localeCompare(b)));
+      if (configs.length < 2) continue;
+      blocks.push({
+        files: [`${dir}/**/*.ts`, `${dir}/**/*.tsx`],
+        languageOptions: {
+          parserOptions: {
+            projectService: false,
+            project: configs.map((name) => `${dir}/${name}`),
+            tsconfigRootDir: ROOT,
+          },
+        },
+      });
+    }
+  }
+  return blocks;
+}
 
 export default [
   {
@@ -104,63 +148,57 @@ export default [
       ],
     },
   },
-  // Issue #955 Phase 2 (owner ruling of 2026-11-10): the tenant scope's
-  // single-id helpers became async (`orgInScope`, `ruleInScope`,
-  // `assignedOrganizationIdsForRanking`) and the synchronous `isOrgInScope` /
-  // `ruleVisibleForScope` were removed, because `if (!isOrgInScope(x))` over a
-  // Promise is always false — a gate that silently opens. These two typed rules
-  // hold every file that asks the question; they need type information, so
-  // the block names the files rather than the whole tree (a project-wide typed
-  // lint is a separate decision). A file that starts asking the question
-  // belongs on this list.
+  // Typed promise rules over the whole tree (issue #1027). #955 Phase 2 turned
+  // the first two on for the 39 files that ask the tenant scope a question,
+  // because its single-id helpers became async and `if (!orgInScope(x))` over
+  // a Promise is always false — a gate that silently opens. Any un-awaited
+  // async call has that shape, so the rules hold every file rather than a
+  // list somebody has to keep.
+  //
+  // One call is known-safe to leave un-awaited: react-router's `navigate`,
+  // a Promise only under a data router and nothing a click handler waits for.
+  // Anything else that is truly fire-and-forget says so with `void` and a
+  // comment.
+  //
+  // Type information costs heap. `backend` lints in two processes, one per
+  // TypeScript program (its `package.json` `lint`), because one process
+  // holding both died `heap out of memory` under CI's 3072 MB; the larger,
+  // test, program still needs more than the type-check does, so CI's lint
+  // step has its own heap (`.github/workflows/quality.yml`).
   {
-    files: [
-      'packages/modules/carts/src/backend/services/cart-admin-service.ts',
-      'packages/modules/carts/src/backend/services/organization-cart-reach.ts',
-      'packages/modules/credit_limits/src/backend/routes.ts',
-      'packages/modules/crm/src/backend/services/admin-reach.ts',
-      'packages/modules/crm/src/backend/services/crm-document-lookup-service.ts',
-      'packages/modules/crm/src/backend/services/crm-lookup-service.ts',
-      'packages/modules/crm/src/backend/services/mention-service.ts',
-      'packages/modules/crm/src/backend/services/opportunity-origin-link-service.ts',
-      'packages/modules/crm/src/backend/services/opportunity-service.ts',
-      'packages/modules/customers/src/backend/admin-search-provider.ts',
-      'packages/modules/invoice_ledger/src/backend/services/invoice-ledger-delivery-admin.service.ts',
-      'packages/modules/invoices/src/backend/routes.admin.ts',
-      'packages/modules/invoices/src/backend/services/erp-sale-document-write-port.ts',
-      'packages/modules/invoices/src/backend/services/invoice-service.ts',
-      'packages/modules/mfa/src/backend/routes.admin.ts',
-      'packages/modules/orders/src/backend/routes.ts',
-      'packages/modules/organizations/src/backend/index.ts',
-      'packages/modules/organizations/src/backend/organization-reach.ts',
-      'packages/modules/organizations/src/backend/services/admin-tenant-scope.ts',
-      'packages/modules/organizations/src/backend/services/sales-rep-assignment-service.ts',
-      'packages/modules/price_lists/src/backend/routes.price-books.ts',
-      'packages/modules/price_lists/src/backend/services/price-book-scope.ts',
-      'packages/modules/price_lists/src/backend/services/price-book-service.ts',
-      'packages/modules/projects/src/backend/domain/visibility-rule.ts',
-      'packages/modules/projects/src/backend/services/document-lookup-service.ts',
-      'packages/modules/projects/src/backend/services/history-service.ts',
-      'packages/modules/projects/src/backend/services/lookup-service.ts',
-      'packages/modules/projects/src/backend/services/project-access.ts',
-      'packages/modules/projects/src/backend/services/project-service.ts',
-      'packages/modules/quick_order/src/backend/routes.admin.ts',
-      'packages/modules/quick_order/src/backend/routes.preferences.admin.ts',
-      'packages/modules/quick_order/src/backend/routes.preferences.ts',
-      'packages/modules/quick_order/src/backend/services/default-preference-authz.ts',
-      'packages/modules/quick_order/src/backend/services/default-preference-service.ts',
-      'packages/platform/src/tenancy/derived-scope.ts',
-      'packages/platform/src/tenancy/index.ts',
-      'packages/platform/src/tenancy/org-write-guard.ts',
-      'packages/platform/src/tenancy/resolve-tenant-context.ts',
-      'packages/platform/src/tenancy/tenant-context.ts',
-    ],
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      parserOptions: { projectService: true, tsconfigRootDir: ROOT },
     },
     rules: {
-      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        {
+          allowForKnownSafeCalls: [
+            { from: 'package', package: 'react-router', name: 'NavigateFunction' },
+          ],
+        },
+      ],
       '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+    },
+  },
+  ...splitProgramBlocks(),
+  // `backend` is two programs whose configs nest: `test/tsconfig.json` sits
+  // between `test/unit/**` and `backend/tsconfig.json`, so the project service
+  // would load the larger test program just to learn that a unit test is not
+  // in it, and hold both. Each tree names its own program instead; the two
+  // `lint` processes in `backend/package.json` then hold one program each.
+  {
+    files: ['backend/**/*.ts'],
+    languageOptions: {
+      parserOptions: { projectService: false, project: ['backend/tsconfig.json'], tsconfigRootDir: ROOT },
+    },
+  },
+  {
+    files: ['backend/test/contract/**/*.ts', 'backend/test/integration/**/*.ts', 'backend/test/perf/**/*.ts'],
+    languageOptions: {
+      parserOptions: { projectService: false, project: ['backend/test/tsconfig.json'], tsconfigRootDir: ROOT },
     },
   },
   // React rules, in the shared root and scoped to `.tsx` (feature 091, Phase 4).
@@ -191,4 +229,70 @@ export default [
       'jsx-a11y/alt-text': 'warn',
     },
   },
+  // Issue #1434 (DS-17) — no raw enum value as admin screen text. A status, a
+  // kind or an actor type is a code the API sends; an operator reads its label,
+  // in their language, through the owning module's `defineEnumLabels` map
+  // (`@endora-commerce/admin-kit/lib`; `specs/conventions/module-i18n.md`).
+  // `admin/eslint.config.js` applies the same selectors to its own `src/`.
+  {
+    files: [
+      'packages/admin-kit/src/**/*.tsx',
+      'packages/admin-shell/src/**/*.tsx',
+      'packages/modules/*/src/admin/**/*.tsx',
+    ],
+    ignores: ['**/*.test.tsx'],
+    rules: {
+      'no-restricted-syntax': ['error', ...rawEnumInJsxSelectors(), ...developerIdAriaLabelSelectors()],
+    },
+  },
 ];
+
+/**
+ * An `aria-label` (or a kit component's `ariaLabel`) that is a developer id —
+ * `customerNote`, `select-all`, `` `delete-${code}` `` (issue #1475, UX audit
+ * SALES-10). It is read aloud verbatim, in English, whatever the operator's
+ * language, and it overrides the visible label as the control's accessible name
+ * (WCAG 2.2 SC 2.5.3, 4.1.2). Where a `<label>` or `FormField` names the control,
+ * delete the attribute; elsewhere translate it.
+ *
+ * A literal is an id when it is camelCase or hyphenated words with no space; a
+ * template is one when no part of it is anything but letters, digits and a
+ * hyphen, and a hyphen joins its parts. `{id}` passed through is not seen.
+ */
+export function developerIdAriaLabelSelectors() {
+  const attribute = 'JSXAttribute[name.name=/^(aria-label|ariaLabel)$/]';
+  const id = '/^[a-z][a-z0-9]*([A-Z][a-z0-9]*)+$|^[a-z][a-z0-9]*(-[A-Za-z0-9]+)+$/';
+  const message =
+    'An aria-label that is a developer id is read aloud verbatim, in English, and replaces the visible label. ' +
+    'Name the control with its <label> / FormField, or pass a translated string (issue #1475).';
+  return [
+    `${attribute} > Literal[value=${id}]`,
+    `${attribute} > JSXExpressionContainer > Literal[value=${id}]`,
+    `${attribute} > JSXExpressionContainer > TemplateLiteral:not(:has(TemplateElement[value.raw=/[^A-Za-z0-9-]/])):has(TemplateElement[value.raw=/-/])`,
+  ].map((selector) => ({ selector, message }));
+}
+
+/**
+ * The JSX-child shapes the raw-enum rule refuses (issue #1434).
+ *
+ * Syntax, not types: it recognises the value by its property name — a JSX child
+ * that is `x.status`, `x?.kind`, or either before a `??` / `||` fallback. That
+ * misses an enum under another name and catches the odd value that is not one,
+ * a ReactNode slot named `action` or a command id shown as code. Such a site
+ * carries an `eslint-disable-next-line` saying why; a site that is debt names
+ * the issue that drains it.
+ */
+export function rawEnumInJsxSelectors() {
+  const property = '/^(status|state|kind|action|actorType|fromState|toState|[a-z]+Status)$/';
+  const member = `MemberExpression[computed=false][property.name=${property}]`;
+  const child = ':matches(JSXElement, JSXFragment) > JSXExpressionContainer';
+  const message =
+    "A raw enum value is rendered as text. Render its label through the owning module's `defineEnumLabels` " +
+    'map (`@endora-commerce/admin-kit/lib`), so the operator reads it in their language (issue #1434).';
+  return [
+    `${child} > ${member}`,
+    `${child} > ChainExpression > ${member}`,
+    `${child} > LogicalExpression > ${member}.left`,
+    `${child} > LogicalExpression > ChainExpression.left > ${member}`,
+  ].map((selector) => ({ selector, message }));
+}

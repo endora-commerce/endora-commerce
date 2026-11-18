@@ -94,7 +94,7 @@ const PERSONAL = { ...COMPANY, name: 'Jan Kowalski', taxId: PLACEHOLDER_TAX_ID, 
 function answer(org: typeof COMPANY): void {
   getSpy.mockImplementation((path: string) => {
     if (path === `/api/v1/admin/organizations/${ORG_ID}`) return Promise.resolve({ data: org });
-    if (path.startsWith('/api/v1/admin/organizations')) return Promise.resolve({ data: [org] });
+    if (path.startsWith('/api/v1/admin/organizations')) return Promise.resolve({ data: [org], meta: { page: 1, pageSize: 20, total: 1 } });
     if (path.startsWith('/api/v1/admin/warehouses')) return Promise.resolve({ items: [] });
     return Promise.resolve({ data: [] });
   });

@@ -24,6 +24,14 @@ export { ResponsiveTable } from './ResponsiveTable.js';
 export type { ResponsiveColumn, ResponsiveTableProps } from './ResponsiveTable.js';
 export { RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from './RowActionMenu.js';
 export type { RowActionMenuItemProps, RowActionMenuProps } from './RowActionMenu.js';
+// Issue #1441 (DS-07) — one primary action per view: a detail header's primary, secondary and "More" menu.
+export { DetailHeaderActions } from './DetailHeaderActions.js';
+export type { DetailHeaderActionsProps } from './DetailHeaderActions.js';
+// Issue #1439 (UX audit DS-05) — the list page pattern; README "List pages".
+export { ListPage } from './list-page/ListPage.js';
+export type { ListPageLoad, ListPageProps } from './list-page/ListPage.js';
+export { fitPageSize, lastPageIndex, pageSizesUpTo, useListPagination } from './list-page/use-list-pagination.js';
+export type { ListPagination, UseListPaginationOptions } from './list-page/use-list-pagination.js';
 export { StickyFormActions } from './StickyFormActions.js';
 export type { StickyFormActionsProps } from './StickyFormActions.js';
 // Feature 180 — the generic Save and outcome summary of an editor's save session.
@@ -122,11 +130,22 @@ export type {
 } from './organization-picker/useOrganizationsQuery.js';
 export { useFocusTrap } from './hooks/useFocusTrap.js';
 export type { FocusTrapOptions } from './hooks/useFocusTrap.js';
-export { ModalDialog } from './modal-dialog/ModalDialog.js';
-export type { ModalDialogProps } from './modal-dialog/ModalDialog.js';
+export { ModalDialog, MODAL_OVERLAY_Z_INDEX } from './modal-dialog/ModalDialog.js';
+export type { ModalDialogLayer, ModalDialogProps } from './modal-dialog/ModalDialog.js';
 // Issue #313 — the design-system replacement for the browser's `confirm()`.
 export { ConfirmDialog, useConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
 export type { ConfirmDialogProps, ConfirmOptions, UseConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
+// Issue #1446 (DS-13) — the one unsaved-changes guard: Save / Discard / Stay before a navigation drops edits.
+export { UnsavedChangesDialog, UnsavedChangesHint, useUnsavedChangesGuard } from './unsaved-changes/UnsavedChangesGuard.js';
+export type {
+  UnsavedChangesDialogProps,
+  UnsavedChangesGuard,
+  UnsavedChangesGuardOptions,
+  UnsavedChangesHintProps,
+} from './unsaved-changes/UnsavedChangesGuard.js';
+// Issue #1435 (DS-18) — a status changed through a confirmed dialog, never a select that writes on change.
+export { StatusChangeControl } from './status-change/StatusChangeControl.js';
+export type { StatusChangeControlProps, StatusChangeOption } from './status-change/StatusChangeControl.js';
 export { useViewportTier } from './hooks/useViewportTier.js';
 export type { ViewportTier } from './hooks/useViewportTier.js';
 export { MethodAvailabilityCaption, MethodAvailabilityCell, MethodNotOfferedNotice } from './payment-method-availability/MethodAvailabilityCell.js';
@@ -177,6 +196,11 @@ export { ScopeNotice } from './scope-notice/ScopeNotice.js';
 export type { ScopeNoticeProps } from './scope-notice/ScopeNotice.js';
 export { SavedViewsControl } from './saved-views/SavedViewsControl.js';
 export type { SavedViewState, SavedViewsControlProps } from './saved-views/SavedViewsControl.js';
+// Issue #1440 (UX audit DS-06) — the list toolbar: labelled search, primary filters, *More filters (n)*, applied-filter chips.
+export { FilterChip } from './list-toolbar/FilterChip.js';
+export type { FilterChipProps } from './list-toolbar/FilterChip.js';
+export { ListToolbar, ListToolbarSearch } from './list-toolbar/ListToolbar.js';
+export type { AppliedFilter, ListToolbarProps, ListToolbarSearchProps } from './list-toolbar/ListToolbar.js';
 export type { RuleAttributeField, RuleBuilderBuiltinField, RuleBuilderLabels, RuleBuilderProps, RuleFieldOptions, StructuralRule, StructuralRuleCondition, StructuralRuleField, StructuralRuleValue } from './rule-builder/RuleBuilder.js';
 // Feature 163 — the collaboration components promoted from CRM (`specs/163-projects-and-tasks/research.md` R-17).
 export { ReferenceField } from './references/ReferenceField.js';

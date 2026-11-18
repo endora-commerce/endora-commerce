@@ -263,4 +263,44 @@ describe('assets library — asset ids a content or setting write newly adds (is
     expect(response.statusCode, response.body).toBeLessThan(300);
     expect(await stored(visible)).toBe(true);
   });
+  /**
+   * Issue #1359 — an id stored under a key that does not end in `assetId` is
+   * never rendered, so it is no reference: it does not make a hidden file
+   * visible, though the save's own check does not look at it. The same id under
+   * an `*AssetId` key is one, which is what keeps the premise honest.
+   */
+  const STORES: ReadonlyArray<{ name: string; table: string; column: string; id: () => string }> = [
+    { name: 'a CMS page body', table: 'cms_pages', column: 'content', id: () => pageId },
+    { name: 'a category’s page content', table: 'categories', column: 'content', id: () => categoryId },
+    { name: 'a blog post’s content', table: 'blog_posts', column: 'content', id: () => blogPostId },
+    { name: 'a blog category’s description', table: 'blog_categories', column: 'description', id: () => blogCategoryId },
+  ];
+
+  it.each(STORES)('a hidden id under a non-assetId key of $name leaves the file hidden (issue #1359)', async (store) => {
+    const conn = h.em().getConnection();
+    const [before] = await conn.execute<Array<{ value: unknown }>>(
+      `select ${store.column} as value from ${store.table} where id = ?`,
+      [store.id()],
+    );
+    const write = (props: Record<string, string>) =>
+      conn.execute(`update ${store.table} set ${store.column} = ?::jsonb where id = ?`, [
+        JSON.stringify({
+          schema_version: 1,
+          languages: { 'en-US': { root: { props: {} }, content: [{ type: 'cms.Image', props: { id: 'img', ...props } }] } },
+        }),
+        store.id(),
+      ]);
+    try {
+      await write({ foo: hidden, image: hidden });
+      expect((await inject('GET', `/api/v1/admin/assets/${hidden}`, R.cookies)).statusCode).toBe(404);
+      await write({ iconAssetId: hidden });
+      expect((await inject('GET', `/api/v1/admin/assets/${hidden}`, R.cookies)).statusCode).toBe(200);
+    } finally {
+      await conn.execute(`update ${store.table} set ${store.column} = ?::jsonb where id = ?`, [
+        before?.value === null || before?.value === undefined ? null : JSON.stringify(before.value),
+        store.id(),
+      ]);
+    }
+    expect((await inject('GET', `/api/v1/admin/assets/${hidden}`, R.cookies)).statusCode).toBe(404);
+  });
 });

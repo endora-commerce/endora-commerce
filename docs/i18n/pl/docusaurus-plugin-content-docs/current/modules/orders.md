@@ -287,6 +287,51 @@ emituje zdarzenia według szablonu (niżej). Zdarzenia płatności i wysyłki wy
 przejścia przez `OrderStatusRegistry` (kolumny `statusOn*` odwołują się do tych kodów statusów);
 `payment_status` pozostaje polem pochodnym, drugorzędnym.
 
+## Przejścia statusu płatności
+
+Status płatności to finansowa oś zamówienia, odrębna od konfigurowalnego cyklu życia opisanego
+wyżej. Jego wartości są stałe — `awaiting_payment`, `deferred`, `paid`, `failed`, `refunded` — i
+stałe jest też to, co może nastąpić po czym. Graf to `PAYMENT_STATUS_TRANSITIONS` w
+`@endora-commerce/contracts`, a `paymentStatusTargets(from, actor)` odpowiada, dokąd zamówienie może
+przejść. Nie da się go konfigurować.
+
+Status zmieniają dwie strony: **operator** przez `POST /api/v1/admin/orders/:id/payment-status`
+oraz **rozliczenie** — moduł `payments`, który zapisuje to, co zgłosiła bramka płatności.
+
+| Z \ do | `paid` | `refunded` | `failed` |
+| --- | --- | --- | --- |
+| `awaiting_payment` | operator, rozliczenie | odmowa | rozliczenie |
+| `failed` | operator, rozliczenie | odmowa | bez zmiany |
+| `deferred` | operator, rozliczenie | odmowa | odmowa |
+| `paid` | bez zmiany | operator, rozliczenie | odmowa |
+| `refunded` | odmowa | bez zmiany | odmowa |
+
+- `awaiting_payment` i `deferred` są ustawiane przy składaniu zamówienia (`deferred` dla zamówienia
+  złożonego w ramach limitu kredytowego) i później nie da się do nich wrócić.
+- `refunded` jest ostateczny: nic nie wyprowadza z niego zamówienia.
+- Zwrócić można tylko opłacone zamówienie.
+- `failed` ustawia wyłącznie rozliczenie, gdy bramka odrzuci płatność. Endpoint operatora przyjmuje
+  tylko `paid` i `refunded`; każda inna wartość daje `400`
+  `VALIDATION_FAILED`.
+- Ustawienie statusu płatności, który zamówienie już ma, daje `200`, niczego nie zmienia, nie
+  zapisuje wpisu audytu i nie wymaga działań następczych — dlatego dwukrotne oznaczenie zamówienia
+  z limitem kredytowym jako opłaconego zwalnia kredyt raz.
+
+Zmiana spoza grafu kończy się odmową `409` `ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED` w języku
+operatora i niczego nie zapisuje. Zamówienie spoza zakresu wywołującego daje najpierw `404`, więc
+odmowa nigdy nie potwierdza, że takie zamówienie istnieje.
+
+| `details.code` | Kiedy | Pozostałe `details` |
+| --- | --- | --- |
+| `payment_refunded` | Zamówienie jest zwrócone, więc jego statusu płatności nie można już zmienić | `from`, `to` |
+| `payment_not_paid` | Zażądano `refunded` dla zamówienia, które nigdy nie zostało opłacone | `from`, `to` |
+
+Rozliczenie stosuje ten sam graf przez `orderPaymentStatusApplyPort`, którego odpowiedź zawiera
+`outcome` — `applied`, `unchanged` albo `refused`. Odmowa jest odpowiedzią, a nie błędem: płatność
+zostaje zapisana, a zamówienie zachowuje swój status płatności. Okno „Zmień…” na stronie zamówienia
+w panelu administracyjnym proponuje dokładnie te statusy, które może ustawić operator; dla
+zwróconego zamówienia nie proponuje żadnego.
+
 ## Co wynika z przejścia: działania następcze
 
 Anulowanie zamówienia zwalnia to, co zamówienie trzymało: jego **rezerwacje stanów magazynowych**
@@ -609,7 +654,7 @@ Każdy inny komentarz zwraca `systemNote: null`.
 ## Filtry pól niestandardowych
 
 Pole niestandardowe zamówienia z włączoną opcją **Używaj jako filtra listy** (ustawianą na ekranie
-**Pola niestandardowe**) jest dostępne jako filtr wśród filtrów zaawansowanych listy zamówień,
+**Pola niestandardowe**) jest dostępne jako filtr pod przyciskiem **Więcej filtrów** listy zamówień,
 opisany w twoim języku: tekst, który zawiera, zakres liczb lub dat, tak lub nie albo jedna lub
 więcej opcji. Zamówienie bez wartości tego pola nigdy nie pasuje. Każdy filtr pola
 niestandardowego jest pokazany jako usuwalna etykieta obok pozostałych aktywnych filtrów, zawęża

@@ -1,0 +1,5 @@
+---
+'@endora-commerce/mod-sales-channels': patch
+---
+
+The sales channel screens carry less text (issue #1482). The channel list and the create and edit pages no longer show a page description. On the channel form, the help under the code, theme, *Open to anonymous visitors* and *Prefix the default language in URLs* fields is one line each, the help under the language and currency pickers is gone (an inactive value is still marked in the picker), and the paragraph about guest prices is now a single *Prices for anonymous visitors* link to the same Pricing settings screen. The create form's card is titled *Identity*, as on the edit page, and the code field's example is translated. Removed translation keys: `list.page.description`, `edit.page.createDescription`, `edit.page.editDescription`, `identity.title.create`, `identity.languages.help`, `identity.currencies.help`, `identity.anonymousAccess.pricesHint`; added: `identity.code.placeholder`. Nothing about how a channel behaves has changed.

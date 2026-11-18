@@ -5,6 +5,7 @@ import {
   DEFAULT_RETURN_STATUSES,
   ReturnStatusConfigError,
   ReturnStatusGraph,
+  resolveReturnStatusName,
   type ReturnStatusDef,
 } from './return-status-graph.js';
 
@@ -77,10 +78,45 @@ describe('ReturnStatusGraph — invariants', () => {
     expect(() => g.assertValid()).toThrow(/Terminal status/);
   });
 
+  /**
+   * `specs/181-guest-complaints/` FR-074 (research R-9): a closed guest case
+   * reopened before its erasure would have to leave a terminal status. That
+   * cannot happen, so the erasure clock counted from `closed_at` never needs
+   * resetting. Pinned here so the requirement fails loudly if the invariant
+   * ever changes: even a stored edge out of a terminal status is never taken.
+   */
+  it('never takes an edge out of a terminal status, even one stored past validation (FR-074)', () => {
+    const terminals = DEFAULT_RETURN_STATUSES.filter((s) => s.isTerminal).map((s) => s.code);
+    expect(terminals.sort()).toEqual(['cancelled', 'closed', 'rejected']);
+    const g = new ReturnStatusGraph(DEFAULT_RETURN_STATUSES.map((s) => ({ ...s })), [
+      ...computeDefaultTransitions(),
+      ...terminals.map((from) => ({ fromStatusCode: from, toStatusCode: 'new', isSystem: false })),
+    ]);
+    for (const from of terminals) {
+      expect(g.canTransition(from, 'new'), from).toBe(false);
+    }
+  });
+
   it('rejects an edge referencing an unknown status', () => {
     const g = new ReturnStatusGraph(DEFAULT_RETURN_STATUSES.map((s) => ({ ...s })), [
       { fromStatusCode: 'new', toStatusCode: 'ghost', isSystem: false },
     ]);
     expect(() => g.assertValid()).toThrow(/unknown status/);
+  });
+});
+
+describe('resolveReturnStatusName — the buyer-facing label', () => {
+  const def = { code: 'new', name: { en: 'New', pl: 'Nowe' }, defaultName: 'New (default)' };
+
+  it('answers the exact language, then its primary subtag', () => {
+    expect(resolveReturnStatusName(def, 'pl')).toBe('Nowe');
+    expect(resolveReturnStatusName(def, 'pl-PL')).toBe('Nowe');
+    expect(resolveReturnStatusName({ ...def, name: { 'pl-PL': 'Nowe' } }, 'pl')).toBe('Nowe');
+  });
+
+  it('falls back to defaultName, never to another language, and then to the code', () => {
+    expect(resolveReturnStatusName({ ...def, name: { pl: 'Nowe' } }, 'en-US')).toBe('New (default)');
+    expect(resolveReturnStatusName({ ...def, name: { pl: '' } }, 'pl')).toBe('New (default)');
+    expect(resolveReturnStatusName({ ...def, name: {}, defaultName: '' }, 'de')).toBe('new');
   });
 });

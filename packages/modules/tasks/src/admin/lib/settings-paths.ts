@@ -7,3 +7,5 @@ export const TASK_WORKFLOW_PATH = '/tasks/settings/workflow';
 export const TASK_PRIORITIES_PATH = '/tasks/settings/priorities';
 export const TASK_TAGS_PATH = '/tasks/settings/tags';
 export const TASK_GENERAL_SETTINGS_PATH = '/tasks/settings/general';
+/** The workflow screen's *Board card* section, which the board's *Configure card* opens at. */
+export const BOARD_CARD_ANCHOR = 'board-card';

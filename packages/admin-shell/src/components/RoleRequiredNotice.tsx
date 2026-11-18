@@ -12,14 +12,16 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  * itself out, and the sentence carried by that 403 is never fetched because no
  * page is left to fetch it. This states it without waiting for a refusal.
  *
- * `Alert` renders `role="alert"`, so the notice is announced as well as shown.
+ * `live="assertive"` keeps it a `role="alert"` (issue #1484 made a warning
+ * `Alert` silent by default): it is the only explanation of an empty panel, so
+ * it is announced as well as shown.
  * It carries no action: the remedy is another administrator's, or the command
  * line's, and a role-less session can perform neither.
  */
 export function RoleRequiredNotice(): ReactNode {
   const t = useTranslation('core');
   return (
-    <Alert variant="warning" className="mb-4">
+    <Alert variant="warning" live="assertive" className="mb-4">
       <ShieldAlert className="size-4" aria-hidden="true" />
       <div>
         <AlertTitle>{t('appShell.noRole.title')}</AlertTitle>

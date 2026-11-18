@@ -481,11 +481,26 @@ export const acceptInvitationRequestSchema = z.object({
   lastName: z.string().min(1).max(120),
 });
 
+/**
+ * Issue #1468 (SALES-01, DEC-07) — the refusal of `status` on the admin PATCH. Moderation is the
+ * one writer of an organization's status: only it checks the state machine, stamps
+ * `approvedAt` / `blockedAt` / `blockedReason`, emits `organization.status_changed.v1` and sends
+ * the customer e-mail.
+ */
+export const ADMIN_PATCH_ORGANIZATION_STATUS_REFUSAL =
+  'Organization status cannot be set here; use approve, reject, block or unblock ' +
+  '(POST /api/v1/admin/organizations/:id/approve|reject|block|unblock).';
+
 /** Platform admin — PATCH `/admin/organizations/:id` */
 export const adminPatchOrganizationRequestSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   vatStatus: vatStatusSchema.optional(),
-  status: organizationStatusSchema.optional(),
+  /**
+   * Refused, not silently stripped (issue #1468): a strip would answer `200` to an integrator
+   * who believes they blocked an organization. The body is refused as a whole, so nothing else
+   * it carries is written either.
+   */
+  status: z.never({ error: ADMIN_PATCH_ORGANIZATION_STATUS_REFUSAL }).optional(),
   /** Feature 038 (US4) — additional emails CC'd on this org's order confirmations. */
   orderConfirmationEmails: z.array(z.string()).optional(),
   /**
@@ -596,9 +611,31 @@ export type CustomerSignInResponse = z.infer<typeof customerSignInResponseSchema
 
 // --- Admin organization replies (issue #599) --------------------------------
 
-/** `GET /api/v1/admin/organizations` — one page of Organizations. */
+/**
+ * `GET /api/v1/admin/organizations?page=&pageSize=` — the paging the admin list
+ * screen asks for (issue #1473). `pageSize` falls back to `limit`, so a caller
+ * that names neither — the pickers — keeps its one `limit`-sized first page.
+ */
+export const adminOrganizationListPageQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
+});
+export type AdminOrganizationListPageQuery = z.infer<typeof adminOrganizationListPageQuerySchema>;
+
+/**
+ * `GET /api/v1/admin/organizations` — one page of Organizations. `meta` is the
+ * offset page and the total across every page, in the shape the Customers list
+ * answers with (issue #1473); `pagination` stays for its existing readers, and
+ * its `hasMore` now says whether a later page exists. Its `cursor` is always
+ * `null`: this list pages by offset.
+ */
 export const adminOrganizationListResponseSchema = z.object({
   data: z.array(adminOrganizationSchema),
+  meta: z.object({
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+  }),
   pagination: paginationSchema,
 });
 export type AdminOrganizationListResponse = z.infer<typeof adminOrganizationListResponseSchema>;

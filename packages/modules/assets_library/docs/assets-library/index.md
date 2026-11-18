@@ -539,7 +539,12 @@ following points at the asset:
 - `product_attachments.asset_id` (Product attachments)
 - `products.download_asset_id` (virtual-download products)
 - `categories.main_image_asset_id` (Category main image)
-- `cms_pages.body` containing a `{ type: "asset_ref", assetId }` node
+- a Page Builder document — a CMS page, block or template, a category's or a
+  product's content, a blog post, a blog category's description — holding the
+  id under a key ending in `assetId` (`assetId`, `iconAssetId`,
+  `mainImageAssetId`, …). An id under any other key is never rendered, so it
+  is not a reference: it does not block the delete, and it does not make a
+  hidden file visible
 
 Every module that uses library files contributes its own kinds of reference
 in the same way — Tasks, Projects, CRM, blog posts and menus among them. The

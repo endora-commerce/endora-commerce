@@ -1,4 +1,8 @@
-import { adminOrderPaymentStatusTransitionSchema, paymentStatusSchema } from '@endora-commerce/contracts';
+import {
+  adminOrderPaymentStatusTransitionSchema,
+  paymentStatusSchema,
+  paymentStatusTargets as allowedPaymentStatusTargets,
+} from '@endora-commerce/contracts';
 
 /**
  * The order's money axis, as the admin screens read and write it (feature 085).
@@ -39,13 +43,29 @@ export function paymentStatusLabelKey(code: string): string {
 }
 
 /**
- * What the detail screen's control may show for an order currently at `current`.
+ * What the detail screen's "Change…" dialog offers for an order currently at
+ * `current` (issue #1470, DS-18): exactly the operator targets of the server's
+ * transition graph (issue #1574), so the dialog never offers a move
+ * `POST /api/v1/admin/orders/:id/payment-status` refuses — an unpaid order may
+ * be marked paid, a paid one refunded, and a refunded one nothing.
  *
- * The order's own value is always shown, even when it is not settable, so the
- * select displays the truth and offers only what the server will take.
+ * The current value is shown beside the control as a badge, never offered as a
+ * target, so an unsettable one (`failed`, `awaiting_payment`, `deferred`) is
+ * still read and cannot be chosen. Payment status stays operator-editable when
+ * the `payments` module records transactions too (owner decision DEC-11, issue
+ * #1470): a bank transfer is confirmed by a person.
  */
-export function paymentStatusOptions(current: string): string[] {
-  return SELECTABLE_PAYMENT_STATUSES.includes(current)
-    ? [...SELECTABLE_PAYMENT_STATUSES]
-    : [current, ...SELECTABLE_PAYMENT_STATUSES];
+export function paymentStatusTargets(current: string): string[] {
+  return allowedPaymentStatusTargets(current, 'operator');
+}
+
+/**
+ * The confirm step's consequence sentence for a move to `to` (issue #1574).
+ * Marking an order refunded only records it — no money moves — and nothing
+ * follows a refund, so that one target has its own warning.
+ */
+export function paymentStatusConsequenceKey(to: string): string {
+  return to === 'refunded'
+    ? 'orderDetail.statusChange.paymentConsequenceRefunded'
+    : 'orderDetail.statusChange.paymentConsequence';
 }

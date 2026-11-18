@@ -23,7 +23,7 @@ wymagają `customers:manage`, chyba że wiersz podaje inny kod.
 | `POST /api/v1/auth/email-verification/verify` | anonimowy | Użycie tokenu weryfikacyjnego |
 | `POST /api/v1/auth/customer/login` | anonimowy | Logowanie klienta → ustawia ciasteczko `b2b_session`; łączy koszyk anonimowy |
 | `POST /api/v1/auth/customer/logout` | klient | Zakończenie sesji |
-| `POST /api/v1/auth/password-reset/request` | anonimowy | Zawsze 202 (ochrona przed sprawdzaniem, czy konto istnieje) |
+| `POST /api/v1/auth/password-reset/request` | anonimowy | Zawsze 202 (ochrona przed sprawdzaniem, czy konto istnieje). Gdy adres należy do konta, e-mail `customer_password_reset` zawiera link do resetu hasła — w sklepie kanału sprzedaży, z którego przyszło żądanie, pod prefiksem jego języka |
 | `POST /api/v1/auth/password-reset/confirm` | anonimowy | Użycie tokenu resetu z e-maila. Wykorzystanie tokenu wylogowuje konto ze **wszystkich** sesji, unieważnia pozostałe niewykorzystane tokeny resetu i wycofuje każde rozpoczęte, a niedokończone logowanie. |
 | `GET /api/v1/me` | klient | Bieżący klient (z `organizationRole`, `permissions` i `preferredLanguage`, `null`, dopóki nieznany) i jego organizacja oraz `impersonation: { impersonatorAdminUserId }`, gdy administrator działa jako kupujący |
 | `POST /api/v1/me/password` | klient | Zmiana hasła (odrzucana przy błędnym `currentPassword`). Udana zmiana wylogowuje konto ze wszystkich pozostałych sesji (sesja, z której wysłano żądanie, zostaje), unieważnia niewykorzystane tokeny resetu hasła i wycofuje każde rozpoczęte, a niedokończone logowanie. |
@@ -48,7 +48,7 @@ wymagają `customers:manage`, chyba że wiersz podaje inny kod.
 | `GET /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:read` lub `customers:manage`) | Kanały przypisane do organizacji i kanały, które można jej przypisać. `404 NOT_FOUND` dla organizacji spoza zasięgu przedstawiciela handlowego (zob. pod tabelą), jak dla organizacji, która nie istnieje |
 | `PUT /api/v1/admin/organizations/:id/sales-channels` | administrator (`customers:manage`) | Zastąpienie przypisanych kanałów (`{ salesChannelIds }`, co najmniej jeden); `404 NOT_FOUND` poza zasięgiem przedstawiciela handlowego, jak przy odczycie |
 | `GET /api/v1/admin/organizations/:id` | administrator | Organizacja z listą członków (`updatedAt`, członkowie z `lastLoginAt` i `organizationRole`; `predefinedRoles` podaje role Administrator i Członek) |
-| `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `status`, `vatStatus`, `orderConfirmationEmails` lub `fulfilmentStrategy` (z `fulfilmentStrategyWarehouseOrder`) i scalenie wartości pól niestandardowych (`customFieldValues`); opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne. Jeden wpis audytu, `organization.admin_patch`, zapisywany razem ze zmianą: kody statusu, statusu VAT i strategii realizacji przed zmianą i po niej oraz nazwy zmienionych pól (`changedFields`) i pól niestandardowych (`changedCustomFields`) — nigdy nazwa, adresy e-mail do potwierdzeń zamówień ani wartość pola niestandardowego |
+| `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `vatStatus`, `orderConfirmationEmails` lub `fulfilmentStrategy` (z `fulfilmentStrategyWarehouseOrder`) i scalenie wartości pól niestandardowych (`customFieldValues`); opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne. **`status` jest odrzucany** odpowiedzią `400 VALIDATION_ERROR` przy `status` i nic z żądania nie zostaje zapisane: status zmienia się wyłącznie przez `POST …/approve`, `…/reject`, `…/block` i `…/unblock`. Jeden wpis audytu, `organization.admin_patch`, zapisywany razem ze zmianą: kody statusu (jako kontekst; PATCH nigdy go nie zmienia), statusu VAT i strategii realizacji przed zmianą i po niej oraz nazwy zmienionych pól (`changedFields`) i pól niestandardowych (`changedCustomFields`) — nigdy nazwa, adresy e-mail do potwierdzeń zamówień ani wartość pola niestandardowego |
 | `DELETE /api/v1/admin/organizations/:id` | administrator (`customers:manage`) | Usunięcie miękkie (`204`); odrzucane z `409 ORGANIZATION_HAS_CHILDREN`, dopóki organizacja ma organizację podrzędną (zob. *Hierarchia organizacji*) |
 | `GET /api/v1/admin/organizations/:id/addresses` | administrator | Książka adresowa organizacji |
 | `POST /api/v1/admin/organizations/:id/members/invite` | administrator | Zaproszenie e-mailem (`{ email, roleId? }`, domyślnie rola Członek; z poziomu platformy) |
@@ -92,6 +92,12 @@ zatwierdzeniu korekty NIP, i nie dla korekty na wartość, która jest już zapi
   `email_verification`, gdy jest zdefiniowany, a w przeciwnym razie przez skomponowany `emailMailer`
   (`EmailMailerPort`, z modułu `email`); `SMTP_URL` (albo `SMTP_HOST` + `SMTP_PORT`) decyduje, czy
   jest to SMTP, czy wypisywanie do konsoli.
+- **Wysyłka resetu hasła** — samodzielne żądanie resetu wysyła szablon `customer_password_reset`
+  w języku kanału sprzedaży, z którego przyszło żądanie, z linkiem do `/password-reset/confirm`
+  pod adresem `sales_channels.storefront_url` tego kanału (w przeciwnym razie
+  `STOREFRONT_BASE_URL`). Bez definicji szablonu wysyłana jest zwykła wiadomość po angielsku przez
+  `emailMailer`. Tego e-maila nie można wyłączyć, bo to dzięki niemu klient, który zapomniał hasła,
+  odzyskuje dostęp do konta.
 - **Ochrona ostatniego administratora** — zapisana w Commandach modułu `customer_accounts`
   `customer-account-change-role.command.ts` i `customer-account-remove-member.command.ts` oraz
   w `organization-invitation-revoke.command.ts` tego modułu; nowe miejsca, w których „musi zostać
@@ -1342,9 +1348,10 @@ z członkiem lub operatorem, który działał.
 Ekran organizacji (`/organizations/:id`) ma **jeden przycisk Zapisz**, w nagłówku strony. Obejmuje
 każde ustawienie na ekranie, które się edytuje, a nie wykonuje:
 
-- własne ustawienia organizacji — status, status VAT, adresy e-mail potwierdzeń zamówień, strategię
-  realizacji, ograniczenia (dozwolone metody płatności, metody dostawy i magazyny) oraz pola
-  niestandardowe. Nie zapisują się już przy zmianie, przy opuszczeniu pola ani własnym przyciskiem;
+- własne ustawienia organizacji — adresy e-mail potwierdzeń zamówień (w sekcji **Kontakt
+  i powiadomienia**), strategię realizacji, ograniczenia (dozwolone metody płatności, metody dostawy
+  i magazyny) oraz pola niestandardowe. Nie zapisują się już przy zmianie, przy opuszczeniu pola ani
+  własnym przyciskiem;
 - panele dodawane przez inne moduły, każdy, gdy jego moduł jest włączony: **domyślne ustawienia
   zamówień** (Szybkie zamówienia), **tryb prezentacji ceny** (Cenniki) i **negocjację cen** w
   zapytaniach ofertowych (Zapytania ofertowe).
@@ -1375,6 +1382,20 @@ tylko wtedy, gdy któryś z paneli możesz zmienić.
 i nie ruszają niezapisanych zmian. Każda taka sekcja ma etykietę **Działa od razu**: zapraszanie i
 bezpośrednie dodawanie członków, lista członków, hierarchia, moderacja (zatwierdzenie, odrzucenie,
 blokada, odblokowanie), walidacja VAT, kanały sprzedaży, role i opiekunowie handlowi.
+
+**Status i status VAT.** Każdy z nich zmienia się w jednym miejscu i żaden nie jest częścią zapisu:
+
+- **Status** organizacji (oczekuje na weryfikację, aktywna, zablokowana, odrzucona) jest pokazywany
+  i zmieniany wyłącznie w sekcji **Moderacja**, przez zatwierdzenie, odrzucenie, blokadę lub
+  odblokowanie. Te działania sprawdzają, jaka zmiana jest dozwolona z bieżącego statusu, zapisują
+  daty i powód oraz powiadamiają klienta. Są dostępne tylko z `customers:manage`; bez niego sekcja
+  pokazuje jedynie status i powód.
+- **Status VAT** (czynny podatnik VAT, zwolniony z VAT, odwrotne obciążenie) jest pokazywany w nagłówku
+  strony, po numerze podatkowym. Aby go zmienić, użyj **Zmień status VAT…** w nagłówku, obok
+  **Zmień numer podatkowy**. Wymaga `customers:manage`, działa od razu i jest zapisywany w dzienniku
+  audytu. Status VAT decyduje o podatku w każdym zamówieniu, które organizacja złoży od tej chwili;
+  wystawione już zamówienia, faktury i dokumenty ofert zachowują swój. Weryfikacja numeru
+  podatkowego nie zmienia statusu VAT.
 
 ## Wpisy audytu
 

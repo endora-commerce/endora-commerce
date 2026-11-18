@@ -17,8 +17,8 @@
  * proved by reference equality in `admin/test/kit/admin-kit-shims.test.ts`, not by a
  * structural comparison, which a second React context would pass.
  */
-export { Alert, AlertDescription, AlertTitle } from './alert.js';
-export type { AlertProps } from './alert.js';
+export { ALERT_DEFAULT_LIVE, Alert, AlertDescription, AlertTitle, alertRole } from './alert.js';
+export type { AlertLive, AlertProps } from './alert.js';
 export { Badge } from './badge.js';
 export type { BadgeProps } from './badge.js';
 export { Button, buttonVariants } from './button.js';
@@ -36,6 +36,14 @@ export {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './dropdown-menu.js';
+// Issue #1432 (UX audit DS-08) — the label / control / hint / error wiring every form field uses.
+export { FormField } from './form-field.js';
+export type { FormFieldControlProps, FormFieldProps } from './form-field.js';
+export { HelpTip } from './help-tip.js';
+export type { HelpTipProps } from './help-tip.js';
+// Issue #1443 (UX audit DS-10) — the always-mounted status region for an action's result.
+export { InlineStatus, useInlineStatus } from './inline-status.js';
+export type { InlineStatusProps, InlineStatusState, InlineStatusTone } from './inline-status.js';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { MultiCombobox } from './multi-combobox.js';
@@ -52,5 +60,13 @@ export { Section } from './section.js';
 export type { SectionProps } from './section.js';
 export { Select } from './select.js';
 export { Separator } from './separator.js';
+// Issue #1447 (UX audit DS-14) — the first-load placeholder; a refresh keeps the content (`useDetailResource`).
+export { DetailSkeleton, Skeleton } from './skeleton.js';
+export type { DetailSkeletonProps } from './skeleton.js';
+// Issue #1442 (UX audit DS-09) — the on/off control and the settings-list row it sits in.
+export { SettingRow } from './setting-row.js';
+export type { SettingRowProps } from './setting-row.js';
+export { Switch } from './switch.js';
+export type { SwitchProps } from './switch.js';
 export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from './table.js';
 export { Textarea } from './textarea.js';

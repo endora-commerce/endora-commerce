@@ -40,7 +40,7 @@ function render(permissions: string[]): void {
 
 beforeEach(() => {
   getSpy.mockReset();
-  getSpy.mockResolvedValue({ data: [] });
+  getSpy.mockResolvedValue({ data: [], meta: { page: 1, pageSize: 20, total: 0 } });
 });
 
 describe('Organizations list — header menu', () => {

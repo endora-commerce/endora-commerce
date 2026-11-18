@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { sanitiseNext } from '../../../lib/auth/next-path';
 import { loginCustomer } from '../../../lib/api/auth';
 import { beginMfaSetupTicket } from '../../../lib/api/mfa';
 import {
@@ -193,8 +194,3 @@ async function loginAction(formData: FormData): Promise<void> {
 }
 
 /** Only allow same-origin paths in `?next=` to defend against open-redirect. */
-function sanitiseNext(input: string | undefined): string {
-  if (!input) return '/account';
-  if (!input.startsWith('/') || input.startsWith('//')) return '/account';
-  return input;
-}

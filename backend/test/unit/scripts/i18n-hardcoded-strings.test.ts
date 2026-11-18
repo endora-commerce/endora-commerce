@@ -186,6 +186,106 @@ describe('analyzeSource — the admin shapes issue #1316 found missing', () => {
   });
 });
 
+describe('analyzeSource — the admin fallbacks issue #1433 found missing', () => {
+  // The 2026-11-17 UX audit found whole screens rendering English to a Polish
+  // operator through shapes the #1316 rule could not see: a label table, a
+  // `confirm({ title })` call, a component's default prop, a `?? 'No rows.'`
+  // fallback kept in a variable, and an error helper's fallback sentence.
+  const findings = (source: string): Array<{ kind: string; text: string }> =>
+    analyzeSource(source, FILE).map((f) => ({ kind: f.kind, text: f.text }));
+
+  it('reports a literal under a property named for copy, one-word labels included', () => {
+    const source = [
+      "confirm({ title: 'Delete the tag?', description: 'This cannot be undone.' });",
+      "const TABS = [{ id: 'countries', label: 'Countries' }];",
+      '',
+    ].join('\n');
+    expect(findings(source)).toEqual([
+      { kind: 'copy-property', text: 'Delete the tag?' },
+      { kind: 'copy-property', text: 'This cannot be undone.' },
+      { kind: 'copy-property', text: 'Countries' },
+    ]);
+  });
+
+  it('reports a copy-named default prop and a copy-named variable holding a fallback', () => {
+    const source = [
+      "export function FileDropzone({ label = 'Drag a CSV file here', id = 'drop-zone' }) {}",
+      "const emptyMessage = props.emptyMessage ?? error ?? 'No CMS blocks.';",
+      "const { ariaLabel: name = 'Select organization' } = props;",
+      '',
+    ].join('\n');
+    expect(findings(source)).toEqual([
+      { kind: 'copy-property', text: 'Drag a CSV file here' },
+      { kind: 'copy-property', text: 'No CMS blocks.' },
+      { kind: 'copy-property', text: 'Select organization' },
+    ]);
+  });
+
+  it('reads the other values of a label table one of whose values is copy', () => {
+    const source = [
+      'const DEFAULT_LABELS = {',
+      "  builtinGroup: 'Cart & relationship',",
+      "  matchAll: 'Matches all carts.',",
+      "  valuesLabel: 'Value',",
+      "  testId: 'rule-builder',",
+      "  mode: 'idle',",
+      '};',
+      '',
+    ].join('\n');
+    expect(findings(source)).toEqual([
+      { kind: 'copy-property', text: 'Cart & relationship' },
+      { kind: 'copy-property', text: 'Matches all carts.' },
+      { kind: 'copy-property', text: 'Value' },
+    ]);
+  });
+
+  it('ignores a code value, a catalogue call, a per-language map and a table with no copy', () => {
+    const source = [
+      "const a = { label: 'status', title: t('orders.title'), description: 'orders.list' };",
+      "const variant = 'Primary';",
+      "const title = props.title ?? t('orders.title');",
+      "const names = { label: { en: 'Countries', pl: 'Kraje' } };",
+      "const OPTIONS = [{ value: 'Prefix', label: t('position.prefix') }];",
+      '',
+    ].join('\n');
+    expect(findings(source)).toEqual([]);
+  });
+
+  it('reports a fallback sentence handed to an error helper or kept behind `??` / `||`', () => {
+    const source = [
+      "setError(formatError(err, 'Save failed.'));",
+      "const reason = res.reason ?? 'Unknown failure.';",
+      "notify(err.message || 'Upload failed.');",
+      '',
+    ].join('\n');
+    expect(findings(source)).toEqual([
+      { kind: 'fallback-literal', text: 'Save failed.' },
+      { kind: 'fallback-literal', text: 'Unknown failure.' },
+      { kind: 'fallback-literal', text: 'Upload failed.' },
+    ]);
+  });
+
+  it('ignores a token fallback, a diagnostic, a state value and a one-word `??` fallback', () => {
+    const source = [
+      "setError(formatError(err, 'orders.save_failed'));",
+      "throw new Error(id ?? 'Missing id.');",
+      "console.error(e ?? 'Failed to load.');",
+      "const mode = m ?? 'idle';",
+      "const status = s ?? 'Draft';",
+      '',
+    ].join('\n');
+    expect(findings(source)).toEqual([]);
+  });
+
+  it('counts a literal once, under the shape that claimed it first', () => {
+    // `placeholder={props.placeholder ?? '…'}` is the attribute it lands in,
+    // not a fallback as well.
+    const source =
+      "export const A = () => <Combobox placeholder={props.placeholder ?? 'Search organizations…'} />;\n";
+    expect(findings(source)).toEqual([{ kind: 'jsx-attr', text: 'Search organizations…' }]);
+  });
+});
+
 describe('analyzeSource — the storefront\'s Polish literals (issue #85)', () => {
   const SF = '/repo/storefront/components/rfq/RfqDetailActions.tsx';
   const SF_TS = '/repo/storefront/lib/quote-requests/describe-diff.ts';
@@ -234,7 +334,9 @@ describe('analyzeSource — the storefront\'s Polish literals (issue #85)', () =
   });
 
   it('ignores an English literal and a Polish comment — neither is this rule\'s subject', () => {
-    const source = "// Odrzuć — cited in a comment\nexport const label = 'Reject';\n";
+    // `verdict`, not `label`: since issue #1433 a copy-named variable is an
+    // admin `copy-property`, which is not what this case is about.
+    const source = "// Odrzuć — cited in a comment\nexport const verdict = 'Reject';\n";
     expect(analyzeSource(source, SF_TS, polish)).toEqual([]);
   });
 

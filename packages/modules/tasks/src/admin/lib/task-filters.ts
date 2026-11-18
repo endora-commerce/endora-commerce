@@ -83,6 +83,29 @@ export function hasFilters(params: URLSearchParams): boolean {
   return filtersOnly(params).toString() !== '';
 }
 
+/**
+ * How many of the filters the filter bar folds behind *More filters* are in
+ * use (issue #512) — so a collapsed bar still says the list is narrowed. A
+ * filter the screen implies (*My Tasks*' open, published Tasks) is not offered
+ * and so not counted; each custom-field filter counts as one.
+ */
+export function hiddenFilterCount(
+  params: URLSearchParams,
+  implied: { statusCategory?: boolean; draft?: boolean } = {},
+): number {
+  const present = (key: string): boolean => params.getAll(key).some(Boolean);
+  const hidden = [
+    !implied.statusCategory && present('statusCategory'),
+    present('creator'),
+    present('priority'),
+    present('tagId'),
+    present('isSubtask') || present('hasSubtasks'),
+    !implied.draft && present('draft'),
+    present('private'),
+  ].filter(Boolean).length;
+  return hidden + Object.keys(readCustomFieldFilterParams(params)).length;
+}
+
 /** One filter set, others kept; an empty value removes it. Sort and custom-field filters untouched. */
 export function withFilter(
   params: URLSearchParams,

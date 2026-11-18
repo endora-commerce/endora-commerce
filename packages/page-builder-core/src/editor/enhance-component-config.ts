@@ -57,13 +57,16 @@ export function enhancePageBuilderComponent(
   };
 
   if (previousResolveFields) {
-    next.resolveFields = (data, params) => {
-      const resolved = previousResolveFields(data, params);
-      const merged = {
+    const withEditorChrome = (resolved: Fields): Fields =>
+      orderFields({
         ...(EDITOR_NAME_FIELD_KEY in resolved ? {} : { [EDITOR_NAME_FIELD_KEY]: EDITOR_NAME_FIELD }),
         ...resolved,
-      } as Fields;
-      return orderFields(merged);
+      } as Fields);
+    next.resolveFields = (data, params) => {
+      // Puck lets `resolveFields` return a Promise; spreading one would drop
+      // every field the component resolved.
+      const resolved = previousResolveFields(data, params);
+      return resolved instanceof Promise ? resolved.then(withEditorChrome) : withEditorChrome(resolved);
     };
   }
 

@@ -2090,6 +2090,9 @@ importers:
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.16
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.16(@mikro-orm/core@6.6.16)(@types/node@22.19.17)(pg@8.20.0)
       '@mikro-orm/postgresql':
         specifier: ^6.6.13
         version: 6.6.16(@mikro-orm/core@6.6.16)
@@ -2693,6 +2696,9 @@ importers:
       react:
         specifier: ^19.2.5
         version: 19.2.5
+      react-router-dom:
+        specifier: ^7.18.2
+        version: 7.18.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -3878,6 +3884,9 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@fastify/multipart':
+        specifier: ^10.0.0
+        version: 10.0.0
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.16
@@ -3893,9 +3902,15 @@ importers:
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
+      bullmq:
+        specifier: ^5.76.1
+        version: 5.76.1
       fastify:
         specifier: ^5.12.8
         version: 5.12.8
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
       lucide-react:
         specifier: ^1.11.0
         version: 1.11.0(react@19.2.5)

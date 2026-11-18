@@ -112,10 +112,24 @@ Steps 1–2 are file edits; step 3 is the local guard.
    to date, so pin only pages you have actually brought up to date.
 
    Exit code `0` = every source has a fresh pin, a materialised file from which
-   Docusaurus can resolve a title, and every chrome id in the file that reads
-   it. Exit code `2` lists `missing-translation`, `stale-translation`,
-   `malformed-pin`, `missing-sidebar-message`, `chrome-message-missing`,
-   `chrome-message-inert` or `doc-title-unresolvable` findings.
+   Docusaurus can resolve a title and whose headings match the English page,
+   and every chrome id in the file that reads it. Exit code `2` lists
+   `missing-translation`, `stale-translation`, `malformed-pin`,
+   `missing-sidebar-message`, `chrome-message-missing`, `chrome-message-inert`,
+   `doc-title-unresolvable` or `structure-divergence` findings.
+
+   **`structure-divergence`** compares the heading outline of a freshly pinned
+   page with its translation, because a pin only says which English body the
+   translation was made from: a merge that drops an English section and
+   re-pins passes the hash while the Polish page keeps the section. Headings
+   are paired by the id they render with — an explicit `{#anchor}`, or the
+   slug Docusaurus derives from the English heading text — so give a Polish
+   heading the English id (`## Wyłączanie modułu {#switching-the-module-off}`)
+   rather than an id of its own. A paired heading at another level, an
+   explicit anchor on one side only, or a different number of the remaining
+   headings at one level is a finding. The limit: headings without an
+   explicit anchor are compared only as a count per level, so dropping one
+   section and adding another at the same level on the same side is not seen.
 
 ### Translation pins
 

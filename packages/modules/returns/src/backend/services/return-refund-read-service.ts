@@ -11,6 +11,7 @@ import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import { Refund } from '../entities/refund.entity.js';
 import { settledReturnLine } from '../domain/refund-math.js';
 import { MONEY_RESOLUTIONS, entersKeptState } from '../domain/kept-state.js';
+import { isOrderCaseItem } from './default-refund-service.js';
 
 /**
  * `returnRefundReadPort` — what the order's settled return cases refunded
@@ -62,7 +63,7 @@ export class ReturnRefundReadService implements ReturnRefundReadPort {
       { orderBy: { orderItemId: 'asc', id: 'asc' } },
     );
     const byLine = new Map<string, { quantity: number; discounts: string[]; retained: string[] }>();
-    for (const item of items) {
+    for (const item of items.filter(isOrderCaseItem)) {
       const line = byLine.get(item.orderItemId) ?? { quantity: 0, discounts: [], retained: [] };
       line.quantity += item.quantity;
       // The discount the settled refund carried — the figure the settlement

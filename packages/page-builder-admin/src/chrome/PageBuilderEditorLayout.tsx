@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import { cn } from '@endora-commerce/admin-kit/lib';
+import { useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
@@ -137,6 +138,18 @@ export interface PageBuilderEditorLayoutProps {
    */
   settings?: ReactNode | undefined;
   settingsPanel?: PageBuilderEditorSettingsPanel | undefined;
+  /**
+   * Issue #1446 (DS-13) — whether the editor holds changes a navigation would
+   * lose: the draft compared with the last saved version (`isDraftEqual`). While
+   * `true` a link out of the editor, the sidebar included, asks Save / Discard /
+   * Stay first and closing the browser tab asks too. Pair it with an
+   * `UnsavedChangesHint` beside the Save button.
+   */
+  dirty?: boolean | undefined;
+  /** The dialog's *Save and continue*; resolves `true` when the save went through. */
+  onSave?: (() => Promise<boolean>) | undefined;
+  /** The dialog's *Discard changes*, run before the navigation goes ahead. */
+  onDiscard?: (() => void) | undefined;
 }
 
 /**
@@ -168,8 +181,12 @@ export function PageBuilderEditorLayout({
   builderLabel,
   settings,
   settingsPanel,
+  dirty = false,
+  onSave,
+  onDiscard,
 }: PageBuilderEditorLayoutProps): ReactNode {
   const t = useTranslation('core');
+  const unsavedGuard = useUnsavedChangesGuard({ dirty, onSave, onDiscard });
   const baseId = useId();
   const panelId = `${baseId}-settings`;
   const panelHeadingId = `${baseId}-settings-heading`;
@@ -204,6 +221,7 @@ export function PageBuilderEditorLayout({
           {settingsHeading}
           <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">{settings}</div>
         </section>
+        {unsavedGuard.dialog}
       </div>
     );
   }
@@ -292,6 +310,7 @@ export function PageBuilderEditorLayout({
           {builder}
         </section>
       </div>
+      {unsavedGuard.dialog}
     </div>
   );
 }

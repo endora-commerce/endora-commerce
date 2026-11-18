@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { setMobileViewport } from '../../setup';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 
 /**
  * Issue #1387 — the admin cart detail printed the raw cart status and approval
@@ -95,11 +96,35 @@ const AUDIT_ROW = {
   occurredAt: '2026-05-22T12:00:00Z',
   actorType: 'org_admin',
   actorDisplayName: 'Boss',
-  action: 'reject',
-  fromState: 'x',
-  toState: 'y',
+  action: 'approval_rejected',
+  fromState: 'pending',
+  toState: 'rejected_by_org_admin',
   reason: 'Over budget',
 };
+
+/** Every actor type and action the carts module records (`cart-audit-entry.entity.ts`). */
+const ACTOR_TYPES = ['customer', 'org_admin', 'platform_admin', 'system', 'sweep'];
+const ACTIONS = [
+  'status_changed',
+  'approval_submitted',
+  'approval_approved',
+  'approval_rejected',
+  'approval_policy_reset',
+  'approval_resubmission_required',
+  'coupon_applied',
+  'coupon_dropped',
+  'converted_to_qr',
+  'created_from_qr',
+  'created_from_shopping_list',
+  'admin_rejected',
+  'abandonment_swept',
+  'abandonment_reactivated',
+  'line_added',
+  'line_removed',
+  'line_qty_changed',
+  'cart_merged_from_anon',
+  'lines_restored_from_rejection',
+];
 
 /** Leaf nodes whose whole text is a raw status code. */
 function rawCodesOnScreen(): string[] {
@@ -145,6 +170,34 @@ describe.each(['en', 'pl'] as const)('Cart detail labels (%s) — issue #1387', 
     expect(screen.getByText(own['carts.status.abandoned']!)).toBeInTheDocument();
     expect(screen.getByText(own['carts.approvalStatus.rejected_by_org_admin']!)).toBeInTheDocument();
     expect(rawCodesOnScreen()).toEqual([]);
+  });
+
+  it('labels the audit feed: actor type, action and both states (issue #1476)', async () => {
+    renderDetail(detailFixture(), [AUDIT_ROW]);
+    await screen.findByText('Sample');
+    const feed = screen.getAllByRole('table')[1]!;
+    expect(within(feed).getByText(own['carts.audit.actor.org_admin']!)).toBeInTheDocument();
+    expect(within(feed).getByText(own['carts.audit.actionLabel.approval_rejected']!)).toBeInTheDocument();
+    expect(within(feed).getByText(new RegExp(own['carts.approvalStatus.pending']!))).toBeInTheDocument();
+    const leaves = [...feed.querySelectorAll('*')]
+      .filter((node) => node.childElementCount === 0)
+      .map((node) => node.textContent?.trim() ?? '');
+    for (const raw of ['org_admin', 'approval_rejected', 'pending', 'rejected_by_org_admin']) {
+      expect(leaves.some((text) => text.includes(raw)), raw).toBe(false);
+    }
+  });
+
+  it('ships a label for every recorded actor type and action', () => {
+    for (const actor of ACTOR_TYPES) expect(own[`carts.audit.actor.${actor}`], actor).toBeTruthy();
+    for (const action of ACTIONS) expect(own[`carts.audit.actionLabel.${action}`], action).toBeTruthy();
+  });
+
+  it('keeps the cart UUID out of the page header (issue #1477)', async () => {
+    renderDetail(detailFixture({ ownerDisplayName: 'Jane Buyer' }), []);
+    await screen.findByText('Sample');
+    const header = document.querySelector('header');
+    expect(header?.textContent).not.toContain(CART_ID);
+    expect(header?.textContent).toContain('Jane Buyer');
   });
 
   it('shows no raw catalogue key on a cart with every optional section and an audit feed', async () => {
@@ -200,11 +253,15 @@ describe.each(['en', 'pl'] as const)('Carts list literals (%s) — issue #1387',
   };
 
   function renderList(): void {
-    getSpy.mockResolvedValue({ data: [ROW] });
+    getSpy.mockResolvedValue({ data: [ROW], meta: { page: 1, pageSize: 20, totalCount: 1 } });
     renderWithI18n(
-      <MemoryRouter>
-        <CartsList />
-      </MemoryRouter>,
+      // The list remembers its page size as the admin's preference (#1473).
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       CATALOGUES[language],
       { language },
     );
@@ -214,6 +271,27 @@ describe.each(['en', 'pl'] as const)('Carts list literals (%s) — issue #1387',
     renderList();
     const table = await screen.findByRole('table');
     expect(within(table).getByText(own['carts.owner.anonymous']!)).toBeInTheDocument();
+  });
+
+  it('leads each row with its owner, linked to the cart, and no UUID (issue #1477)', async () => {
+    getSpy.mockResolvedValue({
+      data: [{ ...ROW, ownerDisplayName: 'Jane Buyer' }],
+      meta: { page: 1, pageSize: 20, totalCount: 1 },
+    });
+    renderWithI18n(
+      // The list remembers its page size as the admin's preference (#1473).
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
+      CATALOGUES[language],
+      { language },
+    );
+    const table = await screen.findByRole('table');
+    expect(within(table).getByRole('link', { name: 'Jane Buyer' })).toHaveAttribute('href', `/carts/${CART_ID}`);
+    expect(table.textContent).not.toContain(CART_ID.slice(0, 8));
   });
 
   it('labels the item-count meta line from the carts catalogue', async () => {

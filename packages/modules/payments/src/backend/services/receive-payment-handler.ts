@@ -233,6 +233,7 @@ export class ReceivePaymentHandler {
           idempotent: true,
           emit: false,
           transition: null as { to: string; setting: TransitionTrigger } | null,
+          refused: null as { from: string; to: string } | null,
         };
       }
 
@@ -277,6 +278,18 @@ export class ReceivePaymentHandler {
         }
       }
 
+      // Issue #1574 — the order's money axis refused the move (a late decline
+      // on an order already paid, a late success on a refunded one). The
+      // payment row keeps the provider's fact, and the method's
+      // `status_on_success` / `status_on_failure` — the consequence of the
+      // money moving — is not asked for: it must not hold a paid order or
+      // advance a refunded one.
+      const refused: { from: string; to: string } | null =
+        applied?.outcome === 'refused'
+          ? { from: applied.paymentStatus, to: input.outcome === 'success' ? 'paid' : 'failed' }
+          : null;
+      if (refused) transition = null;
+
       await tx.flush();
       return {
         payment,
@@ -285,8 +298,22 @@ export class ReceivePaymentHandler {
         emit: true,
         adapter: method?.adapter ?? payment.paymentMethodId,
         transition,
+        refused,
       };
     });
+
+    if (result.refused) {
+      this.log.warn(
+        {
+          paymentId: result.payment.id,
+          orderId: result.payment.orderId,
+          from: result.refused.from,
+          to: result.refused.to,
+        },
+        'payments: the order payment status was not changed, because its current status does not allow the move; ' +
+          'the payment is recorded and no order status change was requested',
+      );
+    }
 
     /**
      * After the commit, never inside the transaction above (feature 085 R4).
@@ -475,7 +502,18 @@ export class ReceivePaymentHandler {
             paymentStatus: 'refunded',
           })
         : null;
+      // Issue #1574 — a full refund reported for an order that is not `paid`
+      // is refused on the money axis and the column stays. The order is still
+      // held: the hold is the operator-review flag, and this is exactly the
+      // anomaly it is for.
       const holdsTheOrder = refunded !== null;
+      if (refunded?.outcome === 'refused') {
+        this.log.warn(
+          { paymentId: payment.id, orderId: payment.orderId, from: refunded.paymentStatus, to: 'refunded' },
+          'payments: a full refund was reported for an order that is not paid; its payment status was not ' +
+            'changed and the order is held for review',
+        );
+      }
 
       await tx.flush();
       return { payment, changed, holdsTheOrder, refused: null as string | null };

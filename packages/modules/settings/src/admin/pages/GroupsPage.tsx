@@ -110,7 +110,7 @@ export function GroupsPage(): ReactNode {
           <CardTitle className="text-base">{t('groups.newGroup.title')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-3 md:grid-cols-[1fr_2fr_auto]" onSubmit={onCreate}>
+          <form className="grid gap-3 md:grid-cols-[1fr_2fr_auto]" onSubmit={(e) => void onCreate(e)}>
             <Input
               placeholder={t('groups.newGroup.codePlaceholder')}
               value={draftCode}

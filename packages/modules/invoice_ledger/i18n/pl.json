@@ -49,5 +49,9 @@
   "errors.INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE": "Tej dostawy nie można ponowić.",
   "errors.INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED": "Zmianę źródła numeracji faktur trzeba potwierdzić. Zaznacz potwierdzenie i zapisz ponownie.",
   "actions.openDeliveries.keywords": "faktury",
-  "settingGroups.invoice_ledger.name": "Księga faktur"
+  "settingGroups.invoice_ledger.name": "Księga faktur",
+  "settingLabels.invoice_ledger.numbering.mode.options.endora": "Numer nadaje Endora (tryb A)",
+  "settingLabels.invoice_ledger.numbering.mode.options.vendor": "Numer nadaje system księgowy (tryb B)",
+  "settingLabels.invoice_ledger.ksef.routing.options.native": "Platforma (natywnie)",
+  "settingLabels.invoice_ledger.ksef.routing.options.vendor": "System księgowy"
 }

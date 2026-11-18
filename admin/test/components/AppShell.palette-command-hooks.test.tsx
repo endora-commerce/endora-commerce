@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { parseBundleKeywords } from '@endora-commerce/contracts';
@@ -109,7 +109,7 @@ async function openPalette(language: SupportedAdminLanguage, permissions: readon
     ),
     coreBundle,
   );
-  await userEvent.click(screen.getByPlaceholderText('appShell.search.placeholder'));
+  await userEvent.click(within(document.querySelector<HTMLElement>('aside.b2b-sidebar')!).getByRole('button', { name: 'appShell.search.openPalette' }));
   return screen.findByRole('dialog');
 }
 

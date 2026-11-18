@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Flag, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { TaskPriorityConfig } from '@endora-commerce/contracts';
 import { statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
 import {
@@ -24,6 +24,7 @@ import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n'
 import { tasksApi } from '../../api.js';
 import { TaskPriorityDeleteDialog } from '../../components/priorities/TaskPriorityDeleteDialog.js';
 import { TaskPriorityDialog, type TaskPriorityDialogSubmit } from '../../components/priorities/TaskPriorityDialog.js';
+import { SettingsEmptyState } from '../../components/SettingsEmptyState.js';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
 import { TASK_WORKFLOW_PATH } from '../../lib/settings-paths.js';
 
@@ -128,14 +129,22 @@ export function TaskPrioritiesPage(): ReactNode {
             <CardTitle>{t('priorities.list.title')}</CardTitle>
             <CardDescription>{t('priorities.list.description')}</CardDescription>
           </div>
-          <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
-            <Plus aria-hidden="true" />
-            {t('priorities.add')}
-          </Button>
+          {ordered.length > 0 ? (
+            <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
+              <Plus aria-hidden="true" />
+              {t('priorities.add')}
+            </Button>
+          ) : null}
         </CardHeader>
         <CardContent>
           {ordered.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('priorities.empty')}</p>
+            <SettingsEmptyState
+              icon={<Flag size={20} />}
+              title={t('priorities.empty.title')}
+              body={t('priorities.empty.body')}
+              actionLabel={t('priorities.add')}
+              onAction={(): void => setDialog({ kind: 'create' })}
+            />
           ) : (
             <Table aria-label={t('priorities.title')}>
               <TableHeader>
@@ -197,6 +206,7 @@ export function TaskPrioritiesPage(): ReactNode {
         <TaskPriorityDialog
           priority={dialog.kind === 'edit' ? dialog.priority : null}
           nextWeight={nextWeight}
+          takenCodes={ordered.map((priority) => priority.code)}
           language={language}
           onSubmit={submitPriority}
           onClose={(): void => setDialog(null)}

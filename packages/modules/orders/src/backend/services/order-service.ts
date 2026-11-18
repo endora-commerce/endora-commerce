@@ -120,6 +120,7 @@ import type { InventoryReservationApplyPort } from '@endora-commerce/mod-invento
 import { releaseOrderAllocations } from './order-allocation-release.js';
 import type { OrderTransitionEffectService } from './order-transition-effect-service.js';
 import { effectsOwedByPaymentStatusChange } from '../domain/transition-effects.js';
+import { decidePaymentStatusChange } from '../domain/payment-status-transition.js';
 import { judgeQuoteRequestSource } from '../domain/quote-request-source.js';
 import {
   adminLayout,
@@ -3040,6 +3041,11 @@ export class OrderService {
    * credit an order actually drew. The rule reads `paymentMethodSnapshot.kind`,
    * stamped at placement from the same value that decides whether `reserve`
    * runs, so an order that is not on credit owes no follow-up at all.
+   *
+   * Issue #1574 — the move is one of `PAYMENT_STATUS_TRANSITIONS`' operator
+   * edges or it is refused with 409 `ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED`
+   * and writes nothing. 404 is answered first, so a refusal never confirms
+   * that an order outside the caller's scope exists.
    */
   async transitionPaymentStatus(
     orderId: string,
@@ -3060,6 +3066,26 @@ export class OrderService {
       );
       if (!locked) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
 
+      // Issue #1574 — decided on the LOCKED row, never on the pre-lock read
+      // above: a settlement that lands between the two is judged as it is. The
+      // status the order already has is a no-op — no audit entry, and no second
+      // follow-up (a repeated `paid` recorded a second `credit.release`).
+      const paymentBefore = locked.paymentStatus;
+      const decision = decidePaymentStatusChange(paymentBefore, to, 'operator');
+      if (decision.kind === 'unchanged') return { order: locked, owes: false };
+      if (decision.kind === 'refused') {
+        throw new HttpError(
+          409,
+          ERROR_CODES.ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED,
+          `The payment status cannot change from "${paymentBefore}" to "${to}".`,
+          {
+            ...(decision.token ? { code: decision.token } : {}),
+            from: paymentBefore,
+            to,
+          },
+        );
+      }
+
       const owed = effectsOwedByPaymentStatusChange(locked, to);
       if (owed.length > 0 && !this.transitionEffects) {
         throw new Error(
@@ -3069,7 +3095,6 @@ export class OrderService {
         );
       }
 
-      const paymentBefore = locked.paymentStatus;
       locked.paymentStatus = to;
       // Feature 054 — audit the payment-status change co-transactionally (actor
       // from the ambient TenantContext; the admin route always carries one).

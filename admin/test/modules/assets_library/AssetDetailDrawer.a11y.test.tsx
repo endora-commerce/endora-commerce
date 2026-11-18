@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
-import { ASSET_ID, detail, en, mockClient, refusal, renderDrawer } from './drawer-fixtures';
+import { ASSET_ID, core, detail, en, mockClient, refusal, renderDrawer } from './drawer-fixtures';
 
 /**
  * `specs/156-asset-stable-url/` UI block review — the asset detail drawer's
@@ -67,7 +67,7 @@ describe('AssetDetailDrawer — axe', () => {
     expect(screen.getByRole('button', { name: en('detail.close') })).toBeInTheDocument();
     expect(screen.getByLabelText(en('detail.filename'))).toBeInTheDocument();
     expect(screen.getByLabelText(en('detail.mimeType'))).toBeInTheDocument();
-    expect(screen.getByLabelText(en('detail.visibility'))).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `${core('common.statusChange.change')} ${en('detail.visibility')}` })).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 
@@ -102,6 +102,21 @@ describe('AssetDetailDrawer — axe', () => {
 
     await user.click(screen.getByRole('button', { name: en('detail.softDelete') }));
     await expectNoAxeViolations(await screen.findByRole('dialog', { name: en('detail.delete.permalinkTitle') }));
+  });
+});
+
+describe('AssetDetailDrawer — visibility dialog axe (issue #1575)', () => {
+  it('both steps of the visibility dialog have no violations', async () => {
+    client.current!.getAsset.mockResolvedValue(detail());
+    const user = userEvent.setup();
+    render();
+    await user.click(
+      await screen.findByRole('button', { name: `${core('common.statusChange.change')} ${en('detail.visibility')}` }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: en('detail.visibilityChangeTitle') });
+    await expectNoAxeViolations(dialog);
+    await user.click(within(dialog).getByRole('button', { name: core('common.statusChange.continue') }));
+    await expectNoAxeViolations(await screen.findByRole('dialog', { name: core('common.statusChange.confirmTitle') }));
   });
 });
 

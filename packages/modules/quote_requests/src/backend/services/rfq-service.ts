@@ -1017,11 +1017,15 @@ export class RfqService {
       lines: sourceItems,
     });
     const capturedAt = new Date();
+    // A re-submitted request is numbered like any other, never with the
+    // entity's `QR-<uuid>` placeholder.
+    const businessId = await this.generateBusinessId(em);
 
     // FR-001 — as `createForCustomer`: the new request and everything naming
     // it commit together.
     const newRfq = await inTransaction(em, async () => {
       const newRfq = em.create(QuoteRequest, {
+        ...(businessId ? { businessId } : {}),
         organizationId: ctx.organizationId,
         customerAccountId: ctx.customerAccountId,
         salesChannelId,

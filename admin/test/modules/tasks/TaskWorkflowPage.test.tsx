@@ -158,17 +158,95 @@ describe('TaskWorkflowPage — the statuses', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('refuses a malformed code or a missing name before it reaches the server', async () => {
+  it('refuses a code with a leading digit or a missing name before it reaches the server', async () => {
     await renderPage();
     await userEvent.click(screen.getByRole('button', { name: en('workflow.status.add') }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.code')), 'In Review');
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.code')), '2nd review');
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+    // Normalised on blur, and still refused: a code starts with a letter.
+    expect(within(dialog).getByLabelText(en('workflow.field.code'))).toHaveValue('2nd_review');
     expect(await within(dialog).findByText(en('workflow.error.code'))).toBeInTheDocument();
     expect(within(dialog).getByText(en('workflow.error.name'))).toBeInTheDocument();
+    // Focus goes to the first invalid field, whose description is the error (WCAG 3.3.1, #512).
+    await waitFor(() => expect(within(dialog).getByLabelText(en('workflow.field.code'))).toHaveFocus());
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+});
+
+/** Issue #1560 (WORK-09) and the architect ruling on #512 — the code comes from the English name. */
+describe('TaskWorkflowPage — the code of a new status', () => {
+  async function openCreate(): Promise<HTMLElement> {
+    await renderPage();
+    await userEvent.click(screen.getByRole('button', { name: en('workflow.status.add') }));
+    return screen.getByRole('dialog');
+  }
+
+  it('follows the English name, Polish diacritics folded, and says where it comes from', async () => {
+    const dialog = await openCreate();
+    const code = within(dialog).getByLabelText(en('workflow.field.code'));
+    expect(code).toHaveAccessibleDescription(en('workflow.field.codeHint'));
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.en')), 'Gotowe do wysyłki');
+    expect(code).toHaveValue('gotowe_do_wysylki');
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.pl')), 'Gotowe do wysyłki');
+    await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    expect(postSpy.mock.calls[0]![1]).toMatchObject({ code: 'gotowe_do_wysylki' });
+  });
+
+  it('stops following once the operator edits the code', async () => {
+    const dialog = await openCreate();
+    const code = within(dialog).getByLabelText(en('workflow.field.code'));
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.en')), 'Review');
+    await userEvent.type(code, '_qa');
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.en')), ' later');
+    expect(code).toHaveValue('review_qa');
+  });
+
+  it('normalises a typed code on blur instead of refusing it', async () => {
+    const dialog = await openCreate();
+    const code = within(dialog).getByLabelText(en('workflow.field.code'));
+    await userEvent.type(code, 'In Review');
+    await userEvent.tab();
+    expect(code).toHaveValue('in_review');
+    expect(within(dialog).queryByText(en('workflow.error.code'))).toBeNull();
+  });
+
+  it('refuses a code already in the workflow, without suffixing it, before it reaches the server', async () => {
+    const dialog = await openCreate();
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.en')), 'Done');
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.pl')), 'Zrobione');
+    await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+    const code = within(dialog).getByLabelText(en('workflow.field.code'));
+    expect(code).toHaveValue('done');
+    expect(code).toHaveAccessibleDescription(en('workflow.error.codeTaken'));
+    await waitFor(() => expect(code).toHaveFocus());
     expect(postSpy).not.toHaveBeenCalled();
   });
 
+  it('says the server’s collision at the code', async () => {
+    postSpy.mockRejectedValue(
+      new ApiError(422, {
+        error: {
+          code: 'TASK_WORKFLOW_INVALID',
+          message: 'A status with the code "in_review" already exists.',
+          details: { rule: 'status_code_taken', code: 'status_code_taken' },
+        },
+      }),
+    );
+    const dialog = await openCreate();
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.en')), 'In review');
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.pl')), 'Do przeglądu');
+    await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+    const code = within(dialog).getByLabelText(en('workflow.field.code'));
+    await waitFor(() => expect(code).toHaveAccessibleDescription(en('workflow.error.codeTaken')));
+    expect(code).toHaveAttribute('aria-invalid', 'true');
+    await waitFor(() => expect(code).toHaveFocus());
+    expect(screen.getByRole('dialog')).toBe(dialog);
+  });
+});
+
+describe('TaskWorkflowPage — editing a status', () => {
   it('edits a status and sends only what changed — never the code', async () => {
     await renderPage();
     await userEvent.click(
@@ -357,6 +435,37 @@ describe('TaskWorkflowPage — the board card (FR-022)', () => {
       expect(putSpy).toHaveBeenCalledWith(`${API}/board/card-fields`, { fields: ['custom:region', 'builtin:due'] }),
     );
     expect(await within(section).findByText(en('boardCard.saved'))).toBeInTheDocument();
+  });
+
+  it('scrolls to the board card when opened at #board-card, once the workflow has loaded (#512)', async () => {
+    // jsdom lays nothing out and has no `scrollIntoView`: what is held is which element is asked.
+    const original = Element.prototype.scrollIntoView;
+    const scrolled: Element[] = [];
+    Element.prototype.scrollIntoView = function scrollIntoView(this: Element): void {
+      scrolled.push(this);
+    };
+    try {
+      renderTasks(<TaskWorkflowPage />, { permissions: CONFIGURER, path: '/tasks/settings/workflow#board-card' });
+      const section = await screen.findByRole('region', { name: en('boardCard.title') });
+      await waitFor(() => expect(scrolled).toContain(section));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it('asks before a link leaves the screen with an unsaved card choice (#512)', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    try {
+      await renderPage();
+      const section = await screen.findByRole('region', { name: en('boardCard.title') });
+      await within(section).findByRole('list', { name: en('boardCard.shown.title') });
+      await userEvent.click(within(section).getByRole('button', { name: en('boardCard.add', { field: 'Region' }) }));
+      await userEvent.click(screen.getByRole('link', { name: en('settings.tags.link') }));
+      expect(confirmSpy).toHaveBeenCalledWith(core('form.unsavedChanges.confirm'));
+      expect(screen.getByRole('region', { name: en('boardCard.title') })).toBeInTheDocument();
+    } finally {
+      confirmSpy.mockRestore();
+    }
   });
 
   it('keeps focus on the moved row, or its neighbour, as the two lists change (WCAG 2.4.3)', async () => {

@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { orphanLabels } from '../../helpers/orphan-labels';
 import { withLocalStorage } from '../../helpers/with-local-storage';
 import { withViewportWidth } from '../../helpers/with-viewport-width';
 import { PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY } from '../../../../packages/page-builder-admin/src/chrome/PageBuilderEditorLayout';
@@ -28,7 +29,18 @@ import { TemplateEditor } from '../../../../packages/modules/cms/src/admin/edito
  * here is about what is inside it.
  */
 vi.mock('../../../../packages/modules/cms/src/admin/components/PageBuilderEditor', () => ({
-  PageBuilderEditor: (): ReactElement => <div data-testid="canvas-stub">canvas</div>,
+  // Issue #1461 — the stub can emit a canvas change: an edit, or a reseed equal to what is stored.
+  PageBuilderEditor: ({ onChange }: { onChange?: (data: unknown) => void }): ReactElement => (
+    <div data-testid="canvas-stub">
+      canvas
+      <button type="button" onClick={() => onChange?.({ root: { props: {} }, content: [{ type: 'Hero', props: { id: 'h1' } }] })}>
+        edit-canvas
+      </button>
+      <button type="button" onClick={() => onChange?.({ root: { props: {} }, content: [] })}>
+        reseed-canvas
+      </button>
+    </div>
+  ),
 }));
 
 function bundleOf(pkg: string, language: 'en' | 'pl'): Record<string, string> {
@@ -41,6 +53,13 @@ const en = bundleOf('cms', 'en');
 const pl = bundleOf('cms', 'pl');
 /** The shell reads the synthetic `core` scope, which `_i18n`'s bundle is served under. */
 const coreEn = bundleOf('_i18n', 'en');
+
+/** The shipped `core` copy of the unsaved-changes guard (issue #1461). */
+function ux(key: string): string {
+  const value = coreEn[`form.unsavedChanges.${key}`];
+  if (!value) throw new Error(`_i18n/i18n/en.json carries no "form.unsavedChanges.${key}"`);
+  return value;
+}
 const corePl = bundleOf('_i18n', 'pl');
 
 /** The shipped English copy of the shared shell. */
@@ -88,6 +107,8 @@ interface Screen {
   element: ReactElement;
   metadataTitle: string;
   missingChannel: string;
+  /** The metadata card's text fields, by the label each must be named by (#1465). */
+  labelledFields: string[];
 }
 
 const screens: Screen[] = [
@@ -97,6 +118,7 @@ const screens: Screen[] = [
     element: <PageEditor />,
     metadataTitle: copy('pageEditor.metadata'),
     missingChannel: copy('pageEditor.errors.selectChannel'),
+    labelledFields: [copy('fields.name'), copy('fields.slug'), copy('fields.description')],
   },
   {
     name: 'BlockEditor',
@@ -104,6 +126,7 @@ const screens: Screen[] = [
     element: <BlockEditor />,
     metadataTitle: copy('blockEditor.metadata'),
     missingChannel: copy('blockEditor.errors.selectChannel'),
+    labelledFields: [copy('fields.name'), copy('fields.code'), copy('fields.description')],
   },
   {
     name: 'TemplateEditor',
@@ -111,6 +134,7 @@ const screens: Screen[] = [
     element: <TemplateEditor />,
     metadataTitle: copy('templateEditor.metadata'),
     missingChannel: copy('templateEditor.errors.selectChannel'),
+    labelledFields: [copy('fields.name'), copy('fields.code'), copy('fields.description')],
   },
 ];
 
@@ -151,6 +175,25 @@ afterEach(() => {
 });
 
 describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => {
+  it('names each metadata field by the label above it (#1465)', () => {
+    renderEditor(screenUnderTest, 'new');
+    const settings = screen.getByRole('complementary', { name: shell('settings') });
+    for (const label of screenUnderTest.labelledFields) {
+      expect(within(settings).getByRole('textbox', { name: label })).toBeInTheDocument();
+    }
+    // The metadata card: its title sits in the card's header (CardTitle → CardHeader → Card).
+    const metadataCard = within(settings).getByText(screenUnderTest.metadataTitle).parentElement!.parentElement!;
+    expect(within(metadataCard).getByRole('textbox', { name: screenUnderTest.labelledFields[0]! })).toBeInTheDocument();
+    expect(orphanLabels(metadataCard)).toEqual([]);
+    if (screenUnderTest.name === 'PageEditor') {
+      expect(within(settings).getByRole('combobox', { name: copy('fields.status') })).toBeDisabled();
+      // The public address under the slug describes it.
+      expect(within(settings).getByRole('textbox', { name: copy('fields.slug') })).toHaveAccessibleDescription(
+        new RegExp(copy('pageEditor.publicAddress')),
+      );
+    }
+  });
+
   it('hands the metadata card and the scope picker to the settings panel, metadata first', async () => {
     renderEditor(screenUnderTest, 'new');
 
@@ -586,5 +629,65 @@ describe('PageEditor language version (feature 163, R24)', () => {
       expect(pl[key], key).toBeTruthy();
       expect(pl[key], key).not.toBe(en[key]);
     }
+  });
+});
+
+/**
+ * Issue #1461 (UX audit CONTENT-02) — every CMS editor compares its draft with
+ * the last saved version and, while they differ, says so beside Save and asks
+ * Save / Discard / Stay before a link (Back, the sidebar) takes the operator away.
+ */
+describe.each(screens)('$name — unsaved changes', (screenUnderTest) => {
+  function renderWithList(): void {
+    renderWithI18n(
+      <MemoryRouter initialEntries={[`${screenUnderTest.path}/entity-1`]}>
+        <Routes>
+          <Route path={`${screenUnderTest.path}/:id`} element={screenUnderTest.element} />
+          <Route path={screenUnderTest.path} element={<p>List screen</p>} />
+        </Routes>
+      </MemoryRouter>,
+      { cms: en, core: coreEn },
+    );
+  }
+
+  async function loaded(): Promise<void> {
+    await screen.findByRole('heading', { level: 1, name: 'Stored entity' });
+  }
+
+  function nameField(): HTMLInputElement {
+    const settings = screen.getByRole('complementary', { name: shell('settings') });
+    return within(settings).getAllByRole('textbox')[0] as HTMLInputElement;
+  }
+
+  it('is clean as loaded, and a canvas reseed equal to what is stored is not an edit', async () => {
+    renderWithList();
+    await loaded();
+    expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'reseed-canvas' }));
+    expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe('');
+    fireEvent.click(screen.getByRole('link', { name: copy('common.back') }));
+    expect(await screen.findByText('List screen')).toBeTruthy();
+  });
+
+  it('a metadata edit shows the hint; Back asks, Stay keeps the edit', async () => {
+    renderWithList();
+    await loaded();
+    fireEvent.change(nameField(), { target: { value: 'Renamed' } });
+    expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe(ux('hint'));
+    fireEvent.click(screen.getByRole('link', { name: copy('common.back') }));
+    const dialog = screen.getByRole('dialog', { name: ux('title') });
+    fireEvent.click(within(dialog).getByRole('button', { name: ux('stay') }));
+    expect(screen.queryByText('List screen')).toBeNull();
+    expect(nameField().value).toBe('Renamed');
+  });
+
+  it('a canvas edit is unsaved too, and Discard leaves for where the link pointed', async () => {
+    renderWithList();
+    await loaded();
+    fireEvent.click(screen.getByRole('button', { name: 'edit-canvas' }));
+    expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe(ux('hint'));
+    fireEvent.click(screen.getByRole('link', { name: copy('common.back') }));
+    fireEvent.click(screen.getByRole('button', { name: ux('discard') }));
+    expect(await screen.findByText('List screen')).toBeTruthy();
   });
 });

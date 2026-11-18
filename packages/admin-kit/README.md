@@ -9,9 +9,9 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 
 | Subpath | What it is |
 | --- | --- |
-| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
-| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
-| `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt, the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
+| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
+| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
+| `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
 | `./contributions` | the declaration types, re-exported from `@endora-commerce/contracts` so a module needs one import for the shapes and not two |
 
@@ -209,6 +209,331 @@ contribution** when the *owner* decides that it appears, and a **published compo
   chance for that replacement to stop happening in a way no type-check can see. Nothing
   imports `vite`, so it does not reach `dist` and is not a consumer's dependency.
 
+## Form fields — `FormField` and `HelpTip`
+
+Issue #1432 (UX audit 2026-11-17, DS-08). Every labelled input in a module's admin layer goes
+through `FormField`, so no screen wires `htmlFor`, `aria-describedby` or `aria-invalid` by hand:
+
+```tsx
+<FormField label={t('field.email')} hint={t('field.emailHint')} error={errors.email} required>
+  <Input type="email" value={email} onChange={onEmail} />
+</FormField>
+```
+
+- **The child is cloned with the wiring** — `Input`, `Select`, `Textarea`, `Checkbox` and any
+  component that forwards `id` and `aria-*` to its input. For a control that needs the wiring
+  somewhere other than its root, pass a function: `{(control) => <Picker inputId={control.id} />}`.
+- **`group`** is for a composite with no single labellable element (an address block, an asset
+  picker): the field becomes a `role="group"` named by the label, and the descriptions describe the
+  group. A `<label for>` pointing at nothing is worse than none.
+- **`hint` is one line** and is clamped to it; longer text goes to **`help`**, a `HelpTip` (a ⓘ
+  disclosure beside the label, opened by click, tap or keyboard, closed by Escape — never a
+  hover-only tooltip). **`description`** is linked like the hint but never clamped; it exists for
+  copy that is not yet short enough to be a hint, and the content rule in
+  `specs/conventions/module-i18n.md` is what retires it.
+- **`error`** marks the control `aria-invalid`, comes first in its `aria-describedby`, and renders
+  into a polite live region that is mounted, empty, from the first render.
+- **`required`** is an asterisk hidden from assistive technology plus `aria-required` on the
+  control; native `required` is left to the caller, so a form's own validation is not replaced by
+  the browser's.
+- **Spacing is the field's, margins are the form's**: label → control 6 px, control → hint 4 px,
+  no outer margin — the form's `space-y-4` keeps field → field the larger gap (Law of Proximity).
+- `labelAddon` (badges, a copy button — outside the `<label>`, so not in the accessible name),
+  `action` (end of the label line, as in `Section`) and `describedBy` (ids of descriptions rendered
+  elsewhere) cover the editor rows that carry more than a label.
+
+The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass.
+
+## Unsaved changes — `useUnsavedChangesGuard`
+
+Issue #1446 (UX audit 2026-11-17, DS-13). A screen that holds edits a navigation would lose arms
+**one** guard; there is no second implementation to pick from:
+
+```tsx
+const dirty = !isDraftEqual(draft, saved);          // ./lib — key order and undefined keys ignored
+const guard = useUnsavedChangesGuard({ dirty, onSave: save, onDiscard: reset });
+…
+<UnsavedChangesHint dirty={dirty} />                 // beside the Save button
+<Select onChange={(e) => guard.confirm(() => switchLanguage(e.target.value))} />
+{guard.dialog}
+```
+
+- **What it intercepts**: `beforeunload` (the browser's own prompt — it cannot be replaced); every
+  same-origin link click, the sidebar and Back links included, in the capture phase before React
+  Router; with `guardTabsOutside`, a `role="tab"` outside the given element; and whatever the screen
+  routes through **`confirm(action)`** — its own `navigate()` calls and any in-screen switch that
+  would reload over the draft (a channel or a language select).
+- **What it asks**: *Save and continue* (the one primary action; the navigation goes ahead only if
+  `onSave` resolves `true`, and a refused save leaves the operator on the screen with its own error),
+  *Discard changes* (`onDiscard`, then the navigation), *Stay here* (the initial focus, so an Enter
+  pressed by accident keeps the work). Without `onSave` — no permission, nothing valid to send — the
+  choice is Discard or Stay. Copy is `core`'s `form.unsavedChanges.*`; `title` and `message` override it.
+- **The blocked link or tab is replayed**, not re-routed: the same element is clicked again with the
+  guard stood down, so the guard needs no router and keeps whatever the link does.
+- **Not interceptable here**: Back / Forward. The admin mounts a component `<BrowserRouter>`, not a
+  data router, so React Router's `useBlocker` is unavailable; that would take moving `AdminRoot` to
+  `createBrowserRouter`.
+- **`dirty` is the draft against the last saved version**, never "the operator typed something":
+  compare what a save would send, so a canvas that re-emits an equal tree, or a field typed and
+  cleared again, is not an edit.
+- `UnsavedChangesHint` is a polite live region mounted empty (WCAG 4.1.3) and deliberately not a
+  `role="status"`, so it never competes with the screen's own save-result region.
+- `useUnsavedChangesPrompt` (`./lib`) is the same interception with the browser's two-way `confirm()`
+  and stays for screens that have no Save to offer; `UnsavedChangesDialog` is the question on its own,
+  for a screen that decides itself when to ask. `PageBuilderEditorLayout`
+  (`@endora-commerce/page-builder-admin`) takes `dirty` / `onSave` / `onDiscard` and arms the guard
+  for the whole editor.
+
+The behaviour is pinned in `admin/test/kit/kit-unsaved-changes-guard.test.tsx`, including an axe pass.
+
+## Keys from names — `deriveKey` and `useDerivedKey`
+
+Issue #1450 (UX audit 2026-11-17, DS-22). A slug, key or code the system can propose from a name is
+not typed by hand (Tesler's law), and what the operator does type is normalised rather than refused
+(Postel's law). Both live in `./lib`:
+
+```tsx
+deriveKey('Gotowe do wysyłki', { separator: '_' });   // 'gotowe_do_wysylki'
+
+const codeField = useDerivedKey({
+  source: names.en, value: code, onChange: setCode,
+  separator: '_', maxLength: 64, enabled: status === null,
+});
+<Input value={code} onChange={codeField.onChange} onBlur={codeField.onBlur} />
+// in the submit handler: const sent = codeField.commit();
+```
+
+- **`deriveKey(name, { separator, maxLength })`** is contracts' `slugify` — the one slug generator,
+  diacritics folded (`ł` → `l`) — with `-` by default and `_` for keys and codes.
+- **The field follows the name until the operator edits it**; clearing it resumes following. A key the
+  screen starts with that the name does not produce counts as edited and is never overwritten.
+- **It is normalised on blur** (`In Review` → `in_review`), and empty on blur means "take the name's".
+  `commit()` does the same and returns the result, for a submit sent with Enter from the key field.
+- **The screen still refuses what stays invalid** — a leading digit, a reserved word — **and a key
+  already taken**, against its loaded list and the server's conflict, said at the key. A collision is
+  never auto-suffixed (architect ruling on #512): `in_review_2` is a decision nobody made.
+- `enabled: false` where the key is fixed (an edit view): the hook then does nothing. The hint under
+  the field says where the key comes from and that it cannot change later; the kit carries no copy.
+
+Used by the Tasks status and priority dialogs, the CRM status dialog and the custom-field definition
+form. The behaviour is pinned in `admin/test/kit/kit-derive-key.test.tsx`.
+
+## On/off — `Switch` and `SettingRow`
+
+Issue #1442 (UX audit 2026-11-17, DS-09). `Switch` is the one on/off control; `SettingRow` is the
+settings-list layout it reads best in — label and description on the left, control on the right.
+
+```tsx
+<SettingRow label={t('settings.listPrice.label')} description={t('settings.listPrice.help')}>
+  <Switch checked={value} onCheckedChange={setValue} />
+</SettingRow>
+```
+
+**When to use a switch** (owner decision DEC-04): every **boolean setting**, and every **toggle that
+takes effect immediately**. In a form that is saved later, only where the label **describes a
+state** ("Visible on the storefront", "Active"); a label that is a statement the operator agrees to
+or an action ("I accept the terms", "Send a copy to me") stays a `Checkbox`. Never a `true`/`false`
+`Select`, and never a filled "Enable" button per row.
+
+- **It is a native `<button type="button" role="switch" aria-checked>`** — no new dependency
+  (there is no `@radix-ui/react-switch` in the tree, and the button already brings Space/Enter,
+  focus and `<label for>` naming). It never submits a surrounding form. `FormField` and
+  `SettingRow` clone it with the id and descriptions like any other control; it carries
+  `data-state="checked" | "unchecked"` for styling.
+- **Always controlled**: `checked` + `onCheckedChange(next)`. A staged setting writes the draft and
+  leaves the write to the page's Save; an immediate toggle starts its write in `onCheckedChange`,
+  sets **`busy`** while it is in flight (`aria-busy`; further presses are ignored, so the write
+  cannot be doubled) and puts the kit's `ImmediateBadge` on its section heading, as every other
+  immediately-applied control does.
+- **Disabled**: `disabled` is the native attribute, for a control inside a disabled `fieldset` or
+  one whose reason is already on screen. **`disabledReason`** is for one whose reason is not: the
+  switch stays focusable, is `aria-disabled`, ignores presses and is described by the reason (also
+  its `title`) — a natively disabled button drops out of the tab order and its reason is never
+  heard. Show the reason visibly too, in the row's `hint` or `description`.
+- **State is never colour alone**: the thumb's position carries it as well (SC 1.4.1); the
+  unchecked track is `muted-foreground`, so its boundary meets 3:1 against the page (SC 1.4.11).
+- **Target**: the track is 36 × 20 px; on a coarse pointer an invisible pseudo-element grows the hit
+  area to 44 × 44 px (Fitts's Law), and the label toggles it too. The slide is `motion-safe` only.
+- `SettingRow` is `FormField` with `layout="row"`: the same wiring, `error`, `hint`, `help`,
+  `labelAddon` and `action`. A screen that needs the row inside a larger editor can pass
+  `layout="row"` to `FormField` directly, as the Settings screen's row editor does.
+
+The behaviour is pinned in `admin/test/kit/kit-switch.test.tsx`, including an axe pass.
+
+## Messages — `Alert` and `InlineStatus`
+
+Issues #1484 and #1443 (UX audit 2026-11-17, SHELL-08 and DS-10). Two primitives, chosen by
+what the message is:
+
+- **The result of an action** ("Saved", "Copied", "Status changed") is an **`InlineStatus`** next
+  to the button that produced it — owner decision DEC-12 (a). It is a `role="status"`,
+  `aria-live="polite"`, `aria-atomic` region that is **always mounted** and empty until there is
+  something to say, because a live region that arrives already carrying its text is not reliably
+  announced (WCAG 2.2 SC 4.1.3). `useInlineStatus()` holds its state: `show(message, tone?)` after
+  the action, `clear()` on the next edit; showing the same text again re-announces it. The message
+  does not disappear on a timer.
+
+  ```tsx
+  const status = useInlineStatus();
+  // on success: status.show(t('settings.saved')); on the next edit: status.clear();
+  <div className="flex items-center gap-3">
+    <Button onClick={save}>{t('common.save')}</Button>
+    <InlineStatus {...status.props} />
+  </div>
+  ```
+
+  `tone` is `success` (default), `error` or `info`; success and error carry an icon, so colour is
+  never the only signal. `visuallyHidden` announces without showing — for a control whose visible
+  state already changed (a badge, a reordered row). An `InlineStatus` is always polite; an error
+  that has to interrupt is an `Alert`.
+- **A banner** — a page-level error, a warning about the record, a static notice — is an
+  **`Alert`**. Its role follows its variant: `destructive` is `role="alert"` (interrupts),
+  `success` is `role="status"` (polite), `default` and `warning` have **no live role**, because
+  most of them are present when the page loads and announcing them is noise. `live` chooses
+  explicitly: `live="assertive"` for a warning that needs attention now (a refused or partly
+  failed action), `live="polite"` for a banner that appears as the result of an action,
+  `live="off"` for a static error. An explicit `role` still wins (`role="note"`). The default
+  table is exported as `ALERT_DEFAULT_LIVE` and the mapping as `alertRole(variant, live)`.
+  Success and warning colours come from `--success-soft` / `--warn-soft` and their `-fg` tokens.
+  Every `Alert` carries `data-slot="alert"` and `data-variant`, so a test can find a banner that
+  has no role without matching on class names.
+
+The behaviour is pinned in `admin/test/kit/kit-inline-status.test.tsx`, including an axe pass.
+
+## Loading a record — `useDetailResource` and `Skeleton`
+
+Issue #1447 (UX audit 2026-11-17, DS-14; SALES-06 is the finding it fixes). A detail screen's
+**first load** and its **refresh** are different states, and only the first one has nothing to
+show:
+
+- **`useDetailResource(key, load)`** (`./lib`) holds the record. `load` answers the record, `null`
+  for one that does not exist, or throws for a failed read. It returns `data`, `initialLoading`
+  (true until the first read for this `key` settles), `refreshing` (a re-read with `data` still on
+  screen), `error` (the latest read's failure — a first load that fails is an error with a retry,
+  never "not found"), `refresh()` (never rejects), `setData` and `busyProps`, which is
+  `{ 'aria-busy': true }` while refreshing. A new `key` starts a new first load and never shows
+  the previous record; an earlier, slower read never overwrites a later one.
+- **`Skeleton`** (`./ui`) is one placeholder block: `aria-hidden`, `data-slot="skeleton"`, sized
+  by the caller's classes. Its pulse is `motion-safe:` only, so under `prefers-reduced-motion` the
+  shape stays and the motion goes. **`DetailSkeleton`** is a record page's first load — header,
+  tab strip (`tabs={false}` drops it) and a card of field rows — inside a `role="status"`,
+  `aria-busy` region whose visually hidden text is `label` (default `common.state.loading`).
+
+```tsx
+const resource = useDetailResource(id, async () => {
+  try {
+    return (await apiClient.get<{ data: Order }>(`/api/v1/admin/orders/${id}`)).data;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+});
+if (resource.initialLoading) return <DetailSkeleton />;
+// … not found / load error with retry …
+<Card {...resource.busyProps}>…</Card>
+// after an action: await resource.refresh(); — the page, its tab and the focus stay
+```
+
+**A skeleton is for the first load only.** Returning one, or a "Loading…" line, on a refresh
+unmounts the page: the open tab, the scroll position and the focus go with it. The behaviour is
+pinned in `admin/test/kit/kit-detail-resource.test.tsx`, including an axe pass.
+
+## Button hierarchy — one primary per view, `DetailHeaderActions`
+
+Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
+
+- **One primary action per view.** Exactly one filled `Button` (`variant="default"`) — the action the
+  screen is for: an editor's one Save, a list's *New …*, a detail page's next step. Everything else
+  is `outline`, `ghost` or a link (Von Restorff). A screen with no obvious next step has no primary;
+  it never has two. A dialog is its own view, with its own one primary.
+- **"Add …" inside a form or a section is `outline`** with a `Plus` icon, not filled: it adds a row
+  to what the page's Save writes, it is not the page's goal.
+- **Row actions are `ghost` icon buttons with an `aria-label` naming the row** ("Remove Warsaw"),
+  or, past two of them, entries of a **`RowActionMenu`**. A row never carries a filled button. A row
+  action that writes at once (an immediate *Apply*) is `outline size="sm"`, under the section's
+  `ImmediateBadge`.
+- **Destructive actions sit in a menu and are confirmed.** A `RowActionMenuItem destructive` whose
+  `onSelect` opens `useConfirmDialog` — never a red button beside the primary (Fitts: distance, not
+  proximity).
+- **A detail header is `DetailHeaderActions`**, not a row of four or five outline buttons:
+
+  ```tsx
+  <PageHeader
+    title={order.number}
+    actions={
+      <DetailHeaderActions
+        primary={<Button onClick={approve} disabled={busy} aria-busy={busy}>{t('orders.approve')}</Button>}
+        secondary={<Button variant="outline" onClick={print}>{t('orders.print')}</Button>}
+      >
+        <RowActionMenuItem onSelect={duplicate}>{t('orders.duplicate')}</RowActionMenuItem>
+        <RowActionMenuSeparator />
+        <RowActionMenuItem destructive onSelect={askCancel}>{t('orders.cancel')}</RowActionMenuItem>
+      </DetailHeaderActions>
+    }
+  />
+  ```
+
+  `primary` is drawn **last** (the right edge, where the main action is expected), `secondary` — one
+  or two `outline` buttons — before it, and `children` go into a "More" menu drawn first (Hick: the
+  long tail costs one press, not a decision at every glance). The menu entries are the kit's
+  `RowActionMenuItem` / `RowActionMenuSeparator`; the panel is the same portalled `DropdownMenu`
+  (keyboard, typeahead, focus returned on Escape, never clipped). The trigger is an `outline` button
+  with a **visible** label — `core`'s `common.action.more` ("More" / "Więcej") unless `moreLabel` is
+  given — so its accessible name is the word on screen (WCAG 2.5.3), and it is **not rendered** when
+  every entry is conditional and off. `moreDisabled` + `moreTitle` disable it with a reason. The
+  group renders nothing when it has no action, and carries `data-slot="detail-header-actions"`.
+
+The component is pinned in `admin/test/kit/kit-detail-header-actions.test.tsx`, including an axe pass
+closed and open. The rule is also § Von Restorff of `.claude/skills/ux-laws/SKILL.md`.
+
+## List filters — `ListToolbar`, `ListToolbarSearch` and `FilterChip`
+
+Issue #1440 (UX audit 2026-11-17, DS-06). `ListToolbar` (`./components`) is a list page's filter row,
+extracted from the Orders list's toolbar and the Tasks list's *More filters (n)* disclosure (#512). A
+page composes it. It is not a page shell, and it draws no card or border of its own.
+
+```tsx
+<ListToolbar
+  label={t('orders.toolbar.label')}
+  search={<ListToolbarSearch label={t('orders.field.search')} value={q} onValueChange={setQ} />}
+  filters={<>{statusMultiSelect}{channelMultiSelect}{sortSelect}</>}
+  actions={<SavedViewsControl … />}
+  moreFilters={<>{/* labelled cells, laid out four to a row */}</>}
+  moreFiltersActiveCount={hiddenInUse}
+  appliedFilters={chips}
+  onClearFilters={clearAll}
+/>
+```
+
+- **Three or four primary filters**, and no more. Search, the filters operators use most, and the
+  list's own controls (`actions`, pushed to the right) are always visible. The long tail goes in
+  `moreFilters`, behind a **More filters** button. While the panel is closed the button shows
+  **More filters (n)** from `moreFiltersActiveCount`, so a folded bar still tells the operator that
+  the list is narrowed (Hick's Law). The page computes the count, and each value of a multi-valued
+  filter may count as one.
+- **The panel is always mounted** and `hidden` while closed, so the toggle's `aria-controls` always
+  names an element. Its controls render only while it is open, so a filter that loads its own
+  options does so only when the operator opens the panel.
+- **Every control is labelled.** A primary filter takes `aria-label` (`Select`) or `ariaLabel`
+  (`MultiSelect`). A cell in the panel takes a visible label: `<Label htmlFor>` for a native
+  control, or a `<span id>` plus `ariaLabelledBy` for a `MultiSelect`. Never a `<label htmlFor>`
+  pointing at an id that no control has. The placeholder is never the name, so
+  `ListToolbarSearch` requires `label`.
+- **Applied filters** (`appliedFilters`) are chips named by what pressing them does ("Remove
+  filter: Status: Paid", or `removeLabel`), followed by **Clear all filters** when
+  `onClearFilters` is given. The search box is not a chip, because it is always visible.
+- The toolbar is a `search` landmark named by `label` ("Filter orders").
+- **`FilterChip`** is a one-press toggle for an on/off filter ("Low stock"). It is a
+  `<button type="button" aria-pressed>` in the theme's `b2b-filterchip` style, controlled through
+  `pressed` and `onPressedChange(next)`. It has a 44 px hit area on a coarse pointer, and its icon
+  is decorative. A filter with several values is a labelled `Select` or `MultiSelect`. A chip that
+  steps to the next value on each press does not tell the operator what the next press will do.
+- **No dead controls.** A chip or button that looks like a working filter must work like one. If
+  the filter does not exist yet, leave the control out (CAT-02, #1455).
+
+The behaviour is pinned in `admin/test/kit/kit-list-toolbar.test.tsx`, including an axe pass. The
+screens that use it are the Orders, Products and Inventory lists.
+
 ## Known rough edge
 
 `./i18n` publishes `resolve` (the translation resolver) under that bare name, because it
@@ -216,3 +541,84 @@ is the name every existing caller and both of its tests already use and this mer
 is a move. It is a poor name on a public barrel and renaming it is a `major` under R12 —
 worth doing before the first package is published, not inside a change whose subject is a
 file relocation.
+
+## Dialogs — `ModalDialog` is the only one
+
+Issue #1444 (UX audit 2026-11-17, DS-11). Every modal question or form in the admin is
+`ModalDialog` (`./components`), or its yes/no form `ConfirmDialog` / `useConfirmDialog`. It carries
+what a hand-drawn scrim leaves out:
+
+- `role="dialog"`, `aria-modal`, the accessible name from `title` (`aria-labelledby`) and, through
+  `aria-describedby`, the question or warning read with it;
+- a focus trap: focus moves in on open (`initialFocusRef`, else the first focusable control, else the
+  panel itself) and back to the opener — or `finalFocusRef` — on close;
+- Escape and a press on the scrim close it; with two open, only the topmost answers Escape;
+  `dismissOnScrim={false}` keeps a dialog holding typed input open on a stray click;
+- `busy` — Escape and the scrim are inert while a request is in flight, and `aria-busy` says so;
+- a **portal to `document.body`**, so a dialog opened inside a drawer moved with `transform`, a table
+  row or a `<ul>` is placed against the viewport and does not nest a `<div>` where markup forbids it;
+- `layer` — `page` (default, `z-50`, the layer the kit's popovers share, so a select inside still
+  opens above the dialog) or `overlay` (`MODAL_OVERLAY_Z_INDEX`, above the fullscreen Page Builder
+  and its 9999 floating action bar), for a dialog opened from inside the builder.
+
+```tsx
+<ModalDialog title={t('x.dialog.title')} onClose={close} busy={busy} footer={<>{cancel}{apply}</>}>
+  …
+</ModalDialog>
+```
+
+A `fixed inset-0` overlay, a `position: 'fixed'` style object, `createPortal`, or a `role="dialog"`
+written by hand anywhere under the admin, the shell, the kit, the page-builder chrome or a module's
+`src/admin/` / `src/admin-ui/` fails `admin/test/unit/no-hand-rolled-overlays.test.ts`, whose
+two-way ledger names each remaining one and the issue that migrates it. The behaviour is pinned in
+`admin/test/components/ModalDialog.test.tsx`, including an axe pass.
+
+## List pages — `ListPage` and `useListPagination`
+
+Issue #1439 (UX audit 2026-11-17, DS-05). An admin list came in several shapes: a create form drawn
+open above the rows, the filters in a card of their own, a red *Delete* in every row, and on
+Customers, Organizations and Carts no pager at all (#1473) — the API paged and the screen showed
+page one. Every list is now the same page:
+
+| Part | What it is | Why |
+| --- | --- | --- |
+| Header | `PageHeader` with **one** primary *New …* in `actions`, and at most a `RowActionMenu` beside it for screen-wide secondary actions | One primary per view (Von Restorff); the create action where every admin looks for it (Jakob) |
+| Create / edit | *New …* opens a `ModalDialog` when the form has up to five fields, its own route otherwise — never a form drawn open above the list | A form always open competes with the list it sits on (Hick) |
+| Toolbar | A plain row of labelled filters and the search, **not a card**; the result count at its end in a live region | A card around the toolbar reads as a second region (Common Region); the count is announced as it changes (WCAG 4.1.3) |
+| Results | One `ResponsiveTable` in one card; the record's name in the primary column **is the link** to it | No *Open* button repeating the name in every row (signal-to-noise) |
+| Row actions | `RowActionMenu`; destructive items last, after a `RowActionMenuSeparator`, and each confirmed through `useConfirmDialog` (`action` + `describeError`, so the request runs inside the dialog) | Destructive actions get distance, not a button in every row (Fitts) |
+| Pager | `PaginationFooter` under the table, fed by `useListPagination` | Every row reachable without a search |
+| States | Loading (a skeleton, `aria-busy`, *Loading…* through the count's live region), an error with the server's message or the kit's, and *Retry*; *no records yet* distinct from *no record matches — Clear filters* | A list that fails or comes back empty still says what to do next |
+
+```tsx
+const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
+// request: { ...filters, ...pager.query }  → page is one-based
+// on success: pager.syncTotal(total); on a filter change: pager.resetPage()
+<ListPage
+  title={t('list.title')}
+  actions={<Button asChild><Link to="/x/new"><Plus aria-hidden="true" />{t('list.create')}</Link></Button>}
+  toolbar={<>{search}{statusSelect}</>}
+  count={t('list.count', { count: total })}
+  load={load}                       // { kind: 'loading' } | { kind: 'error', message? } | { kind: 'ready' }
+  onRetry={reload}
+  pagination={pager.footer(total)}
+>
+  <ResponsiveTable columns={columns} data={rows} keyExtractor={(r) => r.id} emptyState={empty} renderActions={menu} />
+</ListPage>
+```
+
+- **`useListPagination` offers only the page sizes the endpoint serves.** The shared options run to
+  500 and most admin list endpoints stop at 100 or 200; `pageSizesUpTo(maxPageSize)` drops the rest,
+  and `fitPageSize` reads a remembered 500 as the largest size offered, leaving the stored
+  preference alone for the lists that do serve it. The size is the admin's per-list preference
+  (`usePageSizePreference(scope)`), so the hook needs `AuthProvider` above it, as every screen has.
+- **`syncTotal(total)`** moves back to the last page that exists when a response says the list has
+  shrunk under the current page — after the last rows were deleted, or another operator's change.
+- **Server-side paging only.** A list whose endpoint does not page gets `page` / `pageSize` and a
+  total in its contract first (`packages/contracts`), as the Organizations list did in #1473; paging
+  a fetched-whole array in the browser is not this pattern.
+- **What the kit deliberately leaves to the screen:** the filters themselves and their "More
+  filters" disclosure (DS-06, #1440, the kit `ListToolbar`), and the empty state's icon and copy
+  (DS-15, #1448, the kit `EmptyState`). Both slot into `toolbar` and `emptyState` when they land.
+- Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
+  adopters are `CustomersList`, `OrganizationsList` and `CartsList`.

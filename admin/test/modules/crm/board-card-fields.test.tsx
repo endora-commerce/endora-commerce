@@ -292,6 +292,29 @@ describe('BoardCardFieldsEditor', () => {
     expect(screen.getByRole('button', { name: core('common.action.save') })).toBeDisabled();
   });
 
+  it('keeps focus on the moved row, or its neighbour, as the two lists change (WCAG 2.4.3, #512)', async () => {
+    const region = await renderEditor();
+    const button = (key: string, field: string): HTMLElement =>
+      screen.getByRole('button', { name: en(key, { field }) });
+    const [organization, value, assignee, tags, contact] = ['organization', 'value', 'assignee', 'tags', 'contact'].map(
+      (key) => en(`board.field.${key}`),
+    ) as [string, string, string, string, string];
+
+    // Down into the last place, where Move down is disabled: the row's Move up.
+    await userEvent.click(button('boardCard.moveDown', assignee));
+    expect(button('boardCard.moveUp', assignee)).toHaveFocus();
+    // Up into the first place, where Move up is disabled: the row's Move down.
+    await userEvent.click(button('boardCard.moveUp', organization));
+    expect(button('boardCard.moveDown', organization)).toHaveFocus();
+    // A removed row: the row that took its place.
+    await userEvent.click(button('boardCard.remove', value));
+    expect(button('boardCard.remove', tags)).toHaveFocus();
+    // An added field's chip goes: the next one offered in its group.
+    await userEvent.click(add(contact));
+    expect(add(value)).toHaveFocus();
+    expect(within(region).getAllByRole('listitem')).toHaveLength(5);
+  });
+
   it('shows the server\'s own sentence when the save is refused, and keeps the edit', async () => {
     putSpy.mockRejectedValueOnce(
       new ApiError(422, {

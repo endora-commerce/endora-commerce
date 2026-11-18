@@ -135,7 +135,8 @@ function load(key: string): void {
   // The answer being replaced is dropped now, not when the new one arrives.
   entry.request = LOADING;
   notify();
-  apiClient
+  // Fire-and-forget: a failure is mapped to FAILED by the first `then`.
+  void apiClient
     .get<AdminCrawlerFilePreviewResponse>(previewPath(entry.file, entry.salesChannelCode))
     .then(
       (response): PreviewRequest => ({ status: 'ready', data: response.data }),
@@ -319,7 +320,8 @@ function watchChannels(): () => void {
   if (!channelsAsked) {
     channelsAsked = true;
     const round = channelsRound;
-    fetchChannels()
+    // Fire-and-forget: the rejection is answered by the `catch` below.
+    void fetchChannels()
       // Somebody who may not list channels: an empty list, and the preview
       // asks about the system default channel without naming it.
       .catch((): readonly PreviewChannel[] => [])

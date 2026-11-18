@@ -188,6 +188,9 @@ import { Migration20261027T020030CrmOpportunityReferenceDocuments } from '@endor
 import { Migration20261028T143444CrmOpportunityReferenceKinds } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261109T163616CrmOpportunityValueChanges } from '@endora-commerce/mod-crm/migrations';
 
+// ── currencies ──────────────────────────────────────────────────────────────
+import { Migration20261117T065542CurrenciesTable } from '@endora-commerce/mod-currencies/migrations';
+
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
 import { Migration20261010T090000CustomFieldsDefinitionAudience } from '@endora-commerce/mod-custom-fields/migrations';
@@ -224,6 +227,7 @@ import { Migration20260912T094638DeliveryMethodsSalesChannelDeliveryMethods } fr
 
 // ── dictionaries ────────────────────────────────────────────────────────────
 import { Migration20260506T112634DictionariesDictionaryInit } from '@endora-commerce/mod-dictionaries/migrations';
+import { Migration20261117T065601DictionariesDefaultCurrencyFk } from '@endora-commerce/mod-dictionaries/migrations';
 
 // ── document_templates ──────────────────────────────────────────────────────
 import { Migration20261017T071754DocumentTemplatesInit } from '@endora-commerce/mod-document-templates/migrations';
@@ -425,6 +429,7 @@ import { Migration20261020T171341QuoteRequestsQuoteRequestItemGroups } from '@en
 import { Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20261025T031736QuoteRequestsUnitPriceFourPlaces } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20261113T081826QuoteRequestsNotificationsRedesign } from '@endora-commerce/mod-quote-requests/migrations';
+import { Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders } from '@endora-commerce/mod-quote-requests/migrations';
 
 // ── returns ─────────────────────────────────────────────────────────────────
 import { Migration20260625T144227ReturnsInit } from '@endora-commerce/mod-returns/migrations';
@@ -432,6 +437,9 @@ import { Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome } from '@
 import { Migration20261024T174052ReturnsCaseItemDiscount } from '@endora-commerce/mod-returns/migrations';
 import { Migration20261108T023047ReturnsConsumerWithdrawal } from '@endora-commerce/mod-returns/migrations';
 import { Migration20261108T125405ReturnsCaseChargeRefunds } from '@endora-commerce/mod-returns/migrations';
+import { Migration20261113T145001ReturnsAuthorizerStatusNotifications } from '@endora-commerce/mod-returns/migrations';
+import { Migration20261113T155433ReturnsOffPlatformComplaints } from '@endora-commerce/mod-returns/migrations';
+import { Migration20261116T104415ReturnsGuestComplaints } from '@endora-commerce/mod-returns/migrations';
 
 // ── search ──────────────────────────────────────────────────────────────────
 import { Migration20260501T123145SearchPhraseRecordsInit } from '@endora-commerce/mod-search/migrations';
@@ -631,6 +639,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('crm', Migration20261028T143444CrmOpportunityReferenceKinds),
   migration('crm', Migration20261109T163616CrmOpportunityValueChanges),
 
+  // ── currencies ──────────────────────────────────────────────────────────────
+  migration('currencies', Migration20261117T065542CurrenciesTable),
+
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),
   migration('custom_fields', Migration20261010T090000CustomFieldsDefinitionAudience),
@@ -667,6 +678,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── dictionaries ────────────────────────────────────────────────────────────
   migration('dictionaries', Migration20260506T112634DictionariesDictionaryInit),
+  migration('dictionaries', Migration20261117T065601DictionariesDefaultCurrencyFk),
 
   // ── document_templates ──────────────────────────────────────────────────────
   migration('document_templates', Migration20261017T071754DocumentTemplatesInit),
@@ -868,6 +880,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('quote_requests', Migration20261021T164808QuoteRequestsQuoteRequestEventCarrySkipped),
   migration('quote_requests', Migration20261025T031736QuoteRequestsUnitPriceFourPlaces),
   migration('quote_requests', Migration20261113T081826QuoteRequestsNotificationsRedesign),
+  migration('quote_requests', Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders),
 
   // ── returns ─────────────────────────────────────────────────────────────────
   migration('returns', Migration20260625T144227ReturnsInit),
@@ -875,6 +888,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('returns', Migration20261024T174052ReturnsCaseItemDiscount),
   migration('returns', Migration20261108T023047ReturnsConsumerWithdrawal),
   migration('returns', Migration20261108T125405ReturnsCaseChargeRefunds),
+  migration('returns', Migration20261113T145001ReturnsAuthorizerStatusNotifications),
+  migration('returns', Migration20261113T155433ReturnsOffPlatformComplaints),
+  migration('returns', Migration20261116T104415ReturnsGuestComplaints),
 
   // ── search ──────────────────────────────────────────────────────────────────
   migration('search', Migration20260501T123145SearchPhraseRecordsInit),

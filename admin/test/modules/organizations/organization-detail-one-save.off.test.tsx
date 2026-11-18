@@ -49,9 +49,11 @@ const { ApiError } = await vi.importActual<typeof import('@endora-commerce/admin
 const read = (path: string): Record<string, string> =>
   JSON.parse(readFileSync(resolve(process.cwd(), path), 'utf8')) as Record<string, string>;
 const coreEn = read('../packages/modules/_i18n/i18n/en.json');
+const orgEn = read('../packages/modules/organizations/i18n/en.json');
+const EMAILS_LABEL = orgEn['detail.orderConfirmationEmails']!;
 const bundle = {
   core: coreEn,
-  organizations: read('../packages/modules/organizations/i18n/en.json'),
+  organizations: orgEn,
   price_lists: read('../packages/modules/price_lists/i18n/en.json'),
   quick_order: read('../packages/modules/quick_order/i18n/en.json'),
   quote_requests: read('../packages/modules/quote_requests/i18n/en.json'),
@@ -139,7 +141,7 @@ describe('organization detail one Save with a participant module off (FR-034)', 
   for (const moduleId of ['price_lists', 'quick_order', 'quote_requests'] as const) {
     it(`${moduleId} off: no panel, no request of its own, and Save writes the host part alone`, async () => {
       renderDetail([moduleId]);
-      const vat = await screen.findByLabelText(coreEn['organizations.detail.vatStatus']!);
+      const emails = await screen.findByLabelText(EMAILS_LABEL);
       // The other participants render, so the zone itself is mounted.
       if (moduleId !== 'price_lists') await screen.findByLabelText(coreEn['priceLists.displayMode.rowLabel']!);
       else await screen.findByLabelText(coreEn['defaultPreferences.paymentMethod']!);
@@ -148,10 +150,15 @@ describe('organization detail one Save with a participant module off (FR-034)', 
       expect(requested().filter((url) => OWNED[moduleId]!.some((prefix) => url.startsWith(prefix)))).toEqual([]);
       expect(saveButton()).toHaveAccessibleName('Save');
 
-      fireEvent.change(vat, { target: { value: 'vat_exempt' } });
+      fireEvent.change(emails, { target: { value: 'ops@example.com' } });
       expect(saveButton()).toHaveAccessibleName('Save 1 change');
       fireEvent.click(saveButton());
       await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1));
+      // Issue #1468 — the host part never carries the status or the VAT status.
+      const body = api.patch.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(body).not.toHaveProperty('status');
+      expect(body).not.toHaveProperty('vatStatus');
+      expect(body).toMatchObject({ orderConfirmationEmails: ['ops@example.com'] });
       await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save'));
       expect(api.put).not.toHaveBeenCalled();
     });
@@ -165,10 +172,10 @@ describe('organization detail one Save with a participant module off (FR-034)', 
       return { data: {} };
     });
     renderDetail([]);
-    const vat = await screen.findByLabelText(coreEn['organizations.detail.vatStatus']!);
+    const emails = await screen.findByLabelText(EMAILS_LABEL);
     const mode = (await screen.findByLabelText(coreEn['priceLists.displayMode.rowLabel']!)) as HTMLSelectElement;
     await waitFor(() => expect(mode.disabled).toBe(false));
-    fireEvent.change(vat, { target: { value: 'vat_exempt' } });
+    fireEvent.change(emails, { target: { value: 'ops@example.com' } });
     fireEvent.change(mode, { target: { value: 'both' } });
     fireEvent.click(saveButton());
 

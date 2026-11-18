@@ -74,7 +74,7 @@ The transactional (and newsletter) editors share `EmailEditorPane`:
   transactional email templates (`email_templates`).
 - `EmailLogo` shows the branding logo (no URL field). `EmailImage` supports URL or
   asset library, same as CMS. Color fields use the shared CMS color palette.
-  Branding logo in Settings (`*_asset_id`) uses the Assets Library picker.
+  The logo itself is set on the **Email branding** screen (below).
 - `EmailRichText` reuses the CMS Rich content TipTap editor (plus Variable).
 - `EmailProductCard` picks a catalog product; `EmailOrderSummary` is column/totals
   toggles and appears in the palette only when the email declares `order.items`
@@ -87,6 +87,23 @@ The transactional (and newsletter) editors share `EmailEditorPane`:
   (`EmailImage`, `EmailLogo`), commerce (`EmailProductCard`, `EmailOrderSummary`
   and the order detail blocks above), `EmailSocial` (icons + labels + per-link
   enable), and `EmailInsertBlock`.
+
+## Email branding
+
+**Messaging → Email branding** (`/transactional-emails/branding`, also under ⌘K / CTRL+K)
+sets the two values every email renders with:
+
+- **Header logo** — an image from the Assets Library. The shared `default_email_header`
+  block and every `EmailLogo` block show it; with no logo the header has none.
+- **Accent color** — used by buttons and highlights that set no color of their own.
+
+The **Scope** select picks *All channels (default)* or one sales channel. A channel
+inherits the all-channels value of anything it does not override: a Save sends only the
+fields changed while that scope is selected, so changing the accent for one channel leaves
+it following the all-channels logo. Switching the scope with unsaved changes asks whether
+to save them, discard them or stay. Viewing needs `transactional_emails:read`; saving needs
+`transactional_emails:write`. The values are the `transactional_emails.logo_asset_id` and
+`transactional_emails.accent_color` settings, so they also appear on the Settings screen.
 
 ## Rendering
 
@@ -160,8 +177,8 @@ override and no per-channel customization. A deactivated email answers
 `{ status: 'deactivated' }` at send time and **no fallback mail goes out**.
 
 Emails required to create an account or to get back into one may not be switched
-off at all: today `email_verification`, `organization_invitation` and
-`customer_password_reset_by_admin`. The
+off at all: today `email_verification`, `organization_invitation`,
+`customer_password_reset` and `customer_password_reset_by_admin`. The
 declaration lives on the owning module's registry entry
 (`EmailDefaults.nonDeactivatable`), not in a list held by this module or by the
 Admin UI, and a refused flip answers `409 TRANSACTIONAL_EMAIL_NOT_DEACTIVATABLE`

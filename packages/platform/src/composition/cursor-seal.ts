@@ -14,9 +14,16 @@ import { createCipheriv, createDecipheriv, createHmac, hkdfSync } from 'node:cry
  * AES-256-GCM from `node:crypto`, no new dependency (Principle IV). The key is
  * derived with HKDF from the secret the host passes — the session key, which a
  * production instance refuses to start without — so there is no new input for an
- * operator to provision, and the derived key is used for nothing else. Rotating
- * the session key therefore also makes cursors in flight unreadable, and a
- * listing answers an unreadable cursor as one it cannot parse.
+ * operator to provision. The derived key serves this seal and nothing else, and
+ * the seal serves **purpose-bound tokens**, of which a pagination cursor is the
+ * first kind: `returns` seals its guest links with it too
+ * (`specs/181-guest-complaints/` research R-5, owner ruling of 2026-11-16) —
+ * `returns.guest-verify.v1` for the one-time e-mail verification link and
+ * `returns.guest-tracking.v1` for a guest's case tracking link. The purpose keeps
+ * every kind apart: a token sealed for one opens for no other. Rotating the
+ * session key therefore also makes cursors in flight unreadable and voids every
+ * guest link; a listing answers an unreadable cursor as one it cannot parse, and
+ * `returns` answers an unreadable link as an invalid one.
  *
  * The token is `base64url(version ‖ iv ‖ tag ‖ ciphertext)`. The purpose is the
  * GCM additional data, so a cursor sealed by one listing opens in no other. The

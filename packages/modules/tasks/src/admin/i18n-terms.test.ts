@@ -18,6 +18,20 @@ describe('the Polish tasks bundle uses one term per concept (#508)', () => {
     expect(pl['field.tags']).toBe('Etykiety');
   });
 
+  it('calls the workflow przebieg zadań, never proces (#512)', () => {
+    const offending = Object.entries(pl).filter(([, value]) => /\bproces\p{L}*/iu.test(value));
+    expect(offending).toEqual([]);
+    expect(pl['workflow.title']).toBe('Statusy i przebieg zadań');
+  });
+
+  it('names the assignees in the plural where a Task can have several (#512)', () => {
+    const en = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../i18n/en.json'), 'utf8')) as Record<string, string>;
+    for (const key of ['list.col.assignee', 'list.filter.assignee']) {
+      expect(en[key], key).toBe(en['field.assignee']);
+      expect(pl[key], key).toBe(pl['field.assignee']);
+    }
+  });
+
   it('calls a draft a szkic, never a wersja robocza', () => {
     const offending = Object.entries(pl).filter(([, value]) => /\bwersj\p{L}* robocz\p{L}*/iu.test(value));
     expect(offending).toEqual([]);

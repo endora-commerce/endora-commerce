@@ -28,6 +28,12 @@ export type PaymentEmailNotSentReason =
   | 'order_not_found'
   /** The customer account carries no address to send to. */
   | 'no_recipient'
+  /**
+   * The order's payment status is not the one the e-mail would announce
+   * (issue #1574): the order refused the settlement's move, so telling the
+   * buyer "paid" or "failed" would contradict the order they see.
+   */
+  | 'payment_status_differs'
   /** The operator switched the `payment_status_changed` e-mail off. */
   | 'deactivated'
   /** No mailer is wired behind the sender. */
@@ -92,6 +98,11 @@ export class PaymentEmailNotifier {
       const em = this.deps.emFactory();
       const order = await this.deps.orderRead.findById(orderId);
       if (!order) return this.notSent(orderId, 'order_not_found');
+      // Read at send time, through the owner's port: `failed` only while the
+      // order is `failed`, `paid` only while it is `paid`. The event that
+      // brought us here is true about the Payment row, not necessarily about
+      // the order (a late decline on an order already marked paid).
+      if (order.paymentStatus !== status) return this.notSent(orderId, 'payment_status_differs');
       const customer = await this.deps.customerAccountRead.findById(
         order.placedByCustomerAccountId,
       );

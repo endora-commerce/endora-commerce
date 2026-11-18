@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Pencil, Send, Trash2, UserCheck } from 'lucide-react';
 import {
   TASK_TITLE_MAX,
@@ -8,7 +8,7 @@ import {
   type TaskWorkflow,
   type UpdateTaskBody,
 } from '@endora-commerce/contracts';
-import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, readReturnTo, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -22,7 +22,7 @@ import {
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import {
-  ModalDialog,
+  ConfirmDialog,
   MoveToMenu,
   RecordHistory,
   recordHistoryChanges,
@@ -48,6 +48,7 @@ import { dueOf, TaskFieldInputs, taskFieldValuesOf, usePriorities, type TaskFiel
 import { useCurrentAdmin } from '../lib/current-admin.js';
 import { calendarDateLabel, errorMessage, momentLabel } from '../lib/labels.js';
 import { useEditorFocus } from '../lib/use-editor-focus.js';
+import { useFocusFirstInvalid } from '../lib/use-focus-first-invalid.js';
 
 const LIST_PATH = '/tasks';
 
@@ -92,6 +93,8 @@ export function TaskDetail(): ReactNode {
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnTo = readReturnTo(searchParams);
   const { hasPermission } = useAuth();
   const [task, setTask] = useState<TaskDetailData | null>(null);
   // Someone else's private Task is read-only even to a holder of `tasks:write` (R-3).
@@ -207,7 +210,9 @@ export function TaskDetail(): ReactNode {
     }
   };
 
-  const back = { label: t('detail.back'), to: LIST_PATH };
+  // Opened from another screen that named its own address (a record's *Tasks*
+  // panel, issue #512): the way back — and the way out after a delete — leads there.
+  const back = returnTo ? { label: tCore('common.action.back'), to: returnTo } : { label: t('detail.back'), to: LIST_PATH };
 
   if (task === null) {
     return (
@@ -226,7 +231,7 @@ export function TaskDetail(): ReactNode {
                   {tCore('common.action.retry')}
                 </Button>
                 <Button className="min-h-11 sm:min-h-8" asChild variant="ghost" size="sm">
-                  <Link to={LIST_PATH}>{t('detail.back')}</Link>
+                  <Link to={back.to}>{back.label}</Link>
                 </Button>
               </span>
             </AlertDescription>
@@ -316,6 +321,22 @@ export function TaskDetail(): ReactNode {
         }
         description={<span>{task.number}</span>}
         back={back}
+        actions={
+          // Delete sits in the page header, apart from the frequent Edit in
+          // the Details section (issue #527), as on a Project and an Opportunity.
+          (canWrite || mayDeletePrivate) && mayDelete && task.permissions.canDelete && !editing ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 text-destructive hover:text-destructive sm:min-h-9"
+              disabled={busy}
+              onClick={(): void => setDeleting(true)}
+            >
+              <Trash2 aria-hidden="true" />
+              {t('detail.delete')}
+            </Button>
+          ) : undefined
+        }
       />
 
       {error ? (
@@ -353,36 +374,19 @@ export function TaskDetail(): ReactNode {
                 <h2 id={detailsHeadingId} className="text-base font-semibold">
                   {t('detail.details')}
                 </h2>
-                {(canWrite || mayDeletePrivate) && !editing ? (
-                  <div className="flex flex-wrap gap-2">
-                    {canWrite ? (
-                      <Button
-                        ref={editFocus.openerRef}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="min-h-11 sm:min-h-8"
-                        disabled={busy}
-                        onClick={(): void => setEditing(true)}
-                      >
-                        <Pencil aria-hidden="true" />
-                        {t('detail.edit')}
-                      </Button>
-                    ) : null}
-                    {mayDelete && task.permissions.canDelete ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="min-h-11 text-destructive hover:text-destructive sm:min-h-8"
-                        disabled={busy}
-                        onClick={(): void => setDeleting(true)}
-                      >
-                        <Trash2 aria-hidden="true" />
-                        {t('detail.delete')}
-                      </Button>
-                    ) : null}
-                  </div>
+                {canWrite && !editing ? (
+                  <Button
+                    ref={editFocus.openerRef}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="min-h-11 sm:min-h-8"
+                    disabled={busy}
+                    onClick={(): void => setEditing(true)}
+                  >
+                    <Pencil aria-hidden="true" />
+                    {t('detail.edit')}
+                  </Button>
                 ) : null}
               </div>
               {canWrite && !mayDelete ? (
@@ -701,7 +705,7 @@ export function TaskDetail(): ReactNode {
         <DeleteTaskDialog
           task={task}
           onClose={(): void => setDeleting(false)}
-          onDeleted={(): void => void navigate(LIST_PATH)}
+          onDeleted={(): void => void navigate(back.to)}
         />
       ) : null}
 
@@ -732,10 +736,12 @@ function TaskEditForm(props: TaskEditFormProps): ReactNode {
     task.assignees.map((person) => ({ id: person.id, name: person.name })),
   );
   const [missingTitle, setMissingTitle] = useState(false);
+  const invalid = useFocusFirstInvalid(props.editorRef);
 
   const save = (): void => {
     if (title.trim() === '') {
       setMissingTitle(true);
+      invalid.refuse();
       return;
     }
     const due = dueOf(fields);
@@ -906,10 +912,13 @@ function TaskHistory(props: {
   );
 }
 
-/** Deleting a Task, behind a confirmation; a refusal is shown in the dialog, in the server's words. */
+/**
+ * Deleting a Task, behind the kit's destructive confirmation — it opens on
+ * *Cancel*, so Enter on a dialog opened by accident keeps the Task (issue #527).
+ * A refusal is shown in the dialog, in the server's words.
+ */
 function DeleteTaskDialog(props: { task: TaskDetailData; onClose: () => void; onDeleted: () => void }): ReactNode {
   const t = useTranslation('tasks');
-  const tCore = useTranslation('core');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -926,39 +935,21 @@ function DeleteTaskDialog(props: { task: TaskDetailData; onClose: () => void; on
   };
 
   return (
-    <ModalDialog
+    <ConfirmDialog
+      destructive
       title={t('delete.title')}
+      confirmLabel={t('delete.confirm')}
       busy={busy}
-      onClose={props.onClose}
-      footer={
-        <>
-          <Button variant="outline" className="min-h-11 sm:min-h-9" disabled={busy} onClick={props.onClose}>
-            {tCore('common.action.cancel')}
-          </Button>
-          <Button
-            variant="destructive"
-            className="min-h-11 sm:min-h-9"
-            disabled={busy}
-            aria-busy={busy}
-            onClick={(): void => void confirm()}
-          >
-            {t('delete.confirm')}
-          </Button>
-        </>
+      error={error}
+      onCancel={props.onClose}
+      onConfirm={(): void => void confirm()}
+      message={
+        <div className="space-y-3">
+          <p>{t('delete.body', { number: props.task.number })}</p>
+          {props.task.subtasks.total > 0 ? <p>{t('delete.subtasks', { count: props.task.subtasks.total })}</p> : null}
+        </div>
       }
-    >
-      <div className="space-y-3">
-        <p className="text-sm">{t('delete.body', { number: props.task.number })}</p>
-        {props.task.subtasks.total > 0 ? (
-          <p className="text-sm">{t('delete.subtasks', { count: props.task.subtasks.total })}</p>
-        ) : null}
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-      </div>
-    </ModalDialog>
+    />
   );
 }
 

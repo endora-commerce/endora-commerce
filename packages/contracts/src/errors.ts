@@ -405,6 +405,12 @@ export const ERROR_CODES = {
   /** 409 — orders are in the status, so it is not deleted (`details.statusCode`, `orderCount`). */
   ORDER_STATUS_IN_USE: 'ORDER_STATUS_IN_USE',
   /**
+   * 409 — the order's payment status may not move to the one asked for (issue
+   * #1574): token `payment_refunded` (nothing follows a refund) or
+   * `payment_not_paid` (only a paid order is refunded); `details.from`, `details.to`.
+   */
+  ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED: 'ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED',
+  /**
    * 422 — the external API intake refused one or more lines; `details` stays the
    * per-line array of `{ path, issue, sku }` (`SKU_NOT_IN_ASSORTMENT`, `PRICE_UNAVAILABLE`).
    */
@@ -531,6 +537,21 @@ export const ERROR_CODES = {
   RETURN_STATUS_NOT_DELETABLE: 'RETURN_STATUS_NOT_DELETABLE',
   /** 409 — cases are in the status, so it is not deleted (`details.statusCode`, `caseCount`). */
   RETURN_STATUS_IN_USE: 'RETURN_STATUS_IN_USE',
+  // `specs/180-off-platform-complaints/` — the complaint without a platform order.
+  RETURN_OFF_PLATFORM_DISABLED: 'RETURN_OFF_PLATFORM_DISABLED',
+  RETURN_PROOF_OF_PURCHASE_REQUIRED: 'RETURN_PROOF_OF_PURCHASE_REQUIRED',
+  RETURN_CLAUSES_NOT_ACCEPTED: 'RETURN_CLAUSES_NOT_ACCEPTED',
+  RETURN_ATTACHMENT_REJECTED: 'RETURN_ATTACHMENT_REJECTED',
+  RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM: 'RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM',
+  // `specs/181-guest-complaints/` — the complaint from a guest without an account
+  // (settings-emails-events.md §4). Each code joined with its first raise site, as
+  // `check:error-translations` P7 requires.
+  RETURN_GUEST_COMPLAINTS_DISABLED: 'RETURN_GUEST_COMPLAINTS_DISABLED',
+  RETURN_GUEST_SESSION_REQUIRED: 'RETURN_GUEST_SESSION_REQUIRED',
+  RETURN_GUEST_LINK_INVALID: 'RETURN_GUEST_LINK_INVALID',
+  RETURN_TRACKING_LINK_INVALID: 'RETURN_TRACKING_LINK_INVALID',
+  RETURN_GUEST_LIMIT_REACHED: 'RETURN_GUEST_LIMIT_REACHED',
+  RETURN_GUEST_DATA_ERASED: 'RETURN_GUEST_DATA_ERASED',
 
   // Credit Limit
   CREDIT_LIMIT_NOT_GRANTED: 'CREDIT_LIMIT_NOT_GRANTED',

@@ -297,7 +297,7 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
         </Alert>
       )}
       {notice && (
-        <Alert>
+        <Alert live="polite">
           <AlertDescription role="status">{notice}</AlertDescription>
         </Alert>
       )}

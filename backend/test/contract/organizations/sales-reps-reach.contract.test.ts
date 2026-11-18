@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -6,6 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
+import { organizationTreePath } from '../../helpers/organization-tree.js';
 import {
   AdminRole,
   AdminUser,
@@ -73,27 +75,28 @@ describe('GET /admin/organizations/:organizationId/sales-reps — the administra
       }
       await fork.persistAndFlush(role);
       roleId = role.id;
-      const org = (label: string, parent?: Organization): Organization =>
-        fork.create(Organization, {
+      const org = (label: string, parent?: Organization): Organization => {
+        const id = randomUUID();
+        return fork.create(Organization, {
+          id,
           name: `Reps reach ${stamp} ${label}`,
           taxId: `PL856${label.slice(0, 1).toUpperCase()}${stamp}`,
           status: 'active',
           vatStatus: 'vat_payer',
           registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-856', country: 'PL' },
-          ...(parent ? { parentId: parent.id } : {}),
+          // Issue #956 — a child's real path goes in with the insert; a root's
+          // comes from the entity's create hook.
+          ...(parent ? { parentId: parent.id, path: organizationTreePath(id, parent) } : {}),
         });
+      };
       const own = org('own');
       await fork.persistAndFlush(own);
-      own.path = `/${own.id}/`;
       const child = org('child', own);
       await fork.persistAndFlush(child);
-      child.path = `${own.path}${child.id}/`;
       const foreign = org('foreign');
       await fork.persistAndFlush(foreign);
-      foreign.path = `/${foreign.id}/`;
       const unassigned = org('unassigned');
       await fork.persistAndFlush(unassigned);
-      unassigned.path = `/${unassigned.id}/`;
       const admin = (label: string): AdminUser =>
         fork.create(AdminUser, {
           email: `org-856-${label}-${stamp}@scope.local`,

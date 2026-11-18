@@ -149,6 +149,12 @@ describe('the Attachments tab', () => {
     expect(within(row(panel, 'drawing.dwg')).getByText(/512\s?(B|byte)/)).toBeInTheDocument();
   });
 
+  it('does not explain where the files are kept or how a download works (#1487)', async () => {
+    const panel = await openTab();
+    await within(panel).findByText('brief.pdf');
+    expect(within(panel).queryByText(/media library|download link/i)).toBeNull();
+  });
+
   it('says there are no attachments yet', async () => {
     attachments = [];
     const panel = await openTab();

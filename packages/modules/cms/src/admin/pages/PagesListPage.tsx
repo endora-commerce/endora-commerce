@@ -76,6 +76,8 @@ export function PagesListPage(): ReactNode {
               onKeyDown={(event) => {
                 if (event.key === 'Enter') void load();
               }}
+              type="search"
+              aria-label={t('pagesList.searchLabel')}
               placeholder={t('pagesList.searchPlaceholder')}
               className="w-64"
             />

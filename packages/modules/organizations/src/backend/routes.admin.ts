@@ -26,6 +26,7 @@ import {
   type AdminOrganization,
   type AdminOrganizationDetail,
   type AdminOrganizationListResponse,
+  adminOrganizationListPageQuerySchema,
   type AdminOrganizationMember,
   AdminOrganizationCreateBodySchema,
   adminTaxIdScopeSetBodySchema,
@@ -125,6 +126,8 @@ const listQuerySchema = z.object({
   'filter[isPersonal]': z.enum(['true', 'false']).optional(),
   // `specs/178-extensible-columns/` FR-051 — extension attributes on request.
   ...ExtensionsQuerySchema.shape,
+  // Issue #1473 — the admin list screen's offset paging.
+  ...adminOrganizationListPageQuerySchema.shape,
 });
 
 /** The module ids `?extensions=` names, in order, or none. */
@@ -441,13 +444,20 @@ export async function registerOrganizationsAdminRoutes(
           ...(taxIdText ? [{ taxId: { $ilike: `%${taxIdText}%` } }] : []),
         ];
       }
-      const orgs = await em.find(Organization, where, {
-        limit: query.limit,
-        orderBy: { createdAt: 'desc' },
+      // Issue #1473 — an offset page and the total across all of them, for the
+      // list screen's pager. `pageSize` falls back to `limit`, so a caller that
+      // names neither (the pickers) keeps its one first page. `id` breaks a
+      // `createdAt` tie, or a page boundary could repeat a row and skip another.
+      const pageSize = query.pageSize ?? query.limit;
+      const [orgs, total] = await em.findAndCount(Organization, where, {
+        limit: pageSize,
+        offset: (query.page - 1) * pageSize,
+        orderBy: { createdAt: 'desc', id: 'desc' },
       });
       return {
         data: await withExtensions(em, orgs, orgs.map(serializeOrg), requestedExtensions(query.extensions)),
-        pagination: { cursor: null, hasMore: false, limit: query.limit },
+        meta: { page: query.page, pageSize, total },
+        pagination: { cursor: null, hasMore: query.page * pageSize < total, limit: pageSize },
       };
     },
   );

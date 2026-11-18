@@ -9,9 +9,9 @@ import type {
   DocumentTemplateDetail,
   DocumentTypeDetail,
 } from '@endora-commerce/contracts';
-import { ApiError, cn, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, cn, isDraftEqual, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog } from '@endora-commerce/admin-kit/components';
+import { ModalDialog, UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { useBlockContributions } from '@endora-commerce/admin-kit/zones';
 import { PageBuilderHeaderActions, PageBuilderOverlayBridge } from '@endora-commerce/page-builder-admin';
@@ -293,8 +293,8 @@ export function DocumentTemplateEditor(): ReactNode {
     } as Config;
   }, [descriptor, editors, storedNamesKey, labelOf, translateIn, t, type?.pageDefaults]);
 
-  const save = useCallback(async (): Promise<void> => {
-    if (!template || !canWrite) return;
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!template || !canWrite) return false;
     setBusy('save');
     setError(null);
     setNotice(null);
@@ -307,13 +307,36 @@ export function DocumentTemplateEditor(): ReactNode {
         content: { schemaVersion: 1, languages: { ...template.content.languages, [language]: draft } },
       });
       setNotice(t('editor.saved'));
+      return true;
     } catch (err) {
       if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') setConflict(true);
       else setError(errorText(err, 'editor.saveError'));
+      return false;
     } finally {
       setBusy(null);
     }
   }, [template, canWrite, language, draft, t, errorText]);
+
+  /**
+   * Issue #1461 (CONTENT-02) — the canvas against the language's stored tree,
+   * hydrated the same way the canvas was. A language started from another one
+   * is unsaved until the first save stores it. Switching language replaces the
+   * canvas, so it asks first too — not only a link out of the editor.
+   */
+  const storedTree = (template?.content.languages[language] as Data | undefined) ?? undefined;
+  const dirty =
+    template !== null &&
+    draftOf === language &&
+    (!isDraftEqual(draft, storedTree ? hydrate(storedTree, declaredDefaults) : EMPTY) ||
+      (storedTree !== undefined && !template.languages.includes(language)));
+  const unsavedGuard = useUnsavedChangesGuard({
+    dirty,
+    onSave: canWrite ? save : undefined,
+    onDiscard: () => {
+      setDraft(storedTree ? hydrate(storedTree, declaredDefaults) : EMPTY);
+      setEpoch((n) => n + 1);
+    },
+  });
 
   const toggleDefault = useCallback(async (): Promise<void> => {
     if (!template || !canWrite) return;
@@ -396,6 +419,7 @@ export function DocumentTemplateEditor(): ReactNode {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {template?.isDefault ? <Badge>{t('page.default')}</Badge> : null}
+            {canWrite ? <UnsavedChangesHint dirty={dirty} /> : null}
             <Button variant="outline" size="sm" asChild>
               <Link to={template ? `/document-templates?type=${encodeURIComponent(template.documentType)}` : '/document-templates'}>
                 {tCore('common.action.back')}
@@ -439,7 +463,7 @@ export function DocumentTemplateEditor(): ReactNode {
             current={language}
             stored={Object.keys(template.content.languages)}
             copyFrom={copyFrom?.language ?? null}
-            onSelect={selectLanguage}
+            onSelect={(target) => unsavedGuard.confirm(() => selectLanguage(target))}
             onStart={startLanguage}
           />
           <MergeFieldsPanel variables={type.variables} />
@@ -518,8 +542,9 @@ export function DocumentTemplateEditor(): ReactNode {
           <p>{t('editor.conflict.body')}</p>
         </ModalDialog>
       ) : null}
+      {unsavedGuard.dialog}
       {template === null && error ? (
-        <Button variant="outline" onClick={() => navigate('/document-templates')}>
+        <Button variant="outline" onClick={() => { navigate('/document-templates'); }}>
           {tCore('common.action.back')}
         </Button>
       ) : null}

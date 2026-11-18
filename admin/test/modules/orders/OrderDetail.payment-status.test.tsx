@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * Feature 085 (FR-024) — the payment-status control offers exactly the values
- * the platform accepts, and shows the one it does not.
+ * the platform accepts, and shows the one it does not. Since issue #1470
+ * (DS-18) the control is a badge and a "Change…" dialog, not a select that
+ * writes on `change`; payment status stays operator-editable with the
+ * `payments` module present (owner decision DEC-11 — bank transfers).
  *
  * Two defects meet on this control. `POST /api/v1/admin/orders/:id/payment-status`
  * has only ever accepted `paid` and `refunded`, while the select offered a
@@ -18,8 +23,12 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  *
  * So the two lists are now different things. What is settable is derived from
  * the contract the route parses, so it cannot drift from it again; what is
- * displayed is that set plus the order's own value when the order's own value
- * is not settable, rendered disabled.
+ * displayed is the order's own value, as a badge, whether or not it is
+ * settable — and it is never offered as a target.
+ *
+ * Since issue #1574 what is offered *from* a given status is the server's own
+ * transition graph (`paymentStatusTargets` in the contracts), so the dialog
+ * cannot offer a move the route refuses with 409.
  */
 
 const getSpy = vi.fn();
@@ -86,9 +95,17 @@ const BUNDLE = passthroughBundle('core', [
   'orderDetail.paymentStatus.failed',
   'orderDetail.paymentStatus.deferred',
   'orderDetail.paymentStatus.refunded',
+  'orderDetail.statusChange.paymentTitle',
+  'orderDetail.statusChange.paymentConsequence',
+  'orderDetail.statusChange.paymentConsequenceRefunded',
+  'orderDetail.statusChange.noPermission',
+  'common.statusChange.noTransitions',
+  'common.statusChange.change',
+  'common.statusChange.continue',
+  'common.statusChange.confirm',
 ]);
 
-function renderDetail(paymentStatus: string): void {
+function renderDetail(paymentStatus: string, permissions: string[] = ['*']): void {
   getSpy.mockImplementation((path: string) => {
     if (path === '/api/v1/admin/orders/o1') return Promise.resolve({ data: orderWith(paymentStatus) });
     if (path === '/api/v1/admin/orders/statuses') {
@@ -108,33 +125,31 @@ function renderDetail(paymentStatus: string): void {
           <Route path="/orders/:id" element={<OrderDetail />} />
         </Routes>
       </MemoryRouter>,
-      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: ['orders', 'payments'] }) },
+      { session: adminSession({ permissions }), presence: modulePresence({ present: ['orders', 'payments'] }) },
     ),
     BUNDLE,
   );
 }
 
 /**
- * `findByText` is the wait, and there is deliberately no `waitFor` around it.
+ * `findByRole` is the wait, and there is deliberately no `waitFor` around it.
  * Nesting one async utility inside another does not compose their budgets: the
  * outer loop skips every tick while its callback's promise is still pending, so
  * the outer wrapper gets exactly one attempt inside a deadline it shares with
- * the inner one — and when the inner has to retry at all, the outer expires
- * first and reports a bare `Timed out in waitFor` instead of the inner's
- * "unable to find an element with the text", which is the half that names what
- * was missing.
+ * the inner one.
  */
-async function paymentStatusSelect(): Promise<HTMLSelectElement> {
-  const label = await screen.findByText('orderDetail.fields.paymentStatus');
-  const select = document.getElementById(label.getAttribute('for') ?? '');
-  if (!(select instanceof HTMLSelectElement)) throw new Error('No payment-status select.');
-  return select;
+async function changeButton(): Promise<HTMLElement> {
+  return screen.findByRole('button', { name: 'common.statusChange.change orderDetail.fields.paymentStatus' });
 }
 
-/** `value` → whether the option is disabled. */
-async function options(): Promise<Map<string, boolean>> {
-  const select = await paymentStatusSelect();
-  return new Map([...select.options].map((option) => [option.value, option.disabled]));
+/** Opens the dialog and answers the values it offers. */
+async function offered(): Promise<string[]> {
+  await userEvent.click(await changeButton());
+  const dialog = await screen.findByRole('dialog', { name: 'orderDetail.statusChange.paymentTitle' });
+  return within(dialog)
+    .getAllByRole('radio')
+    .map((radio) => (radio as HTMLInputElement).value)
+    .sort();
 }
 
 beforeEach(() => {
@@ -143,44 +158,120 @@ beforeEach(() => {
   postSpy.mockResolvedValue({ data: orderWith('paid') });
 });
 
-describe('OrderDetail — the payment-status control (085 FR-024)', () => {
-  it('offers only the two values the route accepts', async () => {
-    renderDetail('paid');
-    expect((await options()).size).toBeGreaterThan(0);
+describe('OrderDetail — the payment-status control (085 FR-024, #1470)', () => {
+  it('renders no select that could write on change', async () => {
+    renderDetail('awaiting_payment');
+    await changeButton();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
 
-    const settable = [...(await options())]
-      .filter(([, disabled]) => !disabled)
-      .map(([value]) => value)
-      .sort();
-    expect(settable).toEqual(['paid', 'refunded']);
+  /**
+   * Issue #1574 — the dialog offers exactly the server's targets, from the
+   * contracts' `paymentStatusTargets(current, 'operator')`: an unpaid order may
+   * be marked paid, a paid one refunded, and a refunded one nothing.
+   */
+  it.each([
+    ['awaiting_payment', ['paid']],
+    ['failed', ['paid']],
+    ['deferred', ['paid']],
+    ['paid', ['refunded']],
+  ] as const)('offers from %s exactly what the server accepts (#1574)', async (current, targets) => {
+    renderDetail(current);
+    expect(await offered()).toEqual([...targets]);
   });
 
   /**
    * The value the settlement ingress writes and no operator may. It has to be
-   * on the control — an operator reading an order needs to see that its payment
-   * failed — and it has to be unselectable, because a payment does not become
+   * on the screen — an operator reading an order needs to see that its payment
+   * failed — and it must never be offered, because a payment does not become
    * failed by somebody saying so.
    */
   it('shows a failed payment without offering it as something to set', async () => {
     renderDetail('failed');
-    expect((await options()).has('failed')).toBe(true);
-
-    expect((await options()).get('failed')).toBe(true);
-    expect((await paymentStatusSelect()).value).toBe('failed');
+    expect(await screen.findByText('orderDetail.paymentStatus.failed')).toBeInTheDocument();
+    expect(await offered()).toEqual(['paid']);
   });
 
   /**
-   * The pre-existing half of the same defect: `awaiting_payment` and `deferred`
-   * were offered and refused by the server. They are still shown when the order
-   * is in one of them, and no longer offered.
+   * `awaiting_payment` and `deferred` are still shown when the order is in one
+   * of them, and never offered.
    */
   it('shows an unsettable current value rather than dropping it', async () => {
     for (const current of ['awaiting_payment', 'deferred']) {
       renderDetail(current);
-      expect((await options()).has(current)).toBe(true);
-      expect((await options()).get(current)).toBe(true);
-      expect((await paymentStatusSelect()).value).toBe(current);
+      expect(await screen.findByText(`orderDetail.paymentStatus.${current}`)).toBeInTheDocument();
+      expect(await offered()).toEqual(['paid']);
       cleanup();
     }
+  });
+
+  it('offers nothing from refunded, and says so (#1574)', async () => {
+    renderDetail('refunded');
+    const button = await changeButton();
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription('common.statusChange.noTransitions');
+  });
+
+  it('keeps the dialog open with the server\'s translated refusal (#1574)', async () => {
+    postSpy.mockRejectedValue(
+      new ApiError(409, {
+        error: {
+          code: 'ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED',
+          message: 'Tylko opłacone zamówienie można oznaczyć jako zwrócone.',
+          details: { code: 'payment_not_paid', from: 'paid', to: 'refunded' },
+        },
+      }),
+    );
+    renderDetail('paid');
+    await userEvent.click(await changeButton());
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'orderDetail.paymentStatus.refunded' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.continue' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.confirm' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Tylko opłacone zamówienie można oznaczyć jako zwrócone.',
+    );
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('warns that marking refunded moves no money and cannot be undone (#1574)', async () => {
+    renderDetail('paid');
+    await userEvent.click(await changeButton());
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'orderDetail.paymentStatus.refunded' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.continue' }));
+    // The consequence is appended to the confirm step's summary sentence.
+    expect(dialog).toHaveTextContent('orderDetail.statusChange.paymentConsequenceRefunded');
+    expect(dialog).not.toHaveTextContent(/paymentConsequence(?!Refunded)/);
+  });
+
+  it('keeps the bank-transfer sentence for marking paid', async () => {
+    renderDetail('awaiting_payment');
+    await userEvent.click(await changeButton());
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'orderDetail.paymentStatus.paid' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.continue' }));
+    expect(dialog).toHaveTextContent(/orderDetail\.statusChange\.paymentConsequence(?!Refunded)/);
+    expect(dialog).not.toHaveTextContent('paymentConsequenceRefunded');
+  });
+
+  it('writes only after the confirm step (DEC-11: a bank transfer marked paid by hand)', async () => {
+    renderDetail('awaiting_payment');
+    await userEvent.click(await changeButton());
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'orderDetail.paymentStatus.paid' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.continue' }));
+    expect(postSpy).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.confirm' }));
+    await waitFor(() =>
+      expect(postSpy).toHaveBeenCalledWith('/api/v1/admin/orders/o1/payment-status', { to: 'paid' }),
+    );
+  });
+
+  it('disables the change and says why without orders:write', async () => {
+    renderDetail('awaiting_payment', ['orders:read']);
+    const button = await changeButton();
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription('orderDetail.statusChange.noPermission');
   });
 });

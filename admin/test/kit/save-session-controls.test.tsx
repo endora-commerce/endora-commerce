@@ -187,9 +187,20 @@ describe('SaveSessionSummary', () => {
     expect(screen.getByRole('status').textContent).toBe('Saved: Organization, Price display.');
   });
 
-  it('shows the discarded-change notices', () => {
+  it('shows the discarded-change notices, announced politely (issue #1484)', () => {
     render(wrap(<SaveSessionSummary outcome={null} notices={['Base prices: discarded.']} onShow={vi.fn()} />));
-    expect(screen.getByRole('alert').textContent).toContain('Base prices: discarded.');
+    expect(screen.queryByRole('alert')).toBeNull();
+    const notice = screen.getAllByRole('status').find((el) => el.textContent?.includes('Base prices: discarded.'));
+    expect(notice).toBeDefined();
+  });
+
+  it('keeps the polite region mounted before a full save, so the save is announced (issue #1443)', () => {
+    const view = render(wrap(<SaveSessionSummary outcome={null} notices={[]} onShow={vi.fn()} />));
+    const region = screen.getByRole('status');
+    expect(region.textContent).toBe('');
+    view.rerender(wrap(<SaveSessionSummary outcome={SAVED} notices={[]} onShow={vi.fn()} />));
+    expect(screen.getByRole('status')).toBe(region);
+    expect(region.textContent).toBe('Saved: Organization, Price display.');
   });
 
   it('moves focus to its heading when an outcome arrives', () => {

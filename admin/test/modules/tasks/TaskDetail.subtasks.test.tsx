@@ -197,6 +197,15 @@ describe('TaskDetail — sub-tasks (US5)', () => {
     );
   });
 
+  it('offers Make sub-task of… on the Sub-task of line, beside Remove from parent, when there is a parent (#512)', async () => {
+    current = taskDetail({ parent: { id: PARENT_ID, number: 'TSK-000009', available: true } });
+    await renderPage();
+    const line = within(subtasksSection()).getByRole('link', { name: 'TSK-000009' }).parentElement as HTMLElement;
+    expect(within(line).getByRole('button', { name: en('subtasks.makeChild') })).toBeInTheDocument();
+    expect(within(line).getByRole('button', { name: en('subtasks.detach') })).toBeInTheDocument();
+    expect(within(subtasksSection()).getAllByRole('button', { name: en('subtasks.makeChild') })).toHaveLength(1);
+  });
+
   it('detaches the Task from its parent', async () => {
     current = taskDetail({ parent: { id: PARENT_ID, number: 'TSK-000009', available: true } });
     patchSpy.mockResolvedValue({ data: { ...current, parent: null } });

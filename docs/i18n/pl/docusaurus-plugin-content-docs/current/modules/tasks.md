@@ -88,8 +88,9 @@ ustawione przed przełączeniem zostają.
   którego moduł jest wyłączony, jest nazwany *Niedostępny rekord*, bez
   odnośnika. *Sortuj według* porządkuje listę według chwili utworzenia lub
   ostatniej zmiany, terminu, priorytetu, statusu (w kolejności przebiegu),
-  numeru albo tytułu. Przechodzi się po niej stronami do przodu i do tyłu, po
-  pięćdziesiąt zadań.
+  numeru albo tytułu. Przechodzi się po niej stronami do przodu i do tyłu;
+  *Wierszy na stronę* ustala, ile zadań pokazuje strona, najwyżej 100,
+  i jest zapamiętywane dla ciebie.
 - **Tablica** ma jedną kolumnę na status, w kolejności przebiegu; każda podaje,
   ile zadań zawiera, i pokazuje pierwsze z nich, z *Pokaż więcej*. Karta
   pokazuje tytuł zadania i pola wybrane przez operatora (zob. *Konfiguracja
@@ -99,13 +100,14 @@ ustawione przed przełączeniem zostają.
   użyj menu przeniesienia na karcie. Przejście, na które przebieg nie pozwala,
   jest odrzucane, a karta zostaje na miejscu. Bez uprawnienia do zmieniania
   zadań tablicę można oglądać, ale nie przenosić kart.
-- **Filtry**, te same dla listy i tablicy: status, otwarte lub zamknięte, osoba
-  przypisana (ktokolwiek, ty albo nikt), utworzone przez (ktokolwiek albo ty),
-  priorytet, etykiety (każda wybrana), termin od i do, tylko zadania po
-  terminie, tylko podzadania, tylko zadania główne albo tylko zadania
-  z podzadaniami, tylko twoje szkice (*Tylko moje szkice*), tylko
-  zadania prywatne, pola niestandardowe zadań oznaczone jako filtry listy oraz
-  wyszukiwanie po numerze lub tytule. *Pokaż na liście zadań* w panelu
+- **Filtry**, te same dla listy i tablicy. Zawsze widoczne: wyszukiwanie po
+  numerze lub tytule, status, osoby przypisane (ktokolwiek, ty albo nikt),
+  termin od i do oraz tylko zadania po terminie. *Więcej filtrów* otwiera
+  pozostałe — otwarte lub zamknięte, utworzone przez (ktokolwiek albo ty),
+  priorytet, etykiety (każda wybrana), tylko podzadania, tylko zadania główne
+  albo tylko zadania z podzadaniami, tylko twoje szkice (*Tylko moje szkice*),
+  tylko zadania prywatne i pola niestandardowe zadań oznaczone jako filtry
+  listy — a gdy jest zamknięte, podaje, ile z nich jest w użyciu. *Pokaż na liście zadań* w panelu
   *Zadania* otwiera listę zadań jednego rekordu, a *Pokaż wszystkie zadania*
   wraca do całości.
 - **Zapisane widoki** przechowują zestaw filtrów pod nazwą, tylko dla ciebie
@@ -126,12 +128,13 @@ i wyłącza twoje podsumowanie oraz ustawia jego godzinę.
 przypisanych — wybieranych po nazwisku spośród aktywnych administratorów, którzy
 mogą przeglądać zadania, albo przyciskiem *Przypisz do mnie* — terminu
 z godziną, daty rozpoczęcia, priorytetu i etykiet. *Utwórz zadanie* publikuje
-je; *Zapisz jako szkic* zostawia je tylko dla ciebie. *Prywatne*
-ogranicza osoby przypisane do ciebie. Zadanie utworzone tutaj nie należy do
+je; *Zapisz jako szkic* zostawia je tylko dla ciebie. *Prywatne*, nad
+osobami przypisanymi, ogranicza je do ciebie: włączenie go usuwa każdego
+innego, kto był już wybrany, i mówi, kogo. Zadanie utworzone tutaj nie należy do
 żadnego rekordu: zadanie projektu dodaje się w zakładce *Zadania* projektu, do
 jednego z jego etapów. Rozpoczęte z panelu *Zadania* rekordu jest z tym
-rekordem powiązane; rozpoczęte przyciskiem *Dodaj podzadanie* zadania jest jego
-podzadaniem.
+rekordem powiązane, a *Wstecz* wraca do tego rekordu; rozpoczęte przyciskiem
+*Dodaj podzadanie* zadania jest jego podzadaniem.
 
 **Ekran zadania** pokazuje jego numer i tytuł, status — z propozycją tylko tych
 przejść, na które pozwala przebieg — oraz *Szkic* albo *Prywatne*, gdy
@@ -141,8 +144,8 @@ zadania bez rekordu może włączać i wyłączać *Prywatne*. Dalej:
 - **Szczegóły** — opis z odwołaniami jako odnośnikami; osoby przypisane, termin
   z godziną, data rozpoczęcia, priorytet i etykiety, zmieniane przyciskiem
   *Edytuj* i zapisywane razem; *Przypisz do mnie*; kto i kiedy utworzył
-  zadanie oraz kiedy zostało zakończone. *Usuń zadanie* pyta przed usunięciem
-  i podaje, ile zadanie ma podzadań: stają się one zadaniami głównymi, nie są
+  zadanie oraz kiedy zostało zakończone. *Usuń zadanie*, u góry ekranu i z dala
+  od *Edytuj*, pyta przed usunięciem i podaje, ile zadanie ma podzadań: stają się one zadaniami głównymi, nie są
   usuwane. Przycisk nie jest dostępny dla zadania rekordu, którego nie możesz
   zmieniać — projektu, którego nie możesz edytować — a ekran wyjaśnia dlaczego.
 - **Podzadania** — ile jest zrobionych z ilu, każde ze statusem, osobami
@@ -152,7 +155,8 @@ zadania bez rekordu może włączać i wyłączać *Prywatne*. Dalej:
 - **Komentarze**, **Załączniki** i **Historia**.
 - Obok: **Przypomnienia**, **Należy do** — rekord, do którego należy zadanie,
   tak jak nazywa go jego moduł, z *Umieść w rekordzie*, *Przenieś* i *Usuń
-  z rekordu* — **Powiązane rekordy**, **Powiązane zadania** i **pola
+  z rekordu*, które najpierw pyta: poza rekordem zadanie widzi każdy, kto może
+  przeglądać zadania — **Powiązane rekordy**, **Powiązane zadania** i **pola
   niestandardowe** zadania.
 
 Inne moduły mogą dodawać panele na końcu ekranu zadania. Bez uprawnienia do
@@ -162,7 +166,9 @@ zmieniania zadań ekran jest tylko do odczytu.
 i **zapytania ofertowego** kończą się panelem **Zadania**: powiązanymi z nim
 zadaniami, które możesz zobaczyć, z ich statusem, osobami przypisanymi
 i terminem, przyciskiem *Dodaj zadanie* — nowe zadanie od razu powiązane
-z rekordem — oraz *Pokaż na liście zadań*.
+z rekordem — oraz *Pokaż na liście zadań*. Zadanie otwarte albo dodane
+z panelu prowadzi przyciskiem *Wstecz* z powrotem do rekordu, także po jego
+usunięciu.
 
 **Paleta poleceń** (⌘K / CTRL+K) proponuje *Zadania*, *Moje zadania*, *Nowe
 zadanie*, *Statusy i przejścia zadań*, *Priorytety zadań* i *Etykiety zadań*,

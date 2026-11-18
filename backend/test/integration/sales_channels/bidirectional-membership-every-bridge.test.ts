@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ERROR_CODES, type ChannelMemberEntityType } from '@endora-commerce/contracts';
 import { randomUUID } from 'crypto';
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
+import { organizationTreePath } from '../../helpers/organization-tree.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import { SalesChannelMembershipService } from '../../../src/kernel/sales-channels/sales-channel-membership.service.js';
 import { DefaultChannelReconciler } from '@endora-commerce/platform/composition';
@@ -140,9 +141,9 @@ describe('bidirectional membership: every bridge (T043)', () => {
   async function insertOrganization(): Promise<string> {
     const id = randomUUID();
     await rawExec(
-      `insert into "organizations" ("id","name","tax_id","status","vat_status","registered_address","created_at","updated_at") ` +
-        `values (?, ?, ?, 'active', 'vat_payer', '{}'::jsonb, now(), now())`,
-      [id, `T043 Org ${id.slice(0, 8)}`, `T043TAX${id.slice(0, 8).toUpperCase()}`],
+      `insert into "organizations" ("id","name","tax_id","status","vat_status","registered_address","path","created_at","updated_at") ` +
+        `values (?, ?, ?, 'active', 'vat_payer', '{}'::jsonb, ?, now(), now())`,
+      [id, `T043 Org ${id.slice(0, 8)}`, `T043TAX${id.slice(0, 8).toUpperCase()}`, organizationTreePath(id)],
     );
     return id;
   }

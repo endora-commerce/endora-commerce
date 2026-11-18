@@ -230,6 +230,18 @@ Configurable products expose a variant picker whose axes come from the
 attributes flagged `isVariantAxis = true` on the product's currently
 assigned Attribute Set.
 
+The product editor's **Variants** tab uses the same axes. Creating or editing a
+variant offers one field per axis — a list of the attribute's options for a
+single-choice attribute, *Yes* / *No* for a yes/no attribute, and a plain field
+for a number, date or text attribute — and the variants table shows one column
+per axis, with the option labels in the admin language. Every axis needs a value,
+and two variants of a product cannot have the same values. A value is stored in
+the attribute's own type, as the product's own values are. When the set has no
+variant axis the tab says so and offers no create row. Stock is not set here: the
+**Inventory** tab holds it, per warehouse. A stored key that is no axis — written
+before the tab used the axes — shows under *Other attributes* and is kept when the
+variant is edited.
+
 ## Storage
 
 Since migration `20260723T230401_catalog_attributes_on_custom_fields.ts` an attribute is split between the

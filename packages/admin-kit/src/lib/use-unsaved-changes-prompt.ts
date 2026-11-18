@@ -1,11 +1,11 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { useTranslation } from '../i18n/useTranslation.js';
 
 /**
  * Warn the user before they navigate away from a form that has unsaved edits.
  *
  * The admin mounts a component `<BrowserRouter>` (not a data router), so React
- * Router v7's `useBlocker` is unavailable here. This hook covers the two real
+ * Router v7's `useBlocker` is unavailable here. This hook covers the real
  * "lose my changes" vectors instead:
  *
  *   1. Browser-level unload (reload, tab close, typing a new URL, clicking an
@@ -13,10 +13,18 @@ import { useTranslation } from '../i18n/useTranslation.js';
  *   2. In-app SPA navigation via clicks on same-origin `<a>` / `<Link>`
  *      elements (e.g. the left nav) — intercepted in the capture phase and
  *      confirmed with the user *before* React Router handles the click.
+ *   3. Optionally, a `role="tab"` outside a given element (`guardTabsOutside`).
  *
  * Programmatic `navigate()` calls (e.g. right after an explicit Save) are not
  * intercepted; callers should make sure `when` is false by the time they
- * navigate themselves (typically by reloading/snapshotting after a save).
+ * navigate themselves (typically by reloading/snapshotting after a save), or
+ * ask first through `useUnsavedChangesGuard().confirm`.
+ *
+ * This is the minimal form — the browser's own `confirm()`, leave or stay. A
+ * screen with a Save button uses `useUnsavedChangesGuard` from
+ * `@endora-commerce/admin-kit/components` instead, which runs the same
+ * interception and asks Save / Discard / Stay in the admin's own dialog
+ * (issue #1446, DS-13).
  *
  * @param when    Whether the form currently has unsaved changes.
  * @param message Optional override for the confirmation text. Defaults to the
@@ -29,12 +37,28 @@ export interface UnsavedChangesPromptOptions {
    * — a zone in the product editor's Pricing tab — a host tab switch unmounts
    * the panel and its edits with it, and is neither a link nor an unload.
    */
-  guardTabsOutside?: RefObject<HTMLElement | null>;
+  guardTabsOutside?: RefObject<HTMLElement | null> | undefined;
 }
 
-export function useUnsavedChangesPrompt(when: boolean, message?: string, options: UnsavedChangesPromptOptions = {}): void {
-  const t = useTranslation('core');
-  const confirmMessage = message ?? t('form.unsavedChanges.confirm');
+/**
+ * Decides whether an intercepted navigation may go ahead **now**. Returning
+ * `true` lets the click through; returning `false` cancels it, and `replay`
+ * re-runs the very same activation later (the dialog's Discard or Save) without
+ * asking again.
+ */
+export type LeaveAsker = (replay: () => void) => boolean;
+
+/**
+ * The interception both unsaved-changes primitives share — one implementation
+ * for `useUnsavedChangesPrompt` (asks with `window.confirm`) and the kit's
+ * `useUnsavedChangesGuard` (asks in a Save / Discard / Stay dialog). Not on the
+ * `./lib` barrel: a screen names one of those two, never this.
+ */
+export function useLeaveInterception(when: boolean, ask: LeaveAsker, options: UnsavedChangesPromptOptions = {}): void {
+  const askRef = useRef(ask);
+  askRef.current = ask;
+  /** Set while a replayed activation is in flight, so it is not asked about twice. */
+  const bypassRef = useRef(false);
 
   // 1. Browser-level unload.
   useEffect(() => {
@@ -52,6 +76,7 @@ export function useUnsavedChangesPrompt(when: boolean, message?: string, options
   useEffect(() => {
     if (!when) return undefined;
     const onClickCapture = (e: MouseEvent): void => {
+      if (bypassRef.current) return;
       // Respect anything already handled, non-primary clicks, and
       // new-tab / modified clicks (those don't discard the current view).
       if (e.defaultPrevented) return;
@@ -74,31 +99,58 @@ export function useUnsavedChangesPrompt(when: boolean, message?: string, options
       const current = window.location.pathname + window.location.search;
       if (url.pathname + url.search === current) return; // same route / in-page anchor
 
-      if (!window.confirm(confirmMessage)) {
+      const replay = (): void => {
+        if (!anchor.isConnected) {
+          window.location.assign(url.href);
+          return;
+        }
+        bypassRef.current = true;
+        try {
+          anchor.click();
+        } finally {
+          bypassRef.current = false;
+        }
+      };
+      if (!askRef.current(replay)) {
         e.preventDefault();
         e.stopPropagation();
       }
     };
     document.addEventListener('click', onClickCapture, true);
-    return (): void =>
-      document.removeEventListener('click', onClickCapture, true);
-  }, [when, confirmMessage]);
+    return (): void => document.removeEventListener('click', onClickCapture, true);
+  }, [when]);
 
   // 3. A host's tab outside the panel (opt-in, `guardTabsOutside`).
   const panel = options.guardTabsOutside;
   useEffect(() => {
     if (!when || !panel) return undefined;
     const onTabCapture = (e: MouseEvent): void => {
+      if (bypassRef.current) return;
       if (e.defaultPrevented) return;
-      const tab = (e.target as HTMLElement | null)?.closest('[role="tab"]');
+      const tab = (e.target as HTMLElement | null)?.closest<HTMLElement>('[role="tab"]');
       if (!tab || panel.current?.contains(tab)) return;
       if (tab.getAttribute('aria-selected') === 'true') return;
-      if (!window.confirm(confirmMessage)) {
+      const replay = (): void => {
+        if (!tab.isConnected) return;
+        bypassRef.current = true;
+        try {
+          tab.click();
+        } finally {
+          bypassRef.current = false;
+        }
+      };
+      if (!askRef.current(replay)) {
         e.preventDefault();
         e.stopPropagation();
       }
     };
     document.addEventListener('click', onTabCapture, true);
     return (): void => document.removeEventListener('click', onTabCapture, true);
-  }, [when, confirmMessage, panel]);
+  }, [when, panel]);
+}
+
+export function useUnsavedChangesPrompt(when: boolean, message?: string, options: UnsavedChangesPromptOptions = {}): void {
+  const t = useTranslation('core');
+  const confirmMessage = message ?? t('form.unsavedChanges.confirm');
+  useLeaveInterception(when, () => window.confirm(confirmMessage), options);
 }

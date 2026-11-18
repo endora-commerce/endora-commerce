@@ -485,7 +485,10 @@ poniższych:
 - `product_attachments.asset_id` (załączniki produktu)
 - `products.download_asset_id` (produkty do pobrania)
 - `categories.main_image_asset_id` (główny obraz kategorii)
-- `cms_pages.body` zawierające węzeł `{ type: "asset_ref", assetId }`
+- dokument Page Buildera — strona, blok lub szablon CMS, treść kategorii lub produktu, wpis bloga,
+  opis kategorii bloga — zawierający identyfikator pod kluczem kończącym się na `assetId`
+  (`assetId`, `iconAssetId`, `mainImageAssetId`, …). Identyfikator pod innym kluczem nigdy nie jest
+  wyświetlany, więc nie jest odwołaniem: nie blokuje usunięcia i nie odsłania ukrytego pliku
 
 Każdy moduł, który używa plików z biblioteki, zgłasza w ten sam sposób własne rodzaje odwołań —
 między innymi Zadania, Projekty, CRM, wpisy bloga i menu. Sprawdzenie liczy **każde** odwołanie, bez

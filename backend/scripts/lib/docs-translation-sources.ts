@@ -260,3 +260,151 @@ export async function resolveDocsTranslationLayout(): Promise<{
     skipPaths: loadTranslationSkipPaths(layout.repoRoot),
   };
 }
+
+/** One ATX heading of a page's outline. */
+export interface DocsHeading {
+  readonly level: number;
+  /** The explicit `{#anchor}` the heading declares, or `null`. */
+  readonly anchor: string | null;
+  /** The id the heading renders with: its explicit anchor, else its derived slug. */
+  readonly id: string;
+}
+
+const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})/;
+const HEADING_PATTERN = /^\s{0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$/;
+const EXPLICIT_ANCHOR_PATTERN = /[ \t]*\{#([^}\s]+)\}$/;
+
+/**
+ * The slug Docusaurus derives for a heading without an explicit anchor — an
+ * approximation of `github-slugger` over the heading's rendered text: link
+ * targets, inline HTML and markdown punctuation removed, letters, digits,
+ * `_` and `-` kept, spaces turned into `-`. A heading this misreads can only
+ * add a finding, never hide one.
+ */
+export function headingSlug(text: string): string {
+  return text
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]+>/g, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}_\- ]/gu, '')
+    .replace(/ /g, '-');
+}
+
+/**
+ * The heading outline of a markdown page (issue #1340) — the part of a page a
+ * translation keeps one-for-one. Front matter and fenced code are skipped, so
+ * a `#` comment in a shell block is not a heading. Repeated ids take the
+ * `-1`, `-2` suffixes Docusaurus gives them. Setext (`===` / `---`
+ * underline) headings and headings emitted by MDX components are not read:
+ * the docs tree writes ATX headings.
+ */
+export function headingOutline(markdown: string): readonly DocsHeading[] {
+  const lines = markdown.split(/\r?\n/);
+  let index = 0;
+  if (lines[0]?.trim() === '---') {
+    const end = lines.findIndex((line, at) => at > 0 && line.trim() === '---');
+    if (end > 0) {
+      index = end + 1;
+    }
+  }
+  const outline: DocsHeading[] = [];
+  const seen = new Map<string, number>();
+  let fence: string | null = null;
+  for (; index < lines.length; index += 1) {
+    const line = lines[index]!;
+    const fenceMatch = FENCE_PATTERN.exec(line);
+    if (fence !== null) {
+      if (fenceMatch && fenceMatch[1]![0] === fence[0] && fenceMatch[1]!.length >= fence.length) {
+        fence = null;
+      }
+      continue;
+    }
+    if (fenceMatch) {
+      fence = fenceMatch[1]!;
+      continue;
+    }
+    const heading = HEADING_PATTERN.exec(line);
+    if (!heading) {
+      continue;
+    }
+    let text = (heading[2] ?? '').replace(/[ \t]+#+$/, '').replace(/^#+$/, '');
+    const explicit = EXPLICIT_ANCHOR_PATTERN.exec(text);
+    let id: string;
+    if (explicit) {
+      text = text.slice(0, explicit.index);
+      id = explicit[1]!;
+    } else {
+      const base = headingSlug(text);
+      const occurrence = seen.get(base) ?? 0;
+      seen.set(base, occurrence + 1);
+      id = occurrence === 0 ? base : `${base}-${occurrence}`;
+    }
+    outline.push({ level: heading[1]!.length, anchor: explicit ? explicit[1]! : null, id });
+  }
+  return outline;
+}
+
+/**
+ * How a translation's heading outline diverges from its source's (issue
+ * #1340), without reading the heading text a translation changes.
+ *
+ * Headings are first paired by the id they render with, so an explicit anchor
+ * a translator added to match the English heading's derived slug pairs with
+ * that heading. A paired heading at another level is `anchor-level`. An
+ * unpaired heading that declares an explicit anchor is named
+ * (`anchor-only-in-source` / `anchor-only-in-translation`); the unpaired
+ * headings without one — translated text, so no id to pair on — are compared
+ * as a count per level (`unanchored-h<n>-count:<source>-vs-<translation>`).
+ * A section dropped on one side while the other keeps it therefore always
+ * shows, by name or as a count; two edits that cancel out within one level of
+ * unanchored headings do not.
+ */
+export function headingOutlineDivergence(
+  source: readonly DocsHeading[],
+  translation: readonly DocsHeading[],
+): readonly string[] {
+  const divergences: string[] = [];
+  const byId = new Map<string, DocsHeading>();
+  for (const heading of translation) {
+    if (!byId.has(heading.id)) {
+      byId.set(heading.id, heading);
+    }
+  }
+  const pairedTranslation = new Set<DocsHeading>();
+  const unpairedSource: DocsHeading[] = [];
+  for (const heading of source) {
+    const counterpart = byId.get(heading.id);
+    if (counterpart === undefined || pairedTranslation.has(counterpart)) {
+      unpairedSource.push(heading);
+      continue;
+    }
+    pairedTranslation.add(counterpart);
+    if (counterpart.level !== heading.level) {
+      divergences.push(`anchor-level:#${heading.id}:h${heading.level}-vs-h${counterpart.level}`);
+    }
+  }
+  const unpairedTranslation = translation.filter((heading) => !pairedTranslation.has(heading));
+
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  const translationCounts = [0, 0, 0, 0, 0, 0, 0];
+  for (const heading of unpairedSource) {
+    if (heading.anchor !== null) {
+      divergences.push(`anchor-only-in-source:#${heading.anchor}`);
+    } else {
+      counts[heading.level]! += 1;
+    }
+  }
+  for (const heading of unpairedTranslation) {
+    if (heading.anchor !== null) {
+      divergences.push(`anchor-only-in-translation:#${heading.anchor}`);
+    } else {
+      translationCounts[heading.level]! += 1;
+    }
+  }
+  for (let level = 1; level <= 6; level += 1) {
+    if (counts[level] !== translationCounts[level]) {
+      divergences.push(`unanchored-h${level}-count:${counts[level]}-vs-${translationCounts[level]}`);
+    }
+  }
+  return divergences.sort();
+}

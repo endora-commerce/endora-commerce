@@ -1,27 +1,17 @@
 import {
   useCallback,
   useEffect,
-  useId,
   useMemo,
   useState,
-  type CSSProperties,
   type ReactNode,
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArchiveRestore,
-  CircleDollarSign,
-  Download,
-  MoreHorizontal,
   Package,
   PenSquare,
   Plus,
-  Search,
-  Store,
-  Tag,
   Trash2,
-  Upload,
-  Warehouse,
   X,
 } from 'lucide-react';
 import { ProductsBulkEditDialog } from '../components/ProductsBulkEditDialog.js';
@@ -36,7 +26,16 @@ import {
   type ProductListTab,
 } from '../lib/resolve-product-selection.js';
 import { ApiError, apiClient, cn, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { PaginationFooter, SavedViewsControl, adminLanguageToLocale, useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
+import {
+  ListToolbar,
+  ListToolbarSearch,
+  PaginationFooter,
+  SavedViewsControl,
+  adminLanguageToLocale,
+  useConfirmDialog,
+} from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, Select } from '@endora-commerce/admin-kit/ui';
 import type { SavedViewState } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
@@ -56,7 +55,6 @@ interface AdminProduct {
 }
 
 type StatusFilter = ProductListTab;
-type StockFilter = 'all' | 'low' | 'out';
 type TypeFilter = 'all' | 'simple' | 'configurable' | 'grouped' | 'bundle' | 'virtual';
 type SelectionMode = 'none' | 'page' | 'collection';
 
@@ -71,17 +69,24 @@ function emptySelection(): ProductListSelection {
   return { mode: 'none', pageIds: new Set(), collectionSnapshot: null, collectionTotal: 0 };
 }
 
-const TYPE_CYCLE: TypeFilter[] = ['all', 'simple', 'configurable', 'grouped', 'bundle', 'virtual'];
-const STOCK_CYCLE: StockFilter[] = ['all', 'low', 'out'];
+const TYPE_OPTIONS: TypeFilter[] = ['all', 'simple', 'configurable', 'grouped', 'bundle', 'virtual'];
 
 /**
  * Products list (feature 008).
  *
  * Status-segmented tabs at the top mirror Shopify's catalog list. The
- * filter bar carries a search box, two cycle-style filter chips (Type,
- * Stock), and placeholders for Category / Channel. A bulk-action bar
+ * filter bar is the kit's `ListToolbar` (issue #1440, DS-06): a labelled
+ * search box, a labelled Type select and the saved views. A bulk-action bar
  * appears when rows are selected. Table view only — the grid variant
  * was explicitly out of scope for this redesign.
+ *
+ * Issue #1455 (CAT-02) removed every control that looked live and was not:
+ * the Category and Channel chips (no handler — the list's selection resolver
+ * cannot narrow by either yet), the Stock chip (it emptied the list whatever
+ * was in stock — the list payload carries no stock; the Inventory list filters
+ * by it), the always-disabled *Edit price*, and a per-row "more" icon that
+ * opened nothing. A control that looks like the working ones must work like
+ * them (Law of Similarity).
  */
 interface ProductsResponse {
   data: AdminProduct[];
@@ -118,7 +123,7 @@ export function savedViewTabFilters(tab: StatusFilter): Record<string, unknown> 
 }
 
 function isTypeFilter(value: unknown): value is TypeFilter {
-  return typeof value === 'string' && (TYPE_CYCLE as readonly string[]).includes(value);
+  return typeof value === 'string' && (TYPE_OPTIONS as readonly string[]).includes(value);
 }
 
 export function ProductsList(): ReactNode {
@@ -161,14 +166,12 @@ export function ProductsList(): ReactNode {
     setStatusFilter(tab);
     setLegacyDraftView(false);
   };
-  const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [selection, setSelection] = useState<ProductListSelection>(emptySelection);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   // The Archived tab's bar Restore opens the dialog on its confirmation (owner P-4 → B).
   const [bulkInitialStep, setBulkInitialStep] = useState<'form' | 'confirmArchive'>('form');
   const [deleting, setDeleting] = useState(false);
   const [bulkEditProductIds, setBulkEditProductIds] = useState<string[]>([]);
-  const editPriceReasonId = useId();
   // D3 — the names and SKUs of the selected rows on this page, so the dialog's result
   // names them without a lookup; a "select all N" selection's other rows are looked up there.
   const bulkEditLabels = useMemo(() => {
@@ -237,9 +240,8 @@ export function ProductsList(): ReactNode {
     setSelectionError(null);
   }, [statusFilter, typeFilter, debouncedQuery]);
 
-  // Feature 147 (#289): a saved view stores status, type and search only — the
-  // Stock chip is a client-side placeholder and Category / Channel do nothing
-  // yet, so none of them is saved (FR-010).
+  // Feature 147 (#289): a saved view stores status, type and search — the
+  // list's only filters (FR-010).
   const toSavedViewState = (): SavedViewState => {
     const trimmed = query.trim();
     return {
@@ -264,7 +266,6 @@ export function ProductsList(): ReactNode {
     setTypeFilter(isTypeFilter(f['type']) ? f['type'] : 'all');
     setQuery(q);
     setDebouncedQuery(q);
-    setStockFilter('all');
     setPage(0);
     setSelection(emptySelection());
     setSelectionError(null);
@@ -279,23 +280,17 @@ export function ProductsList(): ReactNode {
     [statusFilter, typeFilter, debouncedQuery],
   );
 
-  // The stock chip remains a placeholder until the list payload carries
-  // stock numbers — apply it client-side as a kill-switch so the UI stays
-  // honest (returns 0 rows when "Out"/"Low" is picked).
-  const filtered = useMemo(() => {
-    if (stockFilter !== 'all') return [];
-    return rows;
-  }, [rows, stockFilter]);
+  const filtered = rows;
 
   // The Archived tab's own empty copy is true only when nothing narrows it; a
   // filtered Archived tab gets the usual "try clearing filters".
-  const filtersAtDefault = query.trim() === '' && typeFilter === 'all' && stockFilter === 'all';
+  const filtersAtDefault = query.trim() === '' && typeFilter === 'all';
   const restoreFromBar = canWrite && statusFilter === 'archived';
   const archivedEmpty = statusFilter === 'archived' && filtersAtDefault;
   // A search that finds nothing among live products may be looking for an archived
   // one, which every other tab hides; one step takes the query there.
   const searchArchivedHint =
-    statusFilter !== 'archived' && debouncedQuery.trim() !== '' && stockFilter === 'all' && rows.length === 0;
+    statusFilter !== 'archived' && debouncedQuery.trim() !== '' && rows.length === 0;
 
   const selectedCount =
     selection.mode === 'collection' ? selection.collectionTotal : selection.pageIds.size;
@@ -466,12 +461,10 @@ export function ProductsList(): ReactNode {
           </div>
         </div>
         <div className="b2b-page-head__actions">
-          <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-            <Upload size={13} /> {t('productsList.action.import')}
-          </button>
-          <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-            <Download size={13} /> {t('productsList.action.export')}
-          </button>
+          {/* CAT-02 — the dead Import / Export buttons became this place: the
+              module that imports and exports contributes its own link, gated by
+              its own presence and permission, so the list names no other module. */}
+          <AdminZone name="product.list.actions" props={{}} />
           {canWrite ? (
             <button
               type="button"
@@ -485,18 +478,9 @@ export function ProductsList(): ReactNode {
       </div>
 
       {error ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(8 80% 85%)',
-          }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
       <div className="b2b-card">
@@ -511,59 +495,43 @@ export function ProductsList(): ReactNode {
           </div>
         </div>
 
-        <div className="b2b-filterbar">
-          <div className="b2b-filterbar__search">
-            <div className="b2b-input-wrap">
-              <Search size={16} className="lead" />
-              <input
-                className="b2b-field b2b-field--addon"
-                placeholder={t('productsList.search.placeholder')}
-                value={query}
-                onChange={(e): void => setQuery(e.target.value)}
-              />
-            </div>
-          </div>
-          <Chip
-            icon={<Package size={12} />}
-            active={typeFilter !== 'all'}
-            label={typeFilter === 'all' ? t('productsList.chip.type') : t('productsList.chip.typeWithValue', { value: t(`productEditor.type.${typeFilter}`) })}
-            onClick={(): void => {
-              const idx = TYPE_CYCLE.indexOf(typeFilter);
-              setTypeFilter(TYPE_CYCLE[(idx + 1) % TYPE_CYCLE.length]!);
-            }}
-            {...(typeFilter !== 'all'
-              ? { onRemove: (): void => setTypeFilter('all') }
-              : {})}
-          />
-          <Chip
-            icon={<Warehouse size={12} />}
-            active={stockFilter !== 'all'}
-            label={
-              stockFilter === 'all'
-                ? t('productsList.chip.stock')
-                : stockFilter === 'out'
-                  ? t('productsList.chip.outOfStock')
-                  : t('productsList.chip.lowStock')
-            }
-            onClick={(): void => {
-              const idx = STOCK_CYCLE.indexOf(stockFilter);
-              setStockFilter(STOCK_CYCLE[(idx + 1) % STOCK_CYCLE.length]!);
-            }}
-            {...(stockFilter !== 'all'
-              ? { onRemove: (): void => setStockFilter('all') }
-              : {})}
-          />
-          <Chip icon={<Tag size={12} />} active={false} label={t('productsList.chip.category')} onClick={(): void => {}} />
-          <Chip icon={<Store size={12} />} active={false} label={t('productsList.chip.channel')} onClick={(): void => {}} />
-          <div style={{ marginLeft: 'auto', minWidth: 0, maxWidth: '100%' }}>
+        <ListToolbar
+          label={t('productsList.toolbar.label')}
+          className="border-b border-border px-3 py-2.5"
+          search={
+            <ListToolbarSearch
+              label={t('productsList.search.label')}
+              placeholder={t('productsList.search.placeholder')}
+              value={query}
+              onValueChange={setQuery}
+            />
+          }
+          filters={
+            // A labelled select, not a chip that cycles through six values on
+            // each press: the operator sees every type and picks one (Jakob's Law).
+            <Select
+              aria-label={t('productsList.filter.type')}
+              value={typeFilter === 'all' ? '' : typeFilter}
+              onChange={(e): void => setTypeFilter(isTypeFilter(e.target.value) ? e.target.value : 'all')}
+              className="w-auto"
+            >
+              <option value="">{t('productsList.filter.typeAll')}</option>
+              {TYPE_OPTIONS.filter((type) => type !== 'all').map((type) => (
+                <option key={type} value={type}>
+                  {t(`productEditor.type.${type}`)}
+                </option>
+              ))}
+            </Select>
+          }
+          actions={
             <SavedViewsControl
               endpoint="/api/v1/admin/catalog/products/list-views"
               current={toSavedViewState()}
               onApply={applySavedView}
               onError={setError}
             />
-          </div>
-        </div>
+          }
+        />
 
         {/* Mounted before it has text, so the note is announced when a view brings it. */}
         <div role="status">
@@ -614,17 +582,9 @@ export function ProductsList(): ReactNode {
         ) : null}
 
         {selectionError ? (
-          <div
-            style={{
-              padding: '8px 12px',
-              fontSize: 13,
-              color: 'var(--danger-soft-fg)',
-              background: 'var(--danger-soft)',
-              borderBottom: '1px solid hsl(8 80% 85%)',
-            }}
-          >
-            {selectionError}
-          </div>
+          <Alert variant="destructive" className="mx-3 my-2 w-auto">
+            <AlertDescription>{selectionError}</AlertDescription>
+          </Alert>
         ) : null}
 
         {selectedCount > 0 ? (
@@ -647,8 +607,7 @@ export function ProductsList(): ReactNode {
             <div className="actions">
               {/* On the Archived tab the one thing a selection is for is bringing it
                   back, so Restore leads as the primary and Bulk edit steps down (Von
-                  Restorff); the placeholder Edit price goes, keeping three actions (Hick),
-                  and Delete stays last (owner P-4 → B). */}
+                  Restorff), and Delete stays last (owner P-4 → B). */}
               {restoreFromBar ? (
                 <button
                   type="button"
@@ -674,24 +633,6 @@ export function ProductsList(): ReactNode {
                   ? t('productsList.selection.resolving')
                   : t('productsList.bulk.edit')}
               </button>
-              {statusFilter !== 'archived' ? (
-                // D17 — no bulk price flow exists (prices are set in price books), so the
-                // button is disabled and says why instead of doing nothing on click.
-                <>
-                  <button
-                    type="button"
-                    className="b2b-btn"
-                    disabled
-                    aria-describedby={editPriceReasonId}
-                    title={t('productsList.bulk.editPriceUnavailable')}
-                  >
-                    <CircleDollarSign size={13} aria-hidden="true" /> {t('productsList.bulk.editPrice')}
-                  </button>
-                  <span id={editPriceReasonId} className="sr-only">
-                    {t('productsList.bulk.editPriceUnavailable')}
-                  </span>
-                </>
-              ) : null}
               <button
                 type="button"
                 className="b2b-btn b2b-btn--danger"
@@ -704,10 +645,10 @@ export function ProductsList(): ReactNode {
             <button
               type="button"
               className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
-              style={{ color: '#fff' }}
+              aria-label={t('productsList.selection.clear')}
               onClick={clearSelection}
             >
-              <X size={14} />
+              <X size={14} aria-hidden="true" />
             </button>
           </div>
         ) : null}
@@ -819,7 +760,6 @@ export function ProductsList(): ReactNode {
                   <th>{t('productsList.column.type')}</th>
                   <th>{t('productsList.column.visibility')}</th>
                   <th>{t('productsList.column.updated')}</th>
-                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -886,11 +826,6 @@ export function ProductsList(): ReactNode {
                     <td>
                       <span className="b2b-muted" style={{ fontSize: 12 }}>{relTime(r.updatedAt, t, language)}</span>
                     </td>
-                    <td className="actions" onClick={(e): void => e.stopPropagation()}>
-                      <button type="button" className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm">
-                        <MoreHorizontal size={14} />
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -934,35 +869,6 @@ function Tab(props: {
   );
 }
 
-function Chip(props: {
-  icon: ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  onRemove?: () => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      className={cn('b2b-filterchip', props.active && 'is-on')}
-      onClick={props.onClick}
-    >
-      {props.icon}
-      <span>{props.label}</span>
-      {props.active && props.onRemove ? (
-        <X
-          size={12}
-          onClick={(e): void => {
-            e.stopPropagation();
-            props.onRemove?.();
-          }}
-        />
-      ) : null}
-    </button>
-  );
-}
-
-
 /* Light fingerprint of an id → a stable Shopify-ish swatch for the
  * thumbnail placeholder. The real product page will swap this for the
  * gallery's base image. */
@@ -994,10 +900,6 @@ function relTime(iso: string, t: ReturnType<typeof useTranslation>, language: st
   if (diff < 86400 * 7) return t('productsList.updated.daysAgo', { count: Math.floor(diff / 86400) });
   return d.toLocaleDateString(adminLanguageToLocale(language), { month: 'short', day: 'numeric' });
 }
-
-// Suppress unused: passed through cn() calls, kept for future use.
-const _styleAvoidsUnusedImport: CSSProperties = {};
-void _styleAvoidsUnusedImport;
 
 /**
  * The default export a route declaration's dynamic-import factory resolves

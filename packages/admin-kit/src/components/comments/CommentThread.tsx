@@ -42,8 +42,15 @@ export interface CommentThreadCopy {
   /** Names the list for assistive technology. */
   title: string;
   empty: string;
+  /** One line above the thread — who may read it. Keep it to one clause. */
   hint: string;
   composerLabel: string;
+  /**
+   * One line under the composer, describing the field — a rule about what is
+   * about to be sent ("Cannot be edited after sending."). Omit it when there is
+   * none; nothing is drawn then.
+   */
+  composerHint?: string;
   composerPlaceholder: string;
   composerSubmit: string;
   /** Spoken once an entry was added. */
@@ -336,6 +343,7 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
           label={copy.composerLabel}
           placeholder={copy.composerPlaceholder}
           submitLabel={copy.composerSubmit}
+          {...(copy.composerHint ? { hint: copy.composerHint } : {})}
           referenceKinds={props.referenceKinds}
           lookups={props.lookups}
           onSubmit={add}

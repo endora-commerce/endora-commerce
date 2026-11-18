@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import { supportedLanguageOf, type ChannelMemberEntityType, isUuidShape } from '@endora-commerce/contracts';
 import type {
   AddressServicePort,
@@ -138,7 +139,9 @@ import {
   ORGANIZATION_APPROVED_DEFAULT,
   ORGANIZATION_INVITATION_DEFAULT,
   ORGANIZATION_REJECTED_DEFAULT,
+  PASSWORD_RESET_DEFAULT,
 } from './email-templates/transactional-defaults.js';
+import { PASSWORD_RESET_EMAIL_CODE } from './services/password-reset-email.js';
 import { registerOrganizationCountryReferences } from './services/organization-country-reference.js';
 import { EmailVerificationToken } from './entities/email-verification-token.entity.js';
 import { OrganizationDeliveryMethodLink } from './entities/organization-delivery-method-link.entity.js';
@@ -861,6 +864,12 @@ export function registerModule(ctx: ModuleContext): void {
               'salesChannelMembershipPort',
             ),
             storefrontBaseUrl: cradle().storefrontBaseUrl,
+            // Issue #1371 — the storefront the self-service password-reset link
+            // opens: the request's channel's. Read at call time; an absent
+            // `sales_channels` reads as "not configured", and the base URL
+            // above is used.
+            readChannelStorefrontUrl: (salesChannelId) =>
+              cradle().settingsReadPort.get('sales_channels.storefront_url', salesChannelId, z.string()),
             exposeTestProbe: cradle().organizationsExposeTestProbe,
             // Feature 173 — read per registration; the store is this module's own.
             registryLookup: {
@@ -1373,6 +1382,7 @@ export function registerModule(ctx: ModuleContext): void {
     defaults.register('new_org_registration', NEW_ORG_REGISTRATION_DEFAULT, 'organizations');
     defaults.register('organization_approved', ORGANIZATION_APPROVED_DEFAULT, 'organizations');
     defaults.register('organization_rejected', ORGANIZATION_REJECTED_DEFAULT, 'organizations');
+    defaults.register(PASSWORD_RESET_EMAIL_CODE, PASSWORD_RESET_DEFAULT, 'organizations');
   });
 
 

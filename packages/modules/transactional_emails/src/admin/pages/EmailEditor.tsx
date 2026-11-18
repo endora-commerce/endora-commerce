@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { UnsavedChangesHint, useConfirmDialog, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type {
   SalesChannelListResponse,
   TransactionalEmailDetail,
 } from '@endora-commerce/contracts';
-import { apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
+import { apiClient, isDraftEqual, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { Alert, AlertDescription, Button, Label, PageHeader, SaveButtonGroup, Select } from '@endora-commerce/admin-kit/ui';
 import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
@@ -132,6 +132,22 @@ export function EmailEditor(): React.ReactElement {
     if (await save()) navigate('/transactional-emails');
   };
 
+  // Issue #1461 (CONTENT-02) — the subject and canvas against what was loaded.
+  // Switching the channel or the language reloads both, so those switches ask
+  // first too, not only a link out of the editor.
+  const dirty =
+    detail !== null &&
+    (subject !== detail.effective.subject || !isDraftEqual(content, detail.effective.content));
+  const unsavedGuard = useUnsavedChangesGuard({
+    dirty,
+    onSave: canWrite ? save : undefined,
+    onDiscard: () => {
+      if (!detail) return;
+      setSubject(detail.effective.subject);
+      setContent(detail.effective.content as Data);
+    },
+  });
+
   const reset = async (): Promise<void> => {
     const ok = await confirm({ message: t('editor.resetConfirm'), confirmLabel: t('editor.reset'), destructive: true });
     if (!ok) return;
@@ -166,6 +182,7 @@ export function EmailEditor(): React.ReactElement {
               description={t('editor.source', { source: detail?.effective.source ?? '—' })}
               actions={
                 <div className="flex flex-wrap items-center gap-2">
+                  <UnsavedChangesHint dirty={dirty} />
                   <Button variant="outline" onClick={() => void reset()} disabled={!canWrite || busy}>
                     {t('editor.reset')}
                   </Button>
@@ -206,7 +223,10 @@ export function EmailEditor(): React.ReactElement {
               <Select
                 id="te-scope"
                 value={channelId ?? ''}
-                onChange={(e) => setChannelId(e.target.value === '' ? null : e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value === '' ? null : e.target.value;
+                  unsavedGuard.confirm(() => setChannelId(next));
+                }}
               >
                 <option value="">{t('scope.global')}</option>
                 {channels.map((c) => (
@@ -222,8 +242,11 @@ export function EmailEditor(): React.ReactElement {
                 id="te-lang"
                 value={language}
                 onChange={(e) => {
-                  setLanguage(e.target.value);
-                  void load(e.target.value);
+                  const next = e.target.value;
+                  unsavedGuard.confirm(() => {
+                    setLanguage(next);
+                    void load(next);
+                  });
                 }}
               >
                 {(detail?.languages ?? []).map((l) => (
@@ -275,6 +298,7 @@ export function EmailEditor(): React.ReactElement {
         }
       />
       {confirmDialog}
+      {unsavedGuard.dialog}
     </EmailVariablesProvider>
   );
 }

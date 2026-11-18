@@ -5715,6 +5715,33 @@
         }
       }
     },
+    "/api/v1/admin/price-books/{id}/price-history": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/price-books/{id}/price-history/products/{productId}": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/price-books/{id}/price-history/{changeId}/lines": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/price-books/{id}/product-lines": {
       "get": {
         "responses": {

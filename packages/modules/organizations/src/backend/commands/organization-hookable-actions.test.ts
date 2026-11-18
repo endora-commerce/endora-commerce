@@ -231,7 +231,7 @@ describe('organization.admin_patch is hookable', () => {
       h.bus.run(
         makeAdminPatchOrganizationCommand({
           organizationId: ORG_ID,
-          changes: { name: 'S176-RENAMED', status: 'blocked' },
+          changes: { name: 'S176-RENAMED', vatStatus: 'reverse_charge' },
           assertCurrent: () => undefined,
           mergeCustomFieldValues: async (current) => ({ ...current, tier: 'S176-CF-NEW' }),
           extensions: { acme_erp: { code: 'E-2' } },
@@ -240,8 +240,8 @@ describe('organization.admin_patch is hookable', () => {
     );
 
     const data = recording.calls[0]!.data as OrganizationUpdateHookData;
-    expect(data.organization).toMatchObject({ name: 'S176-RENAMED', status: 'blocked' });
-    expect(data.changedFields).toEqual(['name', 'status']);
+    expect(data.organization).toMatchObject({ name: 'S176-RENAMED', vatStatus: 'reverse_charge' });
+    expect(data.changedFields).toEqual(['name', 'vatStatus']);
     expect(data.changedCustomFields).toEqual(['tier']);
     expect(recording.calls[0]!.extension).toEqual({ code: 'E-2' });
     expectNamesOnly(h.audits);

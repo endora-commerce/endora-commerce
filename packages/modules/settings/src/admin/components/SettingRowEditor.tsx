@@ -5,7 +5,14 @@ import {
 } from 'react';
 import { AlertTriangle, Check, Copy, RotateCcw } from 'lucide-react';
 import type { SettingDto } from '@endora-commerce/contracts';
-import { Badge, Button, Input } from '@endora-commerce/admin-kit/ui';
+import {
+  Badge,
+  Button,
+  FormField,
+  Input,
+  Switch,
+  type FormFieldControlProps,
+} from '@endora-commerce/admin-kit/ui';
 import { cn } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
@@ -85,7 +92,21 @@ export function SettingRowEditor({
   const isMultiline = setting.valueType === 'string' && setting.multiline === true;
   // The line under the field is a hint, not a second copy of the value: a
   // multi-line text printed inline loses its line breaks and can be very long.
-  const preview = isMultiline ? formatMultilinePreview : formatPreview;
+  const formatRaw = isMultiline ? formatMultilinePreview : formatPreview;
+  const isBoolean = setting.valueType === 'boolean';
+  const hasEnum = Boolean(setting.enumOptions && setting.enumOptions.length > 0);
+  // Issue #1479 (UX audit SHELL-02) — the default and global values under the
+  // field read in the operator's words: "On" / "Off", an option's label — not
+  // `true`, `false` or a machine code.
+  const preview = (value: unknown): string => {
+    if (isBoolean && typeof value === 'boolean') {
+      return value ? t('editor.booleanValue.on') : t('editor.booleanValue.off');
+    }
+    if (hasEnum && typeof value === 'string' && value !== '') {
+      return labels.settingOption(setting, value);
+    }
+    return formatRaw(value);
+  };
   const description = labels.settingDescription(setting);
   // Issue #930 — the owning module says the stored value is not in force.
   const notice = labels.settingNotice(setting);
@@ -107,6 +128,17 @@ export function SettingRowEditor({
     [onChange, readOnly],
   );
 
+  // Issue #1478 (UX audit SHELL-01) — the row's controls are named by the
+  // setting and described by its description, notice and read-only reason,
+  // through the kit's `FormField`. A composite editor (an address block, an
+  // asset or image picker) has no one element a `<label>` can point at, so it
+  // is a group named by the setting instead.
+  const isComposite =
+    setting.code === SELLER_COMPANY_DATA_CODE ||
+    isAssetIdSetting(setting) ||
+    isImageUrlSetting(setting);
+  const hasDetails = Boolean(description) || Boolean(notice) || readOnly;
+
   return (
     <div
       className={cn(
@@ -115,10 +147,15 @@ export function SettingRowEditor({
         readOnly && 'bg-muted/40 opacity-70',
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium">{labels.settingName(setting)}</span>
+      <FormField
+        label={labels.settingName(setting)}
+        group={isComposite}
+        // Issue #1479 (SHELL-02) — an on/off setting is a switch, and a switch
+        // reads as a settings row: what it is on the left, the switch on the
+        // right (Jakob's Law). Every other type keeps the stacked field.
+        layout={isBoolean && !hasEnum ? 'row' : 'stack'}
+        labelAddon={
+          <>
             <button
               type="button"
               onClick={onCopyCode}
@@ -180,94 +217,96 @@ export function SettingRowEditor({
                 {t('editor.readOnly')}
               </Badge>
             )}
-          </div>
-          {description ? (
-            <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-          ) : null}
-          {notice ? (
-            <p
-              role="status"
-              className="mt-1 flex items-start gap-1 text-xs font-medium text-amber-800 dark:text-amber-300"
-            >
-              <AlertTriangle aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
-              <span>{notice}</span>
-            </p>
-          ) : null}
-          {readOnly ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              {t('editor.readOnlyReason')}
-            </p>
-          ) : null}
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onReset}
-          disabled={
-            readOnly ||
-            resetting ||
-            (channelContext === null && !hasGlobalOverride) ||
-            (channelContext !== null && source !== 'channel-override')
-          }
-          title={t('actions.resetToDefault')}
-          className="shrink-0"
-        >
-          <RotateCcw className="mr-1 h-3.5 w-3.5" />
-          {t('actions.reset')}
-        </Button>
-      </div>
-
-      <fieldset disabled={readOnly} className="contents">
-        {setting.enumOptions && setting.enumOptions.length > 0 ? (
-          <select
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            value={draft.text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={readOnly}
-          >
-            {setting.enumOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        ) : setting.code === SELLER_COMPANY_DATA_CODE ? (
-          <SellerCompanyDataInput value={draft.text} onChange={setText} />
-        ) : isAssetIdSetting(setting) ? (
-          <AssetIdSettingInput value={draft.text} onChange={setText} />
-        ) : isImageUrlSetting(setting) ? (
-          <ImageSettingInput value={draft.text} onChange={setText} />
-        ) : setting.valueType === 'credential_ref' ? (
-          <ConfigurationReferenceInput
-            configurationType={setting.configurationType}
-            value={draft.text}
-            onChange={setText}
-          />
-        ) : isSecret ? (
-          <Input
-            type="password"
-            autoComplete="new-password"
-            value={draft.text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={readOnly}
-            placeholder={
-              hasGlobalOverride || setting.valuesByChannel.some((v) => v.isSet)
-                ? t('editor.placeholder.secretSet')
-                : t('editor.placeholder.secretUnset')
+          </>
+        }
+        action={
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onReset}
+            disabled={
+              readOnly ||
+              resetting ||
+              (channelContext === null && !hasGlobalOverride) ||
+              (channelContext !== null && source !== 'channel-override')
             }
-          />
-        ) : (
-          renderInput(
-            setting.valueType,
-            draft.text,
-            setText,
-            t,
-            readOnly,
-            isMultiline ? labels.settingName(setting) : null,
-          )
+            title={t('actions.resetToDefault')}
+            className="shrink-0"
+          >
+            <RotateCcw className="mr-1 h-3.5 w-3.5" />
+            {t('actions.reset')}
+          </Button>
+        }
+        // Setting descriptions are not yet one line (SHELL-23 owns shortening
+        // them), so they stay on screen, unclamped, as the field's description.
+        description={
+          hasDetails ? (
+            <>
+              {description ? <p>{description}</p> : null}
+              {notice ? (
+                <p
+                  role="status"
+                  className="flex items-start gap-1 font-medium text-amber-800 dark:text-amber-300"
+                >
+                  <AlertTriangle aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
+                  <span>{notice}</span>
+                </p>
+              ) : null}
+              {readOnly ? <p>{t('editor.readOnlyReason')}</p> : null}
+            </>
+          ) : undefined
+        }
+      >
+        {(control) => (
+          <fieldset disabled={readOnly} className="contents">
+            {setting.enumOptions && setting.enumOptions.length > 0 ? (
+              <select
+                {...control}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={draft.text}
+                onChange={(e) => setText(e.target.value)}
+                disabled={readOnly}
+              >
+                {setting.enumOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {labels.settingOption(setting, opt)}
+                  </option>
+                ))}
+              </select>
+            ) : setting.code === SELLER_COMPANY_DATA_CODE ? (
+              <SellerCompanyDataInput value={draft.text} onChange={setText} />
+            ) : isAssetIdSetting(setting) ? (
+              <AssetIdSettingInput value={draft.text} onChange={setText} />
+            ) : isImageUrlSetting(setting) ? (
+              <ImageSettingInput value={draft.text} onChange={setText} />
+            ) : setting.valueType === 'credential_ref' ? (
+              <ConfigurationReferenceInput
+                control={control}
+                configurationType={setting.configurationType}
+                value={draft.text}
+                onChange={setText}
+              />
+            ) : isSecret ? (
+              <Input
+                {...control}
+                type="password"
+                autoComplete="new-password"
+                value={draft.text}
+                onChange={(e) => setText(e.target.value)}
+                disabled={readOnly}
+                placeholder={
+                  hasGlobalOverride || setting.valuesByChannel.some((v) => v.isSet)
+                    ? t('editor.placeholder.secretSet')
+                    : t('editor.placeholder.secretUnset')
+                }
+              />
+            ) : (
+              renderInput(setting.valueType, draft.text, setText, t, readOnly, isMultiline, control)
+            )}
+          </fieldset>
         )}
-      </fieldset>
+      </FormField>
 
       <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
         {isSecret ? (
@@ -350,25 +389,29 @@ function renderInput(
   setValue: (v: string) => void,
   t: (key: string, params?: Record<string, string | number>) => string,
   readOnly: boolean,
-  /** The row's shown name when the setting is a multi-line string, else `null`. */
-  multilineLabel: string | null,
+  /** The setting is a `string` its manifest declares `multiline`. */
+  multiline: boolean,
+  /** The id and descriptions `FormField` wires the control with. */
+  control: FormFieldControlProps,
 ): ReactNode {
   if (valueType === 'boolean') {
+    // Issue #1479 (SHELL-02, owner decision DEC-04) — a switch, staged like
+    // every other field: it changes the draft, and the page's one Save writes
+    // it. The draft keeps its `"true"` / `"false"` spelling, which
+    // `parseValue` reads; a value that is neither shows as off.
     return (
-      <select
-        className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-        value={value}
-        onChange={(e: ChangeEvent<HTMLSelectElement>) => setValue(e.target.value)}
+      <Switch
+        {...control}
+        checked={value === 'true'}
+        onCheckedChange={(next) => setValue(next ? 'true' : 'false')}
         disabled={readOnly}
-      >
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </select>
+      />
     );
   }
   if (valueType === 'json') {
     return (
       <textarea
+        {...control}
         className="min-h-[96px] w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
         value={value}
         onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setValue(e.target.value)}
@@ -380,21 +423,22 @@ function renderInput(
   // A `string` setting its manifest declares `multiline`. The text is the
   // value: nothing here trims it or folds its lines, and a monospaced field
   // shows it the way a served text file will read.
-  if (multilineLabel !== null) {
+  if (multiline) {
     return (
       <textarea
+        {...control}
         className="min-h-[160px] w-full resize-y rounded-md border bg-background px-3 py-2 font-mono text-sm"
         value={value}
         onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setValue(e.target.value)}
         disabled={readOnly}
         spellCheck={false}
-        aria-label={multilineLabel}
       />
     );
   }
   if (valueType === 'string_list') {
     return (
       <Input
+        {...control}
         value={value}
         onChange={(e) => setValue(e.target.value)}
         disabled={readOnly}
@@ -404,6 +448,7 @@ function renderInput(
   }
   return (
     <Input
+      {...control}
       type={valueType === 'number' ? 'number' : 'text'}
       value={value}
       onChange={(e) => setValue(e.target.value)}

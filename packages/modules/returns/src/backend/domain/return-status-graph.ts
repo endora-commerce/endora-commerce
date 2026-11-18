@@ -27,17 +27,36 @@ export interface ReturnStatusDef {
   weight: number;
   /** Badge colour as a `#rrggbb` hex value. */
   color: string;
+  /**
+   * `specs/180-off-platform-complaints/` FR-A30 — a transition into this status
+   * e-mails the filing customer. Absent reads as `false` (the shipped defaults).
+   */
+  notifyCustomerOnEntry?: boolean;
 }
 
 /**
- * Resolve a status's display label for a viewer's active language, falling back
- * to the language-independent default name, then the code.
+ * The statuses whose entry sends a dedicated e-mail of its own, so they never send
+ * the status e-mail (`specs/180-off-platform-complaints/` FR-A32, research R-7).
+ */
+export const DEDICATED_EMAIL_STATUSES: ReadonlySet<string> = new Set(['authorized', 'rejected']);
+
+/**
+ * Resolve a status's display label for a viewer's active language: the exact key
+ * (`pl-PL`), then the first label of its primary language (`pl`), then the
+ * language-independent default name, then the code. Empty labels are skipped.
  */
 export function resolveReturnStatusName(
   def: { name: Record<string, string>; defaultName?: string | null; code: string },
   language: string,
 ): string {
-  return def.name[language] ?? (def.defaultName || undefined) ?? def.code;
+  const exact = def.name[language];
+  if (exact) return exact;
+  const primary = language.split('-', 1)[0]!.toLowerCase();
+  for (const [key, value] of Object.entries(def.name)) {
+    const lowered = key.toLowerCase();
+    if (value && (lowered === primary || lowered.startsWith(`${primary}-`))) return value;
+  }
+  return def.defaultName || def.code;
 }
 
 export interface ReturnTransitionDef {

@@ -8,6 +8,7 @@
  *
  *   settingLabels.<setting code>.name
  *   settingLabels.<setting code>.description
+ *   settingLabels.<setting code>.options.<option value>
  *   settingGroups.<group code>.name
  *
  * The code is embedded whole, dots included, so `seo.default_robots` is read
@@ -39,6 +40,11 @@ export function settingNameKey(settingCode: string): string {
 /** `settingLabels.<setting code>.description` */
 export function settingDescriptionKey(settingCode: string): string {
   return `settingLabels.${settingCode}.description`;
+}
+
+/** `settingLabels.<setting code>.options.<option value>` — issue #1479 (UX audit SHELL-02). */
+export function settingOptionKey(settingCode: string, optionValue: string): string {
+  return `settingLabels.${settingCode}.options.${optionValue}`;
 }
 
 /** `settingLabels.<setting code>.notice.<notice code>` — issue #930. */
@@ -118,6 +124,22 @@ export function resolveSettingDescription(
 }
 
 /**
+ * Issue #1479 (UX audit SHELL-02) — an enum setting's option in the
+ * administrator's language. An option the owner's bundles do not name is shown
+ * as its value — the rule `defineEnumLabels` (issue #1434) fixes for every
+ * enum in the admin: an ugly code is true, a missing-key placeholder is
+ * neither. A static map does not fit here, because the options arrive from
+ * whichever manifest declared the setting, so the owner's bundle is the map.
+ */
+export function resolveSettingOption(
+  setting: LabelledSetting,
+  optionValue: string,
+  source: SettingLabelSource,
+): string {
+  return fromOwnerBundle(setting.ownerModule, settingOptionKey(setting.code, optionValue), source) ?? optionValue;
+}
+
+/**
  * Issue #930 — the owning module's notice that the stored value is not in
  * force, in the administrator's language, else the API's English sentence.
  * `null` when the read carried no notice.
@@ -184,6 +206,7 @@ export function resolveSettingGroupName(
 export interface SettingLabels {
   settingName(setting: LabelledSetting): string;
   settingDescription(setting: LabelledSetting): string | null;
+  settingOption(setting: LabelledSetting, optionValue: string): string;
   settingNotice(
     setting: LabelledSetting & { readonly notice?: { code: string; message: string } | undefined },
   ): string | null;
@@ -208,6 +231,7 @@ export function useSettingLabels(): SettingLabels {
     return {
       settingName: (setting) => resolveSettingName(setting, source),
       settingDescription: (setting) => resolveSettingDescription(setting, source),
+      settingOption: (setting, optionValue) => resolveSettingOption(setting, optionValue, source),
       settingNotice: (setting) => resolveSettingNotice(setting, source),
       settingConfirmation: (setting) => resolveSettingConfirmation(setting, source),
       settingConfirmed: (setting) => resolveSettingConfirmed(setting, source),

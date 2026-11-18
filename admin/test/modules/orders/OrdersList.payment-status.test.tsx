@@ -59,7 +59,7 @@ const { OrdersList } = await import('../../../../packages/modules/orders/src/adm
 const EN = {
   core: {
     'orders.field.paymentStatus': 'Payment status',
-    'orders.filter.toggle': 'Filters',
+    'common.listToolbar.moreFilters': 'More filters',
     'orders.filter.all': 'All',
     'orders.column.payment': 'Payment',
     'orderDetail.paymentStatus.failed': 'failed',
@@ -72,7 +72,7 @@ const EN = {
 const PL = {
   core: {
     'orders.field.paymentStatus': 'Status płatności',
-    'orders.filter.toggle': 'Filtry',
+    'common.listToolbar.moreFilters': 'Więcej filtrów',
     'orders.filter.all': 'Wszystkie',
     'orders.column.payment': 'Płatność',
     'orderDetail.paymentStatus.failed': 'nieudana',
@@ -151,7 +151,7 @@ describe('OrdersList — payment status (feature 085)', () => {
 
     // The filter lives in the collapsible advanced panel, beside the two method
     // filters it reads like.
-    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More filters' }));
     const control = await screen.findByLabelText('Payment status');
     await userEvent.click(control);
     await userEvent.click(await screen.findByText('failed (1)'));
@@ -169,7 +169,7 @@ describe('OrdersList — payment status (feature 085)', () => {
     renderList(EN);
     await waitFor(() => expect(screen.getByText('#ORD-1')).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More filters' }));
     await userEvent.click(await screen.findByLabelText('Payment status'));
 
     // The count comes from `paymentStatusCounts`, the map the list gained

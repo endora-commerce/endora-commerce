@@ -33,7 +33,9 @@ export class CatalogAdminSearchService {
     const quickKeys = fields.has('quickSearchAttributes')
       ? (await this.attributeRead.listByFlag('quickSearchable')).map((a) => a.key)
       : [];
-    const matches: Array<(qb: Knex.QueryBuilder) => void> = [];
+    // A matcher mutates the builder and its return is ignored; it is `unknown`
+    // rather than `void` because a Knex builder is thenable (issue #1027).
+    const matches: Array<(qb: Knex.QueryBuilder) => unknown> = [];
     if (fields.has('sku')) matches.push((qb) => qb.orWhereRaw('"sku" ilike ?', [contains]));
     if (fields.has('name')) matches.push((qb) => qb.orWhereRaw('"name" ilike ?', [contains]));
     if (fields.has('slug')) matches.push((qb) => qb.orWhereRaw('"slug" ilike ?', [contains]));
@@ -66,7 +68,7 @@ export class CatalogAdminSearchService {
   ): Promise<{ rows: CategoryAdminSearchRow[]; hasMore: boolean }> {
     const fields = new Set(query.fields);
     const contains = `%${query.likeEscaped}%`;
-    const matches: Array<(qb: Knex.QueryBuilder) => void> = [];
+    const matches: Array<(qb: Knex.QueryBuilder) => unknown> = [];
     if (fields.has('name')) {
       matches.push((qb) =>
         qb.orWhereRaw('exists (select 1 from jsonb_each_text("name") n where n.value ilike ?)', [contains]),
@@ -93,7 +95,7 @@ export class CatalogAdminSearchService {
   async #page<T>(
     table: 'products' | 'categories',
     columns: readonly string[],
-    matches: ReadonlyArray<(qb: Knex.QueryBuilder) => void>,
+    matches: ReadonlyArray<(qb: Knex.QueryBuilder) => unknown>,
     identifiers: readonly string[],
     query: CatalogAdminSearchQuery,
   ): Promise<T[]> {

@@ -15,6 +15,7 @@ import {
   apiClient,
   formatDateTime,
   useAuth,
+  useDetailResource,
   useSaveSession,
   useSurfaceVisibility,
   useUnsavedChangesPrompt,
@@ -26,6 +27,7 @@ import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
 import { ConvertToCompanyForm, type ConvertToCompanyResult } from '../components/ConvertToCompanyForm.js';
 import { ChangeTaxIdForm, taxIdChangeMessage, type ChangeTaxIdResult } from '../components/ChangeTaxIdForm.js';
+import { ChangeVatStatusForm } from '../components/ChangeVatStatusForm.js';
 import { organizationRolesClient } from '../api/roles.js';
 import { ModerationActionsPanel } from '../panels/ModerationActionsPanel.js';
 import { ApplicablePriceListsPanel } from '../panels/ApplicablePriceListsPanel.js';
@@ -44,7 +46,7 @@ import {
   ImmediateBadge,
 } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /** The VAT validation panel's heading — where the moderation notice's link lands. */
@@ -56,8 +58,6 @@ type OrgMember = AdminOrganizationMember;
 /** `GET /api/v1/admin/organizations/:id` (`adminOrganizationDetailSchema`, issue #599). */
 type OrgDetail = AdminOrganizationDetail;
 
-const STATUSES = ['pending_verification', 'active', 'blocked', 'rejected'] as const;
-const VAT_STATUSES = ['vat_payer', 'vat_exempt', 'reverse_charge'] as const;
 /** Feature 175 — the direct-create panel's starting bag: a new member has none. */
 const EMPTY_MEMBER_VALUES: Record<string, unknown> = {};
 
@@ -77,8 +77,6 @@ function byKindThenName(a: OrganizationRoleRef, b: OrganizationRoleRef): number 
  * the baseline every count and every `PATCH` body is computed against.
  */
 interface HostEdits {
-  status?: OrgDetail['status'];
-  vatStatus?: OrgDetail['vatStatus'];
   /** The e-mails textarea as typed; parsed on Save, as it used to be parsed on blur. */
   emailsText?: string;
   fulfilment?: FulfilmentStrategyValue;
@@ -116,8 +114,6 @@ function changedCustomFields(bag: Record<string, unknown> | undefined, stored: R
  */
 function patchBodyOf(edits: HostEdits, org: OrgDetail): Record<string, unknown> {
   const body: Record<string, unknown> = {};
-  if (edits.status !== undefined && edits.status !== org.status) body['status'] = edits.status;
-  if (edits.vatStatus !== undefined && edits.vatStatus !== org.vatStatus) body['vatStatus'] = edits.vatStatus;
   if (edits.emailsText !== undefined) {
     const emails = parseEmails(edits.emailsText);
     if (emails.join('|') !== (org.orderConfirmationEmails ?? []).join('|')) body['orderConfirmationEmails'] = emails;
@@ -136,7 +132,7 @@ function patchBodyOf(edits: HostEdits, org: OrgDetail): Record<string, unknown> 
 /** The host part's unsaved changes: one per changed field, custom field and allow-list. */
 function hostChangeCount(edits: HostEdits, org: OrgDetail, restrictions: RestrictionsSelection | null): number {
   const body = patchBodyOf(edits, org);
-  let count = ['status', 'vatStatus', 'orderConfirmationEmails', 'fulfilmentStrategy'].filter((key) => key in body).length;
+  let count = ['orderConfirmationEmails', 'fulfilmentStrategy'].filter((key) => key in body).length;
   count += changedCustomFields(edits.customFieldValues, org.customFieldValues ?? {});
   if (edits.restrictions !== undefined && restrictions !== null) count += changedRestrictionLists(edits.restrictions, restrictions);
   return count;
@@ -144,11 +140,16 @@ function hostChangeCount(edits: HostEdits, org: OrgDetail, restrictions: Restric
 
 /**
  * Feature 180, WP-7 (`specs/180-one-save-zone-editors/contracts/other-editors-save-ui.md` §2;
- * US9, OQ-9 = A, OQ-11 = A; FR-060, FR-061) — one Save for the screen. Its own sections (status,
- * VAT status, order-confirmation e-mails, fulfilment strategy, restrictions, custom fields) are
- * staged and written by it as the host part; `organization.detail.after`'s panels take part
- * through the session. Members, hierarchy, moderation, VAT validation, sales channels, roles and
- * sales representatives stay immediate, each labelled so. The session is one per organization.
+ * US9, OQ-9 = A, OQ-11 = A; FR-060, FR-061) — one Save for the screen. Its own sections
+ * (order-confirmation e-mails, fulfilment strategy, restrictions, custom fields) are staged and
+ * written by it as the host part; `organization.detail.after`'s panels take part through the
+ * session. Members, hierarchy, moderation, VAT validation, sales channels, roles and sales
+ * representatives stay immediate, each labelled so. The session is one per organization.
+ *
+ * Issue #1468 (SALES-01, DEC-07) — one editor per concept. The organization status is shown and
+ * changed only by the moderation panel, its one writer; the VAT status is read-only in the header
+ * and changed by the immediate "Change VAT status…" dialog (owner ruling OQ-1 = B). Neither is
+ * staged, counted or sent by the Save.
  */
 export function OrganizationDetail(): ReactNode {
   const { id = '' } = useParams<{ id: string }>();
@@ -171,12 +172,14 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   const canChangeTaxId = isVisible({ module: 'organizations', requiredPermission: 'organizations:change-tax-id' });
   const canValidateTaxId = isVisible({ module: 'organizations', requiredPermission: 'customers:manage' });
   const [changingTaxId, setChangingTaxId] = useState(false);
-  const [org, setOrg] = useState<OrgDetail | null>(null);
+  // Issue #1468 — the VAT status correction is the `customers:manage` PATCH, offered like the
+  // tax-ID change: only while `organizations` is present.
+  const canChangeVatStatus = isVisible({ module: 'organizations', requiredPermission: 'customers:manage' });
+  const [changingVatStatus, setChangingVatStatus] = useState(false);
   // Feature 173 — the newest registration-time lookup's differing fields, as
   // the VAT validation panel loaded them, for the moderation notice.
   const [registryDivergenceCount, setRegistryDivergenceCount] = useState(0);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -201,29 +204,32 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   const [editLast, setEditLast] = useState('');
   const [editEmail, setEditEmail] = useState('');
 
-  // `quiet` re-reads without the full-screen loading state, which would unmount
-  // the panels below — the Roles tab re-reads the members after a role change
-  // and must keep its own confirmation on screen.
-  const refresh = useCallback(async (options?: { quiet?: boolean }): Promise<void> => {
-    if (!options?.quiet) setLoading(true);
-    setError(null);
+  // Issue #1447 (DS-14, SALES-06) — a skeleton on the first load only. Every
+  // re-read after an invite, a member change or a panel's save keeps the page,
+  // its tab and the panels' own confirmations on screen, marked `aria-busy`;
+  // this screen's old `quiet` option is now the only behaviour.
+  const resource = useDetailResource<OrgDetail>(id, async () => {
     try {
       const res = await apiClient.get<{ data: OrgDetail }>(`/api/v1/admin/organizations/${id}`);
-      setOrg(res.data);
+      return res.data;
     } catch (err) {
-      if (err instanceof ApiError && err.envelope.error.code === 'NOT_FOUND') {
-        setOrg(null);
-      } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.load'));
-      }
-    } finally {
-      setLoading(false);
+      if (err instanceof ApiError && err.envelope.error.code === 'NOT_FOUND') return null;
+      throw err;
     }
-  }, [id, t]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  });
+  const org = resource.data;
+  const reread = resource.refresh;
+  const loadError =
+    resource.error === null
+      ? null
+      : resource.error instanceof ApiError
+        ? resource.error.envelope.error.message
+        : t('organizations.detail.error.load');
+  // A re-read clears the previous action's error, as the old full reload did.
+  const refresh = useCallback(async (): Promise<void> => {
+    setError(null);
+    await reread();
+  }, [reread]);
 
   // FR-062: assigning a role needs `customers:manage` alone, so the role list
   // is read only when the operator may read it; otherwise the selects offer the
@@ -372,13 +378,13 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           if (patched) {
             // The organization's fields are saved; what is left staged is the allow-lists.
             setEdits((latest) => (latest.restrictions === undefined ? {} : { restrictions: latest.restrictions }));
-            await refresh({ quiet: true });
+            await refresh();
           }
         }
         throw err;
       }
       setEdits({});
-      await refresh({ quiet: true });
+      await refresh();
     },
     [id, refresh],
   );
@@ -417,7 +423,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         setCustomFieldErrors({});
         setReloadKey((n) => n + 1);
         setRestrictionsReloadKey((n) => n + 1);
-        await refresh({ quiet: true });
+        await refresh();
         setError(own('detail.save.conflict'));
         return;
       }
@@ -435,7 +441,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       const target =
         root?.querySelector<HTMLElement>('[aria-invalid="true"]') ??
         (partId === 'host'
-          ? document.getElementById('ostatus')
+          ? document.getElementById('orderConfEmails')
           : zoneRef.current?.querySelector<HTMLElement>('select, input, textarea'));
       target?.focus();
     }, 0);
@@ -495,9 +501,10 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         await refresh();
       } catch (err) {
         if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-          setError(t('organizations.detail.error.versionConflictMember'));
+          // The page stays on screen through the re-read now, so the reason
+          // the change was refused can stay with it.
           await refresh();
-          setError(null);
+          setError(t('organizations.detail.error.versionConflictMember'));
         } else {
           setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.roleUpdate'));
         }
@@ -521,9 +528,10 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       await refresh();
     } catch (err) {
       if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-        setError(t('organizations.detail.error.versionConflictMember'));
+        // The page stays on screen through the re-read now, so the reason
+        // the change was refused can stay with it.
         await refresh();
-        setError(null);
+        setError(t('organizations.detail.error.versionConflictMember'));
       } else {
         setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.save'));
       }
@@ -544,9 +552,18 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     [id, refresh, t],
   );
 
-  if (loading) return <p className="text-sm text-muted-foreground">{t('organizations.loading')}</p>;
+  if (resource.initialLoading) return <DetailSkeleton label={t('organizations.loading')} />;
   if (!org)
-    return (
+    return loadError !== null ? (
+      <Alert variant="destructive">
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+          {loadError}
+          <Button variant="outline" size="sm" onClick={(): void => void refresh()}>
+            {t('common.action.retry')}
+          </Button>
+        </AlertDescription>
+      </Alert>
+    ) : (
       <Alert variant="warning">
         <AlertDescription>{t('organizations.detail.notFound')}</AlertDescription>
       </Alert>
@@ -569,6 +586,13 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
                 {t('organizations.detail.taxIdLabel')} <code className="font-mono text-xs">{org.taxId}</code>
               </>
             ) : null}
+            {/* Issue #1468 — read-only here, a labelled text badge rather than colour alone; it is
+                changed by "Change VAT status…". A personal Organization has one too. */}
+            {org.isPersonal || org.taxId ? ' · ' : null}
+            <span>
+              {t('organizations.detail.vatStatus')}:{' '}
+              <Badge variant="outline">{own(`vatStatus.${org.vatStatus}`)}</Badge>
+            </span>
             {org.updatedAt ? (
               <>
                 {' '}
@@ -596,6 +620,11 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
                 {own('changeTaxId.button')}
               </Button>
             ) : null}
+            {canChangeVatStatus ? (
+              <Button type="button" variant="secondary" onClick={(): void => setChangingVatStatus(true)}>
+                {own('changeVatStatus.button')}
+              </Button>
+            ) : null}
             <SaveSessionActions hostCount={hostCount} canSave={canManage} saving={busy} onSave={(): void => void savePage()} />
           </div>
         }
@@ -611,9 +640,9 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         </div>
       ) : null}
 
-      {error ? (
+      {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error ?? loadError}</AlertDescription>
         </Alert>
       ) : null}
       {info ? (
@@ -622,6 +651,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         </Alert>
       ) : null}
 
+      <div {...resource.busyProps}>
       <div className="mb-4">
         <ModerationActionsPanel
           organizationId={org.id}
@@ -632,50 +662,20 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           approvedAt={org.approvedAt ?? null}
           registryDivergenceCount={registryDivergenceCount}
           vatValidationAnchorId={VAT_VALIDATION_HEADING_ID}
+          canModerate={canManage}
           onChanged={refresh}
         />
       </div>
 
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle>{t('organizations.detail.statusCard')}</CardTitle>
+          <CardTitle>{t('organizations.detail.notificationsCard')}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="ostatus">{t('organizations.detail.accountStatus')}</Label>
-            <Select
-              id="ostatus"
-              value={edits.status ?? org.status}
-              disabled={busy || !canManage}
-              onChange={(e): void => changeEdits({ status: e.target.value as OrgDetail['status'] })}
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {own(`status.${s}`)}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="vstatus">{t('organizations.detail.vatStatus')}</Label>
-            <Select
-              id="vstatus"
-              value={edits.vatStatus ?? org.vatStatus}
-              disabled={busy || !canManage}
-              onChange={(e): void => changeEdits({ vatStatus: e.target.value as OrgDetail['vatStatus'] })}
-            >
-              {VAT_STATUSES.map((v) => (
-                <option key={v} value={v}>
-                  {own(`vatStatus.${v}`)}
-                </option>
-              ))}
-            </Select>
-          </div>
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="orderConfEmails">{own('detail.orderConfirmationEmails')}</Label>
             <textarea
               id="orderConfEmails"
-              aria-label="order-confirmation-emails"
               className="min-h-20 w-full rounded-md border p-2 text-sm"
               value={edits.emailsText ?? (org.orderConfirmationEmails ?? []).join('\n')}
               placeholder={'ops@example.com\nsales@example.com'}
@@ -951,7 +951,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onConverted={(result: ConvertToCompanyResult): void => {
               setConverting(false);
               setInfo(conversionMessage(own, result));
-              void refresh({ quiet: true });
+              void refresh();
             }}
           />
         </ModalDialog>
@@ -967,7 +967,28 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onChanged={(result: ChangeTaxIdResult): void => {
               setChangingTaxId(false);
               setInfo(taxIdChangeMessage(own, result));
-              void refresh({ quiet: true });
+              void refresh();
+            }}
+          />
+        </ModalDialog>
+      ) : null}
+
+      {changingVatStatus ? (
+        <ModalDialog
+          title={own('changeVatStatus.dialogTitle')}
+          onClose={(): void => setChangingVatStatus(false)}
+          widthClassName="max-w-lg"
+        >
+          <ChangeVatStatusForm
+            organizationId={org.id}
+            currentVatStatus={org.vatStatus}
+            expectedUpdatedAt={org.updatedAt}
+            onCancel={(): void => setChangingVatStatus(false)}
+            onStale={(): void => void refresh()}
+            onChanged={(changed): void => {
+              setChangingVatStatus(false);
+              setInfo(own(changed ? 'changeVatStatus.success.changed' : 'changeVatStatus.success.unchanged'));
+              if (changed) void refresh();
             }}
           />
         </ModalDialog>
@@ -981,7 +1002,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         isPersonal={org.isPersonal === true}
         onRolesChanged={(): void => {
           void refreshRoles();
-          void refresh({ quiet: true });
+          void refresh();
         }}
       />
 
@@ -1082,6 +1103,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       </div>
 
       {id ? <OrganizationSalesRepsTab organizationId={id} /> : null}
+      </div>
     </>
   );
 }

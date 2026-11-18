@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRightLeft, X } from 'lucide-react';
 import type { TaskContextOption, TaskDetail, UpdateTaskBody } from '@endora-commerce/contracts';
 import { Button, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
 import { useEditorFocus } from '../lib/use-editor-focus.js';
@@ -43,6 +44,7 @@ export function ContextSection(props: ContextSectionProps): ReactNode {
   const [chosen, setChosen] = useState<TaskContextOption | null>(null);
   const [group, setGroup] = useState('');
   const focus = useEditorFocus(picking);
+  const { confirm, confirmDialog } = useConfirmDialog();
   const mayMove = canChange && !task.private && (task.context === null || task.context.canChangeTasks);
 
   const close = (): void => {
@@ -58,6 +60,24 @@ export function ContextSection(props: ContextSectionProps): ReactNode {
       t('context.saved'),
     );
     if (written) close();
+  };
+
+  /**
+   * Taking the Task out of its record changes who sees it — from the record's
+   * readers to everyone who may see Tasks — so it is asked first, saying so (issue #512).
+   */
+  const remove = async (): Promise<void> => {
+    if (task.context === null) return;
+    const ok = await confirm({
+      title: t('context.removeConfirm.title'),
+      message: t('context.removeConfirm.body', { record: task.context.label }),
+      confirmLabel: t('context.remove'),
+      destructive: true,
+    });
+    if (!ok) return;
+    const written = await props.onWrite({ context: null }, t('context.removed'));
+    // This button unmounts with the record; focus goes to the opener that is left.
+    if (written) focus.returnFocus();
   };
 
   return (
@@ -113,12 +133,7 @@ export function ContextSection(props: ContextSectionProps): ReactNode {
               size="sm"
               className="min-h-11 sm:min-h-8"
               disabled={busy}
-              onClick={(): void => {
-                void props.onWrite({ context: null }, t('context.removed')).then((written) => {
-                  // This button unmounts with the record; focus goes to the opener that is left.
-                  if (written) focus.returnFocus();
-                });
-              }}
+              onClick={(): void => void remove()}
             >
               <X aria-hidden="true" />
               {t('context.remove')}
@@ -182,6 +197,7 @@ export function ContextSection(props: ContextSectionProps): ReactNode {
           </div>
         </div>
       ) : null}
+      {confirmDialog}
     </section>
   );
 }

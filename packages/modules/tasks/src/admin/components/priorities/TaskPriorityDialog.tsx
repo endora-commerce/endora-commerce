@@ -5,10 +5,12 @@ import {
   type TaskPriorityConfig,
   type UpdateTaskPriorityBody,
 } from '@endora-commerce/contracts';
+import { ApiError, useDerivedKey } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, ColorPicker, Input, Label } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
+import { useFocusFirstInvalid } from '../../lib/use-focus-first-invalid.js';
 
 /** The two Admin UI languages; a priority is named in both (FR-024). */
 const NAME_LANGUAGES = ['en', 'pl'] as const;
@@ -17,6 +19,17 @@ const DEFAULT_COLOR = '#64748b';
 
 /** The filter token for "no priority" — never a priority's code. */
 const NO_PRIORITY = 'none';
+
+/** The longest code `taskPriorityCodeSchema` accepts. */
+const CODE_MAX_LENGTH = 64;
+
+/** Whether the server refused a create because the code is taken (`priority_code_taken`). */
+function isCodeTaken(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.envelope.error.details as { rule?: unknown } | undefined)?.rule === 'priority_code_taken'
+  );
+}
 
 export type TaskPriorityDialogSubmit =
   | { mode: 'create'; body: CreateTaskPriorityBody }
@@ -27,6 +40,8 @@ export interface TaskPriorityDialogProps {
   priority: TaskPriorityConfig | null;
   /** Where a new priority lands by default: after the least urgent one. */
   nextWeight: number;
+  /** The codes of the existing priorities: a new one may not reuse one. */
+  takenCodes: readonly string[];
   language: string;
   /** Resolves when the write was accepted; a rejection is shown in the dialog. */
   onSubmit: (submit: TaskPriorityDialogSubmit) => Promise<void>;
@@ -36,7 +51,9 @@ export interface TaskPriorityDialogProps {
 /**
  * Add or edit one Task priority (`specs/165-task-management/` User Story 9,
  * FR-024, research R-9; the status dialog, the model): its code (on create
- * only — Tasks hold it, so it is immutable), its name in both languages, its
+ * only — Tasks hold it, so it is immutable; derived from the English name
+ * until edited, normalised on blur, a taken one refused rather than suffixed —
+ * issue #1560, the architect ruling on #512), its name in both languages, its
  * position — the lower, the more urgent — and its colour. An edit sends only
  * what changed.
  */
@@ -57,20 +74,37 @@ export function TaskPriorityDialog(props: TaskPriorityDialogProps): ReactNode {
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const invalid = useFocusFirstInvalid<HTMLFormElement>();
+  const codeField = useDerivedKey({
+    source: names.en ?? '',
+    value: code,
+    onChange: (next): void => {
+      setCode(next);
+      setCodeError(null);
+    },
+    separator: '_',
+    maxLength: CODE_MAX_LENGTH,
+    enabled: priority === null,
+  });
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    const trimmedCode = code.trim();
+    // Enter in the code field submits without a blur: normalise here too.
+    const trimmedCode = codeField.commit().trim();
     const name = { en: (names.en ?? '').trim(), pl: (names.pl ?? '').trim() };
     let nextCodeError: string | null = null;
     if (priority === null) {
       if (!taskPriorityCodeSchema.safeParse(trimmedCode).success) nextCodeError = t('workflow.error.code');
       else if (trimmedCode === NO_PRIORITY) nextCodeError = t('priorities.error.codeNone');
+      else if (props.takenCodes.includes(trimmedCode)) nextCodeError = t('priorities.error.codeTaken');
     }
     const nextNameError = name.en.length === 0 || name.pl.length === 0 ? t('workflow.error.name') : null;
     setCodeError(nextCodeError);
     setNameError(nextNameError);
-    if (nextCodeError || nextNameError) return;
+    if (nextCodeError || nextNameError) {
+      invalid.refuse();
+      return;
+    }
 
     const parsedWeight = Number.parseInt(weight, 10);
     const safeWeight = Number.isFinite(parsedWeight) && parsedWeight >= 0 ? parsedWeight : 0;
@@ -96,8 +130,13 @@ export function TaskPriorityDialog(props: TaskPriorityDialogProps): ReactNode {
       await onSubmit(payload);
       onClose();
     } catch (error) {
-      setSubmitError(errorMessage(error, t('priorities.error.save')));
       setBusy(false);
+      if (priority === null && isCodeTaken(error)) {
+        setCodeError(t('priorities.error.codeTaken'));
+        invalid.refuse();
+        return;
+      }
+      setSubmitError(errorMessage(error, t('priorities.error.save')));
     }
   };
 
@@ -108,7 +147,7 @@ export function TaskPriorityDialog(props: TaskPriorityDialogProps): ReactNode {
 
   return (
     <ModalDialog title={title} onClose={onClose} busy={busy}>
-      <form className="space-y-4" noValidate onSubmit={(event): void => void submit(event)}>
+      <form ref={invalid.containerRef} className="space-y-4" noValidate onSubmit={(event): void => void submit(event)}>
         {submitError ? (
           <Alert variant="destructive">
             <AlertDescription>{submitError}</AlertDescription>
@@ -126,7 +165,8 @@ export function TaskPriorityDialog(props: TaskPriorityDialogProps): ReactNode {
               className="font-mono"
               aria-invalid={codeError !== null}
               aria-describedby={`${fieldId}-code-hint`}
-              onChange={(event): void => setCode(event.target.value)}
+              onChange={codeField.onChange}
+              onBlur={codeField.onBlur}
             />
             <p id={`${fieldId}-code-hint`} className={codeError ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
               {codeError ?? t('priorities.field.codeHint')}

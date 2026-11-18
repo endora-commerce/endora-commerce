@@ -146,7 +146,7 @@ function renderAt(path: string): RenderResult {
   return renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={[path]}>
-        <App contributions={MODULE_ADMIN_CONTRIBUTIONS} modulePresence={modulePresence({ present: [...presentModules] })} />
+        <App contributions={MODULE_ADMIN_CONTRIBUTIONS} modulePresence={modulePresence({ present: [...presentModules] })} translations={{}} />
       </MemoryRouter>,
       { session: adminSession({ permissions: [...permissions] }) },
     ),
@@ -155,12 +155,13 @@ function renderAt(path: string): RenderResult {
 }
 
 /**
- * The screen's own heading. `getAllByText` rather than `getByText`: the card
- * title and its description both carry the phrase, and this file is asserting
- * that the screen is *there*, not how many times it says its own name.
+ * The screen's own `h1`. `App` is rendered over the empty bundle, so the heading
+ * reads as its key's placeholder: the screen words itself from the `mfa` bundle
+ * since issue #1481, and this file is asserting that the screen is *there*, not
+ * what it says.
  */
 const screenIsRendered = (): boolean =>
-  screen.queryAllByText(/Two-step verification/).length > 0;
+  screen.queryAllByRole('heading', { level: 1, name: /security\.page\.title/ }).length > 0;
 
 /** Every sidebar link's `href`, in rendered order. */
 function sidebarHrefs(): (string | null)[] {
