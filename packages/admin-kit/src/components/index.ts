@@ -193,6 +193,11 @@ export { ScopeNotice } from './scope-notice/ScopeNotice.js';
 export type { ScopeNoticeProps } from './scope-notice/ScopeNotice.js';
 export { SavedViewsControl } from './saved-views/SavedViewsControl.js';
 export type { SavedViewState, SavedViewsControlProps } from './saved-views/SavedViewsControl.js';
+// Issue #1440 (UX audit DS-06) — the list toolbar: labelled search, primary filters, *More filters (n)*, applied-filter chips.
+export { FilterChip } from './list-toolbar/FilterChip.js';
+export type { FilterChipProps } from './list-toolbar/FilterChip.js';
+export { ListToolbar, ListToolbarSearch } from './list-toolbar/ListToolbar.js';
+export type { AppliedFilter, ListToolbarProps, ListToolbarSearchProps } from './list-toolbar/ListToolbar.js';
 export type { RuleAttributeField, RuleBuilderBuiltinField, RuleBuilderLabels, RuleBuilderProps, RuleFieldOptions, StructuralRule, StructuralRuleCondition, StructuralRuleField, StructuralRuleValue } from './rule-builder/RuleBuilder.js';
 // Feature 163 — the collaboration components promoted from CRM (`specs/163-projects-and-tasks/research.md` R-17).
 export { ReferenceField } from './references/ReferenceField.js';

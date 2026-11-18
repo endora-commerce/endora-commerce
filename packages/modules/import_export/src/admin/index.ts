@@ -25,7 +25,7 @@
  * would make the registry evaluate React to be enumerated. Vite therefore emits
  * one chunk for this screen by construction rather than by a build rule.
  */
-import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
 
 /** The centre's one route. */
 const ROUTE_PATH = '/import-export';
@@ -72,5 +72,13 @@ export const contributions: AdminContributions = {
       weight: 700,
       requiredPermission: [...REQUIRED_PERMISSION],
     },
+  ],
+  zones: [
+    // Issue #1455 (CAT-02) — *Import / export* on the products list header. The
+    // centre's Products card is gated by catalog's own codes (`catalog:read` to
+    // export, `catalog:write` to import), so those are what open the link.
+    zoneComponent('product.list.actions', () => import('./zones/ProductListImportExportLink.js'), {
+      requiredPermission: ['catalog:read', 'catalog:write'],
+    }),
   ],
 };

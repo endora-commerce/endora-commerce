@@ -5,7 +5,10 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { SavedListView } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { adminSession, withSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+
+// Issue #1455 (CAT-02) — the list asks whether `import_export` is on before it offers Import / export.
+const PRESENCE = modulePresence({ present: ['catalog', 'import_export'] });
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import core from '../../../../packages/modules/_i18n/i18n/en.json';
 import catalog from '../../../../packages/modules/catalog/i18n/en.json';
@@ -13,9 +16,9 @@ import catalog from '../../../../packages/modules/catalog/i18n/en.json';
 /**
  * Feature 147 (T036, US2; FR-008 – FR-012) — saved views on the product list
  * (closes #289). The page owns only the mapping between its state and a
- * `SavedViewState`: a view stores status, type and search, nothing else; the
- * Stock, Category and Channel chips are not saved, and loading a view returns
- * Stock to *All*, the list to its first page and drops the row selection. The
+ * `SavedViewState`: a view stores status, type and search — the list's only
+ * filters since issue #1455 removed the Stock, Category and Channel chips — and
+ * loading a view returns the list to its first page and drops the row selection. The
  * control's own behaviour is `admin/test/components/SavedViewsControl*.test.tsx`.
  *
  * Both bundles are the real ones: the control is named by `core`'s
@@ -149,7 +152,7 @@ async function renderList(): Promise<ReturnType<typeof userEvent.setup>> {
           <ProductsList />
         </MemoryRouter>,
         // US2-4: the list's own read code is all a saved view needs.
-        { session: adminSession({ permissions: ['catalog:read'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['catalog:read'] }) },
       )}
     </StrictMode>,
     { core: core as Record<string, string>, catalog: catalog as Record<string, string> },
@@ -166,6 +169,10 @@ function savedViewsSelect(): HTMLSelectElement {
 
 function searchBox(): HTMLInputElement {
   return screen.getByPlaceholderText('Search SKU, slug, name…') as HTMLInputElement;
+}
+
+function typeSelect(): HTMLSelectElement {
+  return screen.getByRole('combobox', { name: 'Type' }) as HTMLSelectElement;
 }
 
 function tab(name: string): HTMLElement {
@@ -208,15 +215,12 @@ describe('ProductsList — saved views (feature 147, #289)', () => {
     expect(screen.getByRole('button', { name: 'Delete view' })).toBeDisabled();
   });
 
-  it('saves status, type and search, and nothing for stock', async () => {
+  it('saves status, type and search', async () => {
     const user = await renderList();
 
     await user.click(tab('Inactive'));
-    await user.click(screen.getByRole('button', { name: 'Type' }));
-    await user.click(screen.getByRole('button', { name: 'Type: Simple' }));
+    await user.selectOptions(typeSelect(), 'configurable');
     await user.type(searchBox(), '  chair ');
-    await user.click(screen.getByRole('button', { name: 'Stock' }));
-    expect(screen.getByRole('button', { name: 'Low stock' })).toBeInTheDocument();
 
     const body = (await saveAs(user, 'Mine')) as Record<string, unknown>;
     expect(body['name']).toBe('Mine');
@@ -231,7 +235,7 @@ describe('ProductsList — saved views (feature 147, #289)', () => {
     expect(body['filters']).toEqual({});
   });
 
-  it('loading a view replaces status, type and search, returns Stock to All and the list to its first page', async () => {
+  it('loading a view replaces status, type and search, and returns the list to its first page', async () => {
     const user = await renderList();
 
     await user.type(searchBox(), 'desk');
@@ -243,17 +247,12 @@ describe('ProductsList — saved views (feature 147, #289)', () => {
     await waitFor(() =>
       expect(listRequests().some((p) => p.includes('q=desk') && p.includes('page=1'))).toBe(true),
     );
-    await user.click(screen.getByRole('button', { name: 'Stock' }));
-    expect(screen.getByRole('button', { name: 'Low stock' })).toBeInTheDocument();
-
     const before = listRequests().length;
     await user.selectOptions(savedViewsSelect(), INACTIVE_CHAIRS.id);
 
     expect(tab('Inactive')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: 'Type: Configurable' })).toBeInTheDocument();
+    expect(typeSelect().value).toBe('configurable');
     expect(searchBox().value).toBe('chair');
-    expect(screen.getByRole('button', { name: 'Stock' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Low stock' })).toBeNull();
 
     await waitFor(() => expect(listRequests().length).toBeGreaterThan(before));
     // FR-011: the very next list request already carries the first page.
@@ -282,7 +281,7 @@ describe('ProductsList — saved views (feature 147, #289)', () => {
     const user = await renderList();
 
     await user.click(tab('Active'));
-    await user.click(screen.getByRole('button', { name: 'Type' }));
+    await user.selectOptions(typeSelect(), 'simple');
     await user.type(searchBox(), 'desk');
     await waitForSearch('desk');
 
@@ -290,7 +289,7 @@ describe('ProductsList — saved views (feature 147, #289)', () => {
     await user.selectOptions(savedViewsSelect(), STALE.id);
 
     expect(tab('All')).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('button', { name: 'Type' })).toBeInTheDocument();
+    expect(typeSelect().value).toBe('');
     expect(searchBox().value).toBe('');
     await waitFor(() => expect(listRequests().length).toBeGreaterThan(before));
     const next = new URLSearchParams(listRequests()[before]!.slice(LIST.length));
