@@ -77,30 +77,6 @@ const FEED = {
   updatedAt: '2026-08-01T10:00:00.000Z',
 } satisfies ProductFeedDto;
 
-function run(): FeedRunDetail {
-  return {
-    id: 'r1',
-    productFeedId: 'f1',
-    status: 'completed',
-    trigger: 'manual',
-    triggeredByAdminUserId: null,
-    startedAt: '2026-08-01T10:00:00.000Z',
-    finishedAt: '2026-08-01T10:01:00.000Z',
-    durationMs: 60_000,
-    emittedCount: 12,
-    skippedCount: 0,
-    warningCount: 0,
-    consideredCount: 12,
-    failureCode: null,
-    withdrawalReason: null,
-    failureDetail: null,
-    skipReason: null,
-    issueOverflow: false,
-    artefact: null,
-    createdAt: '2026-08-01T10:00:00.000Z',
-  } satisfies FeedRunDetail;
-}
-
 function renderPage(): ReturnType<typeof renderWithI18n> {
   return renderWithI18n(
     withSession(
