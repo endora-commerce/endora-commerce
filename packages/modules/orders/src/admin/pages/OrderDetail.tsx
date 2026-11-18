@@ -11,7 +11,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { ApiError, apiBaseUrl, apiClient, cn, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, FormField, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section } from '@endora-commerce/admin-kit/ui';
 import { CustomFieldValuesPanel, StatusChangeControl, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -908,13 +908,15 @@ export function OrderDetail(): ReactNode {
                 </ul>
               )}
               <div className="space-y-2 border-t pt-3">
-                <textarea
-                  aria-label="comment-body"
-                  className="min-h-20 w-full rounded-md border p-2 text-sm"
-                  value={commentBody}
-                  onChange={(e): void => setCommentBody(e.target.value)}
-                  placeholder={t('orderDetail.comments.placeholder')}
-                />
+                {/* A visible label, not a placeholder or a developer id, names the box (#1475). */}
+                <FormField label={tOrders('detail.comments.label')}>
+                  <textarea
+                    className="min-h-20 w-full rounded-md border p-2 text-sm"
+                    value={commentBody}
+                    onChange={(e): void => setCommentBody(e.target.value)}
+                    placeholder={t('orderDetail.comments.placeholder')}
+                  />
+                </FormField>
                 <div className="flex flex-wrap items-center gap-4">
                   <label className="flex items-center gap-2 text-sm">
                     <input

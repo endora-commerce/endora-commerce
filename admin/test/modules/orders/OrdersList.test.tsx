@@ -3,6 +3,8 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { shippedModuleBundle } from '../../helpers/core-bundle';
+import { developerIdLabels } from '../../helpers/developer-ids';
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
@@ -35,12 +37,15 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 
 const { OrdersList } = await import('../../../../packages/modules/orders/src/admin/pages/OrdersList');
 
-const BUNDLE = passthroughBundle('core', [
-  'orders.field.search',
-  'orders.bulk.changeStatus',
-  'orders.bulk.targetStatus',
-  'orders.bulk.apply',
-]);
+const BUNDLE = {
+  ...passthroughBundle('core', [
+    'orders.field.search',
+    'orders.bulk.changeStatus',
+    'orders.bulk.targetStatus',
+    'orders.bulk.apply',
+  ]),
+  ...shippedModuleBundle('orders', 'en'),
+};
 
 function row(id: string, biz: string) {
   return {
@@ -78,8 +83,8 @@ beforeEach(() => {
   postSpy.mockResolvedValue({ data: { changed: ['o1'], skipped: [] } });
 });
 
-function renderList(): void {
-  renderWithI18n(
+function renderList(): { container: HTMLElement } {
+  return renderWithI18n(
     <MemoryRouter>
       <OrdersList />
     </MemoryRouter>,
@@ -88,6 +93,13 @@ function renderList(): void {
 }
 
 describe('OrdersList (desktop)', () => {
+  it('names the selection checkboxes in words, not developer ids (#1475)', async () => {
+    const { container } = renderList();
+    expect(await screen.findByRole('checkbox', { name: 'Select order ORD-2' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select all orders on this page' })).toBeInTheDocument();
+    expect(developerIdLabels(container)).toEqual([]);
+  });
+
   it('renders rows from the server with business IDs and customer names', async () => {
     renderList();
     await waitFor(() => expect(screen.getByText('#ORD-1')).toBeInTheDocument());
@@ -106,8 +118,8 @@ describe('OrdersList (desktop)', () => {
 
   it('selects rows and runs a bulk status change', async () => {
     renderList();
-    await waitFor(() => expect(screen.getByLabelText('select-ORD-1')).toBeInTheDocument());
-    await userEvent.click(screen.getByLabelText('select-ORD-1'));
+    const first = await screen.findByRole('checkbox', { name: 'Select order ORD-1' });
+    await userEvent.click(first);
     // Bulk bar appears; open the dialog.
     await userEvent.click(screen.getByText('orders.bulk.changeStatus'));
     expect(screen.getByRole('dialog')).toBeInTheDocument();

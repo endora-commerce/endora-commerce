@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { byId } from '../../helpers/developer-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { orgSalesChannels } from './org-sales-channels';
 
@@ -134,15 +135,15 @@ function renderPage(entry: string): void {
   );
 }
 
-async function pick(comboLabel: string, optionLabel: string): Promise<void> {
-  await userEvent.click(screen.getByLabelText(comboLabel));
+async function pick(comboLabel: string | HTMLElement, optionLabel: string): Promise<void> {
+  await userEvent.click(typeof comboLabel === 'string' ? screen.getByLabelText(comboLabel) : comboLabel);
   await userEvent.click(await screen.findByRole('option', { name: new RegExp(optionLabel) }));
 }
 
 /** Methods and a line: everything but the channel. */
 async function fillTheRest(): Promise<void> {
-  await pick('paymentMethodId', 'Payment 1');
-  await pick('deliveryMethodId', 'Delivery 1');
+  await pick(byId('paymentMethodId'), 'Payment 1');
+  await pick(byId('deliveryMethodId'), 'Delivery 1');
   await userEvent.type(await screen.findByLabelText(QUICK_SEARCH), 'Wid');
   await pick(QUICK_SEARCH, 'Widget');
 }
@@ -153,7 +154,7 @@ const channelReads = () => getSpy.mock.calls.filter(([path]) => path === CHANNEL
 describe('OrderCreatePage — the sales channel (#515)', () => {
   it('reads the customer’s Organization’s channels, preselects the only one and sends it', async () => {
     renderPage('/orders/new?customerAccountId=cust-1');
-    await waitFor(() => expect(screen.getByLabelText('salesChannelId')).toHaveValue('Retail'));
+    await waitFor(() => expect(byId('salesChannelId')).toHaveValue('Retail'));
     expect(channelReads().length).toBeGreaterThan(0);
     // The old list of every active channel is not read any more.
     expect(getSpy.mock.calls.some(([path]) => String(path).startsWith('/api/v1/admin/sales-channels'))).toBe(false);
@@ -168,11 +169,11 @@ describe('OrderCreatePage — the sales channel (#515)', () => {
   it('offers only the Organization’s active channels: never another one, never an inactive one of its own', async () => {
     assigned = [RETAIL.id, WHOLESALE.id, RETIRED.id];
     renderPage('/orders/new?customerAccountId=cust-1');
-    await waitFor(() => expect(screen.getByLabelText('salesChannelId')).toBeEnabled());
+    await waitFor(() => expect(byId('salesChannelId')).toBeEnabled());
     // Two to choose from: none is chosen for the operator.
-    expect(screen.getByLabelText('salesChannelId')).toHaveValue('');
+    expect(byId('salesChannelId')).toHaveValue('');
 
-    await userEvent.click(screen.getByLabelText('salesChannelId'));
+    await userEvent.click(byId('salesChannelId'));
     const offered = (await screen.findAllByRole('option')).map((o) => o.textContent ?? '');
     expect(offered.some((t) => t.includes('Retail'))).toBe(true);
     expect(offered.some((t) => t.includes('Wholesale'))).toBe(true);
@@ -183,15 +184,15 @@ describe('OrderCreatePage — the sales channel (#515)', () => {
   it('keeps a channel the link names when it is one of them', async () => {
     assigned = [RETAIL.id, WHOLESALE.id];
     renderPage(`/orders/new?customerAccountId=cust-1&salesChannelId=${WHOLESALE.id}`);
-    await waitFor(() => expect(screen.getByLabelText('salesChannelId')).toHaveValue('Wholesale'));
+    await waitFor(() => expect(byId('salesChannelId')).toHaveValue('Wholesale'));
   });
 
   it('drops a channel the link names when it is not one of them, and does not call that unsaved work', async () => {
     assigned = [RETAIL.id, WHOLESALE.id];
     renderPage(`/orders/new?customerAccountId=cust-1&salesChannelId=${FOREIGN.id}`);
-    await waitFor(() => expect(screen.getByLabelText('salesChannelId')).toBeEnabled());
-    expect(screen.getByLabelText('salesChannelId')).toHaveValue('');
-    await waitFor(() => expect(screen.getByLabelText('deliveryAddress-existing')).toHaveValue('Acme HQ ★'));
+    await waitFor(() => expect(byId('salesChannelId')).toBeEnabled());
+    expect(byId('salesChannelId')).toHaveValue('');
+    await waitFor(() => expect(byId('deliveryAddress-existing')).toHaveValue('Acme HQ ★'));
 
     // Nothing the operator chose changed: leaving asks nothing.
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
@@ -211,7 +212,7 @@ describe('OrderCreatePage — the sales channel (#515)', () => {
     assigned = [RETIRED.id];
     renderPage('/orders/new?customerAccountId=cust-1');
     expect(await screen.findByText('orderCreate.noChannelWarning')).toBeInTheDocument();
-    expect(screen.queryByLabelText('salesChannelId')).toBeNull();
+    expect(document.getElementById('salesChannelId')).toBeNull();
     expect(screen.getByText('orderCreate.submit')).toBeDisabled();
   });
 
@@ -223,7 +224,7 @@ describe('OrderCreatePage — the sales channel (#515)', () => {
 
     assigned = [RETAIL.id];
     await userEvent.click(screen.getByRole('button', { name: 'common.action.retry' }));
-    await waitFor(() => expect(screen.getByLabelText('salesChannelId')).toHaveValue('Retail'));
+    await waitFor(() => expect(byId('salesChannelId')).toHaveValue('Retail'));
     expect(screen.queryByText('orderCreate.channelsLoadError')).toBeNull();
   });
 
@@ -240,7 +241,7 @@ describe('OrderCreatePage — the sales channel (#515)', () => {
       );
     });
     renderPage('/orders/new?customerAccountId=cust-1');
-    await waitFor(() => expect(screen.getByLabelText('salesChannelId')).toHaveValue('Retail'));
+    await waitFor(() => expect(byId('salesChannelId')).toHaveValue('Retail'));
     await fillTheRest();
     const submit = screen.getByText('orderCreate.submit');
     await waitFor(() => expect(submit).not.toBeDisabled());

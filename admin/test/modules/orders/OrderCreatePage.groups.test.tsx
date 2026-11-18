@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { formatMoney } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { byId } from '../../helpers/developer-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import { orgSalesChannels } from './org-sales-channels';
@@ -142,8 +143,8 @@ beforeEach(() => {
   });
 });
 
-async function pick(comboLabel: string, optionLabel: string): Promise<void> {
-  await userEvent.click(screen.getByLabelText(comboLabel));
+async function pick(comboLabel: string | HTMLElement, optionLabel: string): Promise<void> {
+  await userEvent.click(typeof comboLabel === 'string' ? screen.getByLabelText(comboLabel) : comboLabel);
   await userEvent.click(await screen.findByRole('option', { name: new RegExp(optionLabel) }));
 }
 
@@ -165,11 +166,11 @@ function renderPage(): { container: HTMLElement } {
 }
 
 async function fillParties(): Promise<void> {
-  await userEvent.type(screen.getByLabelText('customerAccountId'), 'Jan');
-  await pick('customerAccountId', 'Jan Kowalski');
-  await pick('salesChannelId', 'Channel 1');
-  await pick('paymentMethodId', 'Payment 1');
-  await pick('deliveryMethodId', 'Delivery 1');
+  await userEvent.type(byId('customerAccountId'), 'Jan');
+  await pick(byId('customerAccountId'), 'Jan Kowalski');
+  await pick(byId('salesChannelId'), 'Channel 1');
+  await pick(byId('paymentMethodId'), 'Payment 1');
+  await pick(byId('deliveryMethodId'), 'Delivery 1');
 }
 
 async function quickAdd(name: string): Promise<void> {

@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { byId } from '../../helpers/developer-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { orgSalesChannels } from './org-sales-channels';
 
@@ -110,20 +111,20 @@ function renderPage(entry = '/orders/new'): void {
   );
 }
 
-async function pick(comboLabel: string, optionLabel: string): Promise<void> {
-  await userEvent.click(screen.getByLabelText(comboLabel));
+async function pick(comboLabel: string | HTMLElement, optionLabel: string): Promise<void> {
+  await userEvent.click(typeof comboLabel === 'string' ? screen.getByLabelText(comboLabel) : comboLabel);
   const option = await screen.findByRole('option', { name: new RegExp(optionLabel) });
   await userEvent.click(option);
 }
 
 async function pickCustomer(name: string): Promise<void> {
-  await userEvent.type(screen.getByLabelText('customerAccountId'), name.split(' ')[0]!);
-  await pick('customerAccountId', name);
+  await userEvent.type(byId('customerAccountId'), name.split(' ')[0]!);
+  await pick(byId('customerAccountId'), name);
 }
 
 /** Clear a combobox through its own clear button. */
-async function clearCombobox(label: string): Promise<void> {
-  const input = screen.getByLabelText(label);
+async function clearCombobox(label: string | HTMLElement): Promise<void> {
+  const input = (typeof label === 'string' ? screen.getByLabelText(label) : label);
   const container = input.closest('div.relative') as HTMLElement;
   await userEvent.click(within(container).getByRole('button', { name: 'common.combobox.clearSelection' }));
 }
@@ -165,7 +166,7 @@ describe('OrderCreatePage — Items and Order summary gated on customer and sale
     await pickCustomer('Jan Kowalski');
     expectGated(MISSING_CHANNEL);
 
-    await pick('salesChannelId', 'Channel 1');
+    await pick(byId('salesChannelId'), 'Channel 1');
     expect(await screen.findByText(ITEMS)).toBeInTheDocument();
     expect(screen.queryByText(MISSING_CHANNEL)).not.toBeInTheDocument();
     // No line priced yet — no summary.
@@ -179,7 +180,7 @@ describe('OrderCreatePage — Items and Order summary gated on customer and sale
   // there is no channel to choose before there is a customer.
   it('offers no channel before a customer is chosen', async () => {
     renderPage();
-    expect(screen.getByLabelText('salesChannelId')).toBeDisabled();
+    expect(byId('salesChannelId')).toBeDisabled();
     expectGated(MISSING_BOTH);
     expect(getSpy.mock.calls.some(([p]) => String(p).endsWith('/sales-channels'))).toBe(false);
   });
@@ -187,11 +188,11 @@ describe('OrderCreatePage — Items and Order summary gated on customer and sale
   it('keeps the lines and re-prices them when the customer or channel changes (sc. 3)', async () => {
     renderPage();
     await pickCustomer('Jan Kowalski');
-    await pick('salesChannelId', 'Channel 1');
+    await pick(byId('salesChannelId'), 'Channel 1');
     await addWidget();
     await screen.findByText(SUMMARY);
 
-    await pick('salesChannelId', 'Channel 2');
+    await pick(byId('salesChannelId'), 'Channel 2');
     await waitFor(() =>
       expect(previewCalls().at(-1)).toMatchObject({
         customerAccountId: 'cust-1',
@@ -202,10 +203,10 @@ describe('OrderCreatePage — Items and Order summary gated on customer and sale
 
     // Another customer's Organization has channels of its own: the choice is
     // asked again (issue #515), and the lines stay.
-    await clearCombobox('customerAccountId');
+    await clearCombobox(byId('customerAccountId'));
     await pickCustomer('Ewa Nowak');
-    await waitFor(() => expect(screen.getByLabelText('salesChannelId')).toBeEnabled());
-    await pick('salesChannelId', 'Channel 2');
+    await waitFor(() => expect(byId('salesChannelId')).toBeEnabled());
+    await pick(byId('salesChannelId'), 'Channel 2');
     await waitFor(() =>
       expect(previewCalls().at(-1)).toMatchObject({
         customerAccountId: 'cust-2',
@@ -219,14 +220,14 @@ describe('OrderCreatePage — Items and Order summary gated on customer and sale
   it('hides both sections when a required field is cleared and brings the same lines back (sc. 4, FR-025)', async () => {
     renderPage();
     await pickCustomer('Jan Kowalski');
-    await pick('salesChannelId', 'Channel 1');
+    await pick(byId('salesChannelId'), 'Channel 1');
     await addWidget();
     await screen.findByText(SUMMARY);
 
-    await clearCombobox('salesChannelId');
+    await clearCombobox(byId('salesChannelId'));
     await waitFor(() => expectGated(MISSING_CHANNEL));
 
-    await pick('salesChannelId', 'Channel 1');
+    await pick(byId('salesChannelId'), 'Channel 1');
     await waitFor(() => expect(widgetLine()).toBeInTheDocument());
     expect(await screen.findByText(SUMMARY)).toBeInTheDocument();
   });
@@ -242,12 +243,12 @@ describe('OrderCreatePage — Items and Order summary gated on customer and sale
   it('still counts hidden lines as unsaved work (Edge Cases)', async () => {
     renderPage();
     await pickCustomer('Jan Kowalski');
-    await pick('salesChannelId', 'Channel 1');
+    await pick(byId('salesChannelId'), 'Channel 1');
     await addWidget();
 
     // Back to the opened state for every field but the lines, which are now
     // hidden. Clearing the customer clears the channel with it (issue #515).
-    await clearCombobox('customerAccountId');
+    await clearCombobox(byId('customerAccountId'));
     await waitFor(() => expectGated(MISSING_BOTH));
 
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
