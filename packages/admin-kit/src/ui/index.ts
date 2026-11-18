@@ -24,6 +24,7 @@ export type { BadgeProps } from './badge.js';
 export { Button, buttonVariants } from './button.js';
 export type { ButtonProps } from './button.js';
 export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './card.js';
+export type { CardProps, CardTitleElement, CardTitleProps } from './card.js';
 export { Checkbox } from './checkbox.js';
 export { ColorPicker, DEFAULT_COLOR_PRESETS } from './color-picker.js';
 export { Combobox } from './combobox.js';

@@ -455,9 +455,7 @@ export function FormBuilderPage(): ReactNode {
         <div role="tabpanel" id={`${tabsId}-fields-panel`} aria-labelledby={`${tabsId}-fields`} className="space-y-4">
           <Card role="region" aria-labelledby={`${formTextsId}-title`}>
             <CardHeader className="p-4 pb-2">
-              <CardTitle>
-                <h2 id={`${formTextsId}-title`}>{t('builder.formCard')}</h2>
-              </CardTitle>
+              <CardTitle id={`${formTextsId}-title`}>{t('builder.formCard')}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 p-4 pt-0 md:grid-cols-2">
               <div className="space-y-1">
@@ -585,9 +583,7 @@ export function FormBuilderPage(): ReactNode {
         <div role="tabpanel" id={`${tabsId}-versions-panel`} aria-labelledby={`${tabsId}-versions`}>
           <Card>
             <CardHeader className="p-4">
-              <CardTitle>
-                <h2>{t('versions.title')}</h2>
-              </CardTitle>
+              <CardTitle>{t('versions.title')}</CardTitle>
               <CardDescription>
                 {form.publishedVersionNumber > 0 ? t('builder.liveVersion', { number: form.publishedVersionNumber }) : t('builder.notPublished')}
               </CardDescription>

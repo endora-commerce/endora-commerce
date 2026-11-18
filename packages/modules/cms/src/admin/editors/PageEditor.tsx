@@ -680,7 +680,7 @@ export function PageEditor(): ReactNode {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('pageEditor.metadata')}</CardTitle>
+              <CardTitle>{t('pageEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>
@@ -786,7 +786,7 @@ export function PageEditor(): ReactNode {
           ) : null}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('pageEditor.breadcrumbs.title')}</CardTitle>
+              <CardTitle>{t('pageEditor.breadcrumbs.title')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
@@ -858,7 +858,7 @@ export function PageEditor(): ReactNode {
           {/* Feature 163 (FR-033): the page's own sharing image; empty falls back to the default. */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('pageEditor.share.title')}</CardTitle>
+              <CardTitle>{t('pageEditor.share.title')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1">
               <Label htmlFor="cms-page-share-image">{t('pageEditor.share.image')}</Label>
@@ -966,7 +966,7 @@ function LanguageVersionCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{t('pageEditor.languageVersion.title')}</CardTitle>
+        <CardTitle>{t('pageEditor.languageVersion.title')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {languages.length > 1 ? (

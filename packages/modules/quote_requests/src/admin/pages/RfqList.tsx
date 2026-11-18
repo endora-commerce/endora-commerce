@@ -542,7 +542,7 @@ export function RfqList(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[220px] flex-1">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -673,7 +673,7 @@ export function RfqList(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent ref={resultsRef} tabIndex={-1} className="pt-6 focus:outline-none" aria-busy={loading}>
+        <CardContent ref={resultsRef} tabIndex={-1} className="focus:outline-none" aria-busy={loading}>
           {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
           <p role="status" className="sr-only">
             {loading ? t('rfq.list.loading') : ''}

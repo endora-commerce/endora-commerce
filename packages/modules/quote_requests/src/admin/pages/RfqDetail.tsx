@@ -623,7 +623,7 @@ export function RfqDetail(): ReactNode {
           </div>
         </div>
 
-        <CardContent className="divide-y divide-border pt-6 [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+        <CardContent className="divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
           {tab === 'overview' ? (
             <>
               <div className="grid gap-6 md:grid-cols-2">

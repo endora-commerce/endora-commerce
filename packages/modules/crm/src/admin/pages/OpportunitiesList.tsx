@@ -461,7 +461,7 @@ export function OpportunitiesList(): ReactNode {
       />
 
       <Card className="mb-4">
-        <CardContent className="pt-6">
+        <CardContent>
           <div id={FILTER_GRID_ID} className="grid gap-x-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <OpportunityFilterFields
               idPrefix="crm-opportunity"
@@ -563,7 +563,7 @@ export function OpportunitiesList(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent ref={resultsRef} tabIndex={-1} className="pt-6 focus:outline-none" aria-busy={loading}>
+        <CardContent ref={resultsRef} tabIndex={-1} className="focus:outline-none" aria-busy={loading}>
           {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
           <p role="status" className="sr-only">
             {loading && loaded ? t('opportunity.list.loading') : ''}

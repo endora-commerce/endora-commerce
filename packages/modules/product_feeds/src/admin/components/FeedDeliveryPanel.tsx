@@ -304,7 +304,7 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
 
       {!showForm && (
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <div className="b2b-empty">
               <div className="b2b-empty__icon">
                 <Send size={20} aria-hidden="true" />

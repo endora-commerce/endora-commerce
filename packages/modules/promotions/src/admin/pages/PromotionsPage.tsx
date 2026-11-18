@@ -133,7 +133,7 @@ export const PromotionsPage = (): ReactNode => {
       ) : null}
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('promotions.loading')}</p>
           ) : rows.length === 0 ? (

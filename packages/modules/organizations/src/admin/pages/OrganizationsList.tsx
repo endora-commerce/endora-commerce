@@ -100,7 +100,7 @@ export function OrganizationsList(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
+        <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="ostatus">{t('organizations.field.status')}</Label>
             <Select
@@ -124,7 +124,7 @@ export function OrganizationsList(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('organizations.loading')}</p>
           ) : rows.length === 0 ? (

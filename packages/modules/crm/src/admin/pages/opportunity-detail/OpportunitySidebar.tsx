@@ -94,7 +94,7 @@ export function OpportunitySidebar(props: OpportunitySidebarProps): ReactNode {
   return (
     <aside aria-label={t('opportunity.section.details')} className={className}>
       <Card>
-        <CardContent className="divide-y divide-border pt-6">
+        <CardContent className="divide-y divide-border">
       <FactGroup title={t('opportunity.facts.valueAndDeadline')}>
         <OpportunityValue
           opportunity={opportunity}

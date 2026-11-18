@@ -334,7 +334,7 @@ export function ReturnsList(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           {/* Primary toolbar: RMA search + status / kind filters + sort. */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative min-w-[220px] flex-1">
@@ -417,7 +417,7 @@ export function ReturnsList(): ReactNode {
 
       {selected.size > 0 ? (
         <Card className="mb-4">
-          <CardContent className="flex flex-wrap items-center gap-3 pt-6">
+          <CardContent className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-muted-foreground">
               {t('returns.bulk.selected', { count: selected.size })}
             </span>
@@ -430,7 +430,7 @@ export function ReturnsList(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('returns.loading')}</p>
           ) : rows.length === 0 ? (

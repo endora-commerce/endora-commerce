@@ -244,7 +244,7 @@ export function FeedTemplatesListPage(): ReactNode {
           // own were the one surface on this screen sitting on bare page
           // background.
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <ResponsiveTable
                 columns={columns}
                 data={mine}

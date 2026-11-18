@@ -567,7 +567,7 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
       {/* Issue #1471 — Delete at the end of the page, away from the everyday actions (Fitts). */}
       {!c.deleted ? (
         <Card className="mt-4 border-destructive/40">
-          <CardContent className="pt-6">
+          <CardContent>
             <Section
               title={t('detail.dangerZone.title')}
               action={

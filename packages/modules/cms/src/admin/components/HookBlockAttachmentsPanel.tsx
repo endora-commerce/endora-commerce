@@ -154,7 +154,7 @@ export function HookBlockAttachmentsPanel({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{t('hookAttachments.title')}</CardTitle>
+          <CardTitle>{t('hookAttachments.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">{t('hookAttachments.selectHook')}</p>
@@ -166,7 +166,7 @@ export function HookBlockAttachmentsPanel({
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2">
-        <CardTitle className="min-w-0 text-base">
+        <CardTitle className="min-w-0">
           <span className="truncate">{hook.name}</span>
         </CardTitle>
         <Button

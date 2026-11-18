@@ -132,7 +132,7 @@ export function TaxIdScopePage(): ReactNode {
 
       {loading ? (
         <Card aria-busy="true">
-          <CardContent className="space-y-3 pt-6">
+          <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">{t('taxIdScope.loading')}</p>
             <div className="h-12 animate-pulse rounded-md bg-muted" />
             <div className="h-12 animate-pulse rounded-md bg-muted" />
@@ -190,7 +190,7 @@ export function TaxIdScopePage(): ReactNode {
           ) : null}
 
           <Card>
-            <CardContent className="space-y-4 pt-6">
+            <CardContent className="space-y-4">
               <fieldset className="space-y-3">
                 <legend className="text-sm font-medium">{t('taxIdScope.legend')}</legend>
                 {SCOPES.map((option) => (

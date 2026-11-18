@@ -162,7 +162,7 @@ export function TaskCreate(): ReactNode {
         back={returnTo ? { label: tCore('common.action.back'), to: returnTo } : { label: t('create.back'), to: '/tasks' }}
       />
       <Card className="max-w-3xl">
-        <CardContent className="pt-6">
+        <CardContent>
           <form ref={invalid.containerRef} className="space-y-5" noValidate onSubmit={(event): void => void submit(event)}>
             {parent ? (
               <p className="flex items-center gap-2 text-sm">

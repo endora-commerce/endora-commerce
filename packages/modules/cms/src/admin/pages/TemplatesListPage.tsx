@@ -65,7 +65,7 @@ export function TemplatesListPage(): ReactNode {
       ) : null}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{t('templatesList.cardTitle')}</CardTitle>
+          <CardTitle>{t('templatesList.cardTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (

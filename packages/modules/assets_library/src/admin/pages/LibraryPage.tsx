@@ -189,7 +189,7 @@ export function LibraryPage(): ReactNode {
         {/* Folder tree */}
         <Card className="col-span-3">
           <CardHeader>
-            <CardTitle className="text-base">{t('folders.title')}</CardTitle>
+            <CardTitle>{t('folders.title')}</CardTitle>
           </CardHeader>
           <CardContent>
             <FolderTree
@@ -206,7 +206,7 @@ export function LibraryPage(): ReactNode {
         {/* Grid */}
         <Card className={selected ? 'col-span-6' : 'col-span-9'}>
           <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <CardTitle className="text-base">{t('assets.title')}</CardTitle>
+            <CardTitle>{t('assets.title')}</CardTitle>
             <div className="flex items-center gap-2">
               <Input
                 value={q}

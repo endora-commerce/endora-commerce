@@ -79,7 +79,7 @@ export default function BlogAddressesPage(): ReactNode {
         [...byChannel.entries()].map(([channelId, channelRows]) => (
           <Card key={channelId}>
             <CardHeader>
-              <CardTitle className="text-base">{channelName(channelId)}</CardTitle>
+              <CardTitle>{channelName(channelId)}</CardTitle>
             </CardHeader>
             <CardContent>
               <ul className="divide-y">

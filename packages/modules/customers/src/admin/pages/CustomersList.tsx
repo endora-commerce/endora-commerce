@@ -101,7 +101,7 @@ export function CustomersList(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="grid gap-4 pt-6 md:grid-cols-3">
+        <CardContent className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="cstatus">{t('list.field.status')}</Label>
             <Select
@@ -141,7 +141,7 @@ export function CustomersList(): ReactNode {
 
       {organizationId && hasPermission('mfa:reset') ? (
         <Card className="mb-4">
-          <CardContent className="flex flex-wrap items-center gap-3 pt-6">
+          <CardContent className="flex flex-wrap items-center gap-3">
             <Button variant="outline" disabled={resetting} onClick={(): void => void resetOrgMfa()}>
               {t('list.action.resetOrgMfa')}
             </Button>
@@ -151,7 +151,7 @@ export function CustomersList(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('list.loading')}</p>
           ) : rows.length === 0 ? (

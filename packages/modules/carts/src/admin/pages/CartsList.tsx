@@ -103,7 +103,7 @@ export default function CartsList(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="grid gap-4 md:grid-cols-2 md:max-w-xl">
             <div className="space-y-2">
               <Label htmlFor="cstatus">{t('carts.column.status')}</Label>
@@ -140,7 +140,7 @@ export default function CartsList(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('carts.loading')}</p>
           ) : rows.length === 0 ? (

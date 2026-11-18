@@ -274,7 +274,7 @@ export function ProductFeedDetailPage(): ReactNode {
         // block the feed list uses — the hand-rolled dashed box was a third
         // empty-state design in one module.
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <ResponsiveTable
               columns={runColumns}
               data={runs}

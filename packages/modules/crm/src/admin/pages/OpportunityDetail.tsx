@@ -403,7 +403,7 @@ export function OpportunityDetail(): ReactNode {
       */}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_auto_1fr]">
         <Card className="min-w-0 lg:col-start-1">
-          <CardContent className="pt-6">
+          <CardContent>
             <StageBar
               // The reason typed for one Opportunity is not the next one's.
               key={opportunity.id}
@@ -417,7 +417,7 @@ export function OpportunityDetail(): ReactNode {
 
         {outcomesShown || outcomes.length > 0 ? (
           <Card className="min-w-0 lg:col-start-1">
-            <CardContent className="pt-6">
+            <CardContent>
               <PropagationOutcomes
                 opportunityId={opportunity.id}
                 outcomes={outcomes}
@@ -493,7 +493,6 @@ export function OpportunityDetail(): ReactNode {
             </div>
           </div>
           <CardContent
-            className="pt-6"
             id="crm-opportunity-tabpanel"
             role="tabpanel"
             aria-labelledby={`crm-opportunity-tab-${tab?.id ?? ''}`}

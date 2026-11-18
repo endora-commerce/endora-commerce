@@ -67,7 +67,7 @@ export function EmailTemplatesPage(): React.ReactElement {
       ) : null}
       {canWrite ? (
         <Card>
-          <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <CardContent className="flex flex-wrap items-end gap-3">
             <Input placeholder="code" value={code} onChange={(e) => setCode(e.target.value)} className="max-w-[200px]" />
             <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} className="max-w-[240px]" />
             <Button onClick={() => void create()} disabled={!code || !name}>

@@ -732,7 +732,7 @@ export function OrdersList(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           {/* Primary toolbar: search + the two most-used filters + sort, with
               the saved-views / column-picker / advanced-filters controls
               grouped to the right. The long tail of filters moves into the
@@ -947,7 +947,7 @@ export function OrdersList(): ReactNode {
 
       {selected.size > 0 ? (
         <Card className="mb-4">
-          <CardContent className="flex flex-wrap items-center gap-3 pt-6">
+          <CardContent className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-muted-foreground">
               {t('orders.bulk.selected', { count: selected.size })}
             </span>
@@ -964,7 +964,7 @@ export function OrdersList(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent ref={resultsRef} tabIndex={-1} className="pt-6 focus:outline-none" aria-busy={loading}>
+        <CardContent ref={resultsRef} tabIndex={-1} className="focus:outline-none" aria-busy={loading}>
           {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
           <p role="status" className="sr-only">
             {loading ? t('orders.loading') : ''}

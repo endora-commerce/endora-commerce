@@ -145,7 +145,7 @@ export function SalesChannelsPanel({ organizationId }: SalesChannelsPanelProps):
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle id={titleId} className="text-base">
+        <CardTitle id={titleId}>
           {t('salesChannels.title')}
           <ImmediateBadge className="align-middle" />
         </CardTitle>

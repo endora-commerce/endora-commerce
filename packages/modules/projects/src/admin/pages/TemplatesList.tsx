@@ -110,7 +110,7 @@ export function TemplatesList(): ReactNode {
       />
 
       <Card>
-        <CardContent className="space-y-4 pt-6" aria-busy={loading}>
+        <CardContent className="space-y-4" aria-busy={loading}>
           <label htmlFor="templates-archived" className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9">
             <Checkbox
               id="templates-archived"
