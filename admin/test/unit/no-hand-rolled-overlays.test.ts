@@ -82,10 +82,6 @@ const LEDGER: Record<string, { shapes: Partial<Record<OverlayShape, number>>; re
     shapes: { 'fixed-inset': 1 },
     reason: `${FULLSCREEN}; the editor moves to the shared shell under CONTENT-12 (#1532)`,
   },
-  'packages/modules/organizations/src/admin/panels/ModerationActionsPanel.tsx': {
-    shapes: { 'position-fixed': 1 },
-    reason: 'SALES-09 (#1474); migrates once #1578, which rewrites the lines around this modal, has merged',
-  },
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx': { shapes: { 'role-dialog': 1 }, reason: DRAWER },
   'packages/modules/product_feeds/src/admin/components/RevisionImpactDrawer.tsx': { shapes: { 'role-dialog': 1 }, reason: DRAWER },
   'packages/modules/product_feeds/src/admin/components/TemplatePreviewController.tsx': { shapes: { 'role-dialog': 1 }, reason: DRAWER },
