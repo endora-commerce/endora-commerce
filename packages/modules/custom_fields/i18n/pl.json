@@ -1,6 +1,6 @@
 {
   "customFields.title": "Pola niestandardowe",
-  "customFields.description": "Definiuj typowane pola na kluczowych encjach bez zmiany kodu i migracji.",
+  "customFields.description": "Dodatkowe pola dla produktów, zamówień, klientów i innych.",
   "customFields.entity.category": "Kategoria",
   "customFields.entity.order": "Zamówienie",
   "customFields.entity.organization": "Organizacja",

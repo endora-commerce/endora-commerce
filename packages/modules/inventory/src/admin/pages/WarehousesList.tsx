@@ -4,6 +4,7 @@ import type { Warehouse } from '@endora-commerce/contracts';
 import { Plus, Search, Warehouse as WarehouseIcon } from 'lucide-react';
 import { ApiError, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 import { warehousesClient } from '../api/warehouses-client.js';
 /**
  * WarehousesList — admin landing for warehouse identity (feature 010 / US1).
@@ -59,21 +60,17 @@ export function WarehousesList(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('warehouses.page.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('warehouses.page.sub.prefix')} <code className="b2b-mono">default</code> {t('warehouses.page.sub.suffix')}
-          </div>
-        </div>
-        <div className="b2b-page-head__actions">
-          {canWrite ? (
+      <PageHeader
+        title={t('warehouses.page.title')}
+        help={t('warehouses.page.help')}
+        actions={
+          canWrite ? (
             <Link to="/warehouses/new" className="b2b-btn b2b-btn--primary">
-              <Plus size={14} /> {t('warehouses.action.new')}
+              <Plus size={14} aria-hidden="true" /> {t('warehouses.action.new')}
             </Link>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {error ? (
         <div

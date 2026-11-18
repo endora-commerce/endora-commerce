@@ -4,6 +4,7 @@ import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts'
 import { ApiError, apiClient, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
 import { ScopeNotice, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 import { availabilityStatusLabels } from '../lib/labels.js';
 interface NotificationRow {
   id: string;
@@ -124,14 +125,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('inventory.availability.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('inventory.availability.description')}
-          </div>
-        </div>
-      </div>
+      <PageHeader title={t('inventory.availability.title')} description={t('inventory.availability.description')} />
 
       {error ? (
         <div

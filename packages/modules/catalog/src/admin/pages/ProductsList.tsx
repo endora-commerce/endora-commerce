@@ -39,6 +39,7 @@ import { ApiError, apiClient, cn, useAuth, usePageSizePreference } from '@endora
 import { PaginationFooter, SavedViewsControl, adminLanguageToLocale, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type { SavedViewState } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 
 interface AdminProduct {
   id: string;
@@ -458,31 +459,28 @@ export function ProductsList(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('productsList.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('productsList.subtitle', { count: counts.all })}
-          </div>
-        </div>
-        <div className="b2b-page-head__actions">
-          <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-            <Upload size={13} /> {t('productsList.action.import')}
-          </button>
-          <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
-            <Download size={13} /> {t('productsList.action.export')}
-          </button>
-          {canWrite ? (
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--primary"
-              onClick={(): void => { navigate('/catalog/products/new'); }}
-            >
-              <Plus size={14} /> {t('productsList.action.newProduct')}
+      <PageHeader
+        title={t('productsList.title')}
+        actions={
+          <>
+            <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
+              <Upload size={13} /> {t('productsList.action.import')}
             </button>
-          ) : null}
-        </div>
-      </div>
+            <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm">
+              <Download size={13} /> {t('productsList.action.export')}
+            </button>
+            {canWrite ? (
+              <button
+                type="button"
+                className="b2b-btn b2b-btn--primary"
+                onClick={(): void => { navigate('/catalog/products/new'); }}
+              >
+                <Plus size={14} /> {t('productsList.action.newProduct')}
+              </button>
+            ) : null}
+          </>
+        }
+      />
 
       {error ? (
         <div

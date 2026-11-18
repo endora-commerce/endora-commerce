@@ -31,10 +31,7 @@ export function DictionaryPage(): ReactNode {
 
   return (
     <>
-      <PageHeader
-        title="Dictionary"
-        description="Platform registry for country, currency, and language entries used by storefront and admin workflows."
-      />
+      <PageHeader title="Dictionary" />
 
       <div className="mb-4 flex flex-wrap gap-2 border-b">
         {TABS.map((tab) => {

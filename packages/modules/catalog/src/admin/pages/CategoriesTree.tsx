@@ -414,7 +414,6 @@ function CategoriesTreeScreen({
     <>
       <PageHeader
         title={t('categories.page.title')}
-        description={t('categories.page.description')}
         actions={
           <Button type="button" onClick={(): void => setCreateUnderId('__root__')}>
             <Plus />

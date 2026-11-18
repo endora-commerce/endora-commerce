@@ -255,7 +255,7 @@ describe('the product editor’s one Save with a zone participant (feature 180)'
   it('a panel-only change: Back asks Save / Discard / Stay, and Discard drops it (FR-030)', async () => {
     open();
     await stageProbe();
-    fireEvent.click(screen.getByRole('button', { name: en['productEditor.back']! }));
+    fireEvent.click(screen.getByRole('link', { name: en['productEditor.back']! }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: en['productEditor.guard.discard']! }));
     expect(await screen.findByText('product list')).toBeInTheDocument();

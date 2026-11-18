@@ -18,7 +18,7 @@
   "translations.error.save": "Save failed.",
   "translations.error.remove": "Remove failed.",
   "audit.page.title": "Dictionary audit",
-  "audit.page.description": "Unresolved country, currency, and language references across platform consumers.",
+  "audit.page.description": "Country, currency and language codes in use that no dictionary entry matches.",
   "audit.refresh": "Refresh",
   "audit.copyCsv": "Copy CSV",
   "audit.invalidateCache": "Invalidate cache",

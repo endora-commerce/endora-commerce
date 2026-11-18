@@ -1462,7 +1462,7 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/cms/src/admin/components/HeroFields.tsx': 14,
   'packages/modules/cms/src/admin/components/PageBuilderActionBar.tsx': 7,
   'packages/modules/cms/src/admin/components/SectionBlockFields.tsx': 6,
-  'packages/modules/dictionaries/src/admin/pages/DictionaryPage.tsx': 5,
+  'packages/modules/dictionaries/src/admin/pages/DictionaryPage.tsx': 4,
   'packages/modules/dictionaries/src/admin/tabs/CountriesTab.tsx': 29,
   'packages/modules/dictionaries/src/admin/tabs/CurrenciesTab.tsx': 27,
   'packages/modules/dictionaries/src/admin/tabs/LanguagesTab.tsx': 23,

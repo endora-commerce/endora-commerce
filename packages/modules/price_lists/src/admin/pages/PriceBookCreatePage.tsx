@@ -157,7 +157,6 @@ export function PriceBookCreatePage(): ReactNode {
     <>
       <PageHeader
         title={t('priceBooks.create.title')}
-        description={t('priceBooks.create.description')}
         back={{ label: t('priceBooks.common.backToList'), to: '/price-lists' }}
       />
       <section className="max-w-2xl space-y-4" aria-labelledby={`${nameId}-heading`}>

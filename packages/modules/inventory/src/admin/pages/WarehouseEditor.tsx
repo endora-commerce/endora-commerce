@@ -7,9 +7,10 @@ import {
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { CreateWarehouseRequest, Warehouse } from '@endora-commerce/contracts';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { ApiError, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 import { CountryPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { warehousesClient } from '../api/warehouses-client.js';
 
@@ -207,43 +208,34 @@ export function WarehouseEditor(): ReactNode {
 
   return (
     <div className="b2b-page">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <button
-            type="button"
-            className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-            onClick={(): void => { void navigate('/warehouses'); }}
-            style={{ marginBottom: 8 }}
-          >
-            <ArrowLeft size={13} /> {t('warehouses.editor.backToList')}
-          </button>
-          <div className="b2b-page-head__title">
-            {isNew ? t('warehouses.editor.newTitle') : loaded?.name ?? t('warehouses.editor.fallbackTitle')}
-          </div>
-          {!isNew && loaded ? (
-            <div className="b2b-page-head__sub">
+      <PageHeader
+        back={{ label: t('warehouses.editor.backToList'), to: '/warehouses' }}
+        title={isNew ? t('warehouses.editor.newTitle') : loaded?.name ?? t('warehouses.editor.fallbackTitle')}
+        description={
+          !isNew && loaded ? (
+            <>
               <code className="b2b-mono">{loaded.code}</code>
               {isDefault ? t('warehouses.editor.systemDefaultSuffix') : ''}
               {' · '}
               {t('warehouses.editor.channelDefaultsSuffix', {
                 count: loaded.totals?.isDefaultForChannelCount ?? 0,
               })}
-            </div>
-          ) : null}
-        </div>
-        {canDelete ? (
-          <div className="b2b-page-head__actions">
+            </>
+          ) : undefined
+        }
+        actions={
+          canDelete ? (
             <button
               type="button"
               className="b2b-btn b2b-btn--danger"
               onClick={(): void => void handleDelete()}
               disabled={submitting}
             >
-              <Trash2 size={13} /> {t('warehouses.action.delete')}
+              <Trash2 size={13} aria-hidden="true" /> {t('warehouses.action.delete')}
             </button>
-          </div>
-        ) : null}
-      </div>
+          ) : null
+        }
+      />
 
       {error ? (
         <div

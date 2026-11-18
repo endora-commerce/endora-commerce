@@ -118,7 +118,7 @@ describe('one Save of the current scope (feature 174, US7)', () => {
   it('Back with staged changes asks first (§11)', async () => {
     renderEditor(ProductEditor, { url: AT_C });
     await stageName();
-    fireEvent.click(screen.getByRole('button', { name: en['productEditor.back']! }));
+    fireEvent.click(screen.getByRole('link', { name: en['productEditor.back']! }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: en['productEditor.guard.discard']! }));
     expect(await screen.findByText('product list')).toBeInTheDocument();
