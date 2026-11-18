@@ -25,6 +25,9 @@ export const ERROR_CODES = {
   // a request schema's tagged issue (400), or a line a merge or a packaging unit
   // would take past the bound (422). Refused, never clamped.
   LINE_QUANTITY_EXCEEDED: 'LINE_QUANTITY_EXCEEDED',
+  // Issue #1560 — a batch reorder (`PUT …/order`) whose list is not the
+  // current one: a row left out or named twice. 409; the client reloads.
+  ORDER_STALE: 'ORDER_STALE',
 
   // Catalog
   FILTER_NOT_ALLOWED: 'FILTER_NOT_ALLOWED',

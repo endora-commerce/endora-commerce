@@ -363,7 +363,9 @@ w menu bocznym i z palety poleceń; każdy z nich prowadzi do pozostałych.
 **Statusy i przebieg** (`/tasks/settings/workflow`). Dodawaj, zmieniaj nazwy —
 po angielsku i po polsku — kolory i kolejność statusów, usuwaj je; oznaczaj
 status początkowy; dodawaj i usuwaj przejścia na grafie przebiegu, tym samym
-edytorze co w zamówieniach i szansach sprzedażowych. Przebieg jest odrzucany,
+edytorze co w zamówieniach i szansach sprzedażowych. Nowy status trafia na
+koniec; strzałki w każdym wierszu przesuwają go w górę lub w dół, a kolumny
+tablicy stosują tę kolejność. Przebieg jest odrzucany,
 chyba że dokładnie jeden status jest początkowy i otwarty, co najmniej jeden
 jest zakończony i co najmniej jeden anulowany. Status, w którym są zadania, nie
 może zmienić kategorii i jest usuwany dopiero po wybraniu statusu, do którego
@@ -375,9 +377,12 @@ zrobionych podzadań, chwili utworzenia, ostatniej zmiany i dowolnego pola
 niestandardowego zadań.
 
 **Priorytety** (`/tasks/settings/priorities`). Dodawaj, zmieniaj nazwy — po
-angielsku i po polsku — kolory i kolejność priorytetów; sortowanie po
-priorytecie stosuje tę kolejność, od najpilniejszego, a zadania bez priorytetu
-są na końcu. Usunięcie priorytetu, który mają zadania, wymaga wybrania, jaki
+angielsku i po polsku — kolory i kolejność priorytetów strzałkami w każdym
+wierszu (nowy trafia na koniec); sortowanie po priorytecie stosuje tę
+kolejność, od najpilniejszego, a zadania bez priorytetu są na końcu. Na obu
+ekranach przesunięcie to jedna zmiana; jeśli ktoś inny zmienił w tym czasie
+listę, przesunięcie jest odrzucane, lista wczytuje się ponownie, a ekran o tym
+informuje. Usunięcie priorytetu, który mają zadania, wymaga wybrania, jaki
 priorytet — albo żaden — dostaną zamiast niego, i zapisuje to w historii
 każdego zadania.
 
@@ -493,8 +498,8 @@ dokładnie tak jak zadanie, które nie istnieje.
 | `GET`, `POST /:id/reminders`; `DELETE /:id/reminders/:reminderId` | `tasks:read` do listy, `tasks:write` do dodania | `{ remindAt }` albo `{ offsetMinutes }` oraz `recipientIds`; `422` `TASK_REMINDER_INVALID`. Usuwa je jego autor albo posiadacz `tasks:write`. |
 | `GET /lookups/assignees`, `/lookups/mentionable`, `/lookups/documents`, `/lookups/records`, `/lookups/contexts` | `tasks:write` (`mentionable`: `tasks:read`) | Listy wyboru: osoby przypisane, osoby do wspomnienia, lista dokumentów pod `@@` (grupy `order`, `quote_request`, `task`, `opportunity`, `project`, każda dla jej czytelników, gdy jej moduł jest włączony), cele powiązań oraz projekty z etapami. |
 | `GET /custom-field-filters` | `tasks:read` | Pola niestandardowe zadań, których można użyć jako filtrów listy. |
-| `GET /workflow`; `POST /statuses`; `PATCH`, `DELETE /statuses/:code`; `PUT /transitions` | `tasks:read` do odczytu, `tasks:configure` do zmian | Każdy zapis zwraca cały przebieg; `422` `TASK_WORKFLOW_INVALID` (`details.rule`); usunięcie używanego statusu wymaga `?replacement=`; `409` `TASK_STATUS_IN_USE_TOO_MANY` powyżej 5000 zadań. |
-| `GET`, `POST /priorities`; `PATCH`, `DELETE /priorities/:code` | `tasks:read` do odczytu, `tasks:configure` do zmian | Jak statusy; `replacement` może być `none`. |
+| `GET /workflow`; `POST /statuses`; `PUT /statuses/order`; `PATCH`, `DELETE /statuses/:code`; `PUT /transitions` | `tasks:read` do odczytu, `tasks:configure` do zmian | Każdy zapis zwraca cały przebieg; `422` `TASK_WORKFLOW_INVALID` (`details.rule`); usunięcie używanego statusu wymaga `?replacement=`; `409` `TASK_STATUS_IN_USE_TOO_MANY` powyżej 5000 zadań. `PUT /statuses/order` przyjmuje `{ orderedCodes }`, każdy status raz w nowej kolejności: `404` `NOT_FOUND` dla kodu, który nie jest skonfigurowany, `409` `ORDER_STALE` dla pominiętego lub powtórzonego statusu. |
+| `GET`, `POST /priorities`; `PUT /priorities/order`; `PATCH`, `DELETE /priorities/:code` | `tasks:read` do odczytu, `tasks:configure` do zmian | Jak statusy; `replacement` może być `none`. |
 | `GET`, `POST /tags`; `PATCH`, `DELETE /tags/:id` | `tasks:read` do odczytu, `tasks:configure` do zmian | `409` `TASK_TAG_NAME_TAKEN`. |
 | `GET`, `PUT /board/card-fields`; `GET`, `PUT /settings/time-zone` | `tasks:read` do odczytu, `tasks:configure` do zmian | Zapisywane własnym audytowanym zapisem modułu Ustawienia. |
 | `GET`, `POST /list-views`; `PATCH`, `DELETE /list-views/:id` | `tasks:read` | Zapisane widoki; `409` `TASK_VIEW_NAME_TAKEN`. |

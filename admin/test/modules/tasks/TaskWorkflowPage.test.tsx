@@ -120,6 +120,82 @@ function statusRow(code: string): HTMLElement {
   return within(table).getByText(code, { selector: 'td' }).closest('tr') as HTMLElement;
 }
 
+/** The codes of the statuses table, top to bottom. */
+function tableCodes(): string[] {
+  const table = screen.getByRole('table', { name: en('workflow.statuses.title') });
+  return within(table)
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => within(row).getAllByRole('cell')[1]?.textContent ?? '');
+}
+
+/** The seeded workflow with its statuses in `codes`' order. */
+function inOrder(codes: readonly string[]): TaskWorkflow {
+  const flow = seeded();
+  return {
+    ...flow,
+    statuses: codes.map((code, index) => ({ ...flow.statuses.find((s) => s.code === code)!, weight: (index + 1) * 10 })),
+  };
+}
+
+describe('TaskWorkflowPage — reordering the statuses (issue #1560)', () => {
+  const moveDown = (code: string, name: string) =>
+    userEvent.click(within(statusRow(code)).getByRole('button', { name: en('reorder.moveDown', { name }) }));
+
+  it('moves the row at once and sends one PUT of the whole order, every move waiting until it settles', async () => {
+    let answer: (value: { data: TaskWorkflow }) => void = () => {};
+    putSpy.mockImplementation(
+      (path: string) =>
+        path === `${API}/statuses/order` ? new Promise((resolve) => (answer = resolve)) : Promise.resolve({ data: seeded() }),
+    );
+    await renderPage();
+    await moveDown('todo', 'To do');
+
+    expect(tableCodes()).toEqual(['in_progress', 'todo', 'done', 'cancelled']);
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(putSpy).toHaveBeenCalledWith(`${API}/statuses/order`, {
+      orderedCodes: ['in_progress', 'todo', 'done', 'cancelled'],
+    });
+    const down = within(statusRow('done')).getByRole('button', { name: en('reorder.moveDown', { name: 'Done' }) });
+    expect(down).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(down);
+    expect(putSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => answer({ data: inOrder(['in_progress', 'todo', 'done', 'cancelled']) }));
+    await waitFor(() => expect(down).not.toHaveAttribute('aria-disabled'));
+    expect(tableCodes()).toEqual(['in_progress', 'todo', 'done', 'cancelled']);
+  });
+
+  it('puts the list back and says so when the server refuses the move', async () => {
+    putSpy.mockRejectedValue(new ApiError(500, { error: { code: 'INTERNAL', message: 'Boom.' } }));
+    await renderPage();
+    await moveDown('done', 'Done');
+    await waitFor(() => expect(tableCodes()).toEqual(['todo', 'in_progress', 'done', 'cancelled']));
+    expect(await screen.findByText('Boom.')).toBeInTheDocument();
+  });
+
+  it('reloads the list and says somebody else changed it on 409 ORDER_STALE', async () => {
+    putSpy.mockRejectedValue(new ApiError(409, { error: { code: 'ORDER_STALE', message: 'Stale.' } }));
+    await renderPage();
+    getSpy.mockImplementation((path: string) =>
+      path === `${API}/workflow`
+        ? Promise.resolve({ data: inOrder(['cancelled', 'todo', 'in_progress', 'done']) })
+        : Promise.resolve({ data: cardConfig([]) }),
+    );
+    await moveDown('todo', 'To do');
+    expect(await screen.findByText(en('reorder.stale'))).toBeInTheDocument();
+    await waitFor(() => expect(tableCodes()).toEqual(['cancelled', 'todo', 'in_progress', 'done']));
+  });
+
+  it('offers no move up on the first row and no move down on the last', async () => {
+    await renderPage();
+    expect(within(statusRow('todo')).getByRole('button', { name: en('reorder.moveUp', { name: 'To do' }) })).toBeDisabled();
+    expect(
+      within(statusRow('cancelled')).getByRole('button', { name: en('reorder.moveDown', { name: 'Cancelled' }) }),
+    ).toBeDisabled();
+  });
+});
+
 describe('TaskWorkflowPage — the statuses', () => {
   it('lists every status with its category, how many Tasks hold it, and marks the initial one', async () => {
     await renderPage();
@@ -132,7 +208,7 @@ describe('TaskWorkflowPage — the statuses', () => {
     expect(within(statusRow('in_progress')).queryByText(en('workflow.flag.initial'))).toBeNull();
   });
 
-  it('adds a status with both names, a category, a colour, a position and the initial flag', async () => {
+  it('adds a status with both names, a category, a colour and the initial flag — last, with no position field (#1560)', async () => {
     await renderPage();
     await userEvent.click(screen.getByRole('button', { name: en('workflow.status.add') }));
     const dialog = screen.getByRole('dialog');
@@ -140,9 +216,7 @@ describe('TaskWorkflowPage — the statuses', () => {
     await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.en')), 'In review');
     await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.pl')), 'Do przeglądu');
     await userEvent.selectOptions(within(dialog).getByLabelText(en('workflow.field.category')), 'open');
-    const weight = within(dialog).getByLabelText(en('workflow.field.weight'));
-    await userEvent.clear(weight);
-    await userEvent.type(weight, '25');
+    expect(within(dialog).queryByRole('spinbutton')).toBeNull();
     await userEvent.click(within(dialog).getByRole('checkbox', { name: en('workflow.field.initial') }));
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
 
@@ -152,7 +226,7 @@ describe('TaskWorkflowPage — the statuses', () => {
       name: { en: 'In review', pl: 'Do przeglądu' },
       category: 'open',
       color: '#64748b',
-      weight: 25,
+      weight: 50,
       isInitial: true,
     });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());

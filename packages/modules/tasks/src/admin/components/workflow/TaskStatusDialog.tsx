@@ -37,7 +37,7 @@ export type TaskStatusDialogSubmit =
 export interface TaskStatusDialogProps {
   /** The status being edited, or `null` to add one. */
   status: TaskStatusConfig | null;
-  /** Where a new status lands by default: after the last one. */
+  /** Where a new status lands: after the last one. The order is changed on the list (issue #1560). */
   nextWeight: number;
   /** The codes already in the workflow: a new status may not reuse one. */
   takenCodes: readonly string[];
@@ -52,8 +52,9 @@ export interface TaskStatusDialogProps {
  * `StatusDialog`, the model): its code (on create only — it is immutable;
  * derived from the English name until edited, normalised on blur, a taken one
  * refused rather than suffixed — issue #1560, the architect ruling on #512), its
- * name in both languages, its category, whether new Tasks start in it, its
- * position and its colour.
+ * name in both languages, its category, whether new Tasks start in it, and
+ * its colour. A new status goes last; the order is changed on the list, one
+ * batch reorder per move (issue #1560).
  *
  * An edit sends **only what changed**: the server refuses a category change
  * while Tasks are in the status, and a body restating an unchanged category
@@ -72,7 +73,6 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
   });
   const [category, setCategory] = useState<TaskStatusCategory>(status?.category ?? 'open');
   const [isInitial, setIsInitial] = useState(status?.isInitial ?? false);
-  const [weight, setWeight] = useState(String(status?.weight ?? props.nextWeight));
   const [color, setColor] = useState(status?.color ?? DEFAULT_COLOR);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -109,9 +109,6 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
       return;
     }
 
-    const parsedWeight = Number.parseInt(weight, 10);
-    const safeWeight = Number.isFinite(parsedWeight) && parsedWeight >= 0 ? parsedWeight : 0;
-
     let payload: TaskStatusDialogSubmit;
     if (status === null) {
       payload = {
@@ -121,7 +118,7 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
           name,
           category,
           color,
-          weight: safeWeight,
+          weight: props.nextWeight,
           ...(isInitial ? { isInitial: true } : {}),
         },
       };
@@ -130,7 +127,6 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
       if (name.en !== (status.name.en ?? '') || name.pl !== (status.name.pl ?? '')) body.name = name;
       if (category !== status.category) body.category = category;
       if (isInitial && !status.isInitial) body.isInitial = true;
-      if (safeWeight !== status.weight) body.weight = safeWeight;
       if (color.toLowerCase() !== status.color.toLowerCase()) body.color = color;
       if (Object.keys(body).length === 0) {
         onClose();
@@ -247,32 +243,14 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
           ) : null}
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor={`${fieldId}-weight`}>{t('workflow.field.weight')}</Label>
-            <Input
-              id={`${fieldId}-weight`}
-              type="number"
-              min={0}
-              step={1}
-              inputMode="numeric"
-              value={weight}
-              aria-describedby={`${fieldId}-weight-hint`}
-              onChange={(event): void => setWeight(event.target.value)}
-            />
-            <p id={`${fieldId}-weight-hint`} className="text-xs text-muted-foreground">
-              {t('workflow.field.weightHint')}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <span className="block text-sm font-medium leading-none">{t('workflow.field.color')}</span>
-            <ColorPicker
-              value={color}
-              onChange={setColor}
-              label={t('workflow.field.color')}
-              customLabel={t('workflow.field.colorCustom')}
-            />
-          </div>
+        <div className="space-y-1">
+          <span className="block text-sm font-medium leading-none">{t('workflow.field.color')}</span>
+          <ColorPicker
+            value={color}
+            onChange={setColor}
+            label={t('workflow.field.color')}
+            customLabel={t('workflow.field.colorCustom')}
+          />
         </div>
 
         <div className="flex flex-wrap justify-end gap-2 pt-2">

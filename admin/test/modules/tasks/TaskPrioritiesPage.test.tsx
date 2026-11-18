@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { TaskPriorityConfig } from '@endora-commerce/contracts';
 import { core, en, renderTasks } from './tasks-fixtures';
@@ -16,6 +16,7 @@ import { core, en, renderTasks } from './tasks-fixtures';
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
+const putSpy = vi.fn();
 const patchSpy = vi.fn();
 const deleteSpy = vi.fn();
 
@@ -28,7 +29,7 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     apiClient: {
       get: (...args: unknown[]) => getSpy(...args),
       post: (...args: unknown[]) => postSpy(...args),
-      put: vi.fn(),
+      put: (...args: unknown[]) => putSpy(...args),
       patch: (...args: unknown[]) => patchSpy(...args),
       delete: (...args: unknown[]) => deleteSpy(...args),
     },
@@ -64,7 +65,7 @@ function seeded(): TaskPriorityConfig[] {
 }
 
 beforeEach(() => {
-  for (const spy of [getSpy, postSpy, patchSpy, deleteSpy]) spy.mockReset();
+  for (const spy of [getSpy, postSpy, putSpy, patchSpy, deleteSpy]) spy.mockReset();
   getSpy.mockImplementation((path: string) =>
     path === `${API}/priorities` ? Promise.resolve({ data: seeded() }) : Promise.reject(new Error(`unexpected GET ${path}`)),
   );
@@ -109,24 +110,73 @@ describe('TaskPrioritiesPage — the table', () => {
   });
 });
 
+/** The codes of the priorities table, top to bottom. */
+function tableCodes(): string[] {
+  const table = screen.getByRole('table', { name: en('priorities.title') });
+  return within(table)
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => within(row).getAllByRole('cell')[1]?.textContent ?? '');
+}
+
+function inOrder(codes: readonly string[]): TaskPriorityConfig[] {
+  const rows = seeded();
+  return codes.map((code, index) => ({ ...rows.find((row) => row.code === code)!, weight: (index + 1) * 10 }));
+}
+
+describe('TaskPrioritiesPage — reordering (issue #1560)', () => {
+  it('moves the row at once and sends one PUT of the whole order, every move waiting until it settles', async () => {
+    let answer: (value: { data: TaskPriorityConfig[] }) => void = () => {};
+    putSpy.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    await renderPage();
+    await userEvent.click(within(priorityRow('low')).getByRole('button', { name: en('reorder.moveUp', { name: 'Low' }) }));
+
+    expect(tableCodes()).toEqual(['urgent', 'high', 'low', 'normal']);
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(putSpy).toHaveBeenCalledWith(`${API}/priorities/order`, { orderedCodes: ['urgent', 'high', 'low', 'normal'] });
+    const up = within(priorityRow('high')).getByRole('button', { name: en('reorder.moveUp', { name: 'High' }) });
+    expect(up).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(up);
+    expect(putSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => answer({ data: inOrder(['urgent', 'high', 'low', 'normal']) }));
+    await waitFor(() => expect(up).not.toHaveAttribute('aria-disabled'));
+  });
+
+  it('puts the list back and says so when the server refuses the move', async () => {
+    putSpy.mockRejectedValue(new ApiError(500, { error: { code: 'INTERNAL', message: 'Boom.' } }));
+    await renderPage();
+    await userEvent.click(within(priorityRow('urgent')).getByRole('button', { name: en('reorder.moveDown', { name: 'Urgent' }) }));
+    expect(await screen.findByText('Boom.')).toBeInTheDocument();
+    expect(tableCodes()).toEqual(['urgent', 'high', 'normal', 'low']);
+  });
+
+  it('reloads the list and says somebody else changed it on 409 ORDER_STALE', async () => {
+    putSpy.mockRejectedValue(new ApiError(409, { error: { code: 'ORDER_STALE', message: 'Stale.' } }));
+    await renderPage();
+    getSpy.mockResolvedValue({ data: inOrder(['low', 'urgent', 'high', 'normal']) });
+    await userEvent.click(within(priorityRow('urgent')).getByRole('button', { name: en('reorder.moveDown', { name: 'Urgent' }) }));
+    expect(await screen.findByText(en('reorder.stale'))).toBeInTheDocument();
+    await waitFor(() => expect(tableCodes()).toEqual(['low', 'urgent', 'high', 'normal']));
+  });
+});
+
 describe('TaskPrioritiesPage — the dialog', () => {
-  it('adds a priority with its code, both names, a position and a colour', async () => {
+  it('adds a priority with its code, both names and a colour — last, with no position field (#1560)', async () => {
     await renderPage();
     await userEvent.click(screen.getByRole('button', { name: en('priorities.add') }));
     const dialog = screen.getByRole('dialog');
     await userEvent.type(within(dialog).getByLabelText(en('workflow.field.code')), 'blocker');
     await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.en')), 'Blocker');
     await userEvent.type(within(dialog).getByLabelText(en('workflow.field.name.pl')), 'Blokujący');
-    const weight = within(dialog).getByLabelText(en('workflow.field.weight'));
-    await userEvent.clear(weight);
-    await userEvent.type(weight, '5');
+    expect(within(dialog).queryByRole('spinbutton')).toBeNull();
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`${API}/priorities`, {
         code: 'blocker',
         name: { en: 'Blocker', pl: 'Blokujący' },
         color: '#64748b',
-        weight: 5,
+        weight: 50,
       }),
     );
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -193,18 +243,6 @@ describe('TaskPrioritiesPage — the dialog', () => {
     await waitFor(() => expect(codeField).toHaveAccessibleDescription(en('priorities.error.codeTaken')));
     expect(codeField).toHaveAttribute('aria-invalid', 'true');
     await waitFor(() => expect(codeField).toHaveFocus());
-  });
-
-  it('reorders a priority by its position, sending only what changed — never the code', async () => {
-    await renderPage();
-    await userEvent.click(within(priorityRow('low')).getByRole('button', { name: en('priorities.editLabel', { name: 'Low' }) }));
-    const dialog = screen.getByRole('dialog');
-    expect(within(dialog).queryByLabelText(en('workflow.field.code'))).toBeNull();
-    const weight = within(dialog).getByLabelText(en('workflow.field.weight'));
-    await userEvent.clear(weight);
-    await userEvent.type(weight, '15');
-    await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
-    await waitFor(() => expect(patchSpy).toHaveBeenCalledWith(`${API}/priorities/low`, { weight: 15 }));
   });
 
   it('renames a priority in Polish', async () => {

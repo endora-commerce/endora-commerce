@@ -63,6 +63,7 @@ describe('crm workflow configuration (contract)', () => {
       ['PUT', '/transitions', { add: [{ fromStatusCode: 'new', toStatusCode: 'proposal' }] }],
       ['PUT', '/order-status-mappings', { mappings: [] }],
       ['PUT', '/value-counting-statuses', { order: ['paid'], quoteRequest: ['Approved'] }],
+      ['PUT', '/statuses/order', { orderedCodes: ['qualified', 'new', 'proposal', 'negotiation', 'won', 'lost'] }],
     ] as const)('%s %s answers 403 to a holder of crm:read only', async (method, path, payload) => {
       const response = await call(method, path, payload, viewer.cookies);
       expect(response.statusCode, response.body).toBe(403);
@@ -79,6 +80,59 @@ describe('crm workflow configuration (contract)', () => {
       expect(current.statuses.find((status) => status.code === 'qualified')?.defaultName).toBe('Qualified');
       expect(current.transitions).not.toContainEqual({ fromStatusCode: 'new', toStatusCode: 'proposal' });
       expect(current.valueCountingStatuses).toEqual({ order: [], quoteRequest: [] });
+      expect(current.statuses.map((status) => status.code).slice(0, 2)).toEqual(['new', 'qualified']);
+    });
+  });
+
+  // Issue #1560 — the whole list in its new order, one Command.
+  describe('PUT /statuses/order', () => {
+    const DEFAULT_ORDER = ['new', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
+    const codes = async () => (await workflow()).statuses.map((status) => status.code);
+
+    it('re-orders every status in one Command and answers 200 with the workflow', async () => {
+      const reordered = ['new', 'negotiation', 'qualified', 'proposal', 'lost', 'won'];
+      const response = await call('PUT', '/statuses/order', { orderedCodes: reordered });
+      expect(response.statusCode, response.body).toBe(200);
+      const body = OpportunityWorkflowResponseSchema.parse(response.json()).data;
+      expect(body.statuses.map((status) => status.code)).toEqual(reordered);
+      expect(await codes()).toEqual(reordered);
+
+      const entries = await h.auditLogService.query({ action: 'crm.status.reorder' });
+      const latest = entries.find(
+        (entry) => JSON.stringify(entry.stateAfter) === JSON.stringify({ order: reordered }),
+      );
+      expect(latest, JSON.stringify(entries.map((entry) => entry.stateAfter))).toBeDefined();
+      expect(latest?.objectType).toBe('crm_opportunity_status');
+      expect(latest?.stateBefore).toEqual({ order: DEFAULT_ORDER });
+
+      const restored = await call('PUT', '/statuses/order', { orderedCodes: DEFAULT_ORDER });
+      expect(restored.statusCode, restored.body).toBe(200);
+      expect(await codes()).toEqual(DEFAULT_ORDER);
+    });
+
+    it.each([
+      ['a status left out', ['new', 'qualified', 'proposal', 'negotiation', 'won']],
+      ['a status named twice', ['new', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 'new']],
+    ])('refuses %s — 409 ORDER_STALE, and moves nothing', async (_case, orderedCodes) => {
+      const response = await call('PUT', '/statuses/order', { orderedCodes });
+      expect(response.statusCode, response.body).toBe(409);
+      expect(response.json().error.code).toBe('ORDER_STALE');
+      expect(await codes()).toEqual(DEFAULT_ORDER);
+    });
+
+    it('refuses a code that is not configured — 404 NOT_FOUND, and moves nothing', async () => {
+      const response = await call('PUT', '/statuses/order', {
+        orderedCodes: ['nowhere', 'new', 'qualified', 'proposal', 'negotiation', 'won', 'lost'],
+      });
+      expect(response.statusCode, response.body).toBe(404);
+      expect(response.json().error.code).toBe('NOT_FOUND');
+      expect(await codes()).toEqual(DEFAULT_ORDER);
+    });
+
+    it('refuses a body the schema does not accept', async () => {
+      const response = await call('PUT', '/statuses/order', { orderedCodes: [] });
+      expect(response.statusCode, response.body).toBe(400);
+      expect(response.json().error.code).toBe('VALIDATION_FAILED');
     });
   });
 

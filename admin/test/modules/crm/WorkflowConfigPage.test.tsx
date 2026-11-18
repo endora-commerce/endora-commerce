@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { OpportunityWorkflow } from '@endora-commerce/contracts';
 import { ORDER_STATUS_GRAPH, WORKFLOW, core, en, renderCrm } from './crm-fixtures';
 
 /**
@@ -91,6 +92,81 @@ function statusRow(code: string): HTMLElement {
   const cell = within(table).getByText(code, { selector: 'td' });
   return cell.closest('tr') as HTMLElement;
 }
+
+/** The codes of the statuses table, top to bottom. */
+function tableCodes(): string[] {
+  const table = screen.getByRole('table', { name: en('workflow.statuses.title') });
+  return within(table)
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => within(row).getAllByRole('cell')[1]?.textContent ?? '');
+}
+
+function inOrder(codes: readonly string[]): OpportunityWorkflow {
+  return {
+    ...WORKFLOW,
+    statuses: codes.map((code, index) => ({ ...WORKFLOW.statuses.find((s) => s.code === code)!, weight: (index + 1) * 10 })),
+  };
+}
+
+describe('WorkflowConfigPage — reordering the statuses (issue #1560)', () => {
+  const DEFAULT = ['new', 'qualified', 'negotiation', 'won', 'lost'];
+  const moveUp = (code: string, name: string) =>
+    userEvent.click(within(statusRow(code)).getByRole('button', { name: en('reorder.moveUp', { name }) }));
+
+  it('has no position field in the status dialog, and a new status goes last', async () => {
+    await renderPage();
+    await userEvent.click(screen.getByRole('button', { name: en('workflow.status.add') }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByRole('spinbutton')).toBeNull();
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.defaultName')), 'In delivery');
+    await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    expect(postSpy.mock.calls[0]?.[1]).toMatchObject({ weight: 110 });
+  });
+
+  it('moves the row at once and sends one PUT of the whole order, every move waiting until it settles', async () => {
+    let answer: (value: { data: OpportunityWorkflow }) => void = () => {};
+    putSpy.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    await renderPage();
+    await moveUp('negotiation', 'Negotiation');
+
+    const next = ['new', 'negotiation', 'qualified', 'won', 'lost'];
+    expect(tableCodes()).toEqual(next);
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/admin/crm/statuses/order', { orderedCodes: next });
+    const up = within(statusRow('won')).getByRole('button', { name: en('reorder.moveUp', { name: 'Won' }) });
+    expect(up).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(up);
+    expect(putSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => answer({ data: inOrder(next) }));
+    await waitFor(() => expect(up).not.toHaveAttribute('aria-disabled'));
+    expect(tableCodes()).toEqual(next);
+  });
+
+  it('puts the list back and says so when the server refuses the move', async () => {
+    putSpy.mockRejectedValue(new ApiError(500, { error: { code: 'INTERNAL', message: 'Boom.' } }));
+    await renderPage();
+    await moveUp('lost', 'Lost');
+    expect(await screen.findByText('Boom.')).toBeInTheDocument();
+    expect(tableCodes()).toEqual(DEFAULT);
+  });
+
+  it('reloads the list and says somebody else changed it on 409 ORDER_STALE', async () => {
+    putSpy.mockRejectedValue(new ApiError(409, { error: { code: 'ORDER_STALE', message: 'Stale.' } }));
+    await renderPage();
+    const reloaded = ['qualified', 'new', 'negotiation', 'won', 'lost'];
+    getSpy.mockImplementation((path: string) => {
+      if (path === WORKFLOW_PATH) return Promise.resolve({ data: inOrder(reloaded) });
+      if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
+      return Promise.resolve({ data: { fields: [], available: [], maxFields: 6 } });
+    });
+    await moveUp('lost', 'Lost');
+    expect(await screen.findByText(en('reorder.stale'))).toBeInTheDocument();
+    await waitFor(() => expect(tableCodes()).toEqual(reloaded));
+  });
+});
 
 describe('WorkflowConfigPage', () => {
   it('lists every status with its kind and marks the start status', async () => {

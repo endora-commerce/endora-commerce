@@ -807,6 +807,7 @@
   "errors.INVALID_TRANSITION.consent_frozen": "Zwrot jest rozliczony, więc zgody konsumenta, na podstawie której go rozliczono, nie można już zmienić.",
   "errors.MODULE_DISABLED": "Moduł \"{module}\" jest wyłączony, więc ta operacja została odrzucona. Sprawdź jego stan na ekranie Moduły.",
   "errors.NOT_FOUND": "Nie znaleziono zasobu.",
+  "errors.ORDER_STALE": "Lista została zmieniona przez kogoś innego od czasu jej wczytania. Wczytaj ją ponownie i zmień kolejność jeszcze raz.",
   "errors.RATE_LIMITED": "Za dużo żądań.",
   "errors.TERMS_VERSION_STALE": "Zaakceptowana wersja regulaminu jest już nieaktualna. Odśwież stronę i zaakceptuj aktualną wersję.",
   "errors.TOKEN_INVALID_OR_EXPIRED": "Ten link jest nieprawidłowy lub wygasł.",

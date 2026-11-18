@@ -229,6 +229,11 @@ export const manifest = defineModuleManifest({
     // command outbox, the platform's own table of afterCommit deliveries for
     // every module: an operator retried a row that is not dead (409).
     { code: 'COMMAND_OUTBOX_NOT_DEAD' },
+    // T3 by D-122 (1) — issue #1560. A batch reorder (`PUT …/order`) whose
+    // list is not the current one: a row left out or named twice (409). The
+    // noun is an ordered configuration list, and `crm` and `tasks` each own
+    // one — two claimants, so neither may own the code.
+    { code: 'ORDER_STALE' },
   ],
 });
 

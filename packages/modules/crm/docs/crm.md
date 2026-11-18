@@ -180,9 +180,12 @@ carry none, because they cannot be changed.
 
 The workflow is the operator's. A status has a **code** (lowercase letters,
 digits and underscores; it never changes once created), a name per language, a
-kind, a colour and a weight that orders it on screen. Exactly one status is the
-**start status** — the one a new opportunity begins in — and it must be an open
-one.
+kind, a colour and a place in the order the statuses are listed in, on the
+board too. A new status goes last; the arrows on each row of the **Workflow**
+screen move it up or down, one change per move. If somebody else changed the
+list meanwhile, the move is refused, the list is reloaded and the screen says
+so. Exactly one status is the **start status** — the one a new opportunity
+begins in — and it must be an open one.
 
 A transition is a directed step from one status to another. An opportunity can
 only make a step that is configured, so the set of transitions is what the
@@ -216,6 +219,7 @@ its transitions and its mappings with it.
 | `GET /api/v1/admin/crm/workflow` | `crm:read` | The configured statuses, with how many opportunities are in each, the transitions between them, the order-status mappings and the statuses that count toward a computed value. |
 | `POST /api/v1/admin/crm/statuses` | `crm:configure` | Add a status. |
 | `PATCH /api/v1/admin/crm/statuses/:code` | `crm:configure` | Rename or recolour a status, change its kind, or make it the start status. |
+| `PUT /api/v1/admin/crm/statuses/order` | `crm:configure` | Reorder the statuses: `{ orderedCodes }` names every status once, in the new order. A code that is not configured answers `404` `NOT_FOUND`; a status left out or named twice answers `409` `ORDER_STALE` — reload the list. |
 | `DELETE /api/v1/admin/crm/statuses/:code` | `crm:configure` | Delete a status no opportunity is in. |
 | `PUT /api/v1/admin/crm/transitions` | `crm:configure` | Add and remove transitions. |
 | `PUT /api/v1/admin/crm/order-status-mappings` | `crm:configure` | Replace the set of order-status mappings. |

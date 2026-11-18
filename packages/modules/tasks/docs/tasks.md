@@ -330,7 +330,8 @@ sidebar and from the command palette; each links to the others.
 **Statuses and workflow** (`/tasks/settings/workflow`). Add, rename — in English
 and in Polish — recolour, reorder and remove statuses; mark the start status;
 add and remove moves on the workflow graph, the editor orders and opportunities
-use. A workflow is refused unless exactly one status is the start status and is
+use. A new status goes last; the arrows on each row move it up or down, and
+the board's columns follow that order. A workflow is refused unless exactly one status is the start status and is
 open, at least one is finished and at least one is cancelled. A status tasks
 are in cannot change its category, and is removed only by choosing the status
 its tasks move to — each move recorded in that task's history. On the same
@@ -340,8 +341,11 @@ date, the record it belongs to, sub-tasks done, created, last changed, and any
 task custom field.
 
 **Priorities** (`/tasks/settings/priorities`). Add, rename — in English and in
-Polish — recolour and reorder priorities; sorting by priority follows that
-order, the most urgent first, tasks without one last. Removing a priority tasks
+Polish — recolour and reorder priorities with the arrows on each row (a new
+one goes last); sorting by priority follows that order, the most urgent first,
+tasks without one last. On both screens a move is one change; if somebody else
+changed the list meanwhile, the move is refused, the list is reloaded and the
+screen says so. Removing a priority tasks
 have asks which priority — or none — they get instead, and records that in each
 task's history.
 
@@ -451,8 +455,8 @@ does not exist.
 | `GET`, `POST /:id/reminders`; `DELETE /:id/reminders/:reminderId` | `tasks:read` to list, `tasks:write` to add | `{ remindAt }` or `{ offsetMinutes }`, and `recipientIds`; `422` `TASK_REMINDER_INVALID`. Its creator, or a holder of `tasks:write`, removes one. |
 | `GET /lookups/assignees`, `/lookups/mentionable`, `/lookups/documents`, `/lookups/records`, `/lookups/contexts` | `tasks:write` (`mentionable`: `tasks:read`) | The pickers: assignees, people to mention, the `@@` document list (groups `order`, `quote_request`, `task`, `opportunity`, `project`, each for its readers while its module is on), link targets, and projects with their stages. |
 | `GET /custom-field-filters` | `tasks:read` | The task custom fields usable as list filters. |
-| `GET /workflow`; `POST /statuses`; `PATCH`, `DELETE /statuses/:code`; `PUT /transitions` | `tasks:read` to read, `tasks:configure` to change | Every write answers the whole workflow; `422` `TASK_WORKFLOW_INVALID` (`details.rule`); removing a status in use needs `?replacement=`; `409` `TASK_STATUS_IN_USE_TOO_MANY` above 5,000 tasks. |
-| `GET`, `POST /priorities`; `PATCH`, `DELETE /priorities/:code` | `tasks:read` to read, `tasks:configure` to change | As statuses; `replacement` may be `none`. |
+| `GET /workflow`; `POST /statuses`; `PUT /statuses/order`; `PATCH`, `DELETE /statuses/:code`; `PUT /transitions` | `tasks:read` to read, `tasks:configure` to change | Every write answers the whole workflow; `422` `TASK_WORKFLOW_INVALID` (`details.rule`); removing a status in use needs `?replacement=`; `409` `TASK_STATUS_IN_USE_TOO_MANY` above 5,000 tasks. `PUT /statuses/order` takes `{ orderedCodes }`, every status once in the new order: `404` `NOT_FOUND` for a code that is not configured, `409` `ORDER_STALE` for a status left out or named twice. |
+| `GET`, `POST /priorities`; `PUT /priorities/order`; `PATCH`, `DELETE /priorities/:code` | `tasks:read` to read, `tasks:configure` to change | As statuses; `replacement` may be `none`. |
 | `GET`, `POST /tags`; `PATCH`, `DELETE /tags/:id` | `tasks:read` to read, `tasks:configure` to change | `409` `TASK_TAG_NAME_TAKEN`. |
 | `GET`, `PUT /board/card-fields`; `GET`, `PUT /settings/time-zone` | `tasks:read` to read, `tasks:configure` to change | Written through the Settings module's own audited write. |
 | `GET`, `POST /list-views`; `PATCH`, `DELETE /list-views/:id` | `tasks:read` | Saved views; `409` `TASK_VIEW_NAME_TAKEN`. |
