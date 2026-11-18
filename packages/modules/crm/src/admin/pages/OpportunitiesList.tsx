@@ -171,6 +171,8 @@ function hasFilters(filters: Filters): boolean {
  */
 export function OpportunitiesList(): ReactNode {
   const t = useTranslation('crm');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
   const { hasPermission } = useAuth();
@@ -432,6 +434,7 @@ export function OpportunitiesList(): ReactNode {
       title={t('opportunity.list.noResults.title')}
       description={t('opportunity.list.noResults.body')}
       onClearFilters={clear}
+      focusAfterClear={searchRef}
     />
   ) : (
     <EmptyState
@@ -459,6 +462,7 @@ export function OpportunitiesList(): ReactNode {
               idPrefix="crm-opportunity"
               search={search}
               onSearchChange={setSearch}
+              searchRef={searchRef}
               filters={filters}
               onChange={change}
             >

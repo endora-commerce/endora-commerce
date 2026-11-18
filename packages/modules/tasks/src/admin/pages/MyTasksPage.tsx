@@ -44,6 +44,8 @@ const IMPLIED = new URLSearchParams([
  */
 export function MyTasksPage(): ReactNode {
   const t = useTranslation('tasks');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const tCore = useTranslation('core');
   const { hasPermission } = useAuth();
   const customFields = hasPermission(CUSTOM_FIELDS_READ_PERMISSION);
@@ -121,6 +123,7 @@ export function MyTasksPage(): ReactNode {
         <CardContent className="space-y-4 pt-6">
           <TaskFilters
             idPrefix="tasks-mine"
+            searchRef={searchRef}
             params={params}
             onChange={navigate}
             statuses={vocabulary.workflow?.statuses.filter((status) => status.category === 'open') ?? []}
@@ -173,6 +176,7 @@ export function MyTasksPage(): ReactNode {
                       title={t('list.noResults.title')}
                       description={t('list.noResults.body')}
                       onClearFilters={clear}
+      focusAfterClear={searchRef}
                     />
                   ) : (
                     <EmptyState

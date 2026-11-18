@@ -164,6 +164,8 @@ describe('FormsListPage — empty states (issue #1448, UX audit DS-15)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(await screen.findByRole('link', { name: 'Contact' })).toBeTruthy();
     expect((screen.getByLabelText(en('list.search')) as HTMLInputElement).value).toBe('');
+    // The button is gone with the empty state; focus is on the search box, not <body> (WCAG 2.4.3).
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('list.search'))));
   });
 });
 

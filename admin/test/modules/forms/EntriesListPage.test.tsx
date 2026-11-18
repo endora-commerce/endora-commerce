@@ -118,6 +118,7 @@ describe('EntriesListPage', () => {
     await userEvent.click(within(block).getByRole('button', { name: 'Clear filters' }));
     expect(await screen.findByText(en('entries.empty.title'))).toBeTruthy();
     expect((screen.getByLabelText(en('entries.filter.search')) as HTMLInputElement).value).toBe('');
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('entries.filter.search'))));
   });
 
   it('shows older entries a step at a time, by the cursor the page answered', async () => {

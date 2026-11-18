@@ -63,6 +63,8 @@ const SORT_OPTIONS = TASK_LIST_SORTS.flatMap((sort) =>
  */
 export function TasksPage(): ReactNode {
   const t = useTranslation('tasks');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const tCore = useTranslation('core');
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('tasks:write');
@@ -172,6 +174,7 @@ export function TasksPage(): ReactNode {
       title={t('list.noResults.title')}
       description={t('list.noResults.body')}
       onClearFilters={clear}
+      focusAfterClear={searchRef}
     />
   ) : (
     <EmptyState
@@ -240,6 +243,7 @@ export function TasksPage(): ReactNode {
           </p>
           <TaskFilters
             idPrefix="tasks"
+            searchRef={searchRef}
             params={params}
             onChange={navigate}
             statuses={vocabulary.workflow?.statuses ?? []}

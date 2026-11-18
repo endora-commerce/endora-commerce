@@ -151,6 +151,19 @@ describe('MyTasksPage', () => {
     expect(screen.getByRole('link', { name: en('list.new') })).toHaveAttribute('href', '/tasks/new');
   });
 
+  it('clears a filter that found nothing from the empty state, and puts focus on the search box (WCAG 2.4.3)', async () => {
+    const answer = getSpy.getMockImplementation()!;
+    getSpy.mockImplementation((path: string) => (path.startsWith(MINE_PATH) ? Promise.resolve({ data: [] }) : answer(path)));
+    renderTasks(<MyTasksPage />, { path: '/tasks/mine', pattern: '/tasks/mine' });
+    expect(await screen.findByText(en('mine.empty.title'))).toBeTruthy();
+    await screen.findByRole('option', { name: STATUS.in_progress.name });
+    await userEvent.selectOptions(screen.getByLabelText(en('list.filter.status')), 'in_progress');
+    const block = await waitFor(() => document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!);
+    expect(block).not.toBeNull();
+    await userEvent.click(within(block).getByRole('button', { name: en('list.filter.clear') }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('list.search'))));
+  });
+
   it('offers no New task in the empty state to a reader', async () => {
     const answer = getSpy.getMockImplementation()!;
     getSpy.mockImplementation((path: string) => (path.startsWith(MINE_PATH) ? Promise.resolve({ data: [] }) : answer(path)));

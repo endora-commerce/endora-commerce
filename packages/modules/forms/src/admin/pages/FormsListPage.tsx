@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ClipboardList, Plus } from 'lucide-react';
 import { FORM_STATUSES, type FormStatus, type FormSummary } from '@endora-commerce/contracts';
@@ -48,6 +48,7 @@ export function FormsListPage(): ReactNode {
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('forms:write');
   const searchId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
   const statusId = useId();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<FormStatus | ''>('');
@@ -150,6 +151,7 @@ export function FormsListPage(): ReactNode {
             <div className="min-w-56 flex-1 space-y-1">
               <Label htmlFor={searchId}>{t('list.search')}</Label>
               <Input
+                ref={searchRef}
                 id={searchId}
                 type="search"
                 value={q}
@@ -202,7 +204,12 @@ export function FormsListPage(): ReactNode {
                 keyExtractor={(form) => form.id}
                 emptyState={
                   filtered ? (
-                    <EmptyState variant="no-results" title={t('list.emptyFiltered')} onClearFilters={clearFilters} />
+                    <EmptyState
+                      variant="no-results"
+                      title={t('list.emptyFiltered')}
+                      onClearFilters={clearFilters}
+                      focusAfterClear={searchRef}
+                    />
                   ) : (
                     <EmptyState
                       icon={<ClipboardList size={20} />}

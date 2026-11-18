@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, BookOpen, Plus, RotateCcw, Settings, X } from 'lucide-react';
 import type {
@@ -73,6 +73,8 @@ type ListState =
 
 export function PriceBooksPage(): ReactNode {
   const t = useTranslation('price_lists');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const api = usePriceBooksApi();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -256,6 +258,7 @@ export function PriceBooksPage(): ReactNode {
       <ListFilters
         search={searchText}
         onSearch={setSearchText}
+        searchRef={searchRef}
         type={type}
         status={status}
         currency={currency}
@@ -322,6 +325,7 @@ export function PriceBooksPage(): ReactNode {
                   title={t('priceBooks.list.emptyFiltered.title')}
                   description={t('priceBooks.list.emptyFiltered.body')}
                   onClearFilters={clearFilters}
+                  focusAfterClear={searchRef}
                 />
               ) : (
                 <EmptyState
@@ -377,6 +381,9 @@ function ListFilters(props: {
   readonly groups: readonly PriceBookTargetCustomerGroup[];
   readonly onFilter: (changes: Record<string, string | null>) => void;
   readonly onClear: (() => void) | null;
+  /** The search box, so a screen can return focus to it (after *Clear filters*, WCAG 2.4.3). */
+  // Typed off the kit's `Input`, whose React types this package does not share.
+  readonly searchRef?: ComponentProps<typeof Input>['ref'];
 }): ReactNode {
   const t = useTranslation('price_lists');
   const base = useId();
@@ -414,6 +421,7 @@ function ListFilters(props: {
       <div className="space-y-1 sm:col-span-2">
         <Label htmlFor={`${base}-search`}>{t('priceBooks.list.filters.search')}</Label>
         <Input
+          ref={props.searchRef}
           id={`${base}-search`}
           type="search"
           value={props.search}

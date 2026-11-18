@@ -379,7 +379,7 @@ for different next steps:
 ```tsx
 filtered ? (
   // The kit's title, line and Clear filters button; name what the list holds if you can.
-  <EmptyState variant="no-results" title={t('list.emptyFiltered')} onClearFilters={clearFilters} />
+  <EmptyState variant="no-results" title={t('list.emptyFiltered')} onClearFilters={clearFilters} focusAfterClear={searchRef} />
 ) : (
   <EmptyState
     icon={<ClipboardList size={20} />}
@@ -397,6 +397,11 @@ filtered ? (
 - `no-results` needs only `onClearFilters`, which resets every filter and the search. `icon`
   (default `SearchX`), `title` and `description` override the kit's copy
   (`common.emptyState.*`); the *Clear filters* button is always the kit's outline button.
+- **Focus after *Clear filters*** (WCAG 2.2 SC 2.4.3): the button unmounts with the empty state,
+  so pass `focusAfterClear={searchRef}` — the list's search box — and the kit focuses it on the
+  next frame. Without it, and only when focus was actually lost, the kit focuses the page's `<h1>`,
+  else the closest surviving container of the block (both get `tabindex="-1"`). That fallback
+  runs once, so a list that reloads asynchronously should always pass a target.
 - It is not a live region: it is mounted already carrying its text, which screen readers do not
   reliably announce. The list's result count is the announcement.
 - `data-empty-state="no-data" | "no-results"` names the variant for a test.

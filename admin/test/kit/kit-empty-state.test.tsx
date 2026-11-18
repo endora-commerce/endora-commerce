@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { useRef, useState, type ReactElement } from 'react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ClipboardList, Filter } from 'lucide-react';
 import { Button, EmptyState } from '@endora-commerce/admin-kit/ui';
@@ -101,5 +102,74 @@ describe('EmptyState — "no results" (filters matched nothing)', () => {
   it('passes axe', async () => {
     const { container } = renderWithI18n(<EmptyState variant="no-results" onClearFilters={() => undefined} />, EN);
     await expectNoAxeViolations(container);
+  });
+});
+
+/**
+ * WCAG 2.2 SC 2.4.3 (Focus Order): *Clear filters* unmounts itself — the list
+ * comes back — so without a target focus falls to `<body>` and a keyboard user
+ * starts the page over.
+ */
+function FilteredList(props: { withTarget: boolean }): ReactElement {
+  const search = useRef<HTMLInputElement>(null);
+  const [q, setQ] = useState('zzz');
+  return (
+    <main>
+      <h1>Forms</h1>
+      <label htmlFor="q">Search</label>
+      <input id="q" ref={search} value={q} onChange={(event) => setQ(event.target.value)} />
+      <section>
+        {q ? (
+          <EmptyState
+            variant="no-results"
+            onClearFilters={() => setQ('')}
+            {...(props.withTarget ? { focusAfterClear: search } : {})}
+          />
+        ) : (
+          <p>Contact</p>
+        )}
+      </section>
+    </main>
+  );
+}
+
+describe('EmptyState — focus after Clear filters', () => {
+  it('moves focus to the target the screen names (its search box)', async () => {
+    renderWithI18n(<FilteredList withTarget />, EN);
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Search')));
+    expect(screen.getByText('Contact')).toBeTruthy();
+  });
+
+  it('falls back to the page heading, never to <body>, when the screen names none', async () => {
+    renderWithI18n(<FilteredList withTarget={false} />, EN);
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    const heading = screen.getByRole('heading', { level: 1 });
+    await waitFor(() => expect(document.activeElement).toBe(heading));
+    expect(heading.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('falls back to the closest surviving container when the page has no heading', async () => {
+    function NoHeading(): ReactElement {
+      const [q, setQ] = useState('zzz');
+      return (
+        <div data-testid="region">
+          {q ? <EmptyState variant="no-results" onClearFilters={() => setQ('')} /> : <p>Contact</p>}
+        </div>
+      );
+    }
+    renderWithI18n(<NoHeading />, EN);
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    const region = screen.getByTestId('region');
+    await waitFor(() => expect(document.activeElement).toBe(region));
+    expect(region.getAttribute('tabindex')).toBe('-1');
+  });
+
+  it('leaves focus alone without a target while the button is still there (an answer still loading)', async () => {
+    renderWithI18n(<EmptyState variant="no-results" onClearFilters={() => undefined} />, EN);
+    const clear = screen.getByRole('button', { name: 'Clear filters' });
+    await userEvent.click(clear);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.activeElement).toBe(clear);
   });
 });

@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { useRef, type ReactNode, type RefObject } from 'react';
 import { SearchX, X } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 import { useTranslation } from '../i18n/useTranslation.js';
@@ -20,6 +20,15 @@ import { Button } from './button.js';
  *   action that creates the first record — or none, for an operator who may not.
  * - `no-results`: the kit's own copy and a *Clear filters* button wired to
  *   `onClearFilters`. A screen may still name what it lists in `title`.
+ *
+ * **Focus after *Clear filters*** (WCAG 2.2 SC 2.4.3). The button unmounts
+ * itself once the list comes back, and focus would fall to `<body>`. On the
+ * next frame after `onClearFilters` the kit focuses `focusAfterClear` — pass the
+ * search box, where the operator starts again. Without one, and only if focus
+ * was actually lost, it focuses the page's `<h1>`, else the closest container of
+ * the block that is still in the document (either made focusable with
+ * `tabindex="-1"`). A screen whose list reloads asynchronously should pass a
+ * target: the fallback runs once, before the answer arrives.
  *
  * It is not a live region: it is mounted together with its text, which screen
  * readers do not reliably announce (WCAG 2.2 SC 4.1.3). The list's result count
@@ -52,18 +61,64 @@ export interface EmptyStateNoResultsProps extends EmptyStateCommonProps {
   onClearFilters: () => void;
   /** Defaults to `SearchX`. */
   icon?: ReactNode;
+  /**
+   * Where focus goes once the filters are cleared — the screen's search box.
+   * Without it the kit falls back to the page heading or the closest surviving
+   * container (see above).
+   */
+  focusAfterClear?: RefObject<HTMLElement | null>;
+}
+
+function isFocusable(element: HTMLElement): boolean {
+  return element.isConnected && !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true';
+}
+
+function focusLost(): boolean {
+  const active = document.activeElement;
+  return active === null || active === document.body || !active.isConnected;
+}
+
+function focusProgrammatically(element: HTMLElement): void {
+  if (element.tabIndex < 0 && !element.hasAttribute('tabindex')) element.setAttribute('tabindex', '-1');
+  element.focus();
+}
+
+/**
+ * Moves focus after *Clear filters*: to the screen's target when it can take
+ * focus, else — only if focus was lost — to the `<h1>`, else to the nearest of
+ * `ancestors` (closest first) still in the document.
+ */
+function restoreFocusAfterClear(target: HTMLElement | null, ancestors: readonly HTMLElement[]): void {
+  if (target && isFocusable(target)) {
+    target.focus();
+    return;
+  }
+  if (!focusLost()) return;
+  const heading = document.querySelector<HTMLElement>('h1');
+  const fallback = heading && heading.isConnected ? heading : ancestors.find((element) => element.isConnected);
+  if (fallback) focusProgrammatically(fallback);
 }
 
 export type EmptyStateProps = EmptyStateNoDataProps | EmptyStateNoResultsProps;
 
 export function EmptyState(props: EmptyStateProps): ReactNode {
   const t = useTranslation('core');
+  const blockRef = useRef<HTMLDivElement>(null);
   const noResults = props.variant === 'no-results';
+  const clearFilters = (clearing: EmptyStateNoResultsProps): void => {
+    // Read before the clear: the block is about to unmount, and with it the way up.
+    const ancestors: HTMLElement[] = [];
+    for (let node = blockRef.current?.parentElement ?? null; node && node !== document.body; node = node.parentElement) {
+      ancestors.push(node);
+    }
+    clearing.onClearFilters();
+    requestAnimationFrame(() => restoreFocusAfterClear(clearing.focusAfterClear?.current ?? null, ancestors));
+  };
   const icon = noResults ? (props.icon ?? <SearchX size={20} />) : props.icon;
   const title = noResults ? (props.title ?? t('common.emptyState.noResults.title')) : props.title;
   const description = noResults ? (props.description ?? t('common.emptyState.noResults.body')) : props.description;
   const action = noResults ? (
-    <Button type="button" variant="outline" className="min-h-11 sm:min-h-9" onClick={props.onClearFilters}>
+    <Button type="button" variant="outline" className="min-h-11 sm:min-h-9" onClick={() => clearFilters(props)}>
       <X aria-hidden="true" />
       {t('common.emptyState.clearFilters')}
     </Button>
@@ -72,7 +127,7 @@ export function EmptyState(props: EmptyStateProps): ReactNode {
   );
 
   return (
-    <div className={cn('b2b-empty', props.className)} data-empty-state={noResults ? 'no-results' : 'no-data'}>
+    <div ref={blockRef} className={cn('b2b-empty', props.className)} data-empty-state={noResults ? 'no-results' : 'no-data'}>
       <div className="b2b-empty__icon" aria-hidden="true">
         {icon}
       </div>

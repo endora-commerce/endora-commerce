@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, Inbox, Trash2 } from 'lucide-react';
 import type { FormEntrySummary, FormSummary } from '@endora-commerce/contracts';
@@ -48,6 +48,8 @@ function paramsOf(values: EntryFilterValues): EntryFilterParams {
  */
 export function EntriesListPage(): ReactNode {
   const t = useTranslation('forms');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const { language } = useAppLanguage();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('forms:entries_write');
@@ -193,7 +195,7 @@ export function EntriesListPage(): ReactNode {
       <PageHeader title={t('entries.title')} description={t('entries.description')} actions={exportControl} />
       <Card>
         <CardHeader className="border-b border-border p-4">
-          <EntryFilters values={filters} forms={forms} onChange={setFilters} />
+          <EntryFilters values={filters} forms={forms} onChange={setFilters} searchRef={searchRef} />
         </CardHeader>
         <CardContent className="space-y-4 p-4" aria-busy={load.kind === 'loading' || undefined}>
           {actionError ? (
@@ -239,6 +241,7 @@ export function EntriesListPage(): ReactNode {
                       variant="no-results"
                       title={t('entries.emptyFiltered')}
                       onClearFilters={() => setFilters(NO_ENTRY_FILTERS)}
+                      focusAfterClear={searchRef}
                     />
                   ) : (
                     <EmptyState icon={<Inbox size={20} />} title={t('entries.empty.title')} description={t('entries.empty.body')} />
