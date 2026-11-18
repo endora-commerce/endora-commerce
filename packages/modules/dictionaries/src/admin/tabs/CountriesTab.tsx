@@ -1,13 +1,15 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { ArrowDown, ArrowUp, Plus, Star, Trash2 } from 'lucide-react';
-import { TouchReorderButtons, useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { Plus, Star, Trash2 } from 'lucide-react';
+import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   Country,
   CreateCountryRequest,
@@ -16,13 +18,16 @@ import type {
   Region,
   UpdateCountryRequest,
 } from '@endora-commerce/contracts';
-import { ApiError, normalize } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { normalize } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { dictionaryClient } from '../api/client.js';
 import { EntryStatusBadges } from '../components/EntryStatusBadges.js';
+import { RowReorder } from '../components/RowReorder.js';
 import { TranslationsDrawer } from '../components/TranslationsDrawer.js';
-const REGIONS: Region[] = ['Africa', 'Americas', 'Asia', 'Europe', 'Oceania', 'Antarctic'];
+import { formatDictionaryError } from '../lib/format-error.js';
+import { regionLabels } from '../lib/labels.js';
+
 
 interface CountryFormState {
   code: string;
@@ -63,11 +68,15 @@ export function CountriesTab(): ReactNode {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<CountryFormState>(emptyCountry);
   const [search, setSearch] = useState('');
-  const [draggingCode, setDraggingCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const searchId = useId();
+  // Read through a ref so `load` keeps one identity while the bundle arrives.
+  const tRef = useRef(t);
+  tRef.current = t;
+  const formatError = (err: unknown, fallback: string): string => formatDictionaryError(err, fallback, tRef.current);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -89,7 +98,7 @@ export function CountriesTab(): ReactNode {
         ),
       );
     } catch (err) {
-      setError(formatError(err, 'Failed to load countries.'));
+      setError(formatDictionaryError(err, tRef.current('countries.error.load'), tRef.current));
     } finally {
       setLoading(false);
     }
@@ -153,7 +162,7 @@ export function CountriesTab(): ReactNode {
           ...(form.defaultCurrencyCode ? { defaultCurrencyCode: form.defaultCurrencyCode } : {}),
         };
         await dictionaryClient.createCountry(input);
-        setInfo(`Country ${input.code} created.`);
+        setInfo(t('country.created', { code: input.code }));
       } else if (selected) {
         const input: UpdateCountryRequest = {
           alpha3Code: form.alpha3Code.trim().toUpperCase(),
@@ -168,13 +177,13 @@ export function CountriesTab(): ReactNode {
           sortOrder: form.sortOrder,
         };
         await dictionaryClient.updateCountry(selected.code, input);
-        setInfo(`Country ${selected.code} saved.`);
+        setInfo(t('country.saved', { code: selected.code }));
       }
       await load();
       setCreating(false);
       setSelected(null);
     } catch (err) {
-      setError(formatError(err, 'Save failed.'));
+      setError(formatError(err, t('error.save')));
     } finally {
       setSaving(false);
     }
@@ -183,10 +192,10 @@ export function CountriesTab(): ReactNode {
   const setDefault = async (code: string): Promise<void> => {
     try {
       await dictionaryClient.setDefaultCountry(code);
-      setInfo(`Country ${code} is now default.`);
+      setInfo(t('country.madeDefault', { code }));
       await load();
     } catch (err) {
-      setError(formatError(err, 'Failed to set default country.'));
+      setError(formatError(err, t('error.setDefault')));
     }
   };
 
@@ -199,10 +208,10 @@ export function CountriesTab(): ReactNode {
     if (!ok) return;
     try {
       await dictionaryClient.deleteCountry(code);
-      setInfo(`Country ${code} deleted.`);
+      setInfo(t('country.deleted', { code }));
       await load();
     } catch (err) {
-      setError(formatError(err, 'Delete failed.'));
+      setError(formatError(err, t('error.delete')));
     }
   };
 
@@ -216,21 +225,7 @@ export function CountriesTab(): ReactNode {
       await dictionaryClient.updateCountry(other.code, { sortOrder: row.sortOrder });
       await load();
     } catch (err) {
-      setError(formatError(err, 'Reorder failed.'));
-    }
-  };
-
-  const dropOn = async (target: Country): Promise<void> => {
-    if (!draggingCode || draggingCode === target.code) return;
-    const source = rows.find((row) => row.code === draggingCode);
-    setDraggingCode(null);
-    if (!source) return;
-    try {
-      await dictionaryClient.updateCountry(source.code, { sortOrder: target.sortOrder });
-      await dictionaryClient.updateCountry(target.code, { sortOrder: source.sortOrder });
-      await load();
-    } catch (err) {
-      setError(formatError(err, 'Reorder failed.'));
+      setError(formatError(err, t('error.reorder')));
     }
   };
 
@@ -240,7 +235,12 @@ export function CountriesTab(): ReactNode {
         <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between md:space-y-0">
           <CardTitle>{t('countries.title')}</CardTitle>
           <div className="flex w-full flex-wrap gap-2 md:w-auto">
+            <Label htmlFor={searchId} className="sr-only">
+              {t('countries.searchLabel')}
+            </Label>
             <Input
+              id={searchId}
+              type="search"
               className="min-w-56 md:w-72"
               placeholder={t('countries.searchPlaceholder')}
               value={search}
@@ -269,29 +269,22 @@ export function CountriesTab(): ReactNode {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Label</TableHead>
-                  <TableHead>Region</TableHead>
-                  <TableHead>Currency</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Sort</TableHead>
-                  <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                  <TableHead>{t('column.code')}</TableHead>
+                  <TableHead>{t('column.label')}</TableHead>
+                  <TableHead>{t('column.region')}</TableHead>
+                  <TableHead>{t('column.currency')}</TableHead>
+                  <TableHead>{t('column.status')}</TableHead>
+                  <TableHead>{t('column.sort')}</TableHead>
+                  <TableHead className="w-[1%] whitespace-nowrap">{t('column.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((row, index) => (
-                  <TableRow
-                    key={row.code}
-                    draggable
-                    onDragStart={() => setDraggingCode(row.code)}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={() => void dropOn(row)}
-                    className={draggingCode === row.code ? 'opacity-50' : undefined}
-                  >
+                  <TableRow key={row.code}>
                     <TableCell className="font-mono text-xs">{row.code}</TableCell>
                     <TableCell>{row.label}</TableCell>
                     <TableCell>
-                      <div>{row.region}</div>
+                      <div>{regionLabels.label(t, row.region)}</div>
                       <div className="text-xs text-muted-foreground">{row.subregion ?? '—'}</div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{row.defaultCurrencyCode ?? '—'}</TableCell>
@@ -305,34 +298,11 @@ export function CountriesTab(): ReactNode {
                     <TableCell>{row.sortOrder}</TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1 items-center">
-                        <TouchReorderButtons
-                          onMoveUp={() => void move(row, -1)}
-                          onMoveDown={() => void move(row, 1)}
-                          disableUp={index === 0}
-                          disableDown={index === filtered.length - 1}
+                        <RowReorder
+                          onMove={(direction) => void move(row, direction)}
+                          first={index === 0}
+                          last={index === filtered.length - 1}
                         />
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="b2b-reorder-desktop-only"
-                          disabled={index === 0}
-                          title={t('action.moveUp')}
-                          onClick={() => void move(row, -1)}
-                        >
-                          <ArrowUp />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="b2b-reorder-desktop-only"
-                          disabled={index === filtered.length - 1}
-                          title={t('action.moveDown')}
-                          onClick={() => void move(row, 1)}
-                        >
-                          <ArrowDown />
-                        </Button>
                         <Button type="button" variant="outline" size="sm" onClick={() => openEdit(row)}>
                           {t('action.edit')}
                         </Button>
@@ -341,20 +311,22 @@ export function CountriesTab(): ReactNode {
                           variant="ghost"
                           size="icon"
                           title={t('action.setDefault')}
+                          aria-label={t('action.setDefault')}
                           disabled={row.isDefault || !row.isActive}
                           onClick={() => void setDefault(row.code)}
                         >
-                          <Star />
+                          <Star aria-hidden="true" />
                         </Button>
                         <Button
                           type="button"
                           variant="destructive"
                           size="icon"
                           title={t('action.delete')}
+                          aria-label={t('action.delete')}
                           disabled={row.isDefault}
                           onClick={() => void remove(row.code)}
                         >
-                          <Trash2 />
+                          <Trash2 aria-hidden="true" />
                         </Button>
                       </div>
                     </TableCell>
@@ -426,7 +398,7 @@ function CountryEditor({
         ) : (
           <form className="space-y-4" onSubmit={submit}>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Code">
+              <FormField label={t('field.code')}>
                 <Input
                   value={form.code}
                   disabled={lockedCode}
@@ -434,78 +406,78 @@ function CountryEditor({
                   onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
                   required
                 />
-              </Field>
-              <Field label="Alpha-3">
+              </FormField>
+              <FormField label={t('field.alpha3')}>
                 <Input
                   value={form.alpha3Code}
                   maxLength={3}
                   onChange={(e) => setForm({ ...form, alpha3Code: e.target.value.toUpperCase() })}
                   required
                 />
-              </Field>
-              <Field label="Numeric">
+              </FormField>
+              <FormField label={t('field.numeric')}>
                 <Input
                   value={form.numericCode}
                   maxLength={3}
                   onChange={(e) => setForm({ ...form, numericCode: e.target.value })}
                   required
                 />
-              </Field>
-              <Field label="Dial code">
+              </FormField>
+              <FormField label={t('field.dialCode')}>
                 <Input
                   value={form.dialCode}
                   placeholder="+48"
                   onChange={(e) => setForm({ ...form, dialCode: e.target.value })}
                 />
-              </Field>
+              </FormField>
             </div>
-            <Field label="Label">
+            <FormField label={t('field.label')}>
               <Input
                 value={form.label}
                 onChange={(e) => setForm({ ...form, label: e.target.value })}
                 required
               />
-            </Field>
+            </FormField>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Region">
+              <FormField label={t('field.region')}>
                 <Select
                   value={form.region}
                   onChange={(e) => setForm({ ...form, region: e.target.value as Region })}
                 >
-                  {REGIONS.map((region) => (
-                    <option key={region} value={region}>
-                      {region}
+                  {regionLabels.options(t).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </Select>
-              </Field>
-              <Field label="Subregion">
+              </FormField>
+              <FormField label={t('field.subregion')}>
                 <Input
                   value={form.subregion}
                   onChange={(e) => setForm({ ...form, subregion: e.target.value })}
                 />
-              </Field>
+              </FormField>
             </div>
-            <Field label="Default currency">
+            <FormField label={t('field.defaultCurrency')}>
               <Select
                 value={form.defaultCurrencyCode}
                 onChange={(e) => setForm({ ...form, defaultCurrencyCode: e.target.value })}
               >
-                <option value="">None</option>
+                <option value="">{t('option.none')}</option>
                 {currencies.map((currency) => (
                   <option key={currency.code} value={currency.code}>
                     {currency.code} — {currency.label}
                   </option>
                 ))}
               </Select>
-            </Field>
-            <Field label="Sort order">
+            </FormField>
+            <FormField label={t('field.sortOrder')}>
               <Input
                 type="number"
                 value={form.sortOrder}
                 onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })}
               />
-            </Field>
+            </FormField>
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
@@ -519,15 +491,15 @@ function CountryEditor({
                   checked={form.isActive}
                   onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
                 />
-                Active
+                {t('field.active')}
               </label>
             </div>
             <div className="flex justify-end gap-2 border-t pt-4">
               <Button type="button" variant="outline" onClick={onCancel}>
-                Cancel
+                {t('action.cancel')}
               </Button>
-              <Button type="submit" disabled={saving}>
-                Save
+              <Button type="submit" disabled={saving} aria-busy={saving}>
+                {t('action.save')}
               </Button>
             </div>
             <TranslationsDrawer
@@ -542,27 +514,8 @@ function CountryEditor({
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }): ReactNode {
-  return (
-    <div className="space-y-1">
-      <Label>{label}</Label>
-      {children}
-    </div>
-  );
-}
-
 function nextSortOrder(rows: Array<{ sortOrder: number }>): number {
   return rows.reduce((max, row) => Math.max(max, row.sortOrder), 0) + 10;
-}
-
-function formatError(err: unknown, fallback: string): string {
-  if (err instanceof ApiError) {
-    if (err.status === 409 && err.envelope.error.code === 'DICTIONARY_ENTRY_HAS_DEPENDENTS') {
-      return `${err.envelope.error.message} Disable the entry instead or remove dependent records first.`;
-    }
-    return err.envelope.error.message;
-  }
-  return fallback;
 }
 
 async function loadTranslationCompleteness(

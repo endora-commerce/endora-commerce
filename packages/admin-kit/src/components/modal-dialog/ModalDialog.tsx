@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type CSSProperties, type ReactNode, type RefO
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/utils.js';
 import { useFocusTrap } from '../hooks/useFocusTrap.js';
+import { TabPanelContext } from '../../ui/tabs.js';
 
 /**
  * Where a dialog stacks. `page` (the default) is the admin's ordinary modal
@@ -154,7 +155,8 @@ export function ModalDialog(props: ModalDialogProps): ReactNode {
         <h2 id={titleId} className="mb-4 text-lg font-semibold">
           {title}
         </h2>
-        {children}
+        {/* A dialog opened from a tab panel is a new context, not a second level of tabs (#1445). */}
+        <TabPanelContext.Provider value={false}>{children}</TabPanelContext.Provider>
         {footer ? <div className="mt-6 flex flex-wrap justify-end gap-2">{footer}</div> : null}
       </div>
     </div>

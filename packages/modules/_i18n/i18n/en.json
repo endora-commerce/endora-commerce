@@ -340,6 +340,7 @@
   "common.statusChange.noTransitions": "No other status can be set from this one.",
   "common.statusChange.summary": "{field}: from “{from}” to “{to}”.",
   "common.statusChange.target": "Change to",
+  "common.tabs.counted": "{label}, items: {count}",
   "common.field.code": "Code",
   "common.field.name": "Name",
   "common.formField.required": "(required)",
