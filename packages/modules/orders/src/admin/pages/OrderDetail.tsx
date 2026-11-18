@@ -276,6 +276,9 @@ export function OrderDetail(): ReactNode {
   const [searchParams] = useSearchParams();
   const returnTo = readReturnTo(searchParams);
   const [invoices, setInvoices] = useState<OrderInvoiceRow[]>([]);
+  // Issue #1497 — the header's primary depends on whether the order has an
+  // invoice, so it is not drawn until the first read of the list has answered.
+  const [invoicesLoaded, setInvoicesLoaded] = useState(false);
   const [graph, setGraph] = useState<StatusGraph | null>(null);
   const [comments, setComments] = useState<OrderCommentRow[]>([]);
   const [commentBody, setCommentBody] = useState('');
@@ -371,6 +374,8 @@ export function OrderDetail(): ReactNode {
       setInvoices(res.data);
     } catch {
       setInvoices([]);
+    } finally {
+      setInvoicesLoaded(true);
     }
   }, [id]);
 
@@ -522,7 +527,9 @@ export function OrderDetail(): ReactNode {
           // The order's next step is its invoice: *Issue invoice* is the one
           // filled button while the order has none, and once it has one the
           // header has no primary (Von Restorff). The rest is the long tail and
-          // lives in "More" (Hick).
+          // lives in "More" (Hick). Until the invoice list has answered, the
+          // slot stays empty: a primary that appears and then jumps into the
+          // menu would break that rule and move a control under the pointer.
           const hasInvoice = invoices.some((inv) => inv.kind === 'invoice');
           // Newest invoice first (the list is ordered issuedAt desc); only a
           // fully rendered invoice exposes a downloadable PDF.
@@ -541,7 +548,7 @@ export function OrderDetail(): ReactNode {
           return (
             <DetailHeaderActions
               primary={
-                hasInvoice ? null : (
+                !invoicesLoaded || hasInvoice ? null : (
                   <Button
                     onClick={(): void => void handleIssueInvoice()}
                     disabled={busy}

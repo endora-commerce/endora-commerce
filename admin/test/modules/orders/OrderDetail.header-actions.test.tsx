@@ -118,6 +118,12 @@ function filled(group: HTMLElement): HTMLElement[] {
     .filter((button) => button.className.split(/\s+/).includes('bg-primary'));
 }
 
+/** The primary, once the invoice list has answered and it is drawn. */
+async function primaryOf(group: HTMLElement): Promise<HTMLElement> {
+  await waitFor(() => expect(filled(group)).toHaveLength(1));
+  return filled(group)[0]!;
+}
+
 async function openMore(user: ReturnType<typeof userEvent.setup>): Promise<HTMLElement> {
   await user.click(screen.getByRole('button', { name: text('common.action.more') }));
   return screen.findByRole('menu');
@@ -134,6 +140,7 @@ describe('OrderDetail — header actions (SALES-12)', () => {
     renderDetail();
     const group = await header();
 
+    await primaryOf(group);
     const primaries = filled(group);
     expect(primaries.map((b) => b.textContent?.trim())).toEqual([text('orderDetail.issueInvoice.action')]);
     const buttons = within(group).getAllByRole('button');
@@ -170,6 +177,34 @@ describe('OrderDetail — header actions (SALES-12)', () => {
     expect(within(menu).getByRole('menuitem', { name: text('orderDetail.issueInvoice.action') })).toBeInTheDocument();
   });
 
+  it('renders no primary while the invoice list is loading, and none once it shows an invoice', async () => {
+    let releaseInvoices!: (value: unknown) => void;
+    getSpy.mockImplementation((path: string) => {
+      if (path === '/api/v1/admin/orders/o1') return Promise.resolve({ data: ORDER });
+      if (path === '/api/v1/admin/orders/statuses') {
+        return Promise.resolve({ data: { statuses: [{ code: 'new', name: { en: 'New' }, isTerminal: false }], transitions: [] } });
+      }
+      if (path === '/api/v1/admin/invoices?filter[orderId]=o1') {
+        return new Promise((resolve) => (releaseInvoices = resolve));
+      }
+      return Promise.resolve({ data: [] });
+    });
+    renderDetail();
+    const group = await header();
+    await waitFor(() => expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/invoices?filter[orderId]=o1'));
+
+    // Not known yet whether the order is invoiced: the slot stays empty rather
+    // than flashing a primary that then jumps into "More".
+    expect(filled(group)).toEqual([]);
+    expect(within(group).queryByRole('button', { name: text('orderDetail.issueInvoice.action') })).toBeNull();
+
+    releaseInvoices({ data: [INVOICE] });
+    const user = userEvent.setup();
+    const menu = await openMore(user);
+    await within(menu).findByRole('menuitem', { name: text('orderDetail.invoicePdf') });
+    expect(filled(group)).toEqual([]);
+  });
+
   it('does not count an invoice whose PDF is still rendering as a missing one', async () => {
     serve([{ ...INVOICE, pdfReady: false }]);
     const user = userEvent.setup();
@@ -189,7 +224,7 @@ describe('OrderDetail — header actions (SALES-12)', () => {
     renderDetail();
     const group = await header();
 
-    const issue = filled(group)[0]!;
+    const issue = await primaryOf(group);
     await user.click(issue);
     expect(issue).toBeDisabled();
     expect(issue).toHaveAttribute('aria-busy', 'true');
@@ -210,6 +245,7 @@ describe('OrderDetail — header actions (SALES-12)', () => {
     const user = userEvent.setup();
     renderDetail();
     const group = await header();
+    await primaryOf(group);
 
     const menu = await openMore(user);
     await user.click(within(menu).getByRole('menuitem', { name: text('orderDetail.reorder.action') }));
