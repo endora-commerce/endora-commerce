@@ -1205,6 +1205,7 @@
   "orderDetail.copyError": "Could not copy the order number.",
   "orderDetail.copyHint": "Click to copy the order number",
   "orderDetail.deliveryVia": "via",
+  "orderDetail.errors.load": "Could not load the order.",
   "orderDetail.errors.paymentChange": "Payment change failed.",
   "orderDetail.errors.statusChange": "Status change failed.",
   "orderDetail.fields.orderStatus": "Order status",

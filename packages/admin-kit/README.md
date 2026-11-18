@@ -442,6 +442,44 @@ whose tabs are routes. Both draw `.b2b-tabs` / `.b2b-tab`, so an operator cannot
 The behaviour is pinned in `admin/test/kit/kit-tabs.test.tsx`, including the keyboard path and an
 axe pass.
 
+## Loading a record — `useDetailResource` and `Skeleton`
+
+Issue #1447 (UX audit 2026-11-17, DS-14; SALES-06 is the finding it fixes). A detail screen's
+**first load** and its **refresh** are different states, and only the first one has nothing to
+show:
+
+- **`useDetailResource(key, load)`** (`./lib`) holds the record. `load` answers the record, `null`
+  for one that does not exist, or throws for a failed read. It returns `data`, `initialLoading`
+  (true until the first read for this `key` settles), `refreshing` (a re-read with `data` still on
+  screen), `error` (the latest read's failure — a first load that fails is an error with a retry,
+  never "not found"), `refresh()` (never rejects), `setData` and `busyProps`, which is
+  `{ 'aria-busy': true }` while refreshing. A new `key` starts a new first load and never shows
+  the previous record; an earlier, slower read never overwrites a later one.
+- **`Skeleton`** (`./ui`) is one placeholder block: `aria-hidden`, `data-slot="skeleton"`, sized
+  by the caller's classes. Its pulse is `motion-safe:` only, so under `prefers-reduced-motion` the
+  shape stays and the motion goes. **`DetailSkeleton`** is a record page's first load — header,
+  tab strip (`tabs={false}` drops it) and a card of field rows — inside a `role="status"`,
+  `aria-busy` region whose visually hidden text is `label` (default `common.state.loading`).
+
+```tsx
+const resource = useDetailResource(id, async () => {
+  try {
+    return (await apiClient.get<{ data: Order }>(`/api/v1/admin/orders/${id}`)).data;
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+});
+if (resource.initialLoading) return <DetailSkeleton />;
+// … not found / load error with retry …
+<Card {...resource.busyProps}>…</Card>
+// after an action: await resource.refresh(); — the page, its tab and the focus stay
+```
+
+**A skeleton is for the first load only.** Returning one, or a "Loading…" line, on a refresh
+unmounts the page: the open tab, the scroll position and the focus go with it. The behaviour is
+pinned in `admin/test/kit/kit-detail-resource.test.tsx`, including an axe pass.
+
 ## Button hierarchy — one primary per view, `DetailHeaderActions`
 
 Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:

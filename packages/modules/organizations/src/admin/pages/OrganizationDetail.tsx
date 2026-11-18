@@ -15,6 +15,7 @@ import {
   apiClient,
   formatDateTime,
   useAuth,
+  useDetailResource,
   useSaveSession,
   useSurfaceVisibility,
   useUnsavedChangesPrompt,
@@ -45,7 +46,7 @@ import {
   ImmediateBadge,
 } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /** The VAT validation panel's heading — where the moderation notice's link lands. */
@@ -175,12 +176,10 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   // tax-ID change: only while `organizations` is present.
   const canChangeVatStatus = isVisible({ module: 'organizations', requiredPermission: 'customers:manage' });
   const [changingVatStatus, setChangingVatStatus] = useState(false);
-  const [org, setOrg] = useState<OrgDetail | null>(null);
   // Feature 173 — the newest registration-time lookup's differing fields, as
   // the VAT validation panel loaded them, for the moderation notice.
   const [registryDivergenceCount, setRegistryDivergenceCount] = useState(0);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -205,29 +204,32 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   const [editLast, setEditLast] = useState('');
   const [editEmail, setEditEmail] = useState('');
 
-  // `quiet` re-reads without the full-screen loading state, which would unmount
-  // the panels below — the Roles tab re-reads the members after a role change
-  // and must keep its own confirmation on screen.
-  const refresh = useCallback(async (options?: { quiet?: boolean }): Promise<void> => {
-    if (!options?.quiet) setLoading(true);
-    setError(null);
+  // Issue #1447 (DS-14, SALES-06) — a skeleton on the first load only. Every
+  // re-read after an invite, a member change or a panel's save keeps the page,
+  // its tab and the panels' own confirmations on screen, marked `aria-busy`;
+  // this screen's old `quiet` option is now the only behaviour.
+  const resource = useDetailResource<OrgDetail>(id, async () => {
     try {
       const res = await apiClient.get<{ data: OrgDetail }>(`/api/v1/admin/organizations/${id}`);
-      setOrg(res.data);
+      return res.data;
     } catch (err) {
-      if (err instanceof ApiError && err.envelope.error.code === 'NOT_FOUND') {
-        setOrg(null);
-      } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.load'));
-      }
-    } finally {
-      setLoading(false);
+      if (err instanceof ApiError && err.envelope.error.code === 'NOT_FOUND') return null;
+      throw err;
     }
-  }, [id, t]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  });
+  const org = resource.data;
+  const reread = resource.refresh;
+  const loadError =
+    resource.error === null
+      ? null
+      : resource.error instanceof ApiError
+        ? resource.error.envelope.error.message
+        : t('organizations.detail.error.load');
+  // A re-read clears the previous action's error, as the old full reload did.
+  const refresh = useCallback(async (): Promise<void> => {
+    setError(null);
+    await reread();
+  }, [reread]);
 
   // FR-062: assigning a role needs `customers:manage` alone, so the role list
   // is read only when the operator may read it; otherwise the selects offer the
@@ -376,13 +378,13 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           if (patched) {
             // The organization's fields are saved; what is left staged is the allow-lists.
             setEdits((latest) => (latest.restrictions === undefined ? {} : { restrictions: latest.restrictions }));
-            await refresh({ quiet: true });
+            await refresh();
           }
         }
         throw err;
       }
       setEdits({});
-      await refresh({ quiet: true });
+      await refresh();
     },
     [id, refresh],
   );
@@ -421,7 +423,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         setCustomFieldErrors({});
         setReloadKey((n) => n + 1);
         setRestrictionsReloadKey((n) => n + 1);
-        await refresh({ quiet: true });
+        await refresh();
         setError(own('detail.save.conflict'));
         return;
       }
@@ -499,9 +501,10 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         await refresh();
       } catch (err) {
         if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-          setError(t('organizations.detail.error.versionConflictMember'));
+          // The page stays on screen through the re-read now, so the reason
+          // the change was refused can stay with it.
           await refresh();
-          setError(null);
+          setError(t('organizations.detail.error.versionConflictMember'));
         } else {
           setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.roleUpdate'));
         }
@@ -525,9 +528,10 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       await refresh();
     } catch (err) {
       if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-        setError(t('organizations.detail.error.versionConflictMember'));
+        // The page stays on screen through the re-read now, so the reason
+        // the change was refused can stay with it.
         await refresh();
-        setError(null);
+        setError(t('organizations.detail.error.versionConflictMember'));
       } else {
         setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.save'));
       }
@@ -548,9 +552,18 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     [id, refresh, t],
   );
 
-  if (loading) return <p className="text-sm text-muted-foreground">{t('organizations.loading')}</p>;
+  if (resource.initialLoading) return <DetailSkeleton label={t('organizations.loading')} />;
   if (!org)
-    return (
+    return loadError !== null ? (
+      <Alert variant="destructive">
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+          {loadError}
+          <Button variant="outline" size="sm" onClick={(): void => void refresh()}>
+            {t('common.action.retry')}
+          </Button>
+        </AlertDescription>
+      </Alert>
+    ) : (
       <Alert variant="warning">
         <AlertDescription>{t('organizations.detail.notFound')}</AlertDescription>
       </Alert>
@@ -627,9 +640,9 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         </div>
       ) : null}
 
-      {error ? (
+      {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error ?? loadError}</AlertDescription>
         </Alert>
       ) : null}
       {info ? (
@@ -638,6 +651,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         </Alert>
       ) : null}
 
+      <div {...resource.busyProps}>
       <div className="mb-4">
         <ModerationActionsPanel
           organizationId={org.id}
@@ -937,7 +951,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onConverted={(result: ConvertToCompanyResult): void => {
               setConverting(false);
               setInfo(conversionMessage(own, result));
-              void refresh({ quiet: true });
+              void refresh();
             }}
           />
         </ModalDialog>
@@ -953,7 +967,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onChanged={(result: ChangeTaxIdResult): void => {
               setChangingTaxId(false);
               setInfo(taxIdChangeMessage(own, result));
-              void refresh({ quiet: true });
+              void refresh();
             }}
           />
         </ModalDialog>
@@ -970,11 +984,11 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             currentVatStatus={org.vatStatus}
             expectedUpdatedAt={org.updatedAt}
             onCancel={(): void => setChangingVatStatus(false)}
-            onStale={(): void => void refresh({ quiet: true })}
+            onStale={(): void => void refresh()}
             onChanged={(changed): void => {
               setChangingVatStatus(false);
               setInfo(own(changed ? 'changeVatStatus.success.changed' : 'changeVatStatus.success.unchanged'));
-              if (changed) void refresh({ quiet: true });
+              if (changed) void refresh();
             }}
           />
         </ModalDialog>
@@ -988,7 +1002,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         isPersonal={org.isPersonal === true}
         onRolesChanged={(): void => {
           void refreshRoles();
-          void refresh({ quiet: true });
+          void refresh();
         }}
       />
 
@@ -1089,6 +1103,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       </div>
 
       {id ? <OrganizationSalesRepsTab organizationId={id} /> : null}
+      </div>
     </>
   );
 }

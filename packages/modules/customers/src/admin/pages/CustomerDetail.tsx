@@ -7,6 +7,7 @@ import {
   formatDateTime,
   storefrontBaseUrl,
   useAuth,
+  useDetailResource,
   useSaveSession,
   useUnsavedChangesPrompt,
   type SavePart,
@@ -20,6 +21,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  DetailSkeleton,
   Label,
   PageHeader,
   Section,
@@ -141,9 +143,9 @@ export function CustomerDetail(): ReactNode {
 
 function CustomerDetailScreen({ id }: { id: string }): ReactNode {
   const t = useTranslation('customers');
+  const tCore = useTranslation('core');
   const adminLanguage = useTranslationContext().language;
   const { hasPermission } = useAuth();
-  const [c, setC] = useState<AdminCustomerDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // Issue #1328 — the reason dialog, its in-flight start and refusal, and the outcome.
@@ -168,19 +170,26 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
     if (impersonation.phase === 'ended') impersonateButtonRef.current?.focus();
   }, [impersonation]);
 
+  // Issue #1447 (DS-14) — a skeleton on the first load only; every re-read after
+  // an account action or a panel change keeps the customer on screen, marked
+  // `aria-busy`.
+  const resource = useDetailResource<AdminCustomerDetail>(id, async () => {
+    const res = await apiClient.get<{ data: AdminCustomerDetail }>(`/api/v1/admin/customers/${id}`);
+    return res.data;
+  });
+  const c = resource.data;
+  const reread = resource.refresh;
+  const loadError =
+    resource.error === null
+      ? null
+      : resource.error instanceof ApiError
+        ? resource.error.envelope.error.message
+        : t('detail.error');
+  // A re-read clears the previous action's error, as it always has.
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
-    try {
-      const res = await apiClient.get<{ data: AdminCustomerDetail }>(`/api/v1/admin/customers/${id}`);
-      setC(res.data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('detail.error'));
-    }
-  }, [id, t]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    await reread();
+  }, [reread]);
 
   // --- The one Save (feature 180, WP-8) ---------------------------------------------------
   const session = useSaveSession();
@@ -312,17 +321,19 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
     }
   };
 
+  if (resource.initialLoading) return <DetailSkeleton label={t('detail.loading')} tabs={false} />;
   if (!c) {
     return (
       <>
         <PageHeader title={t('detail.title')} />
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('detail.loading')}</p>
-        )}
+        <Alert variant="destructive">
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            {loadError ?? t('detail.error')}
+            <Button variant="outline" size="sm" onClick={(): void => void refresh()}>
+              {tCore('common.action.retry')}
+            </Button>
+          </AlertDescription>
+        </Alert>
       </>
     );
   }
@@ -374,12 +385,13 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
         <SaveSessionSummary outcome={session.lastOutcome} notices={session.notices} onShow={showPart} />
       </div>
 
-      {error ? (
+      {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error ?? loadError}</AlertDescription>
         </Alert>
       ) : null}
 
+      <div {...resource.busyProps}>
       <Card className="mb-4">
         <CardHeader>
           <CardTitle>{t('detail.info.title')}</CardTitle>
@@ -599,6 +611,7 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
           onCancel={(): void => setConfirming(null)}
         />
       ) : null}
+      </div>
     </>
   );
 }
