@@ -84,7 +84,8 @@ async function mount(options: { present: string[]; language?: 'en' | 'pl' }): Pr
     </StrictMode>,
     bundle(options.language ?? 'en'),
   );
-  await waitFor(() => expect(screen.getByText('Capabilities')).toBeInTheDocument());
+  const title = bundle(options.language ?? 'en').pwa!['settings.section.capabilities']!;
+  await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument());
 }
 
 const ORDER = /Notify on order status changes/;
@@ -107,9 +108,8 @@ describe('PWA screen — status push category switches', () => {
     expect(quote).not.toBeChecked();
     expect(order).toBeEnabled();
     expect(quote).toBeEnabled();
-    expect(
-      screen.getByText(/Sent automatically to subscribed devices: order updates to the customer who placed the order/),
-    ).toBeInTheDocument();
+    // Issue #1463 — the hint was cut to one line (≤ 80 characters).
+    expect(screen.getByText(bundle('en').pwa!['settings.field.statusPushHint']!)).toBeInTheDocument();
   });
 
   it('disables both while push is off for the scope', async () => {

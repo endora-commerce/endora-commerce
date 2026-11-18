@@ -4,8 +4,9 @@ import { Link } from 'react-router-dom';
 import type { EmailTemplateSummary } from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { Alert, AlertDescription, Button, Card, CardContent, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, FormField, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
+import { emailScopeLabels } from '../lib/labels.js';
 
 export function EmailTemplatesPage(): React.ReactElement {
   const t = useTranslation('transactional_emails');
@@ -52,14 +53,14 @@ export function EmailTemplatesPage(): React.ReactElement {
   if (!hasPermission('transactional_emails:read')) {
     return (
       <Alert>
-        <AlertDescription>You do not have permission to view email templates.</AlertDescription>
+        <AlertDescription>{t('templates.noPermission')}</AlertDescription>
       </Alert>
     );
   }
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Email templates" description="Reusable email-safe templates." />
+      <PageHeader title={t('templates.title')} />
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -68,10 +69,14 @@ export function EmailTemplatesPage(): React.ReactElement {
       {canWrite ? (
         <Card>
           <CardContent className="flex flex-wrap items-end gap-3 pt-6">
-            <Input placeholder="code" value={code} onChange={(e) => setCode(e.target.value)} className="max-w-[200px]" />
-            <Input placeholder="name" value={name} onChange={(e) => setName(e.target.value)} className="max-w-[240px]" />
+            <FormField label={t('create.field.code')} className="w-full max-w-[200px]">
+              <Input value={code} onChange={(e) => setCode(e.target.value)} className="font-mono" />
+            </FormField>
+            <FormField label={t('create.field.name')} className="w-full max-w-[240px]">
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </FormField>
             <Button onClick={() => void create()} disabled={!code || !name}>
-              Create template
+              {t('templates.create')}
             </Button>
           </CardContent>
         </Card>
@@ -81,26 +86,26 @@ export function EmailTemplatesPage(): React.ReactElement {
           <table className="w-full text-sm">
             <thead className="border-b text-left text-muted-foreground">
               <tr>
-                <th className="p-3 font-medium">Name</th>
-                <th className="p-3 font-medium">Code</th>
-                <th className="p-3 font-medium">Scope</th>
+                <th className="p-3 font-medium">{t('list.column.name')}</th>
+                <th className="p-3 font-medium">{t('list.column.code')}</th>
+                <th className="p-3 font-medium">{t('list.column.scope')}</th>
                 <th className="p-3" />
               </tr>
             </thead>
             <tbody>
-              {items.map((t) => (
-                <tr key={t.id} className="border-b last:border-0">
+              {items.map((template) => (
+                <tr key={template.id} className="border-b last:border-0">
                   <td className="p-3">
-                    <Link className="font-medium text-primary hover:underline" to={`/transactional-emails/templates/${t.id}`}>
-                      {t.name}
+                    <Link className="font-medium text-primary hover:underline" to={`/transactional-emails/templates/${template.id}`}>
+                      {template.name}
                     </Link>
                   </td>
-                  <td className="p-3 font-mono text-xs">{t.code}</td>
-                  <td className="p-3">{t.scope}</td>
+                  <td className="p-3 font-mono text-xs">{template.code}</td>
+                  <td className="p-3">{emailScopeLabels.label(t, template.scope)}</td>
                   <td className="p-3 text-right">
-                    {canWrite && !t.isSystem ? (
-                      <Button variant="outline" size="sm" onClick={() => void remove(t.id)}>
-                        Delete
+                    {canWrite && !template.isSystem ? (
+                      <Button variant="outline" size="sm" onClick={() => void remove(template.id)}>
+                        {tc('common.action.delete')}
                       </Button>
                     ) : null}
                   </td>

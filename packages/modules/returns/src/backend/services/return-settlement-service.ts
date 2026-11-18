@@ -142,14 +142,15 @@ export class ReturnSettlementService {
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const items = await em.find(ReturnCaseItem, { returnCaseId: id });
+    if (rc.orderId == null) return this.#offPlatformPrefill(rc, items);
     // An open case previews what the settlement would recompute (issue #875):
     // the default on the settled basis, bounded by the line ceiling, and the
     // stored approved amount mapped onto it as the settlement maps it. Read
     // without the lock, so another settlement of the order may still move it;
     // the settlement itself decides. A settled case shows what it settled at.
-    const order = await this.deps.orderContext.getReturnContext(rc.orderId);
+    const order = await this.deps.orderContext.getReturnContext(orderIdOf(rc));
     const context = rc.resolutionType == null ? order : null;
-    const history = context ? await loadOrderCases(em, rc.orderId) : null;
+    const history = context ? await loadOrderCases(em, orderIdOf(rc)) : null;
     const defaults = context && history ? await this.#recompute(em, rc, items, context, history) : null;
     const charges = context && history ? await this.#charges(rc, items, context, history) : null;
     return {
@@ -230,7 +231,7 @@ export class ReturnSettlementService {
       basis: 'settled',
       excludeCaseId: rc.id,
       kind: rc.kind,
-      current: items.map((it) => ({ orderItemId: it.orderItemId, quantity: it.quantity })),
+      current: items.map((it) => ({ orderItemId: orderItemIdOf(it), quantity: it.quantity })),
       isPersonal: (await this.deps.isPersonalOrganization?.(context.organizationId, context.placedAt)) ?? false,
       withinWindow: isWithinWithdrawalWindow({
         freeReturnEligible: rc.freeReturnEligible,
@@ -256,16 +257,16 @@ export class ReturnSettlementService {
     known?: OrderReturnContext,
     loaded?: OrderCases,
   ): Promise<Map<string, LineDefault> | null> {
-    const context = known ?? (await this.deps.orderContext.getReturnContext(rc.orderId));
+    const context = known ?? (await this.deps.orderContext.getReturnContext(orderIdOf(rc)));
     if (!context) return null;
-    const history = loaded ?? (await loadOrderCases(em, rc.orderId));
+    const history = loaded ?? (await loadOrderCases(em, orderIdOf(rc)));
     const computed = caseDefaults({
       context,
       history,
       basis: 'settled',
       excludeCaseId: rc.id,
       kind: rc.kind,
-      current: items.map((it) => ({ orderItemId: it.orderItemId, quantity: it.quantity })),
+      current: items.map((it) => ({ orderItemId: orderItemIdOf(it), quantity: it.quantity })),
     });
     const returnable = new Map(context.lines.map((l) => [l.orderItemId, isLineReturnable(l.returnableAtPurchase)]));
     return new Map(
@@ -273,7 +274,7 @@ export class ReturnSettlementService {
         const c = computed[i]!;
         return [
           it.id,
-          { refund: c.refund, discount: c.discount, effective: c.effective, returnable: returnable.get(it.orderItemId) ?? true },
+          { refund: c.refund, discount: c.discount, effective: c.effective, returnable: returnable.get(orderItemIdOf(it)) ?? true },
         ] as const;
       }),
     );
@@ -306,10 +307,14 @@ export class ReturnSettlementService {
     if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
     const rc = await em.findOne(ReturnCase, { id });
     if (!rc) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.');
+    // 180 R-10, R-19 — a case without a platform order takes no order lock and
+    // reaches no money port; `settled_outside` is that case's alone.
+    if (rc.orderId == null) return this.#settleOffPlatform(rc, adminUserId, input);
+    if (input.resolutionType === 'settled_outside') throw unavailableOffPlatform('settled_outside');
     return em.getKnex().transaction(async (lock) => {
       await lock.raw(`set local lock_timeout = '${SETTLEMENT_LOCK_TIMEOUT}'`);
       try {
-        await lock.raw('select pg_advisory_xact_lock(hashtext(?))', [returnCaseOrderLockKey(rc.orderId)]);
+        await lock.raw('select pg_advisory_xact_lock(hashtext(?))', [returnCaseOrderLockKey(orderIdOf(rc))]);
       } catch (err) {
         if ((err as { code?: string }).code !== LOCK_NOT_AVAILABLE) throw err;
         throw new HttpError(
@@ -335,7 +340,7 @@ export class ReturnSettlementService {
     // cannot be read refuses the settlement, before any effect and with nothing
     // written — as case creation does. A switched-off `orders` throws its own
     // `ModuleDisabledError` (503), which is never caught here.
-    const context = await this.deps.orderContext.getReturnContext(rc.orderId);
+    const context = await this.deps.orderContext.getReturnContext(orderIdOf(rc));
     if (!context) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Order not found.');
 
     // Fail fast if the case cannot reach `resolved` before mutating anything.
@@ -384,7 +389,7 @@ export class ReturnSettlementService {
     // what is left paid, and a complaint is outside the kept state (issue
     // #874), bounded with the returns of its line by what the line was paid
     // (the line ceiling).
-    const history = await loadOrderCases(em, rc.orderId);
+    const history = await loadOrderCases(em, orderIdOf(rc));
     const recomputed = await this.#recompute(em, rc, items, context, history);
     const defaultOf = (it: ReturnCaseItem): LineDefault =>
       recomputed?.get(it.id) ?? {
@@ -495,7 +500,7 @@ export class ReturnSettlementService {
     // and asks for no correction.
     const priceReduction = rc.kind === 'complaint';
     const correctionInput: CorrectiveInvoiceInput = {
-      orderId: rc.orderId,
+      orderId: orderIdOf(rc),
       lines: items.map((it) => {
         // The approved amount for this settlement, which is not on the row
         // yet: the rows are written in step 4.
@@ -503,7 +508,7 @@ export class ReturnSettlementService {
         const line = {
           // The order item is what ties this credit to the invoice line it
           // corrects, so the correction can mirror that line's VAT rate.
-          orderItemId: it.orderItemId,
+          orderItemId: orderItemIdOf(it),
           productName: it.productName,
           quantity: it.quantity,
           amount,
@@ -552,7 +557,7 @@ export class ReturnSettlementService {
     if (movesMoney) {
       if (input.resolutionType === 'refund') {
         gatewayOutcome = await this.deps.paymentRefund.refund({
-          orderId: rc.orderId,
+          orderId: orderIdOf(rc),
           amount: total,
           currency: rc.currency,
           ...(input.refundPaymentMethodId ? { paymentMethodId: input.refundPaymentMethodId } : {}),
@@ -727,6 +732,98 @@ export class ReturnSettlementService {
   }
 
   /**
+   * The prefill of a case without a platform order (`specs/180-off-platform-complaints/`
+   * FR-B33, FR-B33a, D-5, research R-19): served from authorization onwards. Until the
+   * graph lets the case reach `resolved` (in practice from `received`) only
+   * `settled_outside` is offered; then repair (the default), replacement and
+   * `settled_outside`. No money, no payment method, no charges.
+   */
+  async #offPlatformPrefill(rc: ReturnCase, items: readonly ReturnCaseItem[]): Promise<SettlementPrefill> {
+    const options = await this.#offPlatformOptions(rc);
+    return {
+      currency: rc.currency,
+      resolutionOptions: options,
+      defaultResolution: options.includes('repair') ? 'repair' : options[0]!,
+      consentRequiredFor: [],
+      defaultRefundPaymentMethodId: null,
+      items: items.map((it) => ({
+        returnCaseItemId: it.id,
+        productName: it.productName,
+        quantity: it.quantity,
+        defaultRefundAmount: 0,
+        approvedRefundAmount: 0,
+      })),
+    };
+  }
+
+  /** What an off-platform case may be settled as now; refused before authorization. */
+  async #offPlatformOptions(rc: ReturnCase): Promise<SettlementPrefill['resolutionOptions']> {
+    if (rc.resolutionType) return [rc.resolutionType];
+    const graph = await this.deps.graphService.loadGraph();
+    if (!rc.authorizedAt || graph.isTerminal(rc.statusCode)) {
+      throw new HttpError(409, ERROR_CODES.INVALID_TRANSITION, `Cannot settle a case in status "${rc.statusCode}".`);
+    }
+    return graph.canTransition(rc.statusCode, RETURN_STATUS_RESOLVED)
+      ? ['replacement', 'repair', 'settled_outside']
+      : ['settled_outside'];
+  }
+
+  /**
+   * Settle a case without a platform order (FR-B33, FR-B33a, R-19): repair or
+   * replacement where the graph reaches `resolved`, or `settled_outside` — with a note
+   * — from authorization until the case is closed. No refund row, no money port, no
+   * correction; the settlement audit records `hasNote`, never the note.
+   */
+  async #settleOffPlatform(rc: ReturnCase, adminUserId: string, input: SettlementRequest): Promise<SettlementResult> {
+    if (input.resolutionType === 'refund' || input.resolutionType === 'credit') throw unavailableOffPlatform(input.resolutionType);
+    if (input.createCorrectiveInvoice === true) throw unavailableOffPlatform(input.resolutionType);
+    if (rc.resolutionType) {
+      throw new HttpError(409, ERROR_CODES.INVALID_TRANSITION, 'This case is already settled.');
+    }
+    const options = await this.#offPlatformOptions(rc);
+    if (!options.includes(input.resolutionType)) {
+      throw new HttpError(409, ERROR_CODES.INVALID_TRANSITION, `Cannot settle a case in status "${rc.statusCode}".`);
+    }
+    const outside = input.resolutionType === 'settled_outside';
+    if (outside && !input.resolutionNote) {
+      throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, 'Say how the case was settled.', {
+        code: 'resolution_note_required',
+      });
+    }
+    await this.deps.transitions.apply(
+      rc.id,
+      RETURN_STATUS_RESOLVED,
+      { kind: 'admin', adminUserId, source: 'settlement' },
+      {
+        viaOutsideSettlement: outside,
+        mutate: async (target, tx) => {
+          target.resolutionType = input.resolutionType;
+          target.resolutionNote = outside ? input.resolutionNote! : null;
+          target.totalRefundAmount = approvedAmount(0);
+          target.resolvedAt = new Date();
+          this.deps.auditLog?.recordWithin(tx, {
+            actorAdminUserId: adminUserId,
+            action: 'return.settled',
+            objectType: 'return_case',
+            objectId: rc.id,
+            stateAfter: {
+              resolutionType: input.resolutionType,
+              currency: rc.currency,
+              offPlatform: true,
+              // That there is a note, never its text (D-288).
+              hasNote: outside,
+              correctiveInvoice: 'not_requested',
+            },
+          });
+        },
+      },
+    );
+    const settled = await this.deps.emFactory().findOneOrFail(ReturnCase, { id: rc.id });
+    this.emitSettled(settled, null, 0);
+    return { totalRefundAmount: 0 };
+  }
+
+  /**
    * What the audit row says about a consumer withdrawal (issue #905, design
    * D1): that it was one, and — for a refund — whether the money went to
    * another payment method than the order's own. Not refused: a
@@ -735,7 +832,7 @@ export class ReturnSettlementService {
   async #withdrawalAudit(rc: ReturnCase, input: SettlementRequest): Promise<Record<string, unknown>> {
     if (rc.consumerWithdrawal !== true) return {};
     if (input.resolutionType !== 'refund') return { consumerWithdrawal: true };
-    const order = await this.deps.orderContext.getReturnContext(rc.orderId);
+    const order = await this.deps.orderContext.getReturnContext(orderIdOf(rc));
     return {
       consumerWithdrawal: true,
       refundMethodDiffers: refundMethodDiffers(consentStateOf(rc), input.refundPaymentMethodId, order?.paymentMethodId ?? null),
@@ -763,4 +860,32 @@ function consentStateOf(rc: ReturnCase): ConsentState {
     consumerWithdrawal: rc.consumerWithdrawal ?? null,
     alternativeConsentResolution: rc.alternativeConsentResolution ?? null,
   };
+}
+
+/**
+ * The order of a case against one. A case without a platform order
+ * (`specs/180-off-platform-complaints/` R5) takes its own branch before any order
+ * path (research R-10), so reaching here with one is a defect, not a refusal.
+ */
+function orderIdOf(rc: ReturnCase): string {
+  if (rc.orderId == null) throw new Error(`Return case ${rc.id} has no platform order.`);
+  return rc.orderId;
+}
+
+/** The order line of a line of a case against an order (see {@link orderIdOf}). */
+function orderItemIdOf(it: ReturnCaseItem): string {
+  if (it.orderItemId == null) throw new Error(`Return line ${it.id} names no order line.`);
+  return it.orderItemId;
+}
+
+/** 180 FR-B33 — money through the platform, or `settled_outside` on an order case. */
+function unavailableOffPlatform(resolution: string): HttpError {
+  return new HttpError(
+    422,
+    ERROR_CODES.RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM,
+    resolution === 'settled_outside'
+      ? 'Only a case without a platform order is settled outside the platform.'
+      : 'A case without a platform order is settled by repair, replacement or outside the platform.',
+    { resolution },
+  );
 }

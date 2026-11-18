@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { sanitiseNext } from '../../../../lib/auth/next-path';
 import { verifyCustomerMfa } from '../../../../lib/api/auth';
 import {
   clearAnonCartCookie,
@@ -96,8 +97,3 @@ async function verifyAction(formData: FormData): Promise<void> {
   return await localeRedirect(next);
 }
 
-function sanitiseNext(input: string | undefined): string {
-  if (!input) return '/account';
-  if (!input.startsWith('/') || input.startsWith('//')) return '/account';
-  return input;
-}

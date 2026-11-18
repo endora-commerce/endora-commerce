@@ -1,17 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import {
-  ArrowRight,
-  Columns3,
-  Download,
-  ListChecks,
-  Printer,
-  Search,
-  SlidersHorizontal,
-  X,
-} from 'lucide-react';
+import { ArrowRight, Columns3, Download, ListChecks, Printer } from 'lucide-react';
 import { ApiError, apiBaseUrl, apiClient, formatDateTime, formatMoney, statusBadgeStyle, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Label, PageHeader, Select, MultiSelect } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, MultiSelect } from '@endora-commerce/admin-kit/ui';
 import type { MultiSelectOption } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldListFilters,
@@ -19,6 +10,8 @@ import {
   customFieldFilterChips,
   customFieldFilterRefusal,
   emptyCustomFieldFilters,
+  ListToolbar,
+  ListToolbarSearch,
   pruneRemovedOptions,
   readCustomFieldFilterParams,
   ResponsiveTable,
@@ -30,7 +23,7 @@ import {
   withCustomFieldFilter,
   writeCustomFieldFilterParams,
 } from '@endora-commerce/admin-kit/components';
-import type { ResponsiveColumn, SavedViewState } from '@endora-commerce/admin-kit/components';
+import type { AppliedFilter, ResponsiveColumn, SavedViewState } from '@endora-commerce/admin-kit/components';
 import type { CustomFieldFilters } from '@endora-commerce/contracts';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { DISPLAYABLE_PAYMENT_STATUSES, paymentStatusLabelKey } from '../lib/paymentStatus.js';
@@ -216,7 +209,8 @@ export function OrdersList(): ReactNode {
   }, []);
 
   const [sort, setSort] = useState(DEFAULT_SORT);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  /** Prefix of the folded filters' ids, so each label names its control. */
+  const filterId = useId();
   const [visibleColumnIds, setVisibleColumnIds] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -491,8 +485,8 @@ export function OrdersList(): ReactNode {
     label: t(`orders.column.${id}`),
   }));
 
-  // Filters that live in the collapsible "advanced" panel — used to badge the
-  // toggle and decide whether to auto-open it.
+  // Filters that live behind *More filters* — counted on its toggle while it is
+  // closed, so a folded bar still says the list is narrowed.
   const advancedActiveCount =
     paymentStatuses.length +
     paymentMethodIds.length +
@@ -508,10 +502,9 @@ export function OrdersList(): ReactNode {
   // Removable summary chips for every applied filter (search box excluded — it
   // is always visible). Operates on the live (un-debounced) text state so a
   // chip removal takes effect immediately.
-  type FilterChip = { key: string; label: string; onRemove: () => void; removeLabel?: string };
   const methodName = (list: MethodOption[], id: string): string =>
     pickName(list.find((m) => m.id === id)?.name) || id;
-  const filterChips: FilterChip[] = [
+  const filterChips: AppliedFilter[] = [
     ...statusCodes.map((code) => ({
       key: `status:${code}`,
       label: `${t('orders.field.status')}: ${statusLabel(code)}`,
@@ -732,216 +725,184 @@ export function OrdersList(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="space-y-3 pt-6">
-          {/* Primary toolbar: search + the two most-used filters + sort, with
-              the saved-views / column-picker / advanced-filters controls
-              grouped to the right. The long tail of filters moves into the
-              collapsible "Filters" panel below to keep this bar uncluttered. */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                id="osearch"
-                className="h-9 w-full rounded-md border pl-8 pr-3 text-sm"
-                value={textFilters.q}
-                onChange={(e): void => setText('q', e.target.value)}
+        <CardContent className="pt-6">
+          {/* The kit's list toolbar (issue #1440, DS-06), extracted from this one:
+              search + the two most-used filters + sort always shown, the list's
+              own controls to the right, the long tail behind *More filters (n)*,
+              and every applied filter as a removable chip. */}
+          <ListToolbar
+            label={t('orders.toolbar.label')}
+            search={
+              <ListToolbarSearch
+                label={t('orders.field.search')}
                 placeholder={t('orders.search.placeholder')}
-                aria-label={t('orders.field.search')}
+                value={textFilters.q}
+                onValueChange={(value): void => setText('q', value)}
               />
-            </div>
-            <MultiSelect
-              className="w-44"
-              ariaLabel={t('orders.field.status')}
-              placeholder={t('orders.field.status')}
-              options={statusOptions}
-              selected={statusCodes}
-              onChange={setStatusCodes}
-            />
-            <MultiSelect
-              className="w-44"
-              ariaLabel={t('orders.field.salesChannel')}
-              placeholder={t('orders.field.salesChannel')}
-              options={methodOptions(channels)}
-              selected={salesChannelIds}
-              onChange={setSalesChannelIds}
-            />
-            <Select
-              id="osort"
-              aria-label={t('orders.field.sort')}
-              value={sort}
-              onChange={(e): void => setSort(e.target.value)}
-              className="w-auto"
-            >
-              <option value="placedAt:desc">{t('orders.sort.newest')}</option>
-              <option value="placedAt:asc">{t('orders.sort.oldest')}</option>
-              <option value="total:desc">{t('orders.sort.totalDesc')}</option>
-              <option value="businessId:asc">{t('orders.sort.idAsc')}</option>
-            </Select>
-            <div className="ml-auto flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={filtersOpen || advancedActiveCount > 0 ? 'default' : 'outline'}
-                aria-expanded={filtersOpen}
-                onClick={(): void => setFiltersOpen((o) => !o)}
-              >
-                <SlidersHorizontal />
-                {t('orders.filter.toggle')}
-                {advancedActiveCount > 0 ? ` (${advancedActiveCount})` : ''}
-              </Button>
-              <MultiSelect
-                className="w-40"
-                ariaLabel={t('orders.columns.label')}
-                placeholder={t('orders.columns.label')}
-                icon={<Columns3 className="size-4 opacity-70" />}
-                options={columnOptions}
-                selected={visibleColumnIds}
-                onChange={(next): void =>
-                  setVisibleColumnIds(next.filter((c): c is ColumnId => COLUMN_IDS.includes(c as ColumnId)))
-                }
-              />
-              <SavedViewsControl
-                endpoint="/api/v1/admin/orders/list-views"
-                current={currentView}
-                onApply={applyView}
-                onError={setError}
-              />
-            </div>
-          </div>
-
-          {/* Applied-filter chips — each removable, with a one-click clear-all. */}
-          {filterChips.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {filterChips.map((chip) => (
-                <button
-                  key={chip.key}
-                  type="button"
-                  aria-label={chip.removeLabel}
-                  onClick={chip.onRemove}
-                  className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs hover:bg-muted"
+            }
+            filters={
+              <>
+                <MultiSelect
+                  className="w-44"
+                  ariaLabel={t('orders.field.status')}
+                  placeholder={t('orders.field.status')}
+                  options={statusOptions}
+                  selected={statusCodes}
+                  onChange={setStatusCodes}
+                />
+                <MultiSelect
+                  className="w-44"
+                  ariaLabel={t('orders.field.salesChannel')}
+                  placeholder={t('orders.field.salesChannel')}
+                  options={methodOptions(channels)}
+                  selected={salesChannelIds}
+                  onChange={setSalesChannelIds}
+                />
+                <Select
+                  aria-label={t('orders.field.sort')}
+                  value={sort}
+                  onChange={(e): void => setSort(e.target.value)}
+                  className="w-auto"
                 >
-                  <span>{chip.label}</span>
-                  <X className="size-3 opacity-70" />
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-              >
-                {t('orders.filter.clearAll')}
-              </button>
-            </div>
-          ) : null}
-
-          {/* Collapsible advanced filters. */}
-          {filtersOpen ? (
-            <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-3 lg:grid-cols-4">
-              <div className="space-y-1">
-                <Label htmlFor="opaystat">{t('orders.field.paymentStatus')}</Label>
+                  <option value="placedAt:desc">{t('orders.sort.newest')}</option>
+                  <option value="placedAt:asc">{t('orders.sort.oldest')}</option>
+                  <option value="total:desc">{t('orders.sort.totalDesc')}</option>
+                  <option value="businessId:asc">{t('orders.sort.idAsc')}</option>
+                </Select>
+              </>
+            }
+            actions={
+              <>
                 <MultiSelect
-                  ariaLabel={t('orders.field.paymentStatus')}
-                  placeholder={t('orders.filter.all')}
-                  options={paymentStatusOptions}
-                  selected={paymentStatuses}
-                  onChange={setPaymentStatuses}
+                  className="w-40"
+                  ariaLabel={t('orders.columns.label')}
+                  placeholder={t('orders.columns.label')}
+                  icon={<Columns3 className="size-4 opacity-70" aria-hidden="true" />}
+                  options={columnOptions}
+                  selected={visibleColumnIds}
+                  onChange={(next): void =>
+                    setVisibleColumnIds(next.filter((c): c is ColumnId => COLUMN_IDS.includes(c as ColumnId)))
+                  }
                 />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="opay">{t('orders.field.paymentMethod')}</Label>
-                <MultiSelect
-                  ariaLabel={t('orders.field.paymentMethod')}
-                  placeholder={t('orders.filter.all')}
-                  options={methodOptions(paymentMethods)}
-                  selected={paymentMethodIds}
-                  onChange={setPaymentMethodIds}
+                <SavedViewsControl
+                  endpoint="/api/v1/admin/orders/list-views"
+                  current={currentView}
+                  onApply={applyView}
+                  onError={setError}
                 />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="odelivery">{t('orders.field.deliveryMethod')}</Label>
-                <MultiSelect
-                  ariaLabel={t('orders.field.deliveryMethod')}
-                  placeholder={t('orders.filter.all')}
-                  options={methodOptions(deliveryMethods)}
-                  selected={deliveryMethodIds}
-                  onChange={setDeliveryMethodIds}
+              </>
+            }
+            moreFiltersActiveCount={advancedActiveCount}
+            moreFilters={
+              <>
+                <div className="space-y-1">
+                  <span id={`${filterId}-paystat`} className="block text-sm font-medium">
+                    {t('orders.field.paymentStatus')}
+                  </span>
+                  <MultiSelect
+                    ariaLabelledBy={`${filterId}-paystat`}
+                    placeholder={t('orders.filter.all')}
+                    options={paymentStatusOptions}
+                    selected={paymentStatuses}
+                    onChange={setPaymentStatuses}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span id={`${filterId}-pay`} className="block text-sm font-medium">
+                    {t('orders.field.paymentMethod')}
+                  </span>
+                  <MultiSelect
+                    ariaLabelledBy={`${filterId}-pay`}
+                    placeholder={t('orders.filter.all')}
+                    options={methodOptions(paymentMethods)}
+                    selected={paymentMethodIds}
+                    onChange={setPaymentMethodIds}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <span id={`${filterId}-delivery`} className="block text-sm font-medium">
+                    {t('orders.field.deliveryMethod')}
+                  </span>
+                  <MultiSelect
+                    ariaLabelledBy={`${filterId}-delivery`}
+                    placeholder={t('orders.filter.all')}
+                    options={methodOptions(deliveryMethods)}
+                    selected={deliveryMethodIds}
+                    onChange={setDeliveryMethodIds}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`${filterId}-org`}>{t('orders.field.orgName')}</Label>
+                  <Input
+                    id={`${filterId}-org`}
+                    value={textFilters.orgName}
+                    onChange={(e): void => setText('orgName', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`${filterId}-cust`}>{t('orders.field.customerName')}</Label>
+                  <Input
+                    id={`${filterId}-cust`}
+                    value={textFilters.customerName}
+                    onChange={(e): void => setText('customerName', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`${filterId}-datefrom`}>{t('orders.field.dateFrom')}</Label>
+                  <Input
+                    id={`${filterId}-datefrom`}
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e): void => setDateFrom(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`${filterId}-dateto`}>{t('orders.field.dateTo')}</Label>
+                  <Input
+                    id={`${filterId}-dateto`}
+                    type="date"
+                    value={dateTo}
+                    onChange={(e): void => setDateTo(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`${filterId}-tmin`}>{t('orders.field.totalMin')}</Label>
+                  <Input
+                    id={`${filterId}-tmin`}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={textFilters.totalMin}
+                    onChange={(e): void => setText('totalMin', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`${filterId}-tmax`}>{t('orders.field.totalMax')}</Label>
+                  <Input
+                    id={`${filterId}-tmax`}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={textFilters.totalMax}
+                    onChange={(e): void => setText('totalMax', e.target.value)}
+                  />
+                </div>
+                <CustomFieldListFilters
+                  idPrefix="orders"
+                  fields={customFieldFields.fields}
+                  value={customFieldFilters}
+                  language={language}
+                  status={customFieldFields.status}
+                  onRetry={customFieldFields.reload}
+                  onChange={(key, filter): void =>
+                    changeCustomFieldFilters(withCustomFieldFilter(customFieldFilters, key, filter))
+                  }
                 />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="oorg">{t('orders.field.orgName')}</Label>
-                <input
-                  id="oorg"
-                  className="h-9 w-full rounded-md border px-3 text-sm"
-                  value={textFilters.orgName}
-                  onChange={(e): void => setText('orgName', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="ocust">{t('orders.field.customerName')}</Label>
-                <input
-                  id="ocust"
-                  className="h-9 w-full rounded-md border px-3 text-sm"
-                  value={textFilters.customerName}
-                  onChange={(e): void => setText('customerName', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="odatefrom">{t('orders.field.dateFrom')}</Label>
-                <input
-                  id="odatefrom"
-                  type="date"
-                  className="h-9 w-full rounded-md border px-3 text-sm"
-                  value={dateFrom}
-                  onChange={(e): void => setDateFrom(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="odateto">{t('orders.field.dateTo')}</Label>
-                <input
-                  id="odateto"
-                  type="date"
-                  className="h-9 w-full rounded-md border px-3 text-sm"
-                  value={dateTo}
-                  onChange={(e): void => setDateTo(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="otmin">{t('orders.field.totalMin')}</Label>
-                <input
-                  id="otmin"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="h-9 w-full rounded-md border px-3 text-sm"
-                  value={textFilters.totalMin}
-                  onChange={(e): void => setText('totalMin', e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="otmax">{t('orders.field.totalMax')}</Label>
-                <input
-                  id="otmax"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="h-9 w-full rounded-md border px-3 text-sm"
-                  value={textFilters.totalMax}
-                  onChange={(e): void => setText('totalMax', e.target.value)}
-                />
-              </div>
-              <CustomFieldListFilters
-                idPrefix="orders"
-                fields={customFieldFields.fields}
-                value={customFieldFilters}
-                language={language}
-                status={customFieldFields.status}
-                onRetry={customFieldFields.reload}
-                onChange={(key, filter): void =>
-                  changeCustomFieldFilters(withCustomFieldFilter(customFieldFilters, key, filter))
-                }
-              />
-            </div>
-          ) : null}
+              </>
+            }
+            appliedFilters={filterChips}
+            onClearFilters={clearAllFilters}
+          />
         </CardContent>
       </Card>
 

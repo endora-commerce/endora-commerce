@@ -31,10 +31,21 @@ import { isLineReturnable } from './return-eligibility.js';
  * ceiling, {@link effectiveDefaultRefunds}).
  */
 
+/**
+ * A line of a case against an order: it names its order line. Every line an order's
+ * cases hold is one; a line of a case without a platform order
+ * (`specs/180-off-platform-complaints/`) never reaches the order's history.
+ */
+export type OrderCaseItem = ReturnCaseItem & { orderItemId: string };
+
+export function isOrderCaseItem(item: ReturnCaseItem): item is OrderCaseItem {
+  return item.orderItemId != null;
+}
+
 /** An order's cases and their lines, as one read. */
 export interface OrderCases {
   cases: readonly ReturnCase[];
-  items: readonly ReturnCaseItem[];
+  items: readonly OrderCaseItem[];
 }
 
 export type KeptStateBasis = 'settled' | 'provisional';
@@ -44,11 +55,11 @@ export async function loadOrderCases(em: EntityManager, orderId: string): Promis
   const cases = await em.find(ReturnCase, { orderId });
   if (cases.length === 0) return { cases, items: [] };
   const items = await em.find(ReturnCaseItem, { returnCaseId: { $in: cases.map((c) => c.id) } }, { orderBy: { id: 'asc' } });
-  return { cases, items };
+  return { cases, items: items.filter(isOrderCaseItem) };
 }
 
 /** The lines of the order's live (not rejected, not cancelled) cases: what takes up returnable quantity. */
-export function liveItems(history: OrderCases): ReturnCaseItem[] {
+export function liveItems(history: OrderCases): OrderCaseItem[] {
   const live = new Set(history.cases.filter((c) => !VOID_STATUS_CODES.has(c.statusCode)).map((c) => c.id));
   return history.items.filter((it) => live.has(it.returnCaseId));
 }

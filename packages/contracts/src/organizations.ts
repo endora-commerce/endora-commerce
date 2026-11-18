@@ -611,9 +611,31 @@ export type CustomerSignInResponse = z.infer<typeof customerSignInResponseSchema
 
 // --- Admin organization replies (issue #599) --------------------------------
 
-/** `GET /api/v1/admin/organizations` — one page of Organizations. */
+/**
+ * `GET /api/v1/admin/organizations?page=&pageSize=` — the paging the admin list
+ * screen asks for (issue #1473). `pageSize` falls back to `limit`, so a caller
+ * that names neither — the pickers — keeps its one `limit`-sized first page.
+ */
+export const adminOrganizationListPageQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
+});
+export type AdminOrganizationListPageQuery = z.infer<typeof adminOrganizationListPageQuerySchema>;
+
+/**
+ * `GET /api/v1/admin/organizations` — one page of Organizations. `meta` is the
+ * offset page and the total across every page, in the shape the Customers list
+ * answers with (issue #1473); `pagination` stays for its existing readers, and
+ * its `hasMore` now says whether a later page exists. Its `cursor` is always
+ * `null`: this list pages by offset.
+ */
 export const adminOrganizationListResponseSchema = z.object({
   data: z.array(adminOrganizationSchema),
+  meta: z.object({
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+  }),
   pagination: paginationSchema,
 });
 export type AdminOrganizationListResponse = z.infer<typeof adminOrganizationListResponseSchema>;

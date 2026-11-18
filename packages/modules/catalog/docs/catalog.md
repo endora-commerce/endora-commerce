@@ -107,8 +107,8 @@ one that is not archived, answers `200` and changes nothing — no audit entry, 
   `/catalog/products/archived`, so the browser's Back button and a reload return to it, and
   the command palette (⌘K / CTRL+K) opens it as **Archived products** — search for
   "archived" or "archiwum".
-  With a selection, its bar offers Restore, Bulk edit and Delete; **Edit price** is shown
-  on the other tabs but disabled, because prices are set in price books.
+  With a selection, its bar offers Restore, Bulk edit and Delete; on the other tabs it
+  offers Bulk edit and Delete. Prices are set in price books, not from the list.
 - **From the admin assistant.** The assistant's `catalog.archive_product` and
   `catalog.restore_product` tools (`catalog:write`) archive and restore products after
   you confirm the plan it shows, through the same action and audit entry, with you as
@@ -280,12 +280,11 @@ The product list's toolbar carries a **Saved views** selector, whose first
 entry is **— Select a view —**, and two buttons beside it: **Save view** and
 **Delete view**.
 
-- **What a view remembers.** The status, the type and the search text — and
-  nothing else. The **Stock**, **Category** and **Channel** chips are not saved.
-  Choosing a view sets status, type and search to the view's values (a value
-  the list no longer offers loads as *All*), resets the Stock chip to *All*,
-  discards anything you had changed and not saved, clears the row selection and
-  goes back to the first page.
+- **What a view remembers.** The status, the type and the search text, which are
+  the list's only filters. Choosing a view sets status, type and search to the
+  view's values (a value the list no longer offers loads as *All*), discards
+  anything you had changed and not saved, clears the row selection and goes back
+  to the first page. To filter by stock, use the Inventory list.
 - **Saving.** **Save view** opens one dialog with a **Name** field and a
   **Share with every admin who can open this list** checkbox. The checkbox
   starts unchecked, so a new view is private unless you tick it. The name is

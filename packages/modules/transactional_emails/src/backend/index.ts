@@ -1,3 +1,4 @@
+import { TransactionalEmailStateService } from './services/transactional-email-state.js';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type {
@@ -6,6 +7,7 @@ import type {
   EmailBlockRendererRegistryPort,
   SettingWriteValidatorRegistryPort,
   TemplateEmailPort,
+  TransactionalEmailStatePort,
   ModuleManifest,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
@@ -195,6 +197,16 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         (): (() => TransactionalEmailSender | undefined) => () => exposed.sender ?? undefined,
       )
+      .singleton(),
+  );
+
+  // `specs/180-off-platform-complaints/` D-11 (research R-21) — whether an e-mail is
+  // switched on, for a module that tells its reader one is on its way. Read-only;
+  // gated like every port, so it refuses while this module is off.
+  ctx.di.providePort<TransactionalEmailStatePort>(
+    'transactionalEmailStatePort',
+    ctx
+      .asFunction(({ emFactory }: TransactionalEmailsCradle) => new TransactionalEmailStateService(emFactory))
       .singleton(),
   );
 

@@ -65,6 +65,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// The screens' own copy as it ships (issue #1463), so the back link and the
+// name field are found by what the operator reads.
+const newsletter = JSON.parse(
+  readFileSync(resolve(__dirname, '../../../../packages/modules/newsletter/i18n/en.json'), 'utf8'),
+) as Record<string, string>;
+
 function renderAt(path: string, route: string, element: ReactElement, list: string): void {
   renderWithI18n(
     <MemoryRouter initialEntries={[path]}>
@@ -73,7 +79,7 @@ function renderAt(path: string, route: string, element: ReactElement, list: stri
         <Route path={list} element={<p>List screen</p>} />
       </Routes>
     </MemoryRouter>,
-    { core },
+    { core, newsletter },
   );
 }
 
@@ -101,7 +107,7 @@ describe('CampaignEditor — unsaved changes', () => {
 
   it('a typed name makes it dirty, and Back asks first', () => {
     renderAt('/newsletter/automations/new', '/newsletter/automations/:id', <AutomationBuilder />, '/newsletter/automations');
-    fireEvent.change(screen.getByPlaceholderText('Automation name'), { target: { value: 'Welcome' } });
+    fireEvent.change(screen.getByRole('textbox', { name: newsletter['automation.field.name']! }), { target: { value: 'Welcome' } });
     expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe(ux('hint'));
     fireEvent.click(screen.getByRole('link', { name: /Automations/ }));
     expect(screen.getByRole('dialog', { name: ux('title') })).toBeTruthy();
@@ -118,7 +124,7 @@ describe('AutomationBuilder — unsaved changes', () => {
 
   it('a typed name makes it dirty, and Back asks first', () => {
     renderAt('/newsletter/automations/new', '/newsletter/automations/:id', <AutomationBuilder />, '/newsletter/automations');
-    fireEvent.change(screen.getByPlaceholderText('Automation name'), { target: { value: 'Welcome' } });
+    fireEvent.change(screen.getByRole('textbox', { name: newsletter['automation.field.name']! }), { target: { value: 'Welcome' } });
     expect(screen.getByTestId('unsaved-changes-hint').textContent).toBe(ux('hint'));
     fireEvent.click(screen.getByRole('link', { name: /Automations/ }));
     expect(screen.getByRole('dialog', { name: ux('title') })).toBeTruthy();

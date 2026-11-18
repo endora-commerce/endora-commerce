@@ -51,6 +51,11 @@ const returnCase: ReturnCaseDetail = {
   rmaNumber: null,
   kind: 'complaint',
   orderId: order.id,
+  reference: '#00000000',
+  offPlatform: false,
+  productLabel: 'Widget',
+  lineCount: 1,
+  purchaseDate: null,
   customerAccountId: 'member-1',
   statusCode: 'submitted',
   statusLabel: 'Submitted',
@@ -210,22 +215,23 @@ describe('account returns — the shop language (issue #85)', () => {
     returns = [returnCase];
     const en = await render(Page());
     expect(en).toContain('Returns & complaints');
-    expect(en).toContain('Submitted RMA Type Status Refund');
+    expect(en).toContain('Submitted Case Product Type Status Refund');
     expect(en).toContain('Complaint');
     expect(withoutZloty(en)).not.toMatch(POLISH_DIACRITIC);
     locale = 'pl-PL';
     const pl = await render(Page());
     expect(pl).toContain('Zwroty i reklamacje');
-    expect(pl).toContain('Data zgłoszenia Numer RMA Rodzaj Status Kwota zwrotu');
+    expect(pl).toContain('Data zgłoszenia Zgłoszenie Produkt Rodzaj Status Kwota zwrotu');
     expect(pl).toContain('Reklamacja');
   });
 
-  it('marks the "Open" link of a return as a link (issue #1178)', async () => {
+  // `specs/180-off-platform-complaints/` D-4: the link names the case by its reference.
+  it('marks the case link of a return as a link (issue #1178)', async () => {
     const { default: Page } = await import('../../../app/(account)/returns/page');
     locale = 'en-US';
     returns = [returnCase];
     const html = renderToString((await Page()) as React.ReactElement);
-    expect(html).toMatch(/<a[^>]*class="b2b-account__link"[^>]*href="\/returns\/r1"[^>]*>Open<\/a>|<a[^>]*href="\/returns\/r1"[^>]*class="b2b-account__link"[^>]*>Open<\/a>/);
+    expect(html).toMatch(/<a[^>]*class="b2b-account__link"[^>]*href="\/returns\/r1"[^>]*>#00000000<\/a>|<a[^>]*href="\/returns\/r1"[^>]*class="b2b-account__link"[^>]*>#00000000<\/a>/);
   });
 
   it('renders the case in both languages', async () => {
@@ -233,8 +239,9 @@ describe('account returns — the shop language (issue #85)', () => {
     locale = 'en-US';
     const en = await render(Page({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000e1' }) }));
     expect(en).toContain('← Back to returns');
-    expect(en).toContain('Return case');
-    expect(en).toContain('Status: Submitted · Complaint');
+    // 180 D-4 — a case without an RMA number is titled by its reference.
+    expect(en).toContain('Complaint #00000000');
+    expect(en).toMatch(/Status: Submitted\s*Complaint/);
     expect(en).toContain('Conversation');
     expect(en).toContain('Customer service');
     expect(en).toContain('Add a message');
@@ -242,8 +249,8 @@ describe('account returns — the shop language (issue #85)', () => {
     locale = 'pl-PL';
     const pl = await render(Page({ params: Promise.resolve({ id: '00000000-0000-4000-8000-0000000000e1' }) }));
     expect(pl).toContain('← Wróć do zwrotów');
-    expect(pl).toContain('Zgłoszenie zwrotu');
-    expect(pl).toContain('Status: Submitted · Reklamacja');
+    expect(pl).toContain('Reklamacja #00000000');
+    expect(pl).toMatch(/Status: Submitted\s*Reklamacja/);
     expect(pl).toContain('Korespondencja');
     expect(pl).toContain('Obsługa klienta');
     expect(pl).toContain('Dodaj wiadomość');

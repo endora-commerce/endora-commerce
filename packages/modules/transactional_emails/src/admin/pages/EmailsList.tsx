@@ -121,7 +121,7 @@ export function EmailsList(): React.ReactElement {
   if (!hasPermission('transactional_emails:read')) {
     return (
       <Alert>
-        <AlertDescription>You do not have permission to view transactional emails.</AlertDescription>
+        <AlertDescription>{t('editor.noPermission')}</AlertDescription>
       </Alert>
     );
   }
@@ -130,7 +130,7 @@ export function EmailsList(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Transactional emails" description="Edit the content and look of transactional emails." />
+      <PageHeader title={t('page.title')} />
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
@@ -149,10 +149,10 @@ export function EmailsList(): React.ReactElement {
           <table className="w-full text-sm">
             <thead className="border-b text-left text-muted-foreground">
               <tr>
-                <th className="p-3 font-medium">Name</th>
-                <th className="p-3 font-medium">Code</th>
-                <th className="p-3 font-medium">Module</th>
-                <th className="p-3 font-medium">Customized</th>
+                <th className="p-3 font-medium">{t('list.column.name')}</th>
+                <th className="p-3 font-medium">{t('list.column.code')}</th>
+                <th className="p-3 font-medium">{t('list.column.module')}</th>
+                <th className="p-3 font-medium">{t('list.column.customized')}</th>
                 <th className="p-3 font-medium">{t('activation.column')}</th>
               </tr>
             </thead>
@@ -167,7 +167,7 @@ export function EmailsList(): React.ReactElement {
                   <td className="p-3 font-mono text-xs">{e.code}</td>
                   <td className="p-3">{e.ownerModule}</td>
                   <td className="p-3">
-                    {e.hasGlobalOverride || e.hasChannelOverride ? 'Yes' : '—'}
+                    {e.hasGlobalOverride || e.hasChannelOverride ? t('list.customized.yes') : '—'}
                   </td>
                   <td className="p-3">
                     <ActivationCell
@@ -183,7 +183,7 @@ export function EmailsList(): React.ReactElement {
               {filtered.length === 0 ? (
                 <tr>
                   <td className="p-3 text-muted-foreground" colSpan={5}>
-                    No transactional emails found.
+                    {t('list.empty')}
                   </td>
                 </tr>
               ) : null}
