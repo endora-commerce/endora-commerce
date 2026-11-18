@@ -1284,6 +1284,8 @@ textarea.b2b-field {
 }
 .b2b-tab:hover { color: var(--fg); }
 .b2b-tab.is-active { color: var(--fg); border-bottom-color: var(--primary-color); }
+.b2b-tab:focus-visible { outline: 2px solid var(--ring-color); outline-offset: -2px; border-radius: var(--r-sm); }
+.b2b-tab:disabled { opacity: .5; cursor: not-allowed; }
 .b2b-tab .b2b-badge { font-size: 10px; padding: 0 6px; }
 
 /* ============================================================

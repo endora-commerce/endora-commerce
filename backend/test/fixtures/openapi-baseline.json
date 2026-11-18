@@ -2544,6 +2544,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/statuses/order": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/statuses/{code}": {
       "delete": {
         "responses": {
@@ -7923,6 +7932,15 @@
         }
       }
     },
+    "/api/v1/admin/tasks/priorities/order": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/tasks/priorities/{code}": {
       "delete": {
         "responses": {
@@ -7957,6 +7975,15 @@
     },
     "/api/v1/admin/tasks/statuses": {
       "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/tasks/statuses/order": {
+      "put": {
         "responses": {
           "200": {
             "description": "OK"

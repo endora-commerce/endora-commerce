@@ -14,18 +14,26 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { workflowStatusName } from '../../lib/labels.js';
+import { ReorderControls } from '../reorder/ReorderControls.js';
 
 export interface TaskStatusesTableProps {
   statuses: readonly TaskStatusConfig[];
   language: string;
   onEdit: (status: TaskStatusConfig) => void;
   onDelete: (status: TaskStatusConfig) => void;
+  /** Move a status up (−1) or down (+1) — one batch reorder (issue #1560). */
+  onMove: (status: TaskStatusConfig, delta: number) => void;
+  /** A reorder is in flight: the move controls wait for it. */
+  reordering: boolean;
 }
 
 /**
  * The statuses of the Task workflow, in workflow order
  * (`specs/165-task-management/contracts/admin-surfaces.md` §1; CRM's
  * `StatusesTable`, the model).
+ *
+ * The order is changed with the move controls on each row, one batch
+ * reorder per move (issue #1560); the position column is the row's place.
  *
  * Remove is offered on every row, the start status and a status in use
  * included: the server is the authority on both — `inUseCount` counts only
@@ -51,7 +59,7 @@ export function TaskStatusesTable(props: TaskStatusesTableProps): ReactNode {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {ordered.map((status) => {
+        {ordered.map((status, index) => {
           const name = workflowStatusName(status, props.language);
           return (
             <TableRow key={status.code}>
@@ -67,10 +75,17 @@ export function TaskStatusesTable(props: TaskStatusesTableProps): ReactNode {
                   {status.isInitial ? <Badge variant="outline">{t('workflow.flag.initial')}</Badge> : null}
                 </div>
               </TableCell>
-              <TableCell className="text-right tabular-nums">{status.weight}</TableCell>
+              <TableCell className="text-right tabular-nums">{index + 1}</TableCell>
               <TableCell className="text-right tabular-nums">{status.inUseCount}</TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-1">
+                <div className="flex items-center justify-end gap-1">
+                  <ReorderControls
+                    name={name}
+                    isFirst={index === 0}
+                    isLast={index === ordered.length - 1}
+                    disabled={props.reordering}
+                    onMove={(delta): void => props.onMove(status, delta)}
+                  />
                   <Button
                     className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
                     variant="ghost"

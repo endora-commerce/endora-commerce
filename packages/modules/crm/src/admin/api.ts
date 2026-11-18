@@ -319,6 +319,11 @@ export const crmApi = {
     return data(apiClient.patch<{ data: OpportunityWorkflow }>(`${BASE}/statuses/${code}`, body));
   },
 
+  /** The whole list in its new order, one Command (issue #1560); 409 `ORDER_STALE` when it changed meanwhile. */
+  reorderStatuses(orderedCodes: readonly string[]): Promise<OpportunityWorkflow> {
+    return data(apiClient.put<{ data: OpportunityWorkflow }>(`${BASE}/statuses/order`, { orderedCodes }));
+  },
+
   deleteStatus(code: string): Promise<void> {
     return apiClient.delete<void>(`${BASE}/statuses/${code}`);
   },

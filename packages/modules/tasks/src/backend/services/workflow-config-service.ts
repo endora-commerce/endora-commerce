@@ -4,6 +4,7 @@ import {
   ERROR_CODES,
   TASK_STATUS_REASSIGN_MAX,
   type CreateTaskStatusBody,
+  type ReorderTaskStatusesBody,
   type SetTaskTransitionsBody,
   type SupportedLanguage,
   type UpdateTaskStatusBody,
@@ -14,6 +15,7 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { TaskWorkflowConfigError, type TaskWorkflowRule } from '../domain/task-status-graph.js';
 import { TaskStatus } from '../entities/task-status.entity.js';
 import { TaskStatusTransition } from '../entities/task-status-transition.entity.js';
+import { REORDER_WEIGHT_STEP, assertCompleteOrder } from './reorder.js';
 import { heldIds, holdTasksFor, recordReassignments, type HeldTask } from './task-reassignment.js';
 import { taskStatusUnknown, transitionForbidden } from './task-transition-service.js';
 import type { TaskWorkflowRead } from './task-workflow-read.js';
@@ -208,6 +210,30 @@ export class TaskWorkflowConfigService {
         before: previousInitial ? { ...before, initialStatusCode: previousInitial } : before,
         after: snapshot(status),
       };
+    });
+  }
+
+  /**
+   * `PUT /tasks/statuses/order` (issue #1560): the whole list in its new
+   * order, one Command — one audit entry, no half-moved list. Every status row
+   * is locked first, so a concurrent create, removal or reorder waits for this
+   * one. The weights are rewritten {@link REORDER_WEIGHT_STEP} apart.
+   */
+  async reorderStatuses(input: ReorderTaskStatusesBody): Promise<void> {
+    await this.#configure({ action: 'tasks.status.reorder', objectType: 'task_status', objectId: 'order' }, async (em) => {
+      const statuses = await em.find(
+        TaskStatus,
+        {},
+        { orderBy: { weight: 'asc', code: 'asc' }, lockMode: LockMode.PESSIMISTIC_WRITE },
+      );
+      const before = statuses.map((status) => status.code);
+      assertCompleteOrder(before, input.orderedCodes);
+      const byCode = new Map(statuses.map((status) => [status.code, status]));
+      input.orderedCodes.forEach((code, index) => {
+        const status = byCode.get(code);
+        if (status) status.weight = (index + 1) * REORDER_WEIGHT_STEP;
+      });
+      return { before: { order: before }, after: { order: [...input.orderedCodes] } };
     });
   }
 

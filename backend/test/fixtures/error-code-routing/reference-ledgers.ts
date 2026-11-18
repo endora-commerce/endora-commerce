@@ -284,6 +284,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'dead: only a failed delivery can be retried. A 409. The raiser is the platform\'s ' +
       '`command_outbox.retry` Command.',
   },
+  ORDER_STALE: {
+    to: '_i18n',
+    reason:
+      'Minted by issue #1560 (architect ruling on the batch reorder) for a reorder of a ' +
+      'configuration list whose body is not the current list: a row left out or named twice. A ' +
+      '409; the client reloads. Raised by `crm` (`PUT /crm/statuses/order`) and `tasks` ' +
+      '(`PUT /tasks/statuses/order`, `PUT /tasks/priorities/order`), so it sits in the platform block.',
+  },
   ADMIN_AUTHENTICATION_THROTTLED: {
     to: 'admin_users',
     reason:
@@ -3378,6 +3386,13 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
       'A retry of a command outbox row that is not dead. The noun is the command outbox, the ' +
       'platform\'s own table of afterCommit deliveries for every module; the hook module a row ' +
       'is for is a column of the row, not the owner of the refusal.',
+  },
+  ORDER_STALE: {
+    tier: 'T3',
+    reason:
+      'A batch reorder whose list is not the current one (issue #1560). The noun is an ordered ' +
+      'configuration list, which `crm` (Opportunity statuses) and `tasks` (Task statuses and ' +
+      'priorities) each own — two claimants, so by D-122 neither owns the code.',
   },
   UNAUTHORIZED: {
     tier: 'T3',
