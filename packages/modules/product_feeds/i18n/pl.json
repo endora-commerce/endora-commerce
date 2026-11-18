@@ -128,6 +128,7 @@
   "feeds.schedule.customHint": "Pięć pól: minuta godzina dzień miesiąc dzień-tygodnia.",
   "feeds.schedule.custom.build": "Wybierz harmonogram",
   "feeds.schedule.custom.write": "Wpisz wyrażenie cron",
+  "feeds.schedule.custom.mode": "Sposób ustawienia",
   "feeds.schedule.builder.frequency": "Jak często",
   "feeds.schedule.builder.frequency.hourly": "Co godzinę",
   "feeds.schedule.builder.frequency.daily": "Codziennie",
