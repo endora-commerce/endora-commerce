@@ -227,7 +227,7 @@ export function BulkOperationDetailPage(): ReactNode {
       ) : null}
 
       {undoResult ? (
-        <Alert variant={undoResult.conflicts.length > 0 ? 'warning' : 'success'} className="mb-4">
+        <Alert variant={undoResult.conflicts.length > 0 ? 'warning' : 'success'} live="polite" className="mb-4">
           <AlertDescription>
             {t('bulkOperations.undo.result', {
               reverted: undoResult.reverted,

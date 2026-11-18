@@ -101,7 +101,7 @@ describe('TemplatePreviewVerdict — the body-level result', () => {
       />,
       bundle,
     );
-    expect(screen.getByRole('alert').textContent).toContain('builder.preview.verdict.included');
+    expect(screen.getByRole('status').textContent).toContain('builder.preview.verdict.included');
   });
 
   it('states the skipped verdict', () => {
@@ -114,7 +114,7 @@ describe('TemplatePreviewVerdict — the body-level result', () => {
       />,
       bundle,
     );
-    expect(screen.getByRole('alert').textContent).toContain('builder.preview.verdict.skipped');
+    expect(screen.getByRole('status').textContent).toContain('builder.preview.verdict.skipped');
   });
 
   it('shows the error instead of a verdict', () => {

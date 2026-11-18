@@ -528,7 +528,7 @@ export function RfqDetail(): ReactNode {
         </Alert>
       ) : null}
       {pdfNotice ? (
-        <Alert variant={pdfNotice.kind} className="mb-4">
+        <Alert variant={pdfNotice.kind} live="polite" className="mb-4">
           <AlertDescription>{pdfNotice.message}</AlertDescription>
         </Alert>
       ) : null}

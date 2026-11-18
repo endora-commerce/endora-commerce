@@ -180,7 +180,7 @@ export function LibraryPage(): ReactNode {
         </Alert>
       ) : null}
       {info ? (
-        <Alert>
+        <Alert live="polite">
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}

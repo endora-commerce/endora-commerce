@@ -164,12 +164,13 @@ export function EmailBrandingPage(): ReactNode {
         }
       />
 
-      {/* Mounted before it has text, so the confirmation is announced (SC 4.1.3). */}
+      {/* Mounted before it has text, so the confirmation is announced (SC 4.1.3). The
+          visible banner beside it stays silent, so the confirmation is announced once. */}
       <div role="status" aria-live="polite" className="sr-only">
         {saved ? t('branding.saved') : ''}
       </div>
       {saved ? (
-        <Alert variant="success">
+        <Alert variant="success" live="off">
           <AlertDescription>{t('branding.saved')}</AlertDescription>
         </Alert>
       ) : null}

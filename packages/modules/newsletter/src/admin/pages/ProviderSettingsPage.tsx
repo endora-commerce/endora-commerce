@@ -85,7 +85,7 @@ export function ProviderSettingsPage(): React.ReactElement {
         </Alert>
       ) : null}
       {notice ? (
-        <Alert>
+        <Alert live="polite">
           <AlertDescription>{notice}</AlertDescription>
         </Alert>
       ) : null}

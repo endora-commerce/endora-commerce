@@ -143,7 +143,7 @@ export function BindingsPanel({ menuId, bindings, onChanged }: BindingsPanelProp
       {/* Mounted before it has text, so the notice is announced when it arrives. */}
       <div role="status" aria-live="polite">
         {notice ? (
-          <Alert>
+          <Alert live="polite">
             <AlertDescription>{notice}</AlertDescription>
           </Alert>
         ) : null}

@@ -241,7 +241,7 @@ export function ReturnDetail(): ReactNode {
         </Alert>
       )}
       {info && (
-        <Alert>
+        <Alert live="polite">
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       )}
@@ -400,7 +400,7 @@ export function ReturnDetail(): ReactNode {
               </div>
             )}
             {refundMethodDiffers && (
-              <Alert variant="warning" id={refundWarningId}>
+              <Alert variant="warning" live="polite" id={refundWarningId}>
                 <AlertDescription>{tr('settlement.refundMethodDiffers')}</AlertDescription>
               </Alert>
             )}

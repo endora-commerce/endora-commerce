@@ -17,8 +17,8 @@
  * proved by reference equality in `admin/test/kit/admin-kit-shims.test.ts`, not by a
  * structural comparison, which a second React context would pass.
  */
-export { Alert, AlertDescription, AlertTitle } from './alert.js';
-export type { AlertProps } from './alert.js';
+export { ALERT_DEFAULT_LIVE, Alert, AlertDescription, AlertTitle, alertRole } from './alert.js';
+export type { AlertLive, AlertProps } from './alert.js';
 export { Badge } from './badge.js';
 export type { BadgeProps } from './badge.js';
 export { Button, buttonVariants } from './button.js';
@@ -41,6 +41,9 @@ export { FormField } from './form-field.js';
 export type { FormFieldControlProps, FormFieldProps } from './form-field.js';
 export { HelpTip } from './help-tip.js';
 export type { HelpTipProps } from './help-tip.js';
+// Issue #1443 (UX audit DS-10) — the always-mounted status region for an action's result.
+export { InlineStatus, useInlineStatus } from './inline-status.js';
+export type { InlineStatusProps, InlineStatusState, InlineStatusTone } from './inline-status.js';
 export { Input } from './input.js';
 export { Label } from './label.js';
 export { MultiCombobox } from './multi-combobox.js';

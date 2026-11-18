@@ -39,7 +39,7 @@ describe('<ScopeNotice>', () => {
     expect(
       screen.getByText('These records are not assigned to an organization yet'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('alert').textContent).toContain(
+    expect(screen.getByRole('status').textContent).toContain(
       'None of these records names an organization yet, so none of them can appear here.',
     );
   });
@@ -49,14 +49,14 @@ describe('<ScopeNotice>', () => {
     expect(
       screen.getByText('Te rekordy nie są jeszcze przypisane do organizacji'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('alert').textContent).toContain(
+    expect(screen.getByRole('status').textContent).toContain(
       'Żaden z tych rekordów nie wskazuje jeszcze organizacji',
     );
   });
 
   it('says nothing about permissions, and does not name the machinery', () => {
     renderIn('en', 'ORGANIZATION_ATTRIBUTION_PENDING');
-    const text = screen.getByRole('alert').textContent ?? '';
+    const text = screen.getByRole('status').textContent ?? '';
     // The operator does not know what a tenant, a scope or a filter is, and
     // telling them they lack a permission would be false — they do not.
     for (const word of ['tenant', 'scope', 'filter', 'permission']) {
@@ -70,7 +70,7 @@ describe('<ScopeNotice>', () => {
     // branch they always take — the screen mounts the component unconditionally
     // and the component decides.
     expect(container).toBeEmptyDOMElement();
-    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
   it('renders nothing when the notice is absent from the envelope', () => {

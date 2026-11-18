@@ -180,13 +180,26 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
+function lapsedBanner(): HTMLElement {
+  const banner = screen.getByText(/validity ended on/).closest<HTMLElement>('[data-slot="alert"]');
+  if (banner === null) throw new Error('the lapsed-validity banner is not rendered');
+  return banner;
+}
+
+async function findLapsedBanner(): Promise<HTMLElement> {
+  await screen.findByText(/validity ended on/);
+  return lapsedBanner();
+}
+
 describe('RfqDetail — the operator sets and changes the validity deadline', () => {
   it('tells the operator a lapsed request is lapsed, and holds back the actions that can only be refused', async () => {
     renderDetail({ status: 'Pending', expiresAt: LAPSED_AT });
 
     expect(await screen.findByText('rfq.detail.badge.validityEnded')).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent('validity ended on');
-    expect(screen.getByRole('alert')).toHaveTextContent(
+    // A static banner of the record's state: shown, not announced as an interruption (#1484).
+    expect(lapsedBanner()).not.toHaveAttribute('role');
+    expect(lapsedBanner()).toHaveTextContent('validity ended on');
+    expect(lapsedBanner()).toHaveTextContent(
       'remedy: set a new deadline under Modify',
     );
     // The header no longer promises a date the platform has stopped honouring:
@@ -203,7 +216,7 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
 
     await screen.findByText('rfq.detail.tabs.overview');
     expect(screen.queryByText('rfq.detail.badge.validityEnded')).not.toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(document.querySelector('[data-slot="alert"]')).toBeNull();
     expect(screen.getByRole('button', { name: /rfq\.detail\.approve/ })).toBeEnabled();
   });
 
@@ -283,7 +296,7 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
     // The operator meets the lapse on the overview and takes the remedy the
     // banner offers, rather than having to know that "Modify" is where dates
     // live.
-    const banner = await screen.findByRole('alert');
+    const banner = await findLapsedBanner();
     await user.click(
       within(banner).getByRole('button', { name: /rfq\.detail\.validity\.lapsed\.setNewDeadline/ }),
     );
@@ -332,7 +345,7 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
   it('does not offer a re-date on an approved request, because `modify` refuses one', async () => {
     renderDetail({ status: 'Approved', expiresAt: LAPSED_AT, awaitingCustomerRevisionAcceptance: false });
 
-    const banner = await screen.findByRole('alert');
+    const banner = await findLapsedBanner();
     expect(banner).toHaveTextContent('remedy: ask the customer to resubmit');
     expect(
       within(banner).queryByRole('button', {
@@ -349,7 +362,7 @@ describe('RfqDetail — the operator sets and changes the validity deadline', ()
 
     await screen.findByText('rfq.detail.tabs.overview');
     expect(screen.queryByText('rfq.detail.badge.validityEnded')).not.toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(document.querySelector('[data-slot="alert"]')).toBeNull();
   });
 
   // -------------------------------------------------------------------------

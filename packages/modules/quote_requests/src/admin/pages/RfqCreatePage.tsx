@@ -938,7 +938,7 @@ export function RfqCreatePage(): ReactNode {
       ) : null}
 
       {created ? (
-        <Alert variant="warning" className="mb-4">
+        <Alert variant="warning" live="assertive" className="mb-4">
           <AlertTitle>{t('rfqCreate.warnings.title')}</AlertTitle>
           <AlertDescription>
             <p>{t('rfqCreate.warnings.description')}</p>

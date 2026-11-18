@@ -452,7 +452,7 @@ export function SettingsPage(): ReactNode {
         </Alert>
       )}
       {info && (
-        <Alert className="mb-4">
+        <Alert live="polite" className="mb-4">
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       )}
