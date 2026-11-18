@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, type MutableRefObject, type ReactNode } from 'react';
+import { createContext, useContext, useRef, type MutableRefObject, type ReactNode, type RefObject } from 'react';
 import { ChevronDown, MoreVertical } from 'lucide-react';
 import { Button } from '../ui/button.js';
 import {
@@ -60,7 +60,6 @@ export function RowActionMenu({
   showLabel = false,
 }: RowActionMenuProps): ReactNode {
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const deferred = useRef<(() => void) | null>(null);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -91,21 +90,39 @@ export function RowActionMenu({
           </Button>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        onCloseAutoFocus={(event) => {
-          const run = deferred.current;
-          if (!run) return;
-          deferred.current = null;
-          // Radix's own trigger focus is skipped; the action runs with the trigger focused.
-          event.preventDefault();
-          triggerRef.current?.focus();
-          run();
-        }}
-      >
-        <DeferredActionContext.Provider value={deferred}>{children}</DeferredActionContext.Provider>
-      </DropdownMenuContent>
+      <DeferredActionMenuContent triggerRef={triggerRef}>{children}</DeferredActionMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * The menu panel that runs an item's action only once the menu has let go of
+ * focus (see above). Shared with `DetailHeaderActions`, whose "More" menu holds
+ * the same dialog-opening entries; not part of the barrel.
+ */
+export function DeferredActionMenuContent({
+  triggerRef,
+  children,
+}: {
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  children: ReactNode;
+}): ReactNode {
+  const deferred = useRef<(() => void) | null>(null);
+  return (
+    <DropdownMenuContent
+      align="end"
+      onCloseAutoFocus={(event) => {
+        const run = deferred.current;
+        if (!run) return;
+        deferred.current = null;
+        // Radix's own trigger focus is skipped; the action runs with the trigger focused.
+        event.preventDefault();
+        triggerRef.current?.focus();
+        run();
+      }}
+    >
+      <DeferredActionContext.Provider value={deferred}>{children}</DeferredActionContext.Provider>
+    </DropdownMenuContent>
   );
 }
 
