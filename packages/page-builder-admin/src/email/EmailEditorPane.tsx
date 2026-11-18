@@ -591,7 +591,11 @@ function mergeEmbedSelects(base: Config, blockOptions: EmailEmbedCodeOption[]): 
   return { ...base, components };
 }
 
-function EmailHtmlPreviewModal({
+/**
+ * The rendered e-mail at a desktop or a narrow width. Exported for its test;
+ * its copy is `core`'s, as every string of this shared builder is (issue #1463).
+ */
+export function EmailHtmlPreviewModal({
   open,
   html,
   onClose,
@@ -600,6 +604,7 @@ function EmailHtmlPreviewModal({
   html: string;
   onClose: () => void;
 }): React.ReactElement | null {
+  const t = useTranslation('core');
   const [width, setWidth] = useState<EmailPreviewWidth>(600);
 
   useEffect(() => {
@@ -618,7 +623,7 @@ function EmailHtmlPreviewModal({
       className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="Preview email"
+      aria-label={t('pageBuilder.emailPreview.title')}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -626,7 +631,7 @@ function EmailHtmlPreviewModal({
       <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border bg-background shadow-lg">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold">Preview email</span>
+            <span className="text-sm font-semibold">{t('pageBuilder.emailPreview.title')}</span>
             <Button
               type="button"
               variant={width === 600 ? 'default' : 'outline'}
@@ -634,8 +639,8 @@ function EmailHtmlPreviewModal({
               onClick={() => setWidth(600)}
               aria-pressed={width === 600}
             >
-              <Monitor className="mr-1 h-4 w-4" />
-              Desktop mail (600px)
+              <Monitor className="mr-1 h-4 w-4" aria-hidden="true" />
+              {t('pageBuilder.emailPreview.desktop')}
             </Button>
             <Button
               type="button"
@@ -644,17 +649,17 @@ function EmailHtmlPreviewModal({
               onClick={() => setWidth(320)}
               aria-pressed={width === 320}
             >
-              <Smartphone className="mr-1 h-4 w-4" />
-              Narrow (320px)
+              <Smartphone className="mr-1 h-4 w-4" aria-hidden="true" />
+              {t('pageBuilder.emailPreview.narrow')}
             </Button>
           </div>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="Close preview">
+          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label={t('pageBuilder.emailPreview.close')}>
             <X className="h-4 w-4" />
           </Button>
         </div>
         <div className="min-h-0 flex-1 overflow-auto bg-muted/30 p-4">
           <iframe
-            title="Email HTML preview"
+            title={t('pageBuilder.emailPreview.frameTitle')}
             sandbox=""
             srcDoc={html}
             className="mx-auto block h-[min(70vh,640px)] border-0 bg-white shadow-sm"
@@ -1106,11 +1111,11 @@ export function EmailEditorPane({
                           variant="outline"
                           size="sm"
                           onClick={() => setPreviewOpen(true)}
-                          title="Preview email"
-                          aria-label="Preview email"
+                          title={tChrome('pageBuilder.emailPreview.title')}
+                          aria-label={tChrome('pageBuilder.emailPreview.title')}
                         >
-                          <Eye className="h-4 w-4" />
-                          <span className="cms-pb-header-actions__label">Preview email</span>
+                          <Eye className="h-4 w-4" aria-hidden="true" />
+                          <span className="cms-pb-header-actions__label">{tChrome('pageBuilder.emailPreview.title')}</span>
                         </Button>
                         <PageBuilderHeaderActions
                           fullscreen={fullscreen}

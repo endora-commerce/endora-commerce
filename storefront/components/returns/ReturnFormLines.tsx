@@ -85,6 +85,9 @@ export function ReturnFormLines({
                   aria-describedby={boundId}
                   style={{ width: '4rem' }}
                 />
+                {/* 180 R-13: the route handler holds the quantity to what is left, as the
+                    server action did (U4); the API stays the boundary. */}
+                {disabled ? null : <input type="hidden" name={`remaining_${l.orderItemId}`} value={l.remainingQty} />}
                 <span id={boundId} className="muted">
                   {' '}
                   {t('returns.line.remaining').replace('{count}', formatCount(l.remainingQty, locale))}

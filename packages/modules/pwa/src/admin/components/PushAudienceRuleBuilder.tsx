@@ -17,21 +17,10 @@ import type {
   PushAudienceGroupNode,
 } from '@endora-commerce/contracts';
 import { apiClient, ApiError, normalize } from '@endora-commerce/admin-kit/lib';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { criterionTypeLabels, groupOperatorLabels } from '../lib/labels.js';
+
 const DEPTH_CAP = 5;
-
-const CRITERION_TYPES: PushAudienceCriterionType[] = [
-  'salesChannel',
-  'customerGroup',
-  'organization',
-  'customer',
-];
-
-const CRITERION_LABEL: Record<PushAudienceCriterionType, string> = {
-  salesChannel: 'Sales Channel',
-  customerGroup: 'Customer Group',
-  organization: 'Organization',
-  customer: 'Customer List',
-};
 
 interface PickerOption {
   value: string;
@@ -62,6 +51,7 @@ export function PushAudienceRuleBuilder(props: {
   disabled?: boolean;
 }): ReactNode {
   const { value, onChange, disabled } = props;
+  const t = useTranslation('pwa');
   const [pickers, setPickers] = useState<Record<PushAudienceCriterionType, PickerCache>>(() => ({
     salesChannel: { loading: false, options: [], error: null },
     customerGroup: { loading: false, options: [], error: null },
@@ -70,6 +60,11 @@ export function PushAudienceRuleBuilder(props: {
   }));
 
   const attemptedRef = useRef<Set<PushAudienceCriterionType>>(new Set());
+  // `ensurePicker` is stable for the builder's life; it reads the current translator.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
 
   const ensurePicker = useCallback(async (type: PushAudienceCriterionType): Promise<void> => {
     if (attemptedRef.current.has(type)) return;
@@ -79,17 +74,14 @@ export function PushAudienceRuleBuilder(props: {
       const options = await loadPicker(type);
       setPickers((prev) => ({ ...prev, [type]: { loading: false, options, error: null } }));
     } catch (err) {
-      const message = err instanceof ApiError ? err.envelope.error.message : 'Failed to load options.';
+      const message = err instanceof ApiError ? err.envelope.error.message : tRef.current('audience.loadError');
       setPickers((prev) => ({ ...prev, [type]: { ...prev[type], loading: false, error: message } }));
     }
   }, []);
 
   return (
     <div className="b2b-col" style={{ gap: 12 }}>
-      <div className="b2b-help">
-        Send to subscribers matching these criteria. An empty rule targets every active
-        subscriber in this channel.
-      </div>
+      <div className="b2b-help">{t('audience.help')}</div>
 
       <RuleNodeView
         node={value}
@@ -101,7 +93,7 @@ export function PushAudienceRuleBuilder(props: {
       />
 
       <div className="b2b-help" style={{ marginTop: 4 }}>
-        Up to {DEPTH_CAP} nested groups. Anonymous subscribers only match Sales Channel criteria.
+        {t('audience.limits', { max: DEPTH_CAP })}
       </div>
     </div>
   );
@@ -116,6 +108,7 @@ function RuleNodeView(props: {
   onReplace: (next: PushAudienceRule | null) => void;
 }): ReactNode {
   const { node, depth, disabled, pickers, ensurePicker, onReplace } = props;
+  const t = useTranslation('pwa');
 
   if (node.kind === 'all') {
     return (
@@ -125,7 +118,7 @@ function RuleNodeView(props: {
       >
         <div className="b2b-row" style={{ alignItems: 'center', gap: 8 }}>
           <div className="b2b-grow" style={{ fontSize: 13 }}>
-            <strong>All subscribers.</strong> Add a criterion to narrow the audience.
+            {t('audience.empty')}
           </div>
           <button
             type="button"
@@ -133,7 +126,7 @@ function RuleNodeView(props: {
             disabled={disabled}
             onClick={(): void => onReplace({ kind: 'group', op: 'AND', children: [emptyCriterion()] })}
           >
-            <Plus size={12} /> Add criterion
+            <Plus size={12} aria-hidden="true" /> {t('audience.addCriterion')}
           </button>
         </div>
       </div>
@@ -174,6 +167,8 @@ function GroupView(props: {
   onChange: (next: PushAudienceRule | null) => void;
 }): ReactNode {
   const { node, depth, disabled, pickers, ensurePicker, onChange } = props;
+  const t = useTranslation('pwa');
+  const { language } = useTranslationContext();
   const [collapsed, setCollapsed] = useState(false);
 
   const updateChild = (idx: number, next: PushAudienceRule | null): void => {
@@ -232,17 +227,20 @@ function GroupView(props: {
           type="button"
           className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
           onClick={(): void => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? t('audience.expand') : t('audience.collapse')}
         >
           {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
         </button>
-        <div className="b2b-row" style={{ gap: 4 }}>
-          {(['AND', 'OR'] as const).map((op) => (
+        <div className="b2b-row" style={{ gap: 4 }} role="group" aria-label={t('audience.operator')}>
+          {groupOperatorLabels.values.map((op) => (
             <button
               key={op}
               type="button"
               className="b2b-btn b2b-btn--sm"
               disabled={disabled}
               onClick={(): void => onChange({ ...node, op })}
+              aria-pressed={node.op === op}
               style={{
                 background: node.op === op ? 'var(--primary-color)' : 'var(--surface-color)',
                 color: node.op === op ? '#fff' : 'var(--fg-default)',
@@ -250,12 +248,16 @@ function GroupView(props: {
                 fontWeight: node.op === op ? 600 : 400,
               }}
             >
-              {op}
+              {groupOperatorLabels.label(t, op)}
             </button>
           ))}
         </div>
         <div className="b2b-grow b2b-help">
-          {node.children.length} {node.children.length === 1 ? 'rule' : 'rules'} · depth {depth + 1}/{DEPTH_CAP}
+          {t(`audience.groupSummary.${new Intl.PluralRules(language).select(node.children.length)}`, {
+            count: node.children.length,
+            depth: depth + 1,
+            max: DEPTH_CAP,
+          })}
         </div>
         {depth > 0 ? (
           <button
@@ -263,7 +265,8 @@ function GroupView(props: {
             className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
             disabled={disabled}
             onClick={(): void => onChange(null)}
-            title="Remove group"
+            title={t('audience.removeGroup')}
+            aria-label={t('audience.removeGroup')}
             style={{ color: 'hsl(8 80% 50%)' }}
           >
             <Trash2 size={13} />
@@ -281,7 +284,8 @@ function GroupView(props: {
                   className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
                   disabled={disabled || idx === 0}
                   onClick={(): void => moveChild(idx, -1)}
-                  title="Move up"
+                  title={t('audience.moveUp')}
+                  aria-label={t('audience.moveUp')}
                 >
                   <ArrowUp size={12} />
                 </button>
@@ -290,7 +294,8 @@ function GroupView(props: {
                   className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
                   disabled={disabled || idx === node.children.length - 1}
                   onClick={(): void => moveChild(idx, 1)}
-                  title="Move down"
+                  title={t('audience.moveDown')}
+                  aria-label={t('audience.moveDown')}
                 >
                   <ArrowDown size={12} />
                 </button>
@@ -314,16 +319,16 @@ function GroupView(props: {
               disabled={disabled}
               onClick={addCriterion}
             >
-              <Plus size={12} /> Add criterion
+              <Plus size={12} aria-hidden="true" /> {t('audience.addCriterion')}
             </button>
             <button
               type="button"
               className="b2b-btn b2b-btn--default b2b-btn--sm"
               disabled={disabled || subgroupBlocked}
-              title={subgroupBlocked ? `Maximum nesting depth (${DEPTH_CAP}) reached` : undefined}
+              title={subgroupBlocked ? t('audience.depthReached', { max: DEPTH_CAP }) : undefined}
               onClick={addGroup}
             >
-              <Plus size={12} /> Add subgroup
+              <Plus size={12} aria-hidden="true" /> {t('audience.addGroup')}
             </button>
           </div>
         </div>
@@ -341,6 +346,7 @@ function CriterionView(props: {
   onDelete: () => void;
 }): ReactNode {
   const { node, disabled, pickers, ensurePicker, onChange, onDelete } = props;
+  const t = useTranslation('pwa');
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -370,34 +376,36 @@ function CriterionView(props: {
           style={{ width: 150 }}
           value={node.type}
           disabled={disabled}
+          aria-label={t('audience.criterionType')}
           onChange={(e): void => handleType(e.target.value as PushAudienceCriterionType)}
         >
-          {CRITERION_TYPES.map((ct) => (
-            <option key={ct} value={ct}>
-              {CRITERION_LABEL[ct]}
+          {criterionTypeLabels.options(t).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </select>
-        <span className="b2b-help">∈</span>
+        <span className="b2b-help">{t('audience.valueIn')}</span>
         <button
           type="button"
           className="b2b-btn b2b-btn--default b2b-btn--sm b2b-grow"
           style={{ justifyContent: 'flex-start', textAlign: 'left' }}
           disabled={disabled}
+          aria-expanded={open}
           onClick={(): void => {
             setOpen((v) => !v);
             void ensurePicker(node.type);
           }}
         >
           {node.values.length === 0 ? (
-            <span className="b2b-help">Pick {CRITERION_LABEL[node.type].toLowerCase()}…</span>
+            <span className="b2b-help">{t('audience.pickValues')}</span>
           ) : (
             <span style={{ fontSize: 12 }}>
               {node.values
                 .slice(0, 3)
                 .map((v) => labelMap.get(v) ?? v)
                 .join(', ')}
-              {node.values.length > 3 ? ` +${node.values.length - 3} more` : ''}
+              {node.values.length > 3 ? <> {t('audience.more', { count: node.values.length - 3 })}</> : null}
             </span>
           )}
         </button>
@@ -406,7 +414,8 @@ function CriterionView(props: {
           className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
           disabled={disabled}
           onClick={onDelete}
-          title="Remove criterion"
+          title={t('audience.removeCriterion')}
+          aria-label={t('audience.removeCriterion')}
           style={{ color: 'hsl(8 80% 50%)' }}
         >
           <Trash2 size={13} />
@@ -432,6 +441,8 @@ function ValuePicker(props: {
   onChange: (next: string[]) => void;
 }): ReactNode {
   const { values, cache, onChange } = props;
+  const t = useTranslation('pwa');
+  const tc = useTranslation('core');
   const [search, setSearch] = useState('');
   const [draft, setDraft] = useState<Set<string>>(new Set(values));
 
@@ -470,7 +481,9 @@ function ValuePicker(props: {
         <input
           autoFocus
           className="b2b-field b2b-field--addon"
-          placeholder="Search…"
+          type="search"
+          aria-label={t('audience.search')}
+          placeholder={t('audience.search')}
           value={search}
           onChange={(e): void => setSearch(e.target.value)}
         />
@@ -480,9 +493,9 @@ function ValuePicker(props: {
           {cache.error}
         </div>
       ) : cache.loading ? (
-        <div className="b2b-help">Loading…</div>
+        <div className="b2b-help">{t('audience.loading')}</div>
       ) : filtered.length === 0 ? (
-        <div className="b2b-help">No options.</div>
+        <div className="b2b-help">{t('audience.noOptions')}</div>
       ) : (
         <ul style={{ margin: 0, padding: 0, listStyle: 'none', maxHeight: 220, overflow: 'auto' }}>
           {filtered.slice(0, 200).map((opt) => {
@@ -510,10 +523,10 @@ function ValuePicker(props: {
       )}
       <div className="b2b-row" style={{ marginTop: 8, gap: 6, justifyContent: 'flex-end' }}>
         <button type="button" className="b2b-btn b2b-btn--ghost b2b-btn--sm" onClick={props.onClose}>
-          Cancel
+          {tc('common.action.cancel')}
         </button>
         <button type="button" className="b2b-btn b2b-btn--primary b2b-btn--sm" onClick={apply}>
-          Apply ({draft.size})
+          {t('audience.apply', { count: draft.size })}
         </button>
       </div>
     </div>

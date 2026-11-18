@@ -1,5 +1,7 @@
 import { randomUUID } from 'crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { AdminUserReadPort } from '@endora-commerce/contracts';
+import { AdminUser, ReturnCase } from '../../helpers/package-entities.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -7,6 +9,8 @@ import {
 } from '../../helpers/test-server.js';
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
+import { allowOffPlatform, complaintReasonId, file, noOrderBody } from './off-platform-fixtures.js';
+import { allowGuests, fileGuestCase, type FiledGuestCase } from './guest-fixtures.js';
 
 const VIEWS = '/api/v1/admin/returns/list-views';
 const SORT = { field: 'submittedAt', dir: 'desc' } as const;
@@ -328,7 +332,296 @@ describe('returns — admin list, bulk, saved views (US8)', () => {
     const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/returns/export?kind=return', cookies: ADMIN_COOKIE });
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/csv');
-    expect(res.body.split('\r\n')[0]).toBe('rmaNumber,kind,orderId,statusCode,totalRefundAmount,currency,submittedAt');
+    expect(res.body.split('\r\n')[0]).toBe(
+      // 181 (admin-api.md A1) appends `guest`.
+      'rmaNumber,reference,kind,orderId,statusCode,totalRefundAmount,currency,submittedAt,authorizedBy,offPlatform,guest',
+    );
     expect(Number(res.headers['x-export-row-count'])).toBeGreaterThanOrEqual(1);
+  });
+
+  /**
+   * `specs/180-off-platform-complaints/` T032 (FR-A41 – FR-A44, D-4, research R-8,
+   * R-20): the reference on rows and detail, the authorizer resolved in one batched
+   * lookup per page, the derived reference found by `q`, and both in the CSV.
+   */
+  describe('the authorizer and the reference (180)', () => {
+    const referenceOf = (id: string) => `#${id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    type Row = { id: string; reference: string; rmaNumber: string | null; authorizedBy: { adminUserId: string | null; name: string | null } | null };
+    const adminUsers = () => h.container.resolve<AdminUserReadPort>('adminUserReadPort');
+    const list = async (qs: string): Promise<Row[]> => {
+      const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns${qs}`, cookies: ADMIN_COOKIE });
+      expect(res.statusCode, res.body).toBe(200);
+      return (res.json() as { data: { rows: Row[] } }).data.rows;
+    };
+
+    it('carries the reference on rows and detail, and resolves the authorizer in one batched lookup per page', async () => {
+      const pending = await createCase();
+      const authorized = await createCase();
+      await h.app.inject({ method: 'POST', url: `/api/v1/admin/returns/${authorized}/authorize`, cookies: ADMIN_COOKIE });
+      const admin = await adminUsers().findById(TEST_ADMIN_ID);
+      const name = `${admin!.firstName} ${admin!.lastName}`.trim();
+
+      const findByIds = vi.spyOn(adminUsers(), 'findByIds');
+      try {
+        const rows = await list('?pageSize=200');
+        expect(findByIds).toHaveBeenCalledTimes(1);
+        const byId = new Map(rows.map((r) => [r.id, r]));
+        expect(byId.get(pending)).toMatchObject({ reference: referenceOf(pending), authorizedBy: null });
+        const row = byId.get(authorized)!;
+        expect(row.reference).toBe(row.rmaNumber);
+        expect(row.authorizedBy).toEqual({ adminUserId: TEST_ADMIN_ID, name });
+      } finally {
+        findByIds.mockRestore();
+      }
+
+      const detail = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns/${authorized}`, cookies: ADMIN_COOKIE });
+      const data = (detail.json() as { data: { reference: string; authorizedAt: string | null; authorizedBy: unknown } }).data;
+      expect(data.authorizedAt).toBeTruthy();
+      expect(data.authorizedBy).toEqual({ adminUserId: TEST_ADMIN_ID, name });
+      const fresh = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns/${pending}`, cookies: ADMIN_COOKIE });
+      expect((fresh.json() as { data: { reference: string; authorizedBy: unknown } }).data).toMatchObject({
+        reference: referenceOf(pending),
+        authorizedBy: null,
+      });
+    });
+
+    it('names a removed administrator as null, and an unknown authorizer with a null id', async () => {
+      const former = await createCase();
+      const unknown = await createCase();
+      await h.app.inject({ method: 'POST', url: `/api/v1/admin/returns/${former}/authorize`, cookies: ADMIN_COOKIE });
+      await h.app.inject({ method: 'POST', url: `/api/v1/admin/returns/${unknown}/authorize`, cookies: ADMIN_COOKIE });
+      const em = h.em().fork();
+      await em.nativeUpdate(ReturnCase, { id: former }, { authorizedByAdminUserId: randomUUID() });
+      await em.nativeUpdate(ReturnCase, { id: unknown }, { authorizedByAdminUserId: null });
+
+      const byId = new Map((await list('?pageSize=200')).map((r) => [r.id, r]));
+      expect(byId.get(former)!.authorizedBy).toMatchObject({ name: null });
+      expect(byId.get(former)!.authorizedBy!.adminUserId).not.toBeNull();
+      expect(byId.get(unknown)!.authorizedBy).toEqual({ adminUserId: null, name: null });
+    });
+
+    it('finds a case by its derived reference, with or without the #', async () => {
+      const id = await createCase();
+      for (const q of [referenceOf(id), referenceOf(id).slice(1), referenceOf(id).toLowerCase()]) {
+        const rows = await list(`?q=${encodeURIComponent(q)}`);
+        expect(rows.map((r) => r.id)).toContain(id);
+      }
+    });
+
+    it('exports the reference and the authorizer, worded in the export language', async () => {
+      const authorized = await createCase();
+      const unknown = await createCase();
+      await h.app.inject({ method: 'POST', url: `/api/v1/admin/returns/${authorized}/authorize`, cookies: ADMIN_COOKIE });
+      await h.app.inject({ method: 'POST', url: `/api/v1/admin/returns/${unknown}/authorize`, cookies: ADMIN_COOKIE });
+      await h.em().fork().nativeUpdate(ReturnCase, { id: unknown }, { authorizedByAdminUserId: null });
+      // An administrator is answered in their stored language (D-132).
+      const csvOf = async (language: 'en' | 'pl') => {
+        const em = h.em().fork();
+        const admin = await em.findOneOrFail(AdminUser, { id: TEST_ADMIN_ID });
+        const before = admin.preferredLanguage ?? null;
+        admin.preferredLanguage = language;
+        await em.flush();
+        try {
+          const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/returns/export?pageSize=200', cookies: ADMIN_COOKIE });
+          expect(res.statusCode).toBe(200);
+          return res.body.split('\r\n');
+        } finally {
+          admin.preferredLanguage = before;
+          await em.flush();
+        }
+      };
+      const rmaOf = async (id: string) => (await h.em().fork().findOneOrFail(ReturnCase, { id })).rmaNumber!;
+      const lineOf = (lines: string[], rma: string) => lines.find((l) => l.startsWith(`${rma},`))!;
+
+      const en = await csvOf('en');
+      expect(lineOf(en, await rmaOf(unknown)).endsWith(',unknown,false,false')).toBe(true);
+      expect(lineOf(en, await rmaOf(authorized)).split(',')[1]).toBe(await rmaOf(authorized));
+      const pl = await csvOf('pl');
+      expect(lineOf(pl, await rmaOf(unknown)).endsWith(',nieznany,false,false')).toBe(true);
+    });
+  });
+
+  /**
+   * `specs/180-off-platform-complaints/` T080 (FR-B34 – FR-B36, D-3, D-8): the list's
+   * origin filter, the export's marking, the recognisable rows and the erasure date.
+   */
+  describe('cases without a platform order (180)', () => {
+    type Row = { id: string; offPlatform: boolean; productLabel: string; lineCount: number; purchaseDate: string | null };
+    let offPlatformId: string;
+    let orderCaseId: string;
+
+    beforeAll(async () => {
+      const undo = await allowOffPlatform(h);
+      try {
+        const reasonId = await complaintReasonId(h.em());
+        const lines = [
+          { modelName: 'Drill X200', quantity: 1, reasonId, description: 'a' },
+          { modelName: 'Charger', quantity: 1, reasonId, description: 'b' },
+        ];
+        const res = await file(h, noOrderBody(reasonId, { lines }), { headers: { 'x-sales-channel': 'default' } });
+        offPlatformId = (res.json() as { data: { id: string } }).data.id;
+      } finally {
+        await undo();
+      }
+      // A case against a platform order — imported from an ERP or not — is not off-platform (R5).
+      orderCaseId = await createCase();
+    });
+
+    const rows = async (qs: string): Promise<Row[]> => {
+      const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns${qs}`, cookies: ADMIN_COOKIE });
+      expect(res.statusCode, res.body).toBe(200);
+      return (res.json() as { data: { rows: Row[] } }).data.rows;
+    };
+
+    it('filters by origin', async () => {
+      const off = await rows('?origin=off_platform&pageSize=200');
+      expect(off.map((r) => r.id)).toContain(offPlatformId);
+      expect(off.map((r) => r.id)).not.toContain(orderCaseId);
+      expect(off.every((r) => r.offPlatform)).toBe(true);
+      const platform = await rows('?origin=platform&pageSize=200');
+      expect(platform.map((r) => r.id)).toContain(orderCaseId);
+      expect(platform.map((r) => r.id)).not.toContain(offPlatformId);
+    });
+
+    it('carries the product label, the line count and the purchase date on every row (D-3)', async () => {
+      const all = new Map((await rows('?pageSize=200')).map((r) => [r.id, r]));
+      // The first line by the lines' id order (research R-23).
+      expect(all.get(offPlatformId)).toMatchObject({ lineCount: 2, purchaseDate: '2026-10-01', offPlatform: true });
+      expect(['Drill X200', 'Charger']).toContain(all.get(offPlatformId)!.productLabel);
+      expect(all.get(orderCaseId)).toMatchObject({ productLabel: 'Widget', lineCount: 1, purchaseDate: null, offPlatform: false });
+    });
+
+    it('marks the export', async () => {
+      const csv = await h.app.inject({ method: 'GET', url: '/api/v1/admin/returns/export?pageSize=200', cookies: ADMIN_COOKIE });
+      const [header, ...lines] = csv.body.split('\r\n');
+      const columns = header!.split(',');
+      expect(columns).toContain('offPlatform');
+      const reference = `#${offPlatformId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+      const line = lines.find((l) => l.split(',')[columns.indexOf('reference')] === reference)!;
+      expect(line.split(',')[columns.indexOf('offPlatform')]).toBe('true');
+      expect(line.split(',')[columns.indexOf('orderId')]).toBe('');
+    });
+
+    it('carries the erasure date on the detail (D-8)', async () => {
+      const at = new Date('2026-11-10T08:00:00Z');
+      await h.em().fork().nativeUpdate(ReturnCase, { id: offPlatformId }, { personalDataErasedAt: at });
+      const detail = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns/${offPlatformId}`, cookies: ADMIN_COOKIE });
+      expect((detail.json() as { data: { personalDataErasedAt: string } }).data.personalDataErasedAt).toBe(at.toISOString());
+    });
+  });
+
+  /**
+   * `specs/181-guest-complaints/` T046 (FR-061; contracts/admin-api.md A1; research R-10):
+   * the widened origin filter, a saved view keeping it, the export's `guest` column, the
+   * guest label of the customer column and the exact contact e-mail search.
+   */
+  describe('cases filed by guests (181)', () => {
+    type Row = { id: string; offPlatform: boolean; guest: boolean; customerAccountId: string | null; customerName: string | null };
+    let undoGuests: () => Promise<void>;
+    let orderCaseId: string;
+    let customerOffId: string;
+    let guestCase: FiledGuestCase;
+
+    beforeAll(async () => {
+      undoGuests = await allowGuests(h);
+      const reasonId = await complaintReasonId(h.em());
+      const res = await file(h, noOrderBody(reasonId), { headers: { 'x-sales-channel': 'default' } });
+      expect(res.statusCode, res.body).toBe(201);
+      customerOffId = (res.json() as { data: { id: string } }).data.id;
+      guestCase = await fileGuestCase(h, reasonId);
+      orderCaseId = await createCase();
+    });
+    afterAll(async () => {
+      await undoGuests();
+    });
+
+    const rows = async (qs: string): Promise<Row[]> => {
+      const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns?pageSize=200${qs}`, cookies: ADMIN_COOKIE });
+      expect(res.statusCode, res.body).toBe(200);
+      return (res.json() as { data: { rows: Row[] } }).data.rows;
+    };
+    const ids = async (qs: string): Promise<string[]> => (await rows(qs)).map((r) => r.id);
+
+    it('filters by each origin', async () => {
+      const platform = await ids('&origin=platform');
+      expect(platform).toContain(orderCaseId);
+      expect(platform).not.toContain(customerOffId);
+      expect(platform).not.toContain(guestCase.caseId);
+
+      // `off_platform` keeps 180's meaning: every case bought elsewhere, both kinds.
+      const off = await ids('&origin=off_platform');
+      expect(off).toEqual(expect.arrayContaining([customerOffId, guestCase.caseId]));
+      expect(off).not.toContain(orderCaseId);
+
+      const offCustomer = await ids('&origin=off_platform_customer');
+      expect(offCustomer).toContain(customerOffId);
+      expect(offCustomer).not.toContain(guestCase.caseId);
+      expect(offCustomer).not.toContain(orderCaseId);
+
+      const guests = await rows('&origin=guest');
+      expect(guests.map((r) => r.id)).toContain(guestCase.caseId);
+      expect(guests.every((r) => r.guest && r.offPlatform && r.customerAccountId === null)).toBe(true);
+      expect(guests.map((r) => r.id)).not.toContain(customerOffId);
+
+      const all = await ids('');
+      expect(all).toEqual(expect.arrayContaining([orderCaseId, customerOffId, guestCase.caseId]));
+    });
+
+    it('marks the guest row and names the guest in the customer column, never a customer’s', async () => {
+      const byId = new Map((await rows('')).map((r) => [r.id, r]));
+      expect(byId.get(guestCase.caseId)).toMatchObject({ guest: true, customerAccountId: null, customerName: 'Gość Kowalski' });
+      expect(byId.get(customerOffId)).toMatchObject({ guest: false, customerName: null });
+      expect(byId.get(orderCaseId)).toMatchObject({ guest: false, offPlatform: false });
+    });
+
+    it('refuses an origin it does not know', async () => {
+      const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/returns?origin=guests', cookies: ADMIN_COOKIE });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('keeps the guest origin in a saved view', async () => {
+      const created = await createView({ name: `Guest complaints ${run}`, filters: { origin: 'guest' } });
+      expect(created.statusCode, created.body).toBe(201);
+      const id = (created.json() as { data: ViewItem }).data.id;
+      const listed = ((await h.app.inject({ method: 'GET', url: VIEWS, cookies: ADMIN_COOKIE })).json() as { data: ViewItem[] }).data;
+      expect(listed.find((v) => v.id === id)?.filters).toEqual({ origin: 'guest' });
+    });
+
+    it('exports a guest column', async () => {
+      const csv = await h.app.inject({ method: 'GET', url: '/api/v1/admin/returns/export?pageSize=200', cookies: ADMIN_COOKIE });
+      const [header, ...lines] = csv.body.split('\r\n');
+      const columns = header!.split(',');
+      expect(columns[columns.length - 1]).toBe('guest');
+      const cell = (reference: string) =>
+        lines.find((l) => l.split(',')[columns.indexOf('reference')] === reference)!.split(',')[columns.indexOf('guest')];
+      expect(cell(guestCase.reference)).toBe('true');
+      expect(cell(`#${customerOffId.replace(/-/g, '').slice(0, 8).toUpperCase()}`)).toBe('false');
+      // The guest's address is not a column of the file.
+      expect(csv.body).not.toContain(guestCase.email);
+    });
+
+    it('finds a case by its contact e-mail exactly, in any case, and never by a part of it', async () => {
+      expect(await ids(`&q=${encodeURIComponent(guestCase.email)}`)).toEqual([guestCase.caseId]);
+      expect(await ids(`&q=${encodeURIComponent(`  ${guestCase.email.toUpperCase()}  `)}`)).toEqual([guestCase.caseId]);
+      // A customer's case without an order is found by its contact address too (data model §1).
+      expect(await ids(`&q=${encodeURIComponent('ewa@example.test')}`)).toContain(customerOffId);
+      for (const part of [guestCase.email.slice(0, 12), guestCase.email.split('@')[1]!, `@${guestCase.email.split('@')[1]!}`]) {
+        expect(await ids(`&q=${encodeURIComponent(part)}`)).not.toContain(guestCase.caseId);
+      }
+    });
+
+    it('drops the guest’s name once the personal data is erased', async () => {
+      const reasonId = await complaintReasonId(h.em());
+      const erased = await fileGuestCase(h, reasonId);
+      await h
+        .em()
+        .getConnection()
+        .execute(`update "return_cases" set "personal_data_erased_at" = now(), "contact" = null, "return_address" = null where "id" = ?`, [
+          erased.caseId,
+        ]);
+      const row = (await rows('&origin=guest')).find((r) => r.id === erased.caseId);
+      expect(row).toMatchObject({ guest: true, customerName: null });
+      expect(await ids(`&q=${encodeURIComponent(erased.email)}`)).toEqual([]);
+    });
   });
 });

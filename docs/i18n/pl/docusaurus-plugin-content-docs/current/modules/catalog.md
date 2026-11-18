@@ -110,8 +110,8 @@ niczego nie zmienia — bez wpisu audytu i bez zdarzenia.
   więc przycisk Wstecz przeglądarki i odświeżenie strony do niej wracają, a paleta poleceń
   (⌘K / CTRL+K) otwiera ją jako **Zarchiwizowane produkty** — wystarczy wpisać „archiwum” lub
   „archived”. Przy zaznaczeniu jej
-  pasek oferuje Przywróć, Edycję zbiorczą i Usuń; **Edytuj cenę** jest widoczne na pozostałych
-  kartach, ale nieaktywne, bo ceny ustawia się w cennikach.
+  pasek oferuje Przywróć, Edycję zbiorczą i Usuń; na pozostałych kartach oferuje Edycję
+  zbiorczą i Usuń. Ceny ustawia się w cennikach, nie na liście.
 - **Z asystenta AI panelu.** Narzędzia asystenta `catalog.archive_product` i
   `catalog.restore_product` (`catalog:write`) archiwizują i przywracają produkty po
   zatwierdzeniu pokazanego planu — tą samą akcją i z tym samym wpisem audytu, z Tobą jako
@@ -283,11 +283,11 @@ zastosować jednym wyborem.
 Na pasku narzędzi listy produktów jest lista wyboru **Zapisane widoki**, której pierwsza pozycja to
 **— Wybierz widok —**, a obok niej dwa przyciski: **Zapisz widok** i **Usuń widok**.
 
-- **Co zapamiętuje widok.** Status, rodzaj i wyszukiwany tekst — i nic więcej. Filtry **Stan**,
-  **Kategoria** i **Kanał** nie są zapisywane. Wybranie widoku ustawia status, rodzaj i
-  wyszukiwanie na wartości z widoku (wartość, której lista już nie oferuje, wczytuje się jako
-  *Wszystkie*), przywraca filtr Stan do *Wszystkie*, odrzuca to, co zmieniono i nie zapisano,
-  czyści zaznaczenie wierszy i wraca na pierwszą stronę.
+- **Co zapamiętuje widok.** Status, rodzaj i wyszukiwany tekst, czyli jedyne filtry listy.
+  Wybranie widoku ustawia status, rodzaj i wyszukiwanie na wartości z widoku (wartość, której
+  lista już nie oferuje, wczytuje się jako *Wszystkie*), odrzuca to, co zmieniono i nie
+  zapisano, czyści zaznaczenie wierszy i wraca na pierwszą stronę. Aby filtrować według stanu
+  magazynowego, użyj listy Magazyn.
 - **Zapisywanie.** **Zapisz widok** otwiera jedno okno z polem **Nazwa** i polem wyboru
   **Udostępnij wszystkim administratorom, którzy mają dostęp do tej listy**. Pole wyboru jest na
   początku odznaczone, więc nowy widok jest prywatny, dopóki go nie zaznaczysz. Nazwa jest

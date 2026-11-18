@@ -48,6 +48,7 @@ import { ConsentBanner } from '../components/analytics/ConsentBanner';
 import { CookieConsentMessage } from '../components/analytics/CookieConsentMessage';
 import { getAnonCartCookie, getSessionCookie } from '../lib/session';
 import { headers } from 'next/headers';
+import { isSecretBearingPath } from '../lib/analytics/secret-paths';
 import { DEFAULT_STOREFRONT_THEME_CODE } from '../lib/theme/instance-themes';
 import { UNAVAILABLE_HEADER } from '../lib/service-unavailable';
 import {
@@ -209,6 +210,9 @@ export default async function RootLayout({
 
   const { config, locale, currency, ctx, theme, modules, brandTokens, urlState } = await getServerContext();
   const t = tForLocale(locale);
+  // `specs/181-guest-complaints/` design review F-2 — the guest's tracking and verification
+  // pages carry a bearer token in their address: no third-party tag is loaded on them.
+  const trackers = !isSecretBearingPath((await headers()).get('x-pathname'));
   // Feature 036 US5 — checkout uses a minimal, logo-only header. The full vs
   // minimal switch is decided per-route by the <HeaderSwitch> client component
   // (`usePathname`), because this Server-Component layout is NOT re-run on
@@ -404,16 +408,20 @@ export default async function RootLayout({
       </DictionaryProvider>
       <PwaRegister locale={locale} />
       <SpeculationRules enabled={speculation.enabled} eagerness={speculation.eagerness} />
-      {/* Feature 049 — Google Analytics 4. Renders nothing for untracked
-          channels; page views are emitted per navigation by the provider. */}
-      <GoogleAnalytics config={gaConfig} />
-      <AnalyticsProvider config={gaConfig} salesChannelCode={ctx.salesChannelCode} />
-      <LinkedInInsightTag config={linkedInConfig} />
-      <MetaPixel config={metaConfig} />
-      {/* Feature 066 — the operator's GTM container plus the client-side
-          bootstrap for the platform's own dataLayer vocabulary. */}
-      <GoogleTagManager config={gtmConfig} locale={locale} />
-      <GtmProvider config={gtmConfig} salesChannelCode={ctx.salesChannelCode} />
+      {trackers ? (
+        <>
+          {/* Feature 049 — Google Analytics 4. Renders nothing for untracked
+              channels; page views are emitted per navigation by the provider. */}
+          <GoogleAnalytics config={gaConfig} />
+          <AnalyticsProvider config={gaConfig} salesChannelCode={ctx.salesChannelCode} />
+          <LinkedInInsightTag config={linkedInConfig} />
+          <MetaPixel config={metaConfig} />
+          {/* Feature 066 — the operator's GTM container plus the client-side
+              bootstrap for the platform's own dataLayer vocabulary. */}
+          <GoogleTagManager config={gtmConfig} locale={locale} />
+          <GtmProvider config={gtmConfig} salesChannelCode={ctx.salesChannelCode} />
+        </>
+      ) : null}
       {/* The prompt is owed whenever any enabled integration on the channel
           requires consent — not only Google Analytics (FR-015). */}
       <ConsentBanner

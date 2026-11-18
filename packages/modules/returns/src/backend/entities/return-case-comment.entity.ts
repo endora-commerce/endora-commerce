@@ -7,7 +7,9 @@ import { randomUUID } from 'crypto';
  *
  * A message on a case. Mirrors `order_comments`: admin comments carry a
  * visibility choice (`isCustomerVisible`) and a `notifyCustomer` flag; customer
- * comments are always visible. Exactly one author id is set.
+ * comments are always visible. Exactly one author id is set — or none, on a
+ * comment a guest posted through the tracking link (`authorGuest`,
+ * `specs/181-guest-complaints/` FR-042), which is always customer-visible.
  */
 @GlobalEntity()
 @Entity({ tableName: 'return_case_comments' })
@@ -18,6 +20,7 @@ export class ReturnCaseComment {
     | 'authorCustomerAccountId'
     | 'isCustomerVisible'
     | 'notifyCustomer'
+    | 'authorGuest'
     | 'createdAt';
 
   @PrimaryKey({ type: 'uuid' })
@@ -41,6 +44,10 @@ export class ReturnCaseComment {
 
   @Property({ type: 'boolean' })
   notifyCustomer: boolean = false;
+
+  /** Posted by the guest through the tracking link; no author id (`return_case_comments_guest_author_check`). */
+  @Property({ type: 'boolean' })
+  authorGuest: boolean = false;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   @Index()

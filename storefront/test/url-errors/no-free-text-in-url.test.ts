@@ -128,6 +128,10 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
   },
   // A path and a query.
   next: { kind: 'path', why: 'an in-site return path; the login flow refuses anything else' },
+  from: {
+    kind: 'path',
+    why: 'an in-site return path the guest complaint entry hands on as sign-in’s `next`, through `sanitiseNext` (181 FR-010)',
+  },
   q: {
     kind: 'query',
     why: 'the named exception: the buyer’s own search text, capped where the page reads it, shown only as the quoted query or an input value',

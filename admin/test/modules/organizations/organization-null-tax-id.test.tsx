@@ -93,7 +93,7 @@ function answer(org: typeof COMPANY): void {
     if (path === `/api/v1/admin/organizations/${ORG_ID}`) return Promise.resolve({ data: org });
     // A company's Roles tab reads its roles; none is what this screen needs.
     if (path.startsWith(`/api/v1/admin/organizations/${ORG_ID}/roles`)) return Promise.resolve({ data: [] });
-    if (path.startsWith('/api/v1/admin/organizations')) return Promise.resolve({ data: [org] });
+    if (path.startsWith('/api/v1/admin/organizations')) return Promise.resolve({ data: [org], meta: { page: 1, pageSize: 20, total: 1 } });
     if (path.startsWith('/api/v1/admin/warehouses')) return Promise.resolve({ items: [] });
     return Promise.resolve({ data: [] });
   });

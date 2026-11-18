@@ -19,7 +19,8 @@ export class ReturnCaseItem {
     | 'description'
     | 'inspectionOutcome'
     | 'approvedRefundAmount'
-    | 'defaultDiscountAmount';
+    | 'defaultDiscountAmount'
+    | 'serialNumber';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -28,12 +29,14 @@ export class ReturnCaseItem {
   @Index()
   returnCaseId!: string;
 
-  @Property({ type: 'uuid' })
+  /** `null` on a line of a case without a platform order (180 FR-B12). */
+  @Property({ type: 'uuid', nullable: true })
   @Index()
-  orderItemId!: string;
+  orderItemId!: string | null;
 
-  @Property({ type: 'uuid' })
-  productId!: string;
+  /** `null` for a free-text model (180 FR-B12). */
+  @Property({ type: 'uuid', nullable: true })
+  productId!: string | null;
 
   @Property({ type: 'string', length: 512 })
   productName!: string;
@@ -64,4 +67,8 @@ export class ReturnCaseItem {
 
   @Property({ type: 'decimal', precision: 14, scale: 2 })
   approvedRefundAmount: string = '0.00';
+
+  /** 180 FR-B12 — the serial number the customer gave, on a complaint line. */
+  @Property({ type: 'string', length: 100, nullable: true })
+  serialNumber?: string | null;
 }
