@@ -24,6 +24,9 @@ export { ResponsiveTable } from './ResponsiveTable.js';
 export type { ResponsiveColumn, ResponsiveTableProps } from './ResponsiveTable.js';
 export { RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from './RowActionMenu.js';
 export type { RowActionMenuItemProps, RowActionMenuProps } from './RowActionMenu.js';
+// Issue #1441 (DS-07) — one primary action per view: a detail header's primary, secondary and "More" menu.
+export { DetailHeaderActions } from './DetailHeaderActions.js';
+export type { DetailHeaderActionsProps } from './DetailHeaderActions.js';
 export { StickyFormActions } from './StickyFormActions.js';
 export type { StickyFormActionsProps } from './StickyFormActions.js';
 // Feature 180 — the generic Save and outcome summary of an editor's save session.

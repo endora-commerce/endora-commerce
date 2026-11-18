@@ -33,7 +33,7 @@ Save is in the bar fixed to the bottom of the screen.
 Save writes everything you have staged on the product, wherever on the page you staged it:
 
 - the product's fields on every tab, at the current scope, the SEO fields included;
-- the product's stock settings on the **Inventory** tab — stock management, backorders, the low-stock threshold and
+- the product's stock settings on the **Inventory** tab — **Track stock**, backorders, the low-stock threshold and
   its mode, and the fulfilment strategy with its warehouse order. They exist only at Global. The tab has no Save of
   its own, and changing the threshold mode no longer saves by itself; setting a value back to the saved one removes
   it from the count;
@@ -72,7 +72,8 @@ and they neither add to the staged changes nor clear them. Each section holding 
   packaging units;
 - deleting a URL redirect;
 - the product's sales channels on the **Channels** tab;
-- **Stock by warehouse** on the **Inventory** tab — each warehouse's stock level and low-stock threshold.
+- **Stock by warehouse** on the **Inventory** tab — each warehouse's stock level and low-stock threshold, each written
+  by its own **Apply** on the row. **Apply** is available once the value differs from the stored one.
 
 The prices in other price books are edited in the book's price grid, not here. The **Pricing** tab carries no badge:
 its base prices save with Save.

@@ -10,7 +10,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 | Subpath | What it is |
 | --- | --- |
 | `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
-| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
+| `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
 | `./contributions` | the declaration types, re-exported from `@endora-commerce/contracts` so a module needs one import for the shapes and not two |
@@ -367,6 +367,54 @@ what the message is:
   has no role without matching on class names.
 
 The behaviour is pinned in `admin/test/kit/kit-inline-status.test.tsx`, including an axe pass.
+
+## Button hierarchy — one primary per view, `DetailHeaderActions`
+
+Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
+
+- **One primary action per view.** Exactly one filled `Button` (`variant="default"`) — the action the
+  screen is for: an editor's one Save, a list's *New …*, a detail page's next step. Everything else
+  is `outline`, `ghost` or a link (Von Restorff). A screen with no obvious next step has no primary;
+  it never has two. A dialog is its own view, with its own one primary.
+- **"Add …" inside a form or a section is `outline`** with a `Plus` icon, not filled: it adds a row
+  to what the page's Save writes, it is not the page's goal.
+- **Row actions are `ghost` icon buttons with an `aria-label` naming the row** ("Remove Warsaw"),
+  or, past two of them, entries of a **`RowActionMenu`**. A row never carries a filled button. A row
+  action that writes at once (an immediate *Apply*) is `outline size="sm"`, under the section's
+  `ImmediateBadge`.
+- **Destructive actions sit in a menu and are confirmed.** A `RowActionMenuItem destructive` whose
+  `onSelect` opens `useConfirmDialog` — never a red button beside the primary (Fitts: distance, not
+  proximity).
+- **A detail header is `DetailHeaderActions`**, not a row of four or five outline buttons:
+
+  ```tsx
+  <PageHeader
+    title={order.number}
+    actions={
+      <DetailHeaderActions
+        primary={<Button onClick={approve} disabled={busy} aria-busy={busy}>{t('orders.approve')}</Button>}
+        secondary={<Button variant="outline" onClick={print}>{t('orders.print')}</Button>}
+      >
+        <RowActionMenuItem onSelect={duplicate}>{t('orders.duplicate')}</RowActionMenuItem>
+        <RowActionMenuSeparator />
+        <RowActionMenuItem destructive onSelect={askCancel}>{t('orders.cancel')}</RowActionMenuItem>
+      </DetailHeaderActions>
+    }
+  />
+  ```
+
+  `primary` is drawn **last** (the right edge, where the main action is expected), `secondary` — one
+  or two `outline` buttons — before it, and `children` go into a "More" menu drawn first (Hick: the
+  long tail costs one press, not a decision at every glance). The menu entries are the kit's
+  `RowActionMenuItem` / `RowActionMenuSeparator`; the panel is the same portalled `DropdownMenu`
+  (keyboard, typeahead, focus returned on Escape, never clipped). The trigger is an `outline` button
+  with a **visible** label — `core`'s `common.action.more` ("More" / "Więcej") unless `moreLabel` is
+  given — so its accessible name is the word on screen (WCAG 2.5.3), and it is **not rendered** when
+  every entry is conditional and off. `moreDisabled` + `moreTitle` disable it with a reason. The
+  group renders nothing when it has no action, and carries `data-slot="detail-header-actions"`.
+
+The component is pinned in `admin/test/kit/kit-detail-header-actions.test.tsx`, including an axe pass
+closed and open. The rule is also § Von Restorff of `.claude/skills/ux-laws/SKILL.md`.
 
 ## Known rough edge
 

@@ -111,6 +111,12 @@ Two hard framing rules before anything else:
   link.
 - Two competing filled buttons of the same colour cancel each other out — that is the single
   most common failure in generated commerce UI.
+- The same budget applies inside lists and tables: a row never carries a filled button. Row
+  actions are ghost icon buttons with an `aria-label` that names the row, or entries of an
+  overflow menu once there are more than two; an "Add …" inside a form is `outline`.
+- A record's header gets one primary, at most one or two visible secondary actions, and a
+  labelled "More" menu for the rest. Destructive actions live in that menu, away from the
+  primary, and ask for confirmation.
 - Use the highlight budget deliberately: one "Most popular" tier, one "Best price" badge.
 
 ### Law of Proximity
