@@ -27,6 +27,7 @@ import {
   Badge,
   Button,
   Combobox,
+  EmptyState,
   Input,
   Label,
   PageHeader,
@@ -315,23 +316,20 @@ export function PriceBooksPage(): ReactNode {
               ) : null
             }
             emptyState={
-              <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-                <BookOpen className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-                {filtered ? (
-                  <>
-                    <p className="font-medium">{t('priceBooks.list.emptyFiltered.title')}</p>
-                    <p className="text-sm text-muted-foreground">{t('priceBooks.list.emptyFiltered.body')}</p>
-                    <Button type="button" variant="outline" onClick={clearFilters}>
-                      {t('priceBooks.list.filters.clear')}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium">{t('priceBooks.list.empty.title')}</p>
-                    <p className="text-sm text-muted-foreground">{t('priceBooks.list.empty.body')}</p>
-                  </>
-                )}
-              </div>
+              filtered ? (
+                <EmptyState
+                  variant="no-results"
+                  title={t('priceBooks.list.emptyFiltered.title')}
+                  description={t('priceBooks.list.emptyFiltered.body')}
+                  onClearFilters={clearFilters}
+                />
+              ) : (
+                <EmptyState
+                  icon={<BookOpen size={20} />}
+                  title={t('priceBooks.list.empty.title')}
+                  description={t('priceBooks.list.empty.body')}
+                />
+              )
             }
           />
           {total > 0 ? (

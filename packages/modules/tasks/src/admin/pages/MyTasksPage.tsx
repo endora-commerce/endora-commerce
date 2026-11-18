@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CircleCheck, Plus, SearchX, X } from 'lucide-react';
+import { CircleCheck, Plus, X } from 'lucide-react';
 import type { TaskSummary } from '@endora-commerce/contracts';
 import { useAuth, useListViewModePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
@@ -168,33 +168,28 @@ export function MyTasksPage(): ReactNode {
                 keyExtractor={(row): string => row.id}
                 emptyState={
                   filtered ? (
-                    <div className="b2b-empty">
-                      <div className="b2b-empty__icon">
-                        <SearchX aria-hidden="true" />
-                      </div>
-                      <div className="b2b-empty__title">{t('list.noResults.title')}</div>
-                      <div className="b2b-empty__sub">{t('list.noResults.body')}</div>
-                      <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={clear}>
-                        <X aria-hidden="true" />
-                        {t('list.filter.clear')}
-                      </Button>
-                    </div>
+                    <EmptyState
+                      variant="no-results"
+                      title={t('list.noResults.title')}
+                      description={t('list.noResults.body')}
+                      onClearFilters={clear}
+                    />
                   ) : (
-                    <div className="b2b-empty">
-                      <div className="b2b-empty__icon">
-                        <CircleCheck aria-hidden="true" />
-                      </div>
-                      <div className="b2b-empty__title">{t('mine.empty.title')}</div>
-                      <div className="b2b-empty__sub">{t('mine.empty.body')}</div>
-                      {canWrite ? (
-                        <Button className="min-h-11 sm:min-h-9" asChild>
-                          <Link to="/tasks/new">
-                            <Plus aria-hidden="true" />
-                            {t('list.new')}
-                          </Link>
-                        </Button>
-                      ) : null}
-                    </div>
+                    <EmptyState
+                      icon={<CircleCheck size={20} />}
+                      title={t('mine.empty.title')}
+                      description={t('mine.empty.body')}
+                      action={
+                        canWrite ? (
+                          <Button className="min-h-11 sm:min-h-9" asChild>
+                            <Link to="/tasks/new">
+                              <Plus aria-hidden="true" />
+                              {t('list.new')}
+                            </Link>
+                          </Button>
+                        ) : null
+                      }
+                    />
                   )
                 }
               />

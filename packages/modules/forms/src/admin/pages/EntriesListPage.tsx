@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Download, Inbox, SearchX, Trash2 } from 'lucide-react';
+import { Download, Inbox, Trash2 } from 'lucide-react';
 import type { FormEntrySummary, FormSummary } from '@endora-commerce/contracts';
 import { ModalDialog, ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, Checkbox, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, Checkbox, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { entriesApi, formsApi, type EntryFilterParams } from '../api.js';
 import {
   EntryFilters,
@@ -234,21 +234,15 @@ export function EntriesListPage(): ReactNode {
                 data={load.items}
                 keyExtractor={(entry) => entry.id}
                 emptyState={
-                  <div className="flex flex-col items-center gap-3 py-10 text-center">
-                    {isFiltered(filters) ? (
-                      <SearchX size={32} aria-hidden="true" className="text-muted-foreground" />
-                    ) : (
-                      <Inbox size={32} aria-hidden="true" className="text-muted-foreground" />
-                    )}
-                    <p className="text-sm text-muted-foreground">
-                      {isFiltered(filters) ? t('entries.emptyFiltered') : t('entries.empty')}
-                    </p>
-                    {isFiltered(filters) ? (
-                      <Button type="button" variant="outline" size="sm" onClick={() => setFilters(NO_ENTRY_FILTERS)}>
-                        {t('entries.clearFilters')}
-                      </Button>
-                    ) : null}
-                  </div>
+                  isFiltered(filters) ? (
+                    <EmptyState
+                      variant="no-results"
+                      title={t('entries.emptyFiltered')}
+                      onClearFilters={() => setFilters(NO_ENTRY_FILTERS)}
+                    />
+                  ) : (
+                    <EmptyState icon={<Inbox size={20} />} title={t('entries.empty.title')} description={t('entries.empty.body')} />
+                  )
                 }
               />
               {load.nextCursor ? (

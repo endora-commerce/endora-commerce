@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronDown, CircleDollarSign, Plus, SearchX, X } from 'lucide-react';
+import { ChevronDown, CircleDollarSign, Plus, X } from 'lucide-react';
 import {
   opportunityBoardCustomFieldRef,
   type CustomFieldFilters,
@@ -23,6 +23,7 @@ import {
   Button,
   Card,
   CardContent,
+  EmptyState,
   Label,
   PageHeader,
   Select,
@@ -426,28 +427,19 @@ export function OpportunitiesList(): ReactNode {
   );
 
   const emptyState = filtered ? (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <SearchX aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('opportunity.list.noResults.title')}</div>
-      <div className="b2b-empty__sub">{t('opportunity.list.noResults.body')}</div>
-      <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={clear}>
-        <X aria-hidden="true" />
-        {t('opportunity.list.filter.clear')}
-      </Button>
-    </div>
+    <EmptyState
+      variant="no-results"
+      title={t('opportunity.list.noResults.title')}
+      description={t('opportunity.list.noResults.body')}
+      onClearFilters={clear}
+    />
   ) : (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <CircleDollarSign aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('opportunity.list.empty.title')}</div>
-      <div className="b2b-empty__sub">
-        {canWrite ? t('opportunity.list.empty.body') : t('opportunity.list.empty.bodyReadOnly')}
-      </div>
-      {canWrite ? newOpportunity : null}
-    </div>
+    <EmptyState
+      icon={<CircleDollarSign size={20} />}
+      title={t('opportunity.list.empty.title')}
+      description={canWrite ? t('opportunity.list.empty.body') : t('opportunity.list.empty.bodyReadOnly')}
+      action={canWrite ? newOpportunity : null}
+    />
   );
 
   return (
