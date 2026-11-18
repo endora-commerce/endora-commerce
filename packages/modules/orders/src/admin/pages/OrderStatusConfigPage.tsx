@@ -4,7 +4,7 @@ import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { DictionaryLanguagesPageResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { StatusTransitionGraph } from '@endora-commerce/admin-kit/components';
+import { StatusTransitionGraph, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ORDER_STATUS_DEFAULT_COLOR } from '@endora-commerce/contracts';
 import { StatusColorPicker } from '../components/StatusColorPicker.js';
@@ -76,7 +76,7 @@ export function OrderStatusConfigPage(): ReactNode {
   const [editColor, setEditColor] = useState(ORDER_STATUS_DEFAULT_COLOR);
 
   // Status pending deletion — drives the confirmation dialog.
-  const [pendingDelete, setPendingDelete] = useState<StatusDef | null>(null);
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -162,11 +162,16 @@ export function OrderStatusConfigPage(): ReactNode {
     });
   };
 
-  const confirmDelete = (): void => {
-    const code = pendingDelete?.code;
-    if (!code) return;
-    setPendingDelete(null);
-    void run(() => apiClient.delete(`/api/v1/admin/orders/statuses/${code}`));
+  // Issue #1474 (SALES-09) — asked in the kit's dialog, focus on *Cancel*.
+  const confirmDelete = async (status: StatusDef): Promise<void> => {
+    const ok = await confirm({
+      title: t('orderStatusConfig.deleteConfirm.title'),
+      message: t('orderStatusConfig.deleteConfirm.body', { name: statusLabel(status) }),
+      confirmLabel: t('common.action.delete'),
+      destructive: true,
+    });
+    if (!ok) return;
+    void run(() => apiClient.delete(`/api/v1/admin/orders/statuses/${status.code}`));
   };
 
   const addTransition = (from: string, to: string): void => {
@@ -312,7 +317,7 @@ export function OrderStatusConfigPage(): ReactNode {
                         size="sm"
                         disabled={locked}
                         aria-label={`delete-${s.code}`}
-                        onClick={(): void => setPendingDelete(s)}
+                        onClick={(): void => void confirmDelete(s)}
                       >
                         <Trash2 />
                       </Button>
@@ -396,31 +401,7 @@ export function OrderStatusConfigPage(): ReactNode {
         </CardContent>
       </Card>
 
-      {pendingDelete ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">
-              {t('orderStatusConfig.deleteConfirm.title')}
-            </h2>
-            <p className="mb-6 text-sm text-muted-foreground">
-              {t('orderStatusConfig.deleteConfirm.body', { name: statusLabel(pendingDelete) })}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={(): void => setPendingDelete(null)}>
-                {t('common.action.cancel')}
-              </Button>
-              <Button variant="destructive" aria-label="confirm-delete" onClick={confirmDelete}>
-                <Trash2 />
-                {t('common.action.delete')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {confirmDialog}
     </>
   );
 }

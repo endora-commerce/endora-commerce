@@ -1,6 +1,8 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
+import { Loader2 } from 'lucide-react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Button, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 interface StatusDef {
@@ -25,14 +27,22 @@ interface Props {
  * Feature 038 (US2) — bulk order status change. Applies the chosen target to
  * every selected order; the server moves only the eligible ones and reports
  * the rest as skipped (with reasons).
+ *
+ * The kit's `ModalDialog` since issue #1474 (SALES-09): named by its title,
+ * focus held inside and returned to *Change status*, Escape to close, and
+ * Escape and the scrim inert while the request runs. The form is mounted per
+ * opening, so a status picked and abandoned is not still chosen next time.
  */
-export function OrdersBulkStatusDialog({ open, orderIds, statuses, onClose, onDone }: Props): ReactNode {
+export function OrdersBulkStatusDialog(props: Props): ReactNode {
+  return props.open ? <BulkStatusForm {...props} /> : null;
+}
+
+function BulkStatusForm({ orderIds, statuses, onClose, onDone }: Props): ReactNode {
   const t = useTranslation('core');
   const [target, setTarget] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  if (!open) return null;
+  const errorId = useId();
 
   const apply = async (): Promise<void> => {
     if (!target) return;
@@ -51,30 +61,44 @@ export function OrdersBulkStatusDialog({ open, orderIds, statuses, onClose, onDo
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true">
-      <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
-        <h2 className="mb-4 text-lg font-semibold">{t('orders.bulk.dialogTitle', { count: orderIds.length })}</h2>
-        {error ? <p className="mb-3 text-sm text-destructive">{error}</p> : null}
-        <div className="space-y-2">
-          <Label htmlFor="bulk-target">{t('orders.bulk.targetStatus')}</Label>
-          <Select id="bulk-target" value={target} onChange={(e): void => setTarget(e.target.value)}>
-            <option value="">—</option>
-            {statuses.map((s) => (
-              <option key={s.code} value={s.code}>
-                {s.name['en'] ?? s.code}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div className="mt-6 flex justify-end gap-2">
+    <ModalDialog
+      title={t('orders.bulk.dialogTitle', { count: orderIds.length })}
+      onClose={onClose}
+      busy={busy}
+      widthClassName="max-w-md"
+      footer={
+        <>
           <Button variant="outline" onClick={onClose} disabled={busy}>
             {t('common.action.cancel')}
           </Button>
-          <Button onClick={(): void => void apply()} disabled={!target || busy}>
+          <Button onClick={(): void => void apply()} disabled={!target || busy} aria-busy={busy}>
+            {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : null}
             {t('orders.bulk.apply')}
           </Button>
-        </div>
+        </>
+      }
+    >
+      <div className="space-y-2">
+        <Label htmlFor="bulk-target">{t('orders.bulk.targetStatus')}</Label>
+        <Select
+          id="bulk-target"
+          value={target}
+          disabled={busy}
+          aria-describedby={errorId}
+          onChange={(e): void => setTarget(e.target.value)}
+        >
+          <option value="">—</option>
+          {statuses.map((s) => (
+            <option key={s.code} value={s.code}>
+              {s.name['en'] ?? s.code}
+            </option>
+          ))}
+        </Select>
+        {/* Mounted before it has text, so a failure that arrives is announced. */}
+        <p id={errorId} role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
       </div>
-    </div>
+    </ModalDialog>
   );
 }
