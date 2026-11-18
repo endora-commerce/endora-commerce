@@ -1,6 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
+import { productAudienceOf } from '@endora-commerce/platform/http';
 import {
-  addReturnAttachmentRequestSchema,
+  returnFormConfigQuerySchema,
+  type ReturnFormConfig,
   createReturnCaseRequestSchema,
   customerAddCommentRequestSchema,
   organizationPermissionPreHandler,
@@ -14,6 +17,8 @@ import type { ReturnCommentService } from './services/return-comment-service.js'
 import type { ReturnDeliveryMethodService } from './services/return-delivery-method-service.js';
 import type { ReturnReasonService } from './services/return-reason-service.js';
 import type { ReturnAttachmentService } from './services/return-attachment-service.js';
+import { sendAttachment } from './attachment-response.js';
+import { registerReturnsUploadRoutes } from './routes.uploads.js';
 
 /**
  * The organization permission that opens a return or a complaint
@@ -52,6 +57,14 @@ export interface ReturnsCustomerRoutesDeps {
   resolveCustomerAccountId: (req: FastifyRequest) => string;
   /** `organizations`' permission port, read per request through this thunk. */
   organizationPermissions: () => OrganizationPermissionPort;
+  /** What the returns form needs for a channel and language (180 §C1). */
+  formConfig: (input: {
+    salesChannelId: string;
+    language: string;
+    kind: 'return' | 'complaint';
+    orderId: string | undefined;
+    customer: ReturnCustomerContext;
+  }) => Promise<ReturnFormConfig>;
 }
 
 /**
@@ -117,8 +130,25 @@ export async function registerReturnsCustomerRoutes(
     },
   );
 
+  // 180 §C1 (research R-21) — the channel and the language are the request's.
+  app.get('/api/v1/returns/form-config', { preHandler: requireCustomer, schema: { querystring: returnFormConfigQuerySchema } }, async (request) => {
+    const query = returnFormConfigQuerySchema.parse(request.query);
+    const data = await deps.formConfig({
+      salesChannelId: getResolvedChannel(request).id,
+      language: await request.responseLanguage(),
+      kind: query.kind ?? 'complaint',
+      orderId: query.orderId,
+      customer: customerContextOf(request, resolveCustomerAccountId),
+    });
+    return { data };
+  });
+
   app.get('/api/v1/returns', { preHandler: requireCustomer }, async (request) => {
-    const data = await caseService.listForCustomer(customerContextOf(request, resolveCustomerAccountId));
+    // The status label is in the request's language, as every customer read here is.
+    const data = await caseService.listForCustomer(
+      customerContextOf(request, resolveCustomerAccountId),
+      await request.responseLanguage(),
+    );
     return { data };
   });
 
@@ -129,6 +159,7 @@ export async function registerReturnsCustomerRoutes(
       const data = await caseService.getForCustomer(
         request.params.id,
         customerContextOf(request, resolveCustomerAccountId),
+        await request.responseLanguage(),
       );
       return { data };
     },
@@ -139,9 +170,17 @@ export async function registerReturnsCustomerRoutes(
     { preHandler: createsReturns, schema: { body: createReturnCaseRequestSchema } },
     async (request, reply) => {
       const body = createReturnCaseRequestSchema.parse(request.body);
-      const data = await caseService.createCase(body, customerContextOf(request, resolveCustomerAccountId));
-      reply.status(201);
-      return { data };
+      // The channel, the language and the audience are the request's, never the
+      // body's (180 Principles XI, XII; customer-api.md §C3).
+      const channel = getResolvedChannel(request);
+      const filed = await caseService.createCase(body, customerContextOf(request, resolveCustomerAccountId), {
+        channel: { id: channel.id, defaultCurrency: channel.defaultCurrency },
+        language: await request.responseLanguage(),
+        audience: productAudienceOf(request),
+      });
+      // A repeated submission key answers the case already filed (research R-18).
+      reply.status(filed.created ? 201 : 200);
+      return { data: filed.detail };
     },
   );
 
@@ -177,20 +216,29 @@ export async function registerReturnsCustomerRoutes(
     { preHandler: requireCustomer },
     async (request) => {
       const customerAccountId = resolveCustomerAccountId(request);
-      const data = await caseService.cancelByCustomer(request.params.id, customerAccountId);
+      const data = await caseService.cancelByCustomer(request.params.id, customerAccountId, await request.responseLanguage());
       return { data };
     },
   );
 
-  app.post<{ Params: { id: string } }>(
-    '/api/v1/returns/:id/attachments',
-    { preHandler: requireCustomer, schema: { body: addReturnAttachmentRequestSchema } },
+  // --- Attachments (`specs/180-off-platform-complaints/` §C2, §C4, §C5) -------
+  await registerReturnsUploadRoutes(app, {
+    attachmentService,
+    requireCustomer,
+    createsReturns,
+    customerContextOf: (request) => customerContextOf(request, resolveCustomerAccountId),
+  });
+
+  app.get<{ Params: { id: string; attachmentId: string } }>(
+    '/api/v1/returns/:id/attachments/:attachmentId/file',
+    { preHandler: requireCustomer },
     async (request, reply) => {
-      const customerAccountId = resolveCustomerAccountId(request);
-      const body = addReturnAttachmentRequestSchema.parse(request.body);
-      const data = await attachmentService.addToCase(request.params.id, customerAccountId, body);
-      reply.status(201);
-      return { data };
+      const served = await attachmentService.openForCustomer(
+        request.params.id,
+        request.params.attachmentId,
+        customerContextOf(request, resolveCustomerAccountId),
+      );
+      return sendAttachment(reply, served, { inlineImages: false });
     },
   );
 }

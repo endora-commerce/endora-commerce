@@ -371,6 +371,20 @@ export interface TransactionalEmailSender {
   send(input: TransactionalEmailSendInput): Promise<TransactionalSendOutcome>;
 }
 
+/**
+ * Container name: `transactionalEmailStatePort`. Owner: `transactional_emails`
+ * (`specs/180-off-platform-complaints/` D-11, research R-21).
+ *
+ * Whether an e-mail is switched on — what a module reads before it tells its reader
+ * that one is on its way. It reports the operator's `active` flag and nothing about
+ * transport: a deployment without a mail server is a configuration fault the e-mail
+ * log already reports.
+ */
+export interface TransactionalEmailStatePort {
+  /** `TransactionalEmail.active` for the code; `false` for an unknown code. */
+  isActive(code: string): Promise<boolean>;
+}
+
 // ---------------------------------------------------------------------------
 // --- ports -----------------------------------------------------------------
 //

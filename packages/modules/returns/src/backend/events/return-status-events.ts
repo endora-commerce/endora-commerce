@@ -25,7 +25,8 @@ export interface ReturnStatusActor {
 
 export interface ReturnStatusEvent extends EventBase {
   returnCaseId: string;
-  orderId: string;
+  /** `null` for a case without a platform order (`specs/180-off-platform-complaints/` R-10). */
+  orderId: string | null;
   organizationId: string | null;
   salesChannelId: string;
   from: string;

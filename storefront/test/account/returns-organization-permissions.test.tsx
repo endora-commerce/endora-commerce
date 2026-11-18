@@ -53,6 +53,11 @@ function returnCase(overrides: Partial<ReturnCaseDetail> = {}): ReturnCaseDetail
     rmaNumber: 'RMA-1',
     kind: 'return',
     orderId: order.id,
+    reference: overrides.rmaNumber ?? 'RMA-1',
+    offPlatform: false,
+    productLabel: 'Widget',
+    lineCount: 1,
+    purchaseDate: null,
     customerAccountId: ME,
     statusCode: 'submitted',
     statusLabel: 'Submitted',
@@ -79,6 +84,7 @@ vi.mock('../../lib/i18n/navigation', () => ({
   localeRedirect: async (to: string) => {
     throw new Error(`redirect ${to}`);
   },
+  localizedPath: async (path: string) => path,
 }));
 vi.mock('../../lib/api/account', () => ({
   getMe: async () => {

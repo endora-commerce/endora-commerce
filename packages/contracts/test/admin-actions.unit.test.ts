@@ -197,6 +197,12 @@ describe('KnownIconNameSchema', () => {
   it('accepts the calendar icon', () => {
     expect(() => KnownIconNameSchema.parse('CalendarDays')).not.toThrow();
   });
+
+  // `specs/180-off-platform-complaints/` (US7) — `returns`' *Return and complaint
+  // terms* palette action. The list held no glyph for accepted terms.
+  it('accepts the terms icon', () => {
+    expect(() => KnownIconNameSchema.parse('FileCheck')).not.toThrow();
+  });
 });
 
 describe('GetAdminActionsQuerySchema', () => {

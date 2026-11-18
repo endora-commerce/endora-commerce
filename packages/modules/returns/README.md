@@ -19,6 +19,7 @@ A module is not imported by application code. The platform discovers the extensi
 | `@endora-commerce/mod-returns/backend` | the composition root the platform calls, with the entities, services, routes and workers it registers |
 | `@endora-commerce/mod-returns/migrations` | the module’s own schema migrations, in the order the platform runs them |
 | `@endora-commerce/mod-returns/tailwind.css` | the Tailwind source declaration for the admin code above |
+| `@endora-commerce/mod-returns/test-support` | development-only — the test doubles, fixtures and volatile tables this module’s own tests need |
 
 ## Depends on
 
@@ -33,10 +34,13 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 
 **Third-party**
 
+- `@fastify/multipart` ^10
 - `@mikro-orm/core` ^6
 - `@mikro-orm/migrations` ^6
 - `@mikro-orm/postgresql` ^6
+- `bullmq` ^5
 - `fastify` ^5.11.0
+- `ioredis` ^5
 - `lucide-react` ^1 — *optional*
 - `react` ^19 — *optional*
 - `react-router-dom` ^7 — *optional*

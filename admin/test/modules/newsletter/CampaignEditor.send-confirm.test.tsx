@@ -88,6 +88,7 @@ const BUNDLE = {
       'campaign.send.notice.queued',
       'campaign.send.failed',
       'campaign.send.audience.all',
+      'campaign.audience.title',
     ]).newsletter,
     'campaign.send.message.other': '{subject} → {count} ({audience})',
     'campaign.send.confirm.other': 'Send to {count} subscribers',
@@ -183,7 +184,7 @@ describe('CampaignEditor — send asks first, naming the audience (#1462)', () =
 
   it('puts the audience before the content, so the target is chosen first', async () => {
     await renderEditor();
-    const audience = screen.getByText('Audience');
+    const audience = screen.getByText('campaign.audience.title');
     const canvas = screen.getByTestId('email-canvas');
     expect(audience.compareDocumentPosition(canvas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

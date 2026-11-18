@@ -4,7 +4,14 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
+import { InMemoryMailer } from '../../../../packages/modules/email/src/backend/services/mailer.js';
+import { ReturnCaseComment } from '../../helpers/package-entities.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
+import {
+  captureReturnsNotificationJobs,
+  processReturnsNotification,
+  type CapturedReturnsJob,
+} from './notification-jobs.js';
 
 /**
  * Feature 046 (US4) — comment conversation with correct visibility/notify and
@@ -12,9 +19,12 @@ import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedRetur
  */
 describe('returns — comments (US4)', () => {
   let h: BackendServerHandle;
+  let mailer: InMemoryMailer;
+  const jobs: CapturedReturnsJob[] = [];
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    mailer = new InMemoryMailer();
+    h = await setupBackendServer({ organizationsMailer: mailer, moduleOverrides: captureReturnsNotificationJobs(jobs) });
     await resetReturnGraph(h.em());
   });
   afterAll(async () => {
@@ -106,5 +116,64 @@ describe('returns — comments (US4)', () => {
       payload: { body: 'me too' },
     });
     expect(customerComment.statusCode).toBe(409);
+  });
+
+  /**
+   * `specs/180-off-platform-complaints/` T023 (FR-A20 – FR-A22, research R-6): a
+   * customer-visible comment with *notify customer* e-mails the filer; nothing else
+   * does, and nothing stored before the feature ever will.
+   */
+  describe('notify customer (180 US3)', () => {
+    const post = (id: string, payload: Record<string, unknown>) =>
+      h.app.inject({ method: 'POST', url: `/api/v1/admin/returns/${id}/comments`, cookies: ADMIN_COOKIE, payload });
+    const commentJobs = (commentId: string) =>
+      jobs.filter((j) => j.kind === 'comment_notify' && j.returnCaseCommentId === commentId);
+
+    it('enqueues one comment_notify for a customer-visible comment with notify, which e-mails the body', async () => {
+      const id = await createCase();
+      const res = await post(id, { body: 'Your parcel arrived today.', isCustomerVisible: true, notifyCustomer: true });
+      expect(res.statusCode).toBe(201);
+      const commentId = (res.json() as { data: { id: string } }).data.id;
+      expect(commentJobs(commentId)).toHaveLength(1);
+
+      await processReturnsNotification(h, commentJobs(commentId)[0]!);
+      const mails = mailer.sent.filter((m) => m.meta?.['kind'] === 'return_comment_added' && m.meta?.['returnCaseId'] === id);
+      expect(mails).toHaveLength(1);
+      expect(mails[0]!.to).toBe('stub-customer@example.com');
+      expect(mails[0]!.text).toContain('Your parcel arrived today.');
+    });
+
+    it('enqueues nothing for a comment without notify', async () => {
+      const id = await createCase();
+      const res = await post(id, { body: 'Just so you know.', isCustomerVisible: true, notifyCustomer: false });
+      expect(res.statusCode).toBe(201);
+      expect(commentJobs((res.json() as { data: { id: string } }).data.id)).toHaveLength(0);
+    });
+
+    it('refuses notify on an internal comment with 422, storing and enqueuing nothing', async () => {
+      const id = await createCase();
+      const before = jobs.length;
+      const res = await post(id, { body: 'internal', isCustomerVisible: false, notifyCustomer: true });
+      expect(res.statusCode).toBe(422);
+      expect(jobs.length).toBe(before);
+      const stored = await h.em().fork().count(ReturnCaseComment, { returnCaseId: id });
+      expect(stored).toBe(0);
+    });
+
+    it('never sends a comment stored before the feature, notify flag or not', async () => {
+      const id = await createCase();
+      const em = h.em().fork();
+      const legacy = em.create(ReturnCaseComment, {
+        returnCaseId: id,
+        authorAdminUserId: '00000000-0000-4000-8000-0000000000b1',
+        body: 'stored before the release',
+        isCustomerVisible: true,
+        notifyCustomer: true,
+      } as never);
+      await em.persistAndFlush(legacy);
+      // A later comment on the same case enqueues its own job and nothing for the old one.
+      await post(id, { body: 'A new message.', isCustomerVisible: true, notifyCustomer: true });
+      expect(commentJobs((legacy as unknown as { id: string }).id)).toHaveLength(0);
+    });
   });
 });

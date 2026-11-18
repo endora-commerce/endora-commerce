@@ -90,7 +90,12 @@ const SUBJECTS: readonly Subject[] = [
   // words rather than restated here.
   {
     module: 'transactional_emails',
-    actions: ['open-email-blocks', 'open-email-templates', 'open-transactional-emails'],
+    actions: [
+      'open-email-blocks',
+      'open-email-branding',
+      'open-email-templates',
+      'open-transactional-emails',
+    ],
     axis: 'platform-unavailable',
     admin: transactionalEmailsAdmin,
   },
@@ -232,6 +237,7 @@ describe('batch 11 contributes no palette action while off (Constitution XVII it
       '/transactional-emails/blocks/:id',
       '/transactional-emails/templates',
       '/transactional-emails/templates/:id',
+      '/transactional-emails/branding',
       '/transactional-emails/:code',
     ]);
   });
