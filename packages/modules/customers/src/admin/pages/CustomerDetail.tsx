@@ -555,12 +555,14 @@ function CustomerDetailScreen({ id }: { id: string }): ReactNode {
           member and a shared one would let that host's mount cover this host's
           absence (Z13). */}
       {/* Feature 180 — the page's save session: every panel here saves with the page Save. */}
-      <AdminZone name="customer.detail.after" props={{ customerId: id, saveSession: session.handle }} />
+      {/* Issue #1437 — at page level each contribution is a card of its own. */}
+      <AdminZone name="customer.detail.after" props={{ customerId: id, saveSession: session.handle }} chrome="card" />
 
       {/* Feature 055 — operator-defined custom fields for this customer. Embedded (feature 180,
           WP-8): the bag is the host part of the page Save, one `PATCH …/custom-fields`, blocking,
           so a refused custom field writes no panel. */}
       <CustomFieldValuesPanel
+        chrome="card"
         entityType="customer"
         values={customFieldDraft === undefined ? storedValues : { ...storedValues, ...customFieldDraft }}
         onChange={(bag): void => {

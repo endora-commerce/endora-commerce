@@ -931,8 +931,9 @@ export function RfqDetail(): ReactNode {
       </Card>
 
       {/* Panels other modules add to this screen. The host knows none of them;
-          with nobody contributing this renders nothing at all. */}
-      {id ? <AdminZone name="quote_request.detail.after" props={{ quoteRequestId: id }} /> : null}
+          with nobody contributing this renders nothing at all. At page level each
+          is a card of its own (`chrome="card"`, issue #1437). */}
+      {id ? <AdminZone name="quote_request.detail.after" props={{ quoteRequestId: id }} chrome="card" /> : null}
 
       {cancelOpen ? (
         <CancelDialog

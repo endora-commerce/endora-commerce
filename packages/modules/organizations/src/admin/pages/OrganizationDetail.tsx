@@ -795,8 +795,10 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           {/* Feature 175 — the `customer` custom fields of the account being created. */}
           {hasPermission('custom_fields:read') ? (
             <div className="md:col-span-2">
+              {/* A section of the Direct-add card, under its h2 (issue #1437). */}
               <CustomFieldValuesPanel
                 key={directFormKey}
+                titleAs="h3"
                 entityType="customer"
                 values={EMPTY_MEMBER_VALUES}
                 onChange={setDirectValues}
@@ -1019,9 +1021,10 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
           above is this module's own editor of the same assignment, and two
           editors of it on one page would disagree about who may change it.
 
-          No chrome around it, unlike `catalog`'s category editor: every
-          contribution here renders its own card, so a wrapper would nest one
-          card inside another and an empty zone renders nothing at all. */}
+          No chrome around it, unlike `catalog`'s category editor: at page level
+          every contribution is a card of its own (`chrome="card"`, issue
+          #1437), so a wrapper would nest one card inside another, and an empty
+          zone renders nothing at all. */}
       {/* Feature 154 — the stores this Organization's members may use, first
           among the panels below the members because it decides whether they can
           sign in at all. */}
@@ -1030,7 +1033,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       {/* Feature 180, WP-7 — the panels here take part in this screen's one Save. Re-keyed when
           a version conflict discarded every change, so each panel reads its stored value again. */}
       <div ref={zoneRef}>
-        <AdminZone key={reloadKey} name="organization.detail.after" props={{ organizationId: org.id, saveSession: session.handle }} />
+        <AdminZone key={reloadKey} name="organization.detail.after" props={{ organizationId: org.id, saveSession: session.handle }} chrome="card" />
       </div>
 
       {/* Feature 056 US1 — organization hierarchy (parent picker + subtree view). */}
@@ -1094,6 +1097,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       <div className="mt-4">
         <CustomFieldValuesPanel
           key={reloadKey}
+          chrome="card"
           entityType="organization"
           values={edits.customFieldValues === undefined ? (org.customFieldValues ?? {}) : { ...(org.customFieldValues ?? {}), ...edits.customFieldValues }}
           onChange={(bag): void => changeEdits({ customFieldValues: bag })}

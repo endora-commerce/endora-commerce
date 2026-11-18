@@ -1507,6 +1507,7 @@ export function OrderCreatePage(): ReactNode {
       {canSeeCustomFields ? (
         <div className="mb-4">
           <CustomFieldValuesPanel
+            chrome="card"
             entityType="order"
             values={EMPTY_VALUES}
             onChange={setCustomFieldValues}

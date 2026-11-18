@@ -709,7 +709,8 @@ export function TaskDetail(): ReactNode {
         />
       ) : null}
 
-      <AdminZone name="task.detail.after" props={{ taskId: task.id }} />
+      {/* At page level each contribution is a card of its own (issue #1437). */}
+      <AdminZone name="task.detail.after" props={{ taskId: task.id }} chrome="card" />
     </>
   );
 }

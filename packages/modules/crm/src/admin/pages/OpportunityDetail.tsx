@@ -522,10 +522,10 @@ export function OpportunityDetail(): ReactNode {
 
       {/*
         Panels other modules add about this Opportunity as a whole. The zone
-        brings no chrome and renders nothing when empty; `crm` names no
-        contributor.
+        renders nothing when empty; at page level each contribution is a card
+        of its own (`chrome="card"`, issue #1437). `crm` names no contributor.
       */}
-      <AdminZone name="opportunity.detail.after" props={{ opportunityId: id }} />
+      <AdminZone name="opportunity.detail.after" props={{ opportunityId: id }} chrome="card" />
     </>
   );
 }

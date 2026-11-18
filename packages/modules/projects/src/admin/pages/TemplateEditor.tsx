@@ -572,11 +572,12 @@ export function TemplateEditor(): ReactNode {
               <p id="template-stages-hint" className="text-sm text-muted-foreground">
                 {t('templates.editor.stagesHint')}
               </p>
-              <ol className="space-y-3">
+              {/* Rows divided by a rule, not a box each (issue #1437, WORK-04). */}
+              <ol className="divide-y divide-border">
                 {graph.stages.map((row, index) => {
                   const position = index + 1;
                   return (
-                    <li key={row.key} className="space-y-3 rounded-md border p-3">
+                    <li key={row.key} className="space-y-3 py-3 first:pt-0 last:pb-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span aria-hidden="true" className="text-sm font-medium tabular-nums text-muted-foreground">
                           {position}.

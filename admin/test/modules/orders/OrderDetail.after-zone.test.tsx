@@ -173,7 +173,7 @@ describe('OrderDetail — the order.detail.after zone', () => {
       resolve(process.cwd(), '../packages/modules/orders/src/admin/pages/OrderDetail.tsx'),
       'utf8',
     );
-    expect(source).toContain('<AdminZone name="order.detail.after" props={{ orderId: id }} />');
+    expect(source).toContain('<AdminZone name="order.detail.after" props={{ orderId: id }} chrome="card" />');
     expect(source).not.toMatch(/mod-crm|crm:|opportunit/i);
   });
 });

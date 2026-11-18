@@ -157,7 +157,7 @@ describe('OpportunityDetail — the opportunity.detail.after zone', () => {
       resolve(process.cwd(), '../packages/modules/crm/src/admin/pages/OpportunityDetail.tsx'),
       'utf8',
     );
-    expect(source).toContain('<AdminZone name="opportunity.detail.after" props={{ opportunityId: id }} />');
+    expect(source).toContain('<AdminZone name="opportunity.detail.after" props={{ opportunityId: id }} chrome="card" />');
     expect(source).not.toMatch(/mod-projects|projects:|ProjectPanel/i);
   });
 });

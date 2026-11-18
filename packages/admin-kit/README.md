@@ -9,7 +9,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 
 | Subpath | What it is |
 | --- | --- |
-| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header` (`PageHeader`, see below), `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `empty-state` (`EmptyState`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `tabs` (`Tabs`, `TabPanel`, `RecordTabs`, see below), `separator` |
+| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header` (`PageHeader`, see below), `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `empty-state` (`EmptyState`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `tabs` (`Tabs`, `TabPanel`, `RecordTabs`, see below), `editor-section` (`EditorSection`, see below), `separator` |
 | `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
@@ -464,6 +464,36 @@ fixed step, so a client's redeclaration reaches every card.
 so the two look alike while the call sites move. Do not add new ones. The behaviour is pinned in
 `admin/test/kit/kit-card.test.tsx`, which also refuses a `CardContent` with `pt-6` and a
 `CardTitle` wrapping its own heading.
+
+## Sections — `EditorSection` and the `chrome` prop
+
+Issue #1437 (UX audit 2026-11-17, DS-03). **A frame inside a card is a defect unless it is a field.**
+A bordered region reads as a separate object (Common Region), so a card inside a card, or a
+bordered box around each item of a list inside a card, makes one screen read as several. An editor
+tab is one card; what it groups goes into sections inside it. An input's own border, a chip, a
+dropzone and a dialog are fields or overlays, not frames, and stay.
+
+- `EditorSection` from `./ui` is the section: a heading (`h2` by default, `as="h3"` inside a titled
+  card or section, like `CardTitle`), an optional one-line `description`, an `action` beside the
+  heading, and a rule above it when it follows another dividing section (`--section-gap`). The
+  region is a `<section>` labelled by its heading. `divider={false}` where the parent already
+  separates its children. `Section` is `EditorSection` without the divider and without the region label, kept for its callers.
+- `chrome="card"` turns a section into its own `Card`, for the one that stands alone on a page.
+  Without the prop the section takes the chrome of its mount, which is `section` everywhere except
+  under `<AdminZone chrome="card">`; a section resets it for its children, so a section inside a
+  carded one is never a card in a card.
+- `CustomFieldValuesPanel`, `RecordHistory`, `CommentThread` and the zone panel frame are sections
+  by default and take `chrome="card"`. `CustomFieldValuesPanel` also takes `titleAs`. History and
+  comments render no heading of their own as a section: the host's tab or heading names them.
+- Mount a zone at page level, between the host's own cards, as `<AdminZone … chrome="card" />`;
+  inside a card, leave the prop off. A contribution that renders an `EditorSection` follows the
+  mount, so the same panel is right in both places.
+- A list of items inside a section is rows divided by a rule — `divide-y divide-border` on the
+  list, `py-3 first:pt-0 last:pb-0` on the item — not a `rounded-md border` box per item.
+
+**Breaking, visually, for a third-party module** (0.x, so a `minor`): a panel that mounted
+`CustomFieldValuesPanel`, `RecordHistory` or `CommentThread` on its own, outside a card, now gets
+no card; pass `chrome="card"` to keep it.
 
 ## Tabs — `Tabs`, `TabPanel` and `RecordTabs`
 

@@ -928,6 +928,7 @@ export function RfqCreatePage(): ReactNode {
       {canSeeCustomFields ? (
         <div className="mb-4">
           <CustomFieldValuesPanel
+            chrome="card"
             entityType="quote_request"
             values={EMPTY_VALUES}
             onChange={setCustomFieldValues}

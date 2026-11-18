@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { cn } from '../lib/utils.js';
+import { EditorSection } from './editor-section.js';
 
 /**
  * A titled content block: a heading, an optional action beside it, and the
@@ -11,6 +11,11 @@ import { cn } from '../lib/utils.js';
  * own tabs — fourteen lines of `<section>`, `cn` and an `<h2>`, with nothing of
  * `orders` inside it. It is a layout primitive rather than a composite, so its
  * home is `./ui` and not `./components`.
+ *
+ * **Since issue #1437 (DS-03) it is `EditorSection` without its divider** — one
+ * implementation of a section heading, not two. A new section uses
+ * `EditorSection`, which adds the description line, the rule between sibling
+ * sections, the heading level, the `chrome` choice and the region its heading labels.
  */
 export interface SectionProps {
   title: ReactNode;
@@ -21,13 +26,16 @@ export interface SectionProps {
 
 export function Section(props: SectionProps): ReactNode {
   return (
-    <section className={cn('space-y-3', props.className)}>
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold tracking-tight">{props.title}</h2>
-        {/* eslint-disable-next-line no-restricted-syntax -- a ReactNode slot named `action`, not an enum value */}
-        {props.action ?? null}
-      </div>
+    <EditorSection
+      title={props.title}
+      action={props.action}
+      divider={false}
+      chrome="section"
+      // Not a named region, as before #1437: its callers often sit inside a region they name.
+      aria-labelledby={undefined}
+      {...(props.className ? { className: props.className } : {})}
+    >
       {props.children}
-    </section>
+    </EditorSection>
   );
 }
