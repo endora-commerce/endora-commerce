@@ -61,7 +61,6 @@ const BUNDLE = {
   import_export: { 'nav.importExport.label': 'Import / export' },
   ...passthroughBundle('catalog', [
   'productsList.title',
-  'productsList.subtitle',
   'productsList.action.newProduct',
   'productsList.toolbar.label',
   'productsList.search.label',
