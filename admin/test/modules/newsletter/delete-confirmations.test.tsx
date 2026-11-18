@@ -89,10 +89,10 @@ beforeEach(() => {
   listCustomFields.mockReset().mockResolvedValue({ items: [FIELD] });
 });
 
-async function clickDelete(rowText: string): Promise<HTMLElement> {
+async function clickDelete(rowText: string, label = 'Delete'): Promise<HTMLElement> {
   const cell = await screen.findByText(rowText);
   const row = (cell.closest('tr') ?? cell.closest('li')) as HTMLElement;
-  await userEvent.click(within(row).getByRole('button', { name: 'Delete' }));
+  await userEvent.click(within(row).getByRole('button', { name: label }));
   return screen.findByRole('dialog');
 }
 
@@ -146,7 +146,7 @@ describe('newsletter deletes ask first (#1464)', () => {
 
   it('custom field: asks in Polish too', async () => {
     renderWithI18n(<TagsPage />, bundle('pl'), { language: 'pl' });
-    const dialog = await clickDelete('company');
+    const dialog = await clickDelete('company', 'Usuń');
 
     expect(dialog).toHaveAccessibleName('Usunąć to pole dodatkowe?');
     expect(dialog).toHaveTextContent('„Company” (company)');

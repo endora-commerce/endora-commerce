@@ -2717,5 +2717,10 @@
   "errors.COMMAND_EXTENSION_UNCLAIMED": "To żądanie zawiera dane rozszerzenia, których żaden aktywny moduł nie przyjmuje dla tej operacji, więc nic nie zostało zapisane.",
   "errors.COMMAND_HOOK_CYCLE": "Ta zmiana została odrzucona, ponieważ rozszerzenie próbowało powtórzyć ją wewnątrz niej samej. Nic nie zostało zapisane; skontaktuj się z administratorem zainstalowanych rozszerzeń.",
   "errors.COMMAND_HOOK_DATA_MISSING": "Tej zmiany nie udało się przekazać zainstalowanym rozszerzeniom, więc nic nie zostało zapisane. Skontaktuj się z administratorem zainstalowanych rozszerzeń.",
-  "errors.COMMAND_OUTBOX_NOT_DEAD": "Ponowić można tylko nieudane dostarczenie. To już oczekuje, jest w toku lub zostało dostarczone."
+  "errors.COMMAND_OUTBOX_NOT_DEAD": "Ponowić można tylko nieudane dostarczenie. To już oczekuje, jest w toku lub zostało dostarczone.",
+  "pageBuilder.emailPreview.title": "Podgląd e-maila",
+  "pageBuilder.emailPreview.desktop": "Poczta na komputerze (600 px)",
+  "pageBuilder.emailPreview.narrow": "Wąski ekran (320 px)",
+  "pageBuilder.emailPreview.close": "Zamknij podgląd",
+  "pageBuilder.emailPreview.frameTitle": "Podgląd HTML e-maila"
 }
