@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { Download, History, Play } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -280,13 +280,11 @@ export function ProductFeedDetailPage(): ReactNode {
               data={runs}
               keyExtractor={(row) => row.id}
               emptyState={
-                <div className="b2b-empty">
-                  <div className="b2b-empty__icon">
-                    <History size={20} aria-hidden="true" />
-                  </div>
-                  <div className="b2b-empty__title">{t('feeds.runs.empty.title')}</div>
-                  <div className="b2b-empty__sub">{t('feeds.runs.empty.subtitle')}</div>
-                </div>
+                <EmptyState
+                  icon={<History size={20} />}
+                  title={t('feeds.runs.empty.title')}
+                  description={t('feeds.runs.empty.subtitle')}
+                />
               }
             />
           </CardContent>

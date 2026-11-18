@@ -96,6 +96,31 @@ describe('EntriesListPage', () => {
     await waitFor(() => expect(lastQuery().get('q')).toBe('ada'));
   });
 
+  it('tells "no entries yet" apart from "no match", and clears the filters from there (issue #1448)', async () => {
+    const empty = (): void => {
+      getSpy.mockImplementation((path: string) =>
+        path.startsWith(API)
+          ? Promise.resolve({ data: { items: [], nextCursor: null } })
+          : path.startsWith('/api/v1/admin/forms')
+            ? Promise.resolve({ data: { items: [summary({ status: 'published', entryCount: 0 })], total: 1 } })
+            : Promise.resolve({ items: [] }),
+      );
+    };
+    empty();
+    renderForms(<EntriesListPage />, { path: '/forms/entries', pattern: '/forms/entries', permissions: READ });
+    expect(await screen.findByText(en('entries.empty.title'))).toBeTruthy();
+    expect(screen.getByText(en('entries.empty.body'))).toBeTruthy();
+    expect(document.querySelector('[data-empty-state="no-results"]')).toBeNull();
+    await userEvent.type(screen.getByLabelText(en('entries.filter.search')), 'ada');
+    expect(await screen.findByText(en('entries.emptyFiltered'))).toBeTruthy();
+    // The filter bar has a Clear of its own; this is the empty state's.
+    const block = document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!;
+    await userEvent.click(within(block).getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByText(en('entries.empty.title'))).toBeTruthy();
+    expect((screen.getByLabelText(en('entries.filter.search')) as HTMLInputElement).value).toBe('');
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('entries.filter.search'))));
+  });
+
   it('shows older entries a step at a time, by the cursor the page answered', async () => {
     renderForms(<EntriesListPage />, { path: '/forms/entries', pattern: '/forms/entries', permissions: READ });
     await screen.findByText('grace@example.com');

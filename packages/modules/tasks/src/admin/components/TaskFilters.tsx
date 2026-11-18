@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { ChevronDown, X } from 'lucide-react';
 import type { CustomFieldFilter, TaskPriorityConfig, TaskStatusConfig } from '@endora-commerce/contracts';
 import { Button, Checkbox, Input, Label, MultiSelect, Select } from '@endora-commerce/admin-kit/ui';
@@ -40,6 +40,9 @@ export interface TaskFiltersProps {
   implied?: ImpliedFilters;
   /** A reader who may view custom fields gets their filters (`custom_fields:read`). */
   customFields: boolean;
+  /** The search box, so a screen can return focus to it (after *Clear filters*, WCAG 2.4.3). */
+  // Typed off the kit's `Input`, whose React types this package does not share.
+  searchRef?: ComponentProps<typeof Input>['ref'];
 }
 
 /** "Open", "Closed" or nothing, from the address's categories. */
@@ -90,7 +93,7 @@ function CustomFieldCells(props: { params: URLSearchParams; onChange: (next: URL
  * with a way out.
  */
 export function TaskFilters(props: TaskFiltersProps): ReactNode {
-  const { idPrefix, params, onChange, statuses, priorities, implied = {}, customFields } = props;
+  const { idPrefix, params, onChange, statuses, priorities, implied = {}, customFields, searchRef } = props;
   const t = useTranslation('tasks');
   const { language } = useAppLanguage();
   const id = (name: string): string => `${idPrefix}-${name}`;
@@ -136,6 +139,7 @@ export function TaskFilters(props: TaskFiltersProps): ReactNode {
         <div className="space-y-1">
           <Label htmlFor={id('search')}>{t('list.search')}</Label>
           <Input
+            ref={searchRef}
             id={id('search')}
             type="search"
             value={search}

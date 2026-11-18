@@ -256,6 +256,42 @@ podmianą pokazuje nazwy obu plików i czas, przez jaki bieżący plik będzie m
 
 Każda podmiana to audytowana komenda `asset.replace`.
 
+### Dla programistów: podmiana z modułu {#for-developers-replacing-from-a-module}
+
+Moduł podmienia plik przez opublikowany port `assetsLibraryPort.replace` (`AssetReplaceInput` w
+`@endora-commerce/contracts`): `assetId`, `filename`, `declaredMime`, `stream` (dowolny asynchroniczny
+iterator bajtów, w tym `Readable` z Node), `declaredSize` (`0`, gdy rozmiar nie jest znany) oraz
+opcjonalne `expectedContentVersion`. Zwraca zaktualizowane szczegóły pliku. Sama podmiana jest taka
+jak w opisanej wyżej ścieżce — ta sama polityka przesyłania i kontrola rodzaju pliku, te same odmowy
+jako `HttpError` (`ASSET_NOT_FOUND`, `ASSET_GONE`, `ASSET_LEGACY_CANNOT_REPLACE`,
+`ASSET_REPLACE_KIND_MISMATCH`, `ASSET_REPLACE_CONFLICT`), ta sama komenda `asset.replace` — ale
+kontrole, które ścieżka wykonuje *przed* nią, nie należą do portu (pierwszy punkt poniżej). Używaj go
+zamiast przesyłania nowego pliku i miękkiego usuwania starego, gdy moduł utrzymuje plik w zgodzie z
+zewnętrznym źródłem, na przykład systemem PIM: nowy plik ma nowy adres, stary odpowiada `410`, a
+poprzednia wersja przepada.
+
+- **Wywołujący jest zaufany; nie ma kontroli widoczności.** Port nie sprawdza uprawnień i **nie**
+  stosuje kontroli widoczności dla administratora — strażnik `requireVisibleAsset` działa tylko w
+  ścieżce panelu administracyjnego, zanim wywoła ona usługę — więc moduł może podmienić plik, którego
+  żaden administrator nie widzi. Tak samo jest z `patchAsset` i `softDelete`. Port nie zastępuje więc
+  ścieżki: moduł, który udostępnia podmianę własnym użytkownikom, sam sprawdza ich uprawnienia.
+- **Przekaż wersję, którą ostatnio odczytałeś.** Bez `expectedContentVersion` przyjmowana jest wersja
+  odczytana na początku wywołania, więc chroni ono tylko przed podmianą, która nastąpi w jego trakcie.
+  Aby uniknąć utraconej aktualizacji — podmiany wykonanej, odkąd wywołujący ostatnio sprawdzał plik —
+  przekaż `contentVersion`, które wywołujący ostatnio odczytał; nieaktualna wersja jest odrzucana z
+  `409 ASSET_REPLACE_CONFLICT`.
+- **Audyt zapisuje bieżącego aktora, nie moduł.** Wpis audytu `asset.replace` zapisuje tego, w czyim
+  imieniu działa wywołanie: z procesu w tle lub zaplanowanej synchronizacji w `enterSystemScope` jest to
+  aktor systemowy, bez działającego administratora, i nic nie zapisuje, który moduł wywołał port —
+  `replacedBy` poprzedniej wersji też jest `null`. W żądaniu administratora jest to ten administrator.
+- **Obowiązuje limit rozmiaru przesyłania.** `assets.max_file_size_mb` ogranicza nowy plik tak jak
+  przesyłany; przy `0` limitu nie ma, tak samo jak przy przesyłaniu — choć plik przechowywany w S3
+  nadal podlega opisanemu wyżej limitowi 5 GiB pojedynczego żądania S3.
+- **Zachowywana jest jedna poprzednia wersja.** Druga podmiana odrzuca plik zachowany przy pierwszej,
+  więc synchronizacja, która podmienia plik dwa razy, zachowuje tylko ostatnią kopię.
+- **Wymaga kontekstu.** Wywołuj go w żądaniu wywołującego albo w `enterSystemScope` z procesu w tle
+  lub zaplanowanej synchronizacji, tak jak każdą komendę.
+
 ## Stałe linki {#permalinks}
 
 Stały link to wybrana przez operatora ścieżka, pod którą plik jest serwowany jako

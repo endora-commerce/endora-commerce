@@ -1,6 +1,8 @@
 import { useId, useMemo, type ReactNode } from 'react';
+import { Columns3 } from 'lucide-react';
 import { ReorderAnnouncer, type ReorderLabels, useReorderList } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { EmptyState } from '@endora-commerce/admin-kit/ui';
 import type { TemplatePreview } from '../api.js';
 import type { DraftField, FieldProblem } from '../template-draft.js';
 import { TemplateFieldRow } from './TemplateFieldRow.js';
@@ -118,10 +120,7 @@ export function TemplateFieldList(props: TemplateFieldListProps): ReactNode {
       ) : null}
 
       {fields.length === 0 ? (
-        <div className="b2b-empty">
-          <p className="b2b-empty__title">{t('builder.empty.title')}</p>
-          <p className="b2b-empty__sub">{t('builder.empty.subtitle')}</p>
-        </div>
+        <EmptyState icon={<Columns3 size={20} />} title={t('builder.empty.title')} description={t('builder.empty.subtitle')} />
       ) : visible.length === 0 ? (
         <div className="b2b-empty">
           <p className="b2b-empty__sub">{t('builder.empty.filtered')}</p>
