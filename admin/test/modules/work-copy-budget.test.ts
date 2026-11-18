@@ -49,7 +49,6 @@ const CUT: Record<WorkModule, readonly string[]> = {
     'workflow.statuses.description',
   ],
   projects: [
-    'create.requiredHint',
     'create.stages.hint',
     'editor.hint',
     'editor.movesHint',
@@ -58,7 +57,6 @@ const CUT: Record<WorkModule, readonly string[]> = {
     'tasks.hint',
     'templates.editor.intro',
     'templates.editor.rolesHint',
-    'templates.editor.stagesHint',
   ],
 };
 
