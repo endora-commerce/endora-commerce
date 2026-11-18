@@ -13,7 +13,7 @@ R-35).
 
 **Personal Organizations (owner ruling PR-3, research R-34).** A personal Organization's sole member
 holds *Administrator*. The role routes answer `404` for a personal Organization (spec *Edge Cases*),
-since the screen is not offered there; inviting answers `422 VALIDATION_FAILED` before the role id is
+since the screen is not offered there; inviting answers `422 ORGANIZATION_PERSONAL` (token `invite`, #629) before the role id is
 resolved (feature 051, unchanged rule); every other `A` route answers as for any administrator. The
 storefront offers none of the organization-management screens there — gated by
 `organization.isPersonal` on `/api/v1/me`, never by the role.
@@ -66,7 +66,7 @@ no "copy from *Member*"; `memberDefault` in the catalogue describes *Member* and
 | `PATCH /api/v1/organizations/mine/members/:id/role` | C, A | body `{ roleId }` (was `{ role }`); runs `customer_account.change_role`; refusals unchanged (`CANNOT_DEMOTE_LAST_ADMIN`) plus `404` for a role of another Organization (FR-005) |
 | `DELETE /api/v1/organizations/mine/members/:id` | C, A | unchanged shape; runs `customer_account.remove_member` |
 | `GET /api/v1/organizations/mine/invitations` | C, A | each invitation: `role` → `organizationRole`; lists **pending** invitations only — an expired one (`expiresAt <= now`) is no longer listed (FR-010a, owner ruling PR-7) |
-| `POST /api/v1/organizations/mine/invitations` | C, A | body `{ email, roleId? }` (default: the Organization's *Member* role); runs `organization_invitation.create`; the e-mail's `roleLabel` comes from the role (#667, US 5.1a); a personal Organization → `422 VALIDATION_FAILED`, before `roleId` is resolved |
+| `POST /api/v1/organizations/mine/invitations` | C, A | body `{ email, roleId? }` (default: the Organization's *Member* role); runs `organization_invitation.create`; the e-mail's `roleLabel` comes from the role (#667, US 5.1a); a personal Organization → `422 ORGANIZATION_PERSONAL` (token `invite`, #629), before `roleId` is resolved |
 | `POST /api/v1/organizations/invitations/:token/accept` | public | `customerAccount.role` → `organizationRole` |
 
 ## 4. Organization addresses — `organizations/routes.customer.ts` — WP-03 (OR-8, #668)

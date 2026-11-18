@@ -20,6 +20,13 @@ import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
  * edited and a deleted currency stays deleted. `down` then `up` proves the
  * class alone builds the table and seeds it. Everything runs in one
  * transaction the test rolls back.
+ *
+ * The migration seeds PLN and EUR only; it is not the only writer. Booting the
+ * backend runs `dictionaries`' `SeedReconciler`, which tops the table up to the
+ * full `CURRENCY_SEED` catalogue, and an earlier file on the same worker has
+ * usually booted one against this database. So the seed is asserted on the two
+ * codes the migration writes, never on the whole table, and the emptied-table
+ * case builds its own table rather than assuming what is in this one.
  */
 describe('currencies table migration (issue #611)', () => {
   let db: TestDb;
@@ -111,9 +118,17 @@ describe('currencies table migration (issue #611)', () => {
     );
   }
 
+  /** The rows of the codes this migration seeds — the only ones it writes. */
+  async function seededRows(): Promise<unknown[]> {
+    return em.execute(
+      `select code, label, symbol, is_default, is_active, sort_order, symbol_position, decimal_places
+       from "currencies" where "code" in ('PLN', 'EUR') order by sort_order, code`,
+    );
+  }
+
   it('gives a fresh database the table, its columns, checks and indexes, and the PLN default', async () => {
     expect(await schema()).toEqual(EXPECTED_SCHEMA);
-    expect(await rows()).toEqual(SEEDED_ROWS);
+    expect(await seededRows()).toEqual(SEEDED_ROWS);
   });
 
   it('leaves a database that applied the frozen inits as it is, operator edits included', async () => {
@@ -125,10 +140,18 @@ describe('currencies table migration (issue #611)', () => {
 
     expect(await schema()).toEqual(EXPECTED_SCHEMA);
     expect(await rows()).toEqual(before);
-    expect(before).toHaveLength(1);
+    expect(await seededRows()).toEqual([
+      { ...SEEDED_ROWS[0], label: 'Zloty (edited)', decimal_places: 3 },
+    ]);
   });
 
   it('does not re-seed a table the operator emptied', async () => {
+    // Emptied for real, or an empty-table guard would pass unseen. The case
+    // builds the table itself and deletes the two rows its own `up` wrote, so
+    // no row another writer put there is touched (issue #166).
+    await run('down');
+    await run('up');
+    expect(await rows()).toEqual(SEEDED_ROWS);
     await em.execute(`delete from "currencies" where "code" in ('PLN', 'EUR')`);
     expect(await rows()).toEqual([]);
     await run('up');
