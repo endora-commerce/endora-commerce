@@ -82,6 +82,9 @@ Two hard framing rules before anything else:
   brand from the first digits, infer the country from the locale, pre-fill from the last
   order, resolve tax display mode from the organization rather than asking.
 - If a step exists only because the backend finds it convenient, that is a design bug.
+- A slug, key or code is proposed from the name, never typed from scratch: the admin kit's
+  `deriveKey` / `useDerivedKey` (`./lib`) follow the name until edited and normalise on blur.
+  Refuse only what stays invalid or is already taken — never auto-suffix a collision.
 
 ### Doherty Threshold
 > Productivity soars when the interaction stays under ~400 ms.

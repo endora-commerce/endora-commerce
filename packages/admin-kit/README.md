@@ -286,6 +286,38 @@ const guard = useUnsavedChangesGuard({ dirty, onSave: save, onDiscard: reset });
 
 The behaviour is pinned in `admin/test/kit/kit-unsaved-changes-guard.test.tsx`, including an axe pass.
 
+## Keys from names — `deriveKey` and `useDerivedKey`
+
+Issue #1450 (UX audit 2026-11-17, DS-22). A slug, key or code the system can propose from a name is
+not typed by hand (Tesler's law), and what the operator does type is normalised rather than refused
+(Postel's law). Both live in `./lib`:
+
+```tsx
+deriveKey('Gotowe do wysyłki', { separator: '_' });   // 'gotowe_do_wysylki'
+
+const codeField = useDerivedKey({
+  source: names.en, value: code, onChange: setCode,
+  separator: '_', maxLength: 64, enabled: status === null,
+});
+<Input value={code} onChange={codeField.onChange} onBlur={codeField.onBlur} />
+// in the submit handler: const sent = codeField.commit();
+```
+
+- **`deriveKey(name, { separator, maxLength })`** is contracts' `slugify` — the one slug generator,
+  diacritics folded (`ł` → `l`) — with `-` by default and `_` for keys and codes.
+- **The field follows the name until the operator edits it**; clearing it resumes following. A key the
+  screen starts with that the name does not produce counts as edited and is never overwritten.
+- **It is normalised on blur** (`In Review` → `in_review`), and empty on blur means "take the name's".
+  `commit()` does the same and returns the result, for a submit sent with Enter from the key field.
+- **The screen still refuses what stays invalid** — a leading digit, a reserved word — **and a key
+  already taken**, against its loaded list and the server's conflict, said at the key. A collision is
+  never auto-suffixed (architect ruling on #512): `in_review_2` is a decision nobody made.
+- `enabled: false` where the key is fixed (an edit view): the hook then does nothing. The hint under
+  the field says where the key comes from and that it cannot change later; the kit carries no copy.
+
+Used by the Tasks status and priority dialogs, the CRM status dialog and the custom-field definition
+form. The behaviour is pinned in `admin/test/kit/kit-derive-key.test.tsx`.
+
 ## On/off — `Switch` and `SettingRow`
 
 Issue #1442 (UX audit 2026-11-17, DS-09). `Switch` is the one on/off control; `SettingRow` is the

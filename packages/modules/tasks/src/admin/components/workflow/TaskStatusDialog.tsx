@@ -7,6 +7,7 @@ import {
   type TaskStatusConfig,
   type UpdateTaskStatusBody,
 } from '@endora-commerce/contracts';
+import { ApiError, useDerivedKey } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Checkbox, ColorPicker, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
@@ -18,6 +19,17 @@ const NAME_LANGUAGES = ['en', 'pl'] as const;
 
 const DEFAULT_COLOR = '#64748b';
 
+/** The longest code `taskStatusCodeSchema` accepts. */
+const CODE_MAX_LENGTH = 64;
+
+/** Whether the server refused a create because the code is taken (`status_code_taken`). */
+function isCodeTaken(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    (error.envelope.error.details as { rule?: unknown } | undefined)?.rule === 'status_code_taken'
+  );
+}
+
 export type TaskStatusDialogSubmit =
   | { mode: 'create'; body: CreateTaskStatusBody }
   | { mode: 'edit'; code: string; body: UpdateTaskStatusBody };
@@ -27,6 +39,8 @@ export interface TaskStatusDialogProps {
   status: TaskStatusConfig | null;
   /** Where a new status lands by default: after the last one. */
   nextWeight: number;
+  /** The codes already in the workflow: a new status may not reuse one. */
+  takenCodes: readonly string[];
   language: string;
   /** Resolves when the write was accepted; a rejection is shown in the dialog. */
   onSubmit: (submit: TaskStatusDialogSubmit) => Promise<void>;
@@ -35,7 +49,9 @@ export interface TaskStatusDialogProps {
 
 /**
  * Add or edit one Task status (`specs/165-task-management/` FR-012; CRM's
- * `StatusDialog`, the model): its code (on create only — it is immutable), its
+ * `StatusDialog`, the model): its code (on create only — it is immutable;
+ * derived from the English name until edited, normalised on blur, a taken one
+ * refused rather than suffixed — issue #1560, the architect ruling on #512), its
  * name in both languages, its category, whether new Tasks start in it, its
  * position and its colour.
  *
@@ -63,13 +79,28 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const invalid = useFocusFirstInvalid<HTMLFormElement>();
+  const codeField = useDerivedKey({
+    source: names.en ?? '',
+    value: code,
+    onChange: (next): void => {
+      setCode(next);
+      setCodeError(null);
+    },
+    separator: '_',
+    maxLength: CODE_MAX_LENGTH,
+    enabled: status === null,
+  });
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    const trimmedCode = code.trim();
+    // Enter in the code field submits without a blur: normalise here too.
+    const trimmedCode = codeField.commit().trim();
     const name = { en: (names.en ?? '').trim(), pl: (names.pl ?? '').trim() };
-    const nextCodeError =
-      status === null && !taskStatusCodeSchema.safeParse(trimmedCode).success ? t('workflow.error.code') : null;
+    let nextCodeError: string | null = null;
+    if (status === null) {
+      if (!taskStatusCodeSchema.safeParse(trimmedCode).success) nextCodeError = t('workflow.error.code');
+      else if (props.takenCodes.includes(trimmedCode)) nextCodeError = t('workflow.error.codeTaken');
+    }
     const nextNameError = name.en.length === 0 || name.pl.length === 0 ? t('workflow.error.name') : null;
     setCodeError(nextCodeError);
     setNameError(nextNameError);
@@ -114,8 +145,13 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
       await onSubmit(payload);
       onClose();
     } catch (error) {
-      setSubmitError(errorMessage(error, t('workflow.error.save')));
       setBusy(false);
+      if (status === null && isCodeTaken(error)) {
+        setCodeError(t('workflow.error.codeTaken'));
+        invalid.refuse();
+        return;
+      }
+      setSubmitError(errorMessage(error, t('workflow.error.save')));
     }
   };
 
@@ -144,7 +180,8 @@ export function TaskStatusDialog(props: TaskStatusDialogProps): ReactNode {
               className="font-mono"
               aria-invalid={codeError !== null}
               aria-describedby={`${fieldId}-code-hint`}
-              onChange={(event): void => setCode(event.target.value)}
+              onChange={codeField.onChange}
+              onBlur={codeField.onBlur}
             />
             <p id={`${fieldId}-code-hint`} className={codeError ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
               {codeError ?? t('workflow.field.codeHint')}

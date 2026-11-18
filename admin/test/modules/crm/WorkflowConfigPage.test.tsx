@@ -118,16 +118,73 @@ describe('WorkflowConfigPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('refuses a malformed code before it reaches the server', async () => {
+  it('refuses a code with a leading digit before it reaches the server', async () => {
     await renderPage();
     await userEvent.click(screen.getByRole('button', { name: en('workflow.status.add') }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.code')), 'In Delivery');
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.code')), '2 In Delivery');
     await userEvent.type(within(dialog).getByLabelText(en('workflow.field.defaultName')), 'In delivery');
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
 
+    expect(within(dialog).getByLabelText(en('workflow.field.code'))).toHaveValue('2_in_delivery');
     expect(await within(dialog).findByText(en('workflow.error.code'))).toBeInTheDocument();
     expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  describe('the code of a new status (issue #1560, WORK-09)', () => {
+    async function openCreate(): Promise<HTMLElement> {
+      await renderPage();
+      await userEvent.click(screen.getByRole('button', { name: en('workflow.status.add') }));
+      return screen.getByRole('dialog');
+    }
+
+    it('follows the default name, diacritics folded, until the operator edits it', async () => {
+      const dialog = await openCreate();
+      const code = within(dialog).getByLabelText(en('workflow.field.code'));
+      expect(code).toHaveAccessibleDescription(en('workflow.field.codeHint'));
+      const name = within(dialog).getByLabelText(en('workflow.field.defaultName'));
+      await userEvent.type(name, 'Wysłana oferta');
+      expect(code).toHaveValue('wyslana_oferta');
+      await userEvent.type(code, '_x');
+      await userEvent.type(name, ' 2');
+      expect(code).toHaveValue('wyslana_oferta_x');
+    });
+
+    it('normalises a typed code on blur instead of refusing it', async () => {
+      const dialog = await openCreate();
+      const code = within(dialog).getByLabelText(en('workflow.field.code'));
+      await userEvent.type(code, 'In Delivery');
+      await userEvent.tab();
+      expect(code).toHaveValue('in_delivery');
+    });
+
+    it('refuses a taken code at the code — from the list and from the server — never suffixing it', async () => {
+      const dialog = await openCreate();
+      const code = within(dialog).getByLabelText(en('workflow.field.code'));
+      await userEvent.type(within(dialog).getByLabelText(en('workflow.field.defaultName')), 'Won');
+      await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+      expect(code).toHaveValue('won');
+      expect(code).toHaveAccessibleDescription(en('workflow.error.codeTaken'));
+      await waitFor(() => expect(code).toHaveFocus());
+      expect(postSpy).not.toHaveBeenCalled();
+
+      postSpy.mockRejectedValue(
+        new ApiError(409, {
+          error: {
+            code: 'CRM_STATUS_CODE_TAKEN',
+            message: 'An opportunity status with the code "won_big" already exists.',
+            details: { statusCode: 'won_big' },
+          },
+        }),
+      );
+      await userEvent.clear(code);
+      await userEvent.type(code, 'won_big');
+      await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+      await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(code).toHaveAccessibleDescription(en('workflow.error.codeTaken')));
+      expect(code).toHaveAttribute('aria-invalid', 'true');
+      await waitFor(() => expect(code).toHaveFocus());
+    });
   });
 
   it('marks an existing status as closing-won', async () => {
