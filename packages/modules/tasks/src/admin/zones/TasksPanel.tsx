@@ -69,10 +69,8 @@ export function TasksPanel({ kind, recordId }: TasksPanelProps): ReactNode {
     <section aria-labelledby={headingId} className="mt-4">
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-          <CardTitle>
-            <h2 id={headingId} className="text-base font-semibold">
-              {t('panel.title')}
-            </h2>
+          <CardTitle id={headingId}>
+            {t('panel.title')}
           </CardTitle>
           {hasPermission('tasks:write') ? (
             <Button asChild variant="outline" size="sm" className="min-h-11 sm:min-h-8">

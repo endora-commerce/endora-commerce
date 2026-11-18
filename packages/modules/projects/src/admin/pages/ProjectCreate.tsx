@@ -344,7 +344,7 @@ export function ProjectCreate(): ReactNode {
         ) : null}
 
         <Card>
-          <CardContent className="space-y-1 pt-6">
+          <CardContent className="space-y-1">
             <Label htmlFor="project-create-template">{t('create.template.label')}</Label>
             <Select
               id="project-create-template"
@@ -382,7 +382,7 @@ export function ProjectCreate(): ReactNode {
         </Card>
 
         <Card>
-          <CardContent className="space-y-5 pt-6">
+          <CardContent className="space-y-5">
             <p className="text-xs text-muted-foreground">{t('create.requiredHint')}</p>
 
             <div className="space-y-1">
@@ -485,7 +485,7 @@ export function ProjectCreate(): ReactNode {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             {template ? (
               <TemplateStages template={template} tasksPresent={tasksPresent} />
             ) : (
@@ -606,7 +606,7 @@ export function ProjectCreate(): ReactNode {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <fieldset className="space-y-3" aria-describedby="project-create-members-hint">
               <legend className="text-base font-semibold">{t('create.members.section')}</legend>
               <p id="project-create-members-hint" className="text-sm text-muted-foreground">
@@ -684,7 +684,7 @@ export function ProjectCreate(): ReactNode {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <VisibilityControl value={visibility} onChange={setVisibility} disabled={busy} />
           </CardContent>
         </Card>

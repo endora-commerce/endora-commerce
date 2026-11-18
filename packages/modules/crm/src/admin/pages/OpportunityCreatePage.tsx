@@ -208,7 +208,7 @@ export function OpportunityCreatePage(): ReactNode {
 
       <form noValidate onSubmit={(event): void => void submit(event)}>
         <Card>
-          <CardContent className="space-y-5 pt-6">
+          <CardContent className="space-y-5">
             {submitError ? (
               <Alert variant="destructive">
                 <AlertDescription>{submitError}</AlertDescription>

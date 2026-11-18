@@ -88,10 +88,8 @@ export function LinkedOpportunityPanel(props: LinkedOpportunityPanelProps): Reac
     <section aria-labelledby={headingId} className="mt-4">
       <Card>
         <CardHeader>
-          <CardTitle>
-            <h2 id={headingId} className="text-base font-semibold">
-              {t('orderPanel.title')}
-            </h2>
+          <CardTitle id={headingId}>
+            {t('orderPanel.title')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">

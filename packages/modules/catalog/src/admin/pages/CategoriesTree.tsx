@@ -443,7 +443,7 @@ function CategoriesTreeScreen({
       ) : null}
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {/* Only the first read replaces the tree: a refresh after a write keeps the open
               editor mounted, its fields and its panels with it. */}
           {loading && categories.length === 0 ? (
@@ -693,7 +693,7 @@ function CreateForm({
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
   return (
     <Card className="mb-4">
-      <CardContent className="pt-6">
+      <CardContent>
         <form
           className="space-y-4"
           onSubmit={(e: FormEvent): void => {

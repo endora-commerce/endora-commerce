@@ -65,7 +65,7 @@ export function BlocksListPage(): ReactNode {
       ) : null}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{t('blocksList.cardTitle')}</CardTitle>
+          <CardTitle>{t('blocksList.cardTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (

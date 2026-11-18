@@ -359,7 +359,7 @@ export function ChannelIdentityForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">
+        <CardTitle>
           {/* One name for both modes: on the create screen the page title already says
               "New sales channel", and the card repeating it was noise (issue #1482). */}
           {t('identity.title.edit')}

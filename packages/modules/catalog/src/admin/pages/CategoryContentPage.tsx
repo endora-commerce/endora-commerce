@@ -207,7 +207,7 @@ export function CategoryContentPage(): ReactNode {
         <Card>
           <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
             <div className="space-y-2">
-              <CardTitle className="text-base">
+              <CardTitle>
                 {t('categoryContent.editor.title', { language: activeLanguage })}
               </CardTitle>
               <ContentLanguageTabs

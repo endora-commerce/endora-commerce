@@ -207,7 +207,7 @@ export function ProjectDetail(): ReactNode {
 
       <div className="space-y-6">
         <Card className="min-w-0">
-          <CardContent className="pt-6">
+          <CardContent>
             <StageBar key={project.id} project={project} onChange={setProject} reload={reload} />
           </CardContent>
         </Card>
@@ -256,7 +256,6 @@ export function ProjectDetail(): ReactNode {
             </div>
           </div>
           <CardContent
-            className="pt-6"
             id="project-tabpanel"
             role="tabpanel"
             aria-labelledby={`project-tab-${tab?.id ?? ''}`}

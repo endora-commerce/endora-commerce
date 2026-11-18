@@ -318,7 +318,7 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
 
       {!showForm && (
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <EmptyState
               icon={<Send size={20} />}
               title={t('delivery.empty.title')}

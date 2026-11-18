@@ -470,7 +470,7 @@ export function DocumentTemplateEditor(): ReactNode {
         </div>
       ) : null}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <div className={cn('cms-page-builder space-y-3', fullscreen && 'fixed inset-0 z-50 flex flex-col overflow-auto bg-background p-4')}>
             <div className={cn('overflow-hidden rounded-md border', fullscreen ? 'min-h-0 flex-1' : 'min-h-[560px]')}>
               {puckConfig && template && type ? (

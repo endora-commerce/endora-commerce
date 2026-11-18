@@ -445,7 +445,7 @@ export function ProjectsList(): ReactNode {
       />
 
       <Card className="mb-4">
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
               <Label htmlFor="projects-search">{t('list.search')}</Label>
@@ -585,7 +585,7 @@ export function ProjectsList(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent className="pt-6" aria-busy={loading}>
+        <CardContent aria-busy={loading}>
           {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
           <p role="status" className="sr-only">
             {loading && loaded ? t('list.loading') : ''}

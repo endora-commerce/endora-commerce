@@ -208,7 +208,7 @@ export function TasksPage(): ReactNode {
       />
 
       <Card className="mb-4">
-        <CardContent className="space-y-4 pt-6">
+        <CardContent className="space-y-4">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <SavedViewsControl endpoint={VIEWS_ENDPOINT} current={savedState} onApply={applyView} onError={setViewsError} />
             {mode === 'list' ? (
@@ -282,7 +282,7 @@ export function TasksPage(): ReactNode {
         <TaskBoard query={boardQuery} workflow={vocabulary.workflow} filtered={filtered} />
       ) : (
         <Card>
-          <CardContent className="pt-6" aria-busy={loading}>
+          <CardContent aria-busy={loading}>
             {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
             <p role="status" className="sr-only">
               {loading && loaded ? t('list.loading') : ''}

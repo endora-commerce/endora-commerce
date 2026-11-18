@@ -21,7 +21,8 @@ import { isUuidShape } from '@endora-commerce/contracts';
  *   blocked              -> active   via unblock()
  *
  * Every transition is recorded to `audit_log_entries` with `before/after`
- * snapshots and the actor; emits `organization.status_changed.v1` so the
+ * snapshots and the actor; emits `organization.status_changed.v1` (with the
+ * status left and the operator's reason, issue #1620) so the
  * notifier + downstream consumers (pricing cache, sales-rep dashboards)
  * can react. Each write is gated by the Organization's `version` column
  * — mismatch raises `OrganizationVersionMismatchError` which routes map
@@ -265,6 +266,9 @@ export class OrganizationModerationService {
       occurredAt: new Date().toISOString(),
       organizationId: input.organizationId,
       newStatus: input.eventNewStatus,
+      // The guard above refused every other status, so this is what it left.
+      previousStatus: input.requireStatus,
+      reason: input.reason ?? null,
     });
 
     if (input.afterCommit && approvedOrg) {

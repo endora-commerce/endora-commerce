@@ -232,10 +232,8 @@ export function FieldInspector(props: FieldInspectorProps): ReactNode {
           <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
             <TypeIcon size={16} aria-hidden="true" />
           </span>
-          <CardTitle className="min-w-0">
-            <h2 id={id('title')} className="truncate">
-              {t('inspector.title', { type: typeName })}
-            </h2>
+          <CardTitle id={id('title')} className="min-w-0 truncate">
+            {t('inspector.title', { type: typeName })}
           </CardTitle>
         </div>
         {translating ? null : (

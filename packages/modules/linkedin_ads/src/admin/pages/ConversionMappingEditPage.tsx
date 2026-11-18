@@ -113,7 +113,7 @@ export default function ConversionMappingEditPage(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="space-y-4 pt-6">
+        <CardContent className="space-y-4">
           <div>
             <Label htmlFor="triggerAction">{t('mappings.triggerAction')}</Label>
             <Select

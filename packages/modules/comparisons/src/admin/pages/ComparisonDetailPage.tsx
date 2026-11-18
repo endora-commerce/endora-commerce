@@ -96,7 +96,7 @@ export default function ComparisonDetailPage(): ReactNode {
       </Alert>
 
       <Card className="mb-4">
-        <CardContent className="pt-6 space-y-2">
+        <CardContent className="space-y-2">
           <div>
             <strong>{t('detail.owner')}:</strong>{' '}
             {detail.owner.kind === 'customer'
@@ -123,7 +123,7 @@ export default function ComparisonDetailPage(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>

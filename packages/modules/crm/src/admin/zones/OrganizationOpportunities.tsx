@@ -57,10 +57,8 @@ export function OrganizationOpportunities({ organizationId }: OrganizationOpport
       <Card className="mb-4">
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
-            <CardTitle>
-              <h2 id={headingId} className="text-base font-semibold">
-                {t('organizationPanel.title')}
-              </h2>
+            <CardTitle id={headingId}>
+              {t('organizationPanel.title')}
             </CardTitle>
             <p className="text-sm text-muted-foreground">{t('organizationPanel.description')}</p>
           </div>

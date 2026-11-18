@@ -528,7 +528,7 @@ export function OpportunityBoardPage(): ReactNode {
       />
 
       <Card className="mb-4">
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
             <OpportunityFilterFields
               idPrefix="crm-board"

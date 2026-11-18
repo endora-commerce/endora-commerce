@@ -59,7 +59,7 @@ export function HooksPage(): ReactNode {
       <div className="grid grid-cols-12 gap-4">
         <Card className="col-span-7">
           <CardHeader>
-            <CardTitle className="text-base">{t('hooksList.cardTitle')}</CardTitle>
+            <CardTitle>{t('hooksList.cardTitle')}</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
