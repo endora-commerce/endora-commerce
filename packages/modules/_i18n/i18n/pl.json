@@ -1204,6 +1204,7 @@
   "orderDetail.copyError": "Nie udało się skopiować numeru zamówienia.",
   "orderDetail.copyHint": "Kliknij, aby skopiować numer zamówienia",
   "orderDetail.deliveryVia": "przez",
+  "orderDetail.errors.load": "Nie udało się wczytać zamówienia.",
   "orderDetail.errors.paymentChange": "Zmiana płatności nie powiodła się.",
   "orderDetail.errors.statusChange": "Zmiana statusu nie powiodła się.",
   "orderDetail.fields.orderStatus": "Status zamówienia",
