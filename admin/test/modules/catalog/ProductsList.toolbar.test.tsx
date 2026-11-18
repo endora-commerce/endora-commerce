@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+import { contributions as importExportContributions } from '@endora-commerce/mod-import-export/admin';
 
 /**
  * Issue #1455 (UX audit 2026-11-17, CAT-02) on the kit toolbar of issue #1440
@@ -55,11 +56,13 @@ const PAGE = {
   counts: { all: 1, active: 1, inactive: 0, archived: 0 },
 };
 
-const BUNDLE = passthroughBundle('catalog', [
+const BUNDLE = {
+  // The Import / export link is `import_export`'s contribution to `product.list.actions`.
+  import_export: { 'nav.importExport.label': 'Import / export' },
+  ...passthroughBundle('catalog', [
   'productsList.title',
   'productsList.subtitle',
   'productsList.action.newProduct',
-  'productsList.action.importExport',
   'productsList.toolbar.label',
   'productsList.search.label',
   'productsList.search.placeholder',
@@ -80,7 +83,8 @@ const BUNDLE = passthroughBundle('catalog', [
   'productsList.tab.active',
   'productsList.tab.inactive',
   'productsList.tab.archived',
-]);
+]),
+};
 
 function answer(): void {
   getSpy.mockImplementation(async (path: string) => (path.startsWith(LIST_VIEWS) ? { data: [] } : PAGE));
@@ -94,6 +98,8 @@ function mount(options: { importExport?: boolean; permissions?: string[] } = {})
       </MemoryRouter>,
       {
         session: adminSession({ permissions: options.permissions ?? ['catalog:read', 'catalog:write'] }),
+        // The real contribution, so the test reads what `import_export` ships to `product.list.actions`.
+        contributions: [{ moduleId: 'import_export', contributions: importExportContributions }],
         presence: modulePresence(
           options.importExport === false
             ? { present: ['catalog'], absent: ['import_export'] }
@@ -114,10 +120,10 @@ afterEach(() => {
 });
 
 describe('ProductsList — header actions (CAT-02)', () => {
-  it('offers Import / export as one outline link to the import–export centre', async () => {
+  it('offers Import / export as one link to the import–export centre, contributed by import_export', async () => {
     mount();
     await screen.findByText('Hex bolt');
-    const link = screen.getByRole('link', { name: 'productsList.action.importExport' });
+    const link = await screen.findByRole('link', { name: 'Import / export' });
     expect(link.getAttribute('href')).toBe('/import-export');
     expect(screen.queryByRole('button', { name: /productsList\.action\.(import|export)$/ })).toBeNull();
   });
@@ -125,7 +131,7 @@ describe('ProductsList — header actions (CAT-02)', () => {
   it('offers no Import / export while the import_export module is off', async () => {
     mount({ importExport: false });
     await screen.findByText('Hex bolt');
-    expect(screen.queryByRole('link', { name: 'productsList.action.importExport' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Import / export' })).toBeNull();
   });
 });
 

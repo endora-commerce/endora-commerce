@@ -3,7 +3,6 @@
   "actions.newProduct.description": "Utwórz nowy produkt w katalogu",
   "productsList.title": "Produkty",
   "productsList.subtitle": "{count} pozycji katalogu · cena i stan magazynowy widoczne w tabeli",
-  "productsList.action.importExport": "Import / eksport",
   "productsList.action.newProduct": "Nowy produkt",
   "productsList.error.load": "Nie udało się wczytać.",
   "productsList.loading": "Wczytywanie…",

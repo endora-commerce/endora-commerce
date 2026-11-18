@@ -77,7 +77,6 @@ const BUNDLE = passthroughBundle('catalog', [
   'productsList.title',
   'productsList.description',
   'productsList.action.create',
-  'productsList.action.importExport',
   'productsList.action.viewArchived',
   'productsList.bulk.selected',
   'productsList.bulk.edit',

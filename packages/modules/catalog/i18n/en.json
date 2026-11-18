@@ -3,7 +3,6 @@
   "actions.newProduct.description": "Create a new product in the catalog",
   "productsList.title": "Products",
   "productsList.subtitle": "{count} catalog rows · pricing & stock visible inline",
-  "productsList.action.importExport": "Import / export",
   "productsList.action.newProduct": "New product",
   "productsList.error.load": "Failed to load.",
   "productsList.loading": "Loading…",

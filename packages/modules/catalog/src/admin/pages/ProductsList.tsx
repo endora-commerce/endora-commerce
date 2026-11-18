@@ -5,10 +5,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   ArchiveRestore,
-  ArrowUpDown,
   Package,
   PenSquare,
   Plus,
@@ -26,7 +25,8 @@ import {
   type ListFilterSnapshot,
   type ProductListTab,
 } from '../lib/resolve-product-selection.js';
-import { ApiError, apiClient, cn, useAuth, usePageSizePreference, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, cn, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import {
   ListToolbar,
   ListToolbarSearch,
@@ -140,10 +140,6 @@ export function ProductsList(): ReactNode {
   // `New post` are the same shape.
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('catalog:write');
-  // CAT-02 — the header's Import / export goes where those happen, and only while
-  // that screen exists: a module that is off contributes no surface (Constitution XVII).
-  const isVisible = useSurfaceVisibility();
-  const canImportExport = isVisible({ module: 'import_export', requiredPermission: 'catalog:read' });
   const location = useLocation();
   const [rows, setRows] = useState<AdminProduct[]>([]);
   const [total, setTotal] = useState(0);
@@ -465,13 +461,10 @@ export function ProductsList(): ReactNode {
           </div>
         </div>
         <div className="b2b-page-head__actions">
-          {canImportExport ? (
-            // One link, not an Import and an Export button: both land on the same
-            // centre, where the Products card offers either (Hick's Law).
-            <Link to="/import-export" className="b2b-btn b2b-btn--default b2b-btn--sm">
-              <ArrowUpDown size={13} aria-hidden="true" /> {t('productsList.action.importExport')}
-            </Link>
-          ) : null}
+          {/* CAT-02 — the dead Import / Export buttons became this place: the
+              module that imports and exports contributes its own link, gated by
+              its own presence and permission, so the list names no other module. */}
+          <AdminZone name="product.list.actions" props={{}} />
           {canWrite ? (
             <button
               type="button"
