@@ -182,6 +182,23 @@ export const manifest = defineModuleManifest({
       keywordsKey: 'actions.openEmailBlocks.keywords',
       weight: 242,
     },
+    /**
+     * Issue #1466 — the branding screen, a sidebar destination and so a
+     * palette one (Principle XVI). The read code is the one its `GET
+     * /branding` enforces; the Save inside it asks for `:write`.
+     */
+    {
+      id: 'open-email-branding',
+      labelKey: 'actions.openEmailBranding.label',
+      descriptionKey: 'actions.openEmailBranding.description',
+      icon: 'Inbox',
+      targetRoute: '/transactional-emails/branding',
+      requiredPermission: 'transactional_emails:read',
+      entryApiRoute: '/api/v1/admin/transactional-emails/branding',
+      keywords: ['email', 'branding', 'logo', 'accent', 'color'],
+      keywordsKey: 'actions.openEmailBranding.keywords',
+      weight: 243,
+    },
   ],
   /**
    * The 17 e-mail Page Builder blocks this module owns, and the four e-mail

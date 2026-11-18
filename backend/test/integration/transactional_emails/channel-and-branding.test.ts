@@ -124,4 +124,77 @@ describe('transactional emails — per-channel + branding (US2)', () => {
     const b = (get.json() as { data: { accentColor: string } }).data;
     expect(b.accentColor).toBe('#abcdef');
   });
+  /**
+   * Issue #1466 — before the branding screen was mounted in the admin, the
+   * stored values were proven to be *read back* (the two tests above) but not to
+   * reach a message. This one follows them all the way: what the branding API
+   * stores is what the rendered e-mail carries — the logo in the shared default
+   * header, the accent on a button that sets no colour of its own — and a
+   * channel inherits whatever it does not override.
+   *
+   * The preview is the assertion surface because it shares `renderWith` and
+   * `BrandingService.resolve` with the send path; only the variables differ.
+   */
+  it('renders the stored logo and accent into the e-mail, per channel with inheritance', async () => {
+    const assetId = randomUUID();
+    await h.em().getConnection().execute(
+      `insert into assets (id, kind, filename, mime_type, size_bytes, storage_url,
+         storage_locator, storage_backend, label, visibility, created_at, updated_at)
+       values (?, 'image', 'brand.png', 'image/png', 128, ?, ?, 'local', 'Brand', 'public',
+         now(), now())`,
+      [assetId, `/assets/file/${assetId}`, `cc/dd/${assetId}.png`],
+    );
+
+    const putGlobal = await h.app.inject({
+      method: 'PUT',
+      url: `${BASE}/branding`,
+      cookies: ADMIN_COOKIE,
+      payload: { logoAssetId: assetId, accentColor: '#0a7e5c' },
+    });
+    expect(putGlobal.statusCode).toBe(200);
+    const putChannel = await h.app.inject({
+      method: 'PUT',
+      url: `${BASE}/branding?salesChannelId=${channelId}`,
+      cookies: ADMIN_COOKIE,
+      payload: { accentColor: '#c2410c' },
+    });
+    expect(putChannel.statusCode).toBe(200);
+
+    const draftContent = {
+      root: { props: {} },
+      content: [
+        {
+          type: 'transactional_emails.EmailInsertBlock',
+          props: { id: 'hdr', code: 'default_email_header' },
+        },
+        {
+          type: 'transactional_emails.EmailButton',
+          props: { id: 'btn', label: 'View order', href: 'https://shop.example/o/1', align: 'left' },
+        },
+      ],
+      zones: {},
+    };
+    const preview = async (salesChannelId?: string): Promise<string> => {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: `${BASE}/order_confirmation/preview`,
+        cookies: ADMIN_COOKIE,
+        payload: { language: 'en-US', draftContent, ...(salesChannelId ? { salesChannelId } : {}) },
+      });
+      expect(res.statusCode).toBe(200);
+      return (res.json() as { data: { html: string } }).data.html;
+    };
+
+    const logoUrlPrefix = `${resolvePublicApiBaseUrl()}/assets/file/${assetId}?v=`;
+
+    const globalHtml = await preview();
+    expect(globalHtml).toContain(`src="${logoUrlPrefix}`);
+    expect(globalHtml).toContain('background-color:#0a7e5c');
+
+    const channelHtml = await preview(channelId);
+    // The channel overrides the accent and inherits the logo.
+    expect(channelHtml).toContain('background-color:#c2410c');
+    expect(channelHtml).not.toContain('background-color:#0a7e5c');
+    expect(channelHtml).toContain(`src="${logoUrlPrefix}`);
+  });
 });

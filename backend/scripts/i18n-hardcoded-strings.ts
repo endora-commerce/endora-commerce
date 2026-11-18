@@ -1448,7 +1448,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/newsletter/src/admin/pages/ProviderSettingsPage.tsx': 13,
   'packages/modules/newsletter/src/admin/pages/SubscribersPage.tsx': 14,
   'packages/modules/newsletter/src/admin/pages/TagsPage.tsx': 19,
-  'packages/modules/transactional_emails/src/admin/components/BrandingPanel.tsx': 11,
   'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 10,
   'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 8,
   'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 10,
