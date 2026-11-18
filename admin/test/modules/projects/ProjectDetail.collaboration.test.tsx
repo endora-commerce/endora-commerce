@@ -228,6 +228,31 @@ describe('ProjectDetail — the collaboration tabs', () => {
     expect(await within(panel).findByText('Lights arrive Friday.')).toBeTruthy();
   });
 
+  it('says in one line that notes are internal, with no helper under the composer (#1487)', async () => {
+    await renderPage({ search: '?tab=notes' });
+    const panel = await screen.findByRole('tabpanel');
+    await within(panel).findByLabelText(en('comments.notes.composer.label'));
+    expect(within(panel).getByText('Internal. Customers never see this.')).toBeTruthy();
+    expect(within(panel).queryByText('Cannot be edited after sending.')).toBeNull();
+  });
+
+  it('says messages are internal, and that one cannot be edited under the composer (#1487)', async () => {
+    postSpy.mockResolvedValue({ data: { unreadMessageCount: 0 } });
+    await renderPage({ search: '?tab=messages' });
+    const panel = await screen.findByRole('tabpanel');
+    const field = await within(panel).findByLabelText(en('comments.messages.composer.label'));
+    expect(within(panel).getByText('Internal. Customers never see this.')).toBeTruthy();
+    const helper = within(panel).getByText('Cannot be edited after sending.');
+    expect(field.getAttribute('aria-describedby')?.split(' ')).toContain(helper.id);
+  });
+
+  it('explains neither where attachments are kept nor what a history records (#1487)', async () => {
+    await renderPage({ search: '?tab=attachments' });
+    const panel = await screen.findByRole('tabpanel');
+    await within(panel).findByText('floor-plan.pdf');
+    expect(within(panel).queryByText(/media library|download link/i)).toBeNull();
+  });
+
   it('a reader sees the notes and no composer', async () => {
     current = detail({ permissions: { canWrite: false, canConfigure: false } });
     await renderPage({ search: '?tab=notes', permissions: ['projects:read'] });
@@ -269,6 +294,8 @@ describe('ProjectDetail — the collaboration tabs', () => {
     await renderPage({ search: '?tab=history' });
     const panel = await screen.findByRole('tabpanel');
     expect(await within(panel).findByRole('heading', { name: en('auditLog.projects.project.update') })).toBeTruthy();
+    // #1487: no paragraph explaining what the history records.
+    expect(within(panel).queryByText(/recorded by length/)).toBeNull();
     expect(within(panel).getByRole('heading', { name: en('auditLog.projects.project.note_add') })).toBeTruthy();
     expect(within(panel).getByText(en('history.field.title'))).toBeTruthy();
     expect(within(panel).getByText('Warehouse fit-out')).toBeTruthy();
