@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
@@ -120,7 +120,7 @@ describe('OrderStatusConfigPage', () => {
     await waitFor(() => expect(screen.getByLabelText('delete-pending')).toBeInTheDocument());
     await userEvent.click(screen.getByLabelText('delete-pending'));
     // Confirm in the deletion dialog.
-    await userEvent.click(screen.getByLabelText('confirm-delete'));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /common\.action\.delete/ }));
     expect(deleteSpy).toHaveBeenCalledWith('/api/v1/admin/orders/statuses/pending');
   });
 
