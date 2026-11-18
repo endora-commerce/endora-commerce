@@ -96,6 +96,8 @@ function notifier(
     order?: OrderRecord | null;
     customer?: CustomerAccountRecord | null;
     channel?: unknown;
+    /** The order's payment status at send time; `paid` unless a case says otherwise. */
+    paymentStatus?: string;
   } = {},
 ): PaymentEmailNotifier {
   const order = {
@@ -103,6 +105,7 @@ function notifier(
     businessId: 'ORD-1',
     salesChannelId: CHANNEL_ID,
     placedByCustomerAccountId: 'customer-1',
+    paymentStatus: rows.paymentStatus ?? 'paid',
   } as unknown as OrderRecord;
   const customer = {
     id: 'customer-1',
@@ -149,7 +152,7 @@ describe('payments — the payment-status notifier reports what happened (#78)',
     const logged: Logged[] = [];
 
     await expect(
-      notifier(new CapturingSender({ status: 'no_transport' }), logged).notify(
+      notifier(new CapturingSender({ status: 'no_transport' }), logged, { paymentStatus: 'failed' }).notify(
         ORDER_ID,
         'failed',
         'card declined',
@@ -196,6 +199,36 @@ describe('payments — the payment-status notifier reports what happened (#78)',
       reason: 'failed',
     });
     expect(String(logged[0]!.context['error'])).toContain('smtp down');
+  });
+
+  /**
+   * Issue #1574 (OQ-2) — the events stay true about the Payment row, but the
+   * buyer is told only what the order says. A late decline on an order an
+   * operator already marked paid is refused on the order's money axis, and an
+   * e-mail saying "payment failed" would contradict the order the buyer sees.
+   */
+  it.each([
+    ['failed', 'paid'],
+    ['paid', 'refunded'],
+    ['paid', 'awaiting_payment'],
+  ] as const)('does not announce %s while the order is %s (#1574)', async (announced, current) => {
+    const logged: Logged[] = [];
+    const sender = new CapturingSender();
+
+    await expect(
+      notifier(sender, logged, { paymentStatus: current }).notify(ORDER_ID, announced, null),
+    ).resolves.toEqual({ sent: false, reason: 'payment_status_differs' });
+    expect(sender.sent).toHaveLength(0);
+    expect(logged[0]!.context).toMatchObject({ orderId: ORDER_ID, reason: 'payment_status_differs' });
+  });
+
+  it('announces a decline while the order is failed (#1574)', async () => {
+    const sender = new CapturingSender();
+
+    await expect(
+      notifier(sender, [], { paymentStatus: 'failed' }).notify(ORDER_ID, 'failed', 'card declined'),
+    ).resolves.toEqual({ sent: true });
+    expect(sender.sent).toHaveLength(1);
   });
 
   it('lets a switched-off module through the tolerance', async () => {

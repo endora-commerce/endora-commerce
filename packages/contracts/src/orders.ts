@@ -7,6 +7,7 @@ import {
   paymentStatusSchema,
   uuidSchema,
   type OriginReference,
+  type PaymentStatus,
 } from './common.js';
 import {
   lineGroupKeySchema,
@@ -571,6 +572,68 @@ export const adminOrderPaymentStatusTransitionSchema = z.object({
   reason: z.string().optional(),
   invoiceId: uuidSchema.optional(),
 });
+
+/**
+ * Who moves an order's payment status (issue #1574): an **operator** through
+ * `POST /api/v1/admin/orders/:id/payment-status`, or **settlement** — the
+ * `payments` module recording what a gateway or the `/payments/receive` ingress
+ * reported, through `orderPaymentStatusApplyPort`.
+ */
+export const paymentStatusTransitionActorSchema = z.enum(['operator', 'settlement']);
+export type PaymentStatusTransitionActor = z.infer<typeof paymentStatusTransitionActorSchema>;
+
+export interface PaymentStatusTransition {
+  readonly from: PaymentStatus;
+  readonly to: PaymentStatus;
+  readonly actors: readonly PaymentStatusTransitionActor[];
+}
+
+/**
+ * The money axis's transition graph (issue #1574). Not configurable: the
+ * vocabulary is a fixed enum and so is what may follow what.
+ *
+ * - `awaiting_payment` and `deferred` are **initial** — assigned at placement,
+ *   never reached by an edge.
+ * - `refunded` is **terminal** — nothing leaves it, so a refunded order is
+ *   never marked paid again.
+ * - `refunded` is reached only from `paid`: nothing else was paid.
+ * - `failed` is reached only by settlement: a payment fails at the gateway or
+ *   it does not (feature 085, FR-024).
+ *
+ * Moving to the status an order already has is no edge: it is a no-op for
+ * either actor. Every operator edge's `to` is one `adminOrderPaymentStatusTransitionSchema`
+ * parses, and the admin's "Change…" dialog offers exactly {@link paymentStatusTargets}.
+ */
+export const PAYMENT_STATUS_TRANSITIONS: readonly PaymentStatusTransition[] = [
+  { from: 'awaiting_payment', to: 'paid', actors: ['operator', 'settlement'] },
+  { from: 'failed', to: 'paid', actors: ['operator', 'settlement'] },
+  { from: 'deferred', to: 'paid', actors: ['operator', 'settlement'] },
+  { from: 'paid', to: 'refunded', actors: ['operator', 'settlement'] },
+  { from: 'awaiting_payment', to: 'failed', actors: ['settlement'] },
+];
+
+/** The statuses `actor` may move an order at `from` to — never `from` itself. */
+export function paymentStatusTargets(
+  from: PaymentStatus | string,
+  actor: PaymentStatusTransitionActor,
+): PaymentStatus[] {
+  return PAYMENT_STATUS_TRANSITIONS.filter(
+    (edge) => edge.from === from && edge.to !== from && edge.actors.includes(actor),
+  ).map((edge) => edge.to);
+}
+
+/**
+ * `details` of `409 ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED` (issue #1574).
+ * `code` is the refusal token the error envelope picks the sentence by:
+ * `payment_refunded` — the order is refunded, so nothing may follow;
+ * `payment_not_paid` — `refunded` was asked for an order that was never paid.
+ */
+export const orderPaymentStatusRefusalDetailsSchema = z.object({
+  code: z.enum(['payment_refunded', 'payment_not_paid']),
+  from: paymentStatusSchema,
+  to: paymentStatusSchema,
+});
+export type OrderPaymentStatusRefusalDetails = z.infer<typeof orderPaymentStatusRefusalDetailsSchema>;
 
 export const adminOrderRefundRequestSchema = z.object({
   amount: twoDecimalAmount(z.number().finite().positive()).optional(),
