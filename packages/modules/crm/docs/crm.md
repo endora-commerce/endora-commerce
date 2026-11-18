@@ -219,7 +219,7 @@ its transitions and its mappings with it.
 | `GET /api/v1/admin/crm/workflow` | `crm:read` | The configured statuses, with how many opportunities are in each, the transitions between them, the order-status mappings and the statuses that count toward a computed value. |
 | `POST /api/v1/admin/crm/statuses` | `crm:configure` | Add a status. |
 | `PATCH /api/v1/admin/crm/statuses/:code` | `crm:configure` | Rename or recolour a status, change its kind, or make it the start status. |
-| `PUT /api/v1/admin/crm/statuses/order` | `crm:configure` | Reorder the statuses: `{ orderedCodes }` names every status once, in the new order. A code that is not configured answers `404` `NOT_FOUND`; a status left out or named twice answers `409` `ORDER_STALE` — reload the list. |
+| `PUT /api/v1/admin/crm/statuses/order` | `crm:configure` | Reorder the statuses: `{ orderedCodes }` names every configured status exactly once, in the new order. Anything else — a code that is not configured (deleted or renamed meanwhile), a status left out, a status named twice — answers `409` `ORDER_STALE`: the list changed, so reload it. |
 | `DELETE /api/v1/admin/crm/statuses/:code` | `crm:configure` | Delete a status no opportunity is in. |
 | `PUT /api/v1/admin/crm/transitions` | `crm:configure` | Add and remove transitions. |
 | `PUT /api/v1/admin/crm/order-status-mappings` | `crm:configure` | Replace the set of order-status mappings. |

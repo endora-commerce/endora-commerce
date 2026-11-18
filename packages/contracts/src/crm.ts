@@ -600,10 +600,10 @@ export type UpdateOpportunityStatusRequest = z.infer<typeof UpdateOpportunitySta
 
 /**
  * `PUT /crm/statuses/order` (issue #1560) — the whole status list in its new
- * order, one Command. `orderedCodes` names **every** status once: a code that
- * is not configured answers 404 `NOT_FOUND`; a status left out, or one named
- * twice, answers 409 `ORDER_STALE` (the list changed under the caller). Duplicates
- * are therefore not refused by the schema.
+ * order, one Command. `orderedCodes` must be exactly the configured codes,
+ * each once: anything else — a code that is not configured, a status left out,
+ * one named twice — answers 409 `ORDER_STALE` (the list changed under the
+ * caller; reload it). Duplicates are therefore not refused by the schema.
  */
 export const ReorderOpportunityStatusesRequestSchema = z
   .object({ orderedCodes: z.array(opportunityStatusCodeSchema).min(1).max(500) })

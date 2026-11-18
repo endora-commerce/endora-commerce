@@ -168,7 +168,7 @@ export class TaskPriorityService {
           { orderBy: { weight: 'asc', code: 'asc' }, lockMode: LockMode.PESSIMISTIC_WRITE },
         );
         const before = priorities.map((priority) => priority.code);
-        assertCompleteOrder(before, input.orderedCodes, priorityNotFound);
+        assertCompleteOrder(before, input.orderedCodes);
         const byCode = new Map(priorities.map((priority) => [priority.code, priority]));
         input.orderedCodes.forEach((code, index) => {
           const priority = byCode.get(code);

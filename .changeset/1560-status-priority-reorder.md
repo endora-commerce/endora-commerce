@@ -15,8 +15,9 @@ one undo step, and a list is never left half-moved:
 | `PUT /api/v1/admin/tasks/statuses/order` | `tasks:configure` | `tasks.status.reorder` | the workflow, as `GET /tasks/workflow` |
 | `PUT /api/v1/admin/tasks/priorities/order` | `tasks:configure` | `tasks.priority.reorder` | the list, as `GET /tasks/priorities` |
 
-The body is `{ orderedCodes: string[] }` and names every row once. A code that is not configured
-answers `404 NOT_FOUND`; a row left out or named twice answers `409 ORDER_STALE`, a new code in
+The body is `{ orderedCodes: string[] }` and must be exactly the configured codes, each once.
+Anything else — a code that is not configured, a row left out, a row named twice — answers
+`409 ORDER_STALE`, a new code in
 `ERROR_CODES` with an English and Polish sentence in `@endora-commerce/mod-i18n` — the list changed
 since the caller loaded it, so reload it. The weights are rewritten 10, 20, 30, … in the new order.
 The audit entry records `{ order: [codes] }` before and after.

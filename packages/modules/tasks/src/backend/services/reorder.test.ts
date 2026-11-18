@@ -6,11 +6,10 @@ import { assertCompleteOrder } from './reorder.js';
 /** Issue #1560 — the one check every batch reorder of the Tasks configuration makes. */
 describe('assertCompleteOrder', () => {
   const current = ['todo', 'in_progress', 'done', 'cancelled'];
-  const notFound = (code: string) => new HttpError(404, ERROR_CODES.NOT_FOUND, `"${code}" not found.`);
 
   function refusal(ordered: string[]): HttpError {
     try {
-      assertCompleteOrder(current, ordered, notFound);
+      assertCompleteOrder(current, ordered);
     } catch (error) {
       if (error instanceof HttpError) return error;
       throw error;
@@ -19,16 +18,12 @@ describe('assertCompleteOrder', () => {
   }
 
   it('accepts a permutation of every current code', () => {
-    expect(() => assertCompleteOrder(current, ['done', 'todo', 'cancelled', 'in_progress'], notFound)).not.toThrow();
-  });
-
-  it('answers the caller’s 404 for a code that is not configured, before anything else', () => {
-    const error = refusal(['todo', 'nowhere']);
-    expect(error.statusCode).toBe(404);
-    expect(error.code).toBe(ERROR_CODES.NOT_FOUND);
+    expect(() => assertCompleteOrder(current, ['done', 'todo', 'cancelled', 'in_progress'])).not.toThrow();
   });
 
   it.each([
+    ['a code that is not configured — deleted or renamed by somebody else', [...current, 'nowhere']],
+    ['a code in place of a configured one', [...current.slice(1), 'nowhere']],
     ['a code left out', ['todo', 'in_progress', 'done']],
     ['a code named twice', ['todo', 'in_progress', 'done', 'cancelled', 'done']],
   ])('answers 409 ORDER_STALE for %s', (_case, ordered) => {

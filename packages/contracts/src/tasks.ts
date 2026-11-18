@@ -621,9 +621,10 @@ export type UpdateTaskPriorityBody = z.infer<typeof UpdateTaskPriorityBodySchema
 /**
  * `PUT /tasks/statuses/order` and `PUT /tasks/priorities/order` (issue #1560)
  * — the whole list in its new order, one Command. `orderedCodes` names
- * **every** row once: a code that is not configured answers 404 `NOT_FOUND`;
- * a row left out, or one named twice, answers 409 `ORDER_STALE` (the list
- * changed under the caller). Duplicates are therefore not refused by the schema.
+ * must be exactly the configured codes, each once: anything else — a code that
+ * is not configured, a row left out, one named twice — answers 409
+ * `ORDER_STALE` (the list changed under the caller; reload it). Duplicates are
+ * therefore not refused by the schema.
  */
 export const ReorderTaskStatusesBodySchema = z
   .object({ orderedCodes: z.array(taskStatusCodeSchema).min(1).max(500) })

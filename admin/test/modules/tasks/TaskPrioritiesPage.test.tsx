@@ -137,7 +137,10 @@ describe('TaskPrioritiesPage — reordering (issue #1560)', () => {
     const up = within(priorityRow('high')).getByRole('button', { name: en('reorder.moveUp', { name: 'High' }) });
     expect(up).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(up);
+    up.focus();
+    await userEvent.keyboard('{Enter}');
     expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(tableCodes()).toEqual(['urgent', 'high', 'low', 'normal']);
 
     await act(async () => answer({ data: inOrder(['urgent', 'high', 'low', 'normal']) }));
     await waitFor(() => expect(up).not.toHaveAttribute('aria-disabled'));

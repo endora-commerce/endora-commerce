@@ -227,7 +227,7 @@ export class TaskWorkflowConfigService {
         { orderBy: { weight: 'asc', code: 'asc' }, lockMode: LockMode.PESSIMISTIC_WRITE },
       );
       const before = statuses.map((status) => status.code);
-      assertCompleteOrder(before, input.orderedCodes, statusNotFound);
+      assertCompleteOrder(before, input.orderedCodes);
       const byCode = new Map(statuses.map((status) => [status.code, status]));
       input.orderedCodes.forEach((code, index) => {
         const status = byCode.get(code);

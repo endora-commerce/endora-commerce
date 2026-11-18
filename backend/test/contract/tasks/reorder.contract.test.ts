@@ -8,8 +8,9 @@ import { restoreDefaultTaskWorkflow } from '../../helpers/task-workflow.js';
  * Issue #1560 — the batch reorder of the Task statuses and priorities:
  * `PUT /tasks/statuses/order` and `PUT /tasks/priorities/order`, each the
  * whole list in its new order, one audited Command, answering the list as the
- * matching `GET` does. A row left out or named twice is 409 `ORDER_STALE`; a
- * code that is not configured is 404 `NOT_FOUND`; either way nothing moves.
+ * matching `GET` does. Anything but exactly the configured codes — a row left
+ * out, a row named twice, a code that is not configured — is 409
+ * `ORDER_STALE`, and nothing moves.
  * Only `tasks:configure` reorders.
  *
  * Both lists are platform-wide configuration: the statuses are restored to the
@@ -81,17 +82,12 @@ describe('tasks (contract) — batch reorder (#1560)', () => {
     it.each([
       ['a status left out', ['todo', 'in_progress', 'done']],
       ['a status named twice', ['todo', 'in_progress', 'done', 'cancelled', 'todo']],
+      ['a code that is not configured', ['nowhere', 'todo', 'in_progress', 'done', 'cancelled']],
+      ['a code in place of a configured one', ['nowhere', 'in_progress', 'done', 'cancelled']],
     ])('refuses %s — 409 ORDER_STALE, and moves nothing', async (_case, orderedCodes) => {
       const response = await call('PUT', '/statuses/order', { orderedCodes });
       expect(response.statusCode, response.body).toBe(409);
       expect(response.json().error.code).toBe('ORDER_STALE');
-      expect(await statusCodes()).toEqual(DEFAULT_ORDER);
-    });
-
-    it('refuses a code that is not configured — 404 NOT_FOUND', async () => {
-      const response = await call('PUT', '/statuses/order', { orderedCodes: ['nowhere', ...DEFAULT_ORDER] });
-      expect(response.statusCode, response.body).toBe(404);
-      expect(response.json().error.code).toBe('NOT_FOUND');
       expect(await statusCodes()).toEqual(DEFAULT_ORDER);
     });
 
@@ -122,14 +118,14 @@ describe('tasks (contract) — batch reorder (#1560)', () => {
       expect(await priorityCodes()).toEqual(before);
     });
 
-    it('refuses a priority left out — 409 ORDER_STALE; an unknown code — 404', async () => {
+    it('refuses a priority left out and an unknown code — both 409 ORDER_STALE', async () => {
       const before = await priorityCodes();
       const stale = await call('PUT', '/priorities/order', { orderedCodes: before.slice(1) });
       expect(stale.statusCode, stale.body).toBe(409);
       expect(stale.json().error.code).toBe('ORDER_STALE');
       const unknown = await call('PUT', '/priorities/order', { orderedCodes: [...before, 'nowhere'] });
-      expect(unknown.statusCode, unknown.body).toBe(404);
-      expect(unknown.json().error.code).toBe('NOT_FOUND');
+      expect(unknown.statusCode, unknown.body).toBe(409);
+      expect(unknown.json().error.code).toBe('ORDER_STALE');
       expect(await priorityCodes()).toEqual(before);
     });
 

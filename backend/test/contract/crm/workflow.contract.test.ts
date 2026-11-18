@@ -113,6 +113,8 @@ describe('crm workflow configuration (contract)', () => {
     it.each([
       ['a status left out', ['new', 'qualified', 'proposal', 'negotiation', 'won']],
       ['a status named twice', ['new', 'qualified', 'proposal', 'negotiation', 'won', 'lost', 'new']],
+      ['a code that is not configured', ['nowhere', 'new', 'qualified', 'proposal', 'negotiation', 'won', 'lost']],
+      ['a code in place of a configured one', ['nowhere', 'qualified', 'proposal', 'negotiation', 'won', 'lost']],
     ])('refuses %s — 409 ORDER_STALE, and moves nothing', async (_case, orderedCodes) => {
       const response = await call('PUT', '/statuses/order', { orderedCodes });
       expect(response.statusCode, response.body).toBe(409);
@@ -120,14 +122,6 @@ describe('crm workflow configuration (contract)', () => {
       expect(await codes()).toEqual(DEFAULT_ORDER);
     });
 
-    it('refuses a code that is not configured — 404 NOT_FOUND, and moves nothing', async () => {
-      const response = await call('PUT', '/statuses/order', {
-        orderedCodes: ['nowhere', 'new', 'qualified', 'proposal', 'negotiation', 'won', 'lost'],
-      });
-      expect(response.statusCode, response.body).toBe(404);
-      expect(response.json().error.code).toBe('NOT_FOUND');
-      expect(await codes()).toEqual(DEFAULT_ORDER);
-    });
 
     it('refuses a body the schema does not accept', async () => {
       const response = await call('PUT', '/statuses/order', { orderedCodes: [] });

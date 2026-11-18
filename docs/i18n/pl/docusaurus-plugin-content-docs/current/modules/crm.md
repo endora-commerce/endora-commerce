@@ -225,7 +225,7 @@ usunąć ten. Usunięcie statusu usuwa razem z nim jego przejścia i mapowania.
 | `GET /api/v1/admin/crm/workflow` | `crm:read` | Skonfigurowane statusy wraz z liczbą szans w każdym z nich, przejścia między nimi, mapowania statusów zamówień oraz statusy liczone do wartości wyliczanej. |
 | `POST /api/v1/admin/crm/statuses` | `crm:configure` | Dodanie statusu. |
 | `PATCH /api/v1/admin/crm/statuses/:code` | `crm:configure` | Zmiana nazwy lub koloru statusu, zmiana jego rodzaju albo oznaczenie go jako początkowego. |
-| `PUT /api/v1/admin/crm/statuses/order` | `crm:configure` | Zmiana kolejności statusów: `{ orderedCodes }` wymienia każdy status raz, w nowej kolejności. Kod, który nie jest skonfigurowany, daje `404` `NOT_FOUND`; pominięty lub powtórzony status daje `409` `ORDER_STALE` — wczytaj listę ponownie. |
+| `PUT /api/v1/admin/crm/statuses/order` | `crm:configure` | Zmiana kolejności statusów: `{ orderedCodes }` wymienia każdy skonfigurowany status dokładnie raz, w nowej kolejności. Wszystko inne — kod, który nie jest skonfigurowany (usunięty lub przemianowany w międzyczasie), pominięty status, status podany dwa razy — daje `409` `ORDER_STALE`: lista się zmieniła, więc wczytaj ją ponownie. |
 | `DELETE /api/v1/admin/crm/statuses/:code` | `crm:configure` | Usunięcie statusu, w którym nie ma żadnej szansy. |
 | `PUT /api/v1/admin/crm/transitions` | `crm:configure` | Dodawanie i usuwanie przejść. |
 | `PUT /api/v1/admin/crm/order-status-mappings` | `crm:configure` | Zastąpienie zbioru mapowań statusów zamówień. |

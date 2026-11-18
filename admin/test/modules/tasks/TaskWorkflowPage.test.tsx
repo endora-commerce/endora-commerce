@@ -159,7 +159,12 @@ describe('TaskWorkflowPage — reordering the statuses (issue #1560)', () => {
     const down = within(statusRow('done')).getByRole('button', { name: en('reorder.moveDown', { name: 'Done' }) });
     expect(down).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(down);
+    // `aria-disabled` does not block activation: the handler returns early, by keyboard too.
+    down.focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard(' ');
     expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(tableCodes()).toEqual(['in_progress', 'todo', 'done', 'cancelled']);
 
     await act(async () => answer({ data: inOrder(['in_progress', 'todo', 'done', 'cancelled']) }));
     await waitFor(() => expect(down).not.toHaveAttribute('aria-disabled'));
