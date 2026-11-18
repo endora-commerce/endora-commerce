@@ -696,7 +696,7 @@ translate it. Every other comment answers `systemNote: null`.
 ## Custom-field filters
 
 An order custom field whose **Use as list filter** option is on (set on **Custom fields**) is
-offered as a filter in the order list's advanced filters, labelled in your language: the text it
+offered as a filter behind the order list's **More filters**, labelled in your language: the text it
 contains, a number or date range, yes or no, or one or more options. An order without a value for
 the field never matches. Each custom-field filter is shown as a removable chip beside the other
 active filters, narrows the total and every page, and returns the list to its first page when it

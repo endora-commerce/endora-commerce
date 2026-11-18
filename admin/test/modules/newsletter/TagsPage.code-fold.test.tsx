@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { shippedModuleBundle } from '../../helpers/core-bundle';
 
 /**
  * Issue #239 — the newsletter tag/field code generator dropped `ł` outright.
@@ -47,15 +48,20 @@ const { TagsPage } = await import(
   '../../../../packages/modules/newsletter/src/admin/pages/TagsPage'
 );
 
-function fill(placeholder: string, value: string): void {
-  fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value } });
+// The shipped copy (issue #1463): the inputs are found by their labels.
+const bundle = shippedModuleBundle('newsletter', 'en');
+const copy = bundle.newsletter as Record<string, string>;
+const label = (key: string): string => copy[key]!;
+
+function fill(labelKey: string, value: string): void {
+  fireEvent.change(screen.getByRole('textbox', { name: label(labelKey) }), { target: { value } });
 }
 
 describe('Newsletter TagsPage — code derived from a Polish name (issue #239)', () => {
   it('folds ł to l when deriving a tag code from its name', async () => {
-    renderWithI18n(<TagsPage />);
-    fill('name', 'Metody płatności');
-    fireEvent.click(screen.getByRole('button', { name: 'Add tag' }));
+    renderWithI18n(<TagsPage />, bundle);
+    fill('tags.field.name', 'Metody płatności');
+    fireEvent.click(screen.getByRole('button', { name: label('tags.add') }));
 
     await waitFor(() => expect(createTag).toHaveBeenCalledTimes(1));
     expect(createTag).toHaveBeenCalledWith({
@@ -65,9 +71,9 @@ describe('Newsletter TagsPage — code derived from a Polish name (issue #239)',
   });
 
   it('folds ł when deriving a custom field key from its label', async () => {
-    renderWithI18n(<TagsPage />);
-    fill('label', 'Usługa wysyłki');
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }));
+    renderWithI18n(<TagsPage />, bundle);
+    fill('fields.field.label', 'Usługa wysyłki');
+    fireEvent.click(screen.getByRole('button', { name: label('fields.add') }));
 
     await waitFor(() => expect(createCustomField).toHaveBeenCalledTimes(1));
     expect(createCustomField).toHaveBeenCalledWith({

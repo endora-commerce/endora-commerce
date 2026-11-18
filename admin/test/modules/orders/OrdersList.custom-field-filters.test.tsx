@@ -183,7 +183,7 @@ async function renderList(entry = '/orders', rowsExpected = true): Promise<Retur
 }
 
 async function openFilters(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await user.click(screen.getByRole('button', { name: /^Filters/ }));
+  await user.click(screen.getByRole('button', { name: /^More filters/ }));
 }
 
 async function pickOptions(user: ReturnType<typeof userEvent.setup>, ...labels: string[]): Promise<void> {
@@ -286,7 +286,7 @@ describe('OrdersList — custom-field filters', () => {
       </StrictMode>,
     );
     await screen.findByText('#ORD-1');
-    await user.click(screen.getByRole('button', { name: new RegExp(`^${(pl as Record<string, string>)['orders.filter.toggle']}`) }));
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${(pl as Record<string, string>)['common.listToolbar.moreFilters']}`) }));
     const filterLabel = (await screen.findByRole('button', { name: 'Źródło klienta', expanded: false })).getAttribute('aria-label');
 
     api.get.mockImplementation(async (path: string) =>
@@ -391,7 +391,7 @@ describe('OrdersList — custom-field filters', () => {
       await user.selectOptions(screen.getByRole('combobox', { name: 'Saved views' }), WITH_SOURCE.id);
       await user.selectOptions(screen.getByRole('combobox', { name: 'Saved views' }), WITH_RETIRED.id);
       expect(await screen.findByText(/no longer available and were removed/)).toBeInTheDocument();
-      await user.click(screen.getByRole('button', { name: 'Clear all' }));
+      await user.click(screen.getByRole('button', { name: 'Clear all filters' }));
       await waitFor(() => expect(screen.queryByText(/no longer available and were removed/)).toBeNull());
     });
 

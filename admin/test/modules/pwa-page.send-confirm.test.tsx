@@ -86,16 +86,17 @@ async function mountAndCompose(language: 'en' | 'pl' = 'en'): Promise<void> {
     bundle(language),
     { language },
   );
-  const scope = await screen.findByLabelText(/Scope/);
+  const copy = bundle(language).pwa!;
+  const scope = await screen.findByRole('combobox', { name: copy['settings.scope']! });
   await screen.findByRole('option', { name: /B2B/ });
   fireEvent.change(scope, { target: { value: CHANNEL } });
   await waitFor(() => expect(get).toHaveBeenCalledWith(expect.stringContaining(`subscriptions?salesChannelId=${CHANNEL}`)));
-  fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Winter sale' } });
-  fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Prices drop tonight' } });
+  fireEvent.change(await screen.findByRole('textbox', { name: copy['push.field.title']! }), { target: { value: 'Winter sale' } });
+  fireEvent.change(screen.getByRole('textbox', { name: copy['push.field.body']! }), { target: { value: 'Prices drop tonight' } });
 }
 
 function sendButton(): HTMLElement {
-  return screen.getByRole('button', { name: /Send to all subscribers/ });
+  return screen.getByRole('button', { name: /Send to all subscribers|Wyślij do wszystkich subskrybentów/ });
 }
 
 describe('PWA screen — a push send asks first (#1462)', () => {

@@ -4,7 +4,10 @@ import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { adminSession, withSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+
+// Issue #1455 (CAT-02) — the list asks whether `import_export` is on before it offers Import / export.
+const PRESENCE = modulePresence({ present: ['catalog', 'import_export'] });
 import core from '../../../../packages/modules/_i18n/i18n/en.json';
 import catalog from '../../../../packages/modules/catalog/i18n/en.json';
 
@@ -122,7 +125,7 @@ function renderList(options: { permissions?: readonly string[]; url?: string } =
       <MemoryRouter initialEntries={[options.url ?? '/catalog/products']}>
         <ProductsList />
       </MemoryRouter>,
-      { session: adminSession({ permissions: options.permissions ?? ['*'] }) },
+      { presence: PRESENCE, session: adminSession({ permissions: options.permissions ?? ['*'] }) },
     ),
     BUNDLE,
   );
@@ -224,7 +227,7 @@ describe('ProductsList — the Archived filter (FR-113)', () => {
           <GoTo to="/catalog/products?status=inactive" label="go inactive" />
           <ProductsList />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['*'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
       ),
       BUNDLE,
     );

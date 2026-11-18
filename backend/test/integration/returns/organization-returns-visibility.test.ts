@@ -7,6 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ReturnCase } from '../../helpers/package-entities.js';
+import { TINY_PNG, upload } from './off-platform-fixtures.js';
 import { ADMIN_COOKIE, resetReturnGraph } from './helpers.js';
 import {
   asMember,
@@ -169,7 +170,6 @@ describe('170 WP-14 — the Organization’s returns need returns.view_organizat
 
         const attempts: Array<[string, object | undefined]> = [
           ['comments', { body: 'Not mine' }],
-          ['attachments', { assetId: '00000000-0000-4000-8000-0000000170f2' }],
           ['select-delivery-method', { returnDeliveryMethodId: deliveryMethodId }],
           ['cancel', undefined],
         ];
@@ -178,6 +178,14 @@ describe('170 WP-14 — the Organization’s returns need returns.view_organizat
           expect(res.statusCode, `${action}: ${res.body}`).toBe(404);
           expect(errorOf(res)?.code).toBe(ERROR_CODES.NOT_FOUND);
         }
+
+        // 180 §C4 — the filer's only; the file is never read for anybody else.
+        const attachment = await upload(
+          h,
+          { type: 'photo', filename: 'p.png', mime: 'image/png', value: TINY_PNG },
+          { caseId: cases.colleague, cookies: { b2b_session: m[holder].cookie } },
+        );
+        expect(attachment.statusCode, attachment.body).toBe(404);
 
         em.clear();
         const after = await em.findOneOrFail(ReturnCase, { id: cases.colleague }, { filters: false });

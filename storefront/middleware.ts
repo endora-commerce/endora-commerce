@@ -126,6 +126,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   requestHeaders.delete(LANGUAGE_REQUEST_HEADER);
   requestHeaders.delete(LANGUAGE_PREFIX_REQUEST_HEADER);
   requestHeaders.set('x-pathname', pathname);
+  // `specs/181-guest-complaints/` design review F-1 — the query beside the path, so the
+  // `(account)` layout can send a signed-out visitor back to the very page asked for.
+  // Written or deleted on every document request, never a client's own.
+  if (request.nextUrl.search) requestHeaders.set('x-search', request.nextUrl.search);
+  else requestHeaders.delete('x-search');
 
   const decision = gateDecision({
     pathname,

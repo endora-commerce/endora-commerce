@@ -1,17 +1,64 @@
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
+  PRODUCT_OR_MODEL_REQUIRED,
+  RETURN_CASE_CREATED_EVENT,
+  ReturnCaseCreatedEventV1Schema,
+  adminReturnsListQuerySchema,
+  createReturnCaseClauseRequestSchema,
+  createReturnCaseRequestSchema,
+  resolutionTypeSchema,
+  returnAttachmentSchema,
+  returnAttachmentTypeSchema,
+  returnCaseClauseSchema,
+  returnCaseItemSchema,
+  returnFormConfigSchema,
+  returnUploadSchema,
+  settlementRequestSchema,
+  shownClauseSchema,
+  updateReturnCaseClauseRequestSchema,
+  NOTIFY_REQUIRES_CUSTOMER_VISIBLE,
+  adminAddCommentRequestSchema,
   adminReturnRowSchema,
+  adminReturnsSortSchema,
   alternativeResolutionConsentSchema,
   recordAlternativeConsentRequestSchema,
   returnCaseDetailSchema,
+  returnCaseAuthorizerSchema,
   returnCaseSummarySchema,
+  returnNotificationHealthSchema,
+  returnStatusCreateSchema,
+  returnStatusSchema,
+  returnStatusUpdateSchema,
   settlementPrefillSchema,
   type AdminReturnRow,
   type RecordAlternativeConsentRequest,
   type ReturnCaseDetail,
   type ReturnCaseSummary,
+  type ReturnStatusDto,
   type SettlementPrefill,
 } from './returns.js';
+import {
+  GUEST_VERIFICATION_LINK_VALID_MINUTES,
+  RETURNS_GUEST_SESSION_COOKIE,
+  RETURNS_TRACKING_TOKEN_HEADER,
+  adminEraseGuestDataRequestSchema,
+  adminEraseGuestDataResultSchema,
+  adminReissueTrackingLinkResultSchema,
+  createGuestComplaintRequestSchema,
+  guestAvailabilitySchema,
+  guestCaseFiledSchema,
+  guestCaseViewSchema,
+  guestCommentRequestSchema,
+  guestFormConfigSchema,
+  guestLimitSchema,
+  guestSessionRedeemRequestSchema,
+  guestSessionSchema,
+  guestTrackingAttachmentFieldsSchema,
+  guestVerificationAcceptedSchema,
+  guestVerificationRequestSchema,
+  returnCaseCommentSchema,
+} from './returns.js';
+import { REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 
 /**
  * `specs/170-organization-roles/` WP-14, T147 (FR-053, R-41 item 6) — a case
@@ -32,12 +79,19 @@ const summary = {
   currency: 'PLN',
   submittedAt: '2026-11-04T10:00:00.000Z',
   customerAccountId: FILER,
+  reference: '#000000C1',
+  offPlatform: false,
+  productLabel: 'Widget',
+  lineCount: 1,
+  purchaseDate: null,
+  guest: false,
 } as const;
 
 describe('ReturnCaseSummary.customerAccountId (170 WP-14)', () => {
   it('is carried by the summary', () => {
     expect(returnCaseSummarySchema.parse(summary).customerAccountId).toBe(FILER);
-    expectTypeOf<ReturnCaseSummary['customerAccountId']>().toEqualTypeOf<string>();
+    // `specs/181-guest-complaints/` widens it: `null` is a guest case.
+    expectTypeOf<ReturnCaseSummary['customerAccountId']>().toEqualTypeOf<string | null>();
   });
 
   it('is required, and must be a uuid', () => {
@@ -47,9 +101,14 @@ describe('ReturnCaseSummary.customerAccountId (170 WP-14)', () => {
   });
 
   it('is inherited by the operator’s row', () => {
-    const row = adminReturnRowSchema.parse({ ...summary, customerName: 'Ewa', organizationName: 'Acme' });
+    const row = adminReturnRowSchema.parse({
+      ...summary,
+      customerName: 'Ewa',
+      organizationName: 'Acme',
+      authorizedBy: null,
+    });
     expect(row.customerAccountId).toBe(FILER);
-    expectTypeOf<AdminReturnRow['customerAccountId']>().toEqualTypeOf<string>();
+    expectTypeOf<AdminReturnRow['customerAccountId']>().toEqualTypeOf<string | null>();
   });
 
   it('keeps the detail’s declaration of it', () => {
@@ -131,5 +190,564 @@ describe('consumer withdrawal — recorded consent (#905)', () => {
     expect(
       settlementPrefillSchema.safeParse({ currency: 'PLN', resolutionOptions: ['refund'], items: [] }).success,
     ).toBe(false);
+  });
+});
+
+/**
+ * `specs/180-off-platform-complaints/` WP A-1 (T003–T005): the contracts of phase A —
+ * notify-on-comment, notify-on-entry, the authorizer and the case reference.
+ */
+describe('admin comment — notify requires a customer-visible comment (180 FR-A21)', () => {
+  const body = { body: 'We received your parcel.' };
+
+  it('refuses notifyCustomer on an internal comment with the detail code', () => {
+    const result = adminAddCommentRequestSchema.safeParse({ ...body, isCustomerVisible: false, notifyCustomer: true });
+    expect(result.success).toBe(false);
+    const issue = result.error!.issues[0]!;
+    expect(issue.path).toEqual(['notifyCustomer']);
+    expect(issue.message).toBe(NOTIFY_REQUIRES_CUSTOMER_VISIBLE);
+    expect(NOTIFY_REQUIRES_CUSTOMER_VISIBLE).toBe('notify_requires_customer_visible');
+  });
+
+  it('accepts the other three combinations', () => {
+    for (const [isCustomerVisible, notifyCustomer] of [
+      [true, true],
+      [true, false],
+      [false, false],
+    ] as const) {
+      expect(adminAddCommentRequestSchema.safeParse({ ...body, isCustomerVisible, notifyCustomer }).success).toBe(true);
+    }
+  });
+
+  it('still requires both booleans (the API has no default)', () => {
+    expect(adminAddCommentRequestSchema.safeParse({ ...body, isCustomerVisible: true }).success).toBe(false);
+    expect(adminAddCommentRequestSchema.safeParse({ ...body, notifyCustomer: false }).success).toBe(false);
+  });
+});
+
+describe('status — notify the customer on entry (180 FR-A30)', () => {
+  const status = {
+    code: 'received',
+    name: { en: 'Received' },
+    defaultName: 'Received',
+    isInitial: false,
+    isTerminal: false,
+    isSystem: true,
+    weight: 30,
+    color: '#8b5cf6',
+  };
+
+  it('is required on the status', () => {
+    expect(returnStatusSchema.safeParse(status).success).toBe(false);
+    expect(returnStatusSchema.parse({ ...status, notifyCustomerOnEntry: true }).notifyCustomerOnEntry).toBe(true);
+    expectTypeOf<ReturnStatusDto['notifyCustomerOnEntry']>().toEqualTypeOf<boolean>();
+  });
+
+  it('is optional on the create and patch bodies', () => {
+    const create = { code: 'awaiting_parts', name: { en: 'Awaiting parts' }, defaultName: 'Awaiting parts' };
+    expect(returnStatusCreateSchema.parse(create).notifyCustomerOnEntry).toBeUndefined();
+    expect(returnStatusCreateSchema.parse({ ...create, notifyCustomerOnEntry: true }).notifyCustomerOnEntry).toBe(true);
+    expect(returnStatusUpdateSchema.parse({}).notifyCustomerOnEntry).toBeUndefined();
+    expect(returnStatusUpdateSchema.parse({ notifyCustomerOnEntry: false }).notifyCustomerOnEntry).toBe(false);
+    expect(returnStatusUpdateSchema.safeParse({ notifyCustomerOnEntry: 'yes' }).success).toBe(false);
+  });
+});
+
+describe('the authorizer and the case reference (180 FR-A41 – FR-A44, D-7)', () => {
+  const ADMIN = '00000000-0000-4000-8000-0000000180a1';
+
+  it('puts the reference on the summary, and so on the admin row and the detail', () => {
+    const { reference: _omitted, ...withoutReference } = summary;
+    expect(returnCaseSummarySchema.safeParse(withoutReference).success).toBe(false);
+    expect(returnCaseSummarySchema.parse(summary).reference).toBe('#000000C1');
+    expect(returnCaseDetailSchema.shape.reference).toBeDefined();
+    expect(adminReturnRowSchema.shape.reference).toBeDefined();
+  });
+
+  it('puts authorizedAt and authorizedBy on the detail', () => {
+    expect(returnCaseDetailSchema.shape.authorizedAt).toBeDefined();
+    expect(returnCaseDetailSchema.shape.authorizedBy).toBeDefined();
+    expectTypeOf<ReturnCaseDetail['authorizedAt']>().toEqualTypeOf<string | null>();
+    expectTypeOf<ReturnCaseDetail['authorizedBy']>().toEqualTypeOf<{ adminUserId: string | null; name: string | null } | null>();
+  });
+
+  it('describes the authorizer as an id and a resolved name, either of which may be null', () => {
+    expect(returnCaseAuthorizerSchema.parse({ adminUserId: ADMIN, name: 'Ada' })).toEqual({ adminUserId: ADMIN, name: 'Ada' });
+    // A removed administrator: the id is known, no name resolves (FR-A42).
+    expect(returnCaseAuthorizerSchema.parse({ adminUserId: ADMIN, name: null }).name).toBeNull();
+    // Unknown: authorized before the authorizer was recorded (FR-A43).
+    expect(returnCaseAuthorizerSchema.parse({ adminUserId: null, name: null }).adminUserId).toBeNull();
+    expect(returnCaseAuthorizerSchema.safeParse({ adminUserId: 'someone', name: null }).success).toBe(false);
+  });
+
+  it('carries the authorizer on the admin row', () => {
+    const row = adminReturnRowSchema.parse({
+      ...summary,
+      customerName: null,
+      organizationName: null,
+      authorizedBy: { adminUserId: ADMIN, name: 'Ada' },
+    });
+    expect(row.authorizedBy?.name).toBe('Ada');
+    expect(
+      adminReturnRowSchema.safeParse({ ...summary, customerName: null, organizationName: null }).success,
+    ).toBe(false);
+    expectTypeOf<AdminReturnRow['authorizedBy']>().toEqualTypeOf<{ adminUserId: string | null; name: string | null } | null>();
+  });
+
+  it('parses the notification health answer', () => {
+    const health = returnNotificationHealthSchema.parse({
+      recipientsMissing: { global: true, salesChannelIds: [ADMIN] },
+    });
+    expect(health.recipientsMissing.global).toBe(true);
+    expect(returnNotificationHealthSchema.safeParse({ recipientsMissing: { global: true, salesChannelIds: ['x'] } }).success).toBe(
+      false,
+    );
+  });
+
+  it('leaves the sort unchanged: the authorizer is not sortable', () => {
+    expect(adminReturnsSortSchema.options).toEqual(['submittedAt:asc', 'submittedAt:desc', 'rmaNumber:asc', 'rmaNumber:desc']);
+  });
+});
+
+/**
+ * `specs/180-off-platform-complaints/` WP B-1 (T043–T045): the complaint without a
+ * platform order — the create union, the form configuration, attachments, clauses,
+ * the outside settlement, the list origin and the detail blocks.
+ */
+const U = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+describe('the create request (180 T043, contracts/customer-api.md §C3)', () => {
+  const orderCase = {
+    orderId: U(1),
+    kind: 'complaint' as const,
+    lines: [{ orderItemId: U(2), quantity: 1, reasonId: U(3), serialNumber: 'SN-1' }],
+    attachments: [{ uploadId: U(4) }],
+    shownClauses: [{ id: U(5), revision: 2 }],
+    acceptedClauses: [{ id: U(5), revision: 2 }],
+    submissionKey: U(6),
+  };
+  const noOrder = {
+    orderId: null,
+    kind: 'complaint' as const,
+    lines: [
+      { productId: U(7), quantity: 1, reasonId: U(3), description: 'Does not start' },
+      { modelName: 'Drill X200', quantity: 2, reasonId: U(3), description: 'Battery swells', serialNumber: 'AB-12' },
+    ],
+    purchase: { proofNumber: 'FV/1/2026', date: '2026-10-01' },
+    contact: { name: 'Ewa Nowak', email: 'ewa@example.test', phone: '+48 600 000 000' },
+    returnAddress: { name: 'Ewa Nowak', street: 'Prosta 1', postalCode: '00-001', city: 'Warszawa', countryCode: 'PL' },
+  };
+
+  it('accepts the order branch with the new optional fields', () => {
+    expect(createReturnCaseRequestSchema.safeParse(orderCase).success).toBe(true);
+  });
+
+  it('accepts the no-order branch', () => {
+    const parsed = createReturnCaseRequestSchema.parse(noOrder);
+    expect(parsed.orderId).toBeNull();
+  });
+
+  it('refuses kind return without an order (R3)', () => {
+    expect(createReturnCaseRequestSchema.safeParse({ ...noOrder, kind: 'return' }).success).toBe(false);
+  });
+
+  it.each(['purchase', 'contact', 'returnAddress'] as const)('requires %s on the no-order branch', (key) => {
+    const { [key]: _omitted, ...rest } = noOrder;
+    expect(createReturnCaseRequestSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it('requires the purchase date', () => {
+    expect(createReturnCaseRequestSchema.safeParse({ ...noOrder, purchase: { proofNumber: 'x' } }).success).toBe(false);
+  });
+
+  it('requires exactly one of productId and modelName per line, with product_or_model_required', () => {
+    const line = { quantity: 1, reasonId: U(3), description: 'x' };
+    for (const bad of [line, { ...line, productId: U(7), modelName: 'Both' }]) {
+      const result = createReturnCaseRequestSchema.safeParse({ ...noOrder, lines: [bad] });
+      expect(result.success).toBe(false);
+      expect(JSON.stringify(result.error?.issues)).toContain(PRODUCT_OR_MODEL_REQUIRED);
+    }
+  });
+
+  it('requires a non-empty description on a no-order line', () => {
+    const lines = [{ modelName: 'X', quantity: 1, reasonId: U(3), description: '  ' }];
+    expect(createReturnCaseRequestSchema.safeParse({ ...noOrder, lines }).success).toBe(false);
+  });
+
+  it('ties an attachment to one line of the request by its index, on both branches', () => {
+    const tied = [{ uploadId: U(4), line: 1 }, { uploadId: U(8) }];
+    const parsed = createReturnCaseRequestSchema.parse({ ...noOrder, attachments: tied });
+    expect(parsed.attachments).toEqual(tied);
+    expect(createReturnCaseRequestSchema.safeParse({ ...orderCase, attachments: [{ uploadId: U(4), line: 0 }] }).success).toBe(true);
+  });
+
+  it('refuses a line index that is negative, fractional or beyond the line bound', () => {
+    for (const line of [-1, 0.5, REQUEST_LINE_ITEMS_MAX]) {
+      expect(createReturnCaseRequestSchema.safeParse({ ...noOrder, attachments: [{ uploadId: U(4), line }] }).success).toBe(false);
+    }
+    expect(
+      createReturnCaseRequestSchema.safeParse({ ...noOrder, attachments: [{ uploadId: U(4), line: REQUEST_LINE_ITEMS_MAX - 1 }] }).success,
+    ).toBe(true);
+  });
+
+  it('refuses attachmentAssetIds as an unknown key, on both branches', () => {
+    expect(createReturnCaseRequestSchema.safeParse({ ...orderCase, attachmentAssetIds: [U(9)] }).success).toBe(false);
+    expect(createReturnCaseRequestSchema.safeParse({ ...noOrder, attachmentAssetIds: [U(9)] }).success).toBe(false);
+  });
+});
+
+describe('form configuration, uploads, attachments and clauses (180 T044)', () => {
+  it('parses the form configuration (D-1, D-11, D-12)', () => {
+    const config = returnFormConfigSchema.parse({
+      offPlatformComplaintsEnabled: true,
+      proofOfPurchaseRequired: false,
+      confirmationEmailEnabled: true,
+      today: '2026-11-13',
+      clauses: [{ id: U(1), revision: 1, mode: 'inform_only', label: 'Terms', text: 'Text', linkUrl: null }],
+      attachmentLimits: { maxFileBytes: 10, maxSubmissionBytes: 30, maxFilesPerCase: 10, acceptedMimeTypes: ['application/pdf'] },
+    });
+    expect(config.clauses[0]!.mode).toBe('inform_only');
+    expect(returnFormConfigSchema.safeParse({ ...config, today: '13.11.2026' }).success).toBe(false);
+  });
+
+  it('parses an upload answer and a typed attachment with no asset id', () => {
+    expect(
+      returnUploadSchema.parse({
+        uploadId: U(1),
+        type: 'proof_of_purchase',
+        filename: 'receipt.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1000,
+        expiresAt: '2026-11-14T10:00:00.000Z',
+      }).type,
+    ).toBe('proof_of_purchase');
+    const attachment = returnAttachmentSchema.parse({
+      id: U(1),
+      returnCaseId: U(2),
+      returnCaseItemId: U(3),
+      type: 'photo',
+      filename: 'a.jpg',
+      mimeType: 'image/jpeg',
+      sizeBytes: 10,
+      createdAt: '2026-11-14T10:00:00.000Z',
+      uploadedByGuest: false,
+    });
+    expect('assetId' in attachment).toBe(false);
+    expect(attachment.returnCaseItemId).toBe(U(3));
+    expect(returnAttachmentSchema.safeParse({ ...attachment, returnCaseItemId: null }).success).toBe(true);
+    const { returnCaseItemId: _line, ...withoutLine } = attachment;
+    expect(returnAttachmentSchema.safeParse(withoutLine).success).toBe(false);
+    expect(returnAttachmentTypeSchema.options).toEqual(['photo', 'proof_of_purchase', 'other']);
+  });
+
+  it('defines clauses with appliesTo, mode and an https-only link', () => {
+    const body = { label: { en: 'Terms' }, text: { en: 'Read me' } };
+    const created = createReturnCaseClauseRequestSchema.parse(body);
+    expect(created.appliesTo).toBeUndefined();
+    expect(createReturnCaseClauseRequestSchema.safeParse({ ...body, linkUrl: { en: 'https://shop.example/terms' } }).success).toBe(true);
+    expect(createReturnCaseClauseRequestSchema.safeParse({ ...body, linkUrl: { en: 'http://shop.example/terms' } }).success).toBe(false);
+    expect(createReturnCaseClauseRequestSchema.safeParse({ ...body, mode: 'inform' }).success).toBe(false);
+    expect(createReturnCaseClauseRequestSchema.safeParse({ ...body, appliesTo: 'both', mode: 'inform_only' }).success).toBe(true);
+    expect(updateReturnCaseClauseRequestSchema.parse({ weight: 5 }).weight).toBe(5);
+    expect(returnCaseClauseSchema.shape.revision).toBeDefined();
+  });
+});
+
+describe('outside settlement, list origin and detail blocks (180 T045)', () => {
+  it('adds settled_outside and the resolution note', () => {
+    expect(resolutionTypeSchema.options).toContain('settled_outside');
+    const request = settlementRequestSchema.parse({ resolutionType: 'settled_outside', lines: [], resolutionNote: '  refunded in store  ' });
+    expect(request.resolutionNote).toBe('refunded in store');
+    expect(settlementRequestSchema.safeParse({ resolutionType: 'settled_outside', lines: [], resolutionNote: 'x'.repeat(2001) }).success).toBe(false);
+  });
+
+  it('lets the summary have no order, and carries the off-platform fields (D-3)', () => {
+    const offPlatform = { ...summary, orderId: null, offPlatform: true, productLabel: 'Drill', lineCount: 2, purchaseDate: '2026-10-01' };
+    expect(returnCaseSummarySchema.parse(offPlatform).orderId).toBeNull();
+    const { productLabel: _p, ...withoutLabel } = offPlatform;
+    expect(returnCaseSummarySchema.safeParse(withoutLabel).success).toBe(false);
+  });
+
+  it('filters the list by origin', () => {
+    expect(adminReturnsListQuerySchema.parse({ origin: 'off_platform' }).origin).toBe('off_platform');
+    expect(adminReturnsListQuerySchema.safeParse({ origin: 'elsewhere' }).success).toBe(false);
+  });
+
+  it('puts the off-platform blocks on the detail', () => {
+    for (const key of [
+      'purchase',
+      'contact',
+      'returnAddress',
+      'attachments',
+      'acceptedClauses',
+      'clausesAcceptedAt',
+      'resolutionNote',
+      'personalDataErasedAt',
+    ]) {
+      expect(returnCaseDetailSchema.shape).toHaveProperty(key);
+    }
+    expect(
+      shownClauseSchema.parse({ clauseId: U(1), revision: 1, mode: 'must_accept', language: 'pl', label: 'L', text: 'T', linkUrl: null }).mode,
+    ).toBe('must_accept');
+    expect(returnCaseItemSchema.shape.serialNumber).toBeDefined();
+    expect(returnCaseItemSchema.shape.orderItemId.safeParse(null).success).toBe(true);
+  });
+
+  it('declares return_case.created.v1 with a strict payload', () => {
+    expect(RETURN_CASE_CREATED_EVENT).toBe('return_case.created.v1');
+    const event = {
+      eventId: U(1),
+      occurredAt: '2026-11-13T10:00:00.000Z',
+      returnCaseId: U(2),
+      organizationId: U(3),
+      salesChannelId: U(4),
+      kind: 'complaint',
+      offPlatform: true,
+      guest: false,
+    };
+    expect(ReturnCaseCreatedEventV1Schema.parse(event).offPlatform).toBe(true);
+    expect(ReturnCaseCreatedEventV1Schema.safeParse({ ...event, contact: 'x' }).success).toBe(false);
+  });
+});
+
+/**
+ * `specs/181-guest-complaints/` G-1 (T002): the guest and tracking API
+ * (contracts/guest-api.md G1 – G10), the admin widening (admin-api.md A1 – A3,
+ * A5) and the event change (settings-emails-events.md §3).
+ */
+describe('guest complaints — contracts (181 G-1)', () => {
+  const guestCase = {
+    kind: 'complaint' as const,
+    lines: [{ modelName: 'Drill X200', quantity: 1, reasonId: U(3), description: 'Battery swells' }],
+    purchase: { proofNumber: 'FV/1/2026', date: '2026-10-01' },
+    contact: { name: 'Ewa Nowak', phone: '+48 600 000 000' },
+    returnAddress: { name: 'Ewa Nowak', street: 'Prosta 1', postalCode: '00-001', city: 'Warszawa', countryCode: 'PL' },
+    attachments: [{ uploadId: U(4), line: 0 }],
+    shownClauses: [{ id: U(5), revision: 1 }],
+    acceptedClauses: [{ id: U(5), revision: 1 }],
+    comment: 'Bought at a fair',
+    submissionKey: U(6),
+    hp: '',
+  };
+
+  describe('G1 availability, G2 verification request, G3 redeem', () => {
+    it('answers availability as one boolean', () => {
+      expect(guestAvailabilitySchema.parse({ enabled: false }).enabled).toBe(false);
+      expect(guestAvailabilitySchema.safeParse({}).success).toBe(false);
+    });
+
+    it('takes an address, an optional honeypot and an optional language, strictly', () => {
+      const parsed = guestVerificationRequestSchema.parse({ email: '  ewa@example.test ', language: 'pl' });
+      expect(parsed.email).toBe('ewa@example.test');
+      expect(parsed.hp).toBeUndefined();
+      expect(guestVerificationRequestSchema.safeParse({ email: 'ewa@example.test', hp: 'bot' }).success).toBe(true);
+      expect(guestVerificationRequestSchema.safeParse({ email: 'not-an-address' }).success).toBe(false);
+      expect(guestVerificationRequestSchema.safeParse({ email: `${'a'.repeat(250)}@x.pl` }).success).toBe(false);
+      expect(guestVerificationRequestSchema.safeParse({ email: 'ewa@example.test', salesChannelId: U(1) }).success).toBe(false);
+    });
+
+    it('answers every accepted request with the link lifetime only', () => {
+      expect(GUEST_VERIFICATION_LINK_VALID_MINUTES).toBe(60);
+      expect(guestVerificationAcceptedSchema.parse({ linkValidMinutes: 60 })).toEqual({ linkValidMinutes: 60 });
+    });
+
+    it('redeems a token of at most 512 characters into a session', () => {
+      expect(guestSessionRedeemRequestSchema.safeParse({ token: 'x'.repeat(512) }).success).toBe(true);
+      expect(guestSessionRedeemRequestSchema.safeParse({ token: 'x'.repeat(513) }).success).toBe(false);
+      expect(guestSessionRedeemRequestSchema.safeParse({ token: '' }).success).toBe(false);
+      expect(guestSessionRedeemRequestSchema.safeParse({ token: 'x', email: 'a@b.c' }).success).toBe(false);
+      const session = guestSessionSchema.parse({ sessionToken: 's', email: 'ewa@example.test', expiresAt: '2026-11-17T10:00:00.000Z' });
+      expect(session.sessionToken).toBe('s');
+    });
+
+    it('names the session cookie and the tracking header', () => {
+      expect(RETURNS_GUEST_SESSION_COOKIE).toBe('b2b_returns_guest');
+      expect(RETURNS_TRACKING_TOKEN_HEADER).toBe('x-returns-tracking-token');
+    });
+  });
+
+  describe('G5 form configuration and G7 filing', () => {
+    it('extends the form configuration with the verified address, and a confirmation that cannot be off', () => {
+      const base = {
+        offPlatformComplaintsEnabled: true,
+        proofOfPurchaseRequired: false,
+        confirmationEmailEnabled: true,
+        today: '2026-11-16',
+        clauses: [],
+        attachmentLimits: { maxFileBytes: 10, maxSubmissionBytes: 30, maxFilesPerCase: 10, acceptedMimeTypes: ['application/pdf'] },
+      };
+      const reasons = [{ id: U(7), label: { en: 'Defect' }, appliesTo: 'complaint', isActive: true, weight: 1 }];
+      const config = guestFormConfigSchema.parse({ ...base, reasons, verifiedEmail: 'ewa@example.test', sessionExpiresAt: '2026-11-17T10:00:00.000Z' });
+      expect(config.verifiedEmail).toBe('ewa@example.test');
+      // The complaint reasons the guest chooses from: the customer's reasons route needs a session.
+      expect(config.reasons).toEqual(reasons);
+      expect(guestFormConfigSchema.safeParse({ ...base, verifiedEmail: 'e', sessionExpiresAt: '2026-11-17T10:00:00.000Z' }).success).toBe(false);
+      expect(
+        guestFormConfigSchema.safeParse({ ...base, reasons, confirmationEmailEnabled: false, verifiedEmail: 'e', sessionExpiresAt: '2026-11-17T10:00:00.000Z' }).success,
+      ).toBe(false);
+    });
+
+    it('accepts a guest complaint', () => {
+      const parsed = createGuestComplaintRequestSchema.parse(guestCase);
+      expect(parsed.kind).toBe('complaint');
+      expect(parsed.contact).toEqual({ name: 'Ewa Nowak', phone: '+48 600 000 000' });
+    });
+
+    it.each([
+      ['customerAccountId', { customerAccountId: U(9) }],
+      ['organizationId', { organizationId: U(9) }],
+      ['orderId', { orderId: U(9) }],
+      ['a null orderId', { orderId: null }],
+      ['salesChannelId', { salesChannelId: U(9) }],
+    ])('refuses a body naming %s (FR-034)', (_name, extra) => {
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, ...extra }).success).toBe(false);
+    });
+
+    it('refuses an e-mail in the contact: it is the session’s (FR-031)', () => {
+      const contact = { ...guestCase.contact, email: 'other@example.test' };
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, contact }).success).toBe(false);
+    });
+
+    it('refuses kind return (G1)', () => {
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, kind: 'return' }).success).toBe(false);
+    });
+
+    it('keeps 180’s line, purchase and attachment rules', () => {
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, purchase: { proofNumber: 'x' } }).success).toBe(false);
+      const bothNamed = [{ productId: U(7), modelName: 'X', quantity: 1, reasonId: U(3), description: 'x' }];
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, lines: bothNamed }).success).toBe(false);
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, lines: [] }).success).toBe(false);
+      const eleven = Array.from({ length: 11 }, (_, i) => ({ uploadId: U(100 + i) }));
+      expect(createGuestComplaintRequestSchema.safeParse({ ...guestCase, attachments: eleven }).success).toBe(false);
+      expect(
+        createGuestComplaintRequestSchema.safeParse({ ...guestCase, attachments: [{ uploadId: U(4), line: REQUEST_LINE_ITEMS_MAX }] }).success,
+      ).toBe(false);
+    });
+
+    it('answers a filed case with its reference, tracking token and the confirmation address', () => {
+      const filed = guestCaseFiledSchema.parse({ reference: '#ABCDEF12', trackingToken: 't', email: 'ewa@example.test' });
+      expect(filed.trackingToken).toBe('t');
+    });
+
+    it('names the limits of RETURN_GUEST_LIMIT_REACHED', () => {
+      expect(guestLimitSchema.options).toEqual(['cases_per_session', 'cases_per_address', 'comments_per_case']);
+    });
+  });
+
+  describe('G8 – G10 the tracking page', () => {
+    const view = {
+      reference: '#ABCDEF12',
+      kind: 'complaint',
+      status: { code: 'new', label: 'Nowe' },
+      isClosed: false,
+      submittedAt: '2026-11-16T10:00:00.000Z',
+      lines: [{ productName: 'Drill X200', quantity: 1, reasonLabel: 'Defect', description: 'Battery swells', serialNumber: null }],
+      purchase: { proofNumber: null, date: '2026-10-01' },
+      contact: { name: 'Ewa', email: 'ewa@example.test', phone: null },
+      returnAddress: guestCase.returnAddress,
+      rmaNumber: null,
+      comments: [{ id: U(1), authorKind: 'you', body: 'Hello', createdAt: '2026-11-16T10:00:00.000Z' }],
+      attachments: [{ id: U(2), type: 'photo', filename: 'a.jpg', sizeBytes: 10, lineIndex: 0 }],
+      linkValidUntil: null,
+      rejectionReason: null,
+    };
+
+    it('parses the view a tracking link opens', () => {
+      expect(guestCaseViewSchema.parse(view).isClosed).toBe(false);
+    });
+
+    it('carries the rejection reason, nullable and required (owner ruling O-1, FR-041)', () => {
+      expect(guestCaseViewSchema.parse({ ...view, rejectionReason: 'No defect found' }).rejectionReason).toBe('No defect found');
+      const { rejectionReason: _omitted, ...without } = view;
+      expect(guestCaseViewSchema.safeParse(without).success).toBe(false);
+    });
+
+    it('names a comment’s author as the shop or the guest, never staff', () => {
+      const staff = { ...view, comments: [{ ...view.comments[0], authorKind: 'admin' }] };
+      expect(guestCaseViewSchema.safeParse(staff).success).toBe(false);
+    });
+
+    it('carries no internal field', () => {
+      for (const key of ['resolutionNote', 'organizationId', 'customerAccountId', 'personalDataErasedAt', 'trackingVersion']) {
+        expect(guestCaseViewSchema.shape).not.toHaveProperty(key);
+      }
+    });
+
+    it('takes a comment of 1 to 2000 characters', () => {
+      expect(guestCommentRequestSchema.safeParse({ body: 'x' }).success).toBe(true);
+      expect(guestCommentRequestSchema.safeParse({ body: '' }).success).toBe(false);
+      expect(guestCommentRequestSchema.safeParse({ body: 'x'.repeat(2001) }).success).toBe(false);
+      expect(guestCommentRequestSchema.safeParse({ body: 'x', isCustomerVisible: false }).success).toBe(false);
+    });
+
+    it('reads the tracking upload’s fields from a multipart form', () => {
+      expect(guestTrackingAttachmentFieldsSchema.parse({ type: 'photo', lineIndex: '1' }).lineIndex).toBe(1);
+      expect(guestTrackingAttachmentFieldsSchema.parse({ type: 'other' }).lineIndex).toBeUndefined();
+      expect(guestTrackingAttachmentFieldsSchema.safeParse({ type: 'photo', lineIndex: '-1' }).success).toBe(false);
+    });
+  });
+
+  describe('the admin widening (A1 – A3, A5)', () => {
+    it('filters the list by the four origins and 180’s off_platform', () => {
+      for (const origin of ['platform', 'off_platform', 'off_platform_customer', 'guest']) {
+        expect(adminReturnsListQuerySchema.parse({ origin }).origin).toBe(origin);
+      }
+      expect(adminReturnsListQuerySchema.safeParse({ origin: 'customer' }).success).toBe(false);
+    });
+
+    it('makes the filer nullable on the summary and the detail, and marks a guest case', () => {
+      const guestRow = { ...summary, customerAccountId: null, guest: true, orderId: null, offPlatform: true };
+      expect(returnCaseSummarySchema.parse(guestRow).customerAccountId).toBeNull();
+      expect(returnCaseDetailSchema.shape.customerAccountId.safeParse(null).success).toBe(true);
+      const { guest: _g, ...withoutGuest } = summary;
+      expect(returnCaseSummarySchema.safeParse(withoutGuest).success).toBe(false);
+      expectTypeOf<ReturnCaseDetail['customerAccountId']>().toEqualTypeOf<string | null>();
+    });
+
+    it('puts the guest lines on the detail', () => {
+      for (const key of ['guest', 'contactVerifiedAt', 'trackingLinkValidUntil', 'guestDataErasureDueAt']) {
+        expect(returnCaseDetailSchema.shape).toHaveProperty(key);
+      }
+      expectTypeOf<ReturnCaseDetail['contactVerifiedAt']>().toEqualTypeOf<string | null>();
+      expectTypeOf<ReturnCaseDetail['trackingLinkValidUntil']>().toEqualTypeOf<string | null>();
+      expectTypeOf<ReturnCaseDetail['guestDataErasureDueAt']>().toEqualTypeOf<string | null>();
+    });
+
+    it('names a guest as a comment author and marks a guest’s file', () => {
+      expect(returnCaseCommentSchema.shape.authorKind.options).toEqual(['admin', 'customer', 'guest']);
+      expect(returnAttachmentSchema.shape.uploadedByGuest.safeParse(true).success).toBe(true);
+    });
+
+    it('answers the reissue with the new version, and erases only on an explicit confirmation', () => {
+      expect(adminReissueTrackingLinkResultSchema.parse({ trackingVersion: 2 }).trackingVersion).toBe(2);
+      expect(adminEraseGuestDataRequestSchema.safeParse({ confirm: true }).success).toBe(true);
+      expect(adminEraseGuestDataRequestSchema.safeParse({ confirm: false }).success).toBe(false);
+      expect(adminEraseGuestDataRequestSchema.safeParse({}).success).toBe(false);
+      expect(adminEraseGuestDataResultSchema.parse({ personalDataErasedAt: '2026-11-16T10:00:00.000Z' })).toBeDefined();
+    });
+  });
+
+  describe('return_case.created.v1 (settings-emails-events.md §3)', () => {
+    const event = {
+      eventId: U(1),
+      occurredAt: '2026-11-16T10:00:00.000Z',
+      returnCaseId: U(2),
+      organizationId: null,
+      salesChannelId: U(4),
+      kind: 'complaint',
+      offPlatform: true,
+      guest: true,
+    };
+
+    it('carries guest, with no organization on a guest case', () => {
+      const parsed = ReturnCaseCreatedEventV1Schema.parse(event);
+      expect(parsed.guest).toBe(true);
+      expect(parsed.organizationId).toBeNull();
+    });
+
+    it('requires guest', () => {
+      const { guest: _g, ...withoutGuest } = event;
+      expect(ReturnCaseCreatedEventV1Schema.safeParse(withoutGuest).success).toBe(false);
+    });
   });
 });

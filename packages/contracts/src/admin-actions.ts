@@ -191,6 +191,11 @@ export const KnownIconNameSchema = z.enum([
   // nearest were `ClipboardList` and `ListChecks` — so the name joins it here
   // instead of the entry borrowing one that happens to be on it already.
   'CalendarDays',
+  // `specs/180-off-platform-complaints/` (US7) — `returns`' *Return and complaint
+  // terms* palette action (contracts/settings-emails-events.md §8). The list held
+  // no glyph for terms one accepts — `ClipboardCheck` is `orders`' — so the name
+  // joins it here instead of the action borrowing another module's glyph.
+  'FileCheck',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 
