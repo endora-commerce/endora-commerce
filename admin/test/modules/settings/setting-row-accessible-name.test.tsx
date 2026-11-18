@@ -105,7 +105,8 @@ function descriptions(el: Element): string {
 
 describe('SettingRowEditor — every control is named by the setting', () => {
   it.each([
-    ['boolean', { valueType: 'boolean', defaultValue: false }, 'combobox'],
+    // Issue #1479 (SHELL-02) — a switch, no longer a `true`/`false` select.
+    ['boolean', { valueType: 'boolean', defaultValue: false }, 'switch'],
     ['enum', { enumOptions: ['a', 'b'], defaultValue: 'a' }, 'combobox'],
     ['json', { valueType: 'json', defaultValue: {} }, 'textbox'],
     ['multi-line string', { multiline: true }, 'textbox'],
@@ -135,7 +136,7 @@ describe('SettingRowEditor — every control is named by the setting', () => {
   it('the copy button and the badges stay outside the accessible name', () => {
     renderRow(setting({ valueType: 'boolean', defaultValue: false }));
     // Named exactly — not "Demo field boolean context.usingDefault".
-    expect(screen.getByRole('combobox', { name: 'Demo field' })).toBeTruthy();
+    expect(screen.getByRole('switch', { name: 'Demo field' })).toBeTruthy();
   });
 });
 
@@ -156,7 +157,7 @@ describe('SettingRowEditor — descriptions are linked to the control', () => {
         notice: { code: 'unmet', message: 'Not in force: no key.' },
       } as Partial<SettingDto>),
     );
-    expect(descriptions(screen.getByRole('combobox', { name: 'Demo field' }))).toContain(
+    expect(descriptions(screen.getByRole('switch', { name: 'Demo field' }))).toContain(
       'Not in force: no key.',
     );
   });

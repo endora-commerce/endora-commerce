@@ -67,6 +67,13 @@ export interface FormFieldProps {
   labelAddon?: ReactNode;
   /** At the end of the label line, as in `Section` — a reset, a secondary action. */
   action?: ReactNode;
+  /**
+   * `stack` (default): label, then the control, then the hint — a form field.
+   * `row`: label, description, hint and error on the left, the control on the
+   * right — a settings list, an on/off `Switch` (issue #1442). Prefer
+   * {@link SettingRow}, which is this layout under the pattern's name.
+   */
+  layout?: 'stack' | 'row';
   /** Ids of further descriptions rendered elsewhere, appended to `aria-describedby`. */
   describedBy?: string;
   className?: string;
@@ -181,49 +188,82 @@ export function FormField(props: FormFieldProps): ReactNode {
   );
 
   const hintTitle = typeof props.hint === 'string' ? props.hint : undefined;
+  const row = props.layout === 'row';
+
+  const labelLine = (
+    <div className={cn('flex items-start justify-between gap-2', !row && 'mb-1.5')}>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+        {label}
+        {props.help ? <HelpTip subjectId={labelId}>{props.help}</HelpTip> : null}
+        {props.labelAddon ?? null}
+      </div>
+      {/* eslint-disable-next-line no-restricted-syntax -- a ReactNode slot named `action`, not an enum value */}
+      {props.action ?? null}
+    </div>
+  );
+  const descriptionBlock = hasDescription ? (
+    <div
+      id={descriptionId}
+      className={cn('space-y-1 text-xs text-muted-foreground', row ? 'mt-1' : 'mb-1.5')}
+    >
+      {props.description}
+    </div>
+  ) : null;
+  const hintBlock = hasHint ? (
+    <p id={hintId} title={hintTitle} className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+      {props.hint}
+    </p>
+  ) : null;
+  const errorBlock = (
+    <p
+      id={errorId}
+      aria-live="polite"
+      className={cn(
+        'text-xs font-medium text-destructive',
+        hasError && 'mt-1 flex items-start gap-1',
+      )}
+    >
+      {hasError ? (
+        <>
+          <AlertCircle aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
+          <span>{props.error}</span>
+        </>
+      ) : null}
+    </p>
+  );
+  const groupProps = group
+    ? { role: 'group', 'aria-labelledby': labelId, 'aria-describedby': describedBy }
+    : {};
+
+  if (row) {
+    // Issue #1442 (DS-09) — the settings-list shape: what the setting is on the
+    // left, its control on the right, read in that order. The control column
+    // never shrinks, so a long description wraps rather than pushing the
+    // switch off the row.
+    return (
+      <div
+        data-layout="row"
+        className={cn('flex min-w-0 items-start justify-between gap-x-6', props.className)}
+        {...groupProps}
+      >
+        <div className="min-w-0 flex-1">
+          {labelLine}
+          {descriptionBlock}
+          {hintBlock}
+          {errorBlock}
+        </div>
+        <div className="flex shrink-0 items-center pt-0.5">{renderedControl}</div>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className={cn('min-w-0', props.className)}
-      {...(group
-        ? { role: 'group', 'aria-labelledby': labelId, 'aria-describedby': describedBy }
-        : {})}
-    >
-      <div className="mb-1.5 flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
-          {label}
-          {props.help ? <HelpTip subjectId={labelId}>{props.help}</HelpTip> : null}
-          {props.labelAddon ?? null}
-        </div>
-        {/* eslint-disable-next-line no-restricted-syntax -- a ReactNode slot named `action`, not an enum value */}
-        {props.action ?? null}
-      </div>
-      {hasDescription ? (
-        <div id={descriptionId} className="mb-1.5 space-y-1 text-xs text-muted-foreground">
-          {props.description}
-        </div>
-      ) : null}
+    <div className={cn('min-w-0', props.className)} {...groupProps}>
+      {labelLine}
+      {descriptionBlock}
       {renderedControl}
-      {hasHint ? (
-        <p id={hintId} title={hintTitle} className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-          {props.hint}
-        </p>
-      ) : null}
-      <p
-        id={errorId}
-        aria-live="polite"
-        className={cn(
-          'text-xs font-medium text-destructive',
-          hasError && 'mt-1 flex items-start gap-1',
-        )}
-      >
-        {hasError ? (
-          <>
-            <AlertCircle aria-hidden="true" className="mt-px h-3.5 w-3.5 shrink-0" />
-            <span>{props.error}</span>
-          </>
-        ) : null}
-      </p>
+      {hintBlock}
+      {errorBlock}
     </div>
   );
 }

@@ -35,6 +35,8 @@
   "settingLabels.newsletter.tracking.opens_enabled.description": "Adds an invisible 1×1 image to every campaign e-mail, so the campaign statistics can count who opened it. Opens are recorded per recipient. When off, campaign e-mails carry no image and no opens are counted. Off by default. Automation e-mails are never tracked.",
   "settingLabels.newsletter.tracking.clicks_enabled.name": "Track campaign link clicks",
   "settingLabels.newsletter.tracking.clicks_enabled.description": "Sends the links in every campaign e-mail through a redirect on this platform, so the campaign statistics can count clicks per recipient and per link. When off, links lead straight to their destination and no clicks are counted. Off by default. Automation e-mails are never tracked.",
+  "settingLabels.newsletter.opt_in_mode.options.single": "Single opt-in (immediate)",
+  "settingLabels.newsletter.opt_in_mode.options.double": "Double opt-in (confirmation e-mail)",
   "blocks.category.forms": "Forms",
   "blocks.signup.label": "Newsletter sign-up",
   "blocks.signup.description": "A sign-up that subscribes to this shop's newsletter, with optional topics and a required consent.",

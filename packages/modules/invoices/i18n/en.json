@@ -90,5 +90,7 @@
   "errors.INVOICE_CORRECTION_EXCEEDS_RATE_REMAINING": "This refund is more than the invoice still charges at {vatRatePercent}% VAT ({remaining} {currency}). Lower the amount.",
   "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING": "This refund of a charge is more than the invoice still charges for it ({remaining} {currency}). Lower the amount.",
   "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.delivery": "This refund of the delivery is more than the invoice still charges for it ({remaining} {currency}). Lower the amount.",
-  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.payment_surcharge": "This refund of the payment surcharge is more than the invoice still charges for it ({remaining} {currency}). Lower the amount."
+  "errors.INVOICE_CORRECTION_EXCEEDS_CHARGE_REMAINING.payment_surcharge": "This refund of the payment surcharge is more than the invoice still charges for it ({remaining} {currency}). Lower the amount.",
+  "settingLabels.invoices.email.delivery_mode.options.attachment": "PDF attached",
+  "settingLabels.invoices.email.delivery_mode.options.link": "Link to the customer panel"
 }

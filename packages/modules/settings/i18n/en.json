@@ -100,6 +100,8 @@
   "editor.perChannelOverrides": "{count} per-channel override(s)",
   "editor.defaultPrefix": "Default:",
   "editor.globalPrefix": "Global:",
+  "editor.booleanValue.on": "On",
+  "editor.booleanValue.off": "Off",
   "editor.savedNotice": "Saved {count} setting(s).",
   "context.label": "Editing for",
   "context.allChannels": "All channels (default)",
@@ -184,5 +186,8 @@
   "actions.clearCache.keywords": "clear, memory",
   "settingGroups.general.name": "General",
   "settingGroups.shop.name": "Shop information",
-  "settingGroups.storefront.name": "Storefront"
+  "settingGroups.storefront.name": "Storefront",
+  "settingLabels.storefront.speculation_rules.eagerness.options.conservative": "Conservative (on pointer-down)",
+  "settingLabels.storefront.speculation_rules.eagerness.options.moderate": "Moderate (on hover, recommended)",
+  "settingLabels.storefront.speculation_rules.eagerness.options.eager": "Eager (as soon as links appear)"
 }

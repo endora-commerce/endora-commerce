@@ -49,5 +49,9 @@
   "errors.INVOICE_LEDGER_DELIVERY_NOT_RETRYABLE": "This delivery cannot be retried.",
   "errors.INVOICE_LEDGER_NUMBERING_CHANGE_UNCONFIRMED": "Changing the invoice numbering source has to be confirmed. Tick the confirmation and save again.",
   "actions.openDeliveries.keywords": "invoices",
-  "settingGroups.invoice_ledger.name": "Invoice ledger"
+  "settingGroups.invoice_ledger.name": "Invoice ledger",
+  "settingLabels.invoice_ledger.numbering.mode.options.endora": "Endora assigns the number (mode A)",
+  "settingLabels.invoice_ledger.numbering.mode.options.vendor": "The ledger vendor assigns it (mode B)",
+  "settingLabels.invoice_ledger.ksef.routing.options.native": "The platform (native)",
+  "settingLabels.invoice_ledger.ksef.routing.options.vendor": "The ledger vendor"
 }

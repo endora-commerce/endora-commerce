@@ -580,5 +580,13 @@
   "actions.newPriceBook.keywords": "nowy cennik, utwórz cennik",
   "actions.openPriceExplainer.keywords": "wyjaśnienie ceny, dlaczego ta cena",
   "actions.openPricingSettings.keywords": "ustawienia cenowe, kolejność cen, cena katalogowa",
-  "settingGroups.pricing.name": "Ceny"
+  "settingGroups.pricing.name": "Ceny",
+  "settingLabels.pricing.default_display_mode.options.gross_only": "Tylko brutto",
+  "settingLabels.pricing.default_display_mode.options.net_only": "Tylko netto",
+  "settingLabels.pricing.default_display_mode.options.both": "Netto i brutto",
+  "settingLabels.pricing.default_display_mode.options.none": "Ukryj ceny",
+  "settingLabels.pricing.unauthenticated_display_mode.options.gross_only": "Tylko brutto",
+  "settingLabels.pricing.unauthenticated_display_mode.options.net_only": "Tylko netto",
+  "settingLabels.pricing.unauthenticated_display_mode.options.both": "Netto i brutto",
+  "settingLabels.pricing.unauthenticated_display_mode.options.none": "Ukryj ceny"
 }

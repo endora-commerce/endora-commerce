@@ -39,6 +39,8 @@
   "settingGroups.returns.name": "Returns",
   "settingLabels.returns.time_zone.name": "Time zone of the return windows",
   "settingLabels.returns.time_zone.description": "The time zone, as an IANA name such as Europe/Warsaw, in which the free-return window and the consumer's withdrawal period count calendar days: each ends at the end of its last day in this zone, and a last day on a Saturday or Sunday moves to the Monday. Sales-channel value overrides the global value.",
+  "settingLabels.returns.default_cost_bearer_outside_window.options.customer": "The customer",
+  "settingLabels.returns.default_cost_bearer_outside_window.options.shop": "The shop",
   "errors.RETURN_ALTERNATIVE_RESOLUTION_CONSENT_REQUIRED": "A consumer's withdrawal is settled as a refund. Record the consumer's consent before settling it as credit toward future orders, a replacement or a repair.",
   "errors.RETURN_ORDER_NOT_ELIGIBLE": "This order cannot be returned yet. Returns open once the order is completed.",
   "errors.RETURN_QUANTITY_EXCEEDS_RETURNABLE": "You asked to return {requested}, but only {remaining} of this line can still be returned.",
