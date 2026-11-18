@@ -1449,7 +1449,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // translation: it was a hex colour placeholder, which is not copy.
   'packages/admin-kit/src/zones/ZoneErrorBoundary.tsx': 1,
   'packages/admin-shell/src/components/AppShell.tsx': 5,
-  'packages/modules/catalog/src/admin/components/ProductInventoryTab.tsx': 3,
   'packages/modules/catalog/src/admin/pages/AttributeSetsPage.tsx': 3,
   'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': 2,
   'packages/modules/cms/src/admin/components/BackgroundFields.tsx': 5,

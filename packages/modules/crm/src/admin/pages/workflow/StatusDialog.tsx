@@ -1,5 +1,6 @@
-import { useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
+  ERROR_CODES,
   opportunityStatusCodeSchema,
   type CreateOpportunityStatusRequest,
   type OpportunityStatusKind,
@@ -16,6 +17,7 @@ import {
   Label,
   Select,
 } from '@endora-commerce/admin-kit/ui';
+import { ApiError, useDerivedKey } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { errorMessage, workflowStatusLabel } from '../../lib/labels.js';
@@ -31,6 +33,14 @@ const KINDS: readonly OpportunityStatusKind[] = ['open', 'won', 'lost'];
 
 const DEFAULT_COLOR = '#64748b';
 
+/** The longest code `opportunityStatusCodeSchema` accepts. */
+const CODE_MAX_LENGTH = 64;
+
+/** Whether the server refused a create because the code is taken. */
+function isCodeTaken(error: unknown): boolean {
+  return error instanceof ApiError && error.envelope.error.code === ERROR_CODES.CRM_STATUS_CODE_TAKEN;
+}
+
 export type StatusDialogSubmit =
   | { mode: 'create'; body: CreateOpportunityStatusRequest }
   | { mode: 'edit'; code: string; body: UpdateOpportunityStatusRequest };
@@ -40,6 +50,8 @@ export interface StatusDialogProps {
   status: OpportunityWorkflowStatus | null;
   /** Where a new status lands by default: after the last one. */
   nextWeight: number;
+  /** The codes already in the workflow: a new status may not reuse one. */
+  takenCodes: readonly string[];
   language: string;
   /** Resolves when the write was accepted; a rejection is shown in the dialog. */
   onSubmit: (submit: StatusDialogSubmit) => Promise<void>;
@@ -62,7 +74,9 @@ function sameNames(a: Record<string, string>, b: Record<string, string>): boolea
 }
 
 /**
- * Add or edit one status: its code (on create only — it is immutable), its
+ * Add or edit one status: its code (on create only — it is immutable; derived
+ * from the default name until edited, normalised on blur, a taken one refused
+ * rather than suffixed — issue #1560, the architect ruling on #512), its
  * names, whether it is open or closes an Opportunity as won or lost, whether
  * new Opportunities start in it, its position and its colour.
  *
@@ -87,18 +101,44 @@ export function StatusDialog(props: StatusDialogProps): ReactNode {
   const [nameError, setNameError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+  /** Bumped on every refused code, so focus moves to it once its error is rendered (WCAG 3.3.1). */
+  const [codeRefusals, setCodeRefusals] = useState(0);
+  const codeField = useDerivedKey({
+    source: defaultName,
+    value: code,
+    onChange: (next): void => {
+      setCode(next);
+      setCodeError(null);
+    },
+    separator: '_',
+    maxLength: CODE_MAX_LENGTH,
+    enabled: status === null,
+  });
+
+  useEffect(() => {
+    if (codeRefusals > 0) codeInputRef.current?.focus();
+  }, [codeRefusals]);
+
+  const refuseCode = (sentence: string): void => {
+    setCodeError(sentence);
+    setCodeRefusals((count) => count + 1);
+  };
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
-    const trimmedCode = code.trim();
+    // Enter in the code field submits without a blur: normalise here too.
+    const trimmedCode = codeField.commit().trim();
     const trimmedName = defaultName.trim();
-    const nextCodeError =
-      status === null && !opportunityStatusCodeSchema.safeParse(trimmedCode).success
-        ? t('workflow.error.code')
-        : null;
+    let nextCodeError: string | null = null;
+    if (status === null) {
+      if (!opportunityStatusCodeSchema.safeParse(trimmedCode).success) nextCodeError = t('workflow.error.code');
+      else if (props.takenCodes.includes(trimmedCode)) nextCodeError = t('workflow.error.codeTaken');
+    }
     const nextNameError = trimmedName.length === 0 ? t('workflow.error.name') : null;
-    setCodeError(nextCodeError);
     setNameError(nextNameError);
+    if (nextCodeError) refuseCode(nextCodeError);
+    else setCodeError(null);
     if (nextCodeError || nextNameError) return;
 
     const parsedWeight = Number.parseInt(weight, 10);
@@ -140,8 +180,12 @@ export function StatusDialog(props: StatusDialogProps): ReactNode {
       await onSubmit(payload);
       onClose();
     } catch (error) {
-      setSubmitError(errorMessage(error, t('workflow.error.save')));
       setBusy(false);
+      if (status === null && isCodeTaken(error)) {
+        refuseCode(t('workflow.error.codeTaken'));
+        return;
+      }
+      setSubmitError(errorMessage(error, t('workflow.error.save')));
     }
   };
 
@@ -163,6 +207,7 @@ export function StatusDialog(props: StatusDialogProps): ReactNode {
           <div className="space-y-1">
             <Label htmlFor={`${fieldId}-code`}>{t('workflow.field.code')}</Label>
             <Input
+              ref={codeInputRef}
               id={`${fieldId}-code`}
               value={code}
               autoComplete="off"
@@ -170,7 +215,8 @@ export function StatusDialog(props: StatusDialogProps): ReactNode {
               className="font-mono"
               aria-invalid={codeError !== null}
               aria-describedby={`${fieldId}-code-hint`}
-              onChange={(event): void => setCode(event.target.value)}
+              onChange={codeField.onChange}
+              onBlur={codeField.onBlur}
             />
             <p
               id={`${fieldId}-code-hint`}
