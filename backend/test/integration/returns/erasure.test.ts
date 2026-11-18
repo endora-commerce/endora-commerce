@@ -16,6 +16,7 @@ import { resetReturnGraph } from './helpers.js';
 import type { ReturnErasureService } from '../../../../packages/modules/returns/src/backend/services/return-erasure-service.js';
 import { makeMember, makeOrganization, releaseMembers, type ReturnsFixtureMember } from './organization-fixtures.js';
 import { SMALL_PDF, allowOffPlatform, complaintReasonId, file, noOrderBody, upload } from './off-platform-fixtures.js';
+import { allowGuests, fileGuestCase } from './guest-fixtures.js';
 
 /**
  * `specs/180-off-platform-complaints/` T085 (FR-B43, D-8, research R-15): anonymising a
@@ -135,5 +136,35 @@ describe('returns — erasing a customer’s personal data', () => {
 
     await runWithoutTenantContext(() => runReturnsMaintenanceJob(deps, new Date()));
     expect(await auditOf(member.id)).toHaveLength(1);
+  });
+
+  /**
+   * `specs/181-guest-complaints/` T056 (FR-075; research R-9): the anonymisation erases by
+   * account, and a guest's case has none, so a guest case that merely shares the account's
+   * e-mail address is left as it is. The operator erases it by hand (A5).
+   */
+  it('leaves a guest case with the same e-mail address untouched', async () => {
+    const undoGuests = await allowGuests(h);
+    try {
+      const { member, caseId } = await customerWithCase('GuestTwin181');
+      const guest = await fileGuestCase(h, reasonId, { email: member.email });
+      h.eventBus.emit(CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, {
+        eventId: randomUUID(),
+        occurredAt: new Date().toISOString(),
+        customerAccountId: member.id,
+        organizationId,
+      } as never);
+      await vi.waitFor(async () => expect(await auditOf(member.id)).toHaveLength(1), { timeout: 5000 });
+      await expectErased(caseId, member.id);
+
+      const rc = await h.em().fork().findOneOrFail(ReturnCase, { id: guest.caseId }, { filters: false });
+      expect(rc.personalDataErasedAt ?? null).toBeNull();
+      expect(rc.contact?.email).toBe(member.email);
+      expect(rc.returnAddress).not.toBeNull();
+      expect(await h.em().fork().count(ReturnCaseAttachment, { returnCaseId: guest.caseId }, { filters: false })).toBe(1);
+      expect(await h.em().fork().count(AuditLogEntry, { objectId: guest.caseId, action: { $like: 'return_case.%erase%' } })).toBe(0);
+    } finally {
+      await undoGuests();
+    }
   });
 });

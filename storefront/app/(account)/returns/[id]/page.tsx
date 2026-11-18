@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { revalidatePath } from 'next/cache';
 import { addReturnComment, getMyReturn, getReturnFormConfig } from '../../../../lib/api/returns';
-import { RETURN_ATTACHMENT_TYPES, RETURN_FORM_LIMITS, acceptAttribute, formatBytes } from '../../../../lib/returns/attachments';
+import { RETURN_ATTACHMENT_TYPES, RETURN_FORM_LIMITS, acceptAttribute } from '../../../../lib/returns/attachments';
 import { getSessionCookie } from '../../../../lib/session';
 import { StorefrontApiError } from '../../../../lib/api/client';
 import { isRecordId } from '../../../../lib/record-id';
@@ -15,6 +15,8 @@ import { codeLabel, richText } from '../../../../lib/account/labels';
 import { getMe } from '../../../../lib/api/account';
 import { filedByColleague } from '../../../../lib/returns/returnForm';
 import { FilePicker } from '../../../../components/returns/FilePicker';
+import { CaseConversation, CaseFiles, CaseItems, CasePurchaseContact } from '../../../../components/returns/CaseSections';
+import { caseViewOfDetail } from '../../../../lib/returns/caseView';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -81,31 +83,15 @@ export default async function ReturnDetailPage({
   const showAttachments = offPlatform || attachments.length > 0;
   // The route handlers behind the download links, the previews and the add form, in the shop's language path.
   const caseBase = showAttachments ? await localizedPath(`/returns/${detail.id}`) : '';
-  // 180 — a defect photo belongs to its line; the rest belong to the whole case.
-  const lineFiles = (itemId: string): typeof attachments => attachments.filter((a) => a.returnCaseItemId === itemId);
-  const caseFiles = attachments.filter((a) => !a.returnCaseItemId || !detail.items.some((it) => it.id === a.returnCaseItemId));
   const title = detail.rmaNumber
     ? detail.rmaNumber
     : detail.reference
       ? format(t(`returns.case.title.${detail.kind}`), { reference: detail.reference })
       : t('account.return.fallbackTitle');
-  const fileLink = (a: (typeof attachments)[number]): ReactNode => (
-    <a href={`${caseBase}/attachments/${a.id}`} download={a.filename} className="b2b-stacked__file">
-      {a.mimeType.startsWith('image/') ? (
-        // eslint-disable-next-line @next/next/no-img-element -- a private file behind the case's guarded route
-        <img src={`${caseBase}/attachments/${a.id}`} alt="" loading="lazy" />
-      ) : (
-        <span className="b2b-stacked__file-icon" aria-hidden="true">
-          {t('returns.attachments.documentIcon')}
-        </span>
-      )}
-      <span className="b2b-stacked__file-name">{a.filename}</span>
-      <span className="b2b-stacked__file-meta">
-        {codeLabel(t, 'returns.attachments.type', a.type)} · {formatBytes(a.sizeBytes, locale)}
-      </span>
-    </a>
+  // 181 design review F-12 — the case's sections, shared with the guest's tracking page.
+  const view = caseViewOfDetail(detail, caseBase, (kind) =>
+    codeLabel(t, 'account.returnAuthor', isColleaguesCase && kind === 'customer' ? 'colleague' : kind),
   );
-
   return (
     <div className="b2b-auth b2b-stacked max-w-[720px]">
       <p className="text-[13px]">
@@ -138,37 +124,7 @@ export default async function ReturnDetailPage({
       <h2>{t('account.common.items')}</h2>
       {offPlatform ? (
         // 180 R-3 — no order, no money: each line as typed, without a refund column, with its photos.
-        <ul className="b2b-stacked__items">
-          {detail.items.map((it) => (
-            <li key={it.id}>
-              <p className="b2b-stacked__item-name">
-                <strong>{it.productName}</strong> <span className="text-muted">× {it.quantity}</span>
-                {it.productId == null ? <span className="b2b-stacked__item-note">{t('returns.case.modelAsTyped')}</span> : null}
-              </p>
-              <dl className="b2b-stacked__dl">
-                {it.serialNumber ? (
-                  <>
-                    <dt>{t('returns.case.serial')}</dt>
-                    <dd>{it.serialNumber}</dd>
-                  </>
-                ) : null}
-                {it.description ? (
-                  <>
-                    <dt>{t('returns.case.description')}</dt>
-                    <dd>{it.description}</dd>
-                  </>
-                ) : null}
-              </dl>
-              {lineFiles(it.id).length > 0 ? (
-                <ul className="b2b-stacked__files" aria-label={t('returns.elsewhere.photos')}>
-                  {lineFiles(it.id).map((a) => (
-                    <li key={a.id}>{fileLink(a)}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <CaseItems view={view} t={t} locale={locale} />
       ) : (
       <table className="b2b-account__table">
         <thead>
@@ -204,45 +160,7 @@ export default async function ReturnDetailPage({
       )}
       </section>
 
-      {detail.purchase || detail.contact || detail.returnAddress ? (
-        <div className="b2b-stacked__pair">
-          {detail.purchase ? (
-            <section className="b2b-stacked__card">
-              <h2>{t('returns.case.purchase')}</h2>
-              <dl className="b2b-stacked__dl">
-                <dt>{t('returns.case.purchaseDate')}</dt>
-                <dd>{detail.purchase.date ? new Date(`${detail.purchase.date}T00:00:00Z`).toLocaleDateString(locale, { timeZone: 'UTC' }) : t('returns.case.notGiven')}</dd>
-                <dt>{t('returns.case.purchaseNumber')}</dt>
-                <dd>{detail.purchase.proofNumber ?? t('returns.case.notGiven')}</dd>
-              </dl>
-            </section>
-          ) : null}
-          {detail.contact || detail.returnAddress ? (
-            <section className="b2b-stacked__card">
-              <h2>{t('returns.case.contactAndAddress')}</h2>
-              <p className="text-[13px] text-muted">{t('returns.case.asGiven')}</p>
-              {detail.contact ? (
-                <p className="m-0 text-fg">
-                  {detail.contact.name}
-                  <br />
-                  {detail.contact.email}
-                  {detail.contact.phone ? <><br />{detail.contact.phone}</> : null}
-                </p>
-              ) : null}
-              {detail.returnAddress ? (
-                <address className="not-italic text-fg">
-                  {detail.returnAddress.name}
-                  {detail.returnAddress.company ? <><br />{detail.returnAddress.company}</> : null}
-                  <br />
-                  {detail.returnAddress.street}
-                  <br />
-                  {detail.returnAddress.postalCode} {detail.returnAddress.city}, {detail.returnAddress.countryCode}
-                </address>
-              ) : null}
-            </section>
-          ) : null}
-        </div>
-      ) : null}
+      <CasePurchaseContact view={view} t={t} locale={locale} />
 
       {showAttachments ? (
         <section className="b2b-stacked__card">
@@ -258,15 +176,7 @@ export default async function ReturnDetailPage({
               )}
             </p>
           ) : null}
-          {caseFiles.length === 0 ? (
-            <p className="text-[13px] text-muted">{t('returns.attachments.none')}</p>
-          ) : (
-            <ul className="b2b-stacked__files">
-              {caseFiles.map((a) => (
-                <li key={a.id}>{fileLink(a)}</li>
-              ))}
-            </ul>
-          )}
+          <CaseFiles view={view} t={t} locale={locale} />
           <p className="text-[13px] text-muted">
             {format(t('returns.attachments.caseBudget'), { count: String(attachments.length), max: String(RETURN_FORM_LIMITS.maxFilesPerCase) })}
           </p>
@@ -347,24 +257,7 @@ export default async function ReturnDetailPage({
 
       <section className="b2b-stacked__card">
         <h2>{t('account.return.conversation')}</h2>
-        {detail.comments.length === 0 ? (
-          <p className="text-[13px] text-muted">{t('account.return.noMessages')}</p>
-        ) : (
-          <ul className="b2b-account__comments">
-            {detail.comments.map((c) => (
-              <li key={c.id}>
-                <small>
-                  {codeLabel(
-                    t,
-                    'account.returnAuthor',
-                    isColleaguesCase && c.authorKind === 'customer' ? 'colleague' : c.authorKind,
-                  )} · {new Date(c.createdAt).toLocaleString(locale)}
-                </small>
-                <p>{c.body}</p>
-              </li>
-            ))}
-          </ul>
-        )}
+        <CaseConversation view={view} t={t} locale={locale} authorLabel={(author) => author} />
 
         {isTerminal ? (
           <p className="text-[13px] text-muted">{t('account.return.closed')}</p>

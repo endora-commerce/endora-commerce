@@ -30,6 +30,11 @@ Admin routes are gated by `returns:read` (read) / `returns:write` (mutations).
 | `POST /api/v1/returns/:id/attachments` | customer | Attach a file to the case |
 | `POST /api/v1/returns/:id/cancel` | customer | Withdraw the case |
 | `GET /api/v1/returns/reasons` | customer | Active reasons for the storefront form |
+| `GET /api/v1/returns/guest/availability` | anonymous | Whether this channel accepts complaints from guests (see *Complaints from guests*) |
+| `POST /api/v1/returns/guest/verifications` | anonymous | Send a one-time link to confirm an e-mail address |
+| `POST /api/v1/returns/guest/sessions`, `DELETE …/sessions/current` | anonymous | Redeem the link into a guest session / end the session |
+| `GET /api/v1/returns/guest/form-config`, `POST …/guest/uploads`, `POST …/guest/cases` | guest session | The guest form's configuration, its file uploads, and filing the complaint |
+| `GET /api/v1/returns/track`, `POST …/track/comments`, `POST …/track/attachments`, `GET …/track/attachments/:attachmentId/file` | tracking link | Read the case, reply, add a file, download a file — the token travels in the `X-Returns-Tracking-Token` header |
 | `GET /api/v1/admin/returns` | admin | List/filter/search cases + per-status counts |
 | `GET /api/v1/admin/returns/export` | admin | CSV export of the current view |
 | `POST /api/v1/admin/returns/bulk-transition` | admin | Bulk status change (skips disallowed) |
@@ -43,6 +48,8 @@ Admin routes are gated by `returns:read` (read) / `returns:write` (mutations).
 | `GET /api/v1/admin/returns/notification-health` | admin | Where the new-case e-mail goes to nobody (see *Notifications*) |
 | `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | admin | Return shipments |
 | `GET /api/v1/admin/returns/:id/attachments/:attachmentId/file` | admin | Download a case's file |
+| `POST /api/v1/admin/returns/:id/guest/tracking-link` | admin | Send a guest a new tracking link (see *Complaints from guests*) |
+| `POST /api/v1/admin/returns/:id/guest/erase` | admin (`returns:erase_personal_data`) | Erase a guest's personal data from a case at once |
 | `GET\|POST /api/v1/admin/returns/clauses`, `PATCH\|DELETE …/clauses/:id` | admin | The clauses of the returns form (see *Clauses*) |
 | `GET\|POST /api/v1/admin/returns/list-views` | admin | The caller's own saved views plus every shared one / save a view |
 | `PATCH\|DELETE /api/v1/admin/returns/list-views/:id` | admin | Change / delete a saved view (owner, or a platform admin for a shared one) |
@@ -170,6 +177,27 @@ page, and the admin search finds a case by it, with or without the `#`.
   filing date and linking to it. The entry names no customer or organization.
   While **Admin notifications** is switched off no entry is recorded and nothing
   else changes.
+- **Guests** — a case filed by a guest (see *Complaints from guests*) gets its own
+  e-mails, sent to the verified address and carrying the case's private tracking
+  link instead of a link into an account:
+
+  | E-mail | When |
+  | --- | --- |
+  | *Confirm the e-mail address of a guest complaint* (`return_guest_verification`) | a guest asks for a link to the complaint form |
+  | *Complaint received (to a guest)* (`return_guest_submitted`) | a guest files a case |
+  | *Message on a complaint (to a guest)* (`return_guest_comment_added`) | an operator posts a visible comment with *Notify customer by e-mail* |
+  | *Complaint status changed (to a guest)* (`return_guest_status_entered`) | the case enters a status marked *E-mail customer on entry* |
+  | *Complaint authorized (to a guest)* (`return_guest_authorized`) | the case is authorized |
+  | *Complaint rejected (to a guest)* (`return_guest_rejected`) | the case is rejected, with the reason |
+  | *New tracking link for a complaint (to a guest)* (`return_guest_link_reissued`) | an operator sends a new tracking link |
+
+  The verification and the confirmation **cannot be switched off**: the first is the only
+  way a guest can start a complaint, the second the guest's only lasting way back to
+  the case. So a guest's confirmation goes out even while `return_submitted` is off for
+  account holders. The others follow the same switches as their account versions. The
+  *New return or complaint* e-mail to the shop names a guest as `{name} (guest)` and
+  no organization; the bell entry for a guest case goes only to administrators who may
+  see guest cases. Once a guest's personal data is erased, nothing more is sent to them.
 - **Delivery** — the e-mails and the bell entries are sent from the
   `returns-notifications` queue after the action that triggered them was saved, so
   they never slow down, fail or undo it. A failed send is retried; a message that
@@ -225,6 +253,95 @@ on **Settings → Returns**, globally or per sales channel. It is off by default
 - **Submitting twice** — the form carries a submission key, so submitting it again
   (a double click, the browser's back button) returns the case already filed.
 
+## Complaints from guests
+
+A shop that accepts complaints without a platform order can also accept them from
+people **with no customer account** — someone who bought the product in a physical store
+or from a distributor and has never registered. Switch on **Complaints from guests**
+(`returns.guest_complaints_enabled`) on **Settings → Returns**, globally or per sales
+channel. It is off by default, and it takes effect only while **Complaints without a
+platform order** is on for the same channel: with that off, no guest option appears
+anywhere and a guest submission is refused (`403 RETURN_GUEST_COMPLAINTS_DISABLED`).
+
+- **On the storefront** — a signed-out visitor who opens the returns area or the
+  *bought elsewhere* form is offered *Sign in* (which brings them back to the same page)
+  or *Continue without an account*. With the setting off they are sent to sign in, as
+  before.
+- **Confirming the e-mail address** — the guest enters an e-mail address and gets a
+  one-time link, valid for 60 minutes. The page answers in the same words whatever the
+  address, so it never reveals whether an address has an account; when it has one, the
+  e-mail itself (seen only by the address's owner) adds that complaints filed after
+  signing in appear in the account. A newer link replaces the previous one. Requests are
+  limited per address and per client, without saying so to the visitor. Opening the
+  link shows a *Continue* page; only the click redeems the link, so an e-mail scanner
+  that opens links cannot use it up.
+- **The guest session** — the click starts a guest session of 24 hours on that sales
+  channel, held in a browser cookie. A link that no longer works shows a page offering a
+  new one, with the address filled in only when the same browser asked for the link;
+  while the browser still holds a live guest session it simply continues to the form.
+- **The form** — the *bought elsewhere* form, with its rules unchanged: products, purchase
+  data, proof of purchase, clauses and files. The e-mail address is the verified one and
+  cannot be changed; name, phone and return address are typed by the guest, nothing is
+  prefilled. A guest files complaints only — never a return, and never against a platform
+  order. Up to 5 cases per session and 10 per address in 24 hours.
+- **The case** — it has **no customer account and no organization**, and it is never
+  attached to an account, even when its e-mail address matches one or the guest is
+  signed in while filing. A customer whose address it carries does not see it in their
+  account.
+- **The tracking link** — the success page and every e-mail to the guest carry a private
+  link to a page showing the case: its status, the rejection reason if any, the products,
+  the purchase, the contact details and address as given, the visible comments and the
+  files. **Anyone holding the link can see the case**, and the page says so. While the case
+  is open the guest replies and adds files there (up to 20 comments per case in 24 hours);
+  once it is closed the page is read-only. The link stops working **90 days after the case
+  closes**, when the guest's data is erased, or when it is replaced; a link that does not
+  work shows one neutral page that does not say whether the case exists.
+- **Sending a new tracking link** — on the case page, *Guest data → Send a new tracking
+  link* (with `returns:write`) sends a new link to the verified address and stops the
+  old one at once. Use it
+  when a guest has lost the link or shared it by mistake. Changing the platform's session
+  secret (`SESSION_COOKIE_SECRET`) voids every guest link at once; send new links to the
+  guests whose cases are still open.
+- **Who sees guest cases** — only administrators who may see every organization's cases.
+  An administrator restricted to some organizations, and a sales representative, do not
+  find guest cases in the list, its counts, the search, the export or the saved views, and
+  opening one by its address answers *not found*. In the list a guest case is marked
+  *Guest*, and the **Origin** filter offers *Bought elsewhere – guest* and *Bought
+  elsewhere – customer* beside *Platform order* and *Bought elsewhere*. The search finds guest cases by the exact
+  contact e-mail address. The CSV export carries a `guest` column. On the case page the
+  contact card shows *Verified e-mail*, how long the tracking link is valid and when the
+  personal data will be erased; a guest's comments are labelled *Guest*.
+- **Settling** — like any complaint without a platform order: *Replacement*, *Repair* or
+  *Settled outside the platform* (see *Settling an off-platform case*).
+
+### Erasing a guest's personal data
+
+A guest has no account to delete, so the platform erases the guest's contact details,
+return address and files from the case a set time after it **closes** — after it enters a
+final status (*Closed*, *Rejected* or *Cancelled*). The period is **Guest data retention
+(days)** (`returns.guest_data_retention_days`), 90 by default; a value below 30 is read as
+30 and above 3650 as 3650. The products, purchase data, statuses, comments and the
+resolution stay for the shop's records; the case shows when its data was erased, and its
+tracking link stops working.
+
+- **Close settled cases.** The period runs from closing, not from settling: a case left
+  in *Resolved* keeps the guest's data indefinitely. Reopening a closed case postpones the
+  erasure to the period after it next closes.
+- **On request** — when a guest asks for their data to be erased earlier, find their
+  cases by searching the list for the e-mail address, then choose *Guest data → Erase
+  personal data* on each and confirm. It works in any status, cannot be undone, and no
+  further e-mail is sent to the guest. It needs the permission **Erase personal data of
+  guest returns and complaints** (`returns:erase_personal_data`, which requires
+  `returns:read`); grant it under **Admin roles** to whoever handles data-subject
+  requests.
+- **Module switched off** — the daily `returns-maintenance` pass does not run while
+  `returns` is off, so an erasure that falls due then is postponed; it runs at the first
+  pass after the module is back on.
+- **Anonymising a customer account does not touch guest cases** that carry the same
+  e-mail address: they are not that account's. Erase them separately, as above.
+- **Verification records** — the addresses entered on the storefront are deleted 7 days
+  after they were requested, whether or not a case was filed.
+
 ## Attachments
 
 A customer attaches files to a case: photos, a proof of purchase and other
@@ -246,6 +363,11 @@ and 10 files per case. The type is checked from the file's content, not its name
   the case, a colleague who may see the Organization's cases, and administrators
   holding `returns:read` download them. They are served for download, never
   rendered in the shop's own pages.
+- **A guest's files** — a guest uploads files within the guest session before filing,
+  and through the tracking link afterwards, with the same types and limits. Only the
+  tracking link of that case and the administrators who may see guest cases download
+  them; a file uploaded in one guest session cannot be filed by another session or by a
+  customer. A guest's files are erased with the guest's personal data.
 - **Changed in this release** — `attachmentAssetIds` on `POST /api/v1/returns` and
   the JSON `{ assetId }` body on `POST /api/v1/returns/:id/attachments` are gone:
   upload the file, then send `attachments: [{ uploadId }]`, or post the file as
@@ -284,7 +406,9 @@ moves the case to *Resolved* from any open status.
 When a customer account is anonymised, its cases keep their lines, purchase data
 and comments, and lose the contact details, the return address and every file. A
 case shows when this happened. If `returns` was switched off at that moment, the
-daily `returns-maintenance` pass catches up once it is back on.
+daily `returns-maintenance` pass catches up once it is back on. Guest cases carrying
+the same e-mail address are not the account's and are not touched; see *Erasing a
+guest's personal data*.
 
 ## Key behaviours
 
@@ -443,7 +567,7 @@ unchanged. The status code travels as `details.statusCode`, because
 | `RETURN_QUANTITY_EXCEEDS_RETURNABLE` | `422` | `POST /api/v1/returns` — a line asks for more than it can still return | `orderItemId`, `requested`, `remaining` |
 | `RETURN_REASON_INACTIVE` | `422` | `POST /api/v1/returns` — the reason was switched off (an order's case or a complaint without an order) | `reasonId` |
 | `RETURN_COMMENTS_CLOSED` | `409` | a comment on a case in a terminal status | `returnCaseId`, `statusCode` |
-| `RETURN_CASE_CLOSED` | `409` | `POST /api/v1/returns/:id/select-delivery-method` or `POST /api/v1/returns/:id/attachments` on a case in a terminal status | `returnCaseId`, `statusCode` |
+| `RETURN_CASE_CLOSED` | `409` | `POST /api/v1/returns/:id/select-delivery-method`, `POST /api/v1/returns/:id/attachments` or `POST /api/v1/returns/track/attachments` on a case in a terminal status | `returnCaseId`, `statusCode` |
 | `RETURN_DELIVERY_METHOD_UNAVAILABLE` | `422` | the same route — the return delivery method is not offered | `returnDeliveryMethodId` |
 | `RETURN_SETTLEMENT_IN_PROGRESS` | `409` | `POST /api/v1/admin/returns/:id/settlement` — another return of the order is being settled; try again | `orderId` |
 | `RETURN_REFUND_EXCEEDS_PAID` | `422` | the same route — a refund above what may be refunded, for a line or, with `code` `delivery` / `surcharge`, a charge | `returnCaseItemId` (a line), `requested`, `maximum`, `currency` |
@@ -636,6 +760,15 @@ customer's or the clause's text. Erasing an account's data
 (`return_case.erase_personal_data`) records the number of cases and files and the
 names of the fields erased.
 
+A guest's writes are recorded with `by: 'guest'` and no actor: filing
+(`return_case.create`, with the guest session's id), a comment through the tracking link
+(`return_case.comment.add_by_guest`, with the comment's length, never its text) and a
+file (`return_case.attachment.add`). *Send a new tracking link*
+(`return_case.tracking_link.reissue`) records the link's version numbers, never the
+link. Erasing a guest's data (`return_case.guest_data.erase`) records whether it was the
+retention period or a request, the number of files and the names of the fields erased.
+No entry holds a guest's e-mail address, name, phone, address, comment or link.
+
 ## Cross-module interfaces
 
 The module reads/affects other domains only through documented ports, never
@@ -679,6 +812,10 @@ internal imports:
   complaint without an order exists on the channel, and its name.
 - `TransactionalEmailStatePort` (transactional_emails) — whether the confirmation
   e-mail is switched on, so the storefront promises it only then.
+- `AdminTenantScopePort` (organizations) — whether an administrator may see every
+  organization's cases, which decides who gets the bell entry for a guest case.
+- The platform's cursor seal — signs the guest verification and tracking links with
+  the session secret, so the platform stores no link.
 
 ## Schema
 
@@ -714,3 +851,13 @@ gets the organization, the customer, the type, the file's name, type and size, w
 it is stored and when an unfiled upload expires; the organization of existing
 attachments is filled in from their case. It creates `return_case_clauses`. Rolling
 it back is refused while a case without a platform order exists.
+
+Migration `20261116T104415_returns_guest_complaints.ts` makes
+`return_cases.customer_account_id` nullable — a case without an account is a guest's
+complaint without a platform order and never carries an organization — and adds the
+guest session that filed it, when its address was verified and the tracking link's
+version. `return_case_comments` gets `author_guest`; `return_case_attachments` gets the
+guest session that uploaded a file and `uploaded_by_guest`. It creates
+`return_guest_verifications`, one row per link requested, which becomes the guest
+session once redeemed and holds only a hash of the session token. Rolling it back is
+refused while a guest case exists.

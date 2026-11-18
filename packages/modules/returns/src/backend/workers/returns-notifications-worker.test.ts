@@ -31,14 +31,20 @@ function job(data: ReturnsNotificationJob, progress: unknown = undefined): Retur
 function realDispatch(over: Partial<DispatchDeps> = {}): ReturnsNotificationDispatch {
   return new ReturnsNotificationDispatch({
     isPresent: () => true,
-    store: { loadCase: async () => null, loadComment: async () => null, loadStatus: async () => null },
+    store: {
+      loadCase: async () => null,
+      loadComment: async () => null,
+      loadStatus: async () => null,
+      loadGuestVerification: async () => null,
+    },
     sender: () => ({ send: vi.fn(async () => ({ status: 'sent' as const })) }),
-    customers: { findById: async () => null },
+    customers: { findById: async () => null, findByEmail: async () => null },
     organizations: { findById: async () => null },
     language: async () => 'en-US',
     timeZone: async () => 'Europe/Warsaw',
     newCaseRecipients: async () => ({ recipients: [], invalid: [] }),
     bell: { announceNewCase: vi.fn(async () => ({ status: 'not_present' as const })) },
+    guestLinks: { verificationToken: (id: string) => `sealed-${id}`, trackingToken: (id: string, v: number) => `track-${id}-${v}` },
     storefrontBaseUrl: undefined,
     adminBaseUrl: null,
     log: () => undefined,

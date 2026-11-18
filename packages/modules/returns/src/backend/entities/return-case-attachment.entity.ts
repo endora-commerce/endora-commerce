@@ -33,6 +33,8 @@ export class ReturnCaseAttachment {
     | 'storageBackend'
     | 'storageLocator'
     | 'expiresAt'
+    | 'guestSessionId'
+    | 'uploadedByGuest'
     | 'createdAt';
 
   @PrimaryKey({ type: 'uuid' })
@@ -84,6 +86,18 @@ export class ReturnCaseAttachment {
 
   @Property({ type: 'datetime', nullable: true })
   expiresAt?: Date | null;
+
+  /**
+   * The guest session that uploaded a pending file, kept after claiming
+   * (`specs/181-guest-complaints/` research R-4). A guest's file is stored under
+   * `returns/guest/<id>` and has no organization.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  guestSessionId?: string | null;
+
+  /** A guest added the file — before filing or through the tracking link. */
+  @Property({ type: 'boolean' })
+  uploadedByGuest: boolean = false;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

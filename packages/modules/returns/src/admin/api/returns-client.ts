@@ -1,5 +1,6 @@
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type {
+  AdminEraseGuestDataResult,
   AdminReturnsListResponse,
   BulkTransitionResult,
   ReturnCaseCommentDto,
@@ -45,6 +46,12 @@ export const returnsClient = {
 
   transition: (id: string, to: string, reason?: string): Promise<ReturnCaseDetail> =>
     unwrap(apiClient.post<Wrap<ReturnCaseDetail>>(`/api/v1/admin/returns/${id}/transition`, { to, ...(reason ? { reason } : {}) })),
+
+  // A guest's case (`specs/181-guest-complaints/` admin-api.md A3, A5)
+  reissueTrackingLink: (id: string): Promise<{ trackingVersion: number }> =>
+    unwrap(apiClient.post<Wrap<{ trackingVersion: number }>>(`/api/v1/admin/returns/${id}/guest/tracking-link`, {})),
+  eraseGuestData: (id: string): Promise<AdminEraseGuestDataResult> =>
+    unwrap(apiClient.post<Wrap<AdminEraseGuestDataResult>>(`/api/v1/admin/returns/${id}/guest/erase`, { confirm: true })),
 
   bulkTransition: (ids: string[], to: string): Promise<BulkTransitionResult> =>
     unwrap(apiClient.post<Wrap<BulkTransitionResult>>('/api/v1/admin/returns/bulk-transition', { ids, to })),

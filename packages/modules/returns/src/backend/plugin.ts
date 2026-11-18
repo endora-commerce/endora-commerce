@@ -14,7 +14,9 @@ import type {
   OrganizationPermissionPort,
   PaymentRefundPort,
 } from '@endora-commerce/contracts';
+import { ERROR_CODES } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { PlatformLogger, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -46,6 +48,12 @@ import { createNewCaseRecipientResolver } from './services/notifications/recipie
 import { createRmaNumberGenerator } from './services/rma-number-generator.js';
 import { registerReturnsCustomerRoutes } from './routes.customer.js';
 import { registerReturnsAdminRoutes } from './routes.admin.js';
+import { registerReturnsGuestRoutes } from './routes.guest.js';
+import { GuestCaseAccess } from './services/guest/guest-case-access.js';
+import type { GuestAvailability } from './services/guest/guest-availability.js';
+import { reissueTrackingLink, type GuestLinks } from './services/guest/guest-tracking-link.js';
+import type { GuestVerificationService } from './services/guest/guest-verification-service.js';
+import { createGuestRetentionReader, type GuestDataErasure } from './services/guest/guest-erasure.js';
 
 /** Default free-return window when the setting cannot be resolved (manifest default). */
 const DEFAULT_FREE_RETURN_DAYS = 14;
@@ -107,6 +115,17 @@ export interface ReturnsModuleOptions {
   objectStorage: Pick<ObjectStoragePort, 'getActive' | 'getForBackend'>;
   /** `transactional_emails`' state read: is the confirmation e-mail on (180 D-11)? */
   emailState: Pick<TransactionalEmailStatePort, 'isActive'>;
+  /**
+   * `specs/181-guest-complaints/` — the guest's sealed links, the channel's effective
+   * setting and the e-mail verification. Absent: no guest route is registered.
+   */
+  guest?: {
+    readonly links: GuestLinks;
+    readonly availability: GuestAvailability;
+    readonly verifications: GuestVerificationService;
+    /** A5 and the retention sweep's Command `return_case.guest_data.erase` (research R-9). */
+    readonly erasure: Pick<GuestDataErasure, 'eraseOnRequest'>;
+  };
   /**
    * The module's logger. The saved-view service writes its actor-≠-owner trail
    * through it (`specs/147-saved-views/` research R-18, S-11; #312).
@@ -213,6 +232,12 @@ export function returnsModule(
 
   const clauseService = new ReturnClauseService({ emFactory, commandBus: options.commandBus });
 
+  // `specs/181-guest-complaints/` research R-1 — the one home that turns a guest
+  // credential (session, tracking token) into case rows.
+  const guestAccess = options.guest
+    ? new GuestCaseAccess({ emFactory, links: options.guest.links, graphService })
+    : null;
+
   const caseService = new ReturnCaseService({
     emFactory,
     graphService,
@@ -233,6 +258,9 @@ export function returnsModule(
       enabled: (sc) => readFlag(RETURNS_SETTING_CODES.OFF_PLATFORM_COMPLAINTS_ENABLED, sc),
       proofOfPurchaseRequired: (sc) => readFlag(RETURNS_SETTING_CODES.PROOF_OF_PURCHASE_REQUIRED, sc),
     },
+    ...(options.guest && guestAccess ? { guest: { access: guestAccess, links: options.guest.links } } : {}),
+    // 181 (admin-api.md A2) — the detail's *erasure due* date, clamped as the sweep reads it.
+    guestRetentionDays: createGuestRetentionReader(settingsService),
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
   });
 
@@ -258,6 +286,7 @@ export function returnsModule(
   const commentService = new ReturnCommentService({
     emFactory,
     graphService,
+    commandBus: options.commandBus,
     ...(options.enqueueNotification ? { enqueueNotification: options.enqueueNotification } : {}),
   });
 
@@ -276,6 +305,37 @@ export function returnsModule(
   });
   const consentService = new ReturnConsentService({ commandBus: options.commandBus, graphService });
 
+  // 180 §C1 (research R-21): the toggles, whether the confirmation is on (D-11), the
+  // shop's day (D-12), the clauses `filing` will expect (D-1) and the limits.
+  const formConfigFor = async (
+    salesChannelId: string,
+    language: string,
+    kind: 'return' | 'complaint',
+    consumerWithdrawal: boolean,
+  ) => {
+    const [offPlatformComplaintsEnabled, proofOfPurchaseRequired, confirmationEmailEnabled, timeZone, clauses] =
+      await Promise.all([
+        readFlag(RETURNS_SETTING_CODES.OFF_PLATFORM_COMPLAINTS_ENABLED, salesChannelId),
+        readFlag(RETURNS_SETTING_CODES.PROOF_OF_PURCHASE_REQUIRED, salesChannelId),
+        options.emailState.isActive('return_submitted'),
+        resolveTimeZone(salesChannelId),
+        clauseService.forForm({ salesChannelId, kind, consumerWithdrawal, language }),
+      ]);
+    return {
+      offPlatformComplaintsEnabled,
+      proofOfPurchaseRequired,
+      confirmationEmailEnabled,
+      today: dayIn(new Date(), timeZone),
+      clauses,
+      attachmentLimits: {
+        maxFileBytes: RETURN_ATTACHMENT_LIMITS.maxFileBytes,
+        maxSubmissionBytes: RETURN_ATTACHMENT_LIMITS.maxSubmissionBytes,
+        maxFilesPerCase: RETURN_ATTACHMENT_LIMITS.maxFilesPerCase,
+        acceptedMimeTypes: [...RETURN_ATTACHMENT_LIMITS.acceptedMimeTypes],
+      },
+    };
+  };
+
   await registerReturnsCustomerRoutes(app, {
     caseService,
     commentService,
@@ -285,33 +345,24 @@ export function returnsModule(
     requireCustomer: options.requireCustomer,
     resolveCustomerAccountId: options.resolveCustomerAccountId,
     organizationPermissions: () => options.organizationPermissions,
-    // 180 §C1 (research R-21): the toggles, whether the confirmation is on (D-11), the
-    // shop's day (D-12), the clauses `filing` will expect (D-1) and the limits.
-    formConfig: async ({ salesChannelId, language, kind, orderId, customer }) => {
-      const consumerWithdrawal = await caseService.consumerWithdrawalFor(kind, orderId, customer);
-      const [offPlatformComplaintsEnabled, proofOfPurchaseRequired, confirmationEmailEnabled, timeZone, clauses] =
-        await Promise.all([
-          readFlag(RETURNS_SETTING_CODES.OFF_PLATFORM_COMPLAINTS_ENABLED, salesChannelId),
-          readFlag(RETURNS_SETTING_CODES.PROOF_OF_PURCHASE_REQUIRED, salesChannelId),
-          options.emailState.isActive('return_submitted'),
-          resolveTimeZone(salesChannelId),
-          clauseService.forForm({ salesChannelId, kind, consumerWithdrawal, language }),
-        ]);
-      return {
-        offPlatformComplaintsEnabled,
-        proofOfPurchaseRequired,
-        confirmationEmailEnabled,
-        today: dayIn(new Date(), timeZone),
-        clauses,
-        attachmentLimits: {
-          maxFileBytes: RETURN_ATTACHMENT_LIMITS.maxFileBytes,
-          maxSubmissionBytes: RETURN_ATTACHMENT_LIMITS.maxSubmissionBytes,
-          maxFilesPerCase: RETURN_ATTACHMENT_LIMITS.maxFilesPerCase,
-          acceptedMimeTypes: [...RETURN_ATTACHMENT_LIMITS.acceptedMimeTypes],
-        },
-      };
-    },
+    formConfig: async ({ salesChannelId, language, kind, orderId, customer }) =>
+      formConfigFor(salesChannelId, language, kind, await caseService.consumerWithdrawalFor(kind, orderId, customer)),
   });
+
+  // `specs/181-guest-complaints/` G1 – G10 — the guest's routes, behind the same module
+  // gate as every route here (`ctx.routes`, FR-080).
+  if (options.guest && guestAccess) {
+    await registerReturnsGuestRoutes(app, {
+      availability: options.guest.availability,
+      verifications: options.guest.verifications,
+      access: guestAccess,
+      caseService,
+      commentService,
+      attachmentService,
+      complaintFormConfig: (salesChannelId, language) => formConfigFor(salesChannelId, language, 'complaint', false),
+      complaintReasons: () => reasonService.listActive('complaint'),
+    });
+  }
 
   await registerReturnsAdminRoutes(app, {
     caseService,
@@ -328,6 +379,19 @@ export function returnsModule(
     transitions,
     graphService,
     translate: options.translate,
+    reissueTrackingLink: (caseId) =>
+      reissueTrackingLink(
+        {
+          commandBus: options.commandBus,
+          ...(options.enqueueNotification ? { enqueue: options.enqueueNotification } : {}),
+        },
+        caseId,
+      ),
+    // 181 A5 — without the guest wiring no guest case can exist, so there is nothing to find.
+    eraseGuestData: (caseId) =>
+      options.guest
+        ? options.guest.erasure.eraseOnRequest(caseId)
+        : Promise.reject(new HttpError(404, ERROR_CODES.NOT_FOUND, 'Return case not found.')),
     attachmentService,
     clauseService,
     notificationHealth: () =>

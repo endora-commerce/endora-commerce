@@ -1211,6 +1211,50 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'asked of a case without a platform order, which has no payment or invoice behind it. The noun ' +
       'is a return case\'s settlement; the one raise site is `return-settlement-service.ts`.',
   },
+  RETURN_GUEST_COMPLAINTS_DISABLED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (contracts/settings-emails-events.md §4) for a guest ' +
+      'request — verification, session, form, upload, filing — while the channel does not accept ' +
+      'complaints from guests (`returns.guest_complaints_enabled` with 180\'s no-order setting). The ' +
+      'noun is `returns`\' guest complaint; raised only by its guest routes.',
+  },
+  RETURN_GUEST_SESSION_REQUIRED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4) for a guest route reached without a live guest ' +
+      'session on the request\'s channel. `UNAUTHORIZED` is not reused: that is the account login\'s ' +
+      'answer, and the sentence has to send the visitor back to e-mail verification.',
+  },
+  RETURN_GUEST_LINK_INVALID: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4) for a verification link that cannot be redeemed — ' +
+      'unknown, altered, expired, used, superseded or of another channel — with one answer for all ' +
+      '(FR-022). The verification row is `returns`\' own table.',
+  },
+  RETURN_TRACKING_LINK_INVALID: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4) for a tracking token that opens no case — unknown, ' +
+      'altered, replaced, expired 90 days after closing, or of an erased case — with one answer for all ' +
+      '(FR-043). `NOT_FOUND` is not reused: the sentence has to say the link may have been replaced. The ' +
+      'case is `returns`\' own row; raised only by its tracking routes.',
+  },
+  RETURN_GUEST_LIMIT_REACHED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4, research R-8) for a guest over a per-identity limit — ' +
+      'cases per session, cases per verified address, comments per case — named in `details.limit`. ' +
+      '`RATE_LIMITED` is not reused: that is the per-client-address throttle, which names no identity.',
+  },
+  RETURN_GUEST_DATA_ERASED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4) for an operator action that needs a guest\'s personal ' +
+      'data — sending a new tracking link — on a guest case whose data has been erased. The case is ' +
+      '`returns`\' own row; the raise site is `guest-tracking-link.ts`.',
+  },
   RFQ_SAVED_VIEW_NAME_TAKEN: {
     to: 'quote_requests',
     reason:

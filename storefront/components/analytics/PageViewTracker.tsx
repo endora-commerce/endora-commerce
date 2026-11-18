@@ -5,6 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { getGaConfig, sendPageView } from '../../lib/analytics/gtag';
 import { trackSiteSearch } from '../../lib/analytics/enhancedMeasurement';
 import { sendGtmPageView, sendGtmSearchResults } from '../../lib/analytics/gtm/dataLayer';
+import { isSecretBearingPath, redactSecretPath } from '../../lib/analytics/secret-paths';
 
 /**
  * Emits a GA4 `page_view` on every App-Router navigation (feature 049, US1),
@@ -24,8 +25,11 @@ export function PageViewTracker(): null {
   const lastUrl = useRef<string | null>(null);
 
   useEffect(() => {
-    const query = searchParams?.toString();
-    const url = query ? `${pathname}?${query}` : pathname;
+    // 181 design review F-2 — a guest token in the path or the query is never reported:
+    // the tracking and verification pages report their redacted path and no query.
+    const secret = isSecretBearingPath(pathname);
+    const query = secret ? '' : searchParams?.toString();
+    const url = secret ? redactSecretPath(pathname ?? '') : query ? `${pathname}?${query}` : pathname;
     if (url === lastUrl.current) return;
     lastUrl.current = url;
     sendPageView(url);

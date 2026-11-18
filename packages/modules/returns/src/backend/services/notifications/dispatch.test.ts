@@ -62,6 +62,7 @@ function harness(
           ? { id: COMMENT_ID, returnCaseId: CASE_ID, body: 'Your parcel arrived.', isCustomerVisible: true, notifyCustomer: true }
           : opts.comment,
       ),
+      loadGuestVerification: vi.fn(async () => null),
       loadStatus: vi.fn(async (code: string) =>
         code === 'received' ? { code, name: { en: 'Received', pl: 'Odebrane' }, defaultName: 'Received' } : null,
       ),
@@ -80,12 +81,14 @@ function harness(
               anonymizedAt: null,
             } as never),
       ),
+      findByEmail: vi.fn(async () => null),
     },
     organizations: { findById: vi.fn(async () => ({ id: ORGANIZATION_ID, name: 'Acme' }) as never) },
     language: async () => 'pl-PL',
     timeZone: async () => 'Europe/Warsaw',
     newCaseRecipients: async () => ({ recipients: ['a@shop.example', 'b@shop.example'], invalid: ['not-an-address'] }),
     bell,
+    guestLinks: { verificationToken: (id: string) => `sealed-${id}`, trackingToken: (id: string, v: number) => `track-${id}-${v}` },
     storefrontBaseUrl: 'https://shop.example',
     adminBaseUrl: opts.adminBaseUrl === undefined ? 'https://admin.example' : opts.adminBaseUrl,
     log,

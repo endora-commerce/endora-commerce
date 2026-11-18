@@ -48,6 +48,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 
 | Kod | Etykieta | Wymaga też |
 | --- | --- | --- |
+| `returns:erase_personal_data` | Erase personal data of guest returns and complaints | `returns:read` |
 | `returns:read` | View returns / RMA cases | — |
 | `returns:write` | Manage returns / RMA cases, settlement, and configuration | — |
 
@@ -66,6 +67,8 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `returns.default_cost_bearer_outside_window` | Return cost bearer outside the free-return window | `string` |
 | `returns.enabled` | Returns enabled | `boolean` |
 | `returns.free_return_days` | Free-return window (days) | `number` |
+| `returns.guest_complaints_enabled` | Complaints from guests | `boolean` |
+| `returns.guest_data_retention_days` | Guest data retention (days) | `number` |
 | `returns.new_case_recipients` | New-case recipients | `string_list` |
 | `returns.off_platform_complaints_enabled` | Complaints without a platform order | `boolean` |
 | `returns.proof_of_purchase_required` | Proof of purchase required | `boolean` |

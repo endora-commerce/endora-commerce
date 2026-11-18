@@ -4,6 +4,8 @@ import type { ReturnCase } from '../entities/return-case.entity.js';
 import type { ReturnNotifier } from './return-transition-service.js';
 import { buildReturnAuthorizedEmail } from '../email-templates/return-authorized.js';
 import { buildReturnRejectedEmail } from '../email-templates/return-rejected.js';
+import { caseReference } from '../domain/case-reference.js';
+import { customerMessageFor, type AccountMessageCode } from './notifications/customer-message.js';
 
 /** Resolves a customer account's email address (injected to avoid importing
  *  the customer_accounts module's internals into returns). */
@@ -53,7 +55,15 @@ export interface ReturnNotifierEmailOptions {
   getTransactionalEmailSender?: () => TransactionalEmailSender | undefined;
   resolveLanguage?: (salesChannelId: string) => Promise<string>;
   log?: ReturnEmailLog;
+  /**
+   * `specs/181-guest-complaints/` FR-044 — a guest case's current tracking link,
+   * `<storefront>/returns/track/<token>`, re-derived at send time; `''` without a base.
+   */
+  guestTrackingUrl?: (returnCaseId: string, trackingVersion: number) => string;
 }
+
+/** Where one of the two e-mails goes: the account's address, or a guest's (181 research R-7). */
+type Recipient = { readonly to: string; readonly guest: null } | { readonly to: string; readonly guest: { code: string; trackingUrl: string } };
 
 /**
  * ReturnEmailNotifier — feature 046 (US2, FR-017).
@@ -95,11 +105,21 @@ export class ReturnEmailNotifier implements ReturnNotifier {
   async authorized(rc: ReturnCase): Promise<ReturnEmailResult> {
     const kind = 'return_authorized';
     if (!rc.rmaNumber) return this.notSent(rc, kind, 'no_rma');
-    const to = await this.resolveCustomerEmail(rc.customerAccountId);
-    if (!to) return this.notSent(rc, kind, 'no_recipient');
+    const recipient = await this.recipientOf(rc, kind);
+    if (!recipient) return this.notSent(rc, kind, 'no_recipient');
+    const { to } = recipient;
     const rmaNumber = rc.rmaNumber;
     const sender = this.emailOptions.getTransactionalEmailSender?.();
     try {
+      if (recipient.guest) {
+        // A guest has only the template sender: the legacy builder links an account.
+        if (!sender) return this.notSent(rc, recipient.guest.code, 'no_transport');
+        return await this.sendGuest(sender, rc, recipient.guest.code, to, `${recipient.guest.code}:${rc.id}:${rmaNumber}`, {
+          caseReference: caseReference(rc),
+          rmaNumber,
+          trackingUrl: recipient.guest.trackingUrl,
+        });
+      }
       if (sender) {
         const outcome = await sender.send({
           code: kind,
@@ -125,11 +145,20 @@ export class ReturnEmailNotifier implements ReturnNotifier {
 
   async rejected(rc: ReturnCase): Promise<ReturnEmailResult> {
     const kind = 'return_rejected';
-    const to = await this.resolveCustomerEmail(rc.customerAccountId);
-    if (!to) return this.notSent(rc, kind, 'no_recipient');
+    const recipient = await this.recipientOf(rc, kind);
+    if (!recipient) return this.notSent(rc, kind, 'no_recipient');
+    const { to } = recipient;
     const reason = rc.rejectionReason ?? '';
     const sender = this.emailOptions.getTransactionalEmailSender?.();
     try {
+      if (recipient.guest) {
+        if (!sender) return this.notSent(rc, recipient.guest.code, 'no_transport');
+        return await this.sendGuest(sender, rc, recipient.guest.code, to, `${recipient.guest.code}:${rc.id}`, {
+          caseReference: caseReference(rc),
+          rejectionReason: reason,
+          trackingUrl: recipient.guest.trackingUrl,
+        });
+      }
       if (sender) {
         const outcome = await sender.send({
           code: kind,
@@ -151,6 +180,45 @@ export class ReturnEmailNotifier implements ReturnNotifier {
     } catch (error) {
       return this.contained(rc, kind, error);
     }
+  }
+
+  /**
+   * Who receives `kind` about `rc` — `customerMessageFor`'s decision (181 research R-7):
+   * the account's address, or a guest case's verified address with its tracking link.
+   * `null`: nobody (no account address, an erased guest case, no link to give).
+   */
+  private async recipientOf(rc: ReturnCase, kind: AccountMessageCode): Promise<Recipient | null> {
+    const message = customerMessageFor(rc, kind);
+    if (message === null) return null;
+    if (message.audience === 'customer') {
+      const to = await this.resolveCustomerEmail(message.customerAccountId);
+      return to ? { to, guest: null } : null;
+    }
+    const trackingUrl =
+      rc.trackingVersion != null ? (this.emailOptions.guestTrackingUrl?.(rc.id, rc.trackingVersion) ?? '') : '';
+    if (trackingUrl === '') return null;
+    return { to: message.to, guest: { code: message.code, trackingUrl } };
+  }
+
+  private async sendGuest(
+    sender: TransactionalEmailSender,
+    rc: ReturnCase,
+    code: string,
+    to: string,
+    messageId: string,
+    variables: Record<string, string>,
+  ): Promise<ReturnEmailResult> {
+    const outcome = await sender.send({
+      code,
+      salesChannelId: rc.salesChannelId,
+      language: await this.language(rc.salesChannelId),
+      to,
+      messageId,
+      variables,
+      meta: { returnCaseId: rc.id, kind: code },
+    });
+    if (outcome.status !== 'sent') return this.notSent(rc, code, outcome.status);
+    return { sent: true };
   }
 
   /**

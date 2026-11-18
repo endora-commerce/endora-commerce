@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FileText, Mail, ShieldOff, Store } from 'lucide-react';
-import { ApiError, apiBaseUrl, formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { ArrowLeft, FileText, Mail, ShieldOff, Store, UserRound } from 'lucide-react';
+import { ApiError, apiBaseUrl, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ConfirmDialog, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Select, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient, type RefundPaymentMethodOption } from '../api/returns-client.js';
@@ -265,6 +266,13 @@ export function ReturnDetail(): ReactNode {
             {rc.rmaNumber ?? rc.reference} <Badge variant="secondary">{rc.statusLabel}</Badge>
             <Badge variant="outline">{t(`returns.kind.${rc.kind}`)}</Badge>
             {rc.consumerWithdrawal === true && <Badge variant="warning">{tr('consent.badge')}</Badge>}
+            {rc.guest && (
+              // 181 FR-063 — filed by a guest without an account; text and an icon.
+              <Badge variant="outline" className="gap-1">
+                <UserRound className="size-3" aria-hidden="true" />
+                {tr('list.guest')}
+              </Badge>
+            )}
           </span>
         }
         description={
@@ -317,6 +325,16 @@ export function ReturnDetail(): ReactNode {
               → {t.toStatusCode}
             </Button>
           ))}
+          {rc.guest && !rc.personalDataErasedAt && (
+            <GuestCaseActions
+              rc={rc}
+              onDone={async (message) => {
+                setError(null);
+                await refresh();
+                setInfo(message);
+              }}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -888,6 +906,7 @@ function PurchaseAndContact({ rc }: { rc: ReturnCaseDetail }): ReactNode {
           <dt className="text-muted-foreground">{tr('detail.purchaseNumber')}</dt>
           <dd>{rc.purchase?.proofNumber ?? '—'}</dd>
         </dl>
+        {rc.guest && <GuestLines rc={rc} />}
         {rc.personalDataErasedAt ? (
           <Alert>
             <ShieldOff className="size-4" aria-hidden="true" />
@@ -932,6 +951,111 @@ function PurchaseAndContact({ rc }: { rc: ReturnCaseDetail }): ReactNode {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * `specs/181-guest-complaints/` FR-063 (admin-api.md A6) — that the guest's address was
+ * verified and when, how long the tracking link works, and when the personal data falls
+ * due for erasure. The two dates are the backend's: `null` while the case is open.
+ */
+function GuestLines({ rc }: { rc: ReturnCaseDetail }): ReactNode {
+  const tr = useTranslation('returns');
+  return (
+    <ul className="space-y-1 text-sm md:col-span-2">
+      {rc.contactVerifiedAt && <li>{tr('detail.guest.verifiedEmail', { date: formatDateTime(rc.contactVerifiedAt) })}</li>}
+      {!rc.personalDataErasedAt && (
+        <>
+          <li>
+            {rc.trackingLinkValidUntil
+              ? tr('detail.guest.linkValidUntil', { date: formatDateTime(rc.trackingLinkValidUntil) })
+              : tr('detail.guest.linkWhileOpen')}
+          </li>
+          <li>
+            {rc.guestDataErasureDueAt
+              ? tr('detail.guest.erasureDue', { date: formatDateTime(rc.guestDataErasureDueAt) })
+              : tr('detail.guest.erasureAfterClose')}
+          </li>
+        </>
+      )}
+    </ul>
+  );
+}
+
+/**
+ * `specs/181-guest-complaints/` (admin-api.md A3, A5, A6) — the guest case's two actions,
+ * each behind a confirmation: *Send a new tracking link* (`returns:write`) and *Erase
+ * personal data* (`returns:erase_personal_data`, irreversible, so the dialog opens on
+ * *Cancel*). Shown only while the case still holds the guest's data.
+ */
+function GuestCaseActions({ rc, onDone }: { rc: ReturnCaseDetail; onDone: (message: string) => Promise<void> }): ReactNode {
+  const tr = useTranslation('returns');
+  const { hasPermission } = useAuth();
+  const [asking, setAsking] = useState<'reissue' | 'erase' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const canReissue = hasPermission('returns:write');
+  const canErase = hasPermission('returns:erase_personal_data');
+  if (!canReissue && !canErase) return null;
+
+  const close = (): void => {
+    setAsking(null);
+    setError(null);
+  };
+  const confirm = async (): Promise<void> => {
+    if (asking === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (asking === 'reissue') await returnsClient.reissueTrackingLink(rc.id);
+      else await returnsClient.eraseGuestData(rc.id);
+      const message = asking === 'reissue' ? tr('detail.guest.reissued') : tr('detail.guest.erasedInfo');
+      setAsking(null);
+      await onDone(message);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : tr('detail.guest.actionFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      {/* A labelled trigger: on a detail page an icon alone hides the only two guest actions
+          (181 design review F-21); the irreversible item is set apart (F-20). */}
+      <RowActionMenu label={tr('detail.guest.actions')} showLabel>
+        {canReissue && <RowActionMenuItem onSelect={() => setAsking('reissue')}>{tr('detail.guest.reissue')}</RowActionMenuItem>}
+        {canReissue && canErase && <RowActionMenuSeparator />}
+        {canErase && (
+          <RowActionMenuItem destructive onSelect={() => setAsking('erase')}>
+            {tr('detail.guest.erase')}
+          </RowActionMenuItem>
+        )}
+      </RowActionMenu>
+      {asking === 'reissue' && (
+        <ConfirmDialog
+          title={tr('detail.guest.reissueConfirmTitle')}
+          message={tr('detail.guest.reissueConfirm', { email: rc.contact?.email ?? '' })}
+          confirmLabel={tr('detail.guest.reissueConfirmAction')}
+          onConfirm={() => void confirm()}
+          onCancel={close}
+          busy={busy}
+          error={error}
+        />
+      )}
+      {asking === 'erase' && (
+        <ConfirmDialog
+          destructive
+          title={tr('detail.guest.eraseConfirmTitle')}
+          message={tr('detail.guest.eraseConfirm')}
+          confirmLabel={tr('detail.guest.eraseConfirmAction')}
+          onConfirm={() => void confirm()}
+          onCancel={close}
+          busy={busy}
+          error={error}
+        />
+      )}
+    </>
   );
 }
 

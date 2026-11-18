@@ -21,9 +21,16 @@ import { ReturnCaseItem } from '../entities/return-case-item.entity.js';
 import type { CaseAttachmentClaims, ClaimedUpload } from './return-case-service.js';
 import type { ReturnStatusGraphService } from './return-status-graph-service.js';
 import { attachmentDtoOf } from './return-case-service.js';
+import type { GuestCaseAccess } from './guest/guest-case-access.js';
 
 /** How long an unclaimed upload waits for its filing (180 research R-12). */
 export const PENDING_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** At most this many unclaimed uploads per guest session (`specs/181-guest-complaints/` research R-8). */
+export const GUEST_PENDING_UPLOADS_MAX = 10;
+
+/** The storage prefix of a guest's files: no organization segment (181 data-model §3). */
+const GUEST_PREFIX = 'guest';
 
 export interface ReturnAttachmentServiceDeps {
   emFactory: () => EntityManager;
@@ -170,17 +177,49 @@ export class ReturnAttachmentService implements CaseAttachmentClaims {
     em: EntityManager,
     input: { uploads: readonly ClaimedUpload[]; customerAccountId: string; organizationId: string; returnCaseId: string },
   ): Promise<{ count: number; types: ReturnAttachmentType[] }> {
+    return this.claimRows(input.uploads, input.returnCaseId, (ids) =>
+      em.find(ReturnCaseAttachment, {
+        id: { $in: ids.filter(isUuidShape) },
+        organizationId: input.organizationId,
+        customerAccountId: input.customerAccountId,
+        returnCaseId: null,
+        expiresAt: { $gt: this.now() },
+      }),
+    );
+  }
+
+  /**
+   * Claim a guest session's pending uploads for the guest case being filed
+   * (`specs/181-guest-complaints/` FR-035, research R-4): the rows are read through
+   * `GuestCaseAccess`, keyed by the session, so another session's upload or a customer's
+   * is refused as unknown exactly as a foreign one is for a customer.
+   */
+  async claimForGuest(
+    em: EntityManager,
+    access: Pick<GuestCaseAccess, 'pendingUploadsOf'>,
+    input: { uploads: readonly ClaimedUpload[]; guestSessionId: string; returnCaseId: string },
+  ): Promise<{ count: number; types: ReturnAttachmentType[] }> {
+    return this.claimRows(input.uploads, input.returnCaseId, (ids) =>
+      access.pendingUploadsOf(input.guestSessionId, { em, ids }),
+    );
+  }
+
+  /**
+   * Each named upload must be among `load`'s answer — the caller's own, unclaimed and
+   * unexpired — and any other id is refused naming it; together they stay within the
+   * per-submission budget. Each claimed row records the line of the new case it shows,
+   * if any; an upload named twice keeps its first line.
+   */
+  private async claimRows(
+    uploads: readonly ClaimedUpload[],
+    returnCaseId: string,
+    load: (ids: string[]) => Promise<ReturnCaseAttachment[]>,
+  ): Promise<{ count: number; types: ReturnAttachmentType[] }> {
     const lineOf = new Map<string, string | null>();
-    for (const u of input.uploads) if (!lineOf.has(u.uploadId)) lineOf.set(u.uploadId, u.returnCaseItemId);
+    for (const u of uploads) if (!lineOf.has(u.uploadId)) lineOf.set(u.uploadId, u.returnCaseItemId);
     const ids = [...lineOf.keys()];
     if (ids.length > RETURN_ATTACHMENT_LIMITS.maxFilesPerCase) throw rejected('too_many');
-    const rows = await em.find(ReturnCaseAttachment, {
-      id: { $in: ids.filter(isUuidShape) },
-      organizationId: input.organizationId,
-      customerAccountId: input.customerAccountId,
-      returnCaseId: null,
-      expiresAt: { $gt: this.now() },
-    });
+    const rows = await load(ids);
     const byId = new Map(rows.map((r) => [r.id, r]));
     for (const id of ids) {
       if (!byId.has(id)) throw rejected('unknown_upload', { uploadId: id });
@@ -188,11 +227,131 @@ export class ReturnAttachmentService implements CaseAttachmentClaims {
     const total = rows.reduce((sum, r) => sum + (r.sizeBytes ?? 0), 0);
     if (total > RETURN_ATTACHMENT_LIMITS.maxSubmissionBytes) throw rejected('submission_too_large', { maxMb: 30 });
     for (const row of rows) {
-      row.returnCaseId = input.returnCaseId;
+      row.returnCaseId = returnCaseId;
       row.returnCaseItemId = lineOf.get(row.id) ?? null;
       row.expiresAt = null;
     }
     return { count: rows.length, types: rows.map((r) => r.type) };
+  }
+
+  // --- A guest's files (`specs/181-guest-complaints/` G6, G10) -----------------------
+
+  /**
+   * A guest session's pending upload (G6): owned by the session, with no account and no
+   * organization, stored under `returns/guest/<id>` (research R-4). A session holds at
+   * most {@link GUEST_PENDING_UPLOADS_MAX} unclaimed uploads.
+   */
+  async storeGuestUpload(
+    access: Pick<GuestCaseAccess, 'pendingUploadsOf'>,
+    guestSessionId: string,
+    file: IncomingFile,
+  ): Promise<ReturnUploadDto> {
+    if ((await access.pendingUploadsOf(guestSessionId)).length >= GUEST_PENDING_UPLOADS_MAX) {
+      throw rejected('too_many', { max: GUEST_PENDING_UPLOADS_MAX });
+    }
+    const mimeType = acceptedType(file.bytes);
+    const id = randomUUID();
+    const stored = await this.putObject(GUEST_PREFIX, id, mimeType, file.bytes);
+    const expiresAt = new Date(this.now().getTime() + PENDING_UPLOAD_TTL_MS);
+    try {
+      // command-coverage-ignore: a guest's pending upload is a staging row with no case
+      // and a 24-hour life (181 research R-6), as a customer's is; the filing that claims
+      // it is the audited Command `return_case.create`.
+      const em = this.deps.emFactory();
+      em.persist(
+        em.create(ReturnCaseAttachment, {
+          id,
+          organizationId: null,
+          customerAccountId: null,
+          guestSessionId,
+          uploadedByGuest: true,
+          type: file.type,
+          filename: sanitizeFilename(file.filename),
+          mimeType,
+          sizeBytes: file.bytes.length,
+          storageBackend: stored.backend,
+          storageLocator: stored.locator,
+          expiresAt,
+        }),
+      );
+      await em.flush();
+    } catch (error) {
+      await this.deleteObject(stored.backend, stored.locator);
+      throw error;
+    }
+    return {
+      uploadId: id,
+      type: file.type,
+      filename: sanitizeFilename(file.filename),
+      mimeType,
+      sizeBytes: file.bytes.length,
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  /**
+   * A file a guest adds through the tracking link (G10) to the case `GuestCaseAccess.load`
+   * answered: open cases only, 180's limits, Command `return_case.attachment.add` with
+   * `by: 'guest'` (research R-6). `lineIndex` names a line of the case in its stored order.
+   */
+  async addToGuestCase(
+    rc: ReturnCase,
+    file: Omit<IncomingFile, 'returnCaseItemId'> & { readonly lineIndex?: number | undefined },
+  ): Promise<ReturnAttachmentDto> {
+    const em0 = this.deps.emFactory();
+    await this.assertOpen(rc);
+    const returnCaseItemId = await this.itemAt(em0, rc.id, file.lineIndex);
+    await this.assertRoom(em0, rc.id, 1);
+    const mimeType = acceptedType(file.bytes);
+    const id = randomUUID();
+    const stored = await this.putObject(GUEST_PREFIX, id, mimeType, file.bytes);
+    try {
+      return await this.deps.commandBus.run<ReturnAttachmentDto>({
+        action: 'return_case.attachment.add',
+        objectType: 'return_case',
+        objectId: rc.id,
+        run: async ({ em }) => {
+          const current = await em.findOne(ReturnCase, { id: rc.id, customerAccountId: null });
+          if (!current) throw notFound();
+          await this.assertOpen(current);
+          await this.assertRoom(em, rc.id, 1);
+          const row = em.create(ReturnCaseAttachment, {
+            id,
+            returnCaseId: rc.id,
+            returnCaseItemId,
+            organizationId: null,
+            customerAccountId: null,
+            guestSessionId: null,
+            uploadedByGuest: true,
+            type: file.type,
+            filename: sanitizeFilename(file.filename),
+            mimeType,
+            sizeBytes: file.bytes.length,
+            storageBackend: stored.backend,
+            storageLocator: stored.locator,
+          });
+          em.persist(row);
+          await em.flush();
+          // Names only: never the file name the guest chose (D-288).
+          return { result: attachmentDtoOf(row), before: null, after: { attachmentId: id, type: file.type, by: 'guest' } };
+        },
+      });
+    } catch (error) {
+      await this.deleteObject(stored.backend, stored.locator);
+      throw error;
+    }
+  }
+
+  /** A file of a guest's case, as `GuestCaseAccess.attachmentOf` found it (G10). */
+  async openRow(row: ReturnCaseAttachment): Promise<ServedAttachment> {
+    if (!row.storageBackend || !row.storageLocator) throw notFound();
+    const store = await this.deps.storage.getForBackend(row.storageBackend as never);
+    return {
+      filename: row.filename ?? 'attachment',
+      mimeType: row.mimeType ?? 'application/octet-stream',
+      sizeBytes: row.sizeBytes ?? 0,
+      stream: await store.open({ locator: row.storageLocator }),
+    };
   }
 
   /** A case's file for the buyer, within the case read's scope (customer-api.md §C5). */
@@ -226,20 +385,19 @@ export class ReturnAttachmentService implements CaseAttachmentClaims {
       returnCaseId: caseId,
       storageLocator: { $ne: null },
     });
-    if (!row || !row.storageBackend || !row.storageLocator) throw notFound();
-    const store = await this.deps.storage.getForBackend(row.storageBackend as never);
-    return {
-      filename: row.filename ?? 'attachment',
-      mimeType: row.mimeType ?? 'application/octet-stream',
-      sizeBytes: row.sizeBytes ?? 0,
-      stream: await store.open({ locator: row.storageLocator }),
-    };
+    if (!row) throw notFound();
+    return this.openRow(row);
   }
 
   private async loadOpenCaseOf(em: EntityManager, caseId: string, customerAccountId: string): Promise<ReturnCase> {
     // The filer's only: a colleague who may see the case does not add to it.
     const rc = await em.findOne(ReturnCase, { id: caseId, customerAccountId });
     if (!rc) throw notFound();
+    await this.assertOpen(rc);
+    return rc;
+  }
+
+  private async assertOpen(rc: Pick<ReturnCase, 'id' | 'statusCode'>): Promise<void> {
     if ((await this.deps.graphService.loadGraph()).isTerminal(rc.statusCode)) {
       // Issue #625 — a finished case refuses a change with its own code.
       throw new HttpError(409, ERROR_CODES.RETURN_CASE_CLOSED, 'Files can no longer be added to a finished case.', {
@@ -247,7 +405,15 @@ export class ReturnAttachmentService implements CaseAttachmentClaims {
         statusCode: rc.statusCode,
       });
     }
-    return rc;
+  }
+
+  /** The id of the case's line at `index`, in the stored order; a line the case lacks is refused. */
+  private async itemAt(em: EntityManager, caseId: string, index: number | undefined): Promise<string | null> {
+    if (index === undefined) return null;
+    const items = await em.find(ReturnCaseItem, { returnCaseId: caseId }, { orderBy: { id: 'asc' } });
+    const item = items[index];
+    if (!item) throw rejected('unknown_line', { line: index });
+    return item.id;
   }
 
   /** A file added to a line names a line of this case (owner request on 180). */
@@ -266,14 +432,15 @@ export class ReturnAttachmentService implements CaseAttachmentClaims {
     }
   }
 
+  /** Under `returns/<organizationId>/<id>`, or `returns/guest/<id>` for a guest's file. */
   private async putObject(
-    organizationId: string,
+    prefix: string,
     id: string,
     mimeType: string,
     bytes: Buffer,
   ): Promise<{ backend: string; locator: string }> {
     const store = await this.deps.storage.getActive();
-    const locator = `returns/${organizationId}/${id}`;
+    const locator = `returns/${prefix}/${id}`;
     await store.put({ locator, mimeType, visibility: 'private', stream: Readable.from([bytes]), sizeBytes: bytes.length });
     return { backend: store.code, locator };
   }

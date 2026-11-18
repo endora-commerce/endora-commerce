@@ -20,6 +20,8 @@ import {
   updateReturnSavedViewRequestSchema,
   createReturnCaseClauseRequestSchema,
   updateReturnCaseClauseRequestSchema,
+  adminEraseGuestDataRequestSchema,
+  type AdminEraseGuestDataResult,
   type ReturnNotificationHealth,
 } from '@endora-commerce/contracts';
 import { savedViewActor } from './saved-view-actor.js';
@@ -67,6 +69,10 @@ export interface ReturnsAdminRoutesDeps {
   clauseService: ReturnClauseService;
   /** A sentence of this module's bundle in a language — the CSV export's wording. */
   translate: (key: string, language: string) => Promise<string>;
+  /** `specs/181-guest-complaints/` A3 — Command `return_case.tracking_link.reissue`. */
+  reissueTrackingLink: (caseId: string) => Promise<{ trackingVersion: number }>;
+  /** `specs/181-guest-complaints/` A5 — Command `return_case.guest_data.erase` (trigger `request`). */
+  eraseGuestData: (caseId: string) => Promise<AdminEraseGuestDataResult>;
   requireAdmin: RequireAdmin;
   resolveAdminUserId: (req: FastifyRequest) => string;
 }
@@ -345,6 +351,25 @@ export async function registerReturnsAdminRoutes(
         body.reason !== undefined ? { reason: body.reason } : undefined,
       );
       return { data: await caseService.getByIdForAdmin(request.params.id) };
+    },
+  );
+
+  // --- A guest's case (`specs/181-guest-complaints/` admin-api.md A3) ----------
+  // A case action like any other, so `returns:write` (research R-10). The body is `{}`.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/returns/:id/guest/tracking-link',
+    { preHandler: requireAdmin('returns:write') },
+    async (request) => ({ data: await deps.reissueTrackingLink(request.params.id) }),
+  );
+
+  // A5 — irreversible and a GDPR action, so its own code rather than `returns:write`
+  // (research R-10). The body is an explicit `{ confirm: true }`; any status; idempotent.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/returns/:id/guest/erase',
+    { preHandler: requireAdmin('returns:erase_personal_data'), schema: { body: adminEraseGuestDataRequestSchema } },
+    async (request) => {
+      adminEraseGuestDataRequestSchema.parse(request.body);
+      return { data: await deps.eraseGuestData(request.params.id) };
     },
   );
 

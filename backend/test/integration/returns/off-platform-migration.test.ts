@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Migration20261113T155433ReturnsOffPlatformComplaints } from '@endora-commerce/mod-returns/migrations';
+import {
+  Migration20261113T155433ReturnsOffPlatformComplaints,
+  Migration20261116T104415ReturnsGuestComplaints,
+} from '@endora-commerce/mod-returns/migrations';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -20,9 +23,14 @@ describe('returns — migration B: complaints without a platform order', () => {
   let h: BackendServerHandle;
   let channelId: string;
 
-  async function run(direction: 'up' | 'down'): Promise<void> {
+  async function run(
+    direction: 'up' | 'down',
+    migrationClass:
+      | typeof Migration20261113T155433ReturnsOffPlatformComplaints
+      | typeof Migration20261116T104415ReturnsGuestComplaints = Migration20261113T155433ReturnsOffPlatformComplaints,
+  ): Promise<void> {
     const em = h.em();
-    const migration = new Migration20261113T155433ReturnsOffPlatformComplaints(em.getDriver(), em.config);
+    const migration = new migrationClass(em.getDriver(), em.config);
     await migration[direction]();
     // In one transaction: a refused step must leave the schema as it was, or every later
     // file on this worker's database meets a half-migrated `returns`.
@@ -144,6 +152,10 @@ describe('returns — migration B: complaints without a platform order', () => {
     await exec('delete from "return_cases" where "order_id" is null');
     await exec('delete from "return_case_items" where "order_item_id" is null or "product_id" is null');
     await exec('delete from "return_case_attachments" where "storage_locator" is not null');
+    // `specs/181-guest-complaints/` stacks on this migration: unwind it first, as a
+    // rollback does (newest first), or dropping these columns takes its checks with them.
+    await exec('delete from "return_cases" where "customer_account_id" is null');
+    await run('down', Migration20261116T104415ReturnsGuestComplaints);
     await run('down');
     expect(await columnExists('return_cases', 'purchase_date')).toBe(false);
     expect(await columnExists('return_case_attachments', 'organization_id')).toBe(false);
@@ -155,6 +167,7 @@ describe('returns — migration B: complaints without a platform order', () => {
     await h.em().getKnex()('return_case_attachments').insert({ id: attachmentId, return_case_id: caseId, asset_id: randomUUID(), created_at: new Date() });
 
     await run('up');
+    await run('up', Migration20261116T104415ReturnsGuestComplaints);
     const rows = await exec('select "organization_id", "type" from "return_case_attachments" where "id" = ?', [attachmentId]);
     expect(rows[0]).toEqual({ organization_id: TEST_ORGANIZATION_ID, type: 'other' });
   });

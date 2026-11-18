@@ -5,10 +5,12 @@
 // request.
 import multipart from '@fastify/multipart';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { z } from 'zod';
 import {
   ERROR_CODES,
   RETURN_ATTACHMENT_LIMITS,
   returnAttachmentUploadFieldsSchema,
+  type ReturnAttachmentType,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { IncomingFile, ReturnAttachmentService } from './services/return-attachment-service.js';
@@ -35,8 +37,15 @@ function noFile(): HttpError {
   );
 }
 
-/** One file and its fields, as the parser read them. */
-async function readFile(request: FastifyRequest): Promise<IncomingFile> {
+/**
+ * One file and its non-file fields, as the parser read them, the fields judged by
+ * `fieldsSchema`. Exported for the guest routes (`specs/181-guest-complaints/` G6, G10),
+ * which register the same parser in a child context of their own.
+ */
+export async function readMultipartFile<T extends { type: ReturnAttachmentType }>(
+  request: FastifyRequest,
+  fieldsSchema: z.ZodType<T>,
+): Promise<{ filename: string; bytes: Buffer; fields: T }> {
   if (!request.isMultipart()) throw noFile();
   const file = await request.file();
   if (!file) throw noFile();
@@ -45,7 +54,7 @@ async function readFile(request: FastifyRequest): Promise<IncomingFile> {
     const one = Array.isArray(field) ? field[0] : field;
     if (one && one.type === 'field') fields[name] = one.value;
   }
-  const parsed = returnAttachmentUploadFieldsSchema.safeParse(fields);
+  const parsed = fieldsSchema.safeParse(fields);
   if (!parsed.success) throw noFile();
   let bytes: Buffer;
   try {
@@ -54,19 +63,28 @@ async function readFile(request: FastifyRequest): Promise<IncomingFile> {
     if ((error as { code?: string }).code !== 'FST_REQ_FILE_TOO_LARGE') throw error;
     throw tooLarge();
   }
+  return { filename: file.filename || 'attachment', bytes, fields: parsed.data };
+}
+
+/** The parser's options for a return's upload: one file, the per-file limit. */
+export const RETURN_UPLOAD_MULTIPART_OPTIONS = {
+  limits: { files: 1, fields: 5, fileSize: RETURN_ATTACHMENT_LIMITS.maxFileBytes },
+} as const;
+
+/** One file and its fields, as the parser read them. */
+async function readFile(request: FastifyRequest): Promise<IncomingFile> {
+  const { filename, bytes, fields } = await readMultipartFile(request, returnAttachmentUploadFieldsSchema);
   return {
-    type: parsed.data.type,
-    filename: file.filename || 'attachment',
+    type: fields.type,
+    filename,
     bytes,
-    ...(parsed.data.returnCaseItemId ? { returnCaseItemId: parsed.data.returnCaseItemId } : {}),
+    ...(fields.returnCaseItemId ? { returnCaseItemId: fields.returnCaseItemId } : {}),
   };
 }
 
 export async function registerReturnsUploadRoutes(app: FastifyInstance, deps: ReturnsUploadRoutesDeps): Promise<void> {
   await app.register(async (upload) => {
-    await upload.register(multipart, {
-      limits: { files: 1, fields: 5, fileSize: RETURN_ATTACHMENT_LIMITS.maxFileBytes },
-    });
+    await upload.register(multipart, RETURN_UPLOAD_MULTIPART_OPTIONS);
 
     upload.post('/api/v1/returns/uploads', { preHandler: deps.createsReturns }, async (request, reply) => {
       const data = await deps.attachmentService.storeUpload(deps.customerContextOf(request), await readFile(request));

@@ -67,10 +67,12 @@ export class ReturnListService {
       submittedAt: rc.submittedAt.toISOString(),
       // Inherited from the case summary (`specs/170-organization-roles/`
       // FR-053): the account that filed the case.
-      customerAccountId: rc.customerAccountId,
+      customerAccountId: rc.customerAccountId ?? null,
       reference: caseReference(rc),
       ...summaryExtras(rc, lines.get(rc.id)),
-      customerName: null,
+      // `specs/181-guest-complaints/` (admin-api.md A1) — a guest has no account to name,
+      // so the column names the contact as given, until the data is erased.
+      customerName: rc.customerAccountId == null ? (rc.contact?.name ?? null) : null,
       organizationName: null,
       authorizedBy: authorizers.get(rc.id) ?? null,
     }));
@@ -122,9 +124,14 @@ export class ReturnListService {
     if (statuses.length > 0) Object.assign(where, { statusCode: { $in: statuses } });
     if (query.kind) Object.assign(where, { kind: query.kind });
     // 180 FR-B34, FR-B35 — off-platform is the missing order, nothing else: a case
-    // against an order imported from an ERP is a platform case.
+    // against an order imported from an ERP is a platform case. 181 (admin-api.md A1)
+    // splits it by filer; `off_platform` keeps 180's meaning, both kinds, so a saved view
+    // stored before 181 lists what it listed. A guest case is the missing account, and
+    // the tenant filter has already kept it from every admin who may not see it (R-1).
     if (query.origin === 'off_platform') Object.assign(where, { orderId: null });
     if (query.origin === 'platform') Object.assign(where, { orderId: { $ne: null } });
+    if (query.origin === 'off_platform_customer') Object.assign(where, { orderId: null, customerAccountId: { $ne: null } });
+    if (query.origin === 'guest') Object.assign(where, { customerAccountId: null });
     if (query.rmaNumber) Object.assign(where, { rmaNumber: { $ilike: `%${query.rmaNumber}%` } });
     if (query.q) {
       const q = query.q.trim();
@@ -136,6 +143,9 @@ export class ReturnListService {
       // (`#3F9A21C0` or `3F9A21C0`) is the first eight hex characters of the id.
       const prefix = derivedReferencePrefix(q);
       if (prefix) or.push({ id: { $in: await this.idsStartingWith(prefix) } });
+      // `specs/181-guest-complaints/` FR-061, research R-10 — the contact address, matched
+      // whole and never in part, so the search cannot enumerate addresses.
+      if (isEmailShape(q)) or.push({ id: { $in: await this.idsWithContactEmail(q) } });
       Object.assign(where, { $or: or });
     }
     return where;
@@ -154,6 +164,22 @@ export class ReturnListService {
       .select('id')
       .whereRaw('replace("id"::text, \'-\', \'\') like ?', [`${prefix}%`])
       .limit(50)) as Array<{ id: string }>;
+    return rows.map((r) => r.id);
+  }
+
+  /**
+   * The case ids whose contact address is exactly `email`, in any letter case, over the
+   * expression index `return_cases_contact_email_idx`. Raw like {@link idsStartingWith},
+   * and for the same reason harmless: the ids go back into the filtered list query.
+   */
+  private async idsWithContactEmail(email: string): Promise<string[]> {
+    const rows = (await this.deps
+      .emFactory()
+      .getKnex()
+      .from('return_cases')
+      .select('id')
+      .whereRaw('"contact" is not null and lower("contact"->>\'email\') = lower(?)', [email])
+      .limit(200)) as Array<{ id: string }>;
     return rows.map((r) => r.id);
   }
 
@@ -186,4 +212,9 @@ export class ReturnListService {
     for (const r of rows) out[r.status_code] = Number(r.count);
     return out;
   }
+}
+
+/** A whole e-mail address, as the search treats one: no spaces, one `@`, a dotted domain. */
+function isEmailShape(value: string): boolean {
+  return value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }

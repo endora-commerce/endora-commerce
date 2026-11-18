@@ -10,6 +10,7 @@ import {
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 import { ADMIN_COOKIE, CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
 import { allowOffPlatform, complaintReasonId, file, noOrderBody } from './off-platform-fixtures.js';
+import { allowGuests, fileGuestCase, type FiledGuestCase } from './guest-fixtures.js';
 
 const VIEWS = '/api/v1/admin/returns/list-views';
 const SORT = { field: 'submittedAt', dir: 'desc' } as const;
@@ -332,7 +333,8 @@ describe('returns — admin list, bulk, saved views (US8)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['content-type']).toContain('text/csv');
     expect(res.body.split('\r\n')[0]).toBe(
-      'rmaNumber,reference,kind,orderId,statusCode,totalRefundAmount,currency,submittedAt,authorizedBy,offPlatform',
+      // 181 (admin-api.md A1) appends `guest`.
+      'rmaNumber,reference,kind,orderId,statusCode,totalRefundAmount,currency,submittedAt,authorizedBy,offPlatform,guest',
     );
     expect(Number(res.headers['x-export-row-count'])).toBeGreaterThanOrEqual(1);
   });
@@ -432,10 +434,10 @@ describe('returns — admin list, bulk, saved views (US8)', () => {
       const lineOf = (lines: string[], rma: string) => lines.find((l) => l.startsWith(`${rma},`))!;
 
       const en = await csvOf('en');
-      expect(lineOf(en, await rmaOf(unknown)).endsWith(',unknown,false')).toBe(true);
+      expect(lineOf(en, await rmaOf(unknown)).endsWith(',unknown,false,false')).toBe(true);
       expect(lineOf(en, await rmaOf(authorized)).split(',')[1]).toBe(await rmaOf(authorized));
       const pl = await csvOf('pl');
-      expect(lineOf(pl, await rmaOf(unknown)).endsWith(',nieznany,false')).toBe(true);
+      expect(lineOf(pl, await rmaOf(unknown)).endsWith(',nieznany,false,false')).toBe(true);
     });
   });
 
@@ -505,6 +507,121 @@ describe('returns — admin list, bulk, saved views (US8)', () => {
       await h.em().fork().nativeUpdate(ReturnCase, { id: offPlatformId }, { personalDataErasedAt: at });
       const detail = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns/${offPlatformId}`, cookies: ADMIN_COOKIE });
       expect((detail.json() as { data: { personalDataErasedAt: string } }).data.personalDataErasedAt).toBe(at.toISOString());
+    });
+  });
+
+  /**
+   * `specs/181-guest-complaints/` T046 (FR-061; contracts/admin-api.md A1; research R-10):
+   * the widened origin filter, a saved view keeping it, the export's `guest` column, the
+   * guest label of the customer column and the exact contact e-mail search.
+   */
+  describe('cases filed by guests (181)', () => {
+    type Row = { id: string; offPlatform: boolean; guest: boolean; customerAccountId: string | null; customerName: string | null };
+    let undoGuests: () => Promise<void>;
+    let orderCaseId: string;
+    let customerOffId: string;
+    let guestCase: FiledGuestCase;
+
+    beforeAll(async () => {
+      undoGuests = await allowGuests(h);
+      const reasonId = await complaintReasonId(h.em());
+      const res = await file(h, noOrderBody(reasonId), { headers: { 'x-sales-channel': 'default' } });
+      expect(res.statusCode, res.body).toBe(201);
+      customerOffId = (res.json() as { data: { id: string } }).data.id;
+      guestCase = await fileGuestCase(h, reasonId);
+      orderCaseId = await createCase();
+    });
+    afterAll(async () => {
+      await undoGuests();
+    });
+
+    const rows = async (qs: string): Promise<Row[]> => {
+      const res = await h.app.inject({ method: 'GET', url: `/api/v1/admin/returns?pageSize=200${qs}`, cookies: ADMIN_COOKIE });
+      expect(res.statusCode, res.body).toBe(200);
+      return (res.json() as { data: { rows: Row[] } }).data.rows;
+    };
+    const ids = async (qs: string): Promise<string[]> => (await rows(qs)).map((r) => r.id);
+
+    it('filters by each origin', async () => {
+      const platform = await ids('&origin=platform');
+      expect(platform).toContain(orderCaseId);
+      expect(platform).not.toContain(customerOffId);
+      expect(platform).not.toContain(guestCase.caseId);
+
+      // `off_platform` keeps 180's meaning: every case bought elsewhere, both kinds.
+      const off = await ids('&origin=off_platform');
+      expect(off).toEqual(expect.arrayContaining([customerOffId, guestCase.caseId]));
+      expect(off).not.toContain(orderCaseId);
+
+      const offCustomer = await ids('&origin=off_platform_customer');
+      expect(offCustomer).toContain(customerOffId);
+      expect(offCustomer).not.toContain(guestCase.caseId);
+      expect(offCustomer).not.toContain(orderCaseId);
+
+      const guests = await rows('&origin=guest');
+      expect(guests.map((r) => r.id)).toContain(guestCase.caseId);
+      expect(guests.every((r) => r.guest && r.offPlatform && r.customerAccountId === null)).toBe(true);
+      expect(guests.map((r) => r.id)).not.toContain(customerOffId);
+
+      const all = await ids('');
+      expect(all).toEqual(expect.arrayContaining([orderCaseId, customerOffId, guestCase.caseId]));
+    });
+
+    it('marks the guest row and names the guest in the customer column, never a customer’s', async () => {
+      const byId = new Map((await rows('')).map((r) => [r.id, r]));
+      expect(byId.get(guestCase.caseId)).toMatchObject({ guest: true, customerAccountId: null, customerName: 'Gość Kowalski' });
+      expect(byId.get(customerOffId)).toMatchObject({ guest: false, customerName: null });
+      expect(byId.get(orderCaseId)).toMatchObject({ guest: false, offPlatform: false });
+    });
+
+    it('refuses an origin it does not know', async () => {
+      const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/returns?origin=guests', cookies: ADMIN_COOKIE });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('keeps the guest origin in a saved view', async () => {
+      const created = await createView({ name: `Guest complaints ${run}`, filters: { origin: 'guest' } });
+      expect(created.statusCode, created.body).toBe(201);
+      const id = (created.json() as { data: ViewItem }).data.id;
+      const listed = ((await h.app.inject({ method: 'GET', url: VIEWS, cookies: ADMIN_COOKIE })).json() as { data: ViewItem[] }).data;
+      expect(listed.find((v) => v.id === id)?.filters).toEqual({ origin: 'guest' });
+    });
+
+    it('exports a guest column', async () => {
+      const csv = await h.app.inject({ method: 'GET', url: '/api/v1/admin/returns/export?pageSize=200', cookies: ADMIN_COOKIE });
+      const [header, ...lines] = csv.body.split('\r\n');
+      const columns = header!.split(',');
+      expect(columns[columns.length - 1]).toBe('guest');
+      const cell = (reference: string) =>
+        lines.find((l) => l.split(',')[columns.indexOf('reference')] === reference)!.split(',')[columns.indexOf('guest')];
+      expect(cell(guestCase.reference)).toBe('true');
+      expect(cell(`#${customerOffId.replace(/-/g, '').slice(0, 8).toUpperCase()}`)).toBe('false');
+      // The guest's address is not a column of the file.
+      expect(csv.body).not.toContain(guestCase.email);
+    });
+
+    it('finds a case by its contact e-mail exactly, in any case, and never by a part of it', async () => {
+      expect(await ids(`&q=${encodeURIComponent(guestCase.email)}`)).toEqual([guestCase.caseId]);
+      expect(await ids(`&q=${encodeURIComponent(`  ${guestCase.email.toUpperCase()}  `)}`)).toEqual([guestCase.caseId]);
+      // A customer's case without an order is found by its contact address too (data model §1).
+      expect(await ids(`&q=${encodeURIComponent('ewa@example.test')}`)).toContain(customerOffId);
+      for (const part of [guestCase.email.slice(0, 12), guestCase.email.split('@')[1]!, `@${guestCase.email.split('@')[1]!}`]) {
+        expect(await ids(`&q=${encodeURIComponent(part)}`)).not.toContain(guestCase.caseId);
+      }
+    });
+
+    it('drops the guest’s name once the personal data is erased', async () => {
+      const reasonId = await complaintReasonId(h.em());
+      const erased = await fileGuestCase(h, reasonId);
+      await h
+        .em()
+        .getConnection()
+        .execute(`update "return_cases" set "personal_data_erased_at" = now(), "contact" = null, "return_address" = null where "id" = ?`, [
+          erased.caseId,
+        ]);
+      const row = (await rows('&origin=guest')).find((r) => r.id === erased.caseId);
+      expect(row).toMatchObject({ guest: true, customerName: null });
+      expect(await ids(`&q=${encodeURIComponent(erased.email)}`)).toEqual([]);
     });
   });
 });

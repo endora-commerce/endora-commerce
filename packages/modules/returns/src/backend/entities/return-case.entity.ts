@@ -48,6 +48,9 @@ export class ReturnCase {
     | 'resolutionNote'
     | 'submissionKey'
     | 'personalDataErasedAt'
+    | 'guestSessionId'
+    | 'contactVerifiedAt'
+    | 'trackingVersion'
     | 'resolvedAt'
     | 'closedAt'
     | 'consumerWithdrawal'
@@ -84,9 +87,16 @@ export class ReturnCase {
   @Index()
   salesChannelId!: string;
 
-  @Property({ type: 'uuid' })
+  /**
+   * `null` = a **guest case** (`specs/181-guest-complaints/` research R-2): filed by a
+   * person without an account, and then with no organization either — the database
+   * refuses one that carries an organization (`return_cases_guest_no_org_check`, R-1).
+   * *Guest* is derived from this, never stored. Required on creation, so every write
+   * path says which it is.
+   */
+  @Property({ type: 'uuid', nullable: true })
   @Index()
-  customerAccountId!: string;
+  customerAccountId!: string | null;
 
   @Property({ type: 'uuid', nullable: true })
   @Index()
@@ -165,6 +175,11 @@ export class ReturnCase {
   @Property({ type: 'datetime', nullable: true })
   resolvedAt?: Date | null;
 
+  /**
+   * When the case entered a terminal status (`specs/181-guest-complaints/` research
+   * R-9, owner ruling 3): written by the transition service in the status's flush. A
+   * terminal status has no exit, so it is written once. Not back-filled.
+   */
   @Property({ type: 'datetime', nullable: true })
   closedAt?: Date | null;
 
@@ -240,6 +255,26 @@ export class ReturnCase {
   /** When the filer's personal data was erased (FR-B43, D-8). */
   @Property({ type: 'datetime', nullable: true })
   personalDataErasedAt?: Date | null;
+
+  // --- `specs/181-guest-complaints/` (data-model §1); guest cases only -------
+
+  /**
+   * The verification row (the guest session) that filed the case (research R-4). It
+   * scopes the guest's submission key. No FK: that row is purged after 7 days.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  guestSessionId?: string | null;
+
+  /** When the contact address was verified: the session's redemption (FR-063). */
+  @Property({ type: 'datetime', nullable: true })
+  contactVerifiedAt?: Date | null;
+
+  /**
+   * The tracking link's version (research R-5): `1` at filing, `+1` for every new link.
+   * The link is derived from the case id and this number; nothing token-like is stored.
+   */
+  @Property({ type: 'integer', nullable: true })
+  trackingVersion?: number | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();
