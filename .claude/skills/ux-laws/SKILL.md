@@ -82,6 +82,9 @@ Two hard framing rules before anything else:
   brand from the first digits, infer the country from the locale, pre-fill from the last
   order, resolve tax display mode from the organization rather than asking.
 - If a step exists only because the backend finds it convenient, that is a design bug.
+- A slug, key or code is proposed from the name, never typed from scratch: the admin kit's
+  `deriveKey` / `useDerivedKey` (`./lib`) follow the name until edited and normalise on blur.
+  Refuse only what stays invalid or is already taken — never auto-suffix a collision.
 
 ### Doherty Threshold
 > Productivity soars when the interaction stays under ~400 ms.
@@ -111,6 +114,12 @@ Two hard framing rules before anything else:
   link.
 - Two competing filled buttons of the same colour cancel each other out — that is the single
   most common failure in generated commerce UI.
+- The same budget applies inside lists and tables: a row never carries a filled button. Row
+  actions are ghost icon buttons with an `aria-label` that names the row, or entries of an
+  overflow menu once there are more than two; an "Add …" inside a form is `outline`.
+- A record's header gets one primary, at most one or two visible secondary actions, and a
+  labelled "More" menu for the rest. Destructive actions live in that menu, away from the
+  primary, and ask for confirmation.
 - Use the highlight budget deliberately: one "Most popular" tier, one "Best price" badge.
 
 ### Law of Proximity
