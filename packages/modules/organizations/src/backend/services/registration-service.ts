@@ -31,7 +31,18 @@ import { runOrganizationWrite, taxIdExistsRefusal } from './organization-write.j
 export interface OrganizationEvents extends Record<string, EventBase> {
   'organization.registered.v1': EventBase & { organizationId: string };
   'organization.verified.v1': EventBase & { organizationId: string; customerAccountId: string };
-  'organization.status_changed.v1': EventBase & { organizationId: string; newStatus: string };
+  /**
+   * A moderation transition, dispatched once on commit. Issue #1620 added
+   * `previousStatus` and `reason` — the operator's reason for `rejected` and
+   * `blocked`, `null` otherwise. The reason is free text about the customer,
+   * erased by anonymisation (#843): keep it out of any webhook payload.
+   */
+  'organization.status_changed.v1': EventBase & {
+    organizationId: string;
+    newStatus: string;
+    previousStatus: string;
+    reason: string | null;
+  };
   /**
    * `specs/177-tax-id-scope/` FR-039 — a personal organization became a company
    * (`organization.convert_to_company`), dispatched once on commit. No
