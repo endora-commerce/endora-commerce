@@ -2709,5 +2709,10 @@
   "errors.COMMAND_EXTENSION_UNCLAIMED": "This request carries extension data that no active module accepts for this action, so nothing was saved.",
   "errors.COMMAND_HOOK_CYCLE": "This change was refused because an extension tried to repeat it inside itself. Nothing was saved; ask the administrator of the installed extensions.",
   "errors.COMMAND_HOOK_DATA_MISSING": "This change could not be passed to the installed extensions, so nothing was saved. Ask the administrator of the installed extensions.",
-  "errors.COMMAND_OUTBOX_NOT_DEAD": "Only a failed delivery can be retried. This one is already waiting, in progress or delivered."
+  "errors.COMMAND_OUTBOX_NOT_DEAD": "Only a failed delivery can be retried. This one is already waiting, in progress or delivered.",
+  "pageBuilder.emailPreview.title": "Preview email",
+  "pageBuilder.emailPreview.desktop": "Desktop mail (600px)",
+  "pageBuilder.emailPreview.narrow": "Narrow (320px)",
+  "pageBuilder.emailPreview.close": "Close preview",
+  "pageBuilder.emailPreview.frameTitle": "Email HTML preview"
 }

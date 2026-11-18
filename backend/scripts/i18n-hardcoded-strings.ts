@@ -1313,7 +1313,13 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // declares `endora: { type: 'admin-ui' }`; forget that block and all six go
   // *stale* in the same run rather than silently unread, which is the property
   // that makes a self-declared population safe here.
-  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 12,
+  //
+  // Issue #1463 (UX audit CONTENT-05) — drained from 12: the preview modal and
+  // the header's *Preview email* button read `core`. The three left are the
+  // product card's "Select a product" written into the block's props and the
+  // embed select's "Block" field label, which are Puck field data, not the
+  // preview.
+  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 3,
   'packages/page-builder-admin/src/email/EmailRichTextField.tsx': 3,
   'packages/page-builder-admin/src/email/EmailRowLayoutPicker.tsx': 3,
   'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': 5,
@@ -1420,20 +1426,11 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // Translating them is two screens' worth of keys per module and belongs to
   // whoever repairs those screens, not to a batch whose subject is where the
   // file lives.
-  'packages/modules/newsletter/src/admin/pages/AutomationBuilder.tsx': 20,
-  'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 12,
-  'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 20,
-  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 26,
-  'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': 7,
-  'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 9,
-  'packages/modules/newsletter/src/admin/pages/ProviderSettingsPage.tsx': 13,
-  'packages/modules/newsletter/src/admin/pages/SubscribersPage.tsx': 14,
-  'packages/modules/newsletter/src/admin/pages/TagsPage.tsx': 19,
-  'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 10,
-  'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 8,
-  'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 9,
-  'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 22,
-  'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 51,
+  //
+  // Issue #1463 (UX audit CONTENT-05) — fourteen of those entries **drained to
+  // zero and deleted**: every newsletter page, `EmailsList`, `EmailBlocksPage`
+  // and `EmailTemplatesPage`, and both `pwa` files read their module's bundle in
+  // both shipped languages now.
   'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
   // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `organizations`
   // took its admin surface into its package and this panel went with it. The
