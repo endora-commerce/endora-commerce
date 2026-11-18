@@ -1,6 +1,6 @@
 {
   "customFields.title": "Custom fields",
-  "customFields.description": "Define runtime typed fields on core entities without a code change or migration.",
+  "customFields.description": "Extra fields for products, orders, customers and more.",
   "customFields.entity.category": "Category",
   "customFields.entity.order": "Order",
   "customFields.entity.organization": "Organization",
@@ -130,7 +130,7 @@
   "customFields.carry.warning.cancel": "Cancel",
   "customFields.form.newField": "New field",
   "customFields.form.createTitle": "New field",
-  "customFields.form.keyHelp": "Lower-case letters, digits and underscores, starting with a letter. The key cannot be changed once the field exists.",
+  "customFields.form.keyHelp": "Made from the default label. Cannot be changed later.",
   "customFields.form.keyTaken": "A field with the key “{key}” already exists for this record type. Choose another key.",
   "customFields.form.createFailed": "The field could not be created.",
   "customFields.editor.labelIn": "{language} label",

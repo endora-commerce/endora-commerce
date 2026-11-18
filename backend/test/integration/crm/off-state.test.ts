@@ -110,6 +110,7 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'PUT', route: `${API}/transitions`, payload: { add: [] } },
     { method: 'PUT', route: `${API}/order-status-mappings`, payload: { mappings: [] } },
     { method: 'PUT', route: `${API}/value-counting-statuses`, payload: { order: [], quoteRequest: [] } },
+    { method: 'PUT', route: `${API}/statuses/order`, payload: { orderedCodes: ['new'] } },
     { method: 'GET', route: `${API}/opportunities` },
     // `specs/157-custom-fields-list-filters/` — the list's offered custom-field filters.
     { method: 'GET', route: `${API}/opportunities/custom-field-filters` },

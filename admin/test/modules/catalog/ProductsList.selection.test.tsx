@@ -9,7 +9,10 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 // not the permission gate, and `adminSession` documents `['*']` as the value
 // for exactly that. The gate itself is
 // `admin/test/modules/catalog/ProductsList.create-affordance-gating.test.tsx`.
-import { adminSession, withSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+
+// Issue #1455 (CAT-02) — the list asks whether `import_export` is on before it offers Import / export.
+const PRESENCE = modulePresence({ present: ['catalog', 'import_export'] });
 import { BULK_EDIT_HARD_MAX } from '../../../../packages/modules/catalog/src/admin/lib/resolve-product-selection';
 
 const getSpy = vi.fn();
@@ -61,18 +64,14 @@ function answerList(response: unknown): void {
 
 const BUNDLE = passthroughBundle('catalog', [
   'productsList.title',
-  'productsList.subtitle',
   'productsList.tab.all',
   'productsList.tab.active',
   'productsList.tab.archived',
   'productsList.search.placeholder',
-  'productsList.chip.type',
-  'productsList.chip.stock',
-  'productsList.chip.category',
-  'productsList.chip.channel',
+  'productsList.filter.type',
+  'productsList.filter.typeAll',
   'productsList.loading',
   'productsList.bulk.edit',
-  'productsList.bulk.editPrice',
   'productsList.bulk.delete',
   'productsList.selection.selected',
   'productsList.selection.scopePage',
@@ -129,7 +128,7 @@ describe('ProductsList — collection selection (feature 033)', () => {
         <MemoryRouter>
           <ProductsList />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['*'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
       ),
       BUNDLE,
     );
@@ -164,7 +163,7 @@ describe('ProductsList — collection selection (feature 033)', () => {
         <MemoryRouter>
           <ProductsList />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['*'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
       ),
       BUNDLE,
     );
@@ -203,7 +202,7 @@ describe('ProductsList — collection selection (feature 033)', () => {
         <MemoryRouter>
           <ProductsList />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['*'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
       ),
       BUNDLE,
     );

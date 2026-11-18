@@ -1001,6 +1001,139 @@ html:has(.b2b-dialog[open]) { overflow: hidden; }
 .b2b-auth__field:has(textarea:focus) label,
 .b2b-auth__field:has(select:focus) label { color: var(--brand-700); }
 
+/* `.b2b-stacked` — the long-form variant of the `.b2b-auth` system (feature 180, the returns
+   forms). The floating label above centres itself on the whole field, which holds only its
+   control on the sign-in screens; a field that also holds a hint, a listbox or a file list
+   puts the label on the border. Here the label sits above its control, the sections are
+   cards with a heading, and the file control's button reads as a button. Raw CSS beside the
+   floating-label rules it overrides, which are unlayered too; the doubled class outranks
+   their `:has()` specificity. */
+/* Inside the account panel the form is not a card of its own: a card in a card halves the
+   width a phone has for the fields. */
+.b2b-stacked.b2b-auth { margin: 0; max-width: 720px; border: 0; border-radius: 0; background: transparent; padding: 0; }
+.b2b-stacked.b2b-stacked .b2b-auth__field { display: grid; gap: 6px; }
+.b2b-stacked.b2b-stacked .b2b-auth__field label,
+.b2b-stacked.b2b-stacked .b2b-auth__field .b2b-stacked__label {
+  position: static;
+  /* Tailwind 4's `-translate-y-1/2` is the `translate` property, not `transform`. */
+  transform: none;
+  translate: none;
+  pointer-events: auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-fg-soft);
+}
+.b2b-stacked .b2b-auth__field input:not([type='checkbox']):not([type='radio']),
+.b2b-stacked .b2b-auth__field select,
+.b2b-stacked .b2b-auth__field textarea { min-height: 44px; padding: 10px 12px; }
+.b2b-stacked .b2b-auth__field textarea { min-height: 112px; }
+.b2b-stacked .b2b-auth__field p { margin: 0; }
+.b2b-stacked .b2b-auth__field ul:not([role='listbox']) { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+/* The file control's own button once JavaScript lists the files (`AttachmentField`). */
+.b2b-stacked.b2b-stacked .b2b-auth__field label.b2b-stacked__pick {
+  display: inline-flex; min-height: 44px; width: fit-content; align-items: center; cursor: pointer;
+  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); padding: 8px 16px;
+  font-size: 14px; font-weight: 500; color: var(--color-fg);
+}
+.b2b-stacked.b2b-stacked .b2b-auth__field label.b2b-stacked__pick:hover { background: var(--surface-alt); }
+.b2b-stacked input:focus-visible + label.b2b-stacked__pick,
+.b2b-stacked input:focus-visible + span > label.b2b-stacked__pick { outline: 2px solid var(--brand-600); outline-offset: 2px; }
+.b2b-stacked.b2b-stacked .b2b-auth__field input:disabled + label.b2b-stacked__pick { cursor: not-allowed; opacity: 0.5; }
+.b2b-stacked .b2b-auth__field input[type='file'] {
+  padding: 8px; border-style: dashed; background: var(--surface-alt); cursor: pointer; font-size: 13px; color: var(--color-muted);
+}
+.b2b-stacked .b2b-auth__field input[type='file']::file-selector-button {
+  margin-right: 12px; padding: 7px 14px; border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--surface); color: var(--color-fg); font: inherit; font-weight: 500; cursor: pointer;
+}
+.b2b-stacked .b2b-auth__field input[type='file']:hover::file-selector-button { background: var(--surface-alt); }
+.b2b-stacked fieldset { margin: 0; min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+@media (max-width: 480px) { .b2b-stacked fieldset { padding: 16px; } }
+.b2b-stacked fieldset > * + * { margin-top: 16px; }
+/* Floated, the legend is a heading inside the card rather than a gap in its border. A float's
+   margin does not collapse into the clearance below it, so the space is the legend's own. */
+.b2b-stacked legend { float: left; width: 100%; margin: 0 0 16px; padding: 0; font-size: 16px; font-weight: 600; line-height: 1.4; color: var(--color-fg); }
+.b2b-stacked fieldset > legend + * { clear: both; margin-top: 0; }
+/* Lines 2–5 of a complaint: each `<details>` holds the next, so one "add" control shows at a
+   time and the form still works without JavaScript. The summary is the line's heading once open. */
+.b2b-stacked__more { border-top: 1px solid var(--line); padding-top: 16px; }
+.b2b-stacked__more:not([open]) { border-top: 0; padding-top: 0; }
+.b2b-stacked__more > * + * { margin-top: 16px; }
+.b2b-stacked summary { cursor: pointer; list-style: none; }
+.b2b-stacked summary::-webkit-details-marker { display: none; }
+.b2b-stacked__add {
+  display: inline-flex; min-height: 44px; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--color-accent);
+}
+.b2b-stacked__add:hover { text-decoration: underline; }
+button.b2b-stacked__add { border: 0; background: transparent; padding: 0; cursor: pointer; font-family: inherit; }
+/* With JavaScript (`LineSlots`): the lines as a list, each under a rule once there are two. */
+.b2b-stacked__lines > * + * { margin-top: 16px; }
+.b2b-stacked__line > * + * { margin-top: 16px; }
+.b2b-stacked__line + .b2b-stacked__line { border-top: 1px solid var(--line); padding-top: 16px; }
+.b2b-stacked__line-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.b2b-stacked__line-head h3 { margin: 0; font-size: 15px; font-weight: 600; color: var(--color-fg); }
+.b2b-stacked__more[open] > .b2b-stacked__add { min-height: 0; color: var(--color-fg); font-weight: 600; text-decoration: none; cursor: default; }
+.b2b-stacked__add .b2b-stacked__when-open,
+.b2b-stacked__more[open] > .b2b-stacked__add .b2b-stacked__when-closed { display: none; }
+.b2b-stacked__more[open] > .b2b-stacked__add .b2b-stacked__when-open { display: inline; }
+/* The prefilled contact: a summary row with its change control; open, the fields. */
+.b2b-stacked__contact > summary {
+  display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface-alt); padding: 10px 14px; font-size: 14px; color: var(--color-fg);
+}
+.b2b-stacked__contact[open] > summary { display: none; }
+.b2b-stacked__contact > * + * { margin-top: 14px; }
+/* The case page (`returns/[id]`): the same cards as the form's sections. */
+.b2b-stacked__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 20px; font-size: 13px; color: var(--color-fg-soft); }
+.b2b-stacked__status { border-radius: 999px; background: var(--surface-alt); border: 1px solid var(--line); padding: 3px 10px; }
+/* `specs/181-guest-complaints/` design review F-13 — the badge the case page's "Bought elsewhere"
+   and the guest's "Verified" use; tokens only, an optional icon beside the word. */
+.b2b-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-alt);
+  color: var(--color-fg-soft);
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.b2b-stacked__card { border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-top: 16px; }
+@media (max-width: 480px) { .b2b-stacked__card { padding: 16px; } }
+.b2b-stacked__card > * + * { margin-top: 12px; }
+.b2b-stacked__card > h2 + * { margin-top: 16px; }
+.b2b-stacked__card h2 { margin: 0; font-size: 16px; font-weight: 600; color: var(--color-fg); }
+.b2b-stacked__card h3,
+.b2b-stacked__add-file h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--color-fg); }
+.b2b-stacked__pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 16px; }
+.b2b-stacked__items { margin: 0; padding: 0; list-style: none; }
+.b2b-stacked__items > li + li { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 16px; }
+.b2b-stacked__items > li > * + * { margin-top: 10px; }
+.b2b-stacked__item-name { margin: 0; font-size: 15px; color: var(--color-fg); }
+.b2b-stacked__item-note { display: block; margin-top: 2px; font-size: 12px; color: var(--color-muted); }
+.b2b-stacked__dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 14px; }
+.b2b-stacked__dl dt { color: var(--color-muted); }
+.b2b-stacked__dl dd { margin: 0; color: var(--color-fg); white-space: pre-line; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .b2b-stacked__dl { grid-template-columns: 1fr; gap: 2px; } .b2b-stacked__dl dd + dt { margin-top: 8px; } }
+.b2b-stacked__files { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.b2b-stacked__file {
+  display: grid; gap: 2px; height: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+  color: var(--color-fg); text-decoration: none; background: var(--surface);
+}
+.b2b-stacked__file:hover { border-color: var(--line-strong); }
+.b2b-stacked__file:focus-visible { outline: 2px solid var(--brand-600); outline-offset: 2px; }
+.b2b-stacked__file img,
+.b2b-stacked__file-icon { width: 100%; aspect-ratio: 4 / 3; border-radius: 6px; background: var(--surface-alt); object-fit: cover; }
+.b2b-stacked__file-icon { display: grid; place-items: center; font-size: 13px; font-weight: 600; color: var(--color-muted); }
+.b2b-stacked__file-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b2b-stacked__file-meta { font-size: 12px; color: var(--color-muted); }
+.b2b-stacked__add-file { display: grid; gap: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+.b2b-stacked__clause > summary { cursor: pointer; font-size: 14px; color: var(--color-fg); }
+.b2b-stacked__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 8px; }
+
 /* --- Action buttons used by un-restyled pages -------------------- */
 /* .b2b-cta — shared dark CTA atom (used in 5 files) → @apply (feature 041) */
 @layer components{

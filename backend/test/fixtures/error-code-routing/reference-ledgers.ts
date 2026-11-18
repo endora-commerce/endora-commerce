@@ -284,6 +284,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'dead: only a failed delivery can be retried. A 409. The raiser is the platform\'s ' +
       '`command_outbox.retry` Command.',
   },
+  ORDER_STALE: {
+    to: '_i18n',
+    reason:
+      'Minted by issue #1560 (architect ruling on the batch reorder) for a reorder of a ' +
+      'configuration list whose body is not the current list: a row left out or named twice. A ' +
+      '409; the client reloads. Raised by `crm` (`PUT /crm/statuses/order`) and `tasks` ' +
+      '(`PUT /tasks/statuses/order`, `PUT /tasks/priorities/order`), so it sits in the platform block.',
+  },
   ADMIN_AUTHENTICATION_THROTTLED: {
     to: 'admin_users',
     reason:
@@ -1172,6 +1180,88 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
     reason:
       'Minted by issue #625 (#86) for deleting a return status cases are in. It was `409 ' +
       'VALIDATION_FAILED`; the count now travels as `details.caseCount`.',
+  },
+  RETURN_OFF_PLATFORM_DISABLED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (contracts/settings-emails-events.md §4) for ' +
+      'the refusal of a complaint without a platform order while the channel does not accept them ' +
+      '(`returns.off_platform_complaints_enabled`). The noun is a return case, `returns`\' own row; ' +
+      'the one raise site is `return-case-service.ts`.',
+  },
+  RETURN_PROOF_OF_PURCHASE_REQUIRED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (§4) for a complaint without a platform order ' +
+      'filed with no proof-of-purchase file while `returns.proof_of_purchase_required` is on. Raised ' +
+      'only in `return-case-service.ts`; `VALIDATION_FAILED` is not reused because the request is well ' +
+      'formed and the sentence has to name the missing document.',
+  },
+  RETURN_CLAUSES_NOT_ACCEPTED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (§4) for a filing that does not accept every ' +
+      'current `must_accept` clause of the returns form, or accepted a revision since replaced. The ' +
+      'clauses are `returns`\' own table; the one raise site is `return-clause-service.ts`.',
+  },
+  RETURN_ATTACHMENT_REJECTED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (§4) for a file a return case refuses: too ' +
+      'large, not an accepted type by content, unknown upload, too many files. The files are ' +
+      '`returns`\' own rows; the raise site is `return-attachment-service.ts`, the reason in ' +
+      '`details.reason`.',
+  },
+  RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/180-off-platform-complaints/` (§4) for a refund, credit or corrective invoice ' +
+      'asked of a case without a platform order, which has no payment or invoice behind it. The noun ' +
+      'is a return case\'s settlement; the one raise site is `return-settlement-service.ts`.',
+  },
+  RETURN_GUEST_COMPLAINTS_DISABLED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (contracts/settings-emails-events.md §4) for a guest ' +
+      'request — verification, session, form, upload, filing — while the channel does not accept ' +
+      'complaints from guests (`returns.guest_complaints_enabled` with 180\'s no-order setting). The ' +
+      'noun is `returns`\' guest complaint; raised only by its guest routes.',
+  },
+  RETURN_GUEST_SESSION_REQUIRED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4) for a guest route reached without a live guest ' +
+      'session on the request\'s channel. `UNAUTHORIZED` is not reused: that is the account login\'s ' +
+      'answer, and the sentence has to send the visitor back to e-mail verification.',
+  },
+  RETURN_GUEST_LINK_INVALID: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4) for a verification link that cannot be redeemed — ' +
+      'unknown, altered, expired, used, superseded or of another channel — with one answer for all ' +
+      '(FR-022). The verification row is `returns`\' own table.',
+  },
+  RETURN_TRACKING_LINK_INVALID: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4) for a tracking token that opens no case — unknown, ' +
+      'altered, replaced, expired 90 days after closing, or of an erased case — with one answer for all ' +
+      '(FR-043). `NOT_FOUND` is not reused: the sentence has to say the link may have been replaced. The ' +
+      'case is `returns`\' own row; raised only by its tracking routes.',
+  },
+  RETURN_GUEST_LIMIT_REACHED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4, research R-8) for a guest over a per-identity limit — ' +
+      'cases per session, cases per verified address, comments per case — named in `details.limit`. ' +
+      '`RATE_LIMITED` is not reused: that is the per-client-address throttle, which names no identity.',
+  },
+  RETURN_GUEST_DATA_ERASED: {
+    to: 'returns',
+    reason:
+      'Minted by `specs/181-guest-complaints/` (§4) for an operator action that needs a guest\'s personal ' +
+      'data — sending a new tracking link — on a guest case whose data has been erased. The case is ' +
+      '`returns`\' own row; the raise site is `guest-tracking-link.ts`.',
   },
   RFQ_SAVED_VIEW_NAME_TAKEN: {
     to: 'quote_requests',
@@ -3296,6 +3386,13 @@ export const PLATFORM_OWNED_ERROR_CODES: PlatformOwnedErrorCodes = {
       'A retry of a command outbox row that is not dead. The noun is the command outbox, the ' +
       'platform\'s own table of afterCommit deliveries for every module; the hook module a row ' +
       'is for is a column of the row, not the owner of the refusal.',
+  },
+  ORDER_STALE: {
+    tier: 'T3',
+    reason:
+      'A batch reorder whose list is not the current one (issue #1560). The noun is an ordered ' +
+      'configuration list, which `crm` (Opportunity statuses) and `tasks` (Task statuses and ' +
+      'priorities) each own — two claimants, so by D-122 neither owns the code.',
   },
   UNAUTHORIZED: {
     tier: 'T3',

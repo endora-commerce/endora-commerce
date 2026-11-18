@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   CreateOpportunityStatusRequestSchema,
+  ReorderOpportunityStatusesRequestSchema,
   SetOpportunityTransitionsRequestSchema,
   SetOrderStatusMappingsRequestSchema,
   SetValueCountingStatusesRequestSchema,
@@ -43,6 +44,19 @@ export async function registerCrmWorkflowRoutes(
     async (request, reply) => {
       await config.createStatus(CreateOpportunityStatusRequestSchema.parse(request.body));
       reply.code(201);
+      return workflow();
+    },
+  );
+
+  // Issue #1560 — the whole list in its new order, one Command.
+  app.put(
+    '/api/v1/admin/crm/statuses/order',
+    {
+      preHandler: requireAdmin('crm:configure'),
+      schema: { body: ReorderOpportunityStatusesRequestSchema },
+    },
+    async (request) => {
+      await config.reorderStatuses(ReorderOpportunityStatusesRequestSchema.parse(request.body));
       return workflow();
     },
   );

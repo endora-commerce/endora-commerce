@@ -228,7 +228,7 @@ describe('ProductEditor — Archive (FR-019)', () => {
     // The status is kept, drawn as a neutral outline beside the one coloured
     // Archived pill.
     expect((await statusSelect()).value).toBe('active');
-    const head = document.querySelector('.b2b-page-head__title')!;
+    const head = screen.getByRole('heading', { level: 1 }).closest('header')!;
     expect(head.querySelector('.b2b-badge--dot')).toHaveClass('b2b-badge--outline');
     expect(head.querySelector('.b2b-badge--dot')).not.toHaveClass('b2b-badge--success');
     expect(within(head as HTMLElement).getByText(tr('productsList.status.archived'))).toHaveClass('b2b-badge--warn');

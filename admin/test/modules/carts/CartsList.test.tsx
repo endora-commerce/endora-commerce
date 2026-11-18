@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 import { setMobileViewport } from '../../setup';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 
 /**
  * Feature 027 US6 — CartsList interaction test.
@@ -62,9 +63,10 @@ const BUNDLE = passthroughBundle('carts', [
   'carts.column.items',
   'carts.column.total',
   'carts.filter.all',
-  'carts.loading',
   'carts.empty',
-  'carts.open',
+  'carts.emptyFiltered',
+  'carts.clearFilters',
+  'carts.count',
   'carts.status.active',
   'carts.status.abandoned',
   'carts.status.completed',
@@ -74,6 +76,15 @@ const BUNDLE = passthroughBundle('carts', [
   'carts.approvalStatus.approved',
   'carts.approvalStatus.rejected_by_org_admin',
 ]);
+
+// The list remembers its page size as the signed-in admin's preference
+// (issue #1473), so it renders under the real session provider.
+const session = adminSession({ permissions: ['*'] });
+const page = (data: unknown[], totalCount = data.length) => ({
+  data,
+  meta: { page: 1, pageSize: 20, totalCount },
+});
+const FIRST_PAGE = '/api/v1/admin/carts?page=1&pageSize=20';
 
 beforeEach(() => {
   getSpy.mockReset();
@@ -85,8 +96,7 @@ afterEach(() => {
 
 describe('CartsList', () => {
   it('renders the loading state then displays carts from the API', async () => {
-    getSpy.mockResolvedValueOnce({
-      data: [
+    getSpy.mockResolvedValueOnce(page([
         {
           id: '00000000-0000-4000-8000-0000000000c1',
           ownerCustomerAccountId: '00000000-0000-4000-8000-000000000a01',
@@ -102,17 +112,20 @@ describe('CartsList', () => {
           lastActivityAt: '2026-05-22T12:00:00Z',
           createdAt: '2026-05-22T11:00:00Z',
         },
-      ],
-    });
+      ]),
+    );
 
     renderWithI18n(
-      <MemoryRouter>
-        <CartsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session },
+      ),
       BUNDLE,
     );
 
-    expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/carts');
+    expect(getSpy).toHaveBeenCalledWith(FIRST_PAGE);
     await waitFor(() => {
       expect(screen.getByText('buyer@example.com')).toBeInTheDocument();
     });
@@ -126,12 +139,15 @@ describe('CartsList', () => {
   });
 
   it('renders the empty state when the API returns no rows', async () => {
-    getSpy.mockResolvedValueOnce({ data: [] });
+    getSpy.mockResolvedValueOnce(page([]));
 
     renderWithI18n(
-      <MemoryRouter>
-        <CartsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session },
+      ),
       BUNDLE,
     );
 
@@ -141,17 +157,20 @@ describe('CartsList', () => {
   });
 
   it('appends the status filter to the API URL when changed', async () => {
-    getSpy.mockResolvedValue({ data: [] });
+    getSpy.mockResolvedValue(page([]));
 
     renderWithI18n(
-      <MemoryRouter>
-        <CartsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session },
+      ),
       BUNDLE,
     );
 
     await waitFor(() => {
-      expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/carts');
+      expect(getSpy).toHaveBeenCalledWith(FIRST_PAGE);
     });
 
     // Switch the status filter.
@@ -161,14 +180,13 @@ describe('CartsList', () => {
     await u.selectOptions(statusSelect, 'active');
 
     await waitFor(() => {
-      expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/carts?status=active');
+      expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/carts?status=active&page=1&pageSize=20');
     });
   });
 
   it('renders card layout on mobile without column headers', async () => {
     setMobileViewport(true);
-    getSpy.mockResolvedValueOnce({
-      data: [
+    getSpy.mockResolvedValueOnce(page([
         {
           id: '00000000-0000-4000-8000-0000000000c1',
           ownerCustomerAccountId: null,
@@ -184,13 +202,16 @@ describe('CartsList', () => {
           lastActivityAt: '2026-05-22T12:00:00Z',
           createdAt: '2026-05-22T11:00:00Z',
         },
-      ],
-    });
+      ]),
+    );
 
     renderWithI18n(
-      <MemoryRouter>
-        <CartsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session },
+      ),
       BUNDLE,
     );
 
@@ -198,5 +219,115 @@ describe('CartsList', () => {
       expect(screen.getByText('buyer@example.com')).toBeInTheDocument();
     });
     expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
+  });
+
+  // Issue #1473 (UX audit SALES-08) — the API always paged; the screen asked
+  // for nothing and showed the first 50 carts, with no way to the 51st.
+  it('pages through the carts with the pager, asking the API for each page', async () => {
+    const row = (n: number) => ({
+      id: `00000000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`,
+      ownerCustomerAccountId: null,
+      ownerDisplayName: `buyer-${n}@example.com`,
+      organizationId: null,
+      organizationDisplayName: null,
+      salesChannelCode: null,
+      status: 'active',
+      approvalStatus: 'not_required',
+      itemCount: 1,
+      total: { amount: 10, currency: 'PLN' },
+      appliedPromotionCode: null,
+      lastActivityAt: '2026-05-22T12:00:00Z',
+      createdAt: '2026-05-22T11:00:00Z',
+    });
+    getSpy.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.includes('page=2')
+          ? { data: [row(21)], meta: { page: 2, pageSize: 20, totalCount: 21 } }
+          : { data: [row(1)], meta: { page: 1, pageSize: 20, totalCount: 21 } },
+      ),
+    );
+    const userEvent = (await import('@testing-library/user-event')).default;
+    const u = userEvent.setup();
+
+    renderWithI18n(
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session },
+      ),
+      BUNDLE,
+    );
+
+    await screen.findByText('buyer-1@example.com');
+    expect(screen.getByRole('status')).toHaveTextContent('carts.count');
+    await u.click(screen.getByRole('button', { name: /common\.pagination\.next/ }));
+    await screen.findByText('buyer-21@example.com');
+    expect(getSpy).toHaveBeenLastCalledWith('/api/v1/admin/carts?page=2&pageSize=20');
+  });
+
+  it('goes back to the first page when a filter changes', async () => {
+    getSpy.mockResolvedValue(page([], 0));
+    const userEvent = (await import('@testing-library/user-event')).default;
+    const u = userEvent.setup();
+    renderWithI18n(
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session },
+      ),
+      BUNDLE,
+    );
+    await waitFor(() => expect(getSpy).toHaveBeenCalledWith(FIRST_PAGE));
+    await u.selectOptions(screen.getByLabelText('carts.column.approval'), 'pending');
+    await waitFor(() => {
+      expect(getSpy).toHaveBeenLastCalledWith('/api/v1/admin/carts?approvalStatus=pending&page=1&pageSize=20');
+    });
+  });
+
+  it('tells "no carts yet" from "no cart matches", and clears the filters from the empty state', async () => {
+    getSpy.mockResolvedValue(page([], 0));
+    const userEvent = (await import('@testing-library/user-event')).default;
+    const u = userEvent.setup();
+    renderWithI18n(
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session },
+      ),
+      BUNDLE,
+    );
+    await screen.findByText('carts.empty');
+    expect(screen.queryByRole('button', { name: 'carts.clearFilters' })).toBeNull();
+
+    await u.selectOptions(screen.getByLabelText('carts.column.status'), 'abandoned');
+    await screen.findByText('carts.emptyFiltered');
+    await u.click(screen.getByRole('button', { name: 'carts.clearFilters' }));
+    await screen.findByText('carts.empty');
+    expect(screen.getByLabelText('carts.column.status')).toHaveValue('');
+    expect(getSpy).toHaveBeenLastCalledWith(FIRST_PAGE);
+  });
+
+  it('offers a retry when the list cannot be loaded', async () => {
+    getSpy.mockRejectedValueOnce(new Error('network down')).mockResolvedValue(page([], 0));
+    const userEvent = (await import('@testing-library/user-event')).default;
+    const u = userEvent.setup();
+    renderWithI18n(
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session },
+      ),
+      BUNDLE,
+    );
+    const alert = await screen.findByRole('alert');
+    // No server message to show, so the kit's own copy — never the raw error.
+    expect(alert).not.toHaveTextContent('network down');
+    await u.click(within(alert).getByRole('button'));
+    await screen.findByText('carts.empty');
+    expect(getSpy).toHaveBeenCalledTimes(2);
   });
 });

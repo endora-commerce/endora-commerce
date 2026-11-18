@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ReorderControls } from '../../components/reorder/ReorderControls.js';
 import { workflowStatusLabel } from '../../lib/labels.js';
 
 export interface StatusesTableProps {
@@ -20,10 +21,17 @@ export interface StatusesTableProps {
   language: string;
   onEdit: (status: OpportunityWorkflowStatus) => void;
   onDelete: (status: OpportunityWorkflowStatus) => void;
+  /** Move a status up (−1) or down (+1) — one batch reorder (issue #1560). */
+  onMove: (status: OpportunityWorkflowStatus, delta: number) => void;
+  /** A reorder is in flight: the move controls wait for it. */
+  reordering: boolean;
 }
 
 /**
  * The statuses of the Opportunity workflow, in workflow order.
+ *
+ * The order is changed with the move controls on each row, one batch
+ * reorder per move (issue #1560); the position column is the row's place.
  *
  * Delete is offered for every row, including one that is in use or is the
  * start status. The server is the authority on both — `inUseCount` counts only
@@ -52,7 +60,7 @@ export function StatusesTable(props: StatusesTableProps): ReactNode {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {ordered.map((status) => {
+        {ordered.map((status, index) => {
           const name = workflowStatusLabel(status, props.language);
           return (
             <TableRow key={status.code}>
@@ -70,10 +78,17 @@ export function StatusesTable(props: StatusesTableProps): ReactNode {
                   ) : null}
                 </div>
               </TableCell>
-              <TableCell className="text-right tabular-nums">{status.weight}</TableCell>
+              <TableCell className="text-right tabular-nums">{index + 1}</TableCell>
               <TableCell className="text-right tabular-nums">{status.inUseCount}</TableCell>
               <TableCell className="text-right">
-                <div className="flex justify-end gap-1">
+                <div className="flex items-center justify-end gap-1">
+                  <ReorderControls
+                    name={name}
+                    isFirst={index === 0}
+                    isLast={index === ordered.length - 1}
+                    disabled={props.reordering}
+                    onMove={(delta): void => props.onMove(status, delta)}
+                  />
                   <Button className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
                     variant="ghost"
                     size="sm"

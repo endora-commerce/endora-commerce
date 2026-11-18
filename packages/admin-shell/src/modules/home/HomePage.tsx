@@ -9,6 +9,7 @@ import {
   type GatedSurface,
 } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 import { RecentActivityCard } from './RecentActivityCard.js';
 
 /**
@@ -217,14 +218,13 @@ export function HomePage(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">
-            {t('home.welcomeBack')}, <span style={{ color: 'var(--fg-muted)', fontWeight: 500 }}>{firstName}</span>
-          </div>
-          <div className="b2b-page-head__sub">{t('home.subtitle')}</div>
-        </div>
-      </div>
+      <PageHeader
+        title={
+          <span>
+            {t('home.welcomeBack')}, <span className="font-medium text-muted-foreground">{firstName}</span>
+          </span>
+        }
+      />
 
       {/* KPI tiles */}
       <div className="b2b-row b2b-kpi-grid" style={{ gap: 16, marginBottom: 20 }}>

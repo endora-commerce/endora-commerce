@@ -6,11 +6,10 @@ import {
   useReducer,
   useRef,
   useState,
-  type KeyboardEvent,
   type ReactNode,
 } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, Copy, Lock, RotateCw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronDown, Copy, Lock, RotateCw, Trash2 } from 'lucide-react';
 import {
   ERROR_CODES,
   type ScopeMissingValue,
@@ -24,7 +23,6 @@ import {
   apiClient,
   useAuth,
   useUnsavedChangesPrompt,
-  cn,
   INERT_SAVE_SESSION,
   SaveSessionProvider,
   useSaveSession,
@@ -46,6 +44,8 @@ import {
   DropdownMenuTrigger,
   Input,
   Label,
+  PageHeader,
+  RecordTabs,
   Select,
   Table,
   TableBody,
@@ -839,7 +839,8 @@ function ScopedProductEditor({
     requestedTab && (TAB_IDS as readonly string[]).includes(requestedTab) && (visibleTabs.includes(requestedTab) || type === null)
       ? requestedTab
       : 'details';
-  const selectTab = (id: TabId, focus = false): void => {
+  // The kit's `RecordTabs` owns the keyboard model and moves focus (issue #1445).
+  const selectTab = (id: TabId): void => {
     setSearchParams(
       (prev) => {
         const sp = new URLSearchParams(prev);
@@ -849,18 +850,6 @@ function ScopedProductEditor({
       },
       { replace: true },
     );
-    if (focus) setTimeout(() => document.getElementById(`product-tab-${id}`)?.focus(), 0);
-  };
-  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>): void => {
-    const index = visibleTabs.indexOf(activeTab);
-    let next = index;
-    if (event.key === 'ArrowRight') next = (index + 1) % visibleTabs.length;
-    else if (event.key === 'ArrowLeft') next = (index - 1 + visibleTabs.length) % visibleTabs.length;
-    else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = visibleTabs.length - 1;
-    else return;
-    event.preventDefault();
-    selectTab(visibleTabs[next]!, true);
   };
 
   const missingText = useCallback(
@@ -1218,31 +1207,37 @@ function ScopedProductEditor({
   return (
     <ProductEditorContextProvider value={contextValue}>
       <div className="b2b-page b2b-page--wide">
-        <div className="b2b-page-head">
-          <div className="b2b-grow">
-            <button
-              type="button"
-              className="b2b-page-head__back"
-              onClick={(): void => {
-                if (hasUnsaved()) setGuard({ kind: 'leave' });
-                else navigate('/catalog/products');
-              }}
-            >
-              <ChevronLeft size={14} /> {t('productEditor.back')}
-            </button>
-            <div className="b2b-page-head__title">
-              <span>{title}</span>
-              {data ? <ProductStatusPill status={statusValue} archived={Boolean(archivedAt)} /> : null}
-              {statusSource ? <span className="text-xs text-muted-foreground">{statusSource}</span> : null}
-              {archivedAt ? <ArchivedPill /> : null}
-            </div>
-            {data ? (
-              <div className="b2b-page-head__sub">
+        <PageHeader
+          back={{
+            label: t('productEditor.back'),
+            to: '/catalog/products',
+            onClick: (event): void => {
+              // Unsaved edits: ask first (Save / Discard / Stay) instead of leaving.
+              if (hasUnsaved()) {
+                event.preventDefault();
+                setGuard({ kind: 'leave' });
+              }
+            },
+          }}
+          title={title}
+          titleActions={
+            data || statusSource || archivedAt ? (
+              <span className="flex flex-wrap items-center gap-2">
+                {data ? <ProductStatusPill status={statusValue} archived={Boolean(archivedAt)} /> : null}
+                {statusSource ? <span className="text-xs text-muted-foreground">{statusSource}</span> : null}
+                {archivedAt ? <ArchivedPill /> : null}
+              </span>
+            ) : undefined
+          }
+          description={
+            data ? (
+              <>
                 <span className="b2b-mono">{data.product.sku}</span> · <span>{t(`productEditor.type.${data.product.type}`)}</span>
-              </div>
-            ) : null}
-          </div>
-          {canWrite ? (
+              </>
+            ) : undefined
+          }
+          actions={
+            canWrite ? (
             <div className="flex items-start gap-2">
               {/* The whole-product actions (FR-084, §11): one menu, captioned; each applies at once. */}
               <DropdownMenu>
@@ -1278,8 +1273,9 @@ function ScopedProductEditor({
                 {t('productEditor.wholeProduct.caption')}
               </span>
             </div>
-          ) : null}
-        </div>
+          ) : null
+          }
+        />
 
         <ProductScopeBar
           scope={state.scope}
@@ -1382,43 +1378,17 @@ function ScopedProductEditor({
           </Alert>
         ) : null}
 
-        <div className="b2b-card">
-          <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
-            <div className="b2b-tabs-scroll">
-              <div className="b2b-tabs" role="tablist" aria-label={t('productEditor.tabs.label')}>
-                {visibleTabs.map((id) => {
-                  const selected = activeTab === id;
-                  return (
-                    <button
-                      key={id}
-                      id={`product-tab-${id}`}
-                      type="button"
-                      role="tab"
-                      aria-selected={selected}
-                      aria-controls="product-tabpanel"
-                      tabIndex={selected ? 0 : -1}
-                      className={cn('b2b-tab', selected && 'is-active')}
-                      onClick={(): void => selectTab(id)}
-                      onKeyDown={onTabKey}
-                    >
-                      {tabLabel(id)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-          <div
-            className="b2b-card__body"
-            role="tabpanel"
-            id="product-tabpanel"
-            aria-labelledby={`product-tab-${activeTab}`}
-            aria-busy={state.busy && !loadError}
-            tabIndex={-1}
-          >
-            {panel()}
-          </div>
-        </div>
+        <RecordTabs
+          items={visibleTabs.map((id) => ({ value: id, label: tabLabel(id) }))}
+          value={activeTab}
+          onValueChange={selectTab}
+          idBase="product"
+          aria-label={t('productEditor.tabs.label')}
+          // `-1`: Reload and "Show" focus the panel programmatically; the tabs are the stop.
+          panelProps={{ 'aria-busy': state.busy && !loadError, tabIndex: -1 }}
+        >
+          {panel()}
+        </RecordTabs>
 
         {guardOpen && guard ? (
           <ModalDialog

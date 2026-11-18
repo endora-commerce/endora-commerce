@@ -25,6 +25,9 @@ export const ERROR_CODES = {
   // a request schema's tagged issue (400), or a line a merge or a packaging unit
   // would take past the bound (422). Refused, never clamped.
   LINE_QUANTITY_EXCEEDED: 'LINE_QUANTITY_EXCEEDED',
+  // Issue #1560 — a batch reorder (`PUT …/order`) whose list is not the
+  // current one: a row left out or named twice. 409; the client reloads.
+  ORDER_STALE: 'ORDER_STALE',
 
   // Catalog
   FILTER_NOT_ALLOWED: 'FILTER_NOT_ALLOWED',
@@ -537,6 +540,21 @@ export const ERROR_CODES = {
   RETURN_STATUS_NOT_DELETABLE: 'RETURN_STATUS_NOT_DELETABLE',
   /** 409 — cases are in the status, so it is not deleted (`details.statusCode`, `caseCount`). */
   RETURN_STATUS_IN_USE: 'RETURN_STATUS_IN_USE',
+  // `specs/180-off-platform-complaints/` — the complaint without a platform order.
+  RETURN_OFF_PLATFORM_DISABLED: 'RETURN_OFF_PLATFORM_DISABLED',
+  RETURN_PROOF_OF_PURCHASE_REQUIRED: 'RETURN_PROOF_OF_PURCHASE_REQUIRED',
+  RETURN_CLAUSES_NOT_ACCEPTED: 'RETURN_CLAUSES_NOT_ACCEPTED',
+  RETURN_ATTACHMENT_REJECTED: 'RETURN_ATTACHMENT_REJECTED',
+  RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM: 'RETURN_RESOLUTION_UNAVAILABLE_OFF_PLATFORM',
+  // `specs/181-guest-complaints/` — the complaint from a guest without an account
+  // (settings-emails-events.md §4). Each code joined with its first raise site, as
+  // `check:error-translations` P7 requires.
+  RETURN_GUEST_COMPLAINTS_DISABLED: 'RETURN_GUEST_COMPLAINTS_DISABLED',
+  RETURN_GUEST_SESSION_REQUIRED: 'RETURN_GUEST_SESSION_REQUIRED',
+  RETURN_GUEST_LINK_INVALID: 'RETURN_GUEST_LINK_INVALID',
+  RETURN_TRACKING_LINK_INVALID: 'RETURN_TRACKING_LINK_INVALID',
+  RETURN_GUEST_LIMIT_REACHED: 'RETURN_GUEST_LIMIT_REACHED',
+  RETURN_GUEST_DATA_ERASED: 'RETURN_GUEST_DATA_ERASED',
 
   // Credit Limit
   CREDIT_LIMIT_NOT_GRANTED: 'CREDIT_LIMIT_NOT_GRANTED',

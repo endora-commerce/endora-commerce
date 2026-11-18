@@ -43,8 +43,6 @@ const bundle = passthroughBundle('dictionaries', [
   'currencies.searchPlaceholder',
   'currencies.addCurrency',
   'currencies.decimalPlaces',
-  'action.moveUp',
-  'action.moveDown',
 ]);
 
 function currency(overrides: Pick<DictionaryCurrency, 'code' | 'label' | 'symbol'>): DictionaryCurrency {

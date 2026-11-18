@@ -120,6 +120,7 @@ export default function ImportExportPage(): ReactNode {
       <PageHeader
         title={t('page.title')}
         description={t('page.description')}
+        help={t('page.help')}
       />
       {loadError ? (
         <Alert variant="destructive">

@@ -21,6 +21,7 @@ export class ReturnStatus {
     | 'isSystem'
     | 'weight'
     | 'color'
+    | 'notifyCustomerOnEntry'
     | 'createdAt'
     | 'updatedAt';
 
@@ -55,6 +56,15 @@ export class ReturnStatus {
   /** Badge colour as a `#rrggbb` hex value. */
   @Property({ type: 'string', length: 16 })
   color: string = '#64748b';
+
+  /**
+   * `specs/180-off-platform-complaints/` FR-A30 — a transition into this status
+   * e-mails the filing customer. Never acts for `authorized` and `rejected`, which
+   * send their dedicated e-mail (the write refuses it there), and never on filing
+   * (D-2): only a transition enqueues it.
+   */
+  @Property({ type: 'boolean' })
+  notifyCustomerOnEntry: boolean = false;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

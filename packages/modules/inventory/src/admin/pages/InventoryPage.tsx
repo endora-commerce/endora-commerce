@@ -10,9 +10,11 @@ import type {
   InventoryLandingKpis,
   StockLevelRow,
 } from '@endora-commerce/contracts';
-import { ApiError, apiClient, cn, usePageSizePreference, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { PaginationFooter } from '@endora-commerce/admin-kit/components';
+import { ApiError, apiClient, usePageSizePreference, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { FilterChip, ListToolbar, ListToolbarSearch, PaginationFooter } from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 import { productInventoryHref, stockDisplayBandLabels, stockDisplayBandTone } from '../lib/labels.js';
 interface RosterResponse {
   items: StockLevelRow[];
@@ -137,40 +139,25 @@ export function InventoryPage(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('inventory.page.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('inventory.page.subPrefix')}{' '}
-            <code className="b2b-mono">stock_levels</code>{t('inventory.page.subSuffix')}
-          </div>
-        </div>
-        <div className="b2b-page-head__actions">
-          {canWrite ? (
+      <PageHeader
+        title={t('inventory.page.title')}
+        actions={
+          canWrite ? (
             <Link
               to="/inventory/import"
               className="b2b-btn b2b-btn--default b2b-btn--sm"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              <Upload size={13} /> {t('inventory.action.import')}
+              <Upload size={13} aria-hidden="true" /> {t('inventory.action.import')}
             </Link>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
       {error ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(8 80% 85%)',
-          }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
       <div className="b2b-row" style={{ gap: 16, marginBottom: 16 }}>
@@ -199,33 +186,38 @@ export function InventoryPage(): ReactNode {
       ) : null}
 
       <div className="b2b-card">
-        <div className="b2b-filterbar">
-          <div className="b2b-filterbar__search">
-            <div className="b2b-input-wrap">
-              <Search size={16} className="lead" aria-hidden="true" />
-              <input
-                type="search"
-                className="b2b-field b2b-field--addon"
-                aria-label={t('inventory.search.label')}
-                placeholder={t('inventory.search.placeholder')}
-                value={query}
-                onChange={(e): void => setQuery(e.target.value)}
-              />
-            </div>
-          </div>
-          <Chip
-            icon={<AlertCircle size={12} />}
-            active={statusFilter === 'low'}
-            label={t('inventory.stat.lowStock')}
-            onClick={(): void => setStatusFilter((s) => (s === 'low' ? 'all' : 'low'))}
-          />
-          <Chip
-            icon={<AlertCircle size={12} />}
-            active={statusFilter === 'out'}
-            label={t('inventory.stat.outOfStock')}
-            onClick={(): void => setStatusFilter((s) => (s === 'out' ? 'all' : 'out'))}
-          />
-        </div>
+        {/* Issue #1440 (DS-06) — the kit toolbar. The two stock chips are exclusive:
+            pressing one releases the other, because the API takes one stock filter. */}
+        <ListToolbar
+          label={t('inventory.toolbar.label')}
+          className="border-b border-border px-3 py-2.5"
+          search={
+            <ListToolbarSearch
+              label={t('inventory.search.label')}
+              placeholder={t('inventory.search.placeholder')}
+              value={query}
+              onValueChange={setQuery}
+            />
+          }
+          filters={
+            <>
+              <FilterChip
+                icon={<AlertCircle size={12} />}
+                pressed={statusFilter === 'low'}
+                onPressedChange={(next): void => setStatusFilter(next ? 'low' : 'all')}
+              >
+                {t('inventory.stat.lowStock')}
+              </FilterChip>
+              <FilterChip
+                icon={<AlertCircle size={12} />}
+                pressed={statusFilter === 'out'}
+                onPressedChange={(next): void => setStatusFilter(next ? 'out' : 'all')}
+              >
+                {t('inventory.stat.outOfStock')}
+              </FilterChip>
+            </>
+          }
+        />
 
         <div className="b2b-card__body b2b-card__body--flush">
           {loading ? (
@@ -325,25 +317,6 @@ function Stat({
       </div>
       <div style={{ fontSize: 26, fontWeight: 600, marginTop: 4, color }}>{value}</div>
     </div>
-  );
-}
-
-function Chip(props: {
-  icon: ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      className={cn('b2b-filterchip', props.active && 'is-on')}
-      aria-pressed={props.active}
-      onClick={props.onClick}
-    >
-      {props.icon}
-      <span>{props.label}</span>
-    </button>
   );
 }
 

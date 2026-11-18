@@ -24,6 +24,14 @@ export { ResponsiveTable } from './ResponsiveTable.js';
 export type { ResponsiveColumn, ResponsiveTableProps } from './ResponsiveTable.js';
 export { RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from './RowActionMenu.js';
 export type { RowActionMenuItemProps, RowActionMenuProps } from './RowActionMenu.js';
+// Issue #1441 (DS-07) — one primary action per view: a detail header's primary, secondary and "More" menu.
+export { DetailHeaderActions } from './DetailHeaderActions.js';
+export type { DetailHeaderActionsProps } from './DetailHeaderActions.js';
+// Issue #1439 (UX audit DS-05) — the list page pattern; README "List pages".
+export { ListPage } from './list-page/ListPage.js';
+export type { ListPageLoad, ListPageProps } from './list-page/ListPage.js';
+export { fitPageSize, lastPageIndex, pageSizesUpTo, useListPagination } from './list-page/use-list-pagination.js';
+export type { ListPagination, UseListPaginationOptions } from './list-page/use-list-pagination.js';
 export { StickyFormActions } from './StickyFormActions.js';
 export type { StickyFormActionsProps } from './StickyFormActions.js';
 // Feature 180 — the generic Save and outcome summary of an editor's save session.
@@ -188,6 +196,11 @@ export { ScopeNotice } from './scope-notice/ScopeNotice.js';
 export type { ScopeNoticeProps } from './scope-notice/ScopeNotice.js';
 export { SavedViewsControl } from './saved-views/SavedViewsControl.js';
 export type { SavedViewState, SavedViewsControlProps } from './saved-views/SavedViewsControl.js';
+// Issue #1440 (UX audit DS-06) — the list toolbar: labelled search, primary filters, *More filters (n)*, applied-filter chips.
+export { FilterChip } from './list-toolbar/FilterChip.js';
+export type { FilterChipProps } from './list-toolbar/FilterChip.js';
+export { ListToolbar, ListToolbarSearch } from './list-toolbar/ListToolbar.js';
+export type { AppliedFilter, ListToolbarProps, ListToolbarSearchProps } from './list-toolbar/ListToolbar.js';
 export type { RuleAttributeField, RuleBuilderBuiltinField, RuleBuilderLabels, RuleBuilderProps, RuleFieldOptions, StructuralRule, StructuralRuleCondition, StructuralRuleField, StructuralRuleValue } from './rule-builder/RuleBuilder.js';
 // Feature 163 — the collaboration components promoted from CRM (`specs/163-projects-and-tasks/research.md` R-17).
 export { ReferenceField } from './references/ReferenceField.js';

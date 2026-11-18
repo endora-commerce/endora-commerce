@@ -26,6 +26,7 @@ import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n'
 import { crmApi, type OrderStatusOption } from '../api.js';
 import { BoardCardFieldsEditor } from '../components/BoardCardFieldsEditor.js';
 import { errorMessage, workflowStatusLabel } from '../lib/labels.js';
+import { useServerReorder } from '../lib/use-server-reorder.js';
 import { OrderStatusMappings } from './workflow/OrderStatusMappings.js';
 import { StatusDialog, type StatusDialogSubmit } from './workflow/StatusDialog.js';
 import { StatusesTable } from './workflow/StatusesTable.js';
@@ -91,6 +92,19 @@ export function WorkflowConfigPage(): ReactNode {
   useEffect(() => {
     if (loaded && hash === `#${BOARD_CARD_ANCHOR}`) boardCardSection.current?.scrollIntoView?.();
   }, [loaded, hash]);
+
+  const orderedStatuses = useMemo(
+    () => [...(workflow?.statuses ?? [])].sort((a, b) => a.weight - b.weight || a.code.localeCompare(b.code)),
+    [workflow],
+  );
+  const reorder = useServerReorder({
+    rows: orderedStatuses,
+    show: (statuses) => setWorkflow((current) => (current ? { ...current, statuses } : current)),
+    save: async (orderedCodes) => setWorkflow(await crmApi.reorderStatuses(orderedCodes)),
+    reload: async () => setWorkflow(await crmApi.getWorkflow()),
+    staleMessage: t('reorder.stale'),
+    failedMessage: (error) => errorMessage(error, t('reorder.failed')),
+  });
 
   const graphStatuses = useMemo<StatusTransitionGraphStatus[]>(
     () =>
@@ -201,12 +215,19 @@ export function WorkflowConfigPage(): ReactNode {
             {t('workflow.status.add')}
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {reorder.notice ? (
+            <Alert variant={reorder.notice.kind === 'stale' ? 'warning' : 'destructive'} live="assertive">
+              <AlertDescription>{reorder.notice.message}</AlertDescription>
+            </Alert>
+          ) : null}
           <StatusesTable
-            statuses={workflow.statuses}
+            statuses={orderedStatuses}
             language={language}
             onEdit={(status): void => setDialog({ kind: 'edit', status })}
             onDelete={setPendingDelete}
+            onMove={(status, delta): void => reorder.move(status.code, delta)}
+            reordering={reorder.busy}
           />
         </CardContent>
       </Card>
@@ -277,6 +298,7 @@ export function WorkflowConfigPage(): ReactNode {
         <StatusDialog
           status={dialog.kind === 'edit' ? dialog.status : null}
           nextWeight={nextWeight}
+          takenCodes={workflow.statuses.map((status) => status.code)}
           language={language}
           onSubmit={submitStatus}
           onClose={(): void => setDialog(null)}

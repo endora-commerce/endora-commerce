@@ -147,6 +147,7 @@ export function TaxonomyRevisionsPage(): ReactNode {
       <PageHeader
         title={t('revisions.title')}
         description={t('revisions.subtitle')}
+        help={t('revisions.help')}
         back={{ to: '/product-feeds/category-mapping', label: t('revisions.back') }}
       />
 

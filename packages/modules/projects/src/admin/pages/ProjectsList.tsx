@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ClipboardList, Plus, SearchX, X } from 'lucide-react';
+import { ClipboardList, Plus, X } from 'lucide-react';
 import {
   PROJECT_STAGE_NAME_MAX,
   type CustomFieldFilter,
@@ -19,6 +19,7 @@ import {
   Card,
   CardContent,
   Checkbox,
+  EmptyState,
   Input,
   Label,
   PageHeader,
@@ -122,6 +123,8 @@ function CustomFieldFilterCells({ value, onChange, onFields }: CustomFieldFilter
  */
 export function ProjectsList(): ReactNode {
   const t = useTranslation('projects');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
   const { hasPermission } = useAuth();
@@ -417,26 +420,20 @@ export function ProjectsList(): ReactNode {
   );
 
   const emptyState = filtered ? (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <SearchX aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('list.noResults.title')}</div>
-      <div className="b2b-empty__sub">{t('list.noResults.body')}</div>
-      <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={clear}>
-        <X aria-hidden="true" />
-        {t('list.filter.clear')}
-      </Button>
-    </div>
+    <EmptyState
+      variant="no-results"
+      title={t('list.noResults.title')}
+      description={t('list.noResults.body')}
+      onClearFilters={clear}
+      focusAfterClear={searchRef}
+    />
   ) : (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <ClipboardList aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('list.empty.title')}</div>
-      <div className="b2b-empty__sub">{canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}</div>
-      {canWrite ? newProject : null}
-    </div>
+    <EmptyState
+      icon={<ClipboardList size={20} />}
+      title={t('list.empty.title')}
+      description={canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}
+      action={canWrite ? newProject : null}
+    />
   );
 
   return (
@@ -454,6 +451,7 @@ export function ProjectsList(): ReactNode {
             <div className="space-y-1">
               <Label htmlFor="projects-search">{t('list.search')}</Label>
               <Input
+                ref={searchRef}
                 id="projects-search"
                 type="search"
                 value={search}

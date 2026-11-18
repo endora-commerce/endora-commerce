@@ -90,6 +90,14 @@ describe('a document', () => {
     expect(forwarded(response).get('x-pathname')).toBe('/p/pump');
   });
 
+  it('hands the query to the render beside the path, never a client’s own (181 design review F-1)', async () => {
+    const response = await middleware(request('/returns/new?origin=elsewhere', { 'x-search': '?forged=1' }));
+    expect(forwarded(response).get('x-pathname')).toBe('/returns/new');
+    expect(forwarded(response).get('x-search')).toBe('?origin=elsewhere');
+    const bare = await middleware(request('/returns', { 'x-search': '?forged=1' }));
+    expect(forwarded(bare).get('x-search') ?? '').toBe('');
+  });
+
   it.each([
     ['there is no policy', { kind: 'none' }],
     ['the policy is unknown', { kind: 'unknown' }],

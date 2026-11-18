@@ -10,8 +10,8 @@ import {
   RotateCcw,
   Truck,
 } from 'lucide-react';
-import { ApiError, apiBaseUrl, apiClient, cn, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, FormField, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section } from '@endora-commerce/admin-kit/ui';
+import { ApiError, apiBaseUrl, apiClient, cn, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useDetailResource, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, FormField, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section } from '@endora-commerce/admin-kit/ui';
 import { CustomFieldValuesPanel, StatusChangeControl, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -271,14 +271,12 @@ export function OrderDetail(): ReactNode {
   const { id = '' } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const returnTo = readReturnTo(searchParams);
-  const [order, setOrder] = useState<OrderDetail | null>(null);
   const [invoices, setInvoices] = useState<OrderInvoiceRow[]>([]);
   const [graph, setGraph] = useState<StatusGraph | null>(null);
   const [comments, setComments] = useState<OrderCommentRow[]>([]);
   const [commentBody, setCommentBody] = useState('');
   const [commentVisible, setCommentVisible] = useState(true);
   const [commentNotify, setCommentNotify] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [tab, setTab] = useState<OrderTab>('overview');
@@ -305,28 +303,31 @@ export function OrderDetail(): ReactNode {
   // Warn before leaving with an unsent comment draft.
   useUnsavedChangesPrompt(commentBody.trim() !== '');
 
-  // `silent` re-reads without the page-wide loading state, so a control that
-  // just wrote keeps its place and its focus (issue #1470).
-  const refresh = useCallback(async (options?: { silent?: boolean }): Promise<void> => {
-    if (!options?.silent) setLoading(true);
-    setError(null);
+  // Issue #1447 (DS-14, SALES-06) — the first load is the only one that shows a
+  // skeleton; every re-read after an action keeps the page, its open tab, the
+  // scroll position and the focus, and marks the content `aria-busy`.
+  const resource = useDetailResource<OrderDetail>(id, async () => {
     try {
       const res = await apiClient.get<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}`);
-      setOrder(res.data);
+      return res.data;
     } catch (err) {
-      if (err instanceof ApiError && err.envelope.error.code === 'ORDER_NOT_FOUND') {
-        setOrder(null);
-      } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
-      }
-    } finally {
-      setLoading(false);
+      if (err instanceof ApiError && err.envelope.error.code === 'ORDER_NOT_FOUND') return null;
+      throw err;
     }
-  }, [id]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  });
+  const order = resource.data;
+  const reread = resource.refresh;
+  // A re-read clears the previous action's error, as the old full reload did.
+  const refresh = useCallback(async (): Promise<void> => {
+    setError(null);
+    await reread();
+  }, [reread]);
+  const loadError =
+    resource.error === null
+      ? null
+      : resource.error instanceof ApiError
+        ? resource.error.envelope.error.message
+        : t('orderDetail.errors.load');
 
   // Load the configurable status graph so the selector offers only valid
   // next transitions (feature 038 US1).
@@ -441,7 +442,7 @@ export function OrderDetail(): ReactNode {
     async (to: string): Promise<void> => {
       await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/status`, { to });
       setInfo(t('orderDetail.messages.orderMoved', { status: statusName(graph, to, language) }));
-      await refresh({ silent: true });
+      await refresh();
     },
     [id, refresh, graph, language, t],
   );
@@ -450,14 +451,23 @@ export function OrderDetail(): ReactNode {
     async (to: string): Promise<void> => {
       await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/payment-status`, { to });
       setInfo(t('orderDetail.messages.paymentMoved', { status: t(paymentStatusLabelKey(to)) }));
-      await refresh({ silent: true });
+      await refresh();
     },
     [id, refresh, t],
   );
 
-  if (loading) return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
+  if (resource.initialLoading) return <DetailSkeleton />;
   if (!order)
-    return (
+    return loadError !== null ? (
+      <Alert variant="destructive">
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+          {loadError}
+          <Button variant="outline" size="sm" onClick={(): void => void refresh()}>
+            {t('common.action.retry')}
+          </Button>
+        </AlertDescription>
+      </Alert>
+    ) : (
       <Alert variant="warning">
         <AlertDescription>{t('orderDetail.notFound')}</AlertDescription>
       </Alert>
@@ -539,9 +549,9 @@ export function OrderDetail(): ReactNode {
         }
       />
 
-      {error ? (
+      {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error ?? loadError}</AlertDescription>
         </Alert>
       ) : null}
       {info ? (
@@ -552,7 +562,7 @@ export function OrderDetail(): ReactNode {
 
       <OrderPendingEffectsNotice pendingEffects={order.pendingEffects} />
 
-      <Card className="mb-4 overflow-hidden">
+      <Card className="mb-4 overflow-hidden" {...resource.busyProps}>
         <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
           <div className="b2b-tabs-scroll">
             <div className="b2b-tabs" role="tablist">

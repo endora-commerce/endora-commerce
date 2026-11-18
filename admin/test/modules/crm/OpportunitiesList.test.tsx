@@ -187,6 +187,10 @@ describe('OpportunitiesList', () => {
     await userEvent.selectOptions(screen.getByLabelText(en('opportunity.list.filter.state')), 'won');
     expect(await screen.findByText(en('opportunity.list.noResults.title'))).toBeInTheDocument();
     expect(screen.queryByText(en('opportunity.list.empty.title'))).toBeNull();
+    // Clearing from the empty state puts focus on the search box, not <body> (WCAG 2.4.3).
+    const block = document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!;
+    await userEvent.click(within(block).getByRole('button', { name: en('opportunity.list.filter.clear') }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('opportunity.list.filter.search'))));
   });
 
   it('hides "New opportunity" from an operator who may only read', async () => {

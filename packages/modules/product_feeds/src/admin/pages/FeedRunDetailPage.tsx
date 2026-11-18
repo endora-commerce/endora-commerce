@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { CheckCircle2, Download } from 'lucide-react';
-import { Alert, AlertDescription, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -186,13 +186,11 @@ export function FeedRunDetailPage(): ReactNode {
       ) : null}
 
       {!failed && run.status !== 'withdrawn' && !hasSkips && !hasWarnings ? (
-        <div className="b2b-empty">
-          <p className="b2b-empty__title flex items-center justify-center gap-2">
-            <CheckCircle2 size={16} aria-hidden="true" />
-            {t('runs.issues.none.title')}
-          </p>
-          <p className="b2b-empty__sub">{t('runs.issues.none.body')}</p>
-        </div>
+        <EmptyState
+          icon={<CheckCircle2 size={20} />}
+          title={t('runs.issues.none.title')}
+          description={t('runs.issues.none.body')}
+        />
       ) : null}
 
       {hasSkips ? (

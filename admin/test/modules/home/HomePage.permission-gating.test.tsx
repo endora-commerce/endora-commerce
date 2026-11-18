@@ -49,7 +49,6 @@ const { HomePage } = await import('../../../../packages/admin-shell/src/modules/
 
 const BUNDLE = passthroughBundle('core', [
   'home.welcomeBack',
-  'home.subtitle',
   'home.defaultName',
   'home.kpi.activeProducts',
   'home.kpi.pendingQuotes',

@@ -2,6 +2,7 @@
 // patch / setVisibility / resolveUrl. US2 will fill softDelete / restore /
 // move. US3 brings cloud adapters online.
 
+import { Readable } from 'node:stream';
 import { LockMode, UniqueConstraintViolationException } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
@@ -9,6 +10,7 @@ import {
   validateAssetPermalink,
   type AdminUserReadPort,
   type AssetDetail,
+  type AssetReplaceInput,
   type AssetPreviousVersion,
   type AssetSummary,
   isUuidShape,
@@ -32,7 +34,7 @@ import {
   replaceAssetFile,
   restorePreviousVersion,
   type AssetReplaceDeps,
-  type AssetReplaceInput,
+  type ReplaceAssetFileInput,
   type RestorePreviousVersionInput,
 } from './asset-replace.js';
 import { ObjectCleanupLedger } from './object-cleanup-ledger.js';
@@ -132,8 +134,36 @@ export class AssetsLibraryService {
   /**
    * Replace the asset's file in place — same id, same storage key, same URLs
    * (specs/156-asset-stable-url/ FR-001 – FR-010). Runs Command `asset.replace`.
+   *
+   * Published as `AssetsLibraryPort.replace` (issue #694): a module hands the
+   * contract's `AssetUploadStream`, any async iterable of bytes, and it is read
+   * as a Node stream from here on; a Node stream passes through unchanged. Only
+   * the contract's members are forwarded, so nothing a caller adds to the input
+   * — the route's `afterStaged` hook included — reaches the replace sequence.
    */
   async replace(input: AssetReplaceInput): Promise<AssetDetail> {
+    return this.#replace({
+      assetId: input.assetId,
+      filename: input.filename,
+      declaredMime: input.declaredMime,
+      stream: input.stream instanceof Readable ? input.stream : Readable.from(input.stream),
+      declaredSize: input.declaredSize,
+      ...(input.expectedContentVersion !== undefined
+        ? { expectedContentVersion: input.expectedContentVersion }
+        : {}),
+    });
+  }
+
+  /**
+   * The admin route's replace: the multipart part as a Node stream, and the
+   * `afterStaged` hook through which the route reads the rest of the request,
+   * so a guard field sent after the file refuses the replace. Not on the port.
+   */
+  async replaceFromRoute(input: ReplaceAssetFileInput): Promise<AssetDetail> {
+    return this.#replace(input);
+  }
+
+  async #replace(input: ReplaceAssetFileInput): Promise<AssetDetail> {
     const row = await replaceAssetFile(this.#swapDeps('replace'), input);
     await this.#announce(row.id);
     return this.detail(row);

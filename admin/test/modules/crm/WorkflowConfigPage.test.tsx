@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { OpportunityWorkflow } from '@endora-commerce/contracts';
 import { ORDER_STATUS_GRAPH, WORKFLOW, core, en, renderCrm } from './crm-fixtures';
 
 /**
@@ -92,6 +93,86 @@ function statusRow(code: string): HTMLElement {
   return cell.closest('tr') as HTMLElement;
 }
 
+/** The codes of the statuses table, top to bottom. */
+function tableCodes(): string[] {
+  const table = screen.getByRole('table', { name: en('workflow.statuses.title') });
+  return within(table)
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => within(row).getAllByRole('cell')[1]?.textContent ?? '');
+}
+
+function inOrder(codes: readonly string[]): OpportunityWorkflow {
+  return {
+    ...WORKFLOW,
+    statuses: codes.map((code, index) => ({ ...WORKFLOW.statuses.find((s) => s.code === code)!, weight: (index + 1) * 10 })),
+  };
+}
+
+describe('WorkflowConfigPage — reordering the statuses (issue #1560)', () => {
+  const DEFAULT = ['new', 'qualified', 'negotiation', 'won', 'lost'];
+  const moveUp = (code: string, name: string) =>
+    userEvent.click(within(statusRow(code)).getByRole('button', { name: en('reorder.moveUp', { name }) }));
+
+  it('has no position field in the status dialog, and a new status goes last', async () => {
+    await renderPage();
+    await userEvent.click(screen.getByRole('button', { name: en('workflow.status.add') }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).queryByRole('spinbutton')).toBeNull();
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.defaultName')), 'In delivery');
+    await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    expect(postSpy.mock.calls[0]?.[1]).toMatchObject({ weight: 110 });
+  });
+
+  it('moves the row at once and sends one PUT of the whole order, every move waiting until it settles', async () => {
+    let answer: (value: { data: OpportunityWorkflow }) => void = () => {};
+    putSpy.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    await renderPage();
+    await moveUp('negotiation', 'Negotiation');
+
+    const next = ['new', 'negotiation', 'qualified', 'won', 'lost'];
+    expect(tableCodes()).toEqual(next);
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(putSpy).toHaveBeenCalledWith('/api/v1/admin/crm/statuses/order', { orderedCodes: next });
+    const up = within(statusRow('won')).getByRole('button', { name: en('reorder.moveUp', { name: 'Won' }) });
+    expect(up).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(up);
+    // `aria-disabled` does not block activation: the handler returns early, by keyboard too.
+    up.focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard(' ');
+    expect(putSpy).toHaveBeenCalledTimes(1);
+    expect(tableCodes()).toEqual(next);
+
+    await act(async () => answer({ data: inOrder(next) }));
+    await waitFor(() => expect(up).not.toHaveAttribute('aria-disabled'));
+    expect(tableCodes()).toEqual(next);
+  });
+
+  it('puts the list back and says so when the server refuses the move', async () => {
+    putSpy.mockRejectedValue(new ApiError(500, { error: { code: 'INTERNAL', message: 'Boom.' } }));
+    await renderPage();
+    await moveUp('lost', 'Lost');
+    expect(await screen.findByText('Boom.')).toBeInTheDocument();
+    expect(tableCodes()).toEqual(DEFAULT);
+  });
+
+  it('reloads the list and says somebody else changed it on 409 ORDER_STALE', async () => {
+    putSpy.mockRejectedValue(new ApiError(409, { error: { code: 'ORDER_STALE', message: 'Stale.' } }));
+    await renderPage();
+    const reloaded = ['qualified', 'new', 'negotiation', 'won', 'lost'];
+    getSpy.mockImplementation((path: string) => {
+      if (path === WORKFLOW_PATH) return Promise.resolve({ data: inOrder(reloaded) });
+      if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
+      return Promise.resolve({ data: { fields: [], available: [], maxFields: 6 } });
+    });
+    await moveUp('lost', 'Lost');
+    expect(await screen.findByText(en('reorder.stale'))).toBeInTheDocument();
+    await waitFor(() => expect(tableCodes()).toEqual(reloaded));
+  });
+});
+
 describe('WorkflowConfigPage', () => {
   it('lists every status with its kind and marks the start status', async () => {
     await renderPage();
@@ -118,16 +199,73 @@ describe('WorkflowConfigPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
-  it('refuses a malformed code before it reaches the server', async () => {
+  it('refuses a code with a leading digit before it reaches the server', async () => {
     await renderPage();
     await userEvent.click(screen.getByRole('button', { name: en('workflow.status.add') }));
     const dialog = screen.getByRole('dialog');
-    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.code')), 'In Delivery');
+    await userEvent.type(within(dialog).getByLabelText(en('workflow.field.code')), '2 In Delivery');
     await userEvent.type(within(dialog).getByLabelText(en('workflow.field.defaultName')), 'In delivery');
     await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
 
+    expect(within(dialog).getByLabelText(en('workflow.field.code'))).toHaveValue('2_in_delivery');
     expect(await within(dialog).findByText(en('workflow.error.code'))).toBeInTheDocument();
     expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  describe('the code of a new status (issue #1560, WORK-09)', () => {
+    async function openCreate(): Promise<HTMLElement> {
+      await renderPage();
+      await userEvent.click(screen.getByRole('button', { name: en('workflow.status.add') }));
+      return screen.getByRole('dialog');
+    }
+
+    it('follows the default name, diacritics folded, until the operator edits it', async () => {
+      const dialog = await openCreate();
+      const code = within(dialog).getByLabelText(en('workflow.field.code'));
+      expect(code).toHaveAccessibleDescription(en('workflow.field.codeHint'));
+      const name = within(dialog).getByLabelText(en('workflow.field.defaultName'));
+      await userEvent.type(name, 'Wysłana oferta');
+      expect(code).toHaveValue('wyslana_oferta');
+      await userEvent.type(code, '_x');
+      await userEvent.type(name, ' 2');
+      expect(code).toHaveValue('wyslana_oferta_x');
+    });
+
+    it('normalises a typed code on blur instead of refusing it', async () => {
+      const dialog = await openCreate();
+      const code = within(dialog).getByLabelText(en('workflow.field.code'));
+      await userEvent.type(code, 'In Delivery');
+      await userEvent.tab();
+      expect(code).toHaveValue('in_delivery');
+    });
+
+    it('refuses a taken code at the code — from the list and from the server — never suffixing it', async () => {
+      const dialog = await openCreate();
+      const code = within(dialog).getByLabelText(en('workflow.field.code'));
+      await userEvent.type(within(dialog).getByLabelText(en('workflow.field.defaultName')), 'Won');
+      await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+      expect(code).toHaveValue('won');
+      expect(code).toHaveAccessibleDescription(en('workflow.error.codeTaken'));
+      await waitFor(() => expect(code).toHaveFocus());
+      expect(postSpy).not.toHaveBeenCalled();
+
+      postSpy.mockRejectedValue(
+        new ApiError(409, {
+          error: {
+            code: 'CRM_STATUS_CODE_TAKEN',
+            message: 'An opportunity status with the code "won_big" already exists.',
+            details: { statusCode: 'won_big' },
+          },
+        }),
+      );
+      await userEvent.clear(code);
+      await userEvent.type(code, 'won_big');
+      await userEvent.click(within(dialog).getByRole('button', { name: core('common.action.save') }));
+      await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(code).toHaveAccessibleDescription(en('workflow.error.codeTaken')));
+      expect(code).toHaveAttribute('aria-invalid', 'true');
+      await waitFor(() => expect(code).toHaveFocus());
+    });
   });
 
   it('marks an existing status as closing-won', async () => {

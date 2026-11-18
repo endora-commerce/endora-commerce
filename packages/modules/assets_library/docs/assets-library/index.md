@@ -280,6 +280,50 @@ stays restorable.
 
 Every replace is the audited Command `asset.replace`.
 
+### For developers: replacing from a module
+
+A module replaces a file through the published port, `assetsLibraryPort.replace`
+(`AssetReplaceInput` in `@endora-commerce/contracts`): `assetId`, `filename`,
+`declaredMime`, `stream` (any async iterable of bytes, a Node `Readable`
+included), `declaredSize` (`0` when unknown) and an optional
+`expectedContentVersion`. It answers the updated asset detail. The replace
+itself is the route's — the same upload policy and kind check, the same
+`HttpError` refusals (`ASSET_NOT_FOUND`, `ASSET_GONE`,
+`ASSET_LEGACY_CANNOT_REPLACE`, `ASSET_REPLACE_KIND_MISMATCH`,
+`ASSET_REPLACE_CONFLICT`), the same Command `asset.replace` — but the checks the
+route runs *before* it are not part of the port (first point below). Use it,
+rather than uploading a new asset and soft-deleting the old one, when a module
+keeps an asset in step with an external source such as a PIM: a new asset has a
+new URL, the old one answers `410`, and the previous version is lost.
+
+- **The caller is trusted; there is no visibility check.** The port checks no
+  permission and applies **no** administrator visibility check — the admin
+  route's `requireVisibleAsset` guard runs on the route only, before the
+  service is called — so a module can replace an asset no administrator could
+  see. That is the same as `patchAsset` and `softDelete`. The port is therefore
+  not a substitute for the route: a module that exposes replacing to its own
+  users checks their rights itself.
+- **Pass the version you last read.** Without `expectedContentVersion`, the
+  version read when the call starts is assumed, so the call guards only against
+  a replace that lands while it runs. To protect against a lost update — a
+  replace made since the caller last looked at the asset — pass the
+  `contentVersion` the caller last read; a stale one is refused with
+  `409 ASSET_REPLACE_CONFLICT`.
+- **The audit names the ambient actor, not the module.** The `asset.replace`
+  audit entry records whoever the call runs as: from a worker or a scheduled
+  sync in `enterSystemScope` that is the system actor, with no acting
+  administrator, and nothing records which module called — the previous
+  version's `replacedBy` is `null` too. Inside an administrator's request it is
+  that administrator.
+- **The upload size limit applies.** `assets.max_file_size_mb` caps the new file
+  as it caps an upload; with `0` there is no cap, the same as for upload —
+  though an S3-stored asset still meets S3's 5 GiB single-request ceiling
+  described above.
+- **One previous version is kept.** A second replace discards the file the
+  first one kept, so a sync that replaces twice keeps only the latest backup.
+- **It needs a context.** Call it inside the caller's request, or in
+  `enterSystemScope` from a worker or a scheduled sync, as any Command runs.
+
 ## Permalinks
 
 A permalink is an operator-chosen path that serves the asset at

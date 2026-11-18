@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Upload } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import type { Warehouse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 import { warehousesClient } from '../api/warehouses-client.js';
 
 interface ImportError {
@@ -108,17 +108,15 @@ export function StockImportWizard(): ReactNode {
 
   return (
     <div className="b2b-page">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <Link to="/inventory" className="b2b-btn b2b-btn--ghost b2b-btn--sm" style={{ marginBottom: 8, display: 'inline-flex' }}>
-            <ArrowLeft size={13} /> {t('inventory.import.back')}
-          </Link>
-          <div className="b2b-page-head__title">{t('inventory.import.title')}</div>
-          <div className="b2b-page-head__sub">
+      <PageHeader
+        back={{ label: t('inventory.import.back'), to: '/inventory' }}
+        title={t('inventory.import.title')}
+        description={
+          <>
             {t('inventory.import.subPrefix')} <code className="b2b-mono">sku,onHand</code>{t('inventory.import.subSuffix')}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {error ? (
         <div

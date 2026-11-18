@@ -135,6 +135,15 @@ export const entries: Readonly<Record<string, ClientFetchLedgerEntry>> = {
       'in silence.',
     retiredBy: NOT_PAGE_CONTENT,
   },
+  'storefront/components/returns/ProductField.tsx#active': {
+    firstPaint: false,
+    reason:
+      '`specs/180-off-platform-complaints/` — the active suggestion of the complaint form’s ' +
+      'product combobox. The suggestions exist only after the customer types, on the ' +
+      'signed-in, `noindex` returns form; the field itself is server-rendered as a plain ' +
+      'model-name input, so nothing behind this gate is on the first paint.',
+    retiredBy: NOT_PAGE_CONTENT,
+  },
   'storefront/components/pwa/PushNotificationsToggle.tsx#state': {
     firstPaint: false,
     reason:

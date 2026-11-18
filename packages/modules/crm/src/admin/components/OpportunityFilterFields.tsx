@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { Search } from 'lucide-react';
 import { Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -77,6 +77,9 @@ export interface OpportunityFilterFieldsProps {
   /** The search box as typed; the screen debounces it into `filters.q`. */
   search: string;
   onSearchChange: (search: string) => void;
+  /** The search box, so a screen can return focus to it (after *Clear filters*, WCAG 2.4.3). */
+  // Typed off the kit's `Input`, whose React types this package does not share.
+  searchRef?: ComponentProps<typeof Input>['ref'];
   filters: SharedOpportunityFilters;
   onChange: (patch: Partial<SharedOpportunityFilters>) => void;
   /** Fields only one screen has (the list's state and status), placed after the search. */
@@ -95,7 +98,7 @@ export interface OpportunityFilterFieldsProps {
  * and puts its own controls (sort, *Clear*) beside these.
  */
 export function OpportunityFilterFields(props: OpportunityFilterFieldsProps): ReactNode {
-  const { idPrefix, search, onSearchChange, filters, onChange, children } = props;
+  const { idPrefix, search, onSearchChange, filters, onChange, children, searchRef } = props;
   const t = useTranslation('crm');
 
   return (
@@ -108,6 +111,7 @@ export function OpportunityFilterFields(props: OpportunityFilterFieldsProps): Re
             className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
           />
           <Input
+            ref={searchRef}
             id={`${idPrefix}-search`}
             type="search"
             className="pl-8"

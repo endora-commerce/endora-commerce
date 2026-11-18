@@ -15,6 +15,7 @@ import {
   Download,
   Edit,
   Eraser,
+  FileCheck,
   FilePlus,
   FileDown,
   FileText,
@@ -167,6 +168,9 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // `specs/143-crm-sales-opportunities/` (US22) — the same, for `crm`'s
   // Calendar sidebar entry and palette action.
   CalendarDays,
+  // `specs/180-off-platform-complaints/` (US7) — the same, for `returns`'
+  // *Return and complaint terms* palette action.
+  FileCheck,
 };
 
 export function resolveIcon(name: string): LucideIcon {

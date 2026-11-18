@@ -26,10 +26,7 @@ export function SeoPage(): ReactNode {
   const t = useTranslation('core');
   return (
     <>
-      <PageHeader
-        title={t('seo.page.title')}
-        description={t('seo.page.description')}
-      />
+      <PageHeader title={t('seo.page.title')} />
       <div className="space-y-4">
         <SitemapCard />
         <MetaEditorCard />

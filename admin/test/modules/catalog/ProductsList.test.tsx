@@ -10,13 +10,17 @@ import { answerConfirm } from '../../helpers/confirm-dialog';
 // not the permission gate, and `adminSession` documents `['*']` as the value
 // for exactly that. The gate itself is
 // `admin/test/modules/catalog/ProductsList.create-affordance-gating.test.tsx`.
-import { adminSession, withSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+
+// Issue #1455 (CAT-02) — the list asks whether `import_export` is on before it offers Import / export.
+const PRESENCE = modulePresence({ present: ['catalog', 'import_export'] });
 
 /**
  * Feature 022 / T041 — interaction test for the streamlined selection
  * toolbar. With Bulk Edit shipping (US1), the Activate / Archive /
- * Add-to-Category buttons were removed from the bulk bar; Bulk Edit,
- * Edit Price, and Delete are the only remaining actions.
+ * Add-to-Category buttons were removed from the bulk bar; Bulk Edit and
+ * Delete are the only remaining actions (issue #1455 removed the
+ * always-disabled Edit price: prices are set in price books).
  */
 
 const getSpy = vi.fn();
@@ -73,13 +77,9 @@ const BUNDLE = passthroughBundle('catalog', [
   'productsList.title',
   'productsList.description',
   'productsList.action.create',
-  'productsList.action.import',
-  'productsList.action.export',
   'productsList.action.viewArchived',
   'productsList.bulk.selected',
   'productsList.bulk.edit',
-  'productsList.bulk.editPrice',
-  'productsList.bulk.editPriceUnavailable',
   'productsList.bulk.restore',
   'productsList.bulk.delete',
   'productsList.bulk.deleteConfirm',
@@ -90,13 +90,8 @@ const BUNDLE = passthroughBundle('catalog', [
   'productsList.column.type',
   'productsList.column.visibility',
   'productsList.column.updated',
-  'productsList.chip.type',
-  'productsList.chip.typeWithValue',
-  'productsList.chip.stock',
-  'productsList.chip.outOfStock',
-  'productsList.chip.lowStock',
-  'productsList.chip.category',
-  'productsList.chip.channel',
+  'productsList.filter.type',
+  'productsList.filter.typeAll',
   'productsList.search.placeholder',
   'productsList.empty.title',
   'productsList.empty.suffix',
@@ -131,7 +126,7 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     vi.clearAllMocks();
   });
 
-  it('toolbar appears on selection and contains only Bulk Edit / Edit Price / Delete', async () => {
+  it('toolbar appears on selection and contains only Bulk Edit / Delete', async () => {
     answerList({
       data: [productRow('00000000-0000-4000-8000-000000000a01', 'ROW-A', 'Row A widget')],
       pagination: { page: 0, pageSize: 25, total: 1 },
@@ -143,7 +138,7 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
         <MemoryRouter>
           <ProductsList />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['*'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
       ),
       BUNDLE,
     );
@@ -162,17 +157,13 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     const user = userEvent.setup();
     await user.click(rowCheckbox);
 
-    // Toolbar now renders with the three streamlined actions.
+    // Toolbar now renders with the streamlined actions.
     await waitFor(() =>
       expect(screen.getByText('productsList.bulk.edit')).toBeInTheDocument(),
     );
-    // D17 — Edit price has no flow behind it (prices live in price books): it is
-    // disabled and says why, rather than a button that does nothing.
-    const editPrice = screen.getByRole('button', { name: /productsList\.bulk\.editPrice/ });
-    expect(editPrice).toBeDisabled();
-    expect(document.getElementById(editPrice.getAttribute('aria-describedby') ?? '')?.textContent).toBe(
-      'productsList.bulk.editPriceUnavailable',
-    );
+    // Issue #1455 (CAT-02) — Edit price had no flow behind it (prices live in
+    // price books); a permanently disabled button is noise, so it is gone.
+    expect(screen.queryByText(/productsList\.bulk\.editPrice/)).toBeNull();
     expect(screen.getByText('productsList.bulk.delete')).toBeInTheDocument();
 
     // The removed actions must not be present.
@@ -193,7 +184,7 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
         <MemoryRouter>
           <ProductsList />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['*'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
       ),
       BUNDLE,
     );
@@ -204,23 +195,18 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     await user.click(checkboxes[1]!);
 
     const editBtn = await screen.findByText('productsList.bulk.edit');
-    const editPriceBtn = screen.getByText('productsList.bulk.editPrice');
     const deleteBtn = screen.getByText('productsList.bulk.delete');
 
-    // DOM-order check: Bulk Edit comes BEFORE Edit Price BEFORE Delete.
+    // DOM-order check: Bulk Edit comes BEFORE Delete.
     expect(
-      editBtn.compareDocumentPosition(editPriceBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      editPriceBtn.compareDocumentPosition(deleteBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
+      editBtn.compareDocumentPosition(deleteBtn) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
-  // Feature 163, owner decision P-4 → B (2026-10-26). The bar keeps three actions on every
-  // tab, but on the Archived tab they are Restore (primary) / Bulk edit / Delete: bringing
-  // archived products back is what that selection is for, and the placeholder Edit price
-  // has nothing to do there. The two cases above still hold the other tabs to Bulk edit /
-  // Edit price / Delete.
+  // Feature 163, owner decision P-4 → B (2026-10-26). On the Archived tab the bar is
+  // Restore (primary) / Bulk edit / Delete: bringing archived products back is what that
+  // selection is for. The two cases above hold the other tabs to Bulk edit / Delete
+  // (issue #1455 removed the placeholder Edit price everywhere).
   it('on the Archived tab the bar is Restore (primary) / Bulk edit / Delete — no Edit price', async () => {
     answerList({
       data: [{ ...(productRow('00000000-0000-4000-8000-000000000a09', 'ROW-Z', 'Row Z widget') as object), archivedAt: '2026-10-20T00:00:00.000Z' }],
@@ -233,7 +219,7 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
         <MemoryRouter initialEntries={['/catalog/products?status=archived']}>
           <ProductsList />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['*'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
       ),
       BUNDLE,
     );
@@ -265,7 +251,7 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
         <MemoryRouter>
           <ProductsList />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['*'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
       ),
       BUNDLE,
     );

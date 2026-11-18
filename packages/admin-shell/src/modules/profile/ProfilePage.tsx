@@ -7,6 +7,7 @@ import {
 } from '@endora-commerce/admin-kit/i18n';
 import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { AssetFieldPicker, ContentLanguageTabs } from '@endora-commerce/admin-kit/components';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 
 /**
  * ProfilePage — feature 010 admin polish.
@@ -116,14 +117,7 @@ export function ProfilePage(): ReactNode {
 
   return (
     <div className="b2b-page">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('profile.page.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('profile.page.descriptionPrefix')} <code className="b2b-mono">admin_users:manage</code> {t('profile.page.descriptionSuffix')}
-          </div>
-        </div>
-      </div>
+      <PageHeader title={t('profile.page.title')} />
 
       {error ? (
         <div

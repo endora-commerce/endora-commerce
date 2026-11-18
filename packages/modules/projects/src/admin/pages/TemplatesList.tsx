@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom';
 import { Layers, Plus } from 'lucide-react';
 import type { ProjectTemplateSummary } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Checkbox, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Checkbox, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../api.js';
@@ -90,14 +90,12 @@ export function TemplatesList(): ReactNode {
   );
 
   const emptyState = (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <Layers aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('templates.list.empty.title')}</div>
-      <div className="b2b-empty__sub">{t('templates.list.empty.body')}</div>
-      {newTemplate}
-    </div>
+    <EmptyState
+      icon={<Layers size={20} />}
+      title={t('templates.list.empty.title')}
+      description={t('templates.list.empty.body')}
+      action={newTemplate}
+    />
   );
 
   return (

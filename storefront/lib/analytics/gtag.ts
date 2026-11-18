@@ -1,5 +1,6 @@
 'use client';
 
+import { isSecretBearingPath, redactSecretPath } from './secret-paths';
 import type { GaStorefrontConfig } from '@endora-commerce/contracts';
 import { channelHeaders } from '../channel/channel-header';
 
@@ -84,12 +85,27 @@ export function updateAnalyticsConsent(granted: boolean): void {
   });
 }
 
+/**
+ * The `page_location` of a page view: the browser's address, with a guest token redacted
+ * (`specs/181-guest-complaints/` design review F-2) — the tracking and verification pages'
+ * addresses are bearer credentials and never leave for a third party.
+ */
+export function pageLocationOf(href: string): string {
+  try {
+    const url = new URL(href);
+    const path = `${url.pathname}${url.search}`;
+    return isSecretBearingPath(path) ? `${url.origin}${redactSecretPath(path)}` : href;
+  } catch {
+    return isSecretBearingPath(href) ? redactSecretPath(href) : href;
+  }
+}
+
 /** Emit a GA4 `page_view` for a resolved route (client or server path). */
 export function sendPageView(path: string): void {
   if (!isGaActive()) return;
   const params: GaParams = {
-    page_path: path,
-    page_location: typeof window !== 'undefined' ? window.location.href : path,
+    page_path: isSecretBearingPath(path) ? redactSecretPath(path) : path,
+    page_location: typeof window !== 'undefined' ? pageLocationOf(window.location.href) : path,
     page_title: typeof document !== 'undefined' ? document.title : '',
   };
   dispatch('page_view', params);

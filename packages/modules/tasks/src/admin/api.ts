@@ -155,6 +155,11 @@ export const tasksApi = {
     return data(apiClient.patch<{ data: TaskWorkflow }>(`${BASE}/statuses/${encodeURIComponent(code)}`, body));
   },
 
+  /** The whole list in its new order, one Command (issue #1560); 409 `ORDER_STALE` when it changed meanwhile. */
+  reorderStatuses(orderedCodes: readonly string[]): Promise<TaskWorkflow> {
+    return data(apiClient.put<{ data: TaskWorkflow }>(`${BASE}/statuses/order`, { orderedCodes }));
+  },
+
   /** Removes a status; `replacement` takes the Tasks in it (required while any are). */
   deleteStatus(code: string, replacement?: string): Promise<TaskWorkflow> {
     const tail = replacement ? `?replacement=${encodeURIComponent(replacement)}` : '';
@@ -236,6 +241,11 @@ export const tasksApi = {
 
   updatePriority(code: string, body: UpdateTaskPriorityBody): Promise<TaskPriorityConfig[]> {
     return data(apiClient.patch<{ data: TaskPriorityConfig[] }>(`${BASE}/priorities/${encodeURIComponent(code)}`, body));
+  },
+
+  /** The whole list in its new order, most urgent first, one Command (issue #1560). */
+  reorderPriorities(orderedCodes: readonly string[]): Promise<TaskPriorityConfig[]> {
+    return data(apiClient.put<{ data: TaskPriorityConfig[] }>(`${BASE}/priorities/order`, { orderedCodes }));
   },
 
   /** Removes a priority; `replacement` — a code, or `none` — is what its Tasks get (required while any hold it). */

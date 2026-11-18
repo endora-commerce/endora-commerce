@@ -864,9 +864,14 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       return_case_id: returnCaseId,
       author_customer_account_id: customerAccountId,
     });
+    // `specs/180-off-platform-complaints/` — a case's file carries its tenant and
+    // its uploader, and is stored under `returns/<organization>/<id>`.
     await add('return_case_attachments', {
       return_case_id: returnCaseId,
       return_case_item_id: returnItemId,
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      storage_locator: `returns/${organizationId}/${randomUUID()}`,
     });
     await add('return_shipments', { return_case_id: returnCaseId });
     await add('refunds', {

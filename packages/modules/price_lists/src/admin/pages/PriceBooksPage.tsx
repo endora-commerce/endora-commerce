@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, BookOpen, Plus, RotateCcw, Settings, X } from 'lucide-react';
 import type {
@@ -27,6 +27,7 @@ import {
   Badge,
   Button,
   Combobox,
+  EmptyState,
   Input,
   Label,
   PageHeader,
@@ -72,6 +73,8 @@ type ListState =
 
 export function PriceBooksPage(): ReactNode {
   const t = useTranslation('price_lists');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const api = usePriceBooksApi();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -255,6 +258,7 @@ export function PriceBooksPage(): ReactNode {
       <ListFilters
         search={searchText}
         onSearch={setSearchText}
+        searchRef={searchRef}
         type={type}
         status={status}
         currency={currency}
@@ -315,23 +319,21 @@ export function PriceBooksPage(): ReactNode {
               ) : null
             }
             emptyState={
-              <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-                <BookOpen className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
-                {filtered ? (
-                  <>
-                    <p className="font-medium">{t('priceBooks.list.emptyFiltered.title')}</p>
-                    <p className="text-sm text-muted-foreground">{t('priceBooks.list.emptyFiltered.body')}</p>
-                    <Button type="button" variant="outline" onClick={clearFilters}>
-                      {t('priceBooks.list.filters.clear')}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-medium">{t('priceBooks.list.empty.title')}</p>
-                    <p className="text-sm text-muted-foreground">{t('priceBooks.list.empty.body')}</p>
-                  </>
-                )}
-              </div>
+              filtered ? (
+                <EmptyState
+                  variant="no-results"
+                  title={t('priceBooks.list.emptyFiltered.title')}
+                  description={t('priceBooks.list.emptyFiltered.body')}
+                  onClearFilters={clearFilters}
+                  focusAfterClear={searchRef}
+                />
+              ) : (
+                <EmptyState
+                  icon={<BookOpen size={20} />}
+                  title={t('priceBooks.list.empty.title')}
+                  description={t('priceBooks.list.empty.body')}
+                />
+              )
             }
           />
           {total > 0 ? (
@@ -379,6 +381,9 @@ function ListFilters(props: {
   readonly groups: readonly PriceBookTargetCustomerGroup[];
   readonly onFilter: (changes: Record<string, string | null>) => void;
   readonly onClear: (() => void) | null;
+  /** The search box, so a screen can return focus to it (after *Clear filters*, WCAG 2.4.3). */
+  // Typed off the kit's `Input`, whose React types this package does not share.
+  readonly searchRef?: ComponentProps<typeof Input>['ref'];
 }): ReactNode {
   const t = useTranslation('price_lists');
   const base = useId();
@@ -416,6 +421,7 @@ function ListFilters(props: {
       <div className="space-y-1 sm:col-span-2">
         <Label htmlFor={`${base}-search`}>{t('priceBooks.list.filters.search')}</Label>
         <Input
+          ref={props.searchRef}
           id={`${base}-search`}
           type="search"
           value={props.search}

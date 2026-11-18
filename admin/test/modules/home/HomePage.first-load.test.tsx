@@ -76,7 +76,6 @@ const LOW_STOCK = '/api/v1/admin/inventory/low-stock';
 
 const BUNDLE = passthroughBundle('core', [
   'home.welcomeBack',
-  'home.subtitle',
   'home.defaultName',
   'home.kpi.activeProducts',
   'home.kpi.pendingQuotes',

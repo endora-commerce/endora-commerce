@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { PageHeader } from '@endora-commerce/admin-kit/ui';
 interface LowStockRow {
   productId: string;
   productSku: string;
@@ -59,14 +60,7 @@ export function LowStockPage(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('inventory.lowStock.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('inventory.lowStock.description')}
-          </div>
-        </div>
-      </div>
+      <PageHeader title={t('inventory.lowStock.title')} description={t('inventory.lowStock.description')} />
 
       {error ? (
         <div

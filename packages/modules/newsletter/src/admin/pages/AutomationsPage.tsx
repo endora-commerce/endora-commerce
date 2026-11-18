@@ -2,11 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import type { AutomationSummary } from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { Alert, AlertDescription, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { newsletterClient } from '../api/newsletter-client.js';
+import { automationStatusLabels, automationTriggerLabels } from '../lib/labels.js';
 
 export function AutomationsPage(): React.ReactElement {
   const { hasPermission } = useAuth();
+  const t = useTranslation('newsletter');
   const canWrite = hasPermission('newsletter:write');
   const [items, setItems] = useState<AutomationSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +36,7 @@ export function AutomationsPage(): React.ReactElement {
   if (!hasPermission('newsletter:read')) {
     return (
       <Alert>
-        <AlertDescription>You do not have permission to view the newsletter.</AlertDescription>
+        <AlertDescription>{t('common.noPermission')}</AlertDescription>
       </Alert>
     );
   }
@@ -41,12 +44,11 @@ export function AutomationsPage(): React.ReactElement {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Newsletter — Automations"
-        description="Linear send/wait sequences."
+        title={t('automations.title')}
         actions={
           canWrite ? (
             <Button asChild>
-              <Link to="/newsletter/automations/new">New automation</Link>
+              <Link to="/newsletter/automations/new">{t('automations.new')}</Link>
             </Button>
           ) : null
         }
@@ -61,11 +63,11 @@ export function AutomationsPage(): React.ReactElement {
           <table className="w-full text-sm">
             <thead className="border-b text-left text-muted-foreground">
               <tr>
-                <th className="p-3 font-medium">Name</th>
-                <th className="p-3 font-medium">Trigger</th>
-                <th className="p-3 font-medium">Steps</th>
-                <th className="p-3 font-medium">Status</th>
-                {canWrite ? <th className="p-3 font-medium">Actions</th> : null}
+                <th className="p-3 font-medium">{t('common.column.name')}</th>
+                <th className="p-3 font-medium">{t('automations.column.trigger')}</th>
+                <th className="p-3 font-medium">{t('automations.column.steps')}</th>
+                <th className="p-3 font-medium">{t('common.column.status')}</th>
+                {canWrite ? <th className="p-3 font-medium">{t('common.actions')}</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -76,19 +78,18 @@ export function AutomationsPage(): React.ReactElement {
                       {a.name}
                     </Link>
                   </td>
-                  <td className="p-3 text-xs">{a.triggerType}</td>
+                  <td className="p-3">{automationTriggerLabels.label(t, a.triggerType)}</td>
                   <td className="p-3">{a.stepCount}</td>
-                  {/* eslint-disable-next-line no-restricted-syntax -- raw status on an untranslated screen, drained by #1463 (CONTENT-05) */}
-                  <td className="p-3">{a.status}</td>
+                  <td className="p-3">{automationStatusLabels.label(t, a.status)}</td>
                   {canWrite ? (
                     <td className="p-3">
                       {a.status === 'active' ? (
                         <Button variant="ghost" size="sm" onClick={() => void toggle(a.id, false)}>
-                          Pause
+                          {t('automations.action.pause')}
                         </Button>
                       ) : (
                         <Button variant="ghost" size="sm" onClick={() => void toggle(a.id, true)}>
-                          Activate
+                          {t('automations.action.activate')}
                         </Button>
                       )}
                     </td>
@@ -98,7 +99,7 @@ export function AutomationsPage(): React.ReactElement {
               {items.length === 0 ? (
                 <tr>
                   <td className="p-3 text-muted-foreground" colSpan={canWrite ? 5 : 4}>
-                    No automations yet.
+                    {t('automations.empty')}
                   </td>
                 </tr>
               ) : null}

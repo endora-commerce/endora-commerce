@@ -169,10 +169,7 @@ export function LibraryPage(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title={t('page.title')}
-        description={t('page.description')}
-      />
+      <PageHeader title={t('page.title')} />
 
       {error ? (
         <Alert variant="destructive">

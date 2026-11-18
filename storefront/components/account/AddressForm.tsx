@@ -2,7 +2,7 @@
 
 import { startTransition, useActionState, useEffect, useRef, type FormEvent, type ReactNode } from 'react';
 import { tForLocale } from '../../lib/i18n/messages';
-import { CountryPicker } from '../../lib/dictionary/pickers/CountryPicker';
+import { AddressFields } from './AddressFields';
 import {
   ADDRESS_ERRORS,
   IDLE_ADDRESS_FORM,
@@ -134,67 +134,18 @@ export function AddressForm({
           {recipient.note}
         </div>
       </div>
-      <div className="b2b-auth__field">
-        <label htmlFor="addr-street">{t('account.addresses.add.street')}</label>
-        <input
-          id="addr-street"
-          name="street"
-          required
-          maxLength={255}
-          autoComplete="street-address"
-          placeholder=" "
-          {...street.aria}
-        />
-        {street.note}
-      </div>
-      <div className="b2b-auth__row">
-        <div className="b2b-auth__field">
-          <label htmlFor="addr-city">{t('checkout.address.city')}</label>
-          <input
-            id="addr-city"
-            name="city"
-            required
-            maxLength={120}
-            autoComplete="address-level2"
-            placeholder=" "
-            {...city.aria}
-          />
-          {city.note}
-        </div>
-        <div className="b2b-auth__field">
-          <label htmlFor="addr-postal">{t('checkout.address.postalCode')}</label>
-          <input
-            id="addr-postal"
-            name="postalCode"
-            required
-            maxLength={20}
-            autoComplete="postal-code"
-            placeholder=" "
-            {...postal.aria}
-          />
-          {postal.note}
-        </div>
-      </div>
-      <div className="b2b-auth__row">
-        <div className="b2b-auth__field">
-          <label htmlFor="addr-country">{t('account.addresses.add.country')}</label>
-          <CountryPicker id="addr-country" name="country" required defaultValue="PL" {...country.aria} />
-          {country.note}
-        </div>
-        <div className="b2b-auth__field">
-          <label htmlFor="addr-phone">{t('checkout.address.phone')}</label>
-          <input
-            id="addr-phone"
-            name="phone"
-            type="tel"
-            maxLength={32}
-            autoComplete="tel"
-            placeholder=" "
-            {...phone.aria}
-          />
-          {phone.note}
-        </div>
-      </div>
+      {/* `specs/180-off-platform-complaints/` D-18 — the fields are shared with the returns form. */}
+      <AddressFields
+        t={t}
+        idPrefix="addr"
+        errors={{
+          street: street.note ? t(fieldErrorKey(invalid.get('street')!)) : undefined,
+          city: city.note ? t(fieldErrorKey(invalid.get('city')!)) : undefined,
+          postalCode: postal.note ? t(fieldErrorKey(invalid.get('postalCode')!)) : undefined,
+          country: country.note ? t(fieldErrorKey(invalid.get('country')!)) : undefined,
+          phone: phone.note ? t(fieldErrorKey(invalid.get('phone')!)) : undefined,
+        }}
+      />
       <label>
         <input type="checkbox" name="isDefault" value="true" /> {t('account.addresses.add.makeDefault')}
       </label>

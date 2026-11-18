@@ -33,7 +33,7 @@ Zapisz jest na pasku przypiętym do dołu ekranu.
 Zapisz zapisuje wszystko, co zmieniono w produkcie, niezależnie od tego, w którym miejscu strony:
 
 - pola produktu na każdej zakładce, w bieżącym zakresie, łącznie z polami SEO;
-- ustawienia magazynowe produktu na zakładce **Magazyn** — zarządzanie stanem magazynowym, zamówienia przy braku
+- ustawienia magazynowe produktu na zakładce **Magazyn** — **Śledź stan magazynowy**, zamówienia przy braku
   stanu, próg niskiego stanu i jego tryb oraz strategię realizacji z kolejnością magazynów. Istnieją tylko w zakresie
   Global. Zakładka nie ma własnego przycisku zapisu, a zmiana trybu progu nie zapisuje się już sama; przywrócenie
   zapisanej wartości usuwa zmianę z licznika;
@@ -71,7 +71,8 @@ dodają się do niezapisanych zmian, ani ich nie czyszczą. Każda sekcja z taki
   załączników i jednostek opakowania;
 - usuwanie przekierowania URL;
 - kanały sprzedaży produktu na zakładce **Kanały**;
-- **Stan po magazynach** na zakładce **Magazyn** — stan i próg niskiego stanu w każdym magazynie.
+- **Stan po magazynach** na zakładce **Magazyn** — stan i próg niskiego stanu w każdym magazynie, każdy zapisywany
+  własnym przyciskiem **Zastosuj** w wierszu. **Zastosuj** jest dostępny, gdy wartość różni się od zapisanej.
 
 Ceny w pozostałych cennikach edytuje się w siatce cen cennika, nie tutaj. Zakładka **Ceny** nie ma etykiety: jej
 ceny bazowe zapisuje Zapisz.

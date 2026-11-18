@@ -104,8 +104,6 @@ let presentModules: readonly string[] = [];
 
 const KEYS = [
   'inventory.page.title',
-  'inventory.page.subPrefix',
-  'inventory.page.subSuffix',
   'inventory.noPermission',
   'inventory.action.import',
   'inventory.action.editStock',

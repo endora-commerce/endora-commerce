@@ -37,6 +37,9 @@ export {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './dropdown-menu.js';
+// Issue #1448 (UX audit DS-15) — the icon / title / one line / one action block for an empty list.
+export { EmptyState } from './empty-state.js';
+export type { EmptyStateNoDataProps, EmptyStateNoResultsProps, EmptyStateProps } from './empty-state.js';
 // Issue #1432 (UX audit DS-08) — the label / control / hint / error wiring every form field uses.
 export { FormField } from './form-field.js';
 export type { FormFieldControlProps, FormFieldProps } from './form-field.js';
@@ -61,10 +64,16 @@ export { Section } from './section.js';
 export type { SectionProps } from './section.js';
 export { Select } from './select.js';
 export { Separator } from './separator.js';
+// Issue #1447 (UX audit DS-14) — the first-load placeholder; a refresh keeps the content (`useDetailResource`).
+export { DetailSkeleton, Skeleton } from './skeleton.js';
+export type { DetailSkeletonProps } from './skeleton.js';
 // Issue #1442 (UX audit DS-09) — the on/off control and the settings-list row it sits in.
 export { SettingRow } from './setting-row.js';
 export type { SettingRowProps } from './setting-row.js';
 export { Switch } from './switch.js';
 export type { SwitchProps } from './switch.js';
+// Issue #1445 (UX audit DS-12) — in-page tabs and the record-section frame; no tabs inside tabs.
+export { RecordTabs, TabPanel, Tabs, nextTabValue, tabId, tabPanelId } from './tabs.js';
+export type { RecordTabsProps, TabItem, TabPanelProps, TabsProps } from './tabs.js';
 export { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from './table.js';
 export { Textarea } from './textarea.js';

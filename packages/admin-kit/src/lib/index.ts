@@ -33,6 +33,9 @@ export {
 } from './admin-preferences/use-admin-preference.js';
 export type { AdminPreferencesStatus, SidebarPreferenceKey } from './admin-preferences/use-admin-preference.js';
 export type { AdminMe, AuthProviderProps, LoginErrorReason } from './auth.js';
+// Issue #1450 (DS-22) — a slug, key or code proposed from the name.
+export { deriveKey, useDerivedKey } from './derive-key.js';
+export type { DerivedKeyField, DeriveKeyOptions, UseDerivedKeyOptions } from './derive-key.js';
 export { defineEnumLabels } from './enum-labels.js';
 export type { EnumLabels, EnumTranslate } from './enum-labels.js';
 export { formatDateTime } from './format.js';
@@ -51,6 +54,9 @@ export type { GatedSurface, PermissionRequirement } from './surface-visibility.j
 export { normalize } from './text-normalization.js';
 export { usePageSizePreference } from './use-page-size-preference.js';
 export { useUnsavedChangesPrompt } from './use-unsaved-changes-prompt.js';
+// Issue #1447 (UX audit DS-14) — a detail screen's record, first load kept apart from a refresh.
+export { useDetailResource } from './use-detail-resource.js';
+export type { DetailResource } from './use-detail-resource.js';
 // Issue #1446 (DS-13) — the `dirty` an unsaved-changes guard is armed with.
 export { isDraftEqual } from './draft-equality.js';
 // Feature 180 — the save session (`specs/180-one-save-zone-editors/contracts/save-participation.md`).
