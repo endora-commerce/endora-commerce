@@ -40,7 +40,7 @@ const ROW = {
 beforeEach(() => {
   setMobileViewport(false);
   getSpy.mockReset();
-  getSpy.mockResolvedValue({ data: [ROW] });
+  getSpy.mockResolvedValue({ data: [ROW], meta: { page: 1, pageSize: 20, total: 1 } });
 });
 afterEach(() => cleanup());
 

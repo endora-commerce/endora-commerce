@@ -43,7 +43,8 @@ beforeEach(() => {
       return { data: { countries: [{ code: 'PL', label: 'Poland', alpha3Code: 'POL', numericCode: '616', region: 'europe', subregion: null, dialCode: '+48', isEuMember: true, sortOrder: 1 }] } };
     }
     if (url.startsWith('/api/v1/admin/organizations?')) {
-      return { data: url.includes('filter%5BisPersonal%5D=true') ? personal : [], pagination: { cursor: null, hasMore: false, limit: 25 } };
+      const data = url.includes('filter%5BisPersonal%5D=true') ? personal : [];
+      return { data, meta: { page: 1, pageSize: 20, total: data.length }, pagination: { cursor: null, hasMore: false, limit: 25 } };
     }
     return { data: [] };
   });
