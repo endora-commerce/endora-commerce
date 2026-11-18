@@ -163,7 +163,7 @@ export default function AdminSecuritySettings(): ReactNode {
         description={t('security.page.description')}
       />
       <Card className="max-w-2xl">
-        <CardContent className="space-y-4 pt-6">
+        <CardContent className="space-y-4">
           {pageError ? (
             <Alert variant="destructive">
               <ShieldAlert className="size-4" />

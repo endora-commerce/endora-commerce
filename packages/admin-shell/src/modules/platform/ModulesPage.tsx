@@ -210,7 +210,7 @@ export function ModulesPage(): ReactNode {
       <p className="mb-4 text-sm text-muted-foreground">{t('platform.modules.cliHint')}</p>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>

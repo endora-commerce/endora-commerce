@@ -77,8 +77,9 @@ tax-ID scope and enforced by the database (see *Tax IDs* below).
 ## Events emitted
 
 `organization.registered.v1`, `organization.verified.v1`,
-`organization.status_changed.v1` (`{ organizationId, newStatus }`, after an
-approval, rejection, block or unblock),
+`organization.status_changed.v1` (`{ organizationId, newStatus, previousStatus,
+reason }`, after an approval, rejection, block or unblock; `reason` is the
+operator's reason for a rejection or a block, `null` otherwise),
 `organization_role.permissions_changed.v1` (`{ organizationId, roleId, added,
 removed }`, after a role's permissions change), `organization.converted_to_company.v1`
 (`OrganizationConvertedToCompanyEvent`: `{ eventId, occurredAt, organizationId,

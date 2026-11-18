@@ -92,7 +92,7 @@ export function BlogPostListPage(): ReactNode {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">
+          <CardTitle>
             {t('postList.cardTitle')}
             <span className="ml-2 text-xs font-normal text-muted-foreground">
               {t('postList.total', { total: totalItems })}

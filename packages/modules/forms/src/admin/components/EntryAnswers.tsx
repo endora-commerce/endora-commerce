@@ -41,9 +41,7 @@ function Region({ titleKey, children }: { readonly titleKey: string; readonly ch
   return (
     <Card role="region" aria-labelledby={titleId}>
       <CardHeader className="p-4 pb-2">
-        <CardTitle>
-          <h2 id={titleId}>{t(titleKey)}</h2>
-        </CardTitle>
+        <CardTitle id={titleId}>{t(titleKey)}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 p-4 pt-0">{children}</CardContent>
     </Card>

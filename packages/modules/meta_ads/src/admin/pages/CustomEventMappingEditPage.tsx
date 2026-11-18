@@ -111,7 +111,7 @@ export default function CustomEventMappingEditPage(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="space-y-4 pt-6">
+        <CardContent className="space-y-4">
           <div>
             <Label htmlFor="triggerAction">{t('customEvents.triggerAction')}</Label>
             <Select

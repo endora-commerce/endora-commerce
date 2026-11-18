@@ -68,7 +68,7 @@ export function PagesListPage(): ReactNode {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">{t('pagesList.cardTitle')}</CardTitle>
+          <CardTitle>{t('pagesList.cardTitle')}</CardTitle>
           <div className="flex items-center gap-2">
             <Input
               value={q}

@@ -170,7 +170,7 @@ export function GlobalSearchPage(): ReactNode {
           {outcome.groups.map((group) => (
             <Card key={group.entityType} data-testid={`results-${group.entityType}`}>
               <CardHeader>
-                <CardTitle className="text-base">{group.label}</CardTitle>
+                <CardTitle>{group.label}</CardTitle>
               </CardHeader>
               <CardContent>
                 {group.status !== 'ok' ? (

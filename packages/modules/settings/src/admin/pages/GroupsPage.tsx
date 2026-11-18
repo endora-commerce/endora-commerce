@@ -107,7 +107,7 @@ export function GroupsPage(): ReactNode {
       )}
       <Card className="mb-4">
         <CardHeader>
-          <CardTitle className="text-base">{t('groups.newGroup.title')}</CardTitle>
+          <CardTitle>{t('groups.newGroup.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="grid gap-3 md:grid-cols-[1fr_2fr_auto]" onSubmit={(e) => void onCreate(e)}>
@@ -126,7 +126,7 @@ export function GroupsPage(): ReactNode {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('groups.loading')}</p>
           ) : (

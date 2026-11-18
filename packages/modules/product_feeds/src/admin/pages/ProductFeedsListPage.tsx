@@ -222,7 +222,7 @@ export function ProductFeedsListPage(): ReactNode {
         // and a bounded region is what makes the rows one group in the first
         // place (Law of Common Region).
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <ResponsiveTable
               columns={columns}
               data={feeds ?? []}

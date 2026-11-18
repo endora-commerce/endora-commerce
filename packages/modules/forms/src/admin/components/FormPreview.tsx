@@ -47,9 +47,7 @@ export function FormPreview({ formId, language, version, stale }: FormPreviewPro
     <Card role="region" aria-labelledby="forms-preview-title">
       <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0 border-b border-border p-4">
         <div className="space-y-1">
-          <CardTitle>
-            <h2 id="forms-preview-title">{t('preview.title')}</h2>
-          </CardTitle>
+          <CardTitle id="forms-preview-title">{t('preview.title')}</CardTitle>
           {stale ? <CardDescription className="text-xs">{t('preview.stale')}</CardDescription> : null}
         </div>
         <Badge variant="outline">{language}</Badge>

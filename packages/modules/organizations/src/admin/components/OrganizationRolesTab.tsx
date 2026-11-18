@@ -143,10 +143,10 @@ function OrganizationRolesPanel({
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
         <div className="space-y-1.5">
           {/* The badge beside the heading, not in it: the heading's name stays the tab's name. */}
-          <CardTitle className="flex flex-wrap items-center">
-            <h2 className="text-base font-semibold">{t('roles.tab.title')}</h2>
+          <div className="flex flex-wrap items-center">
+            <CardTitle>{t('roles.tab.title')}</CardTitle>
             <ImmediateBadge className="align-middle" />
-          </CardTitle>
+          </div>
           <CardDescription>{t('roles.tab.description')}</CardDescription>
         </div>
         <div className="flex flex-wrap gap-2">

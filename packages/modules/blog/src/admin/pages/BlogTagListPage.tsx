@@ -166,7 +166,7 @@ export function BlogTagListPage(): ReactNode {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">
+          <CardTitle>
             {editingId ? t('tagList.editTag') : t('tagList.newTag')}
           </CardTitle>
         </CardHeader>
@@ -218,7 +218,7 @@ export function BlogTagListPage(): ReactNode {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">{t('tagList.cardTitle')}</CardTitle>
+          <CardTitle>{t('tagList.cardTitle')}</CardTitle>
           <div className="flex items-center gap-2">
             <Input
               value={q}

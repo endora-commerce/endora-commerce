@@ -185,7 +185,7 @@ export function EntityChannelMembership({
   return (
     <Card className="mb-4">
       <CardHeader>
-        <CardTitle className="text-base">{t('membership.title')}</CardTitle>
+        <CardTitle>{t('membership.title')}</CardTitle>
       </CardHeader>
       <CardContent>
         {error && (

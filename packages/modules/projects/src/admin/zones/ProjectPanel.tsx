@@ -64,10 +64,8 @@ export function ProjectPanel({ kind, recordId }: ProjectPanelProps): ReactNode {
     <section aria-labelledby={headingId} className="mt-4">
       <Card>
         <CardHeader>
-          <CardTitle>
-            <h2 id={headingId} className="text-base font-semibold">
-              {t('panel.title')}
-            </h2>
+          <CardTitle id={headingId}>
+            {t('panel.title')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">

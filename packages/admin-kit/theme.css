@@ -220,6 +220,20 @@ body,
   --field-h: 36px;
   --field-pad: 10px;
 
+  /*
+   * Card and section density (issue #1438, DS-04). The kit's `Card` reads them
+   * as `p-(--card-pad)` and `text-(length:--fs-section-title)`, and the
+   * deprecated `.b2b-card*` classes read the same ones, so the two draw the
+   * same box. Write a gap or a size from these rather than a Tailwind step.
+   */
+  --card-pad: 16px;        /* inside a card: header, content, footer */
+  --card-pad-sm: 12px;     /* a compact strip: a card footer, a toolbar row */
+  --card-gap: 16px;        /* between sibling cards */
+  --section-gap: 24px;     /* between sections inside one card */
+  --fs-page-title: 20px;   /* the page's h1 */
+  --fs-section-title: 14px; /* a card or section heading */
+  --fs-hint: 12px;         /* a hint or sub-line under a title */
+
   /* ---------- Typography ---------- */
   --ff: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --ff-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -1137,6 +1151,18 @@ textarea.b2b-field {
 /* ============================================================
    Card / surface
    ============================================================ */
+/*
+ * @deprecated — `.b2b-card`, `.b2b-card--clickable`, `.b2b-card__head`,
+ * `__title`, `__sub`, `__body`, `__body--flush` and `__foot` (issue #1438,
+ * DS-04; owner decision DEC-03). Render the kit's `Card` from
+ * `@endora-commerce/admin-kit/ui` instead — `CardHeader`, `CardTitle`
+ * (an `h2`), `CardContent`, `CardFooter`, and `<Card flush>` for a table.
+ *
+ * The classes stay published (D-219: their names are part of what a module
+ * renders), and they read the same density tokens as `Card`, so the two
+ * systems look alike before the code converges. They are removed only in a
+ * release that says so.
+ */
 .b2b-card {
   background: var(--surface);
   border: 1px solid var(--border-color);
@@ -1154,16 +1180,16 @@ textarea.b2b-field {
   transform: translateY(-1px);
 }
 .b2b-card__head {
-  padding: 14px 16px;
+  padding: var(--card-pad-sm) var(--card-pad);
   border-bottom: 1px solid var(--border-subtle);
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
-.b2b-card__title { font-size: 14px; font-weight: 600; color: var(--fg); }
-.b2b-card__sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
-.b2b-card__body { padding: 16px; }
+.b2b-card__title { font-size: var(--fs-section-title); font-weight: 600; color: var(--fg); }
+.b2b-card__sub { font-size: var(--fs-hint); color: var(--fg-muted); margin-top: 2px; }
+.b2b-card__body { padding: var(--card-pad); }
 .b2b-card__body--flush { padding: 0; }
 .b2b-card__foot {
-  padding: 12px 16px; border-top: 1px solid var(--border-subtle);
+  padding: var(--card-pad-sm) var(--card-pad); border-top: 1px solid var(--border-subtle);
   background: var(--surface-muted); border-radius: 0 0 var(--r-lg) var(--r-lg);
   display: flex; align-items: center; justify-content: space-between;
 }

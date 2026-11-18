@@ -137,7 +137,7 @@ export function OrganizationCreate(): ReactNode {
       </Link>
       <PageHeader title={t('create.title')} description={t('create.description')} />
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {error ? (
             <Alert variant="destructive" className="mb-4">
               <AlertDescription>{error}</AlertDescription>

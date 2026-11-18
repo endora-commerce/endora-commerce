@@ -116,7 +116,7 @@ export function TagsPage(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {tags === null ? (
             loading ? (
               <p role="status" className="text-sm text-muted-foreground">

@@ -142,7 +142,7 @@ export function ProductFeedCreatePage(): ReactNode {
       )}
 
       <Card>
-        <CardContent className="flex flex-col gap-4 pt-6">
+        <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="feed-template">{t('feeds.create.template')}</Label>
             <Select

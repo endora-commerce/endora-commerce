@@ -696,7 +696,7 @@ export function RfqDetail(): ReactNode {
         </div>
 
         {tab !== 'modify' ? (
-        <CardContent className="divide-y divide-border pt-6 [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+        <CardContent className="divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
           {tab === 'overview' ? (
             <>
               <div className="grid gap-6 md:grid-cols-2">
@@ -909,7 +909,7 @@ export function RfqDetail(): ReactNode {
         {/* Issue #1469 — mounted while the request can be modified and only
             hidden on the other tabs, so a tab switch keeps the draft. */}
         {!isTerminal && modifyOpened ? (
-          <CardContent hidden={tab !== 'modify'} className="pt-6" data-testid="rfq-modify-panel">
+          <CardContent hidden={tab !== 'modify'} data-testid="rfq-modify-panel">
             <ModifyCard
               key={modifyEpoch}
               rfq={rfq}
