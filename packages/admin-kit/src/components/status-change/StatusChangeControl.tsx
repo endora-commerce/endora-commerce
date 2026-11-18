@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { Badge, type BadgeProps } from '../../ui/badge.js';
 import { Button } from '../../ui/button.js';
@@ -188,8 +187,9 @@ export function StatusChangeControl(props: StatusChangeControlProps): ReactNode 
         {announcement}
       </p>
 
+      {/* ModalDialog renders into document.body itself (issue #1444). */}
       {open
-        ? createPortal(
+        ? (
             <ModalDialog
               title={step === 'choose' ? dialogTitle : t('common.statusChange.confirmTitle')}
               onClose={close}
@@ -280,8 +280,7 @@ export function StatusChangeControl(props: StatusChangeControlProps): ReactNode 
                   </p>
                 </div>
               )}
-            </ModalDialog>,
-            document.body,
+            </ModalDialog>
           )
         : null}
     </div>

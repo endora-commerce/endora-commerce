@@ -1,5 +1,26 @@
-import { useEffect, useId, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { useFocusTrap } from '../hooks/useFocusTrap.js';
+
+/**
+ * Where a dialog stacks. `page` (the default) is the admin's ordinary modal
+ * layer, the same `z-50` the kit's popovers and selects use, so a select opened
+ * inside the dialog still draws above it. `overlay` lifts the dialog above the
+ * fullscreen Page Builder and the floating chrome it carries (the Puck action
+ * bar sits at 9999) — for a dialog opened from inside the builder (issue #1444,
+ * DS-11). A popover inside an `overlay` dialog must therefore stay inline
+ * rather than portal itself to `page`.
+ */
+export type ModalDialogLayer = 'page' | 'overlay';
+
+/** The z-index of the `overlay` layer: above the builder's 9999 action bar. */
+export const MODAL_OVERLAY_Z_INDEX = 10000;
+
+/**
+ * The open dialogs, innermost last. Only the last answers Escape, so closing a
+ * confirmation opened over a form dialog leaves the form dialog open.
+ */
+const openDialogs: symbol[] = [];
 
 /**
  * A modal dialog: a titled panel over a scrim that holds focus until it is
@@ -12,6 +33,16 @@ import { useFocusTrap } from '../hooks/useFocusTrap.js';
  * returns focus to the control that opened the dialog), Escape to close, and a
  * `busy` state that makes both Escape and the scrim inert while a request is in
  * flight.
+ *
+ * Since issue #1444 (DS-11) it is **the** dialog of the admin: it renders into
+ * `document.body` through a portal, so a call site may sit anywhere — inside a
+ * drawer moved with `transform`, a table row or the fullscreen Page Builder —
+ * and still be placed against the viewport; `layer="overlay"` stacks it above
+ * the builder; with two open, Escape closes only the topmost; and a dialog with
+ * nothing focusable in it focuses its own panel, so focus never stays behind
+ * the scrim. A hand-drawn `fixed inset-0` overlay, `role="dialog"` or
+ * `createPortal` in admin sources is refused by
+ * `admin/test/unit/no-hand-rolled-overlays.test.ts`.
  */
 export interface ModalDialogProps {
   /** Rendered as the `<h2>` that names the dialog. */
@@ -47,6 +78,8 @@ export interface ModalDialogProps {
    * Escape and its own buttons still close it.
    */
   dismissOnScrim?: boolean;
+  /** Which stacking layer the dialog opens on — see {@link ModalDialogLayer}. */
+  layer?: ModalDialogLayer;
 }
 
 export function ModalDialog(props: ModalDialogProps): ReactNode {
@@ -61,22 +94,48 @@ export function ModalDialog(props: ModalDialogProps): ReactNode {
     'aria-describedby': describedBy,
     widthClassName = 'max-w-lg',
     dismissOnScrim = true,
+    layer = 'page',
   } = props;
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  const tokenRef = useRef<symbol>(Symbol('modal-dialog'));
   useFocusTrap(panelRef, true, { initialFocusRef, finalFocusRef });
+
+  // Declared after the trap, so it runs after the trap has placed focus: a
+  // dialog holding nothing focusable keeps focus on its own panel.
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) panel.focus();
+  }, []);
+
+  useEffect(() => {
+    const token = tokenRef.current;
+    openDialogs.push(token);
+    return (): void => {
+      const index = openDialogs.lastIndexOf(token);
+      if (index >= 0) openDialogs.splice(index, 1);
+    };
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !busy) onClose();
+      if (event.key !== 'Escape' || event.defaultPrevented || busy) return;
+      // A listbox, a combobox or a nested dialog answered it first.
+      if (openDialogs[openDialogs.length - 1] !== tokenRef.current) return;
+      event.preventDefault();
+      onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     return (): void => document.removeEventListener('keydown', onKeyDown);
   }, [busy, onClose]);
 
-  return (
+  const layerStyle: CSSProperties | undefined = layer === 'overlay' ? { zIndex: MODAL_OVERLAY_Z_INDEX } : undefined;
+
+  const dialog = (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className={`fixed inset-0 flex items-center justify-center bg-black/40 p-4${layer === 'page' ? ' z-50' : ''}`}
+      style={layerStyle}
+      data-layer={layer}
       onMouseDown={(event): void => {
         if (event.target === event.currentTarget && !busy && dismissOnScrim) onClose();
       }}
@@ -88,7 +147,8 @@ export function ModalDialog(props: ModalDialogProps): ReactNode {
         aria-labelledby={titleId}
         aria-describedby={describedBy}
         aria-busy={busy}
-        className={`max-h-full w-full ${widthClassName} overflow-y-auto rounded-lg bg-background p-6 shadow-lg`}
+        tabIndex={-1}
+        className={`max-h-full w-full ${widthClassName} overflow-y-auto rounded-lg bg-background p-6 shadow-lg outline-none`}
       >
         <h2 id={titleId} className="mb-4 text-lg font-semibold">
           {title}
@@ -98,4 +158,6 @@ export function ModalDialog(props: ModalDialogProps): ReactNode {
       </div>
     </div>
   );
+
+  return typeof document === 'undefined' ? dialog : createPortal(dialog, document.body);
 }
