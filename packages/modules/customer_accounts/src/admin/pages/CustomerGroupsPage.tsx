@@ -136,7 +136,7 @@ export function CustomerGroupsPage(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('groups.loading')}</p>
           ) : rows.length === 0 ? (

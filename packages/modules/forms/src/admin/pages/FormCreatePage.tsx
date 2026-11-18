@@ -67,7 +67,7 @@ export function FormCreatePage(): ReactNode {
     <div className="space-y-4">
       <PageHeader title={t('create.title')} description={t('create.description')} back={{ label: t('create.back'), to: '/forms' }} />
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <form noValidate onSubmit={(event) => void submit(event)} className="max-w-xl space-y-4">
             <p className="text-xs text-muted-foreground">{t('create.requiredHint')}</p>
             <div className="space-y-1">

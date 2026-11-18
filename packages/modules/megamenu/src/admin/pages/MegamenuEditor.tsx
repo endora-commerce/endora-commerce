@@ -215,7 +215,7 @@ export function MegamenuEditor(): ReactNode {
         <div className="col-span-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
+              <CardTitle>{t('sections.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>
@@ -238,7 +238,7 @@ export function MegamenuEditor(): ReactNode {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.bindings')}</CardTitle>
+              <CardTitle>{t('sections.bindings')}</CardTitle>
             </CardHeader>
             <CardContent>
               <BindingsPanel menuId={menu.id} bindings={menu.bindings} onChanged={() => void load({ keepDrafts: true })} />
@@ -249,7 +249,7 @@ export function MegamenuEditor(): ReactNode {
         <div className="col-span-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.items')}</CardTitle>
+              <CardTitle>{t('sections.items')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <MenuItemTree
@@ -273,7 +273,7 @@ export function MegamenuEditor(): ReactNode {
         <div className="col-span-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.item')}</CardTitle>
+              <CardTitle>{t('sections.item')}</CardTitle>
             </CardHeader>
             <CardContent>
               <MenuItemConfigPanel

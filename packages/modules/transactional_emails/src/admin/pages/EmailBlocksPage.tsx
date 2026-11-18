@@ -68,7 +68,7 @@ export function EmailBlocksPage(): React.ReactElement {
       ) : null}
       {canWrite ? (
         <Card>
-          <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <CardContent className="flex flex-wrap items-end gap-3">
             <FormField label={t('create.field.code')} className="w-full max-w-[200px]">
               <Input value={code} onChange={(e) => setCode(e.target.value)} className="font-mono" />
             </FormField>

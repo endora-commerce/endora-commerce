@@ -100,7 +100,7 @@ export function UrlKeysPanel({
   return (
     <Card data-settings-group="url-keys">
       <CardHeader>
-        <CardTitle className="text-base">{t('urlKeys.title', { language })}</CardTitle>
+        <CardTitle>{t('urlKeys.title', { language })}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {error ? (

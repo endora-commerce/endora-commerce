@@ -199,7 +199,7 @@ export default function CustomEventEditPage(): ReactNode {
         </Alert>
       )}
       <Card>
-        <CardContent className="flex flex-col gap-4 pt-6">
+        <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <Label htmlFor="ga-name">{t('customEvents.eventName')}</Label>
             <Input id="ga-name" value={eventName} onChange={(e) => setEventName(e.target.value)} />
@@ -325,7 +325,7 @@ export default function CustomEventEditPage(): ReactNode {
       </Card>
       {!isCreate && (
         <Card className="mt-6 border-destructive/40">
-          <CardContent className="pt-6">
+          <CardContent>
             <Section
               title={t('customEvents.dangerZone.title')}
               action={

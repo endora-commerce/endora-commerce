@@ -264,7 +264,7 @@ function EntityCard(props: {
   return (
     <Card data-testid={`configuration-${entity.entityType}`}>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-        <CardTitle className="text-base">{entity.label}</CardTitle>
+        <CardTitle>{entity.label}</CardTitle>
         <div className="flex items-center gap-2">
           <Checkbox
             id={`${id}-enabled`}

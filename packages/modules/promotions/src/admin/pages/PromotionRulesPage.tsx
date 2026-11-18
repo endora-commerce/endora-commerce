@@ -114,7 +114,7 @@ export const PromotionRulesPage = (): ReactNode => {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('promotionRules.empty')}</p>
           ) : (

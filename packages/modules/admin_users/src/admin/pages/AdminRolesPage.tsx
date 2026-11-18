@@ -206,7 +206,7 @@ export default function AdminRolesPage(): ReactNode {
       ) : (
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <ul className="space-y-1">
                 {roles.map((r) => (
                   <li key={r.id}>
@@ -264,7 +264,7 @@ export default function AdminRolesPage(): ReactNode {
             />
           ) : (
             <Card>
-              <CardContent className="pt-6 text-sm text-muted-foreground">
+              <CardContent className="text-sm text-muted-foreground">
                 {t('adminRoles.selectHint')}
               </CardContent>
             </Card>
@@ -339,7 +339,7 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
 
   return (
     <Card>
-      <CardContent className="space-y-4 pt-6">
+      <CardContent className="space-y-4">
         <Alert variant="warning">
           <ShieldAlert className="size-4" />
           <AlertTitle>{t('adminRoles.wildcardTitle')}</AlertTitle>

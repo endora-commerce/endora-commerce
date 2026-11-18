@@ -91,7 +91,7 @@ export function TaskGeneralSettingsPage(): ReactNode {
         </Alert>
       ) : (
         <Card>
-          <CardContent className="space-y-4 pt-6">
+          <CardContent className="space-y-4">
             <div className="max-w-md space-y-1">
               <Label htmlFor={zoneId}>{t('settings.timeZone')}</Label>
               <Select

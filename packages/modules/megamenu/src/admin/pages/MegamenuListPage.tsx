@@ -72,7 +72,7 @@ export function MegamenuListPage(): ReactNode {
       ) : null}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{t('list.cardTitle')}</CardTitle>
+          <CardTitle>{t('list.cardTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (

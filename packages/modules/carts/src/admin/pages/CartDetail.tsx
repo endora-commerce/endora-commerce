@@ -164,7 +164,7 @@ export default function CartDetail(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="pt-6 space-y-2">
+        <CardContent className="space-y-2">
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4 text-sm">
             <div><Label>{t('carts.column.status')}</Label><Badge>{cartStatusLabels.label(t, cart.status)}</Badge></div>
             <div><Label>{t('carts.column.approval')}</Label><Badge>{cartApprovalStatusLabels.label(t, cart.approvalStatus)}</Badge></div>
@@ -189,7 +189,7 @@ export default function CartDetail(): ReactNode {
       </Card>
 
       <Card className="mb-4">
-        <CardContent className="pt-6">
+        <CardContent>
           <h2 className="font-semibold mb-2">{t('carts.detail.lines')}</h2>
           <Table>
             <TableHeader>
@@ -238,7 +238,7 @@ export default function CartDetail(): ReactNode {
 
       {!isTerminal ? (
         <Card className="mb-4">
-          <CardContent className="pt-6">
+          <CardContent>
             {showReject ? (
               <div className="space-y-2">
                 <Label htmlFor="reason">{t('carts.reject.reasonLabel')}</Label>
@@ -282,7 +282,7 @@ export default function CartDetail(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           <h2 className="font-semibold mb-2">{t('carts.detail.audit')}</h2>
           {audit.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('carts.detail.auditEmpty')}</p>

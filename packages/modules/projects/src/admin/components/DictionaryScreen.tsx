@@ -138,7 +138,7 @@ export function DictionaryScreen({ kind }: DictionaryScreenProps): ReactNode {
       <PageHeader title={t(`${prefix}.title`)} description={t(`${prefix}.description`)} actions={add} />
 
       <Card>
-        <CardContent className="space-y-4 pt-6" aria-busy={loading}>
+        <CardContent className="space-y-4" aria-busy={loading}>
           <div className="space-y-1">
             <label htmlFor={`${kind}-archived`} className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9">
               <Checkbox

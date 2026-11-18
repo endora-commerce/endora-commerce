@@ -421,7 +421,7 @@ export function AttributesManager(): ReactNode {
 
       {dirtyIds.length > 0 ? (
         <Card className="mb-4">
-          <CardContent className="flex flex-wrap items-center gap-3 pt-6">
+          <CardContent className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-muted-foreground">
               {t('attributes.batch.unsaved', { count: dirtyIds.length })}
             </span>
@@ -436,7 +436,7 @@ export function AttributesManager(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('attributes.loading')}</p>
           ) : attrs.length === 0 ? (
