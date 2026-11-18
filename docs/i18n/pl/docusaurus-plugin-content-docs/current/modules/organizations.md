@@ -77,8 +77,9 @@ podatkowe* niżej).
 ## Emitowane zdarzenia
 
 `organization.registered.v1`, `organization.verified.v1`,
-`organization.status_changed.v1` (`{ organizationId, newStatus }`, po zatwierdzeniu, odrzuceniu,
-zablokowaniu lub odblokowaniu), `organization_role.permissions_changed.v1` (`{ organizationId,
+`organization.status_changed.v1` (`{ organizationId, newStatus, previousStatus, reason }`, po
+zatwierdzeniu, odrzuceniu, zablokowaniu lub odblokowaniu; `reason` to powód podany przez operatora
+przy odrzuceniu lub zablokowaniu, w pozostałych przypadkach `null`), `organization_role.permissions_changed.v1` (`{ organizationId,
 roleId, added, removed }`, po zmianie uprawnień roli),
 `organization.converted_to_company.v1` (`OrganizationConvertedToCompanyEvent`: `{ eventId,
 occurredAt, organizationId, convertedAt }` — bez nazwy i bez NIP; wysyłane raz, po zatwierdzeniu
