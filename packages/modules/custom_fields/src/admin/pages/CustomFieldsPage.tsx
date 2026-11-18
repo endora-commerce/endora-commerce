@@ -8,7 +8,7 @@ import { DefinitionEditorDialog } from '../components/DefinitionEditorDialog.js'
 import { AUDIENCES } from '../components/DefinitionForm.js';
 import { carryCounterpartsBrokenBy, type CarryCounterpart, type DefinitionChange } from '../lib/carry-drift.js';
 import { entityTypeLabelKey, incompatibilitySentence, refusalSentence } from '../lib/carry-labels.js';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, resolveCustomFieldLabel, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -487,21 +487,21 @@ export function CustomFieldsPage(): ReactNode {
               keyExtractor={(d): string => d.id}
               {...(editable ? { renderActions: actions } : {})}
               emptyState={
-                <div className="b2b-empty">
-                  <div className="b2b-empty__icon">
-                    <ListPlus aria-hidden="true" />
-                  </div>
-                  <div className="b2b-empty__title">{t('customFields.table.empty')}</div>
-                  {editable ? (
-                    <Button
-                      className="min-h-11 sm:min-h-9"
-                      variant="outline"
-                      onClick={(): void => setCreating(true)}
-                    >
-                      {t('customFields.table.emptyAction')}
-                    </Button>
-                  ) : null}
-                </div>
+                <EmptyState
+                  icon={<ListPlus size={20} />}
+                  title={t('customFields.table.empty')}
+                  action={
+                    editable ? (
+                      <Button
+                        className="min-h-11 sm:min-h-9"
+                        variant="outline"
+                        onClick={(): void => setCreating(true)}
+                      >
+                        {t('customFields.table.emptyAction')}
+                      </Button>
+                    ) : null
+                  }
+                />
               }
             />
           )}

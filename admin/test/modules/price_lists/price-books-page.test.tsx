@@ -222,6 +222,10 @@ describe('price-book list — states', () => {
     mountScreen({ path: '/price-lists?currency=EUR', session: PLATFORM_ADMIN });
     expect(await screen.findByText('No price book matches these filters')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Clear filters' }).length).toBeGreaterThan(0);
+    // Clearing from the empty state puts focus on the search box, not <body> (WCAG 2.4.3).
+    const block = document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!;
+    await userEvent.click(within(block).getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('Search by name')));
   });
 
   it('says the list could not be loaded and tries again on request', async () => {

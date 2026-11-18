@@ -294,6 +294,10 @@ describe('TasksPage — the list', () => {
     await screen.findByRole('option', { name: STATUS.done.name });
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.status')), 'done');
     expect(await screen.findByText(en('list.noResults.title'))).toBeTruthy();
+    // Clearing from the empty state puts focus on the search box, not <body> (WCAG 2.4.3).
+    const block = document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!;
+    await userEvent.click(within(block).getByRole('button', { name: en('list.filter.clear') }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('list.search'))));
   });
 });
 

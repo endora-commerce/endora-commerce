@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, type ComponentProps, type ReactNode } from 'react';
 import { FORM_ENTRY_STATUSES, type FormEntryStatus, type FormSummary } from '@endora-commerce/contracts';
 import { SalesChannelPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -52,9 +52,12 @@ export interface EntryFiltersProps {
   /** The forms to choose from; empty when the reader may not list forms. */
   readonly forms: readonly FormSummary[];
   readonly onChange: (next: EntryFilterValues) => void;
+  /** The search box, so a screen can return focus to it (after *Clear filters*, WCAG 2.4.3). */
+  // Typed off the kit's `Input`, whose React types this package does not share.
+  readonly searchRef?: ComponentProps<typeof Input>['ref'];
 }
 
-export function EntryFilters({ values, forms, onChange }: EntryFiltersProps): ReactNode {
+export function EntryFilters({ values, forms, onChange, searchRef }: EntryFiltersProps): ReactNode {
   const t = useTranslation('forms');
   const id = useId();
   const set = (patch: Partial<EntryFilterValues>): void => onChange({ ...values, ...patch });
@@ -66,7 +69,7 @@ export function EntryFilters({ values, forms, onChange }: EntryFiltersProps): Re
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-56 flex-1 space-y-1">
           <Label htmlFor={`${id}-q`}>{t('entries.filter.search')}</Label>
-          <Input id={`${id}-q`} type="search" value={values.q} onChange={(event) => set({ q: event.target.value })} />
+          <Input ref={searchRef} id={`${id}-q`} type="search" value={values.q} onChange={(event) => set({ q: event.target.value })} />
         </div>
         <div className="space-y-1">
           <Label htmlFor={`${id}-form`}>{t('entries.filter.form')}</Label>

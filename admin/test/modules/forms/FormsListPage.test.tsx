@@ -125,6 +125,50 @@ describe('FormsListPage', () => {
   });
 });
 
+describe('FormsListPage — empty states (issue #1448, UX audit DS-15)', () => {
+  const answer = (items: unknown[]): void => {
+    getSpy.mockImplementation((path: string) =>
+      path.startsWith('/api/v1/admin/forms') ? Promise.resolve({ data: { items, total: items.length } }) : Promise.reject(new Error(path)),
+    );
+  };
+
+  it('says there are no forms yet and carries the one create action, which leaves the header', async () => {
+    answer([]);
+    renderForms(<FormsListPage />, { path: '/forms', pattern: '/forms' });
+    expect(await screen.findByText(en('list.empty.title'))).toBeTruthy();
+    expect(screen.getByText(en('list.empty.body'))).toBeTruthy();
+    const block = document.querySelector('[data-empty-state]')!;
+    expect(block.getAttribute('data-empty-state')).toBe('no-data');
+    // One primary per view (Von Restorff): the create link is in the empty state only.
+    const links = screen.getAllByRole('link', { name: en('list.create') });
+    expect(links).toHaveLength(1);
+    expect(block.contains(links[0]!)).toBe(true);
+  });
+
+  it('tells a reader why the list is empty without offering what they may not do', async () => {
+    answer([]);
+    renderForms(<FormsListPage />, { path: '/forms', pattern: '/forms', permissions: ['forms:read'] });
+    expect(await screen.findByText(en('list.empty.bodyReadOnly'))).toBeTruthy();
+    expect(screen.queryByRole('link', { name: en('list.create') })).toBeNull();
+  });
+
+  it('tells "no match" apart from "no forms" and clears the filters from there', async () => {
+    renderForms(<FormsListPage />, { path: '/forms', pattern: '/forms' });
+    await screen.findByRole('link', { name: 'Contact' });
+    answer([]);
+    await userEvent.type(screen.getByLabelText(en('list.search')), 'zzz');
+    expect(await screen.findByText(en('list.emptyFiltered'))).toBeTruthy();
+    expect(document.querySelector('[data-empty-state]')!.getAttribute('data-empty-state')).toBe('no-results');
+    expect(screen.queryByText(en('list.empty.title'))).toBeNull();
+    answer(LIST);
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByRole('link', { name: 'Contact' })).toBeTruthy();
+    expect((screen.getByLabelText(en('list.search')) as HTMLInputElement).value).toBe('');
+    // The button is gone with the empty state; focus is on the search box, not <body> (WCAG 2.4.3).
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('list.search'))));
+  });
+});
+
 describe('FormCreatePage', () => {
   it('refuses to send without a name, and says so', async () => {
     renderForms(<FormCreatePage />, { path: '/forms/new', pattern: '/forms/new' });

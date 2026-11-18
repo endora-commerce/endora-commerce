@@ -7,7 +7,21 @@ import type {
   FeedDeliveryProtocol,
   UpsertFeedDeliveryRequest,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select, Textarea } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  Input,
+  Label,
+  Select,
+  Textarea,
+} from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -305,21 +319,21 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
       {!showForm && (
         <Card>
           <CardContent className="pt-6">
-            <div className="b2b-empty">
-              <div className="b2b-empty__icon">
-                <Send size={20} aria-hidden="true" />
-              </div>
-              <div className="b2b-empty__title">{t('delivery.empty.title')}</div>
-              <div className="b2b-empty__sub">{t('delivery.empty.subtitle')}</div>
-              <Button
-                className="mt-4"
-                onClick={() => setConfiguring(true)}
-                disabled={!canWrite}
-                title={writeTitle}
-              >
-                {t('delivery.action.configure')}
-              </Button>
-            </div>
+            <EmptyState
+              icon={<Send size={20} />}
+              title={t('delivery.empty.title')}
+              description={t('delivery.empty.subtitle')}
+              action={
+                <Button
+                  className="min-h-11 sm:min-h-9"
+                  onClick={() => setConfiguring(true)}
+                  disabled={!canWrite}
+                  title={writeTitle}
+                >
+                  {t('delivery.action.configure')}
+                </Button>
+              }
+            />
           </CardContent>
         </Card>
       )}
@@ -554,13 +568,11 @@ export function FeedDeliveryPanel(props: FeedDeliveryPanelProps): ReactNode {
             data={attempts}
             keyExtractor={(row) => row.id}
             emptyState={
-              <div className="b2b-empty">
-                <div className="b2b-empty__icon">
-                  <History size={20} aria-hidden="true" />
-                </div>
-                <div className="b2b-empty__title">{t('delivery.history.empty.title')}</div>
-                <div className="b2b-empty__sub">{t('delivery.history.empty.subtitle')}</div>
-              </div>
+              <EmptyState
+                icon={<History size={20} />}
+                title={t('delivery.history.empty.title')}
+                description={t('delivery.history.empty.subtitle')}
+              />
             }
           />
         </CardContent>

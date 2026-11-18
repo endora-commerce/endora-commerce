@@ -9,7 +9,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 
 | Subpath | What it is |
 | --- | --- |
-| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
+| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `empty-state` (`EmptyState`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
 | `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `ListToolbar` with `ListToolbarSearch` and `FilterChip` (see below), `RowActionMenu`, `DetailHeaderActions` (see below), `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt and `isDraftEqual` (the guard itself, `useUnsavedChangesGuard`, is `./components`'), the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
@@ -399,6 +399,46 @@ what the message is:
   has no role without matching on class names.
 
 The behaviour is pinned in `admin/test/kit/kit-inline-status.test.tsx`, including an axe pass.
+
+## Empty lists — `EmptyState`
+
+Issue #1448 (UX audit 2026-11-17, DS-15). What a list, a tab or a panel shows when it has
+nothing to show: a decorative icon, a title, at most one line and at most one action — never a
+bare grey sentence (Picture Superiority). It draws the `.b2b-empty` classes, so do not write
+them out by hand. Two variants, because "nothing here yet" and "your filters match nothing" call
+for different next steps:
+
+```tsx
+filtered ? (
+  // The kit's title, line and Clear filters button; name what the list holds if you can.
+  <EmptyState variant="no-results" title={t('list.emptyFiltered')} onClearFilters={clearFilters} focusAfterClear={searchRef} />
+) : (
+  <EmptyState
+    icon={<ClipboardList size={20} />}
+    title={t('list.empty.title')}
+    description={canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}
+    action={canWrite ? createButton : null}
+  />
+)
+```
+
+- `no-data` (the default) needs `icon` and `title`; `description` and `action` are optional.
+  Leave the action out for an operator who may not take it and say why in `description`.
+  While the list is empty, the empty state's create button is the view's one primary: hide the
+  header's *New* (Von Restorff), as the forms, tasks, projects and CRM lists do.
+- `no-results` needs only `onClearFilters`, which resets every filter and the search. `icon`
+  (default `SearchX`), `title` and `description` override the kit's copy
+  (`common.emptyState.*`); the *Clear filters* button is always the kit's outline button.
+- **Focus after *Clear filters*** (WCAG 2.2 SC 2.4.3): the button unmounts with the empty state,
+  so pass `focusAfterClear={searchRef}` — the list's search box — and the kit focuses it on the
+  next frame. Without it, and only when focus was actually lost, the kit focuses the page's `<h1>`,
+  else the closest surviving container of the block (both get `tabindex="-1"`). That fallback
+  runs once, so a list that reloads asynchronously should always pass a target.
+- It is not a live region: it is mounted already carrying its text, which screen readers do not
+  reliably announce. The list's result count is the announcement.
+- `data-empty-state="no-data" | "no-results"` names the variant for a test.
+
+The behaviour is pinned in `admin/test/kit/kit-empty-state.test.tsx`, including an axe pass.
 
 ## Loading a record — `useDetailResource` and `Skeleton`
 
