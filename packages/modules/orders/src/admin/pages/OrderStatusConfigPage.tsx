@@ -57,6 +57,7 @@ function statusLabel(s: StatusDef): string {
 
 export function OrderStatusConfigPage(): ReactNode {
   const t = useTranslation('core');
+  const tOrders = useTranslation('orders');
   const [graph, setGraph] = useState<StatusGraph | null>(null);
   const [languages, setLanguages] = useState<ActiveLanguage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -226,7 +227,9 @@ export function OrderStatusConfigPage(): ReactNode {
                 <TableHead>{t('orderStatusConfig.col.name')}</TableHead>
                 <TableHead>{t('orderStatusConfig.col.flags')}</TableHead>
                 <TableHead>{t('orderStatusConfig.col.inUse')}</TableHead>
-                <TableHead aria-label="actions" />
+                <TableHead>
+                  <span className="sr-only">{tOrders('statusConfig.column.actions')}</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -302,7 +305,7 @@ export function OrderStatusConfigPage(): ReactNode {
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label={`edit-${s.code}`}
+                        aria-label={tOrders('statusConfig.action.edit', { name: statusLabel(s) })}
                         onClick={(): void => startEdit(s)}
                       >
                         <Pencil />
@@ -311,7 +314,7 @@ export function OrderStatusConfigPage(): ReactNode {
                         variant="ghost"
                         size="sm"
                         disabled={locked}
-                        aria-label={`delete-${s.code}`}
+                        aria-label={tOrders('statusConfig.action.delete', { name: statusLabel(s) })}
                         onClick={(): void => setPendingDelete(s)}
                       >
                         <Trash2 />
@@ -401,9 +404,10 @@ export function OrderStatusConfigPage(): ReactNode {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
           role="dialog"
           aria-modal="true"
+          aria-labelledby="order-status-delete-title"
         >
           <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold">
+            <h2 id="order-status-delete-title" className="mb-2 text-lg font-semibold">
               {t('orderStatusConfig.deleteConfirm.title')}
             </h2>
             <p className="mb-6 text-sm text-muted-foreground">
@@ -413,7 +417,7 @@ export function OrderStatusConfigPage(): ReactNode {
               <Button variant="outline" onClick={(): void => setPendingDelete(null)}>
                 {t('common.action.cancel')}
               </Button>
-              <Button variant="destructive" aria-label="confirm-delete" onClick={confirmDelete}>
+              <Button variant="destructive" onClick={confirmDelete}>
                 <Trash2 />
                 {t('common.action.delete')}
               </Button>

@@ -9,7 +9,7 @@ Five subpaths, each an explicit barrel, all resolving at `./dist`:
 
 | Subpath | What it is |
 | --- | --- |
-| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
+| `./ui` | the shadcn/Radix primitives — `button`, `alert`, `card`, `page-header`, `input`, `label`, `form-field` (`FormField`, see below), `help-tip` (`HelpTip`), `switch` (`Switch`, see below), `setting-row` (`SettingRow`), `inline-status` (`InlineStatus`, `useInlineStatus`, see below), `select`, `badge`, `table`, `checkbox`, `textarea`, `multi-select`, `combobox`, `save-button-group`, `color-picker`, `route-tabs`, `separator` |
 | `./components` | the composites — `ResponsiveTable`, `PaginationFooter`, `RuleBuilder`, `StickyFormActions`, `TouchReorderButtons`, `<EChart>` with `useChartColors` and `prefersReducedMotion`, the analytics figure frame `FigureCard` with `useFigure`, `ModalDialog`, `SavedViewsControl`, `CustomFieldListFilters` with `useCustomFieldListFilterFields` and its helpers (`readCustomFieldFilterParams`, `writeCustomFieldFilterParams`, `sanitizeCustomFieldFilters`, `pruneRemovedOptions`, `customFieldFilterChips`, `customFieldFilterRefusal`, `toCustomFieldFiltersParam`, `customFieldDisplayName`, `resolveCustomFieldLabel`, `emptyCustomFieldFilters`, `withCustomFieldFilter`, `withoutCustomFieldFilter`), the pickers, the reorder helpers |
 | `./lib` | `apiClient`, `format`, `money`, `utils` (`cn`), `text-normalization` (the one `foldDiacritics` / `slugify` owner), `uuid`, the unsaved-changes prompt, the icon map, the page-size options, the analytics range presets (`RANGE_PRESETS`, `presetRange`, `isDayRange`) — and, since P3, the **session cluster**: `AuthProvider` / `useAuth`, `ModulePresenceProvider` / `useModulePresence`, `useSurfaceVisibility` and `usePageSizePreference` — and, since feature 164, the signed-in administrator's server-held Admin UI preferences: `useAdminPreference` / `useAdminPreferencesStatus` (provided by `AuthProvider`; `usePageSizePreference` reads them too) — and, since feature 180, the **save session** an editor's one Save covers its zone panels with: `SaveSessionProvider`, `useSaveSession`, `useSaveParticipant`, the pure `runSave` and `INERT_SAVE_SESSION` (`specs/180-one-save-zone-editors/contracts/save-participation.md`) |
 | `./i18n` | `useTranslation`, `TranslationProvider`, the language context and the resolver |
@@ -243,6 +243,48 @@ through `FormField`, so no screen wires `htmlFor`, `aria-describedby` or `aria-i
   elsewhere) cover the editor rows that carry more than a label.
 
 The behaviour is pinned in `admin/test/kit/kit-form-field.test.tsx`, including an axe pass.
+
+## On/off — `Switch` and `SettingRow`
+
+Issue #1442 (UX audit 2026-11-17, DS-09). `Switch` is the one on/off control; `SettingRow` is the
+settings-list layout it reads best in — label and description on the left, control on the right.
+
+```tsx
+<SettingRow label={t('settings.listPrice.label')} description={t('settings.listPrice.help')}>
+  <Switch checked={value} onCheckedChange={setValue} />
+</SettingRow>
+```
+
+**When to use a switch** (owner decision DEC-04): every **boolean setting**, and every **toggle that
+takes effect immediately**. In a form that is saved later, only where the label **describes a
+state** ("Visible on the storefront", "Active"); a label that is a statement the operator agrees to
+or an action ("I accept the terms", "Send a copy to me") stays a `Checkbox`. Never a `true`/`false`
+`Select`, and never a filled "Enable" button per row.
+
+- **It is a native `<button type="button" role="switch" aria-checked>`** — no new dependency
+  (there is no `@radix-ui/react-switch` in the tree, and the button already brings Space/Enter,
+  focus and `<label for>` naming). It never submits a surrounding form. `FormField` and
+  `SettingRow` clone it with the id and descriptions like any other control; it carries
+  `data-state="checked" | "unchecked"` for styling.
+- **Always controlled**: `checked` + `onCheckedChange(next)`. A staged setting writes the draft and
+  leaves the write to the page's Save; an immediate toggle starts its write in `onCheckedChange`,
+  sets **`busy`** while it is in flight (`aria-busy`; further presses are ignored, so the write
+  cannot be doubled) and puts the kit's `ImmediateBadge` on its section heading, as every other
+  immediately-applied control does.
+- **Disabled**: `disabled` is the native attribute, for a control inside a disabled `fieldset` or
+  one whose reason is already on screen. **`disabledReason`** is for one whose reason is not: the
+  switch stays focusable, is `aria-disabled`, ignores presses and is described by the reason (also
+  its `title`) — a natively disabled button drops out of the tab order and its reason is never
+  heard. Show the reason visibly too, in the row's `hint` or `description`.
+- **State is never colour alone**: the thumb's position carries it as well (SC 1.4.1); the
+  unchecked track is `muted-foreground`, so its boundary meets 3:1 against the page (SC 1.4.11).
+- **Target**: the track is 36 × 20 px; on a coarse pointer an invisible pseudo-element grows the hit
+  area to 44 × 44 px (Fitts's Law), and the label toggles it too. The slide is `motion-safe` only.
+- `SettingRow` is `FormField` with `layout="row"`: the same wiring, `error`, `hint`, `help`,
+  `labelAddon` and `action`. A screen that needs the row inside a larger editor can pass
+  `layout="row"` to `FormField` directly, as the Settings screen's row editor does.
+
+The behaviour is pinned in `admin/test/kit/kit-switch.test.tsx`, including an axe pass.
 
 ## Messages — `Alert` and `InlineStatus`
 

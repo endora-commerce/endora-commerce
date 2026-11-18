@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { byId } from '../../helpers/developer-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { organizationSalesChannelsAnswer } from '../../helpers/organization-sales-channels';
 
@@ -122,8 +123,8 @@ function renderPage(permissions: readonly string[] = ['*']): void {
 }
 
 async function fillRequest(): Promise<HTMLElement> {
-  await userEvent.type(screen.getByLabelText('customerAccountId'), 'Jan');
-  await userEvent.click(screen.getByLabelText('customerAccountId'));
+  await userEvent.type(byId('customerAccountId'), 'Jan');
+  await userEvent.click(byId('customerAccountId'));
   await userEvent.click(await screen.findByRole('option', { name: /Jan Kowalski/ }));
   const quick = screen.getByRole('combobox', { name: 'rfqCreate.items.quickSearch' });
   await userEvent.type(quick, 'Wid');

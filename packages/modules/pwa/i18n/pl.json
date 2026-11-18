@@ -48,5 +48,18 @@
   "actions.openSettings.label": "Ustawienia PWA",
   "actions.openSettings.description": "Tożsamość aplikacji, cache i powiadomienia push",
   "actions.openSettings.keywords": "powiadomienia, aplikacja",
-  "settingGroups.pwa.name": "Aplikacja PWA"
+  "settingGroups.pwa.name": "Aplikacja PWA",
+  "push.confirm.title": "Wysłać to powiadomienie push?",
+  "push.confirm.message.one": "„{title}” trafi do {count} subskrybowanego urządzenia w tym kanale sprzedaży. Wysłanego powiadomienia nie da się wycofać.",
+  "push.confirm.message.few": "„{title}” trafi do {count} subskrybowanych urządzeń w tym kanale sprzedaży. Wysłanego powiadomienia nie da się wycofać.",
+  "push.confirm.message.many": "„{title}” trafi do {count} subskrybowanych urządzeń w tym kanale sprzedaży. Wysłanego powiadomienia nie da się wycofać.",
+  "push.confirm.message.other": "„{title}” trafi do {count} subskrybowanego urządzenia w tym kanale sprzedaży. Wysłanego powiadomienia nie da się wycofać.",
+  "push.confirm.messageAll": "„{title}” trafi do każdego subskrybowanego urządzenia w tym kanale sprzedaży. Wysłanego powiadomienia nie da się wycofać.",
+  "push.confirm.messageTargeted": "„{title}” trafi do każdego subskrybowanego urządzenia w tym kanale sprzedaży, które spełnia kryteria. Wysłanego powiadomienia nie da się wycofać.",
+  "push.confirm.action.one": "Wyślij na {count} urządzenie",
+  "push.confirm.action.few": "Wyślij na {count} urządzenia",
+  "push.confirm.action.many": "Wyślij na {count} urządzeń",
+  "push.confirm.action.other": "Wyślij na {count} urządzenia",
+  "push.confirm.actionUnknown": "Wyślij powiadomienie",
+  "push.confirm.failed": "Nie udało się wysłać powiadomienia i nic nie wyszło. Spróbuj ponownie."
 }

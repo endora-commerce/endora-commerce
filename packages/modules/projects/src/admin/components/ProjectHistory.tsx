@@ -519,7 +519,6 @@ export function ProjectHistory(props: { project: ProjectDetail; reloadKey?: numb
     <RecordHistory
       history={history}
       copy={{
-        hint: t('changeHistory.hint'),
         empty: t('changeHistory.empty'),
         end: t('changeHistory.end'),
         truncated: t('changeHistory.truncated'),

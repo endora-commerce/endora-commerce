@@ -6,6 +6,8 @@ import { MemoryRouter } from 'react-router-dom';
 import type { SavedListView } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
+import { shippedModuleBundle } from '../../helpers/core-bundle';
+import { developerIdLabels } from '../../helpers/developer-ids';
 import en from '../../../../packages/modules/_i18n/i18n/en.json';
 
 /**
@@ -149,7 +151,7 @@ async function renderList(): Promise<ReturnType<typeof userEvent.setup>> {
         <ReturnsList />
       </MemoryRouter>
     </StrictMode>,
-    { core: en as Record<string, string> },
+    { core: en as Record<string, string>, ...shippedModuleBundle('returns', 'en') },
   );
   await screen.findByText('RMA-1');
   // StrictMode requests the views twice; only the option proves they arrived.
@@ -292,5 +294,14 @@ describe('ReturnsList — saved views on the kit control (#312)', () => {
 
     expect(sortSelect().value).toBe('submittedAt:desc');
     expect(kindSelect().value).toBe('return');
+  });
+});
+
+describe('ReturnsList — selection checkboxes (#1475)', () => {
+  it('names them in words, never by a developer id', async () => {
+    await renderList();
+    expect(screen.getByRole('checkbox', { name: 'Select return RMA-1' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select all returns on this page' })).toBeInTheDocument();
+    expect(developerIdLabels(document.body)).toEqual([]);
   });
 });

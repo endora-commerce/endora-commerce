@@ -21,6 +21,13 @@ export interface ModerationActionsPanelProps {
   registryDivergenceCount?: number;
   /** The id of the VAT validation panel's heading, the notice's link target. */
   vatValidationAnchorId?: string;
+  /**
+   * Issue #1468 — whether the operator holds `customers:manage`, which the four moderation
+   * routes require. Moderation is the organization status's one writer, so without it the panel
+   * shows the status and the reasons and offers no action. Required, so a caller cannot forget it
+   * into offering actions the server refuses.
+   */
+  canModerate: boolean;
   /** Called after a successful transition so the parent can re-fetch. */
   onChanged: () => void | Promise<void>;
 }
@@ -36,7 +43,9 @@ interface ModalState {
  * Moderation actions panel on the Organization detail page.
  *
  * Renders the four lifecycle buttons (Approve / Reject / Block / Unblock)
- * gated on the current status: only the legal transitions are offered.
+ * gated on the current status: only the legal transitions are offered. It is
+ * the one place an organization's status is shown and changed (issue #1468);
+ * an operator without `customers:manage` sees the status and no action.
  * Reject + Block open a small Reason modal (Reject requires a non-empty
  * reason; Block's reason is optional). A 409 VERSION_CONFLICT response
  * surfaces as an inline error toast asking the operator to refresh.
@@ -164,38 +173,40 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
           </p>
         ) : null}
 
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="default"
-            disabled={!canApprove || busy}
-            onClick={(): void => openModal('approve')}
-          >
-            {t('organizations.moderation.action.approve')}
-          </Button>
-          <Button
-            variant="destructive"
-            disabled={!canReject || busy}
-            onClick={(): void => openModal('reject')}
-          >
-            {t('organizations.moderation.action.reject')}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!canBlock || busy}
-            onClick={(): void => openModal('block')}
-          >
-            {t('organizations.moderation.action.block')}
-          </Button>
-          <Button
-            variant="outline"
-            disabled={!canUnblock || busy}
-            onClick={(): void => openModal('unblock')}
-          >
-            {t('organizations.moderation.action.unblock')}
-          </Button>
-        </div>
+        {props.canModerate ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="default"
+              disabled={!canApprove || busy}
+              onClick={(): void => openModal('approve')}
+            >
+              {t('organizations.moderation.action.approve')}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!canReject || busy}
+              onClick={(): void => openModal('reject')}
+            >
+              {t('organizations.moderation.action.reject')}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canBlock || busy}
+              onClick={(): void => openModal('block')}
+            >
+              {t('organizations.moderation.action.block')}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!canUnblock || busy}
+              onClick={(): void => openModal('unblock')}
+            >
+              {t('organizations.moderation.action.unblock')}
+            </Button>
+          </div>
+        ) : null}
 
-        {modal ? (
+        {modal && props.canModerate ? (
           <div style={OVERLAY_STYLE} onClick={(): void => setModal(null)}>
             <div style={PANEL_STYLE} onClick={(e): void => e.stopPropagation()}>
               <h2 className="mb-2 text-lg font-semibold">

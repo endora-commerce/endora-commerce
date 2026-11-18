@@ -8,7 +8,9 @@ import type {
   NewsletterTag,
   SubscriberSummary,
 } from '@endora-commerce/contracts';
-import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { ConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import {
   EmailEditorPane,
@@ -28,10 +30,28 @@ function asData(content: Record<string, unknown> | undefined): Data {
   return content as Data;
 }
 
+/**
+ * The words the send confirmation uses for a campaign's audience (issue #1462):
+ * which kind of audience, and — for tag targeting — the tags by name, so the
+ * operator reads the target they chose rather than a mode.
+ */
+function describeAudience(
+  campaign: Pick<CampaignDetail, 'targetType' | 'targetTagIds'>,
+  tags: readonly Pick<NewsletterTag, 'id' | 'name'>[],
+  t: (key: string, params?: Record<string, string>) => string,
+): string {
+  if (campaign.targetType === 'all') return t('campaign.send.audience.all');
+  if (campaign.targetType === 'group') return t('campaign.send.audience.group');
+  const names = campaign.targetTagIds.map((id) => tags.find((tag) => tag.id === id)?.name ?? id);
+  return t('campaign.send.audience.tag', { tags: names.join(', ') });
+}
+
 export function CampaignEditor(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
+  const t = useTranslation('newsletter');
+  const { language: uiLanguage } = useTranslationContext();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('newsletter:write');
 
@@ -50,6 +70,10 @@ export function CampaignEditor(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  // The saved campaign the send confirmation is asking about, while it is open.
+  const [sendTarget, setSendTarget] = useState<CampaignDetail | null>(null);
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   useEffect(() => {
     newsletterClient.listTags().then((r) => setTags(r.items)).catch(() => undefined);
@@ -115,16 +139,72 @@ export function CampaignEditor(): React.ReactElement {
     }
   }
 
-  async function doSend(): Promise<void> {
-    const saved = (await save()) ?? campaign;
+  /**
+   * *Send* saves first — the confirmation must describe what will go out — and
+   * then asks (issue #1462). A failed save stops here with its error on the
+   * page, rather than sending the last saved version behind the operator's
+   * back; an audience that reaches nobody is refused before anything is asked.
+   */
+  async function requestSend(): Promise<void> {
+    const saved = await save();
     if (!saved) return;
-    try {
-      const sent = await newsletterClient.sendCampaign(saved.id, saved.version);
-      setCampaign(sent);
-      setNotice(`Campaign ${sent.status}.`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+    // The dialog is the answer to *Send*; a "Saved." notice beside it is noise.
+    setNotice(null);
+    if (saved.audienceEstimate === 0) {
+      setError(t('campaign.send.noAudience'));
+      return;
     }
+    setSendError(null);
+    setSendTarget(saved);
+  }
+
+  async function confirmSend(target: CampaignDetail): Promise<void> {
+    setSending(true);
+    setSendError(null);
+    try {
+      const sent = await newsletterClient.sendCampaign(target.id, target.version);
+      setCampaign(sent);
+      setSendTarget(null);
+      setNotice(t(sent.status === 'sent' ? 'campaign.send.notice.sent' : 'campaign.send.notice.queued'));
+    } catch (err) {
+      // The error stays in the dialog, next to the button that will retry it.
+      setSendError(err instanceof ApiError ? err.envelope.error.message : t('campaign.send.failed'));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function sendConfirmation(target: CampaignDetail): React.ReactNode {
+    const audience = describeAudience(target, tags, t);
+    const subjectText = target.subject;
+    if (target.audienceEstimate === null) {
+      return (
+        <ConfirmDialog
+          title={t('campaign.send.title')}
+          message={t('campaign.send.messageUnknown', { subject: subjectText, audience })}
+          confirmLabel={t('campaign.send.confirmUnknown')}
+          destructive
+          busy={sending}
+          error={sendError}
+          onConfirm={() => void confirmSend(target)}
+          onCancel={() => setSendTarget(null)}
+        />
+      );
+    }
+    const form = new Intl.PluralRules(uiLanguage).select(target.audienceEstimate);
+    const count = new Intl.NumberFormat(uiLanguage).format(target.audienceEstimate);
+    return (
+      <ConfirmDialog
+        title={t('campaign.send.title')}
+        message={t(`campaign.send.message.${form}`, { subject: subjectText, count, audience })}
+        confirmLabel={t(`campaign.send.confirm.${form}`, { count })}
+        destructive
+        busy={sending}
+        error={sendError}
+        onConfirm={() => void confirmSend(target)}
+        onCancel={() => setSendTarget(null)}
+      />
+    );
   }
 
   if (!hasPermission('newsletter:read')) {
@@ -146,9 +226,9 @@ export function CampaignEditor(): React.ReactElement {
           canWrite ? (
             <>
               {!isNew ? (
-                <Link to={`/newsletter/campaigns/${id}/stats`}>
-                  <Button variant="outline">Stats</Button>
-                </Link>
+                <Button asChild variant="outline">
+                  <Link to={`/newsletter/campaigns/${id}/stats`}>Stats</Link>
+                </Button>
               ) : null}
               <Button variant="outline" onClick={() => void doPreview()}>
                 Preview
@@ -156,7 +236,9 @@ export function CampaignEditor(): React.ReactElement {
               <Button variant="outline" onClick={() => void save()}>
                 Save
               </Button>
-              <Button onClick={() => void doSend()}>Send</Button>
+              <Button onClick={() => void requestSend()} disabled={sending}>
+                {t('campaign.action.send')}
+              </Button>
             </>
           ) : null
         }
@@ -172,47 +254,7 @@ export function CampaignEditor(): React.ReactElement {
         </Alert>
       ) : null}
 
-      <EmailVariablesProvider variables={variables}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Content</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Input placeholder="Campaign name" value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} />
-            <Input placeholder="Language (e.g. en-US)" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={!canWrite} />
-            <EmailSubjectWithVariables
-              value={subject}
-              onChange={setSubject}
-              disabled={!canWrite}
-              placeholder="Subject (supports {{var …}})"
-            />
-            <EmailEditorPane
-              editorKey={`campaign:${id ?? 'new'}:${language}`}
-              data={content}
-              onChange={setContent}
-              builderContext="newsletter"
-              {...(canWrite
-                ? {
-                    onSaveAsTemplate: async (
-                      meta: { name: string; code: string },
-                      canvasData: Data,
-                    ) => {
-                      await saveCanvasAsEmailTemplate({
-                        ...meta,
-                        data: canvasData,
-                        languages: [language || 'en-US'],
-                        activeLanguage: language || null,
-                      });
-                    },
-                  }
-                : {})}
-              onListTemplatesForApply={() => listEmailTemplatesForApply(null)}
-              onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, language || null)}
-            />
-          </CardContent>
-        </Card>
-      </EmailVariablesProvider>
-
+      {/* The audience comes first, so the target is chosen before composing (Serial Position, #1462). */}
       <Card>
         <CardHeader>
           <CardTitle>Audience</CardTitle>
@@ -302,6 +344,47 @@ export function CampaignEditor(): React.ReactElement {
         </CardContent>
       </Card>
 
+      <EmailVariablesProvider variables={variables}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Content</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Input placeholder="Campaign name" value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} />
+            <Input placeholder="Language (e.g. en-US)" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={!canWrite} />
+            <EmailSubjectWithVariables
+              value={subject}
+              onChange={setSubject}
+              disabled={!canWrite}
+              placeholder="Subject (supports {{var …}})"
+            />
+            <EmailEditorPane
+              editorKey={`campaign:${id ?? 'new'}:${language}`}
+              data={content}
+              onChange={setContent}
+              builderContext="newsletter"
+              {...(canWrite
+                ? {
+                    onSaveAsTemplate: async (
+                      meta: { name: string; code: string },
+                      canvasData: Data,
+                    ) => {
+                      await saveCanvasAsEmailTemplate({
+                        ...meta,
+                        data: canvasData,
+                        languages: [language || 'en-US'],
+                        activeLanguage: language || null,
+                      });
+                    },
+                  }
+                : {})}
+              onListTemplatesForApply={() => listEmailTemplatesForApply(null)}
+              onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, language || null)}
+            />
+          </CardContent>
+        </Card>
+      </EmailVariablesProvider>
+
       {preview ? (
         <Card>
           <CardHeader>
@@ -312,6 +395,7 @@ export function CampaignEditor(): React.ReactElement {
           </CardContent>
         </Card>
       ) : null}
+      {sendTarget ? sendConfirmation(sendTarget) : null}
     </div>
   );
 }

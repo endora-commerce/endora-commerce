@@ -107,6 +107,9 @@ Zapisz widzi operator z `customers:manage` albo taki, który może zmienić któ
 (blokada / odblokowanie, reset hasła, reset weryfikacji dwuetapowej, logowanie jako klient,
 usunięcie / przywrócenie), przypisanie do **organizacji** i **Grupa klientów** nie są częścią zapisu:
 działają w chwili użycia, a każda z tych sekcji ma etykietę **Działa od razu**.
+Blokada, reset weryfikacji dwuetapowej i usunięcie najpierw proszą o potwierdzenie, podając klienta
+i skutek akcji; odmowa jest pokazywana w oknie potwierdzenia. Usuwanie ma osobną sekcję na końcu
+strony, z dala od pozostałych akcji.
 
 ## Usuwanie i anonimizacja
 

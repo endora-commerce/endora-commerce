@@ -719,6 +719,8 @@ export const manifest = defineModuleManifest({
     { code: 'ORDER_STATUS_CODE_TAKEN' },
     { code: 'ORDER_STATUS_TERMINAL_HAS_TRANSITIONS', tokens: ['mark_terminal', 'add_transition'] },
     { code: 'ORDER_STATUS_NOT_DELETABLE', tokens: ['initial', 'system'] },
+    // Issue #1574 — the money axis's transition graph refuses the move.
+    { code: 'ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED', tokens: ['payment_refunded', 'payment_not_paid'] },
     { code: 'ORDER_STATUS_IN_USE' },
     { code: 'ORDER_INTAKE_LINES_REFUSED' },
     { code: 'ORDER_INTAKE_BUSY' },

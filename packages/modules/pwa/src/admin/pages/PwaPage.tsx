@@ -8,8 +8,9 @@ import type {
   SalesChannelListResponse,
   SalesChannelSummary,
 } from '@endora-commerce/contracts';
-import { apiClient, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ApiError, apiClient, useModulePresence } from '@endora-commerce/admin-kit/lib';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { ConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, ColorPicker, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { pwaClient } from '../api/pwa-client.js';
 import { PushAudienceRuleBuilder } from '../components/PushAudienceRuleBuilder.js';
@@ -49,6 +50,7 @@ function channelLabel(name: SalesChannelSummary['name'], code: string): string {
  */
 export function PwaPage(): ReactNode {
   const t = useTranslation('pwa');
+  const { language } = useTranslationContext();
   // Quote pushes come from `quote_requests` (through `customerPushPort` since
   // `specs/179-rfq-and-customer-notifications/` WP-10): while it is absent no
   // quote push is produced, so the quote switch is not offered, and its stored
@@ -73,6 +75,10 @@ export function PwaPage(): ReactNode {
   // Audience targeting — 'all' broadcasts; 'rule' narrows via the Rule Builder.
   const [audienceMode, setAudienceMode] = useState<'all' | 'rule'>('all');
   const [audienceRule, setAudienceRule] = useState<PushAudienceRule>({ kind: 'all' });
+  // A push cannot be recalled, so *Send* asks first (issue #1462); the request
+  // runs inside the dialog, which keeps its own error.
+  const [confirmingSend, setConfirmingSend] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -178,21 +184,26 @@ export function PwaPage(): ReactNode {
     }
   };
 
-  const sendPush = async (): Promise<void> => {
+  const targeted = audienceMode === 'rule' && audienceRule.kind !== 'all';
+
+  const requestSend = (): void => {
     // Sends are per-channel: the operator must pick a concrete channel scope.
     if (!selectedChannelId) {
       setError('Select a sales channel above to send a notification.');
       return;
     }
+    setSendError(null);
+    setConfirmingSend(true);
+  };
+
+  const sendPush = async (): Promise<void> => {
+    if (!selectedChannelId) return;
     setBusy(true);
-    setError(null);
+    setSendError(null);
     setInfo(null);
     try {
       // A 'rule' audience that resolves to "all" is equivalent to a broadcast.
-      const audience: PushAudience =
-        audienceMode === 'rule' && audienceRule.kind !== 'all'
-          ? { kind: 'rule', rule: audienceRule }
-          : { kind: 'all' };
+      const audience: PushAudience = targeted ? { kind: 'rule', rule: audienceRule } : { kind: 'all' };
       const res = await pwaClient.sendMessage({
         salesChannelId: selectedChannelId,
         title: pushTitle,
@@ -200,15 +211,43 @@ export function PwaPage(): ReactNode {
         ...(pushUrl ? { url: pushUrl } : {}),
         audience,
       });
+      setConfirmingSend(false);
       setInfo(`Queued ${res.queuedDeliveries} notification(s).`);
       setPushTitle('');
       setPushBody('');
       setPushUrl('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Send failed.');
+      setSendError(err instanceof ApiError ? err.envelope.error.message : t('push.confirm.failed'));
     } finally {
       setBusy(false);
     }
+  };
+
+  /**
+   * The question names the notification and its reach: the active device
+   * count for a broadcast, when the stats loaded; the criteria otherwise, as
+   * this screen has no count for a targeted audience.
+   */
+  const sendConfirmation = (): ReactNode => {
+    const count = !targeted && stats ? stats.active : null;
+    const form = count === null ? null : new Intl.PluralRules(language).select(count);
+    const formatted = count === null ? '' : new Intl.NumberFormat(language).format(count);
+    const message =
+      form !== null
+        ? t(`push.confirm.message.${form}`, { title: pushTitle, count: formatted })
+        : t(targeted ? 'push.confirm.messageTargeted' : 'push.confirm.messageAll', { title: pushTitle });
+    return (
+      <ConfirmDialog
+        title={t('push.confirm.title')}
+        message={message}
+        confirmLabel={form !== null ? t(`push.confirm.action.${form}`, { count: formatted }) : t('push.confirm.actionUnknown')}
+        destructive
+        busy={busy}
+        error={sendError}
+        onConfirm={() => void sendPush()}
+        onCancel={() => setConfirmingSend(false)}
+      />
+    );
   };
 
   return (
@@ -271,7 +310,7 @@ export function PwaPage(): ReactNode {
                   <Input id="pwa-short" value={config.shortName} onChange={(e) => patch({ shortName: e.target.value })} />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Theme color</Label>
+                  <span aria-hidden="true" className="text-sm font-medium leading-none">Theme color</span>
                   <ColorPicker
                     value={config.themeColor}
                     onChange={(hex) => patch({ themeColor: hex })}
@@ -280,7 +319,7 @@ export function PwaPage(): ReactNode {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label>Background color</Label>
+                  <span aria-hidden="true" className="text-sm font-medium leading-none">Background color</span>
                   <ColorPicker
                     value={config.backgroundColor}
                     onChange={(hex) => patch({ backgroundColor: hex })}
@@ -399,8 +438,8 @@ export function PwaPage(): ReactNode {
               </div>
 
               <div className="space-y-2">
-                <Label>Audience</Label>
-                <div className="flex items-center gap-4">
+                <span id="push-audience-label" className="text-sm font-medium leading-none">Audience</span>
+                <div className="flex items-center gap-4" role="radiogroup" aria-labelledby="push-audience-label">
                   <label className="flex items-center gap-2 text-sm">
                     <input
                       type="radio"
@@ -434,10 +473,10 @@ export function PwaPage(): ReactNode {
                 <Button
                   type="button"
                   disabled={busy || !selectedChannelId || !config.pushEnabled || !pushTitle || !pushBody}
-                  onClick={() => void sendPush()}
+                  onClick={requestSend}
                 >
                   <Send className="mr-2 h-4 w-4" />{' '}
-                  {audienceMode === 'rule' && audienceRule.kind !== 'all'
+                  {targeted
                     ? 'Send to targeted subscribers'
                     : 'Send to all subscribers'}
                 </Button>
@@ -448,6 +487,7 @@ export function PwaPage(): ReactNode {
       ) : (
         <p className="text-sm text-muted-foreground">Loading…</p>
       )}
+      {confirmingSend ? sendConfirmation() : null}
     </div>
   );
 }

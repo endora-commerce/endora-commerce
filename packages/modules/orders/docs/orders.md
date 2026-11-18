@@ -302,6 +302,54 @@ templated events (below). Payment/shipping events drive automatic transitions
 through the `OrderStatusRegistry` (the method `statusOn*` columns reference
 these status codes); `payment_status` is retained as a derived/secondary field.
 
+## Payment status transitions
+
+The payment status is the order's money axis, separate from the configurable
+lifecycle above. Its values are fixed — `awaiting_payment`, `deferred`, `paid`,
+`failed`, `refunded` — and so is what may follow what. The graph is
+`PAYMENT_STATUS_TRANSITIONS` in `@endora-commerce/contracts`, and
+`paymentStatusTargets(from, actor)` answers where an order may go next. It is
+not configurable.
+
+Two actors move it: an **operator** through
+`POST /api/v1/admin/orders/:id/payment-status`, and **settlement** — the
+`payments` module recording what a payment gateway reported.
+
+| From \ to | `paid` | `refunded` | `failed` |
+| --- | --- | --- | --- |
+| `awaiting_payment` | operator, settlement | refused | settlement |
+| `failed` | operator, settlement | refused | no change |
+| `deferred` | operator, settlement | refused | refused |
+| `paid` | no change | operator, settlement | refused |
+| `refunded` | refused | no change | refused |
+
+- `awaiting_payment` and `deferred` are set when the order is placed (`deferred`
+  for an order placed against a credit limit) and are never reached later.
+- `refunded` is final: nothing moves an order out of it.
+- Only a paid order can be refunded.
+- `failed` is set only by settlement, when a gateway declines a payment. The
+  operator route accepts only `paid` and `refunded`; any other value is `400`
+  `VALIDATION_FAILED`.
+- Marking an order with the payment status it already has answers `200`,
+  changes nothing, writes no audit entry and owes no follow-up — so marking a
+  credit-limit order paid twice gives its credit back once.
+
+A move outside the graph is refused with `409`
+`ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED`, in the operator's language, and
+writes nothing. An order outside the caller's scope is `404` first, so a
+refusal never confirms that such an order exists.
+
+| `details.code` | When | Other `details` |
+| --- | --- | --- |
+| `payment_refunded` | The order is refunded, so its payment status can no longer change | `from`, `to` |
+| `payment_not_paid` | `refunded` was asked for an order that was never paid | `from`, `to` |
+
+Settlement follows the same graph through `orderPaymentStatusApplyPort`, whose
+answer carries `outcome` — `applied`, `unchanged` or `refused`. A refused move is
+an answer, not an error: the payment is still recorded, and the order keeps its
+payment status. The admin order page's "Change…" dialog offers exactly the
+operator's targets; for a refunded order it offers none.
+
 ## What a transition owes: follow-ups
 
 Cancelling an order gives back what the order was holding: its **stock

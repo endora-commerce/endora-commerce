@@ -250,6 +250,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
 
   const campaigns = new NewsletterCampaignService({
     emFactory: options.emFactory,
+    audience,
     dispatch,
     content,
     isProviderConfigured: () => providers.isConfigured(),

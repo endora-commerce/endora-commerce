@@ -136,7 +136,14 @@ export function EmailsList(): React.ReactElement {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <Input placeholder="Search by name or code…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-sm" />
+      <Input
+        type="search"
+        aria-label={t('list.searchLabel')}
+        placeholder={t('list.search')}
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        className="max-w-sm"
+      />
       <Card>
         <CardContent className="p-0">
           <table className="w-full text-sm">
