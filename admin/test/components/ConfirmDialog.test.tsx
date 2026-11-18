@@ -2,7 +2,10 @@ import { StrictMode, useState, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ConfirmDialog, useConfirmDialog, type ConfirmOptions } from '@endora-commerce/admin-kit/components';
+import { ConfirmDialog, useConfirmDialog, type UseConfirmDialog } from '@endora-commerce/admin-kit/components';
+
+/** Either form `confirm` takes: a bare question, or one that runs its action in the dialog. */
+type ConfirmArgs = Parameters<UseConfirmDialog['confirm']>[0];
 import { renderWithI18n, passthroughBundle } from '../helpers/render-with-i18n';
 import { expectNoAxeViolations } from '../helpers/axe';
 import { installOffsetParentShim } from '../helpers/layout-shim';
@@ -23,7 +26,7 @@ const CORE = passthroughBundle('core', [
   'common.confirm.title',
 ]);
 
-function HookHarness(props: { options: ConfirmOptions; onResult: (ok: boolean) => void }): ReactElement {
+function HookHarness(props: { options: ConfirmArgs; onResult: (ok: boolean) => void }): ReactElement {
   const { confirm, confirmDialog } = useConfirmDialog();
   return (
     <div>
@@ -35,7 +38,7 @@ function HookHarness(props: { options: ConfirmOptions; onResult: (ok: boolean) =
   );
 }
 
-function renderHook(options: ConfirmOptions, onResult = vi.fn()): { onResult: ReturnType<typeof vi.fn> } {
+function renderHook(options: ConfirmArgs, onResult = vi.fn()): { onResult: ReturnType<typeof vi.fn> } {
   renderWithI18n(
     <StrictMode>
       <HookHarness options={options} onResult={onResult} />
@@ -167,5 +170,67 @@ describe('ConfirmDialog (#313) — controlled, with a request in flight', () => 
     renderWithI18n(<Controlled onConfirm={vi.fn()} error="The module could not be disabled." />, CORE);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByRole('alert')).toHaveTextContent('The module could not be disabled.');
+  });
+});
+
+describe('useConfirmDialog — an action run inside the dialog (#1464)', () => {
+  function deferred(): { promise: Promise<void>; resolve: () => void; reject: (err: unknown) => void } {
+    let resolve: () => void = () => undefined;
+    let reject: (err: unknown) => void = () => undefined;
+    const promise = new Promise<void>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
+
+  it('keeps the dialog open and busy while the action runs, then resolves true and closes', async () => {
+    const pending = deferred();
+    const action = vi.fn(() => pending.promise);
+    const { onResult } = renderHook({ message: 'Delete it?', confirmLabel: 'Delete', destructive: true, action, describeError: () => 'x' });
+    const { opener, dialog } = await open();
+    const confirmButton = within(dialog).getByRole('button', { name: 'Delete' });
+    await userEvent.click(confirmButton);
+
+    expect(action).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(confirmButton).toBeDisabled());
+    expect(confirmButton).toHaveAttribute('aria-busy', 'true');
+    expect(within(dialog).getByRole('button', { name: 'common.action.cancel' })).toBeDisabled();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(onResult).not.toHaveBeenCalled();
+
+    await act(async () => pending.resolve());
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it('keeps a failed action in the dialog with its described error, and lets it be retried or cancelled', async () => {
+    const action = vi.fn().mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(undefined);
+    const describeError = vi.fn((err: unknown) => `Could not delete: ${(err as Error).message}`);
+    const { onResult } = renderHook({ message: 'Delete it?', confirmLabel: 'Delete', destructive: true, action, describeError });
+    const { dialog } = await open();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Could not delete: boom');
+    expect(dialog).toHaveAccessibleDescription(expect.stringContaining('Could not delete: boom'));
+    expect(within(dialog).getByRole('button', { name: 'Delete' })).toBeEnabled();
+    expect(onResult).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
+    expect(action).toHaveBeenCalledTimes(2);
+  });
+
+  it('resolves false on Cancel after a failure, without running the action again', async () => {
+    const action = vi.fn().mockRejectedValue(new Error('boom'));
+    const { onResult } = renderHook({ message: 'Delete it?', confirmLabel: 'Delete', destructive: true, action, describeError: () => 'failed' });
+    const { dialog } = await open();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await within(dialog).findByText('failed');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.action.cancel' }));
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(false));
+    expect(action).toHaveBeenCalledTimes(1);
   });
 });

@@ -128,5 +128,12 @@
   "errors.MEGAMENU_LINK_TAB_INVALID": "Zakładka wyświetlana jako link musi gdzieś prowadzić i nie może mieć pozycji pod sobą.",
   "nav.megamenu.label": "Megamenu",
   "actions.editMegamenu.keywords": "edytuj, nawigacja",
-  "settingGroups.megamenu.name": "Megamenu"
+  "settingGroups.megamenu.name": "Megamenu",
+  "tree.deleteConfirm.title": "Usunąć ten element menu?",
+  "tree.deleteConfirm.message": "„{label}” zostanie usunięty z drzewa. W sklepie nic się nie zmieni, dopóki nie zapiszesz drzewa.",
+  "tree.deleteConfirm.messageNested.one": "„{label}” i {count} zagnieżdżony w nim element zostaną usunięte z drzewa. W sklepie nic się nie zmieni, dopóki nie zapiszesz drzewa.",
+  "tree.deleteConfirm.messageNested.few": "„{label}” i {count} zagnieżdżone w nim elementy zostaną usunięte z drzewa. W sklepie nic się nie zmieni, dopóki nie zapiszesz drzewa.",
+  "tree.deleteConfirm.messageNested.many": "„{label}” i {count} zagnieżdżonych w nim elementów zostanie usuniętych z drzewa. W sklepie nic się nie zmieni, dopóki nie zapiszesz drzewa.",
+  "tree.deleteConfirm.messageNested.other": "„{label}” i {count} zagnieżdżonego w nim elementu zostaną usunięte z drzewa. W sklepie nic się nie zmieni, dopóki nie zapiszesz drzewa.",
+  "tree.deleteConfirm.actionNested": "Usuń z zagnieżdżonymi elementami"
 }

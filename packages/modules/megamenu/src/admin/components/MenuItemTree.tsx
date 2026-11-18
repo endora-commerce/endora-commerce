@@ -2,8 +2,13 @@ import { useMemo, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, GripVertical, Plus, Trash2 } from 'lucide-react';
 import type { MegamenuItem, MegamenuItemKind } from '@endora-commerce/contracts';
 import { Badge, Button } from '@endora-commerce/admin-kit/ui';
-import { RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from '@endora-commerce/admin-kit/components';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import {
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+  useConfirmDialog,
+} from '@endora-commerce/admin-kit/components';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 interface MenuItemTreeProps {
   items: MegamenuItem[];
@@ -46,6 +51,8 @@ export function MenuItemTree({
   onAddChild,
 }: MenuItemTreeProps): ReactNode {
   const t = useTranslation('megamenu');
+  const { language } = useTranslationContext();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const indexed = useMemo(() => indexItems(items), [items]);
   const byParent = useMemo(() => {
     const map = new Map<string | null, IndexedItem[]>();
@@ -59,6 +66,33 @@ export function MenuItemTree({
     }
     return map;
   }, [indexed]);
+
+  const countDescendants = (id: string): number =>
+    (byParent.get(id) ?? []).reduce((sum, child) => sum + 1 + countDescendants(child.id), 0);
+
+  /**
+   * Issue #1464 — deleting an item takes its whole subtree, so it asks first,
+   * naming the item and how many nested items go with it, and says that the
+   * tree is not changed on the server until it is saved.
+   */
+  const requestDelete = async (item: IndexedItem): Promise<void> => {
+    const label = pickLabel(item.labels, t('tree.noLabel'));
+    const nested = countDescendants(item.id);
+    const message =
+      nested === 0
+        ? t('tree.deleteConfirm.message', { label })
+        : t(`tree.deleteConfirm.messageNested.${new Intl.PluralRules(language).select(nested)}`, {
+            label,
+            count: new Intl.NumberFormat(language).format(nested),
+          });
+    const ok = await confirm({
+      title: t('tree.deleteConfirm.title'),
+      message,
+      confirmLabel: t(nested === 0 ? 'tree.deleteItem' : 'tree.deleteConfirm.actionNested'),
+      destructive: true,
+    });
+    if (ok) onDelete(item.id);
+  };
 
   const renderRow = (item: IndexedItem, depth: number, index: number, siblingCount: number): ReactNode => {
     const children = byParent.get(item.id) ?? [];
@@ -137,7 +171,12 @@ export function MenuItemTree({
               {t('tree.addChild')}
             </RowActionMenuItem>
             <RowActionMenuSeparator />
-            <RowActionMenuItem destructive onSelect={() => onDelete(item.id)}>
+            <RowActionMenuItem
+              destructive
+              // Ask once the menu has closed: its close returns focus to the
+              // trigger, which would otherwise pull it out of the dialog.
+              onSelect={() => window.setTimeout(() => void requestDelete(item), 0)}
+            >
               <Trash2 aria-hidden="true" />
               {t('tree.deleteItem')}
             </RowActionMenuItem>
@@ -163,6 +202,7 @@ export function MenuItemTree({
       ) : (
         roots.map((root, i) => renderRow(root, 0, i, roots.length))
       )}
+      {confirmDialog}
     </div>
   );
 }

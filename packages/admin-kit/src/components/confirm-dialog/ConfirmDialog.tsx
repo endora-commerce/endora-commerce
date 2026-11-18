@@ -25,7 +25,9 @@ import { ModalDialog } from '../modal-dialog/ModalDialog.js';
  * the action itself and wants the dialog to stay open with a `busy` state and
  * an `error` while the request is in flight; or through
  * {@link useConfirmDialog}, whose `await confirm({…})` is the drop-in for a
- * `window.confirm(…)` that guards an action.
+ * `window.confirm(…)` that guards an action — and which, handed the request as
+ * {@link ConfirmActionOptions.action}, runs it inside the dialog with the same
+ * busy state and error (issue #1464).
  */
 export interface ConfirmOptions {
   /** The dialog's title. Defaults to the core bundle's `common.confirm.title`. */
@@ -38,6 +40,19 @@ export interface ConfirmOptions {
   cancelLabel?: ReactNode;
   /** Styles the confirm button as destructive and opens with focus on *Cancel*. */
   destructive?: boolean;
+}
+
+/**
+ * A question whose answer is a request: `confirm` runs `action` with the dialog
+ * still open — busy, so neither a second click nor Escape can interrupt it — and
+ * resolves `true` once it succeeds. A throw keeps the dialog open with
+ * `describeError(err)` as its error, so the operator can retry or cancel where
+ * they are looking; Cancel then resolves `false`. The caller words the error,
+ * because only it knows which of its request's failures to name.
+ */
+export interface ConfirmActionOptions extends ConfirmOptions {
+  action: () => Promise<unknown>;
+  describeError: (err: unknown) => ReactNode;
 }
 
 export interface ConfirmDialogProps extends ConfirmOptions {
@@ -98,15 +113,22 @@ export function ConfirmDialog(props: ConfirmDialogProps): ReactNode {
 }
 
 export interface UseConfirmDialog {
-  /** Opens the dialog; resolves `true` on confirm, `false` on Cancel, Escape, the scrim or unmount. */
-  confirm: (options: ConfirmOptions) => Promise<boolean>;
+  /**
+   * Opens the dialog; resolves `true` on confirm — with an `action`, once it has
+   * succeeded — and `false` on Cancel, Escape, the scrim or unmount.
+   */
+  confirm: (options: ConfirmOptions | ConfirmActionOptions) => Promise<boolean>;
   /** Render this once in the screen that calls `confirm`. */
   confirmDialog: ReactNode;
 }
 
 interface Pending {
-  options: ConfirmOptions;
+  options: ConfirmOptions | ConfirmActionOptions;
   resolve: (ok: boolean) => void;
+}
+
+function hasAction(options: ConfirmOptions | ConfirmActionOptions): options is ConfirmActionOptions {
+  return typeof (options as Partial<ConfirmActionOptions>).action === 'function';
 }
 
 /**
@@ -126,25 +148,54 @@ interface Pending {
  */
 export function useConfirmDialog(): UseConfirmDialog {
   const [pending, setPending] = useState<Pending | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<ReactNode>(null);
   const pendingRef = useRef<Pending | null>(null);
 
   const settle = useCallback((ok: boolean): void => {
     const current = pendingRef.current;
     pendingRef.current = null;
     setPending(null);
+    setBusy(false);
+    setError(null);
     current?.resolve(ok);
   }, []);
 
   const confirm = useCallback(
-    (options: ConfirmOptions): Promise<boolean> =>
+    (options: ConfirmOptions | ConfirmActionOptions): Promise<boolean> =>
       new Promise<boolean>((resolve) => {
         pendingRef.current?.resolve(false);
         const next = { options, resolve };
         pendingRef.current = next;
+        setBusy(false);
+        setError(null);
         setPending(next);
       }),
     [],
   );
+
+  const accept = useCallback(async (): Promise<void> => {
+    const current = pendingRef.current;
+    if (!current) return;
+    if (!hasAction(current.options)) {
+      settle(true);
+      return;
+    }
+    const { action, describeError } = current.options;
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+    } catch (err) {
+      // Still the same question? A second `confirm` or an unmount answered it.
+      if (pendingRef.current === current) {
+        setBusy(false);
+        setError(describeError(err));
+      }
+      return;
+    }
+    if (pendingRef.current === current) settle(true);
+  }, [settle]);
 
   useEffect(
     () => (): void => {
@@ -155,7 +206,17 @@ export function useConfirmDialog(): UseConfirmDialog {
   );
 
   const confirmDialog = pending ? (
-    <ConfirmDialog {...pending.options} onConfirm={(): void => settle(true)} onCancel={(): void => settle(false)} />
+    <ConfirmDialog
+      title={pending.options.title}
+      message={pending.options.message}
+      confirmLabel={pending.options.confirmLabel}
+      cancelLabel={pending.options.cancelLabel}
+      destructive={pending.options.destructive ?? false}
+      busy={busy}
+      error={error}
+      onConfirm={(): void => void accept()}
+      onCancel={(): void => settle(false)}
+    />
   ) : null;
 
   return { confirm, confirmDialog };

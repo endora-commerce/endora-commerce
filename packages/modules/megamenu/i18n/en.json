@@ -128,5 +128,12 @@
   "errors.MEGAMENU_LINK_TAB_INVALID": "A tab shown as a link must point somewhere and cannot have items under it.",
   "nav.megamenu.label": "Megamenu",
   "actions.editMegamenu.keywords": "edit, navigation",
-  "settingGroups.megamenu.name": "Megamenu"
+  "settingGroups.megamenu.name": "Megamenu",
+  "tree.deleteConfirm.title": "Delete this menu item?",
+  "tree.deleteConfirm.message": "“{label}” is removed from the tree. Nothing changes on the storefront until you save the tree.",
+  "tree.deleteConfirm.messageNested.one": "“{label}” and the {count} item nested under it are removed from the tree. Nothing changes on the storefront until you save the tree.",
+  "tree.deleteConfirm.messageNested.few": "“{label}” and the {count} items nested under it are removed from the tree. Nothing changes on the storefront until you save the tree.",
+  "tree.deleteConfirm.messageNested.many": "“{label}” and the {count} items nested under it are removed from the tree. Nothing changes on the storefront until you save the tree.",
+  "tree.deleteConfirm.messageNested.other": "“{label}” and the {count} items nested under it are removed from the tree. Nothing changes on the storefront until you save the tree.",
+  "tree.deleteConfirm.actionNested": "Delete with nested items"
 }
