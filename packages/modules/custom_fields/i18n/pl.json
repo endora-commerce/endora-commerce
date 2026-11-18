@@ -130,7 +130,7 @@
   "customFields.carry.warning.cancel": "Anuluj",
   "customFields.form.newField": "Nowe pole",
   "customFields.form.createTitle": "Nowe pole",
-  "customFields.form.keyHelp": "Małe litery, cyfry i podkreślenia, zaczynając od litery. Klucza nie można zmienić po utworzeniu pola.",
+  "customFields.form.keyHelp": "Tworzony z etykiety domyślnej. Nie można go później zmienić.",
   "customFields.form.keyTaken": "Pole z kluczem „{key}” już istnieje dla tego typu rekordu. Wybierz inny klucz.",
   "customFields.form.createFailed": "Nie udało się utworzyć pola.",
   "customFields.editor.labelIn": "Etykieta ({language})",

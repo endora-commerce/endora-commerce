@@ -24,6 +24,9 @@ export { ResponsiveTable } from './ResponsiveTable.js';
 export type { ResponsiveColumn, ResponsiveTableProps } from './ResponsiveTable.js';
 export { RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from './RowActionMenu.js';
 export type { RowActionMenuItemProps, RowActionMenuProps } from './RowActionMenu.js';
+// Issue #1441 (DS-07) — one primary action per view: a detail header's primary, secondary and "More" menu.
+export { DetailHeaderActions } from './DetailHeaderActions.js';
+export type { DetailHeaderActionsProps } from './DetailHeaderActions.js';
 // Issue #1439 (UX audit DS-05) — the list page pattern; README "List pages".
 export { ListPage } from './list-page/ListPage.js';
 export type { ListPageLoad, ListPageProps } from './list-page/ListPage.js';

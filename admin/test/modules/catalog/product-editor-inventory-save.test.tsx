@@ -13,6 +13,7 @@ import {
   setUpEditorApi,
 } from './product-editor-harness';
 import { shippedCoreBundle } from '../../helpers/core-bundle';
+import { expectNoAxeViolations } from '../../helpers/axe';
 
 /**
  * Feature 180, WP-4 — the product Inventory tab and the one Save (owner ruling OQ-7 = B; FR-025;
@@ -124,9 +125,14 @@ describe('the Inventory tab saves with the product (feature 180, WP-4)', () => {
     });
   });
 
-  it('switching stock management off is a staged change, not a write', async () => {
+  it('tracking stock is a positive switch, and turning it off is a staged change, not a write', async () => {
     await openInventory();
-    fireEvent.click(screen.getByLabelText(new RegExp(escape(en['inventoryTab.stockMgmt.disableManageStock']!))));
+    // Issue #1454 (CAT-01): the control used to be a "Disable stock management" checkbox,
+    // checked when stock was *not* managed — a double negative (Mental Model).
+    const track = screen.getByRole('switch', { name: en['inventoryTab.stockMgmt.trackStock']! });
+    expect(track).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(track);
+    expect(track).toHaveAttribute('aria-checked', 'false');
     expect(saveButton()).toHaveAccessibleName(/^Save 1 change/);
     expect(api.patch).not.toHaveBeenCalled();
     fireEvent.click(saveButton());
@@ -148,9 +154,10 @@ describe('the Inventory tab saves with the product (feature 180, WP-4)', () => {
 
   it('offers no Save of its own for the product-row settings', async () => {
     await openInventory();
-    expect(screen.queryByRole('button', { name: en['inventoryTab.lowStock.save']! })).toBeNull();
-    // The only Save on the page that is not a per-warehouse row's is the editor's.
-    const saves = screen.getAllByRole('button', { name: /^Save/ }).filter((button) => !button.closest('table'));
+    fireEvent.click(screen.getByLabelText(en['inventoryTab.lowStock.modePerWarehouse']!));
+    // Issue #1454 (CAT-01): the per-warehouse rows used to carry a filled "Save" each, so the
+    // tab showed N + 1 primaries. The editor's Save is now the only Save on the page.
+    const saves = screen.getAllByRole('button', { name: /^Save/ });
     expect(saves.map((button) => button.getAttribute('data-testid'))).toEqual(['product-save']);
   });
 
@@ -161,7 +168,7 @@ describe('the Inventory tab saves with the product (feature 180, WP-4)', () => {
     expect(heading).toHaveTextContent(IMMEDIATE_BADGE);
     const warsaw = within(table).getByText('Warsaw').closest('tr')!;
     fireEvent.change(within(warsaw).getByRole('spinbutton'), { target: { value: '7' } });
-    fireEvent.click(within(warsaw).getByRole('button', { name: /^Save/ }));
+    fireEvent.click(within(warsaw).getByRole('button', { name: applyStock('Warsaw') }));
     await waitFor(() =>
       expect(api.put).toHaveBeenCalledWith('/api/v1/admin/inventory/levels', { productId: PRODUCT_ID, warehouseId: WH_A, onHand: 7 }),
     );
@@ -170,5 +177,122 @@ describe('the Inventory tab saves with the product (feature 180, WP-4)', () => {
     expect(document.getElementById('product-stock-heading')).not.toHaveTextContent(
       IMMEDIATE_BADGE,
     );
+  });
+});
+
+/** `inventoryTab.<key>` with `{name}` placeholders filled. */
+function copy(key: string, values: Record<string, string | number> = {}): string {
+  return Object.entries(values).reduce(
+    (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+    en[`inventoryTab.${key}`]!,
+  );
+}
+const applyStock = (warehouse: string): string => copy('action.applyStockFor', { warehouse });
+const applyThreshold = (warehouse: string): string => copy('action.applyThresholdFor', { warehouse });
+
+describe('the per-warehouse rows (issue #1454, UX audit CAT-01)', () => {
+  it('names every input after its warehouse, not only the column', async () => {
+    await openInventory();
+    fireEvent.click(screen.getByLabelText(en['inventoryTab.lowStock.modePerWarehouse']!));
+    for (const warehouse of ['Warsaw', 'Berlin']) {
+      expect(screen.getByRole('spinbutton', { name: copy('column.newValueFor', { warehouse }) })).toBeInTheDocument();
+      expect(screen.getByRole('spinbutton', { name: copy('column.thresholdFor', { warehouse }) })).toBeInTheDocument();
+    }
+  });
+
+  it('shows a translated "Apply" on each row, named after its warehouse, and enabled only for a change', async () => {
+    await openInventory();
+    const apply = screen.getByRole('button', { name: applyStock('Warsaw') });
+    expect(apply).toHaveTextContent(en['inventoryTab.action.apply']!);
+    // Nothing to apply until the value differs from what is on hand.
+    expect(apply).toBeDisabled();
+    fireEvent.change(screen.getByRole('spinbutton', { name: copy('column.newValueFor', { warehouse: 'Warsaw' }) }), {
+      target: { value: '7' },
+    });
+    expect(apply).toBeEnabled();
+  });
+
+  it('says busy while the write is in flight, and announces the result politely', async () => {
+    let settle: (value: unknown) => void = () => undefined;
+    api.put.mockImplementation(async (path: string) => {
+      if (path === '/api/v1/admin/inventory/levels') {
+        return new Promise((resolve) => {
+          settle = resolve;
+        });
+      }
+      return { data: null };
+    });
+    await openInventory();
+    fireEvent.change(screen.getByRole('spinbutton', { name: copy('column.newValueFor', { warehouse: 'Warsaw' }) }), {
+      target: { value: '7' },
+    });
+    const apply = screen.getByRole('button', { name: applyStock('Warsaw') });
+    fireEvent.click(apply);
+    await waitFor(() => expect(apply).toHaveAttribute('aria-busy', 'true'));
+    expect(apply).toBeDisabled();
+
+    settle({ data: { before: 5, after: 7, productId: PRODUCT_ID, warehouseId: WH_A } });
+    const message = await screen.findByText(copy('success.save', { warehouse: 'Warsaw', value: 7 }));
+    // A live region that was mounted before it had text (WCAG 4.1.3).
+    expect(message.closest('[role="status"]')).not.toBeNull();
+    expect(apply).not.toHaveAttribute('aria-busy');
+  });
+
+  it('applies a per-warehouse threshold immediately, without the one Save', async () => {
+    await openInventory();
+    fireEvent.click(screen.getByLabelText(en['inventoryTab.lowStock.modePerWarehouse']!));
+    fireEvent.change(screen.getByRole('spinbutton', { name: copy('column.thresholdFor', { warehouse: 'Berlin' }) }), {
+      target: { value: '3' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: applyThreshold('Berlin') }));
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledWith('/api/v1/admin/inventory/warehouse-low-stock-thresholds', {
+        productId: PRODUCT_ID,
+        thresholds: [{ warehouseId: WH_B, threshold: 3 }],
+      }),
+    );
+    expect(await screen.findByText(copy('lowStock.perWarehouseSaved', { warehouse: 'Berlin' }))).toBeInTheDocument();
+    expect(scopedPuts()).toHaveLength(0);
+  });
+
+  it('reports a failed write as an alert', async () => {
+    api.put.mockImplementation(async (path: string) => {
+      if (path === '/api/v1/admin/inventory/levels') throw new Error('network');
+      return { data: null };
+    });
+    await openInventory();
+    fireEvent.change(screen.getByRole('spinbutton', { name: copy('column.newValueFor', { warehouse: 'Warsaw' }) }), {
+      target: { value: '7' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: applyStock('Warsaw') }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(en['inventoryTab.error.save']!);
+  });
+
+  it('has no axe violations in either threshold mode', async () => {
+    await openInventory();
+    const tab = document.getElementById('product-stock-heading')!.closest('section')!;
+    await expectNoAxeViolations(tab);
+    fireEvent.click(screen.getByLabelText(en['inventoryTab.lowStock.modePerWarehouse']!));
+    await expectNoAxeViolations(tab);
+  });
+
+  it('ships its new copy in Polish too', async () => {
+    const pl = (await import('../../../../packages/modules/catalog/i18n/pl.json')).default as Record<string, string>;
+    const keys = [
+      'inventoryTab.action.apply',
+      'inventoryTab.action.applyStockFor',
+      'inventoryTab.action.applyThresholdFor',
+      'inventoryTab.column.newValueFor',
+      'inventoryTab.column.thresholdFor',
+      'inventoryTab.stockMgmt.trackStock',
+      'inventoryTab.error.load',
+    ];
+    for (const key of keys) {
+      expect(pl[key], key).toBeTruthy();
+      expect(pl[key], key).not.toBe(en[key]);
+    }
+    expect(en['inventoryTab.stockMgmt.disableManageStock']).toBeUndefined();
+    expect(en['inventoryTab.stockMgmt.disableManageStockHelp']).toBeUndefined();
   });
 });

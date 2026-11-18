@@ -131,9 +131,10 @@ const submit = (dialog: HTMLElement): void => {
 };
 
 describe('CustomFieldsPage — creating a field in the definition form (issue #447)', () => {
-  it('opens the form in a dialog with the sections in order, the key focused, and no comma-separated options box', async () => {
+  it('opens the form in a dialog with the sections in order, the default label focused, and no comma-separated options box', async () => {
     const dialog = await openCreate();
-    expect(within(dialog).getByLabelText('Key')).toHaveFocus();
+    // The key is derived from it (issue #1531), so the label is what is typed first.
+    expect(within(labels(dialog)).getByLabelText('Default label')).toHaveFocus();
     expect(within(dialog).getByLabelText('Record type')).toHaveValue('organization');
     fireEvent.change(within(dialog).getByLabelText('Type'), { target: { value: 'select' } });
     const headings = within(dialog)
@@ -225,7 +226,8 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
   describe('refuses before anything is sent', () => {
     it('a key in the wrong format, said at the key, which takes the focus', async () => {
       const dialog = await openCreate();
-      fillIdentity(dialog, 'PO-Number', 'PO');
+      // Normalised to `1_po` on submit, and still refused: a key starts with a letter.
+      fillIdentity(dialog, '1-PO', 'PO');
       submit(dialog);
       const key = within(dialog).getByLabelText('Key');
       await waitFor(() => expect(key).toHaveFocus());
@@ -307,6 +309,52 @@ describe('CustomFieldsPage — creating a field in the definition form (issue #4
       const south = optionRows(dialog)[1]!;
       await waitFor(() => expect(within(south).getByLabelText('Default')).toHaveFocus());
       expect(within(south).getByLabelText('Default')).toHaveAttribute('aria-invalid', 'true');
+      expect(client.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('derives the key from the default label (issue #1531, DS-22)', () => {
+    it('follows the default label, Polish diacritics folded, and says the key cannot change later', async () => {
+      const dialog = await openCreate();
+      const key = within(dialog).getByLabelText('Key');
+      expect(key).toHaveAccessibleDescription(EN['customFields.form.keyHelp']!);
+      type(labels(dialog), 'Default label', 'Numer zamówienia');
+      expect(key).toHaveValue('numer_zamowienia');
+      submit(dialog);
+      await waitFor(() => expect(client.create).toHaveBeenCalledTimes(1));
+      expect(client.create.mock.calls[0]![0]).toMatchObject({ key: 'numer_zamowienia', labelDefault: 'Numer zamówienia' });
+    });
+
+    it('stops following once the operator edits the key, and resumes when it is cleared', async () => {
+      const dialog = await openCreate();
+      const key = within(dialog).getByLabelText('Key');
+      type(labels(dialog), 'Default label', 'Gift');
+      type(dialog, 'Key', 'gift_note');
+      type(labels(dialog), 'Default label', 'Gift message');
+      expect(key).toHaveValue('gift_note');
+      type(dialog, 'Key', '');
+      type(labels(dialog), 'Default label', 'Gift wrap');
+      expect(key).toHaveValue('gift_wrap');
+    });
+
+    it('normalises a typed key on blur instead of refusing it', async () => {
+      const dialog = await openCreate();
+      const key = within(dialog).getByLabelText('Key');
+      type(dialog, 'Key', 'PO-Number');
+      fireEvent.blur(key);
+      expect(key).toHaveValue('po_number');
+    });
+
+    it('refuses a key the record type already has before anything is sent, never suffixing it', async () => {
+      const dialog = await openCreate();
+      type(labels(dialog), 'Default label', 'PO number');
+      submit(dialog);
+      const key = within(dialog).getByLabelText('Key');
+      expect(key).toHaveValue('po_number');
+      const sentence = 'A field with the key “po_number” already exists for this record type. Choose another key.';
+      await waitFor(() => expect(key).toHaveAccessibleDescription(expect.stringContaining(sentence)));
+      expect(key).toHaveAttribute('aria-invalid', 'true');
+      await waitFor(() => expect(key).toHaveFocus());
       expect(client.create).not.toHaveBeenCalled();
     });
   });
