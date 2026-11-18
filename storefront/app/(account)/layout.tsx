@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
+import { headers } from 'next/headers';
 import { getSessionCookie, clearSessionCookie } from '../../lib/session';
+import { getGuestAvailability } from '../../lib/api/returns-guest';
+import { isReturnsEntryPath, signedOutReturnsTarget } from '../../lib/returns/guest';
 import { getMe } from '../../lib/api/account';
 import { listOrganizationCarts } from '../../lib/api/cart';
 import { getUnreadNotificationCount } from '../../lib/api/customer-notifications';
@@ -44,7 +47,7 @@ export default async function AccountLayout({
   children: ReactNode;
 }): Promise<ReactNode> {
   const session = await getSessionCookie();
-  if (!session) return await localeRedirect('/login?next=/account');
+  if (!session) return await localeRedirect(await signedOutTarget());
 
   let me;
   try {
@@ -155,6 +158,22 @@ export default async function AccountLayout({
       <div className="b2b-account__panel">{children}</div>
     </section>
   );
+}
+
+/**
+ * Where a signed-out visitor is sent. `/login?next=/account`, except for the two returns
+ * entry pages (`specs/181-guest-complaints/` design review F-1): there it is the pages' own
+ * answer — the guest entry while guest complaints are in effect, otherwise sign-in with the
+ * page and its query kept (180 D-14). The layout renders beside the page and may answer
+ * first, so it must not answer differently. The middleware hands the path and the query to
+ * the render (`x-pathname`, `x-search`).
+ */
+async function signedOutTarget(): Promise<string> {
+  const requestHeaders = await headers();
+  const pathname = requestHeaders.get('x-pathname');
+  if (!isReturnsEntryPath(pathname)) return '/login?next=/account';
+  const { ctx } = await getServerContext();
+  return signedOutReturnsTarget(`${pathname}${requestHeaders.get('x-search') ?? ''}`, await getGuestAvailability({ ctx }));
 }
 
 /**

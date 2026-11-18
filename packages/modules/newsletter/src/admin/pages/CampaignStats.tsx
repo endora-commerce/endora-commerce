@@ -4,12 +4,15 @@ import type { EChartsOption } from 'echarts';
 import type { CampaignStats as CampaignStatsDto } from '@endora-commerce/contracts';
 import { EChart } from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { newsletterClient } from '../api/newsletter-client.js';
 
 export function CampaignStats(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const { hasPermission } = useAuth();
+  const t = useTranslation('newsletter');
+  const { language } = useTranslationContext();
   const [stats, setStats] = useState<CampaignStatsDto | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,15 +27,25 @@ export function CampaignStats(): React.ReactElement {
   if (!hasPermission('newsletter:read')) {
     return (
       <Alert>
-        <AlertDescription>You do not have permission to view the newsletter.</AlertDescription>
+        <AlertDescription>{t('common.noPermission')}</AlertDescription>
       </Alert>
     );
   }
 
+  const percent = new Intl.NumberFormat(language, { style: 'percent', maximumFractionDigits: 1 });
   const option: EChartsOption | null = stats
     ? {
         tooltip: {},
-        xAxis: { type: 'category', data: ['Sent', 'Delivered', 'Failed', 'Opened', 'Clicked'] },
+        xAxis: {
+          type: 'category',
+          data: [
+            t('stats.metric.sent'),
+            t('stats.metric.delivered'),
+            t('stats.metric.failed'),
+            t('stats.metric.opened'),
+            t('stats.metric.clicked'),
+          ],
+        },
         yAxis: { type: 'value' },
         series: [
           {
@@ -46,9 +59,13 @@ export function CampaignStats(): React.ReactElement {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Campaign statistics"
-        back={{ label: 'Campaigns', to: '/newsletter/campaigns' }}
-        description={stats ? `Open rate ${(stats.openRate * 100).toFixed(1)}% · Click rate ${(stats.clickRate * 100).toFixed(1)}%` : undefined}
+        title={t('stats.title')}
+        back={{ label: t('campaign.back'), to: '/newsletter/campaigns' }}
+        description={
+          stats
+            ? t('stats.rates', { open: percent.format(stats.openRate), click: percent.format(stats.clickRate) })
+            : undefined
+        }
       />
       {error ? (
         <Alert variant="destructive">
@@ -58,7 +75,7 @@ export function CampaignStats(): React.ReactElement {
       {option ? (
         <Card>
           <CardHeader>
-            <CardTitle>Engagement</CardTitle>
+            <CardTitle>{t('stats.engagement')}</CardTitle>
           </CardHeader>
           <CardContent>
             <EChart option={option} className="h-80 w-full" />
@@ -68,14 +85,14 @@ export function CampaignStats(): React.ReactElement {
       {stats && stats.perLinkClicks.length > 0 ? (
         <Card>
           <CardHeader>
-            <CardTitle>Clicks by link</CardTitle>
+            <CardTitle>{t('stats.links.title')}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <table className="w-full text-sm">
               <thead className="border-b text-left text-muted-foreground">
                 <tr>
-                  <th className="p-3 font-medium">URL</th>
-                  <th className="p-3 font-medium">Clicks</th>
+                  <th className="p-3 font-medium">{t('stats.links.url')}</th>
+                  <th className="p-3 font-medium">{t('stats.links.clicks')}</th>
                 </tr>
               </thead>
               <tbody>

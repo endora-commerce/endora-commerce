@@ -8,9 +8,12 @@ import { LocalizedLink } from '../../../lib/i18n/localized-link';
 import { getServerContext } from '../../../lib/server-context';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { codeLabel } from '../../../lib/account/labels';
+import { format } from '../../../lib/i18n/format';
 import { getMe } from '../../../lib/api/account';
 import { memberSession } from '../../../lib/commerce-permissions';
 import { filedByColleague, mayStartReturn } from '../../../lib/returns/returnForm';
+import { signedOutReturnsTarget } from '../../../lib/returns/guest';
+import { getGuestAvailability } from '../../../lib/api/returns-guest';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -28,7 +31,11 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
  */
 export default async function ReturnsListPage(): Promise<ReactNode> {
   const session = await getSessionCookie();
-  if (!session) return await localeRedirect('/login?next=/returns');
+  // 181 FR-010 — a signed-out visitor is offered the guest path while it is in effect.
+  if (!session) {
+    const { ctx } = await getServerContext();
+    return await localeRedirect(signedOutReturnsTarget('/returns', await getGuestAvailability({ ctx })));
+  }
   const [cases, me] = await Promise.all([listMyReturns(session), getMe(session).catch(() => null)]);
   const viewerId = me?.customerAccount.id;
   const mayStart = mayStartReturn(memberSession(me));
@@ -50,11 +57,11 @@ export default async function ReturnsListPage(): Promise<ReactNode> {
           <thead>
             <tr>
               <th>{t('account.returns.col.submitted')}</th>
-              <th>{t('account.returns.col.rma')}</th>
+              <th>{t('returns.list.case')}</th>
+              <th>{t('returns.list.product')}</th>
               <th>{t('account.returns.col.kind')}</th>
               <th>{t('account.common.status')}</th>
               <th className="text-right">{t('account.returns.col.refund')}</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -62,18 +69,38 @@ export default async function ReturnsListPage(): Promise<ReactNode> {
               <tr key={c.id}>
                 <td>{new Date(c.submittedAt).toLocaleDateString(locale)}</td>
                 <td>
-                  {c.rmaNumber ?? '—'}
+                  {/* 180 D-4, R-3.7 — the reference names the case, never a dash. */}
+                  <LocalizedLink href={`/returns/${c.id}`} className="b2b-account__link">{c.reference ?? c.rmaNumber ?? t('account.common.open')}</LocalizedLink>
                   {filedByColleague(c.customerAccountId, viewerId) ? (
                     <span className="block text-[12px] text-muted">{t('account.returns.filedByColleague')}</span>
+                  ) : null}
+                </td>
+                <td>
+                  {c.productLabel ?? '—'}
+                  {(c.lineCount ?? 1) > 1 ? ` ${format(t('returns.list.more'), { count: String((c.lineCount ?? 1) - 1) })}` : ''}
+                  {c.offPlatform ? (
+                    <span className="block text-[12px] text-muted">
+                      {t('returns.boughtElsewhere')}
+                      {c.purchaseDate
+                        ? ` · ${format(t('returns.list.purchased'), {
+                            date: new Date(`${c.purchaseDate}T00:00:00Z`).toLocaleDateString(locale, { timeZone: 'UTC' }),
+                          })}`
+                        : ''}
+                    </span>
                   ) : null}
                 </td>
                 <td>{codeLabel(t, 'returns.new.kind', c.kind)}</td>
                 <td>{c.statusLabel}</td>
                 <td className="text-right">
-                  {formatMoney(c.totalRefundAmount, c.currency)}
-                </td>
-                <td>
-                  <LocalizedLink href={`/returns/${c.id}`} className="b2b-account__link">{t('account.common.open')}</LocalizedLink>
+                  {c.offPlatform ? (
+                    // No order, no money (FR-B36): a dash for the eye, the words for a screen reader.
+                    <>
+                      <span aria-hidden="true">—</span>
+                      <span className="sr-only">{t('returns.list.notApplicable')}</span>
+                    </>
+                  ) : (
+                    formatMoney(c.totalRefundAmount, c.currency)
+                  )}
                 </td>
               </tr>
             ))}

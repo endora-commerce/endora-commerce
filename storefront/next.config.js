@@ -198,6 +198,19 @@ const nextConfig = {
           { key: 'X-Frame-Options', value: 'DENY' },
         ],
       },
+      // `specs/181-guest-complaints/` research R-5, design review F-5: the guest's tracking
+      // page and the verification page carry a bearer token in their address. No referrer
+      // leaves them and no crawler indexes them. After the catch-all, so these win; with and
+      // without the channel's language prefix.
+      ...['/returns/track/:path*', '/:lang/returns/track/:path*', '/returns/guest/verify', '/:lang/returns/guest/verify'].map(
+        (source) => ({
+          source,
+          headers: [
+            { key: 'Referrer-Policy', value: 'no-referrer' },
+            { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+          ],
+        }),
+      ),
     ];
   },
 };

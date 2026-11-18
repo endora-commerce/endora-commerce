@@ -100,6 +100,9 @@ function row(id: string, rma: string) {
   return {
     id,
     rmaNumber: rma,
+    // 180 FR-A44 — the row's reference is its link text: the RMA number here.
+    reference: rma,
+    authorizedBy: null,
     kind: 'return',
     statusCode: 'new',
     statusLabel: 'New',
@@ -171,8 +174,12 @@ function kindSelect(): HTMLSelectElement {
   return screen.getByRole('combobox', { name: 'Kind' }) as HTMLSelectElement;
 }
 
+/**
+ * 181 design review A-2: the box is a search over the RMA number, the case reference and the
+ * whole contact e-mail (`q`), not an RMA-number field.
+ */
 function rmaInput(): HTMLInputElement {
-  return screen.getByRole('textbox', { name: 'RMA number' }) as HTMLInputElement;
+  return screen.getByRole('textbox', { name: 'Search returns and complaints' }) as HTMLInputElement;
 }
 
 /** Opens a `MultiSelect` by its trigger's name and returns its option panel. */
@@ -233,12 +240,14 @@ describe('ReturnsList — saved views on the kit control (#312)', () => {
     await user.type(rmaInput(), '  RMA-9 ');
     await user.selectOptions(sortSelect(), 'rmaNumber:desc');
     // The RMA filter is saved as the list applies it: debounced and trimmed.
-    await waitFor(() => expect(listRequestsSince(0).some((p) => p.get('rmaNumber') === 'RMA-9')).toBe(true));
+    await waitFor(() => expect(listRequestsSince(0).some((p) => p.get('q') === 'RMA-9')).toBe(true));
+    expect(listRequestsSince(0).some((p) => p.has('rmaNumber'))).toBe(false);
+    expect(rmaInput().placeholder).toBe('RMA number, case reference or full e-mail');
 
     expect(await saveAs(user, '  Mine  ')).toEqual({
       name: 'Mine',
       shared: false,
-      filters: { status: ['new'], kind: 'complaint', rmaNumber: 'RMA-9' },
+      filters: { status: ['new'], kind: 'complaint', q: 'RMA-9' },
       sort: { field: 'rmaNumber', dir: 'desc' },
     });
     expect(api.patch).not.toHaveBeenCalled();
@@ -259,7 +268,8 @@ describe('ReturnsList — saved views on the kit control (#312)', () => {
     await waitFor(() =>
       expect(
         listRequestsSince(before).some(
-          (p) => p.get('status') === 'new' && p.get('kind') === 'complaint' && p.get('rmaNumber') === 'RMA-7',
+          // A view saved under 180 (`rmaNumber`) still finds what it found, now through `q`.
+          (p) => p.get('status') === 'new' && p.get('kind') === 'complaint' && p.get('q') === 'RMA-7',
         ),
       ).toBe(true),
     );
@@ -285,6 +295,22 @@ describe('ReturnsList — saved views on the kit control (#312)', () => {
       filters: {},
       sort: { field: 'submittedAt', dir: 'desc' },
     });
+  });
+
+  it('loads a view saved with `q` into the search box (181 A-2)', async () => {
+    const SEARCH = view('44444444-4444-4444-8444-444444444444', 'By e-mail', { filters: { q: 'anna@example.test' }, sort: null });
+    api.get.mockImplementation(async (path: string) => {
+      if (path.startsWith('/api/v1/admin/returns/statuses')) return { data: { statuses: STATUSES, transitions: [] } };
+      if (path.startsWith(ENDPOINT)) return { data: [...VIEWS, SEARCH] };
+      if (path.startsWith(LIST)) return { data: { rows: [row('r1', 'RMA-1')], total: 40, counts: { new: 40 } } };
+      return { data: [] };
+    });
+    const user = await renderList();
+    await screen.findByRole('option', { name: SEARCH.name });
+    const before = api.get.mock.calls.length;
+    await user.selectOptions(savedViewsSelect(), SEARCH.id);
+    expect(rmaInput().value).toBe('anna@example.test');
+    await waitFor(() => expect(listRequestsSince(before).some((p) => p.get('q') === 'anna@example.test')).toBe(true));
   });
 
   it('a view with no sort loads the default sort', async () => {
