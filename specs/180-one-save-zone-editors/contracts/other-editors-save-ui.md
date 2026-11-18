@@ -24,7 +24,7 @@ participant's module (`price_lists`, `quick_order`, `quote_requests`). Shared be
 | --- | --- |
 | Provider | `SaveSessionProvider resetKey={org.id} hostModule="organizations"` |
 | Save | `SaveSessionActions` in the page head (sticky bottom bar below 1024 px) |
-| Host part | one `PATCH …/organizations/:id` with `expectedUpdatedAt`, blocking, gathering status, VAT status, order-confirmation e-mails, fulfilment strategy, restrictions and custom fields (`CustomFieldValuesPanel saveSession`); `VERSION_CONFLICT` → no participant written, reload discards all |
+| Host part | one `PATCH …/organizations/:id` with `expectedUpdatedAt`, blocking, gathering order-confirmation e-mails, fulfilment strategy, restrictions and custom fields (`CustomFieldValuesPanel saveSession`) — status and VAT status left the host part in issue #1468; `VERSION_CONFLICT` → no participant written, reload discards all |
 | Removed | save-on-change of status and VAT status, save-on-blur of e-mails, Save buttons of `FulfilmentStrategyPanel`, `RestrictionsPanel`, custom fields |
 | Immediate (badge) | members (invite, add, role, edit, remove), hierarchy, moderation, VAT validation, sales channels |
 | Zone | `organization.detail.after`, props `{ organizationId, saveSession }` |

@@ -71,6 +71,7 @@ export function MessagesTab(props: ProjectTabProps): ReactNode {
         composerLabel: t('comments.messages.composer.label'),
         composerPlaceholder: t('comments.messages.composer.placeholder'),
         composerSubmit: t('comments.messages.composer.submit'),
+        composerHint: t('comments.messages.composerHint'),
         added: t('comments.messages.added'),
         // A message cannot be deleted; the question is never asked.
         deleteBody: t('comments.delete.body'),

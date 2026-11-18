@@ -482,6 +482,7 @@ export function AttributesManager(): ReactNode {
                         >
                           <Checkbox
                             checked={draft[key]}
+                            // eslint-disable-next-line no-restricted-syntax -- debt: a developer id as the name, #1590
                             aria-label={`${a.key}-${key}`}
                             disabled={isContentType(a.valueType)}
                             onChange={(e): void => toggleFlag(a.id, key, e.target.checked)}
@@ -1027,6 +1028,7 @@ function AttributeOptionsEditor({ attribute, onError, onChanged }: OptionsEditor
               <code className="w-40 shrink-0 font-mono text-xs">{opt.value}</code>
               <Input
                 defaultValue={opt.labelDefault}
+                // eslint-disable-next-line no-restricted-syntax -- debt: a developer id as the name, #1590
                 aria-label={`option-label-${opt.value}`}
                 onBlur={(e): void => {
                   const next = e.target.value.trim();

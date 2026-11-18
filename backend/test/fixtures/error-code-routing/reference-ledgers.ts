@@ -1563,6 +1563,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'kernel\'s access step, and by the customer sign-in paths. Owned by the domain noun, as ' +
       '`INACTIVE_SALES_CHANNEL` is (D-95.2).',
   },
+  ORDER_PAYMENT_STATUS_TRANSITION_NOT_ALLOWED: {
+    to: 'orders',
+    reason:
+      'Minted by issue #1574 for a payment-status change the money axis\'s transition graph ' +
+      '(`PAYMENT_STATUS_TRANSITIONS` in the contracts) refuses on `POST ' +
+      '/api/v1/admin/orders/:id/payment-status`: anything out of `refunded` (token ' +
+      '`payment_refunded`) or `refunded` from an unpaid status (token `payment_not_paid`). The ' +
+      'route used to accept every move. Not `INVALID_TRANSITION`, which is the lifecycle axis\'s.',
+  },
   ORDER_SALES_CHANNEL_MISMATCH: {
     to: 'orders',
     reason:

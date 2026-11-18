@@ -161,6 +161,7 @@ function savedCustomFieldFilters(saved: unknown): CustomFieldFilters {
 
 export function OrdersList(): ReactNode {
   const t = useTranslation('core');
+  const tOrders = useTranslation('orders');
   const { language } = useTranslationContext();
   const { pageSize, setPageSize } = usePageSizePreference('orders');
   const [searchParams, setSearchParams] = useSearchParams();
@@ -667,12 +668,17 @@ export function OrdersList(): ReactNode {
   const selectColumn: ResponsiveColumn<AdminOrderRow> = {
     id: 'select',
     header: (
-      <input type="checkbox" aria-label="select-all" checked={allSelected} onChange={toggleAll} />
+      <input
+        type="checkbox"
+        aria-label={tOrders('list.selection.selectAll')}
+        checked={allSelected}
+        onChange={toggleAll}
+      />
     ),
     render: (o) => (
       <input
         type="checkbox"
-        aria-label={`select-${o.businessId}`}
+        aria-label={tOrders('list.selection.selectRow', { number: o.businessId })}
         checked={selected.has(o.id)}
         onChange={(): void => toggleOne(o.id)}
       />

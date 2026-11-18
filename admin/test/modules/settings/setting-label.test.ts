@@ -6,9 +6,11 @@ import {
   resolveSettingDescription,
   resolveSettingGroupName,
   resolveSettingName,
+  resolveSettingOption,
   settingDescriptionKey,
   settingGroupNameKey,
   settingNameKey,
+  settingOptionKey,
 } from '../../../../packages/modules/settings/src/admin/components/setting-label';
 import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 
@@ -154,6 +156,39 @@ describe('setting label resolution', () => {
           bundle: { seo: { 'settingGroups.my_group.name': 'not mine' } },
         }),
       ).toBe('My group');
+    });
+  });
+  // Issue #1479 (UX audit SHELL-02) — an enum option's label.
+  describe('option', () => {
+    const MODE = { code: 'newsletter.opt_in_mode', ownerModule: 'newsletter', name: 'Opt-in mode' };
+    const KEY = 'settingLabels.newsletter.opt_in_mode.options.double';
+
+    it('builds the key a module author writes', () => {
+      expect(settingOptionKey('newsletter.opt_in_mode', 'double')).toBe(KEY);
+    });
+
+    it("takes the administrator's language, then English, then the value itself", () => {
+      expect(
+        resolveSettingOption(MODE, 'double', {
+          language: 'pl',
+          bundle: { newsletter: { [KEY]: 'Podwójna zgoda' } },
+          fallbackBundle: { newsletter: { [KEY]: 'Double opt-in' } },
+        }),
+      ).toBe('Podwójna zgoda');
+      expect(
+        resolveSettingOption(MODE, 'double', {
+          language: 'pl',
+          bundle: { newsletter: {} },
+          fallbackBundle: { newsletter: { [KEY]: 'Double opt-in' } },
+        }),
+      ).toBe('Double opt-in');
+      expect(resolveSettingOption(MODE, 'double', { language: 'pl', bundle: {} })).toBe('double');
+    });
+
+    it("never reads another module's namespace", () => {
+      expect(
+        resolveSettingOption(MODE, 'double', { language: 'en', bundle: { settings: { [KEY]: 'not mine' } } }),
+      ).toBe('double');
     });
   });
 });

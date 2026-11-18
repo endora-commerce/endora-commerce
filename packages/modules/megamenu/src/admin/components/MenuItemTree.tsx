@@ -2,8 +2,13 @@ import { useMemo, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, GripVertical, Plus, Trash2 } from 'lucide-react';
 import type { MegamenuItem, MegamenuItemKind } from '@endora-commerce/contracts';
 import { Badge, Button } from '@endora-commerce/admin-kit/ui';
+import {
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+  useConfirmDialog,
+} from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
-import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 
 interface MenuItemTreeProps {
   items: MegamenuItem[];
@@ -89,8 +94,11 @@ export function MenuItemTree({
     if (ok) onDelete(item.id);
   };
 
-  const renderRow = (item: IndexedItem, depth: number): ReactNode => {
+  const renderRow = (item: IndexedItem, depth: number, index: number, siblingCount: number): ReactNode => {
     const children = byParent.get(item.id) ?? [];
+    const isFirst = index === 0;
+    const isLast = index === siblingCount - 1;
+    const label = pickLabel(item.labels, t('tree.noLabel'));
     const isSelected = item.id === selectedItemId;
     const hasChildren = children.length > 0;
     return (
@@ -101,18 +109,18 @@ export function MenuItemTree({
           }`}
           style={{ paddingLeft: 8 + depth * 16 }}
         >
-          <GripVertical className="h-3 w-3 text-muted-foreground" />
+          <GripVertical aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
           {hasChildren ? (
-            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            <ChevronDown aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
           ) : (
-            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            <ChevronRight aria-hidden="true" className="h-3 w-3 text-muted-foreground" />
           )}
           <button
             type="button"
             className="flex-1 truncate text-left text-sm"
             onClick={() => onSelect(item.id)}
           >
-            {pickLabel(item.labels, t('tree.noLabel'))}
+            {label}
             <Badge variant="outline" className="ml-2 text-[10px] uppercase tracking-wide">
               {kindLabel(t, item.kind)}
             </Badge>
@@ -129,45 +137,52 @@ export function MenuItemTree({
               </Badge>
             ) : null}
           </button>
+          {/* Reordering is the frequent action, so it stays inline as two
+              32 px icon buttons named by `aria-label` (WCAG 2.5.8, 4.1.2;
+              Fitts). Adding a child and the destructive delete go into the row
+              menu, delete last and apart from the moves. */}
           <Button
             type="button"
-            size="sm"
+            size="icon"
             variant="ghost"
+            className="h-8 w-8"
             onClick={() => onMove(item.id, 'up')}
+            disabled={isFirst}
+            aria-label={t('common.moveUp')}
             title={t('common.moveUp')}
           >
-            <ArrowUp className="h-3 w-3" />
+            <ArrowUp aria-hidden="true" />
           </Button>
           <Button
             type="button"
-            size="sm"
+            size="icon"
             variant="ghost"
+            className="h-8 w-8"
             onClick={() => onMove(item.id, 'down')}
+            disabled={isLast}
+            aria-label={t('common.moveDown')}
             title={t('common.moveDown')}
           >
-            <ArrowDown className="h-3 w-3" />
+            <ArrowDown aria-hidden="true" />
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => onAddChild(item.id)}
-            title={t('tree.addChild')}
-          >
-            <Plus className="h-3 w-3" />
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => void requestDelete(item)}
-            title={t('tree.deleteItem')}
-            aria-label={t('tree.deleteItem')}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          <RowActionMenu label={t('tree.rowActions', { label })}>
+            <RowActionMenuItem onSelect={() => onAddChild(item.id)}>
+              <Plus aria-hidden="true" />
+              {t('tree.addChild')}
+            </RowActionMenuItem>
+            <RowActionMenuSeparator />
+            <RowActionMenuItem
+              destructive
+              // Ask once the menu has closed: its close returns focus to the
+              // trigger, which would otherwise pull it out of the dialog.
+              onSelect={() => window.setTimeout(() => void requestDelete(item), 0)}
+            >
+              <Trash2 aria-hidden="true" />
+              {t('tree.deleteItem')}
+            </RowActionMenuItem>
+          </RowActionMenu>
         </div>
-        {children.map((child) => renderRow(child, depth + 1))}
+        {children.map((child, i) => renderRow(child, depth + 1, i, children.length))}
       </div>
     );
   };
@@ -179,13 +194,13 @@ export function MenuItemTree({
       <div className="flex items-center justify-between border-b pb-2">
         <span className="text-sm font-medium">{t('tree.title')}</span>
         <Button type="button" size="sm" variant="outline" onClick={() => onAddChild(null)}>
-          <Plus className="mr-1 h-3 w-3" /> {t('tree.addTopLevel')}
+          <Plus aria-hidden="true" className="mr-1 h-3 w-3" /> {t('tree.addTopLevel')}
         </Button>
       </div>
       {roots.length === 0 ? (
         <p className="px-2 py-3 text-sm text-muted-foreground">{t('tree.empty')}</p>
       ) : (
-        roots.map((root) => renderRow(root, 0))
+        roots.map((root, i) => renderRow(root, 0, i, roots.length))
       )}
       {confirmDialog}
     </div>

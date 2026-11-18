@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { shippedModuleBundle } from '../../helpers/core-bundle';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 const getSpy = vi.fn();
@@ -71,6 +72,8 @@ const BUNDLE = passthroughBundle('core', [
   'orderDetail.reorder.action',
   'orderDetail.cloneToQuote.action',
 ]);
+// The comment box's label is the orders module's own copy (#1475).
+const ORDERS_BUNDLE = shippedModuleBundle('orders', 'en');
 
 beforeEach(() => {
   getSpy.mockReset();
@@ -102,7 +105,7 @@ function renderDetail(): void {
       </MemoryRouter>,
       { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: ['orders', 'payments'] }) },
     ),
-    BUNDLE,
+    { ...BUNDLE, ...ORDERS_BUNDLE },
   );
 }
 
@@ -118,7 +121,7 @@ describe('OrderDetail — comments', () => {
     renderDetail();
     await userEvent.click(await screen.findByText('orderDetail.tabs.comments'));
     await waitFor(() => expect(screen.getByText('internal note')).toBeInTheDocument());
-    await userEvent.type(screen.getByLabelText('comment-body'), 'please pay your invoice');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Add a comment' }), 'please pay your invoice');
     // Toggle notify on (customer-visible defaults to checked).
     await userEvent.click(screen.getByLabelText('orderDetail.comments.notify'));
     await userEvent.click(screen.getByText('orderDetail.comments.add'));

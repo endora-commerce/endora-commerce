@@ -38,7 +38,10 @@ it never collides with an external ESP (MailerLite, GetResponse, …).
 - **Campaign** — a one-off send to `all` / a manual `group` / a `tag` / a
   `tag_list`. Authored in the shared email Page Builder (same palette as
   transactional emails) with subject + Puck content tree + variables; previewed
-  with sample data; sent now or scheduled.
+  with sample data; sent now or scheduled. **Send** saves the campaign and then
+  asks for confirmation, naming the subject and how many subscribers the send
+  reaches (active and not suppressed — the same rule the dispatch applies); an
+  audience that reaches nobody is refused before anything is asked.
 - **Automation** — a linear `send` / `wait N days` sequence triggered by
   all/tag/tag-list. Send steps use the same email Page Builder. The step model
   is designed to extend to conditional branching later without rework.

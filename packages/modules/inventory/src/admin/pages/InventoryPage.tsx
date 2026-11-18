@@ -13,6 +13,7 @@ import type {
 import { ApiError, apiClient, cn, usePageSizePreference, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { PaginationFooter } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { productInventoryHref, stockDisplayBandLabels, stockDisplayBandTone } from '../lib/labels.js';
 interface RosterResponse {
   items: StockLevelRow[];
   page: number;
@@ -201,9 +202,11 @@ export function InventoryPage(): ReactNode {
         <div className="b2b-filterbar">
           <div className="b2b-filterbar__search">
             <div className="b2b-input-wrap">
-              <Search size={16} className="lead" />
+              <Search size={16} className="lead" aria-hidden="true" />
               <input
+                type="search"
                 className="b2b-field b2b-field--addon"
+                aria-label={t('inventory.search.label')}
                 placeholder={t('inventory.search.placeholder')}
                 value={query}
                 onChange={(e): void => setQuery(e.target.value)}
@@ -270,22 +273,13 @@ export function InventoryPage(): ReactNode {
                       </div>
                     </td>
                     <td>
-                      <span
-                        className={cn(
-                          'b2b-badge',
-                          r.displayBand === 'high' && 'b2b-badge--success',
-                          r.displayBand === 'medium' && 'b2b-badge--warn',
-                          r.displayBand === 'low' && 'b2b-badge--warn',
-                          r.displayBand === 'out_of_stock' && 'b2b-badge--danger',
-                          r.displayBand === 'available' && 'b2b-badge--muted',
-                        )}
-                      >
-                        {r.displayBand}
+                      <span className={stockDisplayBandTone(r.displayBand)}>
+                        {stockDisplayBandLabels.label(t, r.displayBand)}
                       </span>
                     </td>
                     <td className="actions">
                       <Link
-                        to={`/catalog/products/${r.productId}`}
+                        to={productInventoryHref(r.productId)}
                         className="b2b-btn b2b-btn--ghost b2b-btn--sm"
                       >
                         {t('inventory.action.editStock')}
@@ -344,6 +338,7 @@ function Chip(props: {
     <button
       type="button"
       className={cn('b2b-filterchip', props.active && 'is-on')}
+      aria-pressed={props.active}
       onClick={props.onClick}
     >
       {props.icon}

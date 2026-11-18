@@ -11,6 +11,7 @@ import {
   RecordHistory,
   recordHistoryChanges,
   useRecordHistory,
+  type RecordHistoryCopy,
   type RecordHistoryPageShape,
 } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
@@ -61,13 +62,16 @@ const COPY = {
   truncated: 'This project has earlier changes that are not shown.',
 };
 
-function History(props: { renderLead?: (entry: RecordHistoryEntry) => ReactNode }): ReactElement {
+function History(props: {
+  renderLead?: (entry: RecordHistoryEntry) => ReactNode;
+  copy?: RecordHistoryCopy;
+}): ReactElement {
   const load = useCallback((cursor: string | null) => loadPage(cursor), []);
   const history = useRecordHistory(load, 'v1');
   return (
     <RecordHistory
       history={history}
-      copy={COPY}
+      copy={props.copy ?? COPY}
       heading={(item): string => `Heading of ${item.action}`}
       changes={(item) => recordHistoryChanges(item, new Set(['version']))}
       fieldLabel={(field): string => `Label of ${field}`}
@@ -118,6 +122,15 @@ describe('RecordHistory', () => {
     expect(item).not.toHaveTextContent('version');
     expect(screen.getByText(COPY.hint)).toBeInTheDocument();
     expect(screen.getByText(COPY.end)).toBeInTheDocument();
+  });
+
+  it('draws no lead paragraph when the record gives no hint (#1487)', async () => {
+    loadPage.mockResolvedValue({ data: [entry(2)], pagination: { hasMore: false, cursor: null }, truncated: false });
+    const { hint: _hint, ...withoutHint } = COPY;
+    mount(<History copy={withoutHint} />);
+    await screen.findByRole('list', { name: core('history.title') });
+    expect(screen.queryByText(COPY.hint)).toBeNull();
+    expect(document.querySelectorAll('p.max-w-prose')).toHaveLength(0);
   });
 
   it('names the system and a former administrator, never an id', async () => {

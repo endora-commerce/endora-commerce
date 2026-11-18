@@ -82,9 +82,9 @@ export function SubscribersPage(): React.ReactElement {
       <div className="flex flex-wrap items-center gap-2">
         <Input placeholder="Search email…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
         <Input placeholder="Tag code…" value={tag} onChange={(e) => setTag(e.target.value)} className="max-w-xs" />
-        <a href={exportHref} className="ml-auto">
-          <Button variant="outline">Export CSV</Button>
-        </a>
+        <Button asChild variant="outline" className="ml-auto">
+          <a href={exportHref}>Export CSV</a>
+        </Button>
       </div>
       <Card>
         <CardContent className="p-0">

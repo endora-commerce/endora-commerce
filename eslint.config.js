@@ -242,10 +242,43 @@ export default [
     ],
     ignores: ['**/*.test.tsx'],
     rules: {
+      'no-restricted-syntax': ['error', ...rawEnumInJsxSelectors(), ...developerIdAriaLabelSelectors()],
+    },
+  },
+  // The one site left to #1578 (SALES-01), which rewrites that field: drop this
+  // entry when it merges.
+  {
+    files: ['packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx'],
+    rules: {
       'no-restricted-syntax': ['error', ...rawEnumInJsxSelectors()],
     },
   },
 ];
+
+/**
+ * An `aria-label` (or a kit component's `ariaLabel`) that is a developer id —
+ * `customerNote`, `select-all`, `` `delete-${code}` `` (issue #1475, UX audit
+ * SALES-10). It is read aloud verbatim, in English, whatever the operator's
+ * language, and it overrides the visible label as the control's accessible name
+ * (WCAG 2.2 SC 2.5.3, 4.1.2). Where a `<label>` or `FormField` names the control,
+ * delete the attribute; elsewhere translate it.
+ *
+ * A literal is an id when it is camelCase or hyphenated words with no space; a
+ * template is one when no part of it is anything but letters, digits and a
+ * hyphen, and a hyphen joins its parts. `{id}` passed through is not seen.
+ */
+export function developerIdAriaLabelSelectors() {
+  const attribute = 'JSXAttribute[name.name=/^(aria-label|ariaLabel)$/]';
+  const id = '/^[a-z][a-z0-9]*([A-Z][a-z0-9]*)+$|^[a-z][a-z0-9]*(-[A-Za-z0-9]+)+$/';
+  const message =
+    'An aria-label that is a developer id is read aloud verbatim, in English, and replaces the visible label. ' +
+    'Name the control with its <label> / FormField, or pass a translated string (issue #1475).';
+  return [
+    `${attribute} > Literal[value=${id}]`,
+    `${attribute} > JSXExpressionContainer > Literal[value=${id}]`,
+    `${attribute} > JSXExpressionContainer > TemplateLiteral:not(:has(TemplateElement[value.raw=/[^A-Za-z0-9-]/])):has(TemplateElement[value.raw=/-/])`,
+  ].map((selector) => ({ selector, message }));
+}
 
 /**
  * The JSX-child shapes the raw-enum rule refuses (issue #1434).

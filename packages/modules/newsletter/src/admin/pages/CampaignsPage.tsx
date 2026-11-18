@@ -32,9 +32,9 @@ export function CampaignsPage(): React.ReactElement {
         description="One-off mailings to a target audience."
         actions={
           hasPermission('newsletter:write') ? (
-            <Link to="/newsletter/campaigns/new">
-              <Button>New campaign</Button>
-            </Link>
+            <Button asChild>
+              <Link to="/newsletter/campaigns/new">New campaign</Link>
+            </Button>
           ) : null
         }
       />

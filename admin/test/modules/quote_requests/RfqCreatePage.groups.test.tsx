@@ -6,6 +6,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { byId } from '../../helpers/developer-ids';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 import { ORGANIZATION_CHANNEL_ID, organizationSalesChannelsAnswer } from '../../helpers/organization-sales-channels';
 
@@ -157,7 +158,7 @@ const rowgroup = (name: string): HTMLElement => screen.getByRole('rowgroup', { n
 describe('RfqCreatePage — groups (T032)', () => {
   it('groups lines, adds through a group’s Add product into that group, and sends groups and groupKey in display order', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue('Jan Kowalski'));
+    await waitFor(() => expect(byId('customerAccountId')).toHaveValue('Jan Kowalski'));
     await quickAdd('Widget');
     await quickAdd('Gadget');
 
@@ -193,7 +194,7 @@ describe('RfqCreatePage — groups (T032)', () => {
 
   it('places one product on two lines in two groups, each priced and sent on its own (N-31)', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue('Jan Kowalski'));
+    await waitFor(() => expect(byId('customerAccountId')).toHaveValue('Jan Kowalski'));
     await quickAdd('Widget');
     // The same product again is a second line — the quick search no longer refuses it.
     const quick = screen.getByRole('combobox', { name: 'rfqCreate.items.quickSearch' });
@@ -238,7 +239,7 @@ describe('RfqCreatePage — groups (T032)', () => {
 
   it('blocks Create while a group has no name', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue('Jan Kowalski'));
+    await waitFor(() => expect(byId('customerAccountId')).toHaveValue('Jan Kowalski'));
     await quickAdd('Widget');
     await userEvent.click(screen.getByRole('button', { name: 'Add group' }));
     expect(screen.getByText('rfqCreate.submit')).toBeDisabled();
@@ -246,7 +247,7 @@ describe('RfqCreatePage — groups (T032)', () => {
 
   it('without a group sends the request it always sent', async () => {
     renderPage();
-    await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue('Jan Kowalski'));
+    await waitFor(() => expect(byId('customerAccountId')).toHaveValue('Jan Kowalski'));
     await quickAdd('Widget');
     const submit = screen.getByText('rfqCreate.submit');
     await waitFor(() => expect(submit).not.toBeDisabled());

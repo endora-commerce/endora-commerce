@@ -49,15 +49,16 @@ function renderTree(language: 'en' | 'pl' = 'en'): ReturnType<typeof vi.fn> {
   return onDelete;
 }
 
-function deleteButtonOf(label: string): HTMLElement {
-  const row = screen.getByText(label).closest('button')!.parentElement as HTMLElement;
-  return within(row).getByRole('button', { name: /Delete item|Usuń element/ });
+/** Opens the row's action menu (CONTENT-17, #1467) and picks its delete item. */
+async function chooseDelete(label: string): Promise<void> {
+  await userEvent.click(screen.getByRole('button', { name: new RegExp(`^(Actions for |Akcje: )${label}$`) }));
+  await userEvent.click(await screen.findByRole('menuitem', { name: /Delete item|Usuń element/ }));
 }
 
 describe('MenuItemTree — deleting asks first (#1464)', () => {
   it('names the item and its nested items, opens on Cancel, and Cancel deletes nothing', async () => {
     const onDelete = renderTree();
-    await userEvent.click(deleteButtonOf('Products'));
+    await chooseDelete('Products');
 
     const dialog = await screen.findByRole('dialog', { name: 'Delete this menu item?' });
     expect(dialog).toHaveTextContent('“Products” and the 3 items nested under it');
@@ -70,14 +71,14 @@ describe('MenuItemTree — deleting asks first (#1464)', () => {
 
   it('deletes the subtree on confirm', async () => {
     const onDelete = renderTree();
-    await userEvent.click(deleteButtonOf('Products'));
+    await chooseDelete('Products');
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete with nested items' }));
     expect(onDelete).toHaveBeenCalledWith('root');
   });
 
   it('asks without a nested count for a leaf', async () => {
     const onDelete = renderTree();
-    await userEvent.click(deleteButtonOf('Contact'));
+    await chooseDelete('Contact');
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveTextContent('“Contact” is removed from the tree.');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Delete item' }));
@@ -86,7 +87,7 @@ describe('MenuItemTree — deleting asks first (#1464)', () => {
 
   it('uses the Polish plural forms', async () => {
     renderTree('pl');
-    await userEvent.click(deleteButtonOf('Products'));
+    await chooseDelete('Products');
     const dialog = await screen.findByRole('dialog', { name: 'Usunąć ten element menu?' });
     expect(dialog).toHaveTextContent('„Products” i 3 zagnieżdżone w nim elementy');
   });

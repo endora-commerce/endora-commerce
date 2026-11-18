@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { LogIn, ShieldAlert } from 'lucide-react';
 import {
   Alert,
@@ -48,6 +48,16 @@ export function LoginPage(): ReactNode {
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const mfaErrorId = useId();
+  // The backend's sentence, or the screen's own line for a failure that came
+  // back with none (issue #1481).
+  const errorLine =
+    lastLoginError ??
+    (lastLoginReason === 'sign_in_failed'
+      ? loginCopy.signInFailedLine
+      : lastLoginReason === 'verification_failed'
+        ? loginCopy.verificationFailedLine
+        : null);
 
   // Feature 042 — second-step screen, shown when the password step returned
   // `mfaRequired`. Mirrors the login card layout (Principle IX).
@@ -58,18 +68,18 @@ export function LoginPage(): ReactNode {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <LogIn className="size-5 text-primary" />
-              Two-step verification
+              {loginCopy.mfaTitle}
             </CardTitle>
-            <CardDescription>
-              Enter the 6-digit code from your authenticator app, or a recovery code.
-            </CardDescription>
+            <CardDescription>{loginCopy.mfaDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {lastLoginError ? (
+            {errorLine ? (
               <Alert variant="destructive">
                 <ShieldAlert className="size-4" />
                 <AlertTitle>{loginCopy.failed}</AlertTitle>
-                <AlertDescription>{lastLoginError}</AlertDescription>
+                {/* The code field is described by this line, so a refused code
+                    is read out with the field it belongs to. */}
+                <AlertDescription id={mfaErrorId}>{errorLine}</AlertDescription>
               </Alert>
             ) : null}
             <form
@@ -84,19 +94,25 @@ export function LoginPage(): ReactNode {
               }}
             >
               <div className="space-y-2">
-                <Label htmlFor="mfa-code">Authentication code</Label>
+                <Label htmlFor="mfa-code">{loginCopy.mfaCodeLabel}</Label>
+                {/* No numeric keyboard: the field also takes a recovery code,
+                    which is hexadecimal. */}
                 <Input
                   id="mfa-code"
                   autoComplete="one-time-code"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                   autoFocus
                   required
+                  {...(errorLine ? { 'aria-invalid': true, 'aria-describedby': mfaErrorId } : {})}
                   value={code}
                   onChange={(e): void => setCode(e.target.value)}
                   placeholder="123456"
                 />
               </div>
               <Button type="submit" className="w-full min-h-11" disabled={submitting}>
-                {submitting ? loginCopy.submitting : 'Verify'}
+                {submitting ? loginCopy.submitting : loginCopy.mfaSubmit}
               </Button>
               <Button
                 type="button"
@@ -104,7 +120,7 @@ export function LoginPage(): ReactNode {
                 className="w-full"
                 onClick={(): void => cancelMfa()}
               >
-                Back to sign in
+                {loginCopy.mfaBack}
               </Button>
             </form>
           </CardContent>
@@ -138,13 +154,13 @@ export function LoginPage(): ReactNode {
               </AlertTitle>
               <AlertDescription>{federatedSignInErrorLine(federatedSignInError)}</AlertDescription>
             </Alert>
-          ) : lastLoginError ? (
+          ) : errorLine ? (
             <Alert variant="destructive">
               <ShieldAlert className="size-4" />
               <AlertTitle>
                 {lastLoginReason === 'session_expired' ? loginCopy.sessionExpired : loginCopy.failed}
               </AlertTitle>
-              <AlertDescription>{lastLoginError}</AlertDescription>
+              <AlertDescription>{errorLine}</AlertDescription>
             </Alert>
           ) : null}
           <form

@@ -24,6 +24,8 @@ export interface CommentComposerProps {
   label: string;
   placeholder: string;
   submitLabel: string;
+  /** One line under the field that describes it (`aria-describedby`); none when omitted. */
+  hint?: string;
   /** What the text may refer to — the trigger table of {@link ReferenceField}. */
   referenceKinds: readonly ReferenceTriggerKind[];
   /** Where the references' suggestions come from. */
@@ -46,6 +48,12 @@ export function CommentComposer(props: CommentComposerProps): ReactNode {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+
+  // The problem first: it is what the writer has to act on.
+  const describedBy =
+    [problem ? `${fieldId}-problem` : null, props.hint ? `${fieldId}-hint` : null]
+      .filter((id): id is string => id !== null)
+      .join(' ') || undefined;
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -84,12 +92,17 @@ export function CommentComposer(props: CommentComposerProps): ReactNode {
         placeholder={props.placeholder}
         disabled={busy}
         aria-invalid={problem !== null}
-        {...(problem ? { 'aria-describedby': `${fieldId}-problem` } : {})}
+        {...(describedBy === undefined ? {} : { 'aria-describedby': describedBy })}
         onValueChange={(next): void => {
           setBody(next);
           setProblem(null);
         }}
       />
+      {props.hint ? (
+        <p id={`${fieldId}-hint`} className="text-xs text-muted-foreground">
+          {props.hint}
+        </p>
+      ) : null}
       {problem ? (
         <p id={`${fieldId}-problem`} role="alert" className="text-xs text-destructive">
           {problem}
