@@ -105,7 +105,7 @@ export function SalesChannelsListPage(): ReactNode {
         </Alert>
       )}
       <Card className="mb-4">
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="flex items-center gap-2">
             <Checkbox
               id="sc-active-only"
@@ -119,7 +119,7 @@ export function SalesChannelsListPage(): ReactNode {
         </CardContent>
       </Card>
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('list.loading')}</p>
           ) : rows.length === 0 ? (

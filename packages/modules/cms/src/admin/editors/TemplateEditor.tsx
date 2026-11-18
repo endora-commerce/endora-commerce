@@ -234,7 +234,7 @@ export function TemplateEditor(): ReactNode {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('templateEditor.metadata')}</CardTitle>
+              <CardTitle>{t('templateEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>

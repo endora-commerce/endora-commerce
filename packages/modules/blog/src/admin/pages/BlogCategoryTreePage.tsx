@@ -152,7 +152,7 @@ export function BlogCategoryTreePage(): ReactNode {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{t('categoryTree.cardTitle')}</CardTitle>
+          <CardTitle>{t('categoryTree.cardTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (

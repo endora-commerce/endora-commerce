@@ -9,7 +9,7 @@ import {
   type CommandHookPlanResponse,
   type CommandOutboxListItem,
 } from '@endora-commerce/contracts';
-import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, cn, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -230,7 +230,7 @@ function ExecutionPlan({ t, names }: { t: Translate; names: ReadonlyMap<string, 
   if (plan.actions.length === 0) {
     return (
       <Card>
-        <CardContent className="flex items-center gap-3 pt-6 text-sm text-muted-foreground">
+        <CardContent className="flex items-center gap-3 text-sm text-muted-foreground">
           <Webhook className="size-5 shrink-0" aria-hidden="true" />
           <p>{t('platform.commandHooks.plan.empty')}</p>
         </CardContent>
@@ -275,11 +275,9 @@ function ActionPlan({
     <Card>
       <section aria-labelledby={headingId}>
         <CardHeader className="flex flex-row flex-wrap items-baseline justify-between gap-2 space-y-0">
-          <CardTitle className="min-w-0">
-            <h2 id={headingId} className={`font-mono text-base ${WRAP}`}>
-              {/* eslint-disable-next-line no-restricted-syntax -- a command id is this screen's subject, shown as code */}
-              {action.action}
-            </h2>
+          <CardTitle id={headingId} className={cn('min-w-0 font-mono', WRAP)}>
+            {/* eslint-disable-next-line no-restricted-syntax -- a command id is this screen's subject, shown as code */}
+            {action.action}
           </CardTitle>
           <span className={`text-sm text-muted-foreground ${WRAP}`}>
             {t('platform.commandHooks.plan.owner', { module: names.get(action.owner) ?? action.owner })}
@@ -550,7 +548,7 @@ function Outbox({
 
       {loading || loadError !== null ? null : items.length === 0 ? (
         <Card>
-          <CardContent className="flex items-center gap-3 pt-6 text-sm text-muted-foreground">
+          <CardContent className="flex items-center gap-3 text-sm text-muted-foreground">
             {status === 'dead' ? (
               <CheckCircle2 className="size-5 shrink-0 text-emerald-600" aria-hidden="true" />
             ) : (
@@ -563,7 +561,7 @@ function Outbox({
         </Card>
       ) : (
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             {!canManage && status === 'dead' && (
               <p className="mb-3 text-sm text-muted-foreground">
                 {t('platform.commandHooks.outbox.manageHint', {

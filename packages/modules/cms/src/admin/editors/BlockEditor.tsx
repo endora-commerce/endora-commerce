@@ -259,7 +259,7 @@ export function BlockEditor(): ReactNode {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('blockEditor.metadata')}</CardTitle>
+              <CardTitle>{t('blockEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>

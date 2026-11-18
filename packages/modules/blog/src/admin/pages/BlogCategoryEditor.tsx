@@ -458,7 +458,7 @@ export function BlogCategoryEditor(): ReactNode {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
+              <CardTitle>{t('sections.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
@@ -526,7 +526,7 @@ export function BlogCategoryEditor(): ReactNode {
 
           <Card data-settings-group="seo">
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.seo')}</CardTitle>
+              <CardTitle>{t('sections.seo')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">

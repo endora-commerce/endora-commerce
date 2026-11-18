@@ -638,7 +638,7 @@ export function BlogPostEditor(): ReactNode {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
+              <CardTitle>{t('sections.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
@@ -703,7 +703,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('author.title')}</CardTitle>
+                <CardTitle>{t('author.title')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <AuthorPicker value={post.author ?? null} disabled={saving} onChange={(id) => void onSaveAuthor(id)} />
@@ -727,7 +727,7 @@ export function BlogPostEditor(): ReactNode {
 
           <Card data-settings-group="seo">
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.seo')}</CardTitle>
+              <CardTitle>{t('sections.seo')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
@@ -767,7 +767,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('sections.tags')}</CardTitle>
+                <CardTitle>{t('sections.tags')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <TagPicker
@@ -781,7 +781,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('sections.relatedPosts')}</CardTitle>
+                <CardTitle>{t('sections.relatedPosts')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <RelatedPostsPicker
@@ -796,7 +796,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('sections.relatedProducts')}</CardTitle>
+                <CardTitle>{t('sections.relatedProducts')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <RelatedProductsPicker
@@ -812,7 +812,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('sections.lifecycle')}</CardTitle>
+                <CardTitle>{t('sections.lifecycle')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">{t('postEditor.archiveHint')}</p>

@@ -130,7 +130,7 @@ export function ReturnClausesPage(): ReactNode {
         </Alert>
       )}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {clauses === null ? null : (
             <ResponsiveTable
               data={clauses}

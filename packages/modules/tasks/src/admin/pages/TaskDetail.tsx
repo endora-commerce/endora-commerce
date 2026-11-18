@@ -368,7 +368,7 @@ export function TaskDetail(): ReactNode {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="min-w-0 lg:col-span-2">
-          <CardContent className="pt-6">
+          <CardContent>
             <section aria-labelledby={detailsHeadingId} className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h2 id={detailsHeadingId} className="text-base font-semibold">
@@ -581,7 +581,7 @@ export function TaskDetail(): ReactNode {
         {/* The side column beside the details: where the Task belongs, what it is linked to, its reminders. */}
         <div className="min-w-0 space-y-6">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <ContextSection
                 task={task}
                 canChange={canWrite}
@@ -591,7 +591,7 @@ export function TaskDetail(): ReactNode {
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <LinkedRecordsSection
                 task={task}
                 canChange={canWrite}
@@ -604,7 +604,7 @@ export function TaskDetail(): ReactNode {
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <RemindersSection
                 task={task}
                 canChange={canWrite}
@@ -619,7 +619,7 @@ export function TaskDetail(): ReactNode {
         </div>
 
         <Card className="min-w-0 lg:col-span-2">
-          <CardContent className="pt-6">
+          <CardContent>
             <SubtasksSection
               task={task}
               canChange={canWrite}
@@ -633,7 +633,7 @@ export function TaskDetail(): ReactNode {
         </Card>
 
         <Card className="min-w-0">
-          <CardContent className="pt-6">
+          <CardContent>
             <RelatedTasksSection
               task={task}
               canChange={canWrite}
@@ -647,7 +647,7 @@ export function TaskDetail(): ReactNode {
         </Card>
 
         <Card className="min-w-0 lg:col-span-3">
-          <CardContent className="pt-6">
+          <CardContent>
             <TaskComments
               taskId={task.id}
               // Whoever may see the Task may comment, but someone else's private Task is read only (R-3).
@@ -658,7 +658,7 @@ export function TaskDetail(): ReactNode {
         </Card>
 
         <Card className="min-w-0 lg:col-span-2">
-          <CardContent className="pt-6">
+          <CardContent>
             <TaskAttachments
               taskId={task.id}
               canChange={canWrite}
@@ -680,7 +680,7 @@ export function TaskDetail(): ReactNode {
         </div>
 
         <Card className="min-w-0 lg:col-span-3">
-          <CardContent className="pt-6">
+          <CardContent>
             <section aria-labelledby={historyHeadingId} className="space-y-3">
               <h2 id={historyHeadingId} className="text-base font-semibold">
                 {t('detail.history')}

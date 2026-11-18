@@ -430,6 +430,41 @@ what the message is:
 
 The behaviour is pinned in `admin/test/kit/kit-inline-status.test.tsx`, including an axe pass.
 
+## Cards — `Card` and the density tokens
+
+Issue #1438 (UX audit 2026-11-17, DS-04; owner decision DEC-03). `Card` from `./ui` is the one
+card implementation. Its density is a set of tokens in `theme.css`: `--card-pad` (16px, inside a
+card), `--card-pad-sm` (12px, a compact strip), `--card-gap` (16px, between cards),
+`--section-gap` (24px, between sections inside a card), `--fs-page-title` (20px),
+`--fs-section-title` (14px) and `--fs-hint` (12px). Read them as Tailwind arbitrary variables —
+`p-(--card-pad)`, `gap-(--section-gap)`, `text-(length:--fs-section-title)` — rather than a
+fixed step, so a client's redeclaration reaches every card.
+
+- `CardHeader`, `CardContent` and `CardFooter` pad with `--card-pad`. `CardContent` drops its top
+  padding only directly after a `CardHeader`: a card without a header needs no `pt-6`.
+- `CardTitle` is an `h2` (the page's `h1` belongs to `PageHeader`). `as="h3"` for a card inside
+  another titled section; `as="div"` keeps it out of the outline. Give it the `id` a region's
+  `aria-labelledby` points at — never wrap a heading inside it.
+- `<Card flush>` drops the content padding and clips the corners, for a table that runs to the
+  edge. A `CardHeader` in it keeps its padding.
+
+```tsx
+<Card flush>
+  <CardHeader>
+    <CardTitle id={titleId}>{t('orders.recent')}</CardTitle>
+  </CardHeader>
+  <CardContent>
+    <Table aria-labelledby={titleId}>…</Table>
+  </CardContent>
+</Card>
+```
+
+`.b2b-card` and its `__head` / `__title` / `__sub` / `__body` / `__body--flush` / `__foot` /
+`--clickable` classes are **deprecated** and still published (D-219): they read the same tokens,
+so the two look alike while the call sites move. Do not add new ones. The behaviour is pinned in
+`admin/test/kit/kit-card.test.tsx`, which also refuses a `CardContent` with `pt-6` and a
+`CardTitle` wrapping its own heading.
+
 ## Tabs — `Tabs`, `TabPanel` and `RecordTabs`
 
 Issue #1445 (UX audit 2026-11-17, DS-12). The one in-page tab strip; `RouteTabs` stays the strip

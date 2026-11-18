@@ -1230,7 +1230,7 @@ export function OrderCreatePage(): ReactNode {
 
       {gateHint ? (
         <Card className="mb-4">
-          <CardContent className="flex items-center gap-2 pt-6 text-sm text-muted-foreground">
+          <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
             <Info className="size-4 shrink-0" aria-hidden="true" />
             <p>{gateHint}</p>
           </CardContent>
@@ -1517,7 +1517,7 @@ export function OrderCreatePage(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <FormField label={t('orderCreate.field.note')}>
             <textarea
               id="customerNote"

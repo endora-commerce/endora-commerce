@@ -186,7 +186,7 @@ export function EmailBrandingPage(): ReactNode {
       ) : null}
 
       <Card>
-        <CardContent className="max-w-xl space-y-4 pt-6">
+        <CardContent className="max-w-xl space-y-4">
           <FormField label={t('editor.scope')} hint={t('branding.scope.hint')}>
             <Select
               value={channelId ?? ''}

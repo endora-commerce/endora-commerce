@@ -419,7 +419,7 @@ function AssetDetailDrawerBody({
   return (
     <Card className="sticky top-2 max-h-[calc(100vh-2rem)] overflow-y-auto">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-base">{t('detail.title')}</CardTitle>
+        <CardTitle>{t('detail.title')}</CardTitle>
         <Button type="button" size="sm" variant="ghost" aria-label={t('detail.close')} onClick={onClose}>
           <span aria-hidden="true">✕</span>
         </Button>
