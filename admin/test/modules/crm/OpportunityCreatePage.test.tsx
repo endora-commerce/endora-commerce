@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   CHANNEL_ID,
@@ -327,5 +327,24 @@ describe('OpportunityCreatePage — created from an order (User Story 17)', () =
     await fillAndSubmit();
     await waitFor(() => expect(navigateSpy).toHaveBeenCalled());
     expect(postSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Issue #1449 (UX audit 2026-11-17, DS-19; WORK-16) — every create form ends with the kit's
+ * sticky save bar: in view while the form scrolls, the secondary action first and the one
+ * primary last (Von Restorff, Jakob).
+ */
+describe('OpportunityCreatePage — the sticky save bar (#1449)', () => {
+  it('ends the form with Cancel, then Create last', () => {
+    renderPage();
+    const bar = submitButton().closest<HTMLElement>('[data-slot="sticky-form-actions"]');
+    expect(bar).not.toBeNull();
+    expect(bar).toHaveAttribute('data-desktop', 'sticky');
+    expect(
+      within(bar!)
+        .getAllByRole('button')
+        .map((button) => button.textContent?.trim()),
+    ).toEqual([core('common.action.cancel'), en('opportunity.create.submit')]);
   });
 });

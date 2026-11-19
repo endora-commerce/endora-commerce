@@ -27,8 +27,9 @@ import { UnsavedChangesHint } from './unsaved-changes/UnsavedChangesGuard.js';
  * - **`note`** — one muted line on what Save does ("The customer is notified").
  * - **`dirty`** — given, the kit's `UnsavedChangesHint` sits in the bar (Zeigarnik).
  * - **`error`** / **`status`** — the last save's refusal and outcome, beside the button that
- *   caused them (Proximity) rather than at the top of the page, out of view. Both regions are
- *   mounted empty from the first render, so the text that arrives is announced (WCAG 4.1.3);
+ *   caused them (Proximity) rather than at the top of the page, out of view. A region exists
+ *   once the prop is passed at all — `null` while there is nothing to say — and is then mounted
+ *   empty from the first render, so the text that arrives is announced (WCAG 4.1.3);
  *   an error carries an icon as well as its words, never colour alone. While there is an
  *   error the status is not shown, so the bar never says "Saved" beside a refusal.
  *
@@ -45,9 +46,9 @@ export interface StickyFormActionsProps {
   note?: ReactNode;
   /** Shows "Unsaved changes" while true; leave it out where the screen shows no such hint. */
   dirty?: boolean;
-  /** The last save's refusal, in an alert region inside the bar. */
+  /** The last save's refusal, in an alert region inside the bar; pass `null` while there is none. */
   error?: ReactNode;
-  /** The last save's outcome ("Saved"), in a status region inside the bar. */
+  /** The last save's outcome ("Saved"), in a status region inside the bar; `null` while there is none. */
   status?: ReactNode;
   /** The desktop placement — see the component's documentation. Defaults to `inline`. */
   desktop?: 'inline' | 'sticky';
@@ -91,17 +92,21 @@ export function StickyFormActions(props: StickyFormActionsProps): ReactNode {
       {structured ? (
         <div className="flex w-full flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
           <div className="flex min-w-0 flex-col gap-1 lg:mr-auto">
-            <div role="alert" className="text-sm font-medium text-destructive">
-              {hasError ? (
-                <span className="flex items-start gap-1.5">
-                  <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-                  <span>{error}</span>
-                </span>
-              ) : null}
-            </div>
-            <p role="status" className="text-sm text-muted-foreground">
-              {hasError ? null : status}
-            </p>
+            {error === undefined ? null : (
+              <div role="alert" className="text-sm font-medium text-destructive">
+                {hasError ? (
+                  <span className="flex items-start gap-1.5">
+                    <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                    <span>{error}</span>
+                  </span>
+                ) : null}
+              </div>
+            )}
+            {status === undefined ? null : (
+              <p role="status" className="text-sm text-muted-foreground">
+                {hasError ? null : status}
+              </p>
+            )}
             {dirty === undefined ? null : <UnsavedChangesHint dirty={dirty} />}
             {hasNote ? (
               <p id={noteId} className="text-xs text-muted-foreground">

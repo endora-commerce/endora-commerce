@@ -111,8 +111,17 @@ describe('StickyFormActions — messages beside the Save', () => {
     expect(within(bar()).queryByTestId('unsaved-changes-hint')).toBeNull();
   });
 
+  it('mounts no alert or status region for an editor that says its outcome elsewhere', () => {
+    renderWithI18n(<StickyFormActions primary={<Button>Save</Button>} />, EN);
+    expect(within(bar()).queryByRole('alert')).toBeNull();
+    expect(within(bar()).queryByRole('status')).toBeNull();
+  });
+
   it('puts the save refusal in an alert and the outcome in a status region, both in the bar', () => {
-    const { rerender } = renderWithI18n(<StickyFormActions primary={<Button>Save</Button>} />, EN);
+    const { rerender } = renderWithI18n(
+      <StickyFormActions primary={<Button>Save</Button>} error={null} status={null} />,
+      EN,
+    );
     const alert = within(bar()).getByRole('alert');
     const status = within(bar()).getByRole('status');
     // Mounted empty from the first render, so the text that arrives is announced (WCAG 4.1.3).
@@ -121,7 +130,7 @@ describe('StickyFormActions — messages beside the Save', () => {
     rerender(<StickyFormActions primary={<Button>Save</Button>} error="The name is taken." status={null} />);
     expect(within(bar()).getByRole('alert')).toBe(alert);
     expect(alert).toHaveTextContent('The name is taken.');
-    rerender(<StickyFormActions primary={<Button>Save</Button>} status="Saved." />);
+    rerender(<StickyFormActions primary={<Button>Save</Button>} error={null} status="Saved." />);
     expect(status).toHaveTextContent('Saved.');
     expect(alert).toHaveTextContent('');
   });
