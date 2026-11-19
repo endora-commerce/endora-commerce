@@ -332,3 +332,72 @@ describe('RuleBuilder', () => {
     });
   });
 });
+
+/**
+ * Issue #1503 (UX audit SHELL-22, K3; the DS-03 rule, #1437) — the builder is a section of the
+ * card it sits in, not a bordered box inside it. Its controls keep their own borders (they are
+ * fields); a group's children are rows divided by a rule, not a fenced or ruled-off column.
+ */
+describe('RuleBuilder — a section of its host by default (issue #1503, SHELL-22)', () => {
+  const GROUP: PromotionRule = {
+    kind: 'group',
+    op: 'AND',
+    children: [
+      { kind: 'condition', field: { kind: 'builtin', key: 'cartTotal' }, op: 'gte', values: [100] },
+      { kind: 'condition', field: { kind: 'builtin', key: 'cartTotal' }, op: 'lte', values: [900] },
+    ],
+  };
+
+  it('draws no outer border and no card, and has no heading of its own', () => {
+    const { container } = render(<RuleBuilder value={GROUP} onChange={vi.fn()} />);
+    const root = container.firstElementChild as HTMLElement;
+    expect(root.className.split(/\s+/)).not.toContain('border');
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    expect(container.querySelector('h2, h3')).toBeNull();
+  });
+
+  it('lists a group’s children as rows divided by a rule, with no left rule or box around them', () => {
+    const { container } = render(<RuleBuilder value={GROUP} onChange={vi.fn()} />);
+    const rows = container.querySelector('[data-slot="rule-group-children"]') as HTMLElement;
+    expect(rows).not.toBeNull();
+    const classes = rows.className.split(/\s+/);
+    expect(classes).toContain('divide-y');
+    expect(classes).not.toContain('border-l-2');
+    expect(classes).not.toContain('border');
+    // The controls inside keep their borders: they are fields.
+    expect(within(rows).getAllByDisplayValue(/100|900/)).toHaveLength(2);
+  });
+
+  it('takes `chrome="card"` where it stands alone, titled by the kit or by the caller', () => {
+    const kit = render(<RuleBuilder value={{ kind: 'all' }} onChange={vi.fn()} chrome="card" />);
+    const card = kit.container.querySelector('[data-slot="card"]');
+    expect(card).not.toBeNull();
+    expect(within(card as HTMLElement).getByRole('heading', { level: 2, name: 'Conditions' })).toBeTruthy();
+    kit.unmount();
+
+    const own = render(
+      <RuleBuilder value={{ kind: 'all' }} onChange={vi.fn()} chrome="card" title="Who qualifies" titleAs="h3" />,
+    );
+    expect(screen.getByRole('heading', { level: 3, name: 'Who qualifies' })).toBeTruthy();
+    own.unmount();
+  });
+
+  it('names its card heading in Polish too', () => {
+    renderWithI18n(<RuleBuilder value={{ kind: 'all' }} onChange={vi.fn()} chrome="card" />, shippedCoreBundle('pl'));
+    expect(screen.getByRole('heading', { level: 2, name: 'Warunki' })).toBeTruthy();
+  });
+
+  it('is mounted without a frame by every host, each of which already places it in a card', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    for (const host of [
+      'promotions/src/admin/pages/PromotionEditPage.tsx',
+      'promotions/src/admin/pages/PromotionRulesPage.tsx',
+      'product_feeds/src/admin/components/FeedCriteriaPanel.tsx',
+    ]) {
+      const source = readFileSync(resolve(process.cwd(), '../packages/modules', host), 'utf8');
+      expect(source, host).toMatch(/<RuleBuilder[\s<]/);
+      expect(source, host).not.toMatch(/<RuleBuilder[^>]*chrome="card"/);
+    }
+  });
+});

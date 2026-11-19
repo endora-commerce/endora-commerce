@@ -315,3 +315,19 @@ describe('CommentThread — the hint is off unless the tab gives one (issue #150
     expect(screen.queryByText(HINT)).toBeNull();
   });
 });
+
+describe('CommentThread hosts state their hint themselves (issue #1503, SHELL-22)', () => {
+  it('passes the hint explicitly from every core host, since the kit draws none by default', () => {
+    for (const host of [
+      'crm/src/admin/pages/opportunity-detail/tabs/NotesTab.tsx',
+      'crm/src/admin/pages/opportunity-detail/tabs/MessagesTab.tsx',
+      'projects/src/admin/pages/project-detail/tabs/NotesTab.tsx',
+      'projects/src/admin/pages/project-detail/tabs/MessagesTab.tsx',
+      'tasks/src/admin/components/TaskComments.tsx',
+    ]) {
+      const source = readFileSync(resolve(process.cwd(), '../packages/modules', host), 'utf8');
+      expect(source, host).toContain('<CommentThread');
+      expect(source, host).toMatch(/\bhint: t\('comments\./);
+    }
+  });
+});

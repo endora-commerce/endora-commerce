@@ -2151,6 +2151,7 @@
   "ruleBuilder.group.builtin": "Cart & relationship",
   "ruleBuilder.group.attribute": "Attributes",
   "ruleBuilder.matchAll": "No conditions: everything matches.",
+  "ruleBuilder.title": "Conditions",
   "ruleBuilder.field.label": "Field",
   "ruleBuilder.operator.label": "Operator",
   "ruleBuilder.add.condition": "Add condition",
