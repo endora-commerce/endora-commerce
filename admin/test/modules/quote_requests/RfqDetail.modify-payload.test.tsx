@@ -221,7 +221,8 @@ describe('RfqDetail Modify — reference, proposal, live difference, payload', (
       await waitFor(() => expect(line).toHaveTextContent('rfq.detail.reference.none'));
       expect(input.value).toBe('');
       expect(line).toHaveTextContent('—');
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      // The save bar's alert region is mounted empty (issue #1449); no alert says anything.
+      expect(screen.queryAllByRole('alert').map((alert) => alert.textContent)).toEqual(['']);
     },
   );
 });
