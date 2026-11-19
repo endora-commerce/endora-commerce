@@ -342,3 +342,49 @@ describe('ScopePicker — a stored scope survives channel details loading late',
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+describe('ScopePicker — a section of its host by default (issue #1503, SHELL-22; DS-03 #1437)', () => {
+  beforeEach(() => {
+    vi.spyOn(apiClient, 'get').mockResolvedValue({ items: [], page: 1, pageSize: 100, total: 0 } as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('renders as a section labelled by its heading, with no card of its own', async () => {
+    const { container } = renderInCore(
+      <ScopePicker value={{ salesChannelIds: [], languages: [] }} onChange={(): void => {}} />,
+      'en',
+    );
+    await waitFor(() => expect(screen.getByText('Select at least one channel.')).toBeTruthy());
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    const section = screen.getByRole('region', { name: 'Scope' });
+    expect(section.getAttribute('data-slot')).toBe('editor-section');
+    expect(screen.getByRole('heading', { level: 2, name: 'Scope' })).toBeTruthy();
+  });
+
+  it('takes `chrome="card"` where it stands alone, and `titleAs` under a titled card', async () => {
+    const { container } = renderInCore(
+      <ScopePicker value={{ salesChannelIds: [], languages: [] }} onChange={(): void => {}} chrome="card" titleAs="h3" />,
+      'en',
+    );
+    await waitFor(() => expect(screen.getByText('Select at least one channel.')).toBeTruthy());
+    const card = container.querySelector('[data-slot="card"]');
+    expect(card).not.toBeNull();
+    expect(card!.querySelector('h3')).toHaveTextContent('Scope');
+  });
+
+  it('is mounted as a card by every editor that places it between its own cards', () => {
+    for (const host of [
+      'blog/src/admin/pages/BlogCategoryEditor.tsx',
+      'blog/src/admin/pages/BlogPostEditor.tsx',
+      'cms/src/admin/editors/BlockEditor.tsx',
+      'cms/src/admin/editors/PageEditor.tsx',
+      'cms/src/admin/editors/TemplateEditor.tsx',
+    ]) {
+      const source = readFileSync(join(REPO_ROOT, 'packages/modules', host), 'utf8');
+      expect(source, host).toMatch(/<ScopePicker [^>]*chrome="card"/);
+    }
+  });
+});

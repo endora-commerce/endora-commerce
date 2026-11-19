@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import type { ProductSelectionRule } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, EditorSection, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { productFeedsClient, type ProductFeedDto } from '../api.js';
@@ -9,10 +9,12 @@ import { FeedPriceBookField } from './FeedPriceBookField.js';
 import { SchedulePresetField, type FeedScheduleValue } from './SchedulePresetField.js';
 
 /**
- * Feed settings — ux-design §2.2, five `Card` regions.
+ * Feed settings — ux-design §2.2, five regions.
  *
  * All five regions are real: the criteria panel arrived with US2 and the
- * schedule presets with US3.
+ * schedule presets with US3. They are five `EditorSection`s of the tab's one
+ * card, not five cards (issue #1503, UX audit SHELL-22; the DS-03 rule, #1437:
+ * one card per editor tab, sections inside it).
  *
  * The price region is the one with a real cross-field rule: gross prices need a
  * tax country, because a feed has no buyer to infer one from (FR-044). It also
@@ -80,130 +82,113 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>{t('feeds.settings.binding')}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="feed-name">{t('feeds.create.name')}</Label>
-            <Input
-              id="feed-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={!canWrite}
-              title={writeTitle}
-            />
-          </div>
-          <dl className="grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-muted-foreground">{t('feeds.create.channel')}</dt>
-              <dd>{feed.salesChannelCode}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">{t('feeds.create.language')}</dt>
-              <dd>{feed.languageCode}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">{t('feeds.create.template')}</dt>
-              <dd>{feed.feedTemplateName}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">{t('feeds.settings.prices')}</dt>
-              <dd>{feed.currencyCode}</dd>
-            </div>
-          </dl>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('feeds.settings.prices')}</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <FeedPriceBookField
-            feedId={feed.id}
-            pinnedId={feed.priceListId}
-            value={priceListId}
-            onChange={setPriceListId}
-            disabled={!canWrite}
-            disabledTitle={writeTitle}
-          />
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="feed-price-presentation">{t('feeds.settings.prices')}</Label>
-            <Select
-              id="feed-price-presentation"
-              value={presentation}
-              onChange={(e) => setPresentation(e.target.value as 'net' | 'gross')}
-              disabled={!canWrite}
-              title={writeTitle}
-            >
-              <option value="net">net</option>
-              <option value="gross">gross</option>
-            </Select>
-          </div>
-          {presentation === 'gross' && (
+        <CardContent className="space-y-(--section-gap)">
+          <EditorSection title={t('feeds.settings.binding')} contentClassName="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="feed-tax-country">taxCountry</Label>
+              <Label htmlFor="feed-name">{t('feeds.create.name')}</Label>
               <Input
-                id="feed-tax-country"
-                value={taxCountry}
-                maxLength={2}
-                onChange={(e) => setTaxCountry(e.target.value)}
-                aria-invalid={grossWithoutCountry}
+                id="feed-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 disabled={!canWrite}
                 title={writeTitle}
               />
             </div>
-          )}
-        </CardContent>
-      </Card>
+            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">{t('feeds.create.channel')}</dt>
+                <dd>{feed.salesChannelCode}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">{t('feeds.create.language')}</dt>
+                <dd>{feed.languageCode}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">{t('feeds.create.template')}</dt>
+                <dd>{feed.feedTemplateName}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">{t('feeds.settings.prices')}</dt>
+                <dd>{feed.currencyCode}</dd>
+              </div>
+            </dl>
+          </EditorSection>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('feeds.settings.criteria')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FeedCriteriaPanel
-            salesChannelId={feed.salesChannelId}
-            value={selectionRule}
-            onChange={setSelectionRule}
-            disabled={!canWrite}
-            disabledTitle={writeTitle}
-          />
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('feeds.settings.schedule')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <SchedulePresetField
-            value={schedule}
-            onChange={setSchedule}
-            nextRunAt={feed.nextRunAt}
-            tooTight={feed.scheduleTooTightWarning}
-            disabled={!canWrite}
-            disabledTitle={writeTitle}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('feeds.settings.danger')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={(e) => setEnabled(e.target.checked)}
+          <EditorSection title={t('feeds.settings.prices')} contentClassName="flex flex-col gap-4">
+            <FeedPriceBookField
+              feedId={feed.id}
+              pinnedId={feed.priceListId}
+              value={priceListId}
+              onChange={setPriceListId}
               disabled={!canWrite}
-              title={writeTitle}
+              disabledTitle={writeTitle}
             />
-            {t('feeds.settings.enabled')}
-          </label>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="feed-price-presentation">{t('feeds.settings.prices')}</Label>
+              <Select
+                id="feed-price-presentation"
+                value={presentation}
+                onChange={(e) => setPresentation(e.target.value as 'net' | 'gross')}
+                disabled={!canWrite}
+                title={writeTitle}
+              >
+                <option value="net">net</option>
+                <option value="gross">gross</option>
+              </Select>
+            </div>
+            {presentation === 'gross' && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="feed-tax-country">taxCountry</Label>
+                <Input
+                  id="feed-tax-country"
+                  value={taxCountry}
+                  maxLength={2}
+                  onChange={(e) => setTaxCountry(e.target.value)}
+                  aria-invalid={grossWithoutCountry}
+                  disabled={!canWrite}
+                  title={writeTitle}
+                />
+              </div>
+            )}
+          </EditorSection>
+
+
+          <EditorSection title={t('feeds.settings.criteria')}>
+            <FeedCriteriaPanel
+              salesChannelId={feed.salesChannelId}
+              value={selectionRule}
+              onChange={setSelectionRule}
+              disabled={!canWrite}
+              disabledTitle={writeTitle}
+            />
+          </EditorSection>
+
+
+          <EditorSection title={t('feeds.settings.schedule')}>
+            <SchedulePresetField
+              value={schedule}
+              onChange={setSchedule}
+              nextRunAt={feed.nextRunAt}
+              tooTight={feed.scheduleTooTightWarning}
+              disabled={!canWrite}
+              disabledTitle={writeTitle}
+            />
+          </EditorSection>
+
+
+          <EditorSection title={t('feeds.settings.danger')}>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={enabled}
+                onChange={(e) => setEnabled(e.target.checked)}
+                disabled={!canWrite}
+                title={writeTitle}
+              />
+              {t('feeds.settings.enabled')}
+            </label>
+          </EditorSection>
         </CardContent>
       </Card>
 

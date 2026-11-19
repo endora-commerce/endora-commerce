@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ImmediateBadge, useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, EditorSection, InlineStatus } from '@endora-commerce/admin-kit/ui';
 import type {
   AdminZoneProps,
   Warehouse,
@@ -168,38 +169,42 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
 
   // The read gate that used to stand here is the zone renderer's now — absent,
   // not disabled and not a 403 panel, decided before this chunk is fetched.
-  if (loading) return <div className="b2b-help">{t('warehouses.channel.loading')}</div>;
+  //
+  // Issue #1503 (UX audit SHELL-22; the DS-03 rule, #1437) — one section that follows its mount:
+  // a section inside a card, its own card under `<AdminZone chrome="card">`. It used to draw a
+  // card for the table, another for the add form and one more for each message, so the routing
+  // read as up to four objects. The add form is its sub-section, the messages an alert and a
+  // status line.
+  // A refresh after an action keeps the table on screen; only the first read has nothing to show.
+  const firstLoad = loading && assignments.length === 0 && warehouses.length === 0;
 
   return (
-    <div className="b2b-col" style={{ gap: 12 }}>
+    <EditorSection
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          {t('warehouses.channel.title')}
+          {canWrite ? (
+            // The kit's "Applies immediately" badge, one look for one meaning on every editor
+            // (feature 174 FR-070, feature 180). The heading's gap spaces it, not its margin.
+            <ImmediateBadge className="ml-0" />
+          ) : null}
+        </span>
+      }
+      aria-busy={loading || undefined}
+    >
       {error ? (
-        <div
-          className="b2b-card"
-          style={{ background: 'var(--danger-soft)', color: 'var(--danger-soft-fg)', padding: 10 }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
-      {info ? (
-        <div
-          className="b2b-card"
-          style={{ background: 'var(--success-soft)', color: 'var(--success-soft-fg)', padding: 10 }}
-        >
-          {info}
-        </div>
-      ) : null}
+      {/* Mounted before it has text, so the confirmation is announced (WCAG 2.2 SC 4.1.3). */}
+      <InlineStatus>{info}</InlineStatus>
 
-      <div className="b2b-card">
-        <div className="b2b-card__head">
-          <h2 className="flex flex-wrap items-center gap-2">
-            {t('warehouses.channel.title')}
-            {canWrite ? (
-              // The kit's "Applies immediately" badge, one look for one meaning on every editor
-              // (feature 174 FR-070, feature 180). The heading's gap spaces it, not its margin.
-              <ImmediateBadge className="ml-0" />
-            ) : null}
-          </h2>
-        </div>
+      {firstLoad ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t('warehouses.channel.loading')}
+        </p>
+      ) : (
         <table className="b2b-tbl">
           <thead>
             <tr>
@@ -261,41 +266,39 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
             )}
           </tbody>
         </table>
-      </div>
+      )}
 
-      {canWrite && candidates.length > 0 ? (
-        <div className="b2b-card">
-          <div className="b2b-card__head"><h2>{t('warehouses.channel.addTitle')}</h2></div>
-          <div className="b2b-card__body">
-            <div className="b2b-row" style={{ gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <label className="b2b-label" htmlFor="ch-add-wh">{t('warehouses.channel.field.warehouse')}</label>
-                <select
-                  id="ch-add-wh"
-                  className="b2b-field"
-                  value={pendingWarehouseId}
-                  onChange={(e): void => setPendingWarehouseId(e.target.value)}
-                >
-                  <option value="">{t('warehouses.channel.field.pickOne')}</option>
-                  {candidates.map((w) => (
-                    <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                className="b2b-btn b2b-btn--primary"
-                onClick={(): void => { void handleAssign(); }}
-                disabled={busy === 'assign' || !pendingWarehouseId}
+      {!firstLoad && canWrite && candidates.length > 0 ? (
+        <EditorSection as="h3" title={t('warehouses.channel.addTitle')}>
+          <div className="b2b-row" style={{ gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <label className="b2b-label" htmlFor="ch-add-wh">{t('warehouses.channel.field.warehouse')}</label>
+              <select
+                id="ch-add-wh"
+                className="b2b-field"
+                value={pendingWarehouseId}
+                onChange={(e): void => setPendingWarehouseId(e.target.value)}
               >
-                {busy === 'assign' ? t('warehouses.channel.action.adding') : t('warehouses.channel.action.add')}
-              </button>
+                <option value="">{t('warehouses.channel.field.pickOne')}</option>
+                {candidates.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
+                ))}
+              </select>
             </div>
+            <button
+              type="button"
+              className="b2b-btn b2b-btn--primary"
+              onClick={(): void => { void handleAssign(); }}
+              disabled={busy === 'assign' || !pendingWarehouseId}
+              aria-busy={busy === 'assign' || undefined}
+            >
+              {busy === 'assign' ? t('warehouses.channel.action.adding') : t('warehouses.channel.action.add')}
+            </button>
           </div>
-        </div>
+        </EditorSection>
       ) : null}
       {confirmDialog}
-    </div>
+    </EditorSection>
   );
 }
 

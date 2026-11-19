@@ -301,7 +301,7 @@ export function BlockEditor(): ReactNode {
               </FormField>
             </CardContent>
           </Card>
-          <ScopePicker value={scope} onChange={setScope} />
+          <ScopePicker value={scope} onChange={setScope} chrome="card" />
         </>
       }
       canvasBar={

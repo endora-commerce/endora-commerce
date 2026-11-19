@@ -877,7 +877,7 @@ export function PageEditor(): ReactNode {
               <p className="text-xs text-muted-foreground">{t('pageEditor.share.help')}</p>
             </CardContent>
           </Card>
-          <ScopePicker value={scope} onChange={setScope} />
+          <ScopePicker value={scope} onChange={setScope} chrome="card" />
         </>
       }
       canvasBar={

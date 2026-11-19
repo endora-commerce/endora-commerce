@@ -299,3 +299,17 @@ describe('CommentThread — a section, not a card (issue #1437, DS-03)', () => {
     expect(heading.closest('[data-slot=card]')).not.toBeNull();
   });
 });
+
+describe('CommentThread — the hint is off unless the tab gives one (issue #1503, SHELL-22)', () => {
+  it('draws no line above the thread when the copy names no hint', async () => {
+    list.mockResolvedValue([entry()]);
+    const { hint, ...withoutHint } = COPY;
+    mount(thread({ copy: withoutHint }));
+
+    const items = await screen.findByRole('list', { name: COPY.title });
+    // Above the list there is no hint line; the composer's live region (`role=status`) stays.
+    const root = items.parentElement!;
+    expect(root.querySelector(':scope > p:not([role])')).toBeNull();
+    expect(screen.queryByText(hint ?? '')).toBeNull();
+  });
+});

@@ -490,6 +490,9 @@ dropzone and a dialog are fields or overlays, not frames, and stay.
   `FieldProtectionSummary` (`./field-protection`) is a section too, with `chrome` and `titleAs`
   (issue #1488, CAT-06); its heading names the source, so two integrations are two sections. History and
   comments render no heading of their own as a section: the host's tab or heading names them.
+  `ScopePicker` (`./components`) and `FieldProtectionPricePanel` (`./field-protection`) are sections
+  too, with `chrome` and `titleAs` (issue #1503, SHELL-22). `CommentThreadCopy.hint`, like
+  `RecordHistoryCopy.hint`, is optional: give it only for a rule the entries do not show.
 - Mount a zone at page level, between the host's own cards, as `<AdminZone … chrome="card" />`;
   inside a card, leave the prop off. A contribution that renders an `EditorSection` follows the
   mount, so the same panel is right in both places.

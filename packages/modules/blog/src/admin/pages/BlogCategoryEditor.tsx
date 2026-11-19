@@ -522,7 +522,7 @@ export function BlogCategoryEditor(): ReactNode {
             />
           ) : null}
 
-          <ScopePicker value={scope} onChange={setScope} />
+          <ScopePicker value={scope} onChange={setScope} chrome="card" />
 
           <Card data-settings-group="seo">
             <CardHeader>
