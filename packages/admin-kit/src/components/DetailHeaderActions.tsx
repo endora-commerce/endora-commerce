@@ -1,7 +1,8 @@
-import { Children, type ReactNode } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { Children, useRef, type ReactNode } from 'react';
+import { Loader2, MoreHorizontal } from 'lucide-react';
 import { Button } from '../ui/button.js';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu.js';
+import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu.js';
+import { DeferredActionMenuContent } from './RowActionMenu.js';
 import { useTranslation } from '../i18n/useTranslation.js';
 import { cn } from '../lib/utils.js';
 
@@ -30,7 +31,10 @@ import { cn } from '../lib/utils.js';
  * accessible name is the word on screen (WCAG 2.5.3), and it is not rendered
  * when the menu would be empty. The panel is the kit's `DropdownMenu`, which
  * portals out of the header (no clipping), traps focus, supports typeahead and
- * returns focus to the trigger on Escape.
+ * returns focus to the trigger on Escape. An entry that opens a dialog (a
+ * `useConfirmDialog` question, a `ModalDialog`) runs only once the menu has
+ * handed focus back to the trigger, as in `RowActionMenu`, so the dialog keeps
+ * its focus and returns it to "More" when it closes (WCAG 2.4.3).
  */
 export interface DetailHeaderActionsProps {
   /** The one primary action — a `Button` with the default variant, or a `SaveButtonGroup`. */
@@ -44,6 +48,12 @@ export interface DetailHeaderActionsProps {
   /** Disables the menu trigger; pair with `moreTitle` to say why. */
   moreDisabled?: boolean;
   moreTitle?: string;
+  /**
+   * An entry of the menu is running: the trigger is disabled, marked
+   * `aria-busy` and shows a spinner in place of its icon, so a second press
+   * cannot start it again (Doherty). Its label stays.
+   */
+  moreBusy?: boolean;
   className?: string;
 }
 
@@ -54,9 +64,11 @@ export function DetailHeaderActions({
   moreLabel,
   moreDisabled = false,
   moreTitle,
+  moreBusy = false,
   className,
 }: DetailHeaderActionsProps): ReactNode {
   const t = useTranslation('core');
+  const triggerRef = useRef<HTMLButtonElement>(null);
   // `toArray` drops `null`, `false` and `undefined`, so a menu whose entries are
   // all conditional and all off renders no trigger.
   const hasMenu = Children.toArray(children).length > 0;
@@ -70,17 +82,23 @@ export function DetailHeaderActions({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
+              ref={triggerRef}
               type="button"
               variant="outline"
               className="pointer-coarse:min-h-11"
-              disabled={moreDisabled}
+              disabled={moreDisabled || moreBusy}
+              {...(moreBusy ? { 'aria-busy': true } : {})}
               {...(moreTitle === undefined ? {} : { title: moreTitle })}
             >
-              <MoreHorizontal aria-hidden="true" />
+              {moreBusy ? (
+                <Loader2 aria-hidden="true" className="motion-safe:animate-spin" />
+              ) : (
+                <MoreHorizontal aria-hidden="true" />
+              )}
               {moreLabel ?? t('common.action.more')}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">{children}</DropdownMenuContent>
+          <DeferredActionMenuContent triggerRef={triggerRef}>{children}</DeferredActionMenuContent>
         </DropdownMenu>
       ) : null}
       {hasSecondary ? secondary : null}

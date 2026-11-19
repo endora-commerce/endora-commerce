@@ -1,7 +1,7 @@
 /**
  * Issue #1474 (SALES-09) — cancelling a quote request asks in the kit's
  * `ModalDialog`: named by its title, the reason field labelled and focused,
- * Tab held inside, Escape and *Keep RFQ* returning focus to *Cancel RFQ*, the
+ * Tab held inside, Escape and *Keep RFQ* returning focus to the menu it was opened from, the
  * scrim inert so a stray click does not drop a typed reason, and a refused
  * cancellation announced inside the dialog rather than behind its scrim.
  */
@@ -71,6 +71,7 @@ const FULL_BUNDLE = passthroughBundle('core', [
   'rfq.detail.error.cancel',
   'rfq.detail.info.canceled',
   'rfq.detail.tabs.overview',
+  'common.action.more',
 ]);
 
 interface RfqOverrides {
@@ -161,7 +162,10 @@ beforeEach(() => {
 async function openCancel(): Promise<ReturnType<typeof userEvent.setup>> {
   const user = userEvent.setup();
   renderDetail({ status: 'Pending' });
-  await user.click(await screen.findByRole('button', { name: /rfq\.detail\.cancelRfq/ }));
+  // In the header's "More" menu since #1497 (SALES-12).
+  await user.click(await screen.findByRole('button', { name: 'common.action.more' }));
+  await user.click(await screen.findByRole('menuitem', { name: /rfq\.detail\.cancelRfq/ }));
+  await screen.findByRole('dialog');
   return user;
 }
 
@@ -170,7 +174,7 @@ describe('RfqDetail — the cancel dialog (#1474)', () => {
     await openCancel();
     const dialog = screen.getByRole('dialog', { name: 'rfq.detail.cancelDialog.title' });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(within(dialog).getByLabelText('rfq.detail.cancelReason')).toHaveFocus();
+    await waitFor(() => expect(within(dialog).getByLabelText('rfq.detail.cancelReason')).toHaveFocus());
   });
 
   it('keeps Tab inside the dialog', async () => {
@@ -184,11 +188,11 @@ describe('RfqDetail — the cancel dialog (#1474)', () => {
     expect(reason).toHaveFocus();
   });
 
-  it('closes on Escape and returns focus to Cancel RFQ', async () => {
+  it('closes on Escape and returns focus to the "More" menu it was opened from', async () => {
     const user = await openCancel();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByRole('button', { name: /rfq\.detail\.cancelRfq/ })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'common.action.more' })).toHaveFocus();
   });
 
   it('does not drop a typed reason on a click on the scrim', async () => {

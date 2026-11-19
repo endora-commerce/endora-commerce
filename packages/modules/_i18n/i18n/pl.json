@@ -1892,6 +1892,8 @@
   "returns.title": "Zwroty / RMA",
   "rfq.detail.actions": "Akcje",
   "rfq.detail.approve": "Zatwierdź",
+  "rfq.detail.approveConfirm.message": "Zatwierdzenie blokuje uzgodnione ceny i powiadamia klienta, który może wtedy przekształcić zapytanie w zamówienie.",
+  "rfq.detail.approveConfirm.title": "Zatwierdzić zapytanie ofertowe {id}?",
   "rfq.detail.approveDescription": "Zatwierdzenie blokuje uzgodnione ceny i pozwala klientowi przekształcić zapytanie w zamówienie.",
   "rfq.detail.backToList": "Powrót do listy",
   "rfq.detail.badge.awaitingRevision": "Oczekuje na akceptację rewizji przez klienta",

@@ -7,6 +7,7 @@ import {
   type ExtraLine,
   type ProbeRequest,
 } from './rfq-reference-fixtures';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
@@ -152,6 +153,8 @@ describe('RfqDetail current-price probe', () => {
     const detailsBefore = detailCalls();
 
     fireEvent.click(screen.getByRole('button', { name: /rfq\.detail\.approve/ }));
+    // Approve asks first since #1497 (SALES-12).
+    await answerConfirm(true);
     await waitFor(() => expect(detailCalls()).toBe(detailsBefore + 1));
     await screen.findByText('Line 0');
     expect(screen.getByText('0.00 PLN')).toBeInTheDocument();
@@ -178,6 +181,8 @@ describe('RfqDetail current-price probe', () => {
 
     payload = rfqPayloadWithLines(changed);
     fireEvent.click(screen.getByRole('button', { name: /rfq\.detail\.approve/ }));
+    // Approve asks first since #1497 (SALES-12).
+    await answerConfirm(true);
     await waitFor(() => expect(probes().length).toBe(before + 1));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));

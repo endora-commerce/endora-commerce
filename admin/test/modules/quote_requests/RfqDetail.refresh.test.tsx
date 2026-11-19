@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
@@ -133,6 +134,8 @@ describe('RfqDetail — first load and refresh (SALES-06)', () => {
     postSpy.mockResolvedValue({});
 
     await userEvent.click(await screen.findByRole('button', { name: approveName() }));
+    // Approve asks first since #1497 (SALES-12).
+    await answerConfirm(true);
 
     await waitFor(() => expect(reads).toHaveLength(2));
     expect(tablist).toBeInTheDocument();
