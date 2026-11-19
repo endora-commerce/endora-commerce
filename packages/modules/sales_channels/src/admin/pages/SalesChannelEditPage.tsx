@@ -425,8 +425,13 @@ function ChannelEditSection({
                 nothing at all when no contribution survives the filter, so there is
                 no chrome of this screen's to hide. Feature 180 — the zone gets the
                 editor's save session; a participant's changes join the form's Save.
-                Issue #1449 — the form draws it before its save bar, so Save follows it. */}
-            <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id, saveSession: session.handle }} />
+                Issue #1449 — the form draws it before its save bar, so Save follows it.
+                Issue #1503 — at page level, beside the identity card: each panel is a card. */}
+            <AdminZone
+              name="sales_channel.editor.after"
+              props={{ channelId: channel.id, saveSession: session.handle }}
+              chrome="card"
+            />
           </div>
         }
       />

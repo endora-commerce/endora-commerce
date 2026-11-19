@@ -2149,6 +2149,7 @@
   "ruleBuilder.group.builtin": "Koszyk i relacje",
   "ruleBuilder.group.attribute": "Atrybuty",
   "ruleBuilder.matchAll": "Brak warunków: pasuje wszystko.",
+  "ruleBuilder.title": "Warunki",
   "ruleBuilder.field.label": "Pole",
   "ruleBuilder.operator.label": "Operator",
   "ruleBuilder.add.condition": "Dodaj warunek",
