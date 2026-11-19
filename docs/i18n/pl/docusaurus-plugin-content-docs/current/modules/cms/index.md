@@ -50,6 +50,25 @@ Każde wyszukiwanie odwołań to przejście JSONB po strukturze `content` encji 
 Tę samą zawartość JSONB `content` przeszukuje też **rejestr odwołań biblioteki mediów** — usunięcie
 pliku osadzonego we właściwościach (`props`) komponentu CMS jest odrzucane w ten sam sposób.
 
+## Listy w panelu administracyjnym
+
+Ekrany **Strony CMS**, **Bloki CMS**, **Szablony CMS** i **Hooki CMS** pokazują wszystkie rekordy danego rodzaju. Nazwa rekordu otwiera go. Lista stron ma też wyszukiwarkę, która znajduje stronę po nazwie lub slugu już w trakcie pisania, oraz filtr statusu. *Wyczyść wszystkie filtry* resetuje oba.
+
+Administrator z uprawnieniem `cms.write` ma na końcu każdego wiersza menu (⋮):
+
+- **Otwórz** otwiera edytor rekordu.
+- **Usuń** najpierw prosi o potwierdzenie. Okno podaje nazwę rekordu i ostrzega, że usunięcia nie można cofnąć. Usunięta strona od razu znika ze sklepu. Bloki usuniętego hooka zostają, ale przestają się pojawiać w tym miejscu.
+
+Gdy usunięcie zostanie odrzucone, okno zostaje otwarte, podaje przyczynę i mówi, co zrobić:
+
+| Odmowa | Co mówi okno | Co zrobić |
+| --- | --- | --- |
+| `409 CMS_REFERENCED` | Rekord jest nadal używany na stronie, w bloku lub w menu. | Usuń go ze strony, bloku lub menu, które go używa, i usuń ponownie. |
+| `409 CMS_HOOK_SYSTEM_PROTECTED` | Hooka systemowego nie można usunąć. | Nic. Hooki systemowe nie mają w menu pozycji **Usuń**. |
+| Każdy inny błąd | Usunięcie się nie powiodło. | Sprawdź połączenie i wybierz **Usuń** ponownie albo *Anuluj*. |
+
+Bez `cms.write` listy są tylko do odczytu: bez menu w wierszu i bez przycisku **Nowy**. Pusta lista mówi, do czego służy, a administratorowi, który może utworzyć rekord, pokazuje przycisk **Nowy**.
+
 ## Tworzenie treści w Page Builderze
 
 Page Builder jest zbudowany na **Puck** (`@puckeditor/core`). Jego bloki są

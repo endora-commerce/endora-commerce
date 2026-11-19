@@ -165,6 +165,26 @@ The strip is not shown when the post links no product the visitor may see, or wh
 catalogue is not present. The older `relatedProducts` field (`BlogProductCard`) is deprecated:
 no composition ever filled it, and it will be removed in a later minor release.
 
+## The admin lists
+
+The **Blog posts**, **Blog tags** and **Blog categories** screens follow the admin's list pattern. The post and tag lists page through the server's results and have a search that runs while you type; the post list also filters by status. Each status is shown as a badge with its name.
+
+An administrator with `blog.write` gets a menu (⋮) at the end of each row.
+
+**Posts: Open and Delete.** **Delete** asks for confirmation and sends the version the list read. A deleted post disappears from the storefront and from every post that lists it as related (detach-on-delete, above). If the delete fails, most likely because someone changed the post since the list was read, the dialog stays open and asks you to reload the list and try again.
+
+**Tags: Edit and Delete.** **New tag** in the header, and **Edit** in a row, open the same dialog with three fields: name, code and description. While you create a tag, its code follows the name (`Buyer guides` → `buyer-guides`) until you type a code of your own. Each problem is shown at its field:
+
+- an empty name: *Enter a name*;
+- a code that is not lower-case letters, digits and hyphens (up to 64, starting and ending with a letter or digit);
+- a code another tag already uses (`409 BLOG_TAG_CODE_TAKEN`): *Another tag already uses this code*.
+
+Before deleting a tag, the list asks which posts still carry it. If any do, no confirmation is offered: the list names the posts, and you remove the tag from them first (the server refuses with `409 BLOG_TAG_IN_USE` otherwise). A tag on no post is deleted after the confirmation.
+
+**Categories** keep their tree, with the row's own controls to move, add a child and delete. The seeded `Default` category cannot be deleted, and the screen says so under its title.
+
+Without `blog.write` the lists are read-only: no row menu and no **New** button.
+
 ## Settings
 
 | Code                  | Type    | Default | Notes                                                |

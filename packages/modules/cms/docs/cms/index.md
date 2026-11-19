@@ -42,6 +42,25 @@ Every reference scan is a JSONB walk over the entity's `content` envelope (`page
 
 The same `content` JSONB is scanned by the **Assets Library reference registry** — deleting an Asset embedded in a CMS component's `props` is similarly refused.
 
+## The admin lists
+
+The **CMS pages**, **CMS blocks**, **CMS templates** and **CMS hooks** screens list every record of their kind. The record's name opens it. The page list also has a search, which finds a page by its name or slug while you type, and a status filter. *Clear all filters* resets both.
+
+An administrator with `cms.write` gets a menu (⋮) at the end of each row:
+
+- **Open** opens the record's editor.
+- **Delete** asks for confirmation first. The dialog names the record and warns that deleting cannot be undone. A deleted page disappears from the storefront at once. A deleted hook's blocks stay, but no longer appear in that place.
+
+When the delete is refused, the dialog stays open, says why and tells you what to do:
+
+| Refusal | What the dialog says | What to do |
+| --- | --- | --- |
+| `409 CMS_REFERENCED` | The record is still used on a page, in a block or in a menu. | Remove it from the page, block or menu that uses it, then delete it again. |
+| `409 CMS_HOOK_SYSTEM_PROTECTED` | A system hook cannot be deleted. | Nothing. System hooks have no **Delete** in their menu. |
+| Any other failure | The delete did not go through. | Check the connection and choose **Delete** again, or *Cancel*. |
+
+Without `cms.write` the lists are read-only: no row menu and no **New** button. A list with no records shows what it is for and, for an administrator who may create one, the **New** button.
+
 ## Page Builder authoring
 
 The Page Builder is built on **Puck** (`@puckeditor/core`). Its blocks are
