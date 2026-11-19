@@ -6,7 +6,7 @@ import { FieldLabel } from '@puckeditor/core';
 import { X } from 'lucide-react';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import type { AssetDetail, AssetSummary } from '@endora-commerce/contracts';
-import { AssetPicker, fetchAssetDetail } from '@endora-commerce/admin-kit/components';
+import { AssetPicker, fetchAssetDetail, ModalDialog } from '@endora-commerce/admin-kit/components';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { PB_FIELD_INPUT_CLASS, useFieldText, type PageBuilderImagePickerProps, type PickedImage } from '@endora-commerce/page-builder-core';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
@@ -37,6 +37,11 @@ const MODAL_TITLE_KEYS = {
 const inputClassName = PB_FIELD_INPUT_CLASS;
 export const pickerButtonClass = 'h-9 shrink-0';
 
+/**
+ * The asset library in the kit's `ModalDialog`, on the `overlay` layer above the
+ * fullscreen builder: focus trapped, Escape closes it, focus returns to the
+ * field's button (issue #1493, UX audit CONTENT-03).
+ */
 function AssetModalShell({
   title,
   onClose,
@@ -46,35 +51,21 @@ function AssetModalShell({
   onClose: () => void;
   children: React.ReactNode;
 }): ReactElement {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return (): void => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
+  const t = useTranslation('core');
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      onClick={onClose}
+    <ModalDialog
+      layer="overlay"
+      title={title}
+      onClose={onClose}
+      widthClassName="max-w-3xl"
+      footer={
+        <Button type="button" variant="outline" onClick={onClose}>
+          {t('common.action.close')}
+        </Button>
+      }
     >
-      <div
-        className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border bg-background shadow-lg"
-        onClick={(e): void => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
-          <h2 className="text-base font-semibold">{title}</h2>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
-      </div>
-    </div>
+      {children}
+    </ModalDialog>
   );
 }
 

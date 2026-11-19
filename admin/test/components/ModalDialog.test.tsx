@@ -234,6 +234,10 @@ describe('ModalDialog — the admin-wide dialog rule (#1444, DS-11)', () => {
     expect(overlayScrim).toHaveAttribute('data-layer', 'overlay');
     // The builder's floating action bar sits at 9999 (`PageBuilderActionBar`).
     expect(Number(overlayScrim.style.zIndex)).toBeGreaterThan(9999);
+    // Issue #1493: the rich-text editor's own dialogs (`cms-components`, which
+    // cannot use the kit) sit at 2147483000–2147483001, and the asset library
+    // opens from inside its image dialog.
+    expect(Number(overlayScrim.style.zIndex)).toBeGreaterThan(2147483001);
   });
 
   it('answers Escape in the topmost dialog only, and returns focus into the one below', async () => {

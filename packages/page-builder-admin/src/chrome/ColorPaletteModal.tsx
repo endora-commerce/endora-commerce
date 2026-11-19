@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { CmsColorPaletteEntry } from '@endora-commerce/contracts';
 import { Button, ColorPicker } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { BRAND_COLOR_ROLES, type BrandColorRole } from '@endora-commerce/page-builder-core';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -22,7 +23,10 @@ function ColorPaletteAddForm({
   return (
     <div className="space-y-3 border-t pt-4">
       <h3 className="text-sm font-medium">{t('pageBuilder.colorPalette.addTitle')}</h3>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {/* Mounted before it has text, so a refused colour is announced. */}
+      <p role="alert" className="text-sm text-destructive">
+        {error}
+      </p>
       <label className="block text-sm">
         <span className="mb-1 block">{t('pageBuilder.colorPalette.nameLabel')}</span>
         <input
@@ -134,6 +138,7 @@ export function ColorPaletteModal({
   onSave: (entries: CmsColorPaletteEntry[]) => Promise<void>;
 }): ReactNode {
   const t = useTranslation('core');
+  const hintId = useId();
   const [localEntries, setLocalEntries] = useState(entries);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,15 +161,6 @@ export function ColorPaletteModal({
       setError(null);
     }
   }, [open, entries]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return (): void => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -211,28 +207,21 @@ export function ColorPaletteModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('pageBuilder.colorPalette.title')}
-      onClick={onClose}
+    <ModalDialog
+      layer="overlay"
+      title={t('pageBuilder.colorPalette.title')}
+      onClose={onClose}
+      aria-describedby={hintId}
+      footer={
+        <Button type="button" variant="outline" onClick={onClose}>
+          {t('pageBuilder.colorPalette.close')}
+        </Button>
+      }
     >
-      <div
-        className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-lg border bg-background p-4 shadow-lg"
-        onClick={(e): void => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">{t('pageBuilder.colorPalette.title')}</h2>
-            <p className="text-sm text-muted-foreground">
-              {pickMode ? t('pageBuilder.colorPalette.pickHint') : t('pageBuilder.colorPalette.description')}
-            </p>
-          </div>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-            {t('pageBuilder.colorPalette.close')}
-          </Button>
-        </div>
+      <div>
+        <p id={hintId} className="mb-4 text-sm text-muted-foreground">
+          {pickMode ? t('pageBuilder.colorPalette.pickHint') : t('pageBuilder.colorPalette.description')}
+        </p>
 
         {pickMode && brandColors ? <BrandColorList colors={brandColors} onPick={onPick} /> : null}
         {pickMode && brandColors ? (
@@ -265,7 +254,18 @@ export function ColorPaletteModal({
                   </span>
                 </button>
                 {!pickMode && confirmingId === entry.id ? (
-                  <div role="group" aria-label={t('pageBuilder.colorPalette.deleteConfirm')} className="flex flex-wrap items-center justify-end gap-2">
+                  <div
+                    role="group"
+                    aria-label={t('pageBuilder.colorPalette.deleteConfirm')}
+                    className="flex flex-wrap items-center justify-end gap-2"
+                    // Escape answers the inline question (Cancel), not the whole palette:
+                    // the dialog leaves an Escape that was already handled.
+                    onKeyDown={(e): void => {
+                      if (e.key !== 'Escape') return;
+                      e.preventDefault();
+                      cancelRemove(entry.id);
+                    }}
+                  >
                     <span className="text-sm">{t('pageBuilder.colorPalette.deleteConfirm')}</span>
                     <Button
                       type="button"
@@ -309,6 +309,6 @@ export function ColorPaletteModal({
 
         <ColorPaletteAddForm saving={saving} error={error} onAdd={addColor} />
       </div>
-    </div>
+    </ModalDialog>
   );
 }

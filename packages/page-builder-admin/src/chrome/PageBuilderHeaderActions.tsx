@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -11,9 +12,10 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { Data } from '@puckeditor/core';
-import { Copy, Eraser, FileInput, Maximize2, Minimize2, Save } from 'lucide-react';
+import { Copy, Eraser, FileInput, Loader2, Maximize2, Minimize2, Save } from 'lucide-react';
 import { slugify } from '@endora-commerce/contracts';
-import { Button, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Button, InlineStatus, Input, Label, Select, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { isEmptyPageBuilderData } from './page-builder-data.js';
 
 export type ApplyTemplateOption = { id: string; label: string };
@@ -105,6 +107,21 @@ export function PageBuilderHeaderShell({
   );
 }
 
+/**
+ * Issue #1493 (UX audit CONTENT-03) — every dialog below is the kit's
+ * `ModalDialog` on the `overlay` layer: it opens above the fullscreen builder
+ * and Puck's floating action bar, traps focus, closes on Escape and returns
+ * focus to the button that opened it. A failure is shown inside the dialog, in
+ * a `role="alert"` region mounted before it has text; a success is shown next
+ * to the buttons in an always-mounted `InlineStatus`, where the operator is
+ * looking, rather than only to a screen reader.
+ */
+
+/** The busy state of a dialog's confirm button: a spinner beside its label. */
+function BusyIcon({ busy }: { busy: boolean }): ReactElement | null {
+  return busy ? <Loader2 aria-hidden="true" className="mr-1 h-4 w-4 motion-safe:animate-spin" /> : null;
+}
+
 /** Save as template / Apply template — meant for the left of the page title. */
 export function PageBuilderTemplateActions({
   currentData,
@@ -119,15 +136,18 @@ export function PageBuilderTemplateActions({
   onApplyTemplate?: (templateId: string) => void | Promise<void>;
   t: Translate;
 }): ReactElement | null {
+  const ids = useId();
   const [saveOpen, setSaveOpen] = useState(false);
   const [applyOpen, setApplyOpen] = useState(false);
   const [templateName, setTemplateName] = useState('');
   const [templateCode, setTemplateCode] = useState('');
   const [codeEdited, setCodeEdited] = useState(false);
   const [applyOptions, setApplyOptions] = useState<ApplyTemplateOption[]>([]);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const status = useInlineStatus();
 
   const canSave = Boolean(onSaveAsTemplate) && !isEmptyPageBuilderData(currentData);
   const canApply = Boolean(onApplyTemplate && onListTemplatesForApply);
@@ -136,8 +156,8 @@ export function PageBuilderTemplateActions({
   useEffect(() => {
     if (!applyOpen || !onListTemplatesForApply) return;
     let live = true;
-    setBusy(true);
-    setMessage(null);
+    setLoadingOptions(true);
+    setError(null);
     void onListTemplatesForApply()
       .then((options) => {
         if (!live) return;
@@ -146,12 +166,12 @@ export function PageBuilderTemplateActions({
       })
       .catch((err: unknown) => {
         if (!live) return;
-        setMessage(err instanceof Error ? err.message : String(err));
+        setError(err instanceof Error ? err.message : String(err));
         setApplyOptions([]);
         setSelectedTemplateId('');
       })
       .finally(() => {
-        if (live) setBusy(false);
+        if (live) setLoadingOptions(false);
       });
     return (): void => {
       live = false;
@@ -165,26 +185,26 @@ export function PageBuilderTemplateActions({
     const name = templateName.trim();
     const code = templateCode.trim();
     if (!name || !code) {
-      setMessage(t('pageBuilder.saveAsTemplate.requiredFields'));
+      setError(t('pageBuilder.saveAsTemplate.requiredFields'));
       return;
     }
     setBusy(true);
-    setMessage(null);
+    setError(null);
     try {
       await onSaveAsTemplate({ name, code }, currentData);
       setSaveOpen(false);
       setTemplateName('');
       setTemplateCode('');
       setCodeEdited(false);
-      setMessage(t('pageBuilder.saveAsTemplate.success'));
+      status.show(t('pageBuilder.saveAsTemplate.success'));
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err);
       if (raw === 'EMPTY_CANVAS') {
-        setMessage(t('pageBuilder.saveAsTemplate.emptyCanvas'));
+        setError(t('pageBuilder.saveAsTemplate.emptyCanvas'));
       } else if (raw === 'MISSING_SCOPE') {
-        setMessage(t('pageBuilder.saveAsTemplate.missingScope'));
+        setError(t('pageBuilder.saveAsTemplate.missingScope'));
       } else {
-        setMessage(raw);
+        setError(raw);
       }
     } finally {
       setBusy(false);
@@ -194,18 +214,29 @@ export function PageBuilderTemplateActions({
   const runApply = async (): Promise<void> => {
     if (!onApplyTemplate || !selectedTemplateId) return;
     setBusy(true);
-    setMessage(null);
+    setError(null);
     try {
       await onApplyTemplate(selectedTemplateId);
       setApplyOpen(false);
       setSelectedTemplateId('');
-      setMessage(t('pageBuilder.applyTemplate.success'));
+      status.show(t('pageBuilder.applyTemplate.success'));
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
   };
+
+  const saveDescriptionId = `${ids}-save-description`;
+  const applyDescriptionId = `${ids}-apply-description`;
+  const applyWarningId = `${ids}-apply-warning`;
+  const errorId = `${ids}-error`;
+  const hasError = error !== null && error !== '';
+  const errorRegion = (
+    <p id={errorId} role="alert" className="text-sm text-destructive">
+      {error}
+    </p>
+  );
 
   return (
     <>
@@ -222,14 +253,15 @@ export function PageBuilderTemplateActions({
                 : t('pageBuilder.saveAsTemplate.button')
             }
             onClick={(): void => {
-              setMessage(null);
+              setError(null);
+              status.clear();
               setTemplateName('');
               setTemplateCode('');
               setCodeEdited(false);
               setSaveOpen(true);
             }}
           >
-            <Save className="mr-1 h-4 w-4" />
+            <Save className="mr-1 h-4 w-4" aria-hidden="true" />
             {t('pageBuilder.saveAsTemplate.button')}
           </Button>
         ) : null}
@@ -239,167 +271,145 @@ export function PageBuilderTemplateActions({
             variant="outline"
             size="sm"
             onClick={(): void => {
-              setMessage(null);
+              setError(null);
+              status.clear();
               setApplyOpen(true);
             }}
           >
-            <FileInput className="mr-1 h-4 w-4" />
+            <FileInput className="mr-1 h-4 w-4" aria-hidden="true" />
             {t('pageBuilder.applyTemplate.button')}
           </Button>
         ) : null}
       </div>
 
-      {message ? <p className="sr-only" role="status">{message}</p> : null}
+      <InlineStatus {...status.props} className="whitespace-nowrap" />
 
-      {saveOpen
-        ? createPortal(
-            <div
-              className="fixed inset-0 flex items-center justify-center bg-black/40 p-4"
-              style={{ zIndex: 10000 }}
-              role="presentation"
-              onPointerDown={(e): void => {
-                if (e.target === e.currentTarget && !busy) setSaveOpen(false);
-              }}
-            >
-              <div
-                className="w-full max-w-md space-y-4 rounded-lg border bg-background p-5 shadow-lg"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="pb-save-template-title"
-                onPointerDown={(e): void => e.stopPropagation()}
+      {saveOpen ? (
+        <ModalDialog
+          layer="overlay"
+          title={t('pageBuilder.saveAsTemplate.title')}
+          onClose={(): void => setSaveOpen(false)}
+          busy={busy}
+          // A stray click on the scrim must not drop a typed name.
+          dismissOnScrim={false}
+          widthClassName="max-w-md"
+          aria-describedby={hasError ? `${saveDescriptionId} ${errorId}` : saveDescriptionId}
+          footer={
+            <>
+              <Button type="button" variant="outline" disabled={busy} onClick={(): void => setSaveOpen(false)}>
+                {t('pageBuilder.saveAsTemplate.cancel')}
+              </Button>
+              <Button
+                type="button"
+                disabled={busy || !templateName.trim() || !templateCode.trim()}
+                aria-busy={busy}
+                onClick={(): void => void runSave()}
               >
-                <div className="space-y-1">
-                  <h2 id="pb-save-template-title" className="text-lg font-semibold">
-                    {t('pageBuilder.saveAsTemplate.title')}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {t('pageBuilder.saveAsTemplate.description')}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="pb-save-template-name">{t('common.field.name')}</Label>
-                  <Input
-                    id="pb-save-template-name"
-                    value={templateName}
-                    disabled={busy}
-                    onChange={(e): void => {
-                      const name = e.target.value;
-                      setTemplateName(name);
-                      if (!codeEdited) setTemplateCode(slugify(name, { maxLength: TEMPLATE_CODE_MAX_LENGTH }));
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="pb-save-template-code">{t('common.field.code')}</Label>
-                  <Input
-                    id="pb-save-template-code"
-                    className="font-mono"
-                    value={templateCode}
-                    disabled={busy}
-                    onChange={(e): void => {
-                      setCodeEdited(true);
-                      setTemplateCode(e.target.value.toLowerCase());
-                    }}
-                  />
-                </div>
-                {message ? <p className="text-sm text-destructive">{message}</p> : null}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={(): void => setSaveOpen(false)}
-                  >
-                    {t('pageBuilder.saveAsTemplate.cancel')}
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={busy || !templateName.trim() || !templateCode.trim()}
-                    onClick={(): void => void runSave()}
-                  >
-                    {busy ? t('common.state.saving') : t('pageBuilder.saveAsTemplate.confirm')}
-                  </Button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+                <BusyIcon busy={busy} />
+                {busy ? t('common.state.saving') : t('pageBuilder.saveAsTemplate.confirm')}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p id={saveDescriptionId} className="text-sm text-muted-foreground">
+              {t('pageBuilder.saveAsTemplate.description')}
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor={`${ids}-name`}>{t('common.field.name')}</Label>
+              <Input
+                id={`${ids}-name`}
+                value={templateName}
+                disabled={busy}
+                onChange={(e): void => {
+                  const name = e.target.value;
+                  setTemplateName(name);
+                  if (!codeEdited) setTemplateCode(slugify(name, { maxLength: TEMPLATE_CODE_MAX_LENGTH }));
+                }}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${ids}-code`}>{t('common.field.code')}</Label>
+              <Input
+                id={`${ids}-code`}
+                className="font-mono"
+                value={templateCode}
+                disabled={busy}
+                onChange={(e): void => {
+                  setCodeEdited(true);
+                  setTemplateCode(e.target.value.toLowerCase());
+                }}
+              />
+            </div>
+            {errorRegion}
+          </div>
+        </ModalDialog>
+      ) : null}
 
-      {applyOpen
-        ? createPortal(
-            <div
-              className="fixed inset-0 flex items-center justify-center bg-black/40 p-4"
-              style={{ zIndex: 10000 }}
-              role="presentation"
-              onPointerDown={(e): void => {
-                if (e.target === e.currentTarget && !busy) setApplyOpen(false);
-              }}
-            >
-              <div
-                className="w-full max-w-md space-y-4 rounded-lg border bg-background p-5 shadow-lg"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="pb-apply-template-title"
-                onPointerDown={(e): void => e.stopPropagation()}
+      {applyOpen ? (
+        <ModalDialog
+          layer="overlay"
+          title={t('pageBuilder.applyTemplate.title')}
+          onClose={(): void => setApplyOpen(false)}
+          busy={busy}
+          widthClassName="max-w-md"
+          aria-describedby={[applyDescriptionId, canvasHasContent ? applyWarningId : null, hasError ? errorId : null]
+            .filter(Boolean)
+            .join(' ')}
+          footer={
+            <>
+              <Button type="button" variant="outline" disabled={busy} onClick={(): void => setApplyOpen(false)}>
+                {t('pageBuilder.applyTemplate.cancel')}
+              </Button>
+              <Button
+                type="button"
+                disabled={busy || loadingOptions || !selectedTemplateId}
+                aria-busy={busy}
+                onClick={(): void => void runApply()}
               >
-                <div className="space-y-1">
-                  <h2 id="pb-apply-template-title" className="text-lg font-semibold">
-                    {t('pageBuilder.applyTemplate.title')}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {t('pageBuilder.applyTemplate.description')}
-                  </p>
-                  {canvasHasContent ? (
-                    <p className="text-sm text-amber-700 dark:text-amber-400">
-                      {t('pageBuilder.applyTemplate.replaceWarning')}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="pb-apply-template-select">
-                    {t('pageBuilder.applyTemplate.selectLabel')}
-                  </Label>
-                  <Select
-                    id="pb-apply-template-select"
-                    value={selectedTemplateId}
-                    onChange={(e): void => setSelectedTemplateId(e.target.value)}
-                    disabled={busy || applyOptions.length === 0}
-                  >
-                    {applyOptions.length === 0 ? (
-                      <option value="">{t('pageBuilder.applyTemplate.empty')}</option>
-                    ) : (
-                      applyOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))
-                    )}
-                  </Select>
-                </div>
-                {message ? <p className="text-sm text-destructive">{message}</p> : null}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={(): void => setApplyOpen(false)}
-                  >
-                    {t('pageBuilder.applyTemplate.cancel')}
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={busy || !selectedTemplateId}
-                    onClick={(): void => void runApply()}
-                  >
-                    {busy ? t('common.state.saving') : t('pageBuilder.applyTemplate.confirm')}
-                  </Button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+                <BusyIcon busy={busy} />
+                {busy ? t('common.state.saving') : t('pageBuilder.applyTemplate.confirm')}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <p id={applyDescriptionId} className="text-sm text-muted-foreground">
+                {t('pageBuilder.applyTemplate.description')}
+              </p>
+              {canvasHasContent ? (
+                <p id={applyWarningId} className="text-sm text-amber-700 dark:text-amber-400">
+                  {t('pageBuilder.applyTemplate.replaceWarning')}
+                </p>
+              ) : null}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`${ids}-template`}>{t('pageBuilder.applyTemplate.selectLabel')}</Label>
+              <Select
+                id={`${ids}-template`}
+                value={selectedTemplateId}
+                onChange={(e): void => setSelectedTemplateId(e.target.value)}
+                disabled={busy || loadingOptions || applyOptions.length === 0}
+                aria-busy={loadingOptions}
+              >
+                {loadingOptions ? (
+                  <option value="">{t('common.state.loading')}</option>
+                ) : applyOptions.length === 0 ? (
+                  <option value="">{t('pageBuilder.applyTemplate.empty')}</option>
+                ) : (
+                  applyOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))
+                )}
+              </Select>
+            </div>
+            {errorRegion}
+          </div>
+        </ModalDialog>
+      ) : null}
     </>
   );
 }
@@ -431,11 +441,14 @@ export function PageBuilderHeaderActions({
   extraActions?: ReactNode;
   t: Translate;
 }): ReactElement {
+  const ids = useId();
+  const clearCancelRef = useRef<HTMLButtonElement>(null);
   const [copyOpen, setCopyOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
   const [sourceLanguage, setSourceLanguage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const status = useInlineStatus();
 
   const otherLanguages = useMemo(
     () => languages.filter((lang) => lang !== activeLanguage),
@@ -447,18 +460,23 @@ export function PageBuilderHeaderActions({
   const runCopy = async (): Promise<void> => {
     if (!onCopyFromLanguage || !sourceLanguage) return;
     setBusy(true);
-    setMessage(null);
+    setError(null);
     try {
       await onCopyFromLanguage(sourceLanguage);
       setCopyOpen(false);
       setSourceLanguage('');
-      setMessage(t('pageBuilder.copyLanguage.success', { language: sourceLanguage }));
+      status.show(t('pageBuilder.copyLanguage.success', { language: sourceLanguage }));
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
   };
+
+  const copyDescriptionId = `${ids}-copy-description`;
+  const copyErrorId = `${ids}-copy-error`;
+  const clearDescriptionId = `${ids}-clear-description`;
+  const hasError = error !== null && error !== '';
 
   return (
     <>
@@ -477,12 +495,13 @@ export function PageBuilderHeaderActions({
             }
             aria-label={t('pageBuilder.copyLanguage.button')}
             onClick={(): void => {
-              setMessage(null);
+              setError(null);
+              status.clear();
               setSourceLanguage(otherLanguages[0] ?? '');
               setCopyOpen(true);
             }}
           >
-            <Copy className="h-4 w-4" />
+            <Copy className="h-4 w-4" aria-hidden="true" />
             <span className="cms-pb-header-actions__label">{t('pageBuilder.copyLanguage.button')}</span>
           </Button>
         ) : null}
@@ -495,11 +514,11 @@ export function PageBuilderHeaderActions({
             title={t('pageBuilder.clearCanvas.button')}
             aria-label={t('pageBuilder.clearCanvas.button')}
             onClick={(): void => {
-              setMessage(null);
+              status.clear();
               setClearOpen(true);
             }}
           >
-            <Eraser className="h-4 w-4" />
+            <Eraser className="h-4 w-4" aria-hidden="true" />
             <span className="cms-pb-header-actions__label">{t('pageBuilder.clearCanvas.button')}</span>
           </Button>
         ) : null}
@@ -512,128 +531,99 @@ export function PageBuilderHeaderActions({
           title={fullscreen ? t('pageBuilder.fullscreen.exit') : t('pageBuilder.fullscreen.enter')}
           aria-label={fullscreen ? t('pageBuilder.fullscreen.exit') : t('pageBuilder.fullscreen.enter')}
         >
-          {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          {fullscreen ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
           <span className="cms-pb-header-actions__label">
             {fullscreen ? t('pageBuilder.fullscreen.exit') : t('pageBuilder.fullscreen.enter')}
           </span>
         </Button>
       </div>
 
-      {message ? <p className="sr-only" role="status">{message}</p> : null}
+      {/* Only copy-from-language reports a result; clearing shows itself on the canvas. */}
+      {onCopyFromLanguage ? <InlineStatus {...status.props} className="whitespace-nowrap" /> : null}
 
-      {copyOpen
-        ? createPortal(
-            <div
-              className="fixed inset-0 flex items-center justify-center bg-black/40 p-4"
-              style={{ zIndex: 10000 }}
-              role="presentation"
-              onPointerDown={(e): void => {
-                if (e.target === e.currentTarget && !busy) setCopyOpen(false);
-              }}
-            >
-              <div
-                className="w-full max-w-md space-y-4 rounded-lg border bg-background p-5 shadow-lg"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="pb-copy-lang-title"
-                onPointerDown={(e): void => e.stopPropagation()}
+      {copyOpen ? (
+        <ModalDialog
+          layer="overlay"
+          title={t('pageBuilder.copyLanguage.title')}
+          onClose={(): void => setCopyOpen(false)}
+          busy={busy}
+          widthClassName="max-w-md"
+          aria-describedby={hasError ? `${copyDescriptionId} ${copyErrorId}` : copyDescriptionId}
+          footer={
+            <>
+              <Button type="button" variant="outline" disabled={busy} onClick={(): void => setCopyOpen(false)}>
+                {t('pageBuilder.copyLanguage.cancel')}
+              </Button>
+              <Button
+                type="button"
+                disabled={busy || !sourceLanguage}
+                aria-busy={busy}
+                onClick={(): void => void runCopy()}
               >
-                <div className="space-y-1">
-                  <h2 id="pb-copy-lang-title" className="text-lg font-semibold">
-                    {t('pageBuilder.copyLanguage.title')}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {t('pageBuilder.copyLanguage.description', {
-                      target: activeLanguage ?? '—',
-                    })}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="pb-copy-lang-select">{t('pageBuilder.copyLanguage.sourceLabel')}</Label>
-                  <Select
-                    id="pb-copy-lang-select"
-                    value={sourceLanguage}
-                    onChange={(e): void => setSourceLanguage(e.target.value)}
-                    disabled={busy}
-                  >
-                    {otherLanguages.map((lang) => (
-                      <option key={lang} value={lang}>
-                        {lang}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                {message && copyOpen ? (
-                  <p className="text-sm text-destructive">{message}</p>
-                ) : null}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={busy}
-                    onClick={(): void => setCopyOpen(false)}
-                  >
-                    {t('pageBuilder.copyLanguage.cancel')}
-                  </Button>
-                  <Button
-                    type="button"
-                    disabled={busy || !sourceLanguage}
-                    onClick={(): void => void runCopy()}
-                  >
-                    {busy ? t('common.state.saving') : t('pageBuilder.copyLanguage.confirm')}
-                  </Button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+                <BusyIcon busy={busy} />
+                {busy ? t('common.state.saving') : t('pageBuilder.copyLanguage.confirm')}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <p id={copyDescriptionId} className="text-sm text-muted-foreground">
+              {t('pageBuilder.copyLanguage.description', { target: activeLanguage ?? '—' })}
+            </p>
+            <div className="space-y-1">
+              <Label htmlFor={`${ids}-source`}>{t('pageBuilder.copyLanguage.sourceLabel')}</Label>
+              <Select
+                id={`${ids}-source`}
+                value={sourceLanguage}
+                onChange={(e): void => setSourceLanguage(e.target.value)}
+                disabled={busy}
+              >
+                {otherLanguages.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <p id={copyErrorId} role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          </div>
+        </ModalDialog>
+      ) : null}
 
-      {clearOpen
-        ? createPortal(
-            <div
-              className="fixed inset-0 flex items-center justify-center bg-black/40 p-4"
-              style={{ zIndex: 10000 }}
-              role="presentation"
-              onPointerDown={(e): void => {
-                if (e.target === e.currentTarget) setClearOpen(false);
-              }}
-            >
-              <div
-                className="w-full max-w-md space-y-4 rounded-lg border bg-background p-5 shadow-lg"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="pb-clear-title"
-                onPointerDown={(e): void => e.stopPropagation()}
+      {clearOpen ? (
+        <ModalDialog
+          layer="overlay"
+          title={t('pageBuilder.clearCanvas.title')}
+          onClose={(): void => setClearOpen(false)}
+          // Destructive: focus starts on Cancel, so Enter on a dialog opened by accident keeps the canvas.
+          initialFocusRef={clearCancelRef}
+          widthClassName="max-w-md"
+          aria-describedby={clearDescriptionId}
+          footer={
+            <>
+              <Button ref={clearCancelRef} type="button" variant="outline" onClick={(): void => setClearOpen(false)}>
+                {t('pageBuilder.clearCanvas.cancel')}
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={(): void => {
+                  onClearCanvas?.();
+                  setClearOpen(false);
+                }}
               >
-                <div className="space-y-1">
-                  <h2 id="pb-clear-title" className="text-lg font-semibold">
-                    {t('pageBuilder.clearCanvas.title')}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {t('pageBuilder.clearCanvas.description')}
-                  </p>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={(): void => setClearOpen(false)}>
-                    {t('pageBuilder.clearCanvas.cancel')}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={(): void => {
-                      onClearCanvas?.();
-                      setClearOpen(false);
-                    }}
-                  >
-                    {t('pageBuilder.clearCanvas.confirm')}
-                  </Button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+                {t('pageBuilder.clearCanvas.confirm')}
+              </Button>
+            </>
+          }
+        >
+          <p id={clearDescriptionId} className="text-sm text-muted-foreground">
+            {t('pageBuilder.clearCanvas.description')}
+          </p>
+        </ModalDialog>
+      ) : null}
     </>
   );
 }
