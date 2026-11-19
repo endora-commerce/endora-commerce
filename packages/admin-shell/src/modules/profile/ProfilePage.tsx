@@ -6,7 +6,7 @@ import {
   useTranslation,
 } from '@endora-commerce/admin-kit/i18n';
 import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
-import { AssetFieldPicker, ContentLanguageTabs } from '@endora-commerce/admin-kit/components';
+import { AssetFieldPicker, ContentLanguageTabs, StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { PageHeader } from '@endora-commerce/admin-kit/ui';
 
 /**
@@ -67,6 +67,14 @@ export function ProfilePage(): ReactNode {
     return <div className="b2b-page">{t('profile.loading')}</div>;
   }
 
+  // Issue #1449 (DS-19) — the draft against the account, for the save bar's "Unsaved changes".
+  const dirty =
+    firstName !== me.adminUser.firstName ||
+    lastName !== me.adminUser.lastName ||
+    avatarAssetId !== (me.adminUser.avatarAssetId ?? null) ||
+    !sameBio(bio, me.adminUser.bio ?? {}) ||
+    password.trim().length > 0;
+
   const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     setError(null);
@@ -118,35 +126,6 @@ export function ProfilePage(): ReactNode {
   return (
     <div className="b2b-page">
       <PageHeader title={t('profile.page.title')} />
-
-      {error ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(8 80% 85%)',
-          }}
-        >
-          {error}
-        </div>
-      ) : null}
-      {info ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--success-soft)',
-            color: 'var(--success-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(142 50% 80%)',
-          }}
-        >
-          {info}
-        </div>
-      ) : null}
 
       <form onSubmit={(e): void => { void handleSubmit(e); }}>
         <div className="b2b-card" style={{ marginBottom: 16 }}>
@@ -290,11 +269,24 @@ export function ProfilePage(): ReactNode {
           </div>
         </div>
 
-        <div className="b2b-row" style={{ gap: 8, justifyContent: 'flex-end' }}>
-          <button type="submit" className="b2b-btn b2b-btn--primary" disabled={submitting}>
-            {submitting ? t('profile.saving') : t('profile.saveChanges')}
-          </button>
-        </div>
+        {/* Issue #1449 (DS-19) — the one Save, in view at the end of the form, with what it
+            answered said beside it rather than in a banner at the top of the page. */}
+        <StickyFormActions
+          desktop="sticky"
+          dirty={dirty}
+          error={error}
+          status={info}
+          primary={
+            <button
+              type="submit"
+              className="b2b-btn b2b-btn--primary"
+              disabled={submitting}
+              aria-busy={submitting || undefined}
+            >
+              {submitting ? t('profile.saving') : t('profile.saveChanges')}
+            </button>
+          }
+        />
       </form>
 
       <LanguageSection />
