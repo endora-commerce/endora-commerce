@@ -91,4 +91,23 @@ describe('RfqDetail Modify — Save revision in the sticky bar (DS-19)', () => {
       expect(within(saveBar()).getByRole('alert')).toHaveTextContent('The quote changed meanwhile.'),
     );
   });
+
+  // Issue #1499 (SALES-17) — the stored revision is said in the bar, beside Save revision,
+  // not in a success banner at the top of the page.
+  it('says a stored revision in the bar, beside the button, and puts no banner above the tabs', async () => {
+    const input = await openModify();
+    const status = within(saveBar()).getByRole('status');
+    expect(status).toHaveTextContent('');
+    await userEvent.clear(input);
+    await userEvent.type(input, '110');
+    await userEvent.click(within(saveBar()).getByRole('button', { name: 'rfq.detail.modify.saveRevision' }));
+    await waitFor(() =>
+      expect(within(saveBar()).getByRole('status')).toHaveTextContent('rfq.detail.modify.info.saved'),
+    );
+    expect(document.querySelector('[data-slot="alert"]')).toBeNull();
+    // The next edit is a new draft: the old "saved" goes.
+    const again = (await screen.findByRole('spinbutton', { name: 'rfq.detail.modify.agreedUnitPrice' })) as HTMLInputElement;
+    await userEvent.type(again, '5');
+    await waitFor(() => expect(within(saveBar()).getByRole('status')).toHaveTextContent(''));
+  });
 });

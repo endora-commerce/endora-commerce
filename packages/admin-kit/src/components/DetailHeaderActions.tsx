@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuTrigger } from '../ui/dropdown-menu.js';
 import { DeferredActionMenuContent } from './RowActionMenu.js';
 import { useTranslation } from '../i18n/useTranslation.js';
 import { cn } from '../lib/utils.js';
+import { InlineStatus, type InlineStatusProps } from '../ui/inline-status.js';
 
 /**
  * The actions of a record's detail header — issue #1441 (UX audit 2026-11-17,
@@ -35,6 +36,14 @@ import { cn } from '../lib/utils.js';
  * `useConfirmDialog` question, a `ModalDialog`) runs only once the menu has
  * handed focus back to the trigger, as in `RowActionMenu`, so the dialog keeps
  * its focus and returns it to "More" when it closes (WCAG 2.4.3).
+ *
+ * **`status`** — the result of the last header action ("Approved", "Copied",
+ * "Sent to 2 recipients"), said beside the buttons that caused it rather than
+ * as a success banner stacked under the header (issue #1499, UX audit SALES-17;
+ * owner decision DEC-12 a: Proximity, Von Restorff). Pass the
+ * `useInlineStatus().props` of the screen: the kit's `InlineStatus` is then
+ * mounted, empty, from the first render, so a message that arrives is
+ * announced (WCAG 4.1.3). It sits first, so the primary stays last.
  */
 export interface DetailHeaderActionsProps {
   /** The one primary action — a `Button` with the default variant, or a `SaveButtonGroup`. */
@@ -54,6 +63,12 @@ export interface DetailHeaderActionsProps {
    * cannot start it again (Doherty). Its label stays.
    */
   moreBusy?: boolean;
+  /**
+   * The last header action's result — normally `useInlineStatus().props`. Given at all, a
+   * polite live region is mounted before the buttons, empty while there is nothing to say,
+   * and the group renders even when the record has no action left.
+   */
+  status?: Pick<InlineStatusProps, 'children' | 'tone' | 'revision'>;
   className?: string;
 }
 
@@ -65,6 +80,7 @@ export function DetailHeaderActions({
   moreDisabled = false,
   moreTitle,
   moreBusy = false,
+  status,
   className,
 }: DetailHeaderActionsProps): ReactNode {
   const t = useTranslation('core');
@@ -74,10 +90,19 @@ export function DetailHeaderActions({
   const hasMenu = Children.toArray(children).length > 0;
   const hasPrimary = primary !== undefined && primary !== null && primary !== false;
   const hasSecondary = secondary !== undefined && secondary !== null && secondary !== false;
-  if (!hasMenu && !hasPrimary && !hasSecondary) return null;
+  if (!hasMenu && !hasPrimary && !hasSecondary && status === undefined) return null;
 
   return (
     <div data-slot="detail-header-actions" className={cn('flex flex-wrap items-center gap-2', className)}>
+      {status !== undefined ? (
+        <InlineStatus
+          tone={status.tone ?? 'success'}
+          {...(status.revision === undefined ? {} : { revision: status.revision })}
+          className="max-w-sm"
+        >
+          {status.children}
+        </InlineStatus>
+      ) : null}
       {hasMenu ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

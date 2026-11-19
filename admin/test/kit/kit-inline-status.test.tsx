@@ -110,6 +110,15 @@ describe('InlineStatus — always-mounted polite region (DS-10)', () => {
     expect(screen.getByRole('status').querySelector('svg')).toBeNull();
   });
 
+  it('a `warning` tone (issue #1499) pairs its colour with an icon and stays polite', () => {
+    render(<InlineStatus tone="warning">Sent to 1 of 2</InlineStatus>);
+    const region = screen.getByRole('status');
+    expect(region.getAttribute('data-tone')).toBe('warning');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    expect(region.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    expect(region.className).toContain('var(--warn-soft-fg)');
+  });
+
   it('`visuallyHidden` announces without showing', () => {
     render(<InlineStatus visuallyHidden>Status changed</InlineStatus>);
     const region = screen.getByRole('status');

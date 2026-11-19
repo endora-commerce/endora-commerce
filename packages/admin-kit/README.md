@@ -415,8 +415,9 @@ what the message is:
   </div>
   ```
 
-  `tone` is `success` (default), `error` or `info`; success and error carry an icon, so colour is
-  never the only signal. `visuallyHidden` announces without showing — for a control whose visible
+  `tone` is `success` (default), `warning`, `error` or `info`; all but `info` carry an icon, so
+  colour is never the only signal. `warning` is a result that went through only in part — sent to
+  some recipients, issued without its e-mail (#1499). `visuallyHidden` announces without showing — for a control whose visible
   state already changed (a badge, a reordered row). An `InlineStatus` is always polite; an error
   that has to interrupt is an `Alert`.
 - **A banner** — a page-level error, a warning about the record, a static notice — is an
@@ -668,6 +669,14 @@ Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
   trigger, as in `RowActionMenu`, so the dialog keeps focus and returns it to "More". The group
   renders nothing when it has no action, and carries `data-slot="detail-header-actions"`. The order
   and quote-request detail headers use it (#1497).
+
+  **`status`** — the last header action's result (issue #1499, UX audit SALES-17; DEC-12 a). Pass
+  `useInlineStatus().props`: an `InlineStatus` is mounted, empty, before the buttons from the first
+  render, and the group renders even when the record has no action left, so "Approved", "Sent to 2
+  recipients" or "Invoice issued" is said beside the buttons that caused it rather than as a
+  success banner under the header. Above the content a detail screen keeps **at most one** banner:
+  an error first, then a standing state that carries its own remedy; a record's state that needs
+  no remedy (why it was canceled) belongs in the header's meta line.
 
 The component is pinned in `admin/test/kit/kit-detail-header-actions.test.tsx`, including an axe pass
 closed and open. The rule is also § Von Restorff of `.claude/skills/ux-laws/SKILL.md`.

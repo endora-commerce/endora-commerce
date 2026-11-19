@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useMemo, useState, type HTMLAttributes, type ReactNode } from 'react';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils.js';
 
 /**
@@ -18,15 +18,16 @@ import { cn } from '../lib/utils.js';
  * sentence is read rather than the changed word.
  */
 
-export type InlineStatusTone = 'success' | 'error' | 'info';
+export type InlineStatusTone = 'success' | 'warning' | 'error' | 'info';
 
 export interface InlineStatusProps extends Omit<HTMLAttributes<HTMLParagraphElement>, 'role' | 'children'> {
   /** The message. `null`, `undefined`, `false` or `''` leave the region mounted and empty. */
   children?: ReactNode;
   /**
-   * Colour and icon. `success` (default) and `error` pair the colour with an
-   * icon, so the meaning is never carried by colour alone; `info` is plain
-   * muted text. The region stays polite whatever the tone — an error that has
+   * Colour and icon. `success` (default), `warning` and `error` pair the
+   * colour with an icon, so the meaning is never carried by colour alone;
+   * `info` is plain muted text. `warning` is a result that went through only
+   * in part — sent to some recipients, rendered with a fallback (issue #1499). The region stays polite whatever the tone — an error that has
    * to interrupt belongs in an `Alert variant="destructive"`.
    */
   tone?: InlineStatusTone;
@@ -46,8 +47,16 @@ export interface InlineStatusProps extends Omit<HTMLAttributes<HTMLParagraphElem
 
 const TONE_CLASS: Readonly<Record<InlineStatusTone, string>> = {
   success: 'text-[var(--success-soft-fg)]',
+  warning: 'text-[var(--warn-soft-fg)]',
   error: 'text-destructive',
   info: 'text-muted-foreground',
+};
+
+const TONE_ICON: Readonly<Record<InlineStatusTone, typeof CheckCircle2 | null>> = {
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  error: AlertCircle,
+  info: null,
 };
 
 function isEmpty(node: ReactNode): boolean {
@@ -57,7 +66,7 @@ function isEmpty(node: ReactNode): boolean {
 export const InlineStatus = forwardRef<HTMLParagraphElement, InlineStatusProps>(
   ({ children, tone = 'success', visuallyHidden = false, revision, className, ...props }, ref) => {
     const empty = isEmpty(children);
-    const Icon = tone === 'success' ? CheckCircle2 : tone === 'error' ? AlertCircle : null;
+    const Icon = TONE_ICON[tone];
     return (
       <p
         ref={ref}
