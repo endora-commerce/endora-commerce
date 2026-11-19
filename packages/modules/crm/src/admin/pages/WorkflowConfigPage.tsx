@@ -168,7 +168,7 @@ export function WorkflowConfigPage(): ReactNode {
     }
   };
 
-  const header = <PageHeader title={t('workflow.title')} description={t('workflow.description')} />;
+  const header = <PageHeader title={t('workflow.title')} />;
 
   if (workflow === null) {
     return (
@@ -208,7 +208,6 @@ export function WorkflowConfigPage(): ReactNode {
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
             <CardTitle>{t('workflow.statuses.title')}</CardTitle>
-            <CardDescription>{t('workflow.statuses.description')}</CardDescription>
           </div>
           <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
             <Plus aria-hidden="true" />
@@ -286,7 +285,6 @@ export function WorkflowConfigPage(): ReactNode {
       <Card id={BOARD_CARD_ANCHOR} ref={boardCardSection} className="scroll-mt-4">
         <CardHeader>
           <CardTitle>{t('boardCard.title')}</CardTitle>
-          <CardDescription>{t('boardCard.description')}</CardDescription>
         </CardHeader>
         <CardContent>
           <BoardCardFieldsEditor />

@@ -503,7 +503,6 @@ export function OpportunityBoardPage(): ReactNode {
     <>
       <PageHeader
         title={t('board.title')}
-        description={t('board.description')}
         actions={
           canWrite || canConfigure ? (
             <>

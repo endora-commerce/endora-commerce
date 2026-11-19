@@ -150,7 +150,6 @@ export function TaskWorkflowPage(): ReactNode {
   const header = (
     <PageHeader
       title={t('workflow.title')}
-      description={t('workflow.description')}
       actions={
         <nav aria-label={t('settings.nav')} className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {(
@@ -205,7 +204,6 @@ export function TaskWorkflowPage(): ReactNode {
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
             <CardTitle>{t('workflow.statuses.title')}</CardTitle>
-            <CardDescription>{t('workflow.statuses.description')}</CardDescription>
           </div>
           <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
             <Plus aria-hidden="true" />
@@ -257,7 +255,6 @@ export function TaskWorkflowPage(): ReactNode {
         <Card>
           <CardHeader>
             <CardTitle id="tasks-board-card-title">{t('boardCard.title')}</CardTitle>
-            <CardDescription>{t('boardCard.description')}</CardDescription>
           </CardHeader>
           <CardContent>
             <BoardCardFieldsEditor />

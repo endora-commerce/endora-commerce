@@ -177,8 +177,6 @@ export function TaskCreate(): ReactNode {
               </p>
             ) : null}
             {context ? <p className="text-sm">{t('create.context')}</p> : null}
-            <p className="text-xs text-muted-foreground">{t('create.requiredHint')}</p>
-
             <div className="space-y-1">
               <Label htmlFor={ids.title}>
                 {t('field.title')}
@@ -260,18 +258,12 @@ export function TaskCreate(): ReactNode {
                     <span className="text-muted-foreground">{t('create.privateAssignee')}</span>
                   </p>
                 ) : (
-                  <>
-                    <AssigneePicker
-                      id={ids.assignee}
-                      value={assignees}
-                      onChange={setAssignees}
-                      {...(context ? { contextType: context.contextType, contextId: context.contextId } : {})}
-                      ariaDescribedBy={`${ids.assignee}-hint`}
-                    />
-                    <p id={`${ids.assignee}-hint`} className="text-xs text-muted-foreground">
-                      {t('field.assigneeHint')}
-                    </p>
-                  </>
+                  <AssigneePicker
+                    id={ids.assignee}
+                    value={assignees}
+                    onChange={setAssignees}
+                    {...(context ? { contextType: context.contextType, contextId: context.contextId } : {})}
+                  />
                 )}
                 {me && !assignees.some((chosen) => chosen.id === me.id) ? (
                   <Button

@@ -383,8 +383,6 @@ export function ProjectCreate(): ReactNode {
 
         <Card>
           <CardContent className="space-y-5">
-            <p className="text-xs text-muted-foreground">{t('create.requiredHint')}</p>
-
             <div className="space-y-1">
               <Label htmlFor="project-create-title">
                 {t('field.title')}
@@ -490,14 +488,11 @@ export function ProjectCreate(): ReactNode {
               <TemplateStages template={template} tasksPresent={tasksPresent} />
             ) : (
               <>
-                <fieldset className="space-y-3" aria-describedby="project-create-stages-hint">
+                <fieldset className="space-y-3">
                   <legend className="text-base font-semibold">
                     {t('create.stages.section')}
                     {required}
                   </legend>
-                  <p id="project-create-stages-hint" className="text-sm text-muted-foreground">
-                    {t('create.stages.hint')}
-                  </p>
                   <ol className="space-y-3">
                     {stages.map((row, index) => {
                       const position = index + 1;

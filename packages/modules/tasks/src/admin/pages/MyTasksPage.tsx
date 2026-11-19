@@ -103,7 +103,6 @@ export function MyTasksPage(): ReactNode {
     <>
       <PageHeader
         title={t('mine.title')}
-        description={t('mine.description')}
         actions={
           <>
             <ViewModeToggle mode={mode} onChange={setMode} />

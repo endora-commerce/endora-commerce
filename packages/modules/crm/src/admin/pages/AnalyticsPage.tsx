@@ -114,7 +114,7 @@ export function AnalyticsPage(): ReactNode {
 
   return (
     <ReportingTimeZoneContext.Provider value={reportTimeZone}>
-      <PageHeader title={t('analytics.title')} description={t('analytics.description')} />
+      <PageHeader title={t('analytics.title')} />
 
       <Card className="mb-6 p-4 sm:p-6">
         <form
