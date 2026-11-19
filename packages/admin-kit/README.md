@@ -780,6 +780,43 @@ page composes it. It is not a page shell, and it draws no card or border of its 
 The behaviour is pinned in `admin/test/kit/kit-list-toolbar.test.tsx`, including an axe pass. The
 screens that use it are the Orders, Products and Inventory lists.
 
+### `ListToolbar` as the filter bar: `filters`, `moreFilters` and *Clear* without chips
+
+Issue #1505 (UX audit 2026-11-17, WORK-05). The audit asked for a kit `FilterBar` with a `primary`
+and a `more` slot. `ListToolbar` already is that bar: `filters` is the primary slot and
+`moreFilters` is the more slot. No second primitive exists, so do not write one. The CRM board,
+the opportunity list, the Projects list, and Tasks and My Tasks use it.
+
+```tsx
+<ListToolbar
+  label={t('filter.toolbar')}
+  search={<ListToolbarSearch ref={searchRef} label={t('list.search')} value={q} onValueChange={setQ} />}
+  filters={<>{stateSelect}{assigneeSelect}<FilterChip …>{t('filter.overdue')}</FilterChip></>}
+  actions={sortSelect}
+  moreFilters={<>{/* labelled cells */}</>}
+  moreFiltersActiveCount={hiddenFilterCount(filters)}
+  filtersActive={hasFilters(filters)}
+  onClearFilters={clear}
+/>
+```
+
+- **`filtersActive`** is for a page that lists no `appliedFilters` chips. While it is true and
+  `onClearFilters` is given, the filter row ends with **Clear all filters**. With chips, the button
+  stays at the end of the chip row and the prop is not needed. Count the search as a filter here.
+- **Focus.** After **Clear all filters**, focus moves to the toolbar's first enabled control, which
+  is normally the search box, because the button goes away with the filters (WCAG 2.4.3). The
+  *More filters* toggle is one button whose name changes, so it keeps focus as the panel opens and
+  closes. In the tab order the panel comes after the row's `actions`.
+- **The count is the page's.** Write it as a pure exported function beside the page's filter state,
+  so it can be tested without rendering. Count each folded filter once, however many values it
+  holds, and each custom-field filter once. Do not count a filter the request does not carry, such
+  as a custom-field filter for a reader without `custom_fields:read`. Examples:
+  `tasks/src/admin/lib/task-filters.ts` `hiddenFilterCount`, `crm/src/admin/lib/board-fields.ts`
+  `hiddenBoardFilterCount`, `projects/src/admin/lib/list-filters.ts` `hiddenFilterCount`.
+- **The panel's controls mount only while it is open.** Data that a closed panel still needs, such
+  as the custom-field labels used to name a refused filter, is read by the page, not by a cell in
+  the panel.
+
 ## Known rough edge
 
 `./i18n` publishes `resolve` (the translation resolver) under that bare name, because it

@@ -193,6 +193,12 @@ async function openMoveMenu(title: string): Promise<HTMLElement> {
   return screen.getByRole('group', { name: core('kanban.moveTo.label', { title }) });
 }
 
+/** Opens the toolbar's *More filters* panel unless it is open (issue #1505: these filters are folded away). */
+async function openMoreFilters(): Promise<void> {
+  const toggle = screen.queryByRole('button', { name: /^(More filters|Więcej filtrów)/ });
+  if (toggle && toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
+}
+
 describe('OpportunityBoardPage — columns and cards', () => {
   it('renders one lane per column of the answer, in its order, with count and value totals', async () => {
     await renderBoard();
@@ -467,6 +473,7 @@ describe('OpportunityBoardPage — filters', () => {
     await userEvent.type(screen.getByLabelText(en('opportunity.list.filter.search')), 'fleet');
     await waitFor(() => expect(boardCalls().at(-1)).toBe(`${BOARD_PATH}?q=fleet`));
 
+    await openMoreFilters();
     await userEvent.type(screen.getByLabelText(en('opportunity.list.filter.createdFrom')), '2026-10-01');
     await waitFor(() =>
       expect(boardCalls().at(-1)).toBe(`${BOARD_PATH}?q=fleet&createdFrom=2026-10-01`),
@@ -475,7 +482,7 @@ describe('OpportunityBoardPage — filters', () => {
       expect(path).not.toMatch(/tagId|assignedAdminUserId|statusCode|state=/);
     }
 
-    await userEvent.click(screen.getByRole('button', { name: en('opportunity.list.filter.clear') }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all filters' }));
     await waitFor(() => expect(boardCalls().at(-1)).toBe(BOARD_PATH));
     expect(screen.getByLabelText(en('opportunity.list.filter.search'))).toHaveValue('');
   });

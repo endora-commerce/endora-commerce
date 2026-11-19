@@ -125,3 +125,16 @@ export function writeListAddress(address: ListAddress): URLSearchParams {
   }
   return writeCustomFieldFilterParams(params, filters.customFields);
 }
+
+/**
+ * How many of the filters the Projects toolbar folds behind *More filters*
+ * are in use (issue #1505, WORK-05) — so a collapsed bar still says the list
+ * is narrowed. The search, the state, the Organization and the Member are
+ * always shown and not counted; each custom-field filter counts as one, and
+ * only for a reader who may view custom fields, since no other reader's
+ * request carries them.
+ */
+export function hiddenFilterCount(filters: Filters, options: { customFields: boolean }): number {
+  const folded = [filters.roleId !== '', filters.templateId !== '', filters.stageName.trim() !== ''].filter(Boolean).length;
+  return folded + (options.customFields ? Object.keys(filters.customFields).length : 0);
+}

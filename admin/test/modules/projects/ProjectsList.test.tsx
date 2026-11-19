@@ -100,6 +100,12 @@ async function renderList(permissions?: readonly string[]): Promise<void> {
   await screen.findByText('Warehouse fit-out');
 }
 
+/** Opens the toolbar's *More filters* panel unless it is open (issue #1505: these filters are folded away). */
+async function openMoreFilters(): Promise<void> {
+  const toggle = screen.queryByRole('button', { name: /^(More filters|Więcej filtrów)/ });
+  if (toggle && toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
+}
+
 describe('ProjectsList', () => {
   it('shows each Project with its Organizations, current Stage and deadline, value and Project Managers', async () => {
     await renderList();
@@ -136,7 +142,7 @@ describe('ProjectsList', () => {
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.state')), 'open');
     await waitFor(() => expect(lastQuery().getAll('state')).toEqual(['open']));
 
-    await userEvent.click(screen.getByLabelText(en('list.filter.mine')));
+    await userEvent.click(screen.getByRole('button', { name: en('list.filter.mine') }));
     await waitFor(() => expect(lastQuery().get('memberId')).toBe('me'));
 
     await userEvent.click(screen.getByLabelText(en('list.filter.organization')));
@@ -155,11 +161,13 @@ describe('ProjectsList', () => {
 
   it('filters by Template, Role, any member and the current Stage’s name (User Story 3)', async () => {
     await renderList();
+    await openMoreFilters();
     const template = screen.getByLabelText(en('list.filter.template'));
     await within(template).findByRole('option', { name: 'Showroom fit-out' });
     await userEvent.selectOptions(template, TEMPLATE_ID);
     await waitFor(() => expect(lastQuery().get('templateId')).toBe(TEMPLATE_ID));
 
+    await openMoreFilters();
     const role = screen.getByLabelText(en('list.filter.role'));
     await within(role).findByRole('option', { name: 'Project Manager' });
     await userEvent.selectOptions(role, ROLE_MANAGER);
@@ -171,14 +179,15 @@ describe('ProjectsList', () => {
     await waitFor(() => expect(lastQuery().get('memberId')).toBe(ADMIN_ID));
     expect(getSpy.mock.calls.some(([path]) => String(path).startsWith('/api/v1/admin/admin-users'))).toBe(false);
     // "Only mine" and a member are one filter: choosing one clears the other.
-    await userEvent.click(screen.getByLabelText(en('list.filter.mine')));
+    await userEvent.click(screen.getByRole('button', { name: en('list.filter.mine') }));
     await waitFor(() => expect(lastQuery().get('memberId')).toBe('me'));
     expect((screen.getByLabelText(en('list.filter.member')) as HTMLInputElement).value).toBe('');
 
+    await openMoreFilters();
     await userEvent.type(screen.getByLabelText(en('list.filter.stageName')), 'Build');
     await waitFor(() => expect(lastQuery().get('stageName')).toBe('Build'));
 
-    await userEvent.click(screen.getByRole('button', { name: en('list.filter.clear') }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all filters' }));
     await waitFor(() => {
       const query = lastQuery();
       expect(['templateId', 'roleId', 'memberId', 'stageName'].filter((key) => query.has(key))).toEqual([]);
@@ -191,7 +200,7 @@ describe('ProjectsList', () => {
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.state')), 'open');
     expect(await screen.findByText(en('list.noResults.title'))).toBeTruthy();
     const block = document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!;
-    await userEvent.click(within(block).getByRole('button', { name: en('list.filter.clear') }));
+    await userEvent.click(within(block).getByRole('button', { name: 'Clear filters' }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('list.search'))));
   });
 
