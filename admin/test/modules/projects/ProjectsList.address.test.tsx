@@ -115,6 +115,12 @@ async function renderAt(path: string): Promise<ReturnType<typeof renderProjects>
   return rendered;
 }
 
+/** Opens the toolbar's *More filters* panel unless it is open (issue #1505: these filters are folded away). */
+async function openMoreFilters(): Promise<void> {
+  const toggle = screen.queryByRole('button', { name: /^(More filters|Więcej filtrów)/ });
+  if (toggle && toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
+}
+
 describe('ProjectsList — filters in the address', () => {
   it('opens a shared link with its filters applied and shown', async () => {
     await renderAt(
@@ -134,9 +140,12 @@ describe('ProjectsList — filters in the address', () => {
 
     expect(screen.getByLabelText(en('list.filter.state'))).toHaveValue('completed');
     expect(screen.getByLabelText(en('list.search'))).toHaveValue('PRJ-7');
+    await openMoreFilters();
     expect(screen.getByLabelText(en('list.filter.stageName'))).toHaveValue('Build');
     expect(screen.getByLabelText(en('list.sort'))).toHaveValue('value:asc');
+    await openMoreFilters();
     await waitFor(() => expect(screen.getByLabelText(en('list.filter.role'))).toHaveValue(ROLE_MANAGER));
+    await openMoreFilters();
     await waitFor(() => expect(screen.getByLabelText(en('list.filter.template'))).toHaveValue(TEMPLATE_ID));
     // A member and an Organization the first lookup page does not hold are named by their id.
     await waitFor(() => expect(screen.getByRole('combobox', { name: en('list.filter.member') })).toHaveValue('Zofia Far'));
@@ -149,7 +158,7 @@ describe('ProjectsList — filters in the address', () => {
     await renderAt(`/projects?organizationId=${ORGANIZATION_ID}`);
     expect(listQueries()[0]?.get('organizationId')).toBe(ORGANIZATION_ID);
     await waitFor(() => expect(screen.getByRole('combobox', { name: en('list.filter.organization') })).toHaveValue('Acme'));
-    expect(screen.getByRole('button', { name: en('list.filter.clear') })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Clear all filters' })).toBeTruthy();
   });
 
   it('writes each filter into the address under the name the API takes', async () => {
@@ -157,7 +166,7 @@ describe('ProjectsList — filters in the address', () => {
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.state')), 'lost');
     await waitFor(() => expect(address().get('state')).toBe('lost'));
 
-    await userEvent.click(screen.getByLabelText(en('list.filter.mine')));
+    await userEvent.click(screen.getByRole('button', { name: en('list.filter.mine') }));
     await waitFor(() => expect(address().get('memberId')).toBe('me'));
 
     await userEvent.type(screen.getByLabelText(en('list.search')), 'Hall');
@@ -170,7 +179,7 @@ describe('ProjectsList — filters in the address', () => {
     });
     expect(lastQuery().get('q')).toBe('Hall');
 
-    await userEvent.click(screen.getByRole('button', { name: en('list.filter.clear') }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all filters' }));
     await waitFor(() => expect(address().has('state')).toBe(false));
     expect(['q', 'memberId'].filter((key) => address().has(key))).toEqual([]);
     expect(screen.getByLabelText(en('list.search'))).toHaveValue('');
@@ -179,6 +188,7 @@ describe('ProjectsList — filters in the address', () => {
   it('keeps the filters when the operator opens a Project and comes Back', async () => {
     await renderAt('/projects');
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.state')), 'completed');
+    await openMoreFilters();
     await userEvent.type(screen.getByLabelText(en('list.filter.stageName')), 'Build');
     await waitFor(() => expect(address().get('stageName')).toBe('Build'));
 
@@ -187,6 +197,7 @@ describe('ProjectsList — filters in the address', () => {
     await screen.findByText('Warehouse fit-out');
 
     expect(screen.getByLabelText(en('list.filter.state'))).toHaveValue('completed');
+    await openMoreFilters();
     expect(screen.getByLabelText(en('list.filter.stageName'))).toHaveValue('Build');
     expect(lastQuery().getAll('state')).toEqual(['completed']);
     expect(lastQuery().get('stageName')).toBe('Build');
@@ -215,7 +226,7 @@ describe('ProjectsList — filters in the address', () => {
     }
     expect(first.get('sort')).toBe('createdAt');
     expect(first.get('order')).toBe('desc');
-    expect(screen.queryByRole('button', { name: en('list.filter.clear') })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Clear all filters' })).toBeNull();
   });
 
   it('drops a Role or Template the choices no longer hold, once they are read', async () => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CircleCheck, Plus, X } from 'lucide-react';
+import { CircleCheck, Plus } from 'lucide-react';
 import type { TaskSummary } from '@endora-commerce/contracts';
 import { useAuth, useListViewModePreference } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
@@ -129,15 +129,9 @@ export function MyTasksPage(): ReactNode {
             priorities={vocabulary.priorities ?? []}
             implied={{ assignee: true, statusCategory: true, draft: true }}
             customFields={customFields}
+            filtered={filtered}
+            onClear={clear}
           />
-          {filtered ? (
-            <div className="flex justify-end">
-              <Button className="min-h-11 sm:min-h-8" variant="ghost" size="sm" onClick={clear}>
-                <X aria-hidden="true" />
-                {t('list.filter.clear')}
-              </Button>
-            </div>
-          ) : null}
         </CardContent>
       </Card>
 

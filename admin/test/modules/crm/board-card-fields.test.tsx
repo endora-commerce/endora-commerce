@@ -346,6 +346,12 @@ describe('BoardCardFieldsEditor', () => {
   });
 });
 
+/** Opens the toolbar's *More filters* panel, where the card-field filters are (issue #1505). */
+async function openMoreFilters(): Promise<void> {
+  const toggle = screen.queryByRole('button', { name: /^(More filters|Więcej filtrów)/ });
+  if (toggle && toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
+}
+
 describe('OpportunityBoardPage — the fields a card shows', () => {
   const ID = (n: number): string => `00000000-0000-4000-8000-0000000002${String(n).padStart(2, '0')}`;
   const STATUS = { code: 'new', name: 'New', color: '#64748b', kind: 'open' } as const;
@@ -451,6 +457,7 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
 
   it('offers a filter of its own kind for each field shown, and none for a field that is not', async () => {
     await renderBoard();
+    await openMoreFilters();
     expect(screen.getByRole('button', { name: 'Lead source' })).toBeInTheDocument();
     expect(screen.getByLabelText('VIP')).toBeInTheDocument();
     expect(screen.getByLabelText('Competitor')).toBeInTheDocument();
@@ -472,6 +479,7 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
   it('sends each filter to the server, combined, and carries them in the address', async () => {
     await renderBoard();
     expect(lastFieldFilters()).toBeNull();
+    await openMoreFilters();
 
     await userEvent.click(screen.getByRole('button', { name: 'Lead source' }));
     await userEvent.click(await screen.findByRole('checkbox', { name: 'referral' }));
@@ -527,6 +535,7 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
 
     it('keeps both when they are filters of two fields', async () => {
       await renderBoard();
+      await openMoreFilters();
       await typeTogether([
         ['Competitor', 'acme'],
         [en('board.filter.min', { label: 'Seats' }), '5'],
@@ -543,6 +552,7 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
 
     it('keeps both when they are the lowest and the highest of one field', async () => {
       await renderBoard();
+      await openMoreFilters();
       await typeTogether([
         [en('board.filter.min', { label: 'Seats' }), '5'],
         [en('board.filter.max', { label: 'Seats' }), '9'],
@@ -563,19 +573,23 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
       'custom:seats': { max: '9' },
     });
     expect(screen.getByLabelText(en('opportunity.list.filter.search'))).toHaveValue('fleet');
+    // Folded away, and counted: the lead source and the seats (issue #1505).
+    expect(screen.getByRole('button', { name: 'More filters (2)' })).toBeInTheDocument();
+    await openMoreFilters();
     expect(screen.getByLabelText(en('board.filter.max', { label: 'Seats' }))).toHaveValue(9);
 
-    await userEvent.click(screen.getByRole('button', { name: en('opportunity.list.filter.clear') }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all filters' }));
     await waitFor(() => expect(address()).toBe(''));
     await waitFor(() => expect(lastFieldFilters()).toBeNull());
     expect(screen.getByLabelText(en('opportunity.list.filter.search'))).toHaveValue('');
     expect(screen.getByLabelText(en('board.filter.max', { label: 'Seats' }))).toHaveValue(null);
-    expect(screen.queryByRole('button', { name: en('opportunity.list.filter.clear') })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear all filters' })).not.toBeInTheDocument();
   });
 
   it('reads the board once for an address whose filters are not in the card\'s order (N-BFR3)', async () => {
     // `seats` is the card's fourth field and `lead_source` its first; `max` is written before `min`.
     await renderBoard('/crm/board?f.custom:seats.max=9&f.custom:seats.min=2&f.custom:lead_source.in=referral');
+    await openMoreFilters();
     await waitFor(() => expect(screen.getByLabelText(en('board.filter.max', { label: 'Seats' }))).toHaveValue(9));
     // Long enough for a second read to have been asked for.
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -587,8 +601,10 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
     cardFields = DEFAULT;
     await renderBoard('/crm/board?f.custom:lead_source.in=referral');
     await waitFor(() => expect(lastFieldFilters()).toBeNull());
-    // Nothing is filtered, so there is nothing to clear.
-    expect(screen.queryByRole('button', { name: en('opportunity.list.filter.clear') })).not.toBeInTheDocument();
+    // Nothing is filtered, so there is nothing to clear, and nothing is counted.
+    expect(screen.queryByRole('button', { name: 'Clear all filters' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More filters' })).toBeInTheDocument();
+    await openMoreFilters();
     expect(screen.queryByRole('button', { name: 'Lead source' })).not.toBeInTheDocument();
   });
 
@@ -624,12 +640,14 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
   it('offers the contact-person filter only within an Organization', async () => {
     cardFields = [FIELD.contact];
     await renderBoard();
+    await openMoreFilters();
     expect(screen.getByLabelText(en('board.field.contact'))).toBeDisabled();
   });
 
   it('does not offer the contact-person filter to a reader, who may not read the contacts list', async () => {
     cardFields = [FIELD.contact];
     await renderBoard('/crm/board', ['crm:read', 'orders:read']);
+    await openMoreFilters();
     expect(screen.queryByLabelText(en('board.field.contact'))).not.toBeInTheDocument();
   });
 });

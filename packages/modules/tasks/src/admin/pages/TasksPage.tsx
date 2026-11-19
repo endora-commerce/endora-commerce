@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ListChecks, Plus, SlidersHorizontal, X } from 'lucide-react';
+import { ListChecks, Plus, SlidersHorizontal } from 'lucide-react';
 import { TASK_LIST_LIMIT_MAX, TASK_LIST_SORTS, type TaskSummary } from '@endora-commerce/contracts';
 import { useAuth, useListViewModePreference, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import {
   CursorPagination,
   ResponsiveTable,
@@ -209,28 +209,6 @@ export function TasksPage(): ReactNode {
 
       <Card className="mb-4">
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <SavedViewsControl endpoint={VIEWS_ENDPOINT} current={savedState} onApply={applyView} onError={setViewsError} />
-            {mode === 'list' ? (
-              <div className="space-y-1">
-                <Label htmlFor="tasks-sort">{t('list.sort.label')}</Label>
-                <Select
-                  id="tasks-sort"
-                  value={`${sort.sort}:${sort.dir}`}
-                  onChange={(event): void => {
-                    const [field, dir] = event.target.value.split(':');
-                    navigate(withFilter(withFilter(params, 'sort', field ?? null), 'dir', dir ?? null));
-                  }}
-                >
-                  {SORT_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {t(`list.sort.${option.replace(':', '.')}`)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            ) : null}
-          </div>
           {viewsError ? (
             <Alert variant="destructive">
               <AlertDescription>{viewsError}</AlertDescription>
@@ -248,15 +226,32 @@ export function TasksPage(): ReactNode {
             statuses={vocabulary.workflow?.statuses ?? []}
             priorities={vocabulary.priorities ?? []}
             customFields={customFields}
+            filtered={filtered}
+            onClear={clear}
+            actions={
+              <>
+                {mode === 'list' ? (
+                  <Select
+                    id="tasks-sort"
+                    aria-label={t('list.sort.label')}
+                    className="w-auto"
+                    value={`${sort.sort}:${sort.dir}`}
+                    onChange={(event): void => {
+                      const [field, dir] = event.target.value.split(':');
+                      navigate(withFilter(withFilter(params, 'sort', field ?? null), 'dir', dir ?? null));
+                    }}
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {t(`list.sort.${option.replace(':', '.')}`)}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
+                <SavedViewsControl endpoint={VIEWS_ENDPOINT} current={savedState} onApply={applyView} onError={setViewsError} />
+              </>
+            }
           />
-          {filtered ? (
-            <div className="flex justify-end">
-              <Button className="min-h-11 sm:min-h-8" variant="ghost" size="sm" onClick={clear}>
-                <X aria-hidden="true" />
-                {t('list.filter.clear')}
-              </Button>
-            </div>
-          ) : null}
         </CardContent>
       </Card>
 
