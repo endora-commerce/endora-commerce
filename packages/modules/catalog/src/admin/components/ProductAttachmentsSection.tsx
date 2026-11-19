@@ -81,11 +81,6 @@ export function AttachmentsSection(): ReactNode {
         immediate={structural}
         globalOnlyLabel={atGlobal ? undefined : t('productEditor.attachments.setGlobalOnly')}
       />
-      <p className="text-sm text-muted-foreground">
-        {atGlobal
-          ? t('productEditor.attachments.help.global')
-          : t('productEditor.attachments.help.scoped', { scope: ctx.scopeLabel })}
-      </p>
       <p role="status" className="sr-only">
         {status}
       </p>

@@ -118,9 +118,6 @@ export function GallerySection(): ReactNode {
         immediate={structural}
         globalOnlyLabel={atGlobal ? undefined : t('productEditor.gallery.setGlobalOnly')}
       />
-      <p className="text-sm text-muted-foreground">
-        {atGlobal ? t('productEditor.gallery.help.global') : t('productEditor.gallery.help.scoped', { scope: ctx.scopeLabel })}
-      </p>
       <p role="status" className="sr-only">
         {status}
       </p>

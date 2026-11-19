@@ -2306,7 +2306,7 @@
   "warehouses.editor.field.countryCode": "Kod kraju",
   "warehouses.editor.field.countryNone": "— brak —",
   "warehouses.editor.field.defaultLowStockThreshold": "Domyślny próg niskiego stanu",
-  "warehouses.editor.field.defaultLowStockThresholdHelp": "Stosowane dla produktów bez własnego progu. System bierze największą wartość spośród magazynów posiadających stan dla produktu.",
+  "warehouses.editor.field.defaultLowStockThresholdHelp": "Dla produktów bez własnego progu; obowiązuje najwyższy spośród magazynów.",
   "warehouses.editor.field.defaultLowStockThresholdPlaceholder": "Puste = brak progu na poziomie magazynu",
   "warehouses.editor.field.description": "Opis",
   "warehouses.editor.field.name": "Nazwa",

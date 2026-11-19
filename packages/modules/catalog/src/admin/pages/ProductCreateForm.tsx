@@ -124,7 +124,8 @@ export function ProductCreateForm(): ReactNode {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(14rem, 1fr))', gap: 12 }}>
               <div>
                 <Label htmlFor="sku">{t('productEditor.field.sku')}</Label>
-                <Input id="sku" value={sku} onChange={(e): void => setSku(e.target.value)} aria-required="true" />
+                <Input id="sku" value={sku} onChange={(e): void => setSku(e.target.value)} aria-required="true" aria-describedby="sku-hint" />
+                <p id="sku-hint" className="b2b-help">{t('productEditor.field.sku.createHint')}</p>
               </div>
               <div>
                 <Label htmlFor="ptype">{t('productEditor.field.type')}</Label>

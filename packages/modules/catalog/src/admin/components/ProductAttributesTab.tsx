@@ -152,9 +152,6 @@ export function ProductAttributesTab(): ReactNode {
 
   return (
     <div className="b2b-col" style={{ gap: 16 }}>
-      <p className="b2b-help" style={{ marginTop: 0 }}>
-        {t('productEditor.attributes.scopedHelp')}
-      </p>
       <ScopedFieldGrid>
         {data.attributes.map((attr) => {
           const label = pickLabel(attr.label, attr.key, adminLanguage);

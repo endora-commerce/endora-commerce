@@ -112,7 +112,7 @@ const settings = defineModuleSettingsManifest({
       code: SEARCH_SETTING_CODES.LLM_ENABLED,
       name: 'LLM-augmented search — enabled',
       description:
-        'When on, Meilisearch runs hybrid lexical + semantic search using the configured embedder. It can be switched on only when the embedder credentials setting below references an LLM credential that supplies a Base URL, API key and model.',
+        'Adds meaning-based matches to search. Needs the embedder credentials setting below to name an LLM credential.',
       groupCode: 'search',
       valueType: 'boolean',
       defaultValue: false,

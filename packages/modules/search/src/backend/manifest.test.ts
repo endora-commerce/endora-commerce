@@ -24,6 +24,12 @@ describe('search manifest — the LLM toggle description', () => {
     expect(text).not.toMatch(/embedder\.\*|three embedder|trzy/i);
   });
 
+  // Issue #1458 (UX audit CAT-13): the API and the admin show one English text.
+  it('declares the same English description the bundle shows, without implementation words', () => {
+    expect(declared?.description).toBe((en as Record<string, string>)[key]);
+    expect(declared?.description).not.toMatch(/Meilisearch|hybrid lexical/);
+  });
+
   it('points at the embedder credentials setting, in both languages', () => {
     expect(declared?.description).toMatch(/embedder credentials/);
     expect((en as Record<string, string>)[key]).toMatch(/embedder credentials/);

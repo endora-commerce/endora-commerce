@@ -3,6 +3,7 @@ import { CircleSlash, Info, Link2, Lock, Pencil, TriangleAlert } from 'lucide-re
 import type { ScopeRef, ScopedFieldView, ScopedWriteOp } from '@endora-commerce/contracts';
 import { useTranslation } from '../../i18n/useTranslation.js';
 import { cn } from '../../lib/utils.js';
+import { HelpTip } from '../../ui/help-tip.js';
 
 /**
  * One product field at the editor's scope (feature 174, `contracts/editor-ui.md` §4 and §11).
@@ -79,6 +80,12 @@ export interface ScopedFieldProps<T> {
   emptyMeaning?: string | undefined;
   /** A note below the control, e.g. help text or the derived value an empty SEO field uses. */
   note?: ReactNode;
+  /**
+   * A longer explanation behind a ⓘ beside the label — a `HelpTip`, named after
+   * the label. Keep `note` to one clause and put the rest here (issue #1459): it
+   * is not in the control's description, so it is read when asked for.
+   */
+  help?: ReactNode;
   /** The completeness marker of a missing required value (§9), from saved values. */
   missing?: string | undefined;
   /** The required marker beside the label. */
@@ -116,6 +123,7 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
     textField = false,
     emptyMeaning,
     note,
+    help,
     missing,
     required = false,
     wide = false,
@@ -328,6 +336,7 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
             *
           </span>
         ) : null}
+        {help ? <HelpTip subjectId={`${id}-label`}>{help}</HelpTip> : null}
         {badges}
         {headExtra ? <span className="ml-auto">{headExtra}</span> : null}
         {!atGlobal && !readOnly ? (

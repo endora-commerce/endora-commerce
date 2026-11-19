@@ -117,9 +117,12 @@ describe('fields at a scope (feature 174, US6)', () => {
     expect(api.put).not.toHaveBeenCalledWith(`${BASE}/scoped-values`, expect.anything());
   });
 
+  // The field's ⓘ is named after its label too (issue #1459); the control is the input or the select.
+  const CONTROL = 'input, select';
+
   it('an inherited select is a read-only text with the option label; untick offers the select (US6 #6)', async () => {
     renderEditor(ProductEditor, { url: atChannel });
-    const status = await screen.findByLabelText(en['productEditor.field.status']!);
+    const status = await screen.findByLabelText(en['productEditor.field.status']!, { selector: CONTROL });
     expect(status.tagName).toBe('INPUT');
     expect(status).toHaveValue(en['productEditor.statusValue.active']);
     // The untick is the field's own state until a value is chosen; a field mounted again by a late
@@ -129,9 +132,9 @@ describe('fields at a scope (feature 174, US6)', () => {
         name: `Use value from Global for ${en['productEditor.field.status']}`,
       });
       if (box.checked) fireEvent.click(box);
-      expect(screen.getByLabelText(en['productEditor.field.status']!).tagName).toBe('SELECT');
+      expect(screen.getByLabelText(en['productEditor.field.status']!, { selector: CONTROL }).tagName).toBe('SELECT');
     });
-    const select = screen.getByLabelText(en['productEditor.field.status']!);
+    const select = screen.getByLabelText(en['productEditor.field.status']!, { selector: CONTROL });
     fireEvent.change(select, { target: { value: 'inactive' } });
     expect(await save()).toEqual({ status: 'inactive' });
   });

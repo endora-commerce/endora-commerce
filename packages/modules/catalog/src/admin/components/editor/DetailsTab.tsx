@@ -161,6 +161,7 @@ export function DetailsTab({
               {product.archivedAt ? <> {t('productEditor.field.status.archivedNote')}</> : null}
             </>
           }
+          help={t('productEditor.field.status.helpTip')}
           render={(p): ReactNode => (
             <SelectControl
               {...p}
@@ -182,6 +183,7 @@ export function DetailsTab({
           wide
           emptyMeaning={t('productEditor.emptyMeaning.noLimit')}
           note={t('productEditor.field.publishWindow.help')}
+          help={t('productEditor.field.publishWindow.helpTip')}
           render={(p): ReactNode => (
             <WindowControl {...p} fromLabel={t('productEditor.field.publishFrom')} untilLabel={t('productEditor.field.publishUntil')} />
           )}
@@ -197,12 +199,7 @@ export function DetailsTab({
           view={globalOnlyView(product.categoryIds)}
           globalOnly
           wide
-          note={
-            <>
-              {t('productEditor.section.categories.help')}
-              <AdminZone name="product.editor.field.after" props={zoneProps('categories')} />
-            </>
-          }
+          note={<AdminZone name="product.editor.field.after" props={zoneProps('categories')} />}
           render={(p): ReactNode =>
             p.readOnly ? (
               <Input {...p.inputProps} readOnly value={(p.value ?? []).map(categoryName).join('; ')} />

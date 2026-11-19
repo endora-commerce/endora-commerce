@@ -69,6 +69,13 @@ describe('base-price panel — what it shows', () => {
     serveBasePrices(api, basePrices({ byCurrency: {} }));
     await open();
     expect(screen.getByText('This product has no base price, so it cannot be ordered.')).toBeInTheDocument();
+    // What a base price is, said where there is none yet (issue #1459, UX audit CAT-14).
+    expect(screen.getByText('What every buyer pays when no price book prices this product.')).toBeInTheDocument();
+  });
+
+  it('does not explain what a base price is once the product has one (issue #1459)', async () => {
+    await open();
+    expect(screen.queryByText('What every buyer pays when no price book prices this product.')).toBeNull();
   });
 
   it('shows the prices without a control when the caller may not write them', async () => {

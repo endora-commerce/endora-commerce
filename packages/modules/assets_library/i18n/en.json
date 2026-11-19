@@ -90,7 +90,7 @@
   "detail.shareUrl.copyFailed": "The link could not be copied. Select it and copy it by hand.",
   "detail.shareUrl.privateNotice": "This link is not publicly reachable while the asset is private.",
   "detail.permalink.label": "Permalink",
-  "detail.permalink.help": "A readable address for this file, for example certificate.pdf or docs/iso-9001.pdf. It keeps working when the file is replaced.",
+  "detail.permalink.help": "Readable address; it survives replacing the file.",
   "detail.permalink.save": "Save permalink",
   "detail.permalink.remove": "Remove permalink",
   "detail.permalink.invalid.empty": "Enter a permalink.",

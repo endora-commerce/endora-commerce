@@ -2306,7 +2306,7 @@
   "warehouses.editor.field.countryCode": "Country code",
   "warehouses.editor.field.countryNone": "— none —",
   "warehouses.editor.field.defaultLowStockThreshold": "Default low-stock threshold",
-  "warehouses.editor.field.defaultLowStockThresholdHelp": "Applies to products without their own threshold. The system picks the highest such value across warehouses holding stock for the product.",
+  "warehouses.editor.field.defaultLowStockThresholdHelp": "For products without their own threshold; the highest across warehouses applies.",
   "warehouses.editor.field.defaultLowStockThresholdPlaceholder": "Leave empty for no warehouse-level default",
   "warehouses.editor.field.description": "Description",
   "warehouses.editor.field.name": "Name",
