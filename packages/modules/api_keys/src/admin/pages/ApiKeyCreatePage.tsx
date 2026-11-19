@@ -124,7 +124,7 @@ export default function ApiKeyCreatePage(): ReactNode {
         </Card>
       ) : (
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             {error ? (
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>{error}</AlertDescription>
