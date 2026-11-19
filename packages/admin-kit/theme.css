@@ -1869,6 +1869,17 @@ textarea.b2b-field {
     background: transparent;
     backdrop-filter: none;
   }
+  /* Issue #1449 (DS-19) — a long editor's one Save stays in view while the form scrolls
+     under it, and settles at the end of the form (`StickyFormActions desktop="sticky"`). */
+  .b2b-sticky-form-actions--sticky {
+    position: sticky;
+    bottom: 0;
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--surface) 95%, transparent);
+    backdrop-filter: blur(8px);
+  }
 }
 
 .b2b-touch-reorder {
