@@ -190,6 +190,62 @@ describe('sales_channels contributes the product editor channels zone', () => {
     expect(rows[0]!.parentElement!.className.split(/\s+/)).toContain('divide-y');
   });
 
+  /**
+   * Issue #1644 — the tab is read-only without `catalog:write`, as every other product-editor
+   * tab is: the rows, and none of the controls the server would refuse. The membership routes
+   * themselves are gated on `sales_channels:write`, so the controls need that code too.
+   */
+  describe('read-only without the write permissions (issue #1644)', () => {
+    const TWO_CHANNELS = async (url: string): Promise<unknown> => {
+      if (url.includes('/by-entity/')) {
+        return {
+          entityType: 'product',
+          entityId: PRODUCT_ID,
+          channels: [
+            { id: 'c1', code: 'retail', name: { 'en-US': 'Retail' }, active: true, systemDefault: true },
+            { id: 'c2', code: 'b2b', name: { 'en-US': 'B2B' }, active: true, systemDefault: false },
+          ],
+        };
+      }
+      return {
+        items: [{ id: 'c3', code: 'export', name: { 'en-US': 'Export' }, active: true, systemDefault: false }],
+        page: 1,
+        pageSize: 20,
+        total: 1,
+      };
+    };
+
+    function expectReadOnly(container: HTMLElement): void {
+      expect(container.querySelectorAll('li')).toHaveLength(2);
+      expect(container.querySelector('button')).toBeNull();
+      expect(container.querySelector('select')).toBeNull();
+      expect(container.textContent).not.toContain('saveSession.immediateBadge');
+    }
+
+    it.each([
+      ['without catalog:write', ['sales_channels:read', 'sales_channels:write']],
+      ['without sales_channels:write', ['sales_channels:read', 'catalog:write']],
+    ])('shows the channel rows and no write control %s', async (_label, permissions) => {
+      getSpy.mockImplementation(TWO_CHANNELS);
+      const container = renderZone({ permissions });
+      await waitFor(() => expect(container.textContent).toContain('b2b'));
+      expectReadOnly(container);
+    });
+
+    it('offers the picker, Add, Remove and the immediate badge with both', async () => {
+      getSpy.mockImplementation(TWO_CHANNELS);
+      const container = renderZone({ permissions: ['sales_channels:read', 'sales_channels:write', 'catalog:write'] });
+      await waitFor(() => expect(container.textContent).toContain('b2b'));
+      expect(container.querySelector('select')).not.toBeNull();
+      expect([...container.querySelectorAll('button')].map((button) => button.textContent)).toEqual([
+        'membership.action.remove',
+        'membership.action.remove',
+        'membership.action.add',
+      ]);
+      expect(container.textContent).toContain('saveSession.immediateBadge');
+    });
+  });
+
   it('has no off state to drive, and says so from its own manifest', () => {
     expect(manifest.activation).toEqual(expect.objectContaining({ nonDeactivatable: true }));
   });
