@@ -279,7 +279,8 @@ describe('asset picker dialog (#1493)', () => {
 });
 
 describe('catalog picker dialogs (#1493)', () => {
-  function renderField(field: { render: unknown }, label: string): void {
+  function renderField(field: { type: string; render?: unknown }, label: string): void {
+    if (field.type !== 'custom') throw new Error('expected a custom field');
     const Render = field.render as (props: Record<string, unknown>) => ReactElement;
     renderCore(<Render value={[]} onChange={vi.fn()} field={{ type: 'custom', label }} name="f" id="f" />);
   }
