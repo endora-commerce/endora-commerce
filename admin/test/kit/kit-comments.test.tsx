@@ -36,10 +36,12 @@ function core(key: string): string {
 const ME = '00000000-0000-4000-8000-00000000ad01';
 const COLLEAGUE = '00000000-0000-4000-8000-00000000ad02';
 
+const HINT = 'Notes are internal.';
+
 const COPY: CommentThreadCopy = {
   title: 'Notes',
   empty: 'No notes yet.',
-  hint: 'Notes are internal.',
+  hint: HINT,
   composerLabel: 'New note',
   composerPlaceholder: 'Write a note',
   composerSubmit: 'Add note',
@@ -119,7 +121,7 @@ describe('CommentThread', () => {
     expect(items[0]).toHaveTextContent('Ada Min');
     expect(items[0]).toHaveTextContent('First call went well.');
     expect(items[1]).toHaveTextContent(core('comments.edited'));
-    expect(screen.getByText(COPY.hint)).toBeInTheDocument();
+    expect(screen.getByText(HINT)).toBeInTheDocument();
   });
 
   it('describes the composer by the helper line the tab gives, and by none when it gives none (#1487)', async () => {
@@ -303,13 +305,13 @@ describe('CommentThread — a section, not a card (issue #1437, DS-03)', () => {
 describe('CommentThread — the hint is off unless the tab gives one (issue #1503, SHELL-22)', () => {
   it('draws no line above the thread when the copy names no hint', async () => {
     list.mockResolvedValue([entry()]);
-    const { hint, ...withoutHint } = COPY;
+    const { hint: _hint, ...withoutHint } = COPY;
     mount(thread({ copy: withoutHint }));
 
     const items = await screen.findByRole('list', { name: COPY.title });
     // Above the list there is no hint line; the composer's live region (`role=status`) stays.
     const root = items.parentElement!;
     expect(root.querySelector(':scope > p:not([role])')).toBeNull();
-    expect(screen.queryByText(hint ?? '')).toBeNull();
+    expect(screen.queryByText(HINT)).toBeNull();
   });
 });
