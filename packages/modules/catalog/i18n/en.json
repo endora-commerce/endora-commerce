@@ -1171,6 +1171,7 @@
   "settingLabels.catalog.scope_completeness_gate.options.refuse": "Refuse to save",
   "productEditor.tab.scopes": "Scope map",
   "productEditor.scopeOverview.title": "Scope map",
+  "productEditor.scopeOverview.matrix.title": "Values by channel and language",
   "productEditor.scopeOverview.help": "Each cell is one sales channel in one language.",
   "productEditor.scopeOverview.readOnly": "Read-only: you can see the scopes but not change them.",
   "productEditor.scopeOverview.loading": "Loading the scope map…",

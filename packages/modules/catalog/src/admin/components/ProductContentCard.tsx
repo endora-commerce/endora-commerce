@@ -66,9 +66,12 @@ export function ProductContentCard({
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-2">
-          <h3 className="text-sm font-medium">
+          {/* Issue #1490 (UX audit CAT-11): the card is a field of the Attributes tab, captioned
+              like the fields beside it, not an `h3` — the tab has no `h2` for it to sit under, so
+              the heading skipped a level. The region keeps its name for landmark navigation. */}
+          <p className="text-sm font-medium">
             {label} <span className="b2b-mono" style={{ opacity: 0.6 }}>({attributeKey})</span>
-          </h3>
+          </p>
           <ul className="flex flex-wrap gap-2" aria-label={t('productContent.card.languages')}>
             {languages.map((language) => (
               <li key={language}>

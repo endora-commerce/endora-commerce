@@ -2209,90 +2209,100 @@ function BundleSlotRow({
 
   return (
     <li className="py-3 first:pt-0 last:pb-0">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">
-          {slot.name['en-US'] ?? Object.values(slot.name)[0] ?? '—'}{' '}
-          <span className="text-xs text-muted-foreground">
-            {t('productEditor.bundle.slotMeta', {
-              min: slot.minQuantity,
-              max: slot.maxQuantity,
-              position: slot.position,
-            })}
-          </span>
-        </h3>
-        {readOnly ? null : (
-          <Button
-            type="button"
-            size="sm"
-            className="max-lg:min-h-11"
-            variant="destructive"
-            onClick={() => void onDeleteSlot(slot.id)}
-          >
-            {t('productEditor.bundle.action.deleteSlot')}
-          </Button>
-        )}
-      </div>
-      <div className="mt-2">
-        {slot.options.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{t('productEditor.bundle.optionsEmpty')}</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('productEditor.bundle.column.optionProductId')}</TableHead>
-                <TableHead>{t('productEditor.bundle.column.defaultQuantity')}</TableHead>
-                <TableHead>{t('productEditor.bundle.column.position')}</TableHead>
-                {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.bundle.column.actions')}</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {slot.options.map((opt) => (
-                <TableRow key={opt.id}>
-                  <TableCell className="font-mono text-xs">{opt.optionProductId}</TableCell>
-                  <TableCell>{opt.defaultQuantity}</TableCell>
-                  <TableCell>{opt.position}</TableCell>
-                  {readOnly ? null : (
-                    <TableCell>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="max-lg:min-h-11"
-                        variant="destructive"
-                        onClick={() => void onRemoveOption(slot.id, opt.id)}
-                      >
-                        {t('productEditor.bundle.action.removeOption')}
-                      </Button>
-                    </TableCell>
-                  )}
+      {/* Issue #1490 (UX audit CAT-11): a slot is a sub-section of Bundle slots — the kit's
+          `EditorSection` at `h3`, the editor's one heading style, not a hand-styled `h3`. The
+          list's `divide-y` separates the slots, so the section draws no rule of its own. */}
+      <EditorSection
+        as="h3"
+        divider={false}
+        title={
+          <>
+            {slot.name['en-US'] ?? Object.values(slot.name)[0] ?? '—'}{' '}
+            <span className="text-xs font-normal text-muted-foreground">
+              {t('productEditor.bundle.slotMeta', {
+                min: slot.minQuantity,
+                max: slot.maxQuantity,
+                position: slot.position,
+              })}
+            </span>
+          </>
+        }
+        action={
+          readOnly ? null : (
+            <Button
+              type="button"
+              size="sm"
+              className="max-lg:min-h-11"
+              variant="destructive"
+              onClick={() => void onDeleteSlot(slot.id)}
+            >
+              {t('productEditor.bundle.action.deleteSlot')}
+            </Button>
+          )
+        }
+      >
+        <div>
+          {slot.options.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t('productEditor.bundle.optionsEmpty')}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('productEditor.bundle.column.optionProductId')}</TableHead>
+                  <TableHead>{t('productEditor.bundle.column.defaultQuantity')}</TableHead>
+                  <TableHead>{t('productEditor.bundle.column.position')}</TableHead>
+                  {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.bundle.column.actions')}</TableHead>}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
-      {readOnly ? null : (
-      <div className="mt-3 flex items-end gap-2">
-          <div className="flex-1 space-y-1">
-            <Label htmlFor={`opt-${slot.id}`}>{t('productEditor.bundle.column.optionProductId')}</Label>
-            <ProductPicker
-              id={`opt-${slot.id}`}
-              mode="select"
-              value={optionId || null}
-              onChange={(v): void => setOptionId(v ?? '')}
-            />
-          </div>
-          <Button
-            type="button"
-            onClick={() => {
-              void onAddOption(slot.id, optionId).then(() => {
-                setOptionId('');
-              });
-            }}
-          >
-            {t('productEditor.bundle.action.addOption')}
-          </Button>
+              </TableHeader>
+              <TableBody>
+                {slot.options.map((opt) => (
+                  <TableRow key={opt.id}>
+                    <TableCell className="font-mono text-xs">{opt.optionProductId}</TableCell>
+                    <TableCell>{opt.defaultQuantity}</TableCell>
+                    <TableCell>{opt.position}</TableCell>
+                    {readOnly ? null : (
+                      <TableCell>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="max-lg:min-h-11"
+                          variant="destructive"
+                          onClick={() => void onRemoveOption(slot.id, opt.id)}
+                        >
+                          {t('productEditor.bundle.action.removeOption')}
+                        </Button>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
-      )}
+        {readOnly ? null : (
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1">
+              <Label htmlFor={`opt-${slot.id}`}>{t('productEditor.bundle.column.optionProductId')}</Label>
+              <ProductPicker
+                id={`opt-${slot.id}`}
+                mode="select"
+                value={optionId || null}
+                onChange={(v): void => setOptionId(v ?? '')}
+              />
+            </div>
+            <Button
+              type="button"
+              onClick={() => {
+                void onAddOption(slot.id, optionId).then(() => {
+                  setOptionId('');
+                });
+              }}
+            >
+              {t('productEditor.bundle.action.addOption')}
+            </Button>
+          </div>
+        )}
+      </EditorSection>
     </li>
   );
 }

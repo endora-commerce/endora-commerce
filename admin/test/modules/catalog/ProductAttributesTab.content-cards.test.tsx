@@ -147,6 +147,15 @@ describe('Attributes tab — content attribute cards (feature 172 on the 174 edi
     expect(within(banner).getByText(en['productContent.card.emptySummary']!)).toBeTruthy();
   });
 
+  it('labels each card as a field, not with a heading that would skip from the page h1 to h3 (#1490, CAT-11)', async () => {
+    renderEditor(ProductEditor, { url: AT_G, permissions: PERMISSIONS, contributions: CONTRIBUTIONS });
+    await waitFor(() => expect(cards()).toHaveLength(2));
+    for (const card of cards()) expect(within(card).queryAllByRole('heading')).toEqual([]);
+    expect(screen.getByRole('region', { name: 'Buying guide' })).toBe(cards()[1]);
+    const panel = screen.getByRole('tabpanel');
+    expect([...panel.querySelectorAll('h3, h4, h5, h6')]).toEqual([]);
+  });
+
   it('renders no input and mounts no field protection for a content attribute; the ordinary one keeps both', async () => {
     renderEditor(ProductEditor, { url: AT_G, permissions: PERMISSIONS, contributions: CONTRIBUTIONS });
     await waitFor(() => expect(cards()).toHaveLength(2));
