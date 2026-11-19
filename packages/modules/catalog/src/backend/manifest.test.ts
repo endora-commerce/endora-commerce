@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { manifest } from './manifest.js';
-import en from '../i18n/en.json' with { type: 'json' };
+import { manifest } from '../manifest.js';
+import en from '../../i18n/en.json' with { type: 'json' };
 
 // Issue #1458 (UX audit CAT-13): the Settings screen reads the bundle, the API serves the
 // manifest — both say the same English sentence.
