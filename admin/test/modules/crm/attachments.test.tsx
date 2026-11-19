@@ -131,7 +131,7 @@ async function openTab(permissions: readonly string[] = WRITER): Promise<HTMLEle
 
 /** What the Attachments tab is called when it holds `count` files. */
 const countedTab = (count: number): string =>
-  en('opportunity.tabs.counted', { label: en('opportunity.tabs.attachments'), count });
+  core('common.tabs.counted', { label: en('opportunity.tabs.attachments'), count });
 
 const row = (panel: HTMLElement, name: string): HTMLElement =>
   within(panel).getByText(name).closest('tr') as HTMLElement;

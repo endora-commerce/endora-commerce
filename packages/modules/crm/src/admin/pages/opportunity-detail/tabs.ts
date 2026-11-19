@@ -50,14 +50,12 @@ export interface OpportunityTab {
   count?: (opportunity: OpportunityDetail) => number;
   /**
    * What the number is of, for the tab's accessible name — a template taking
-   * `{label}` and `{count}`. A count of items needs none; a tab that counts
-   * something else says what.
+   * `{label}` and `{count}`. A count of items needs none — the kit's
+   * `RecordTabs` names it "Notes, items: 3" — and a tab that counts something
+   * else says what.
    */
   countLabelKey?: string;
 }
-
-/** "Notes, items: 3" — what a counted tab is called unless it says otherwise. */
-export const ITEM_COUNT_LABEL_KEY = 'opportunity.tabs.counted';
 
 /** The tab a visit opens on when its address names none. */
 export const DEFAULT_TAB_ID = 'overview';

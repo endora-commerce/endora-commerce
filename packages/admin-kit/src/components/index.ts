@@ -235,3 +235,10 @@ export { CursorPagination } from './record-history/CursorPagination.js';
 export type { CursorPaginationProps } from './record-history/CursorPagination.js';
 export { ScopedField, ScopedFieldGrid } from './scoped-field/ScopedField.js';
 export type { ScopedFieldControlProps, ScopedFieldProps, ScopedFieldViewWithParent } from './scoped-field/ScopedField.js';
+export { BoardCardFieldsEditor } from './board-card-fields/BoardCardFieldsEditor.js';
+export type {
+  BoardCardFieldChoice,
+  BoardCardFieldsConfig,
+  BoardCardFieldsEditorCopy,
+  BoardCardFieldsEditorProps,
+} from './board-card-fields/BoardCardFieldsEditor.js';
