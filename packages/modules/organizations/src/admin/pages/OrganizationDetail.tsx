@@ -4,7 +4,6 @@ import { ArrowLeft } from 'lucide-react';
 import type {
   AdminOrganization,
   AdminOrganizationDetail,
-  AdminOrganizationMember,
   OrganizationRoleRef,
   OrganizationRoleView,
   Warehouse,
@@ -25,6 +24,7 @@ import {
 import { FulfilmentStrategyPanel } from '../panels/FulfilmentStrategyPanel.js';
 import { OrganizationSalesRepsTab } from '../components/OrganizationSalesRepsTab.js';
 import { OrganizationRolesTab } from '../components/OrganizationRolesTab.js';
+import { OrganizationMembersSection } from '../components/OrganizationMembersSection.js';
 import { ConvertToCompanyForm, type ConvertToCompanyResult } from '../components/ConvertToCompanyForm.js';
 import { ChangeTaxIdForm, taxIdChangeMessage, type ChangeTaxIdResult } from '../components/ChangeTaxIdForm.js';
 import { ChangeVatStatusForm } from '../components/ChangeVatStatusForm.js';
@@ -43,23 +43,16 @@ import {
   SaveSessionSummary,
   customFieldErrorsOf,
   type FulfilmentStrategyValue,
-  ImmediateBadge,
 } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /** The VAT validation panel's heading — where the moderation notice's link lands. */
 const VAT_VALIDATION_HEADING_ID = 'organization-vat-validation';
 
-/** A member row of the detail (`adminOrganizationMemberSchema`, issue #599). */
-type OrgMember = AdminOrganizationMember;
-
 /** `GET /api/v1/admin/organizations/:id` (`adminOrganizationDetailSchema`, issue #599). */
 type OrgDetail = AdminOrganizationDetail;
-
-/** Feature 175 — the direct-create panel's starting bag: a new member has none. */
-const EMPTY_MEMBER_VALUES: Record<string, unknown> = {};
 
 /** Either code reads an Organization's roles (`contracts/operator-api.md` §2). */
 const READ_ROLES: [string, string] = ['organizations:read-roles', 'organizations:manage-roles'];
@@ -183,26 +176,11 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const [inviteEmail, setInviteEmail] = useState('');
-  // `null` = the form's default (Member) has not been changed.
-  const [inviteRole, setInviteRole] = useState<string | null>(null);
-  const [directEmail, setDirectEmail] = useState('');
-  const [directFirst, setDirectFirst] = useState('');
-  const [directLast, setDirectLast] = useState('');
-  const [directPassword, setDirectPassword] = useState('');
-  const [directRole, setDirectRole] = useState<string | null>(null);
-  // Feature 175 (FR-018) — the new member's custom fields, sent with the create.
   const { hasPermission } = useAuth();
-  const [directValues, setDirectValues] = useState<Record<string, unknown>>({});
-  const [directValueErrors, setDirectValueErrors] = useState<Record<string, string>>({});
-  /** Re-keys the embedded panel after a create, so the next member starts empty. */
-  const [directFormKey, setDirectFormKey] = useState(0);
   const [roleList, setRoleList] = useState<OrganizationRoleView[] | null>(null);
 
-  const [editMember, setEditMember] = useState<OrgMember | null>(null);
-  const [editFirst, setEditFirst] = useState('');
-  const [editLast, setEditLast] = useState('');
-  const [editEmail, setEditEmail] = useState('');
+  // Issue #1516 (SALES-14) — whether a member dialog holds typed input.
+  const [membersDirty, setMembersDirty] = useState(false);
 
   // Issue #1447 (DS-14, SALES-06) — a skeleton on the first load only. Every
   // re-read after an invite, a member change or a panel's save keeps the page,
@@ -260,18 +238,6 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     return [...held.values()].sort(byKindThenName);
   }, [roleList, org]);
 
-  // The invite and direct-create forms default to Member. Without the role list
-  // its id may be unknown; the default is then `''`, sent as no `roleId`, which
-  // the server resolves to the Organization's Member role.
-  const formRoleOptions = useMemo((): { value: string; label: string }[] => {
-    const options = roleOptions.map((r) => ({ value: r.id, label: r.name }));
-    if (roleOptions.some((r) => r.kind === 'member')) return options;
-    return [{ value: '', label: own('organizationRoles.member.name') }, ...options];
-  }, [roleOptions, own]);
-  const defaultFormRole = roleOptions.find((r) => r.kind === 'member')?.id ?? '';
-  const inviteRoleValue = inviteRole ?? defaultFormRole;
-  const directRoleValue = directRole ?? defaultFormRole;
-
   // Active warehouses feed the org-level fulfilment-strategy picker's
   // defined-order list. Best-effort; failure leaves the list empty.
   useEffect(() => {
@@ -280,14 +246,6 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       .then((res) => setWarehouses(res.items))
       .catch(() => setWarehouses([]));
   }, []);
-
-  useEffect(() => {
-    if (editMember) {
-      setEditFirst(editMember.firstName);
-      setEditLast(editMember.lastName);
-      setEditEmail(editMember.email);
-    }
-  }, [editMember]);
 
   // --- The one Save (feature 180, WP-7) -------------------------------------------------
   const session = useSaveSession();
@@ -315,18 +273,9 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     setInfo(null);
   }, []);
 
-  // The member-edit overlay, the invite and the direct-add forms hold unsaved
-  // data-entry of their own (each applies immediately on its button); the page's
-  // Save covers the rest. Warn before leaving if any of them holds an edit.
-  const memberEditDirty =
-    editMember !== null &&
-    (editFirst !== editMember.firstName ||
-      editLast !== editMember.lastName ||
-      editEmail !== editMember.email);
-  const inviteDirty = inviteEmail !== '';
-  const directAddDirty =
-    directEmail !== '' || directFirst !== '' || directLast !== '' || directPassword !== '';
-  useUnsavedChangesPrompt(memberEditDirty || inviteDirty || directAddDirty || hostCount + session.dirtyCount > 0);
+  // The member dialogs hold unsaved data-entry of their own (each applies immediately on its
+  // button); the page's Save covers the rest. Warn before leaving if any of them holds an edit.
+  useUnsavedChangesPrompt(membersDirty || hostCount + session.dirtyCount > 0);
 
   // The latest stored organization, read by the host part when Save runs.
   const orgRef = useRef(org);
@@ -447,109 +396,13 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     }, 0);
   };
 
-  const inviteMember = useCallback(async (): Promise<void> => {
-    if (!inviteEmail.trim()) return;
-    setError(null);
-    try {
-      await apiClient.post(`/api/v1/admin/organizations/${id}/members/invite`, {
-        email: inviteEmail.trim(),
-        ...(inviteRoleValue ? { roleId: inviteRoleValue } : {}),
-      });
-      setInfo(t('organizations.detail.info.invited'));
-      setInviteEmail('');
+  /** Issue #1516 — a member write succeeded: say so, then re-read the Organization. */
+  const membersChanged = useCallback(
+    async (message: string): Promise<void> => {
+      setInfo(message);
       await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.invite'));
-    }
-  }, [id, inviteEmail, inviteRoleValue, refresh, t]);
-
-  const directAdd = useCallback(async (): Promise<void> => {
-    setError(null);
-    setDirectValueErrors({});
-    try {
-      await apiClient.post(`/api/v1/admin/organizations/${id}/members`, {
-        email: directEmail.trim(),
-        firstName: directFirst.trim(),
-        lastName: directLast.trim(),
-        password: directPassword,
-        ...(directRoleValue ? { roleId: directRoleValue } : {}),
-        ...(Object.keys(directValues).length > 0 ? { customFieldValues: directValues } : {}),
-      });
-      setInfo(t('organizations.detail.info.memberCreated'));
-      setDirectEmail('');
-      setDirectFirst('');
-      setDirectLast('');
-      setDirectPassword('');
-      setDirectValues({});
-      setDirectFormKey((n) => n + 1);
-      await refresh();
-    } catch (err) {
-      setDirectValueErrors(customFieldErrorsOf(err) ?? {});
-      setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.create'));
-    }
-  }, [id, directEmail, directFirst, directLast, directPassword, directRoleValue, directValues, refresh, t]);
-
-  const changeMemberRole = useCallback(
-    async (memberId: string, roleId: string, expectedUpdatedAt?: string): Promise<void> => {
-      setError(null);
-      try {
-        await apiClient.patch(`/api/v1/admin/organizations/${id}/members/${memberId}/role`, {
-          roleId,
-          ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
-        });
-        setInfo(t('organizations.detail.info.memberUpdated'));
-        await refresh();
-      } catch (err) {
-        if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-          // The page stays on screen through the re-read now, so the reason
-          // the change was refused can stay with it.
-          await refresh();
-          setError(t('organizations.detail.error.versionConflictMember'));
-        } else {
-          setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.roleUpdate'));
-        }
-      }
     },
-    [id, refresh, t],
-  );
-
-  const saveMemberProfile = useCallback(async (): Promise<void> => {
-    if (!editMember?.updatedAt) return;
-    setError(null);
-    try {
-      await apiClient.patch(`/api/v1/admin/organizations/${id}/members/${editMember.id}`, {
-        firstName: editFirst.trim(),
-        lastName: editLast.trim(),
-        email: editEmail.trim(),
-        expectedUpdatedAt: editMember.updatedAt,
-      });
-      setInfo(t('organizations.detail.info.profileSaved'));
-      setEditMember(null);
-      await refresh();
-    } catch (err) {
-      if (err instanceof ApiError && err.envelope.error.code === 'VERSION_CONFLICT') {
-        // The page stays on screen through the re-read now, so the reason
-        // the change was refused can stay with it.
-        await refresh();
-        setError(t('organizations.detail.error.versionConflictMember'));
-      } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.save'));
-      }
-    }
-  }, [editMember, editFirst, editLast, editEmail, id, refresh, t]);
-
-  const removeMember = useCallback(
-    async (memberId: string): Promise<void> => {
-      setError(null);
-      try {
-        await apiClient.delete(`/api/v1/admin/organizations/${id}/members/${memberId}`);
-        setInfo(t('organizations.detail.info.memberRemoved'));
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('organizations.detail.error.remove'));
-      }
-    },
-    [id, refresh, t],
+    [refresh],
   );
 
   if (resource.initialLoading) return <DetailSkeleton label={t('organizations.loading')} />;
@@ -568,9 +421,6 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         <AlertDescription>{t('organizations.detail.notFound')}</AlertDescription>
       </Alert>
     );
-
-  // Last-administrator protection keys off the role's kind, never its name.
-  const adminCount = org.members.filter((m) => m.organizationRole.kind === 'administrator').length;
 
   return (
     <>
@@ -704,241 +554,20 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         </CardContent>
       </Card>
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>
-            {t('organizations.detail.inviteCard')}
-            <ImmediateBadge className="align-middle" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-3">
-          <div className="space-y-2">
-            <Label htmlFor="invite-email">{t('organizations.detail.email')}</Label>
-            <Input
-              id="invite-email"
-              type="email"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder={t('organizations.detail.emailPlaceholder')}
-              className="w-64"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="invite-role">{t('organizations.detail.role')}</Label>
-            <Select
-              id="invite-role"
-              value={inviteRoleValue}
-              onChange={(e) => setInviteRole(e.target.value)}
-            >
-              {formRoleOptions.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <Button type="button" onClick={() => void inviteMember()}>
-            {t('organizations.detail.sendInvite')}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>
-            {t('organizations.detail.directAddCard')}
-            <ImmediateBadge className="align-middle" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="d-email">{t('organizations.detail.email')}</Label>
-            <Input
-              id="d-email"
-              type="email"
-              value={directEmail}
-              onChange={(e) => setDirectEmail(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="d-pw">{t('organizations.detail.tempPassword')}</Label>
-            <Input
-              id="d-pw"
-              type="password"
-              value={directPassword}
-              onChange={(e) => setDirectPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="d-fn">{t('organizations.detail.firstName')}</Label>
-            <Input id="d-fn" value={directFirst} onChange={(e) => setDirectFirst(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="d-ln">{t('organizations.detail.lastName')}</Label>
-            <Input id="d-ln" value={directLast} onChange={(e) => setDirectLast(e.target.value)} />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="d-role">{t('organizations.detail.role')}</Label>
-            <Select
-              id="d-role"
-              value={directRoleValue}
-              onChange={(e) => setDirectRole(e.target.value)}
-            >
-              {formRoleOptions.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          {/* Feature 175 — the `customer` custom fields of the account being created. */}
-          {hasPermission('custom_fields:read') ? (
-            <div className="md:col-span-2">
-              {/* A section of the Direct-add card, under its h2 (issue #1437). */}
-              <CustomFieldValuesPanel
-                key={directFormKey}
-                titleAs="h3"
-                entityType="customer"
-                values={EMPTY_MEMBER_VALUES}
-                onChange={setDirectValues}
-                fieldErrors={directValueErrors}
-              />
-            </div>
-          ) : null}
-          <div className="md:col-span-2">
-            <Button type="button" onClick={() => void directAdd()}>
-              {t('organizations.detail.createMember')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>
-            {t('organizations.detail.membersCard')}
-            <ImmediateBadge className="align-middle" />
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {editMember ? (
-            <div className="mb-6 rounded-lg border border-border p-4">
-              <h3 className="mb-3 text-sm font-medium">{t('organizations.detail.editMember')}</h3>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="edit-email">{t('organizations.detail.email')}</Label>
-                  <Input
-                    id="edit-email"
-                    type="email"
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-fn">{t('organizations.detail.firstName')}</Label>
-                  <Input
-                    id="edit-fn"
-                    value={editFirst}
-                    onChange={(e) => setEditFirst(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="edit-ln">{t('organizations.detail.lastName')}</Label>
-                  <Input
-                    id="edit-ln"
-                    value={editLast}
-                    onChange={(e) => setEditLast(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <Button type="button" onClick={() => void saveMemberProfile()}>
-                  {t('organizations.detail.save')}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setEditMember(null)}>
-                  {t('organizations.detail.cancel')}
-                </Button>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {t('organizations.detail.changeEmailHint')}
-              </p>
-            </div>
-          ) : null}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('organizations.detail.email')}</TableHead>
-                <TableHead>{t('organizations.detail.nameCol')}</TableHead>
-                <TableHead>{t('organizations.detail.role')}</TableHead>
-                <TableHead>{t('organizations.detail.verified')}</TableHead>
-                <TableHead>{t('organizations.detail.lastLogin')}</TableHead>
-                <TableHead>{t('organizations.detail.twoFactor')}</TableHead>
-                <TableHead className="text-right">{t('organizations.detail.actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {org.members.map((m) => (
-                <TableRow key={m.id}>
-                  <TableCell className="font-medium">{m.email}</TableCell>
-                  <TableCell>
-                    {m.firstName} {m.lastName}
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      aria-label={t('organizations.detail.roleForLabel', { email: m.email })}
-                      value={m.organizationRole.id}
-                      onChange={(e): void =>
-                        void changeMemberRole(
-                          m.id,
-                          e.target.value,
-                          m.updatedAt ?? undefined,
-                        )
-                      }
-                      className="max-w-[14rem]"
-                    >
-                      {roleOptions.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    {m.emailVerifiedAt ? formatDateTime(m.emailVerifiedAt) : '—'}
-                  </TableCell>
-                  <TableCell>
-                    {m.lastLoginAt ? formatDateTime(m.lastLoginAt) : '—'}
-                  </TableCell>
-                  <TableCell>{m.twoFactorEnabled ? t('organizations.detail.twoFactorOn') : '—'}</TableCell>
-                  <TableCell className="text-right space-x-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setEditMember(m)}
-                    >
-                      {t('organizations.detail.edit')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={
-                        m.organizationRole.kind === 'administrator' && adminCount <= 1
-                      }
-                      onClick={() => void removeMember(m.id)}
-                    >
-                      {t('organizations.detail.remove')}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Issue #1516 (SALES-14) — one Members section: the list, one Add member, and the
+          edit and remove dialogs. Its writes stay immediate. */}
+      <OrganizationMembersSection
+        organizationId={org.id}
+        organizationName={org.name}
+        isPersonal={org.isPersonal === true}
+        members={org.members}
+        roleOptions={roleOptions}
+        canManage={canManage}
+        canReadCustomFields={hasPermission('custom_fields:read')}
+        onChanged={membersChanged}
+        onStale={refresh}
+        onDirtyChange={setMembersDirty}
+      />
 
       {converting ? (
         <ModalDialog
