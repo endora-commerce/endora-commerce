@@ -443,6 +443,7 @@
   "pageBuilder.applyTemplate.selectLabel": "Template",
   "pageBuilder.applyTemplate.success": "Template applied.",
   "pageBuilder.applyTemplate.title": "Apply content template",
+  "pageBuilder.clearCanvas.alreadyEmpty": "The canvas is already empty.",
   "pageBuilder.clearCanvas.button": "Clear canvas",
   "pageBuilder.clearCanvas.cancel": "Cancel",
   "pageBuilder.clearCanvas.confirm": "Clear canvas",

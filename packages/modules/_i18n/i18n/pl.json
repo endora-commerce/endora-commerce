@@ -443,6 +443,7 @@
   "pageBuilder.applyTemplate.selectLabel": "Szablon",
   "pageBuilder.applyTemplate.success": "Szablon zastosowany.",
   "pageBuilder.applyTemplate.title": "Zastosuj szablon content",
+  "pageBuilder.clearCanvas.alreadyEmpty": "Canvas jest już pusty.",
   "pageBuilder.clearCanvas.button": "Wyczyść canvas",
   "pageBuilder.clearCanvas.cancel": "Anuluj",
   "pageBuilder.clearCanvas.confirm": "Wyczyść canvas",

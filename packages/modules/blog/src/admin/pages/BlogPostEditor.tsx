@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import { slugify as slugifyText, type BlogPostDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup } from '@endora-commerce/admin-kit/ui';
@@ -504,6 +504,7 @@ export function BlogPostEditor(): ReactNode {
       header={
         <>
           <PageHeader
+            back={{ label: t('postEditor.backToList'), to: '/blog/posts' }}
             title={isNew ? t('postEditor.title.new') : form.name || t('postEditor.title.edit')}
             description={
               isNew
@@ -513,9 +514,6 @@ export function BlogPostEditor(): ReactNode {
             actions={
               <div className="flex flex-wrap items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />
-                <Button asChild variant="outline">
-                  <Link to="/blog/posts">{t('postEditor.backToList')}</Link>
-                </Button>
                 {/* Publishing is the last step of writing, not a setting: it
                     stays in the header, where it is reachable with the panel
                     put away. Only the transition the status allows is offered. */}

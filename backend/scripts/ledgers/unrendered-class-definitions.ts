@@ -32,10 +32,12 @@
  * 160 made it 14: deleting the old price-list screens left `b2b-badge--info`
  * unrendered until P2's price-book editor.
  *
- * The other 13 entries are not `b2b-*` at all and are outside D-219's headline
+ * The other 11 entries are not `b2b-*` at all and are outside D-219's headline
  * count for a reason each names: a class a third-party library renders, a class
  * the application sets on `document`, or a descendant selector whose block has
- * no live renderer.
+ * no live renderer. (13 until issue #1494 deleted the page-builder header's
+ * two DOM-injected slots, `cms-pb-header-left` and `cms-pb-header-leading`,
+ * together with the portal that created them.)
  */
 export type UnrenderedClassLedger = Readonly<Record<string, string>>;
 
@@ -73,9 +75,6 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
   'puck-root':
     "`@puckeditor/core`'s own root class, rendered by that library rather than by this " +
     'repository; the design system styles it because the host embeds the editor',
-  'cms-pb-header-leading':
-    'a page-builder header slot whose renderer is the CMS module; it drains with the block',
-  'cms-pb-header-left': 'the second slot of the same header block',
   'cell-input': 'a descendant of `b2b-matrix`, which nothing renders',
   'cell--num': 'a numeric-cell modifier under `b2b-matrix`, which nothing renders',
   bar: 'a descendant of a chart block whose renderer is gone',

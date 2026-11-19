@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { isDraftEqual, randomUUID } from '@endora-commerce/admin-kit/lib';
 import { UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, Textarea } from '@endora-commerce/admin-kit/ui';
@@ -192,13 +192,9 @@ export function MegamenuEditor(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
+        back={{ label: t('common.back'), to: '/megamenu' }}
         title={menu.name || t('editor.fallbackTitle')}
         description={t('editor.description')}
-        actions={
-          <Button asChild variant="outline">
-            <Link to="/megamenu">{t('common.back')}</Link>
-          </Button>
-        }
       />
       {error ? (
         <Alert variant="destructive">
