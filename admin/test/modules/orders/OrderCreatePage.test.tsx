@@ -9,6 +9,7 @@ import { shippedCoreBundle } from '../../helpers/core-bundle';
 import { byId, developerIdLabels } from '../../helpers/developer-ids';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
+import { ApiError } from '@endora-commerce/admin-kit/lib';
 
 /**
  * The real providers, not a stubbed hook (feature 091, P3 and P4d).
@@ -105,6 +106,7 @@ const PREVIEW = {
 
 const BUNDLE = passthroughBundle('core', [
   'common.action.back',
+  'common.action.cancel',
   'orderCreate.field.customer',
   'orderCreate.field.salesChannel',
   'orderCreate.field.paymentMethod',
@@ -423,6 +425,71 @@ describe('OrderCreatePage', () => {
         expect(screen.getByRole('link', { name: 'common.action.back' })).toHaveAttribute('href', '/orders');
       },
     );
+  });
+});
+
+/**
+ * Issue #1449 (UX audit 2026-11-17, DS-19) — the order form ends with the kit's sticky save bar:
+ * in view while the long form scrolls, Cancel first and the one primary (Create) last
+ * (Von Restorff, Jakob), and a refused create said beside the button that caused it
+ * (Proximity) rather than at the top of the page, out of view.
+ */
+describe('OrderCreatePage — the sticky save bar (#1449)', () => {
+  function bar(): HTMLElement {
+    const node = screen.getByText('orderCreate.submit').closest<HTMLElement>('[data-slot="sticky-form-actions"]');
+    expect(node).not.toBeNull();
+    return node!;
+  }
+
+  it('ends the page with Cancel, then Create last, sticky on desktop', () => {
+    const { container } = renderWithI18n(
+      withSession(
+        <MemoryRouter initialEntries={['/orders/new']}>
+          <OrderCreatePage />
+        </MemoryRouter>,
+        {
+          session: adminSession({ permissions: ['*'] }),
+          presence: modulePresence({ present: ['orders', 'quick_order'] }),
+        },
+      ),
+      BUNDLE,
+    );
+    expect(bar()).toHaveAttribute('data-desktop', 'sticky');
+    expect(
+      [...bar().querySelectorAll('a, button')].map((node) => node.textContent?.trim()),
+    ).toEqual(['common.action.cancel', 'orderCreate.submit']);
+    expect(container.querySelector('[data-slot="sticky-form-actions"]')!.parentElement!.lastElementChild).toBe(bar());
+  });
+
+  it('cancels back to the order list', () => {
+    renderPage();
+    expect(within(bar()).getByRole('link', { name: 'common.action.cancel' })).toHaveAttribute('href', '/orders');
+  });
+
+  it('cancels back to the screen that opened it', () => {
+    renderPage(`/orders/new?${new URLSearchParams({ returnTo: '/crm/opportunities' }).toString()}`);
+    expect(within(bar()).getByRole('link', { name: 'common.action.cancel' })).toHaveAttribute(
+      'href',
+      '/crm/opportunities',
+    );
+  });
+
+  it('says a refused create in the bar, beside Create', async () => {
+    postSpy.mockImplementation((path: string) => {
+      if (path.endsWith('/orders/preview')) return Promise.resolve({ data: PREVIEW });
+      return Promise.reject(new ApiError(422, { error: { code: 'VALIDATION_FAILED', message: 'Refused by the server.' } }));
+    });
+    renderPage('/orders/new?customerAccountId=cust-1&salesChannelId=chan-1');
+    await waitFor(() => expect(byId('customerAccountId')).toHaveValue('Jan Kowalski'));
+    await pick(byId('paymentMethodId'), 'Payment 1');
+    await pick(byId('deliveryMethodId'), 'Delivery 1');
+    await addWidget();
+    const submit = screen.getByText('orderCreate.submit');
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    await userEvent.click(submit);
+    expect(await within(bar()).findByRole('alert')).toHaveTextContent('Refused by the server.');
+    expect(screen.getAllByText('Refused by the server.')).toHaveLength(1);
+    expect(navigateSpy).not.toHaveBeenCalled();
   });
 });
 
