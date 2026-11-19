@@ -712,8 +712,8 @@ long list, or inside the first card while it also saved the zone panels below it
   the free layout of the callers that predate the slots; `.b2b-sticky-form-actions` is unlayered
   CSS, so a utility in `className` does not override its layout.
 
-Adopted by the role editor, the profile, the promotion editor, RFQ Modify, the sales-channel editor,
-and the task, opportunity, project and project-template forms. Pinned in
+Adopted by the role editor, the profile, the promotion editor, RFQ Modify and RFQ create, the
+sales-channel editor, and the task, opportunity, project and project-template forms. Pinned in
 `admin/test/kit/kit-sticky-form-actions.test.tsx`, including an axe pass.
 
 ## List filters — `ListToolbar`, `ListToolbarSearch` and `FilterChip`
