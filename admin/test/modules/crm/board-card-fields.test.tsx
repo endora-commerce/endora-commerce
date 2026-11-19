@@ -7,7 +7,7 @@ import type {
   OpportunityBoardCardConfig,
   OpportunityBoardCardField,
 } from '@endora-commerce/contracts';
-import { core, crmLookupResponse, en, renderCrm, summary, WORKFLOW } from './crm-fixtures';
+import { core, crmLookupResponse, en, ORDER_STATUS_GRAPH, renderCrm, summary, WORKFLOW } from './crm-fixtures';
 
 /**
  * What a board card shows, and filtering the board by it
@@ -22,6 +22,19 @@ import { core, crmLookupResponse, en, renderCrm, summary, WORKFLOW } from './crm
 
 const getSpy = vi.fn();
 const putSpy = vi.fn();
+
+// The configuration screen's transition graph draws with ECharts, which jsdom cannot.
+vi.mock('echarts', () => {
+  const chart = {
+    setOption: (): void => {},
+    resize: (): void => {},
+    dispose: (): void => {},
+    on: (): void => {},
+    off: (): void => {},
+    dispatchAction: (): void => {},
+  };
+  return { init: () => chart, default: { init: () => chart } };
+});
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -40,8 +53,8 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 const { ApiError } = await import('@endora-commerce/admin-kit/lib');
-const { BoardCardFieldsEditor } = await import(
-  '../../../../packages/modules/crm/src/admin/components/BoardCardFieldsEditor'
+const { WorkflowConfigPage } = await import(
+  '../../../../packages/modules/crm/src/admin/pages/WorkflowConfigPage'
 );
 const { OpportunityBoardPage } = await import(
   '../../../../packages/modules/crm/src/admin/pages/OpportunityBoardPage'
@@ -208,16 +221,26 @@ describe('the board\'s filters in its address', () => {
   });
 });
 
-describe('BoardCardFieldsEditor', () => {
+/**
+ * The *Board card* section is the kit's `BoardCardFieldsEditor` (issue #1506):
+ * its behaviour — the limit, the order, focus, a failed read — is pinned in
+ * `admin/test/kit/kit-board-card-fields.test.tsx`. What is CRM's is pinned
+ * here, through the configuration screen: the endpoint it reads and writes, the
+ * names it gives built-in and custom fields, and its own three lines.
+ */
+describe('WorkflowConfigPage — the Board card section on CRM\'s endpoint', () => {
   let stored = configOf(DEFAULT);
 
   beforeEach(() => {
     getSpy.mockReset();
     putSpy.mockReset();
     stored = configOf(DEFAULT);
-    getSpy.mockImplementation((path: string) =>
-      path === CONFIG_PATH ? Promise.resolve({ data: stored }) : Promise.reject(new Error(`unexpected GET ${path}`)),
-    );
+    getSpy.mockImplementation((path: string) => {
+      if (path === CONFIG_PATH) return Promise.resolve({ data: stored });
+      if (path === WORKFLOW_PATH) return Promise.resolve({ data: WORKFLOW });
+      if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
+      return Promise.reject(new Error(`unexpected GET ${path}`));
+    });
     putSpy.mockImplementation((_path: string, body: { fields: string[] }) => {
       stored = configOf(body.fields.map((ref) => AVAILABLE.find((field) => field.ref === ref)!));
       return Promise.resolve({ data: stored });
@@ -225,8 +248,8 @@ describe('BoardCardFieldsEditor', () => {
   });
 
   async function renderEditor(): Promise<HTMLElement> {
-    renderCrm(<BoardCardFieldsEditor />);
-    return screen.findByRole('region', { name: en('boardCard.shown.title') });
+    renderCrm(<WorkflowConfigPage />);
+    return screen.findByRole('region', { name: core('boardCardFields.shown.title') });
   }
 
   const shownNames = (region: HTMLElement): string[] =>
@@ -235,84 +258,43 @@ describe('BoardCardFieldsEditor', () => {
       .map((item) => (item.textContent ?? '').replace(/^\d+\./, '').trim());
 
   const add = (name: string): HTMLElement =>
-    screen.getByRole('button', { name: en('boardCard.add', { field: name }) });
+    screen.getByRole('button', { name: core('boardCardFields.add', { field: name }) });
 
-  it('shows the stored choice in its order, says how many of how many, and that the title is always shown', async () => {
+  const saveButton = (region: HTMLElement): HTMLElement =>
+    within(region.parentElement!).getByRole('button', { name: core('common.action.save') });
+
+  it('shows the stored choice in its order, with CRM\'s names and its own lines', async () => {
     const region = await renderEditor();
     expect(shownNames(region)).toEqual(
       ['number', 'organization', 'value', 'assignee', 'tags'].map((key) => en(`board.field.${key}`)),
     );
-    expect(within(region).getByText(en('boardCard.shown.count', { count: 5, max: 6 }))).toBeInTheDocument();
+    expect(within(region).getByText(core('boardCardFields.shown.count', { count: 5, max: 6 }))).toBeInTheDocument();
     expect(within(region).getByText(en('boardCard.shown.titleAlways'))).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: en('boardCard.available.builtin') })).toBeInTheDocument();
     // Built-in fields are named from the bundle, custom ones by their own label.
     expect(add(en('board.field.contact'))).toBeEnabled();
     expect(add('Lead source')).toBeEnabled();
-    expect(screen.getByRole('button', { name: core('common.action.save') })).toBeDisabled();
   });
 
-  it('stops at six, saying why, and offers the field again once one is removed', async () => {
+  it('saves the references in their order to CRM\'s endpoint', async () => {
     const region = await renderEditor();
     await userEvent.click(add('Lead source'));
-    expect(within(region).getByText(en('boardCard.shown.count', { count: 6, max: 6 }))).toBeInTheDocument();
-    expect(screen.getByText(en('boardCard.available.full', { max: 6 }))).toBeInTheDocument();
-    expect(add('VIP')).toBeDisabled();
-
     await userEvent.click(
-      within(region).getByRole('button', { name: en('boardCard.remove', { field: en('board.field.tags') }) }),
+      within(region).getByRole('button', { name: core('boardCardFields.moveUp', { field: 'Lead source' }) }),
     );
-    expect(add('VIP')).toBeEnabled();
-    expect(add(en('board.field.tags'))).toBeEnabled();
-  });
-
-  it('orders with buttons and saves the references in that order', async () => {
-    const region = await renderEditor();
-    await userEvent.click(add('Lead source'));
-    const up = (): HTMLElement =>
-      within(region).getByRole('button', { name: en('boardCard.moveUp', { field: 'Lead source' }) });
-    for (let step = 0; step < 5; step += 1) await userEvent.click(up());
-    expect(up()).toBeDisabled();
-    expect(shownNames(region)[0]).toBe('Lead source');
-    await userEvent.click(
-      within(region).getByRole('button', { name: en('boardCard.moveDown', { field: 'Lead source' }) }),
-    );
-
-    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
+    await userEvent.click(saveButton(region));
     await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
     expect(putSpy).toHaveBeenCalledWith(CONFIG_PATH, {
       fields: [
         'builtin:number',
-        'custom:lead_source',
         'builtin:organization',
         'builtin:value',
         'builtin:assignee',
+        'custom:lead_source',
         'builtin:tags',
       ],
     });
-    expect(await screen.findByText(en('boardCard.saved'))).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: core('common.action.save') })).toBeDisabled();
-  });
-
-  it('keeps focus on the moved row, or its neighbour, as the two lists change (WCAG 2.4.3, #512)', async () => {
-    const region = await renderEditor();
-    const button = (key: string, field: string): HTMLElement =>
-      screen.getByRole('button', { name: en(key, { field }) });
-    const [organization, value, assignee, tags, contact] = ['organization', 'value', 'assignee', 'tags', 'contact'].map(
-      (key) => en(`board.field.${key}`),
-    ) as [string, string, string, string, string];
-
-    // Down into the last place, where Move down is disabled: the row's Move up.
-    await userEvent.click(button('boardCard.moveDown', assignee));
-    expect(button('boardCard.moveUp', assignee)).toHaveFocus();
-    // Up into the first place, where Move up is disabled: the row's Move down.
-    await userEvent.click(button('boardCard.moveUp', organization));
-    expect(button('boardCard.moveDown', organization)).toHaveFocus();
-    // A removed row: the row that took its place.
-    await userEvent.click(button('boardCard.remove', value));
-    expect(button('boardCard.remove', tags)).toHaveFocus();
-    // An added field's chip goes: the next one offered in its group.
-    await userEvent.click(add(contact));
-    expect(add(value)).toHaveFocus();
-    expect(within(region).getAllByRole('listitem')).toHaveLength(5);
+    expect(await screen.findByText(core('boardCardFields.saved'))).toBeInTheDocument();
   });
 
   it('shows the server\'s own sentence when the save is refused, and keeps the edit', async () => {
@@ -323,26 +305,17 @@ describe('BoardCardFieldsEditor', () => {
     );
     const region = await renderEditor();
     await userEvent.click(add('VIP'));
-    await userEvent.click(screen.getByRole('button', { name: core('common.action.save') }));
+    await userEvent.click(saveButton(region));
     expect(
       await screen.findByText('A board card cannot show a field that does not exist.'),
     ).toBeInTheDocument();
     expect(shownNames(region)).toContain('VIP');
-    expect(screen.getByRole('button', { name: core('common.action.save') })).toBeEnabled();
   });
 
   it('says where custom fields come from when none is defined', async () => {
     stored = { fields: DEFAULT, available: AVAILABLE.filter((field) => field.source === 'builtin'), maxFields: 6 };
     await renderEditor();
     expect(screen.getByText(en('boardCard.available.noCustom'))).toBeInTheDocument();
-  });
-
-  it('offers a retry when the choice cannot be read', async () => {
-    getSpy.mockRejectedValueOnce(new Error('offline'));
-    renderCrm(<BoardCardFieldsEditor />);
-    expect(await screen.findByText(en('boardCard.error.load'))).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: core('common.action.retry') }));
-    expect(await screen.findByRole('region', { name: en('boardCard.shown.title') })).toBeInTheDocument();
   });
 });
 

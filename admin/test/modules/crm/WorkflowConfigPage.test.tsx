@@ -82,7 +82,7 @@ describe('WorkflowConfigPage — the Board card section (User Story 19)', () => 
     await renderPage();
     const heading = screen.getByText(en('boardCard.title'));
     expect(heading.closest('#board-card')).not.toBeNull();
-    expect(await screen.findByRole('region', { name: en('boardCard.shown.title') })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: core('boardCardFields.shown.title') })).toBeInTheDocument();
   });
 });
 

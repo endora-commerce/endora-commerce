@@ -869,3 +869,48 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   (DS-15, #1448, the kit `EmptyState`). Both slot into `toolbar` and `emptyState` when they land.
 - Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
   adopters are `CustomersList`, `OrganizationsList` and `CartsList`.
+
+## Board cards — `BoardCardFieldsEditor`
+
+Issue #1506 (UX audit 2026-11-17, WORK-15). It edits which fields a board card shows and in what order. CRM and
+Tasks used to keep their own copies, and a fix to one (#512) had to be ported to the other by hand.
+
+```tsx
+<BoardCardFieldsEditor
+  load={(): Promise<TaskBoardCardConfig> => tasksApi.boardCardFields()}
+  save={(refs): Promise<TaskBoardCardConfig> => tasksApi.setBoardCardFields(refs)}
+  fieldLabel={(field): string => boardFieldLabel(field, language, t)}
+  copy={{
+    titleAlways: t('boardCard.shown.titleAlways'),
+    builtinGroup: t('boardCard.available.builtin'),
+    noCustom: t('boardCard.available.noCustom'),
+  }}
+/>
+```
+
+- **The catalogue and the limit come from `load`.** `load` and `save` both return
+  `{ fields, available, maxFields }`: the stored choice in order, every field that can be chosen,
+  and the most a card shows. This is the shape both modules' endpoints already return. The server owns
+  the limit and rejects a choice over it, so the limit is not a separate prop. A field only needs
+  `ref` and `source` (`'builtin' | 'custom'`), which decides its group.
+- **Copy.** `copy` holds the three lines that name the module's record: the built-in group's
+  heading, the line under *Shown on the card*, and where custom fields are defined. Everything else
+  comes from `core`'s `boardCardFields.*` keys.
+- **The order is set with buttons**, *Move up* / *Move down*, not by dragging (WCAG 2.2 SC 2.5.7).
+  Before the limit is reached, the count says how many of how many are used. Once the card is full,
+  every *Add* is disabled and a line says why.
+- **Focus stays on the field being worked on** (WCAG 2.4.3):
+  - after a move, it lands on the moved row's control in that direction, or the other control if
+    the row reached an end;
+  - after a removal, it lands on the row that took its place, or on the field's own *Add* when no
+    row is left;
+  - after an add, it lands on the next field offered in the same group, or on the added row once
+    the card is full.
+- **Nothing is stored until *Save*.** *Discard changes* goes back to the stored choice. Leaving
+  through a link with unsaved changes asks first (`useUnsavedChangesPrompt`). After a save, the
+  lists show the server's answer. If the server refuses the save, its own sentence is shown and the
+  edit is kept. If the first read fails, a retry is offered.
+- The caller supplies the card around it (a `Card` with the section title).
+
+Pinned in `admin/test/kit/kit-board-card-fields.test.tsx`. Each module's endpoint and copy are
+pinned in its configuration screen's test.

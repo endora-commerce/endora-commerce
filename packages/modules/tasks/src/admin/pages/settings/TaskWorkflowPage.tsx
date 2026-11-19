@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import type { TaskStatusConfig, TaskWorkflow } from '@endora-commerce/contracts';
+import type { TaskBoardCardConfig, TaskStatusConfig, TaskWorkflow } from '@endora-commerce/contracts';
 import {
   Alert,
   AlertDescription,
@@ -13,12 +13,16 @@ import {
   CardTitle,
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
-import { StatusTransitionGraph, type StatusTransitionGraphStatus } from '@endora-commerce/admin-kit/components';
+import {
+  BoardCardFieldsEditor,
+  StatusTransitionGraph,
+  type StatusTransitionGraphStatus,
+} from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
 import { BOARD_CARD_ANCHOR, TASK_GENERAL_SETTINGS_PATH, TASK_PRIORITIES_PATH, TASK_TAGS_PATH } from '../../lib/settings-paths.js';
 import { TaskStatusDeleteDialog } from '../../components/workflow/TaskStatusDeleteDialog.js';
-import { BoardCardFieldsEditor } from '../../components/BoardCardFieldsEditor.js';
+import { boardFieldLabel } from '../../components/TaskCard.js';
 import { TaskStatusDialog, type TaskStatusDialogSubmit } from '../../components/workflow/TaskStatusDialog.js';
 import { TaskStatusesTable } from '../../components/workflow/TaskStatusesTable.js';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
@@ -257,7 +261,16 @@ export function TaskWorkflowPage(): ReactNode {
             <CardTitle id="tasks-board-card-title">{t('boardCard.title')}</CardTitle>
           </CardHeader>
           <CardContent>
-            <BoardCardFieldsEditor />
+            <BoardCardFieldsEditor
+              load={(): Promise<TaskBoardCardConfig> => tasksApi.boardCardFields()}
+              save={(refs): Promise<TaskBoardCardConfig> => tasksApi.setBoardCardFields(refs)}
+              fieldLabel={(field): string => boardFieldLabel(field, language, t)}
+              copy={{
+                titleAlways: t('boardCard.shown.titleAlways'),
+                builtinGroup: t('boardCard.available.builtin'),
+                noCustom: t('boardCard.available.noCustom'),
+              }}
+            />
           </CardContent>
         </Card>
       </section>

@@ -138,7 +138,7 @@ async function openTab(
 
 /** What a tab with a number is called: its label and what the number is of. */
 const countedTab = (labelKey: string, count: number): string =>
-  en('opportunity.tabs.counted', { label: en(labelKey), count });
+  core('common.tabs.counted', { label: en(labelKey), count });
 
 const detailReads = (): number => getSpy.mock.calls.filter(([path]) => path === DETAIL_PATH).length;
 
