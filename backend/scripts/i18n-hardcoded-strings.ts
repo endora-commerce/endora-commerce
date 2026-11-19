@@ -1321,12 +1321,17 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // preview.
   'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 3,
   'packages/page-builder-admin/src/email/EmailRichTextField.tsx': 3,
-  'packages/page-builder-admin/src/email/EmailRowLayoutPicker.tsx': 3,
-  'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': 5,
   // Feature 163, R17 (T201): the picker's Change / Select / Clear selection and
   // the source's two options read the `core` bundle; lowered from 5.
-  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 6,
-  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 36,
+  //
+  // Issue #1493 (UX audit CONTENT-03) — the dialogs moved to the kit's
+  // `ModalDialog` and their copy to `core`, re-measured: the asset dialog's
+  // Close (6 → 5); the product and category searches' titles, labels, states,
+  // pagination and buttons (36 → 16 — what is left is the field controls
+  // outside the dialogs). `EmailRowLayoutPicker` (3), `EmailVariablesProvider`
+  // (5) and `cms`' `RowLayoutPicker` (3) reached zero and were deleted.
+  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 5,
+  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 16,
   // Feature 091, Phase 4 batch 16 — re-keyed, not raised and not dropped:
   // `cms` took its admin surface into its package and these files went with
   // it. Every count is unmoved; the same strings in the same components, under
@@ -1340,7 +1345,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // (4 findings) was deleted, and its successor, `page-builder-admin`'s
   // `LinkField.tsx`, reads every string from the `core` bundle.
   'packages/modules/cms/src/admin/components/ComponentDragHandle.tsx': 2,
-  'packages/modules/cms/src/admin/components/RowLayoutPicker.tsx': 3,
   // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `invoices` took its
   // admin surface into its package and this file went with it. The count is
   // untouched; nothing about the strings changed, only their address. This

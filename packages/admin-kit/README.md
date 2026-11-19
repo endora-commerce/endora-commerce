@@ -790,8 +790,9 @@ what a hand-drawn scrim leaves out:
 - a **portal to `document.body`**, so a dialog opened inside a drawer moved with `transform`, a table
   row or a `<ul>` is placed against the viewport and does not nest a `<div>` where markup forbids it;
 - `layer` — `page` (default, `z-50`, the layer the kit's popovers share, so a select inside still
-  opens above the dialog) or `overlay` (`MODAL_OVERLAY_Z_INDEX`, above the fullscreen Page Builder
-  and its 9999 floating action bar), for a dialog opened from inside the builder.
+  opens above the dialog) or `overlay` (`MODAL_OVERLAY_Z_INDEX`, above the fullscreen Page Builder,
+  its 9999 floating action bar and the rich-text editor's own dialogs), for a dialog opened from
+  inside the builder — every Page Builder, e-mail builder and translate dialog uses it (#1493).
 
 ```tsx
 <ModalDialog title={t('x.dialog.title')} onClose={close} busy={busy} footer={<>{cancel}{apply}</>}>

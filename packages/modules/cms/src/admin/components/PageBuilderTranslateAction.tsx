@@ -1,7 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactElement } from 'react';
-import { createPortal } from 'react-dom';
 import type { Data } from '@puckeditor/core';
-import { Languages } from 'lucide-react';
+import { Languages, Loader2 } from 'lucide-react';
 import type {
   BlockTranslatableText,
   CmsPageBuilderTranslateRequest,
@@ -11,6 +10,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { Button, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { isEmptyPageBuilderData } from '@endora-commerce/page-builder-admin';
 import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor/use-page-builder-puck';
@@ -176,6 +176,7 @@ export function PageBuilderTranslateAction({
   const t = useTranslation('cms');
   const reasonId = useId();
   const titleId = useId();
+  const descriptionId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const [open, setOpen] = useState(false);
@@ -215,7 +216,6 @@ export function PageBuilderTranslateAction({
     controllerRef.current = null;
     setBusy(false);
     setOpen(false);
-    buttonRef.current?.focus();
   };
 
   const run = async (): Promise<void> => {
@@ -254,7 +254,6 @@ export function PageBuilderTranslateAction({
       }
       await onTranslated(response, activeLanguage);
       setOpen(false);
-      buttonRef.current?.focus();
     } catch (error) {
       if (controller.signal.aborted) return;
       setMessage(
@@ -307,78 +306,71 @@ export function PageBuilderTranslateAction({
         </span>
       ) : null}
 
-      {open && capability.status === 'ready'
-        ? createPortal(
-            <div
-              className="fixed inset-0 flex items-center justify-center bg-black/40 p-4"
-              style={{ zIndex: 10000 }}
-              role="presentation"
-              onPointerDown={(event): void => {
-                if (event.target === event.currentTarget && !busy) close();
-              }}
-            >
-              <div
-                className="w-full max-w-md space-y-4 rounded-lg border bg-background p-5 shadow-lg"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby={titleId}
-                aria-busy={busy}
-                onPointerDown={(event): void => event.stopPropagation()}
-              >
-                <div className="space-y-1">
-                  <h2 id={titleId} className="text-lg font-semibold">
-                    {t('pageBuilder.translate.title')}
-                  </h2>
-                  <p className="text-sm">{t('pageBuilder.translate.target', { language: activeLanguage })}</p>
-                  <p className="text-sm text-muted-foreground">{scopeDescription}</p>
-                </div>
-                {openScope.kind === 'canvas' && otherLanguages.length > 0 ? (
-                  <div className="space-y-1">
-                    <Label htmlFor={`${titleId}-source`}>{t('pageBuilder.translate.sourceLabel')}</Label>
-                    <Select
-                      id={`${titleId}-source`}
-                      value={source}
-                      disabled={busy}
-                      onChange={(event): void => setSource(event.target.value)}
-                    >
-                      <option value={CURRENT}>{t('pageBuilder.translate.sourceCurrent')}</option>
-                      {otherLanguages.map((language) => (
-                        <option key={language} value={language}>
-                          {t('pageBuilder.translate.sourceLanguage', { language })}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                ) : null}
-                <p className="text-sm text-muted-foreground">
-                  {t('pageBuilder.translate.provider', {
-                    provider: capability.provider,
-                    model: capability.model,
-                  })}
-                </p>
-                {openScope.kind === 'canvas' && source !== CURRENT && !canvasEmpty ? (
-                  <p className="text-sm text-amber-700 dark:text-amber-400">
-                    {t('pageBuilder.translate.replaceWarning')}
-                  </p>
-                ) : null}
-                {message ? (
-                  <p className="text-sm text-destructive" role="alert">
-                    {message}
-                  </p>
-                ) : null}
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={close}>
-                    {t('pageBuilder.translate.cancel')}
-                  </Button>
-                  <Button type="button" disabled={busy} onClick={(): void => void run()}>
-                    {busy ? t('pageBuilder.translate.running') : t('pageBuilder.translate.confirm')}
-                  </Button>
-                </div>
+      {open && capability.status === 'ready' ? (
+        // Issue #1493 (CONTENT-03): the kit's dialog, above the fullscreen
+        // builder — focus trapped, Escape closes it while nothing is running,
+        // and focus returns to this button, which a press never focused (it
+        // keeps the editor's text selection).
+        <ModalDialog
+          layer="overlay"
+          title={t('pageBuilder.translate.title')}
+          onClose={close}
+          busy={busy}
+          finalFocusRef={buttonRef}
+          widthClassName="max-w-md"
+          aria-describedby={descriptionId}
+          footer={
+            <>
+              {/* Stays enabled while running: it is how a running translation is stopped. */}
+              <Button type="button" variant="outline" onClick={close}>
+                {t('pageBuilder.translate.cancel')}
+              </Button>
+              <Button type="button" disabled={busy} aria-busy={busy} onClick={(): void => void run()}>
+                {busy ? <Loader2 aria-hidden="true" className="mr-1 h-4 w-4 motion-safe:animate-spin" /> : null}
+                {busy ? t('pageBuilder.translate.running') : t('pageBuilder.translate.confirm')}
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div id={descriptionId} className="space-y-1">
+              <p className="text-sm">{t('pageBuilder.translate.target', { language: activeLanguage })}</p>
+              <p className="text-sm text-muted-foreground">{scopeDescription}</p>
+            </div>
+            {openScope.kind === 'canvas' && otherLanguages.length > 0 ? (
+              <div className="space-y-1">
+                <Label htmlFor={`${titleId}-source`}>{t('pageBuilder.translate.sourceLabel')}</Label>
+                <Select
+                  id={`${titleId}-source`}
+                  value={source}
+                  disabled={busy}
+                  onChange={(event): void => setSource(event.target.value)}
+                >
+                  <option value={CURRENT}>{t('pageBuilder.translate.sourceCurrent')}</option>
+                  {otherLanguages.map((language) => (
+                    <option key={language} value={language}>
+                      {t('pageBuilder.translate.sourceLanguage', { language })}
+                    </option>
+                  ))}
+                </Select>
               </div>
-            </div>,
-            document.body,
-          )
-        : null}
+            ) : null}
+            <p className="text-sm text-muted-foreground">
+              {t('pageBuilder.translate.provider', {
+                provider: capability.provider,
+                model: capability.model,
+              })}
+            </p>
+            {openScope.kind === 'canvas' && source !== CURRENT && !canvasEmpty ? (
+              <p className="text-sm text-amber-700 dark:text-amber-400">{t('pageBuilder.translate.replaceWarning')}</p>
+            ) : null}
+            {/* Mounted before it has text, so a failure is announced. */}
+            <p className="text-sm text-destructive" role="alert">
+              {message}
+            </p>
+          </div>
+        </ModalDialog>
+      ) : null}
     </>
   );
 }
