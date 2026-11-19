@@ -33,15 +33,12 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  EditorSection,
   Input,
   Label,
   PageHeader,
@@ -54,7 +51,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog, ProductPicker, SaveSessionSummary, ImmediateBadge } from '@endora-commerce/admin-kit/components';
+import { ModalDialog, ProductPicker, SaveSessionSummary } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from '../components/ProductInventoryTab.js';
@@ -70,7 +67,7 @@ import { ProductScopeBar } from '../components/ProductScopeBar.js';
 import { ProductEditorSaveAction } from '../components/ProductEditorSaveAction.js';
 import { DetailsTab } from '../components/editor/DetailsTab.js';
 import { EditorField, ProductEditorContextProvider, fieldDomId, type ProductEditorContextValue } from '../components/editor/editor-context.js';
-import { SectionHeading } from '../components/editor/SectionHeading.js';
+import { sectionTitle } from '../components/editor/SectionBadge.js';
 import { TextControl } from '../components/editor/scoped-controls.js';
 import { useConfirmRemoval } from '../components/editor/confirm-removal.js';
 import { ProductCreateForm } from './ProductCreateForm.js';
@@ -1053,10 +1050,10 @@ function ScopedProductEditor({
         return <ProductAttributesTab />;
       case 'pricing':
         return (
-          <div className="b2b-col" style={{ gap: 16 }}>
-            {/* FR-024: the Pricing tab saves with the one Save; a contributor that still applies
-                immediately labels its own section. */}
-            <SectionHeading title={t('productEditor.tab.pricing')} immediate={false} />
+          // FR-024: the Pricing tab saves with the one Save; a contributor that still applies
+          // immediately labels its own section. No heading of the editor's own: it repeated the
+          // tab's name above the contributors' `h2` sections (#1488, and CAT-11's duplicate).
+          <div className="space-y-(--section-gap)">
             <AdminZone name="product.editor.pricing.before" props={{ productId, saveSession: session.handle }} />
             <AdminZone name="product.editor.pricing.after" props={{ productId, saveSession: session.handle }} />
           </div>
@@ -1088,22 +1085,20 @@ function ScopedProductEditor({
         );
       case 'inventory':
         return (
-          <div className="b2b-col" style={{ gap: 16 }}>
+          // Issue #1488 (CAT-06): one card per tab, its sections inside it, a rule between them.
+          // Feature 180 (FR-025): the product-row settings save with the one Save; only the
+          // per-warehouse table applies immediately, and its section carries the badge.
+          <div className="space-y-(--section-gap)">
             {atGlobal ? null : globalOnlyNotice}
-            <section aria-labelledby="product-stock-heading" className="space-y-2">
-              {/* Feature 180 (FR-025): the product-row settings save with the one Save; only the
-                  per-warehouse table inside applies immediately, and carries the badge. */}
-              <SectionHeading id="product-stock-heading" title={t('productEditor.stock.title')} immediate={false} />
-              {structuralReadOnly ? (
-                // Stock outside Global (or without catalog:write) is shown, not edited: the panel
-                // has no read-only mode of its own, so its controls are disabled as a group.
-                <fieldset disabled className="m-0 min-w-0 border-0 p-0" data-testid="stock-read-only">
-                  <ProductInventoryTab productId={productId} editable={false} />
-                </fieldset>
-              ) : (
-                <ProductInventoryTab productId={productId} />
-              )}
-            </section>
+            {structuralReadOnly ? (
+              // Stock outside Global (or without catalog:write) is shown, not edited: the panel
+              // has no read-only mode of its own, so its controls are disabled as a group.
+              <fieldset disabled className="m-0 min-w-0 space-y-(--section-gap) border-0 p-0" data-testid="stock-read-only">
+                <ProductInventoryTab productId={productId} editable={false} />
+              </fieldset>
+            ) : (
+              <ProductInventoryTab productId={productId} />
+            )}
             <ProductOrderRulesCard productType={type ?? 'simple'} />
             {type === 'simple' || type === 'configurable' ? (
               <PackagingUnitsEditor
@@ -1139,10 +1134,9 @@ function ScopedProductEditor({
         );
       case 'channels':
         return (
-          <div className="space-y-2">
-            <SectionHeading title={t('productEditor.tab.channels')} immediate={!readOnly} />
-            <AdminZone name="product.editor.channels" props={{ productId, saveSession: session.handle }} />
-          </div>
+          // The contribution is the tab's section, with its own heading and "Applies immediately"
+          // badge (#1488): a heading here repeated the tab's name above it.
+          <AdminZone name="product.editor.channels" props={{ productId, saveSession: session.handle }} />
         );
       case 'scopes':
         return (
@@ -1686,112 +1680,104 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
   }, [links]);
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>{t('productEditor.links.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {info ? (
-          <Alert live="polite">
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
+    <EditorSection title={sectionTitle(t('productEditor.links.title'), !readOnly)}>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert live="polite">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
-        ) : (
-          <div className="space-y-6">
-            {LINK_KINDS.map((kind) => (
-              <div key={kind} className="space-y-2">
-                <h3 className="text-sm font-medium uppercase tracking-wide">
-                  {t(`productEditor.links.kind.${kind}`)} ({byKind[kind].length})
-                </h3>
-                {byKind[kind].length === 0 ? (
-                  <p className="text-xs text-muted-foreground">{t('productEditor.links.empty')}</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('productEditor.links.column.target')}</TableHead>
-                        <TableHead>{t('productEditor.links.column.sku')}</TableHead>
-                        <TableHead>{t('productEditor.links.column.position')}</TableHead>
-                        {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.links.column.actions')}</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {byKind[kind].map((link) => {
-                        const target = targetsById.get(link.targetProductId);
-                        const isMissing = !target;
-                        // `inactive` is plain off; archived is its own fact.
-                        const isInactive = target?.status === 'inactive';
-                        const isArchived = target?.archivedAt != null;
-                        return (
-                          <TableRow key={link.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={
-                                    isMissing || isInactive || isArchived ? 'text-muted-foreground' : ''
-                                  }
-                                >
-                                  {target
-                                    ? pickProductName(target.name, target.slug)
-                                    : `${link.targetProductId.slice(0, 8)}…`}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
+      ) : (
+        <div className="space-y-(--section-gap)">
+          {LINK_KINDS.map((kind) => (
+            <EditorSection key={kind} as="h3" title={`${t(`productEditor.links.kind.${kind}`)} (${byKind[kind].length})`}>
+              {byKind[kind].length === 0 ? (
+                <p className="text-xs text-muted-foreground">{t('productEditor.links.empty')}</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('productEditor.links.column.target')}</TableHead>
+                      <TableHead>{t('productEditor.links.column.sku')}</TableHead>
+                      <TableHead>{t('productEditor.links.column.position')}</TableHead>
+                      {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.links.column.actions')}</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byKind[kind].map((link) => {
+                      const target = targetsById.get(link.targetProductId);
+                      const isMissing = !target;
+                      // `inactive` is plain off; archived is its own fact.
+                      const isInactive = target?.status === 'inactive';
+                      const isArchived = target?.archivedAt != null;
+                      return (
+                        <TableRow key={link.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={
+                                  isMissing || isInactive || isArchived ? 'text-muted-foreground' : ''
+                                }
+                              >
+                                {target
+                                  ? pickProductName(target.name, target.slug)
+                                  : `${link.targetProductId.slice(0, 8)}…`}
+                              </span>
+                              {isMissing ? (
+                                <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                  {t('productEditor.links.badge.missing')}
                                 </span>
-                                {isMissing ? (
-                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                                    {t('productEditor.links.badge.missing')}
-                                  </span>
-                                ) : null}
-                                {isInactive ? (
-                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                                    {t('productEditor.links.badge.inactive')}
-                                  </span>
-                                ) : null}
-                                {isArchived ? (
-                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                                    {t('productEditor.links.badge.archived')}
-                                  </span>
-                                ) : null}
-                              </div>
+                              ) : null}
+                              {isInactive ? (
+                                <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                  {t('productEditor.links.badge.inactive')}
+                                </span>
+                              ) : null}
+                              {isArchived ? (
+                                <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                  {t('productEditor.links.badge.archived')}
+                                </span>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {target?.sku ?? '—'}
+                          </TableCell>
+                          <TableCell>{link.position}</TableCell>
+                          {readOnly ? null : (
+                            <TableCell>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="max-lg:min-h-11"
+                                variant="destructive"
+                                onClick={() => void handleDelete(link.id)}
+                              >
+                                {t('productEditor.links.action.remove')}
+                              </Button>
                             </TableCell>
-                            <TableCell className="font-mono text-xs">
-                              {target?.sku ?? '—'}
-                            </TableCell>
-                            <TableCell>{link.position}</TableCell>
-                            {readOnly ? null : (
-                              <TableCell>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="max-lg:min-h-11"
-                                  variant="destructive"
-                                  onClick={() => void handleDelete(link.id)}
-                                >
-                                  {t('productEditor.links.action.remove')}
-                                </Button>
-                              </TableCell>
-                            )}
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </EditorSection>
+          ))}
+        </div>
+      )}
 
-        {readOnly ? null : <CreateProductLinkInline onCreate={handleCreate} sourceProductId={productId} />}
-      </CardContent>
+      {readOnly ? null : <CreateProductLinkInline onCreate={handleCreate} sourceProductId={productId} />}
       {removalDialog}
-    </Card>
+    </EditorSection>
   );
 }
 
@@ -1932,65 +1918,60 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
   );
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>{t('productEditor.grouped.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {info ? (
-          <Alert live="polite">
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
+    <EditorSection title={sectionTitle(t('productEditor.grouped.title'), !readOnly)}>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert live="polite">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.grouped.empty')}</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('productEditor.grouped.column.child')}</TableHead>
-                <TableHead>{t('productEditor.grouped.column.quantity')}</TableHead>
-                <TableHead>{t('productEditor.grouped.column.position')}</TableHead>
-                {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.grouped.column.actions')}</TableHead>}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.grouped.empty')}</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('productEditor.grouped.column.child')}</TableHead>
+              <TableHead>{t('productEditor.grouped.column.quantity')}</TableHead>
+              <TableHead>{t('productEditor.grouped.column.position')}</TableHead>
+              {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.grouped.column.actions')}</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className="font-mono text-xs">{item.childProductId}</TableCell>
+                <TableCell>{item.quantity}</TableCell>
+                <TableCell>{item.position}</TableCell>
+                {readOnly ? null : (
+                  <TableCell>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="max-lg:min-h-11"
+                      variant="destructive"
+                      onClick={() => void handleDelete(item.id)}
+                    >
+                      {t('productEditor.grouped.action.remove')}
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-mono text-xs">{item.childProductId}</TableCell>
-                  <TableCell>{item.quantity}</TableCell>
-                  <TableCell>{item.position}</TableCell>
-                  {readOnly ? null : (
-                    <TableCell>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="max-lg:min-h-11"
-                        variant="destructive"
-                        onClick={() => void handleDelete(item.id)}
-                      >
-                        {t('productEditor.grouped.action.remove')}
-                      </Button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
-        {readOnly ? null : <CreateGroupedItemInline onCreate={handleCreate} />}
-      </CardContent>
+      {readOnly ? null : <CreateGroupedItemInline onCreate={handleCreate} />}
       {removalDialog}
-    </Card>
+    </EditorSection>
   );
 }
 
@@ -2172,49 +2153,45 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
   );
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>{t('productEditor.bundle.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {info ? (
-          <Alert live="polite">
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
+    <EditorSection title={sectionTitle(t('productEditor.bundle.title'), !readOnly)}>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert live="polite">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
-        ) : slots.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.bundle.empty')}</p>
-        ) : (
-          <div className="space-y-4">
-            {slots.map((slot) => (
-              <BundleSlotCard
-                key={slot.id}
-                slot={slot}
-                onAddOption={handleAddOption}
-                onRemoveOption={handleRemoveOption}
-                onDeleteSlot={handleDeleteSlot}
-                readOnly={readOnly}
-              />
-            ))}
-          </div>
-        )}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
+      ) : slots.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.bundle.empty')}</p>
+      ) : (
+        // Issue #1488 (CAT-06): the slots are rows divided by a rule, not a box per slot.
+        <ul className="divide-y divide-border">
+          {slots.map((slot) => (
+            <BundleSlotRow
+              key={slot.id}
+              slot={slot}
+              onAddOption={handleAddOption}
+              onRemoveOption={handleRemoveOption}
+              onDeleteSlot={handleDeleteSlot}
+              readOnly={readOnly}
+            />
+          ))}
+        </ul>
+      )}
 
-        {readOnly ? null : <CreateBundleSlotInline onCreate={handleCreateSlot} />}
-      </CardContent>
+      {readOnly ? null : <CreateBundleSlotInline onCreate={handleCreateSlot} />}
       {removalDialog}
-    </Card>
+    </EditorSection>
   );
 }
 
-function BundleSlotCard({
+function BundleSlotRow({
   slot,
   onAddOption,
   onRemoveOption,
@@ -2231,9 +2208,9 @@ function BundleSlotCard({
   const [optionId, setOptionId] = useState('');
 
   return (
-    <div className="rounded border p-3">
+    <li className="py-3 first:pt-0 last:pb-0">
       <div className="flex items-center justify-between">
-        <h3 className="font-medium">
+        <h3 className="text-sm font-semibold">
           {slot.name['en-US'] ?? Object.values(slot.name)[0] ?? '—'}{' '}
           <span className="text-xs text-muted-foreground">
             {t('productEditor.bundle.slotMeta', {
@@ -2316,7 +2293,7 @@ function BundleSlotCard({
           </Button>
         </div>
       )}
-    </div>
+    </li>
   );
 }
 

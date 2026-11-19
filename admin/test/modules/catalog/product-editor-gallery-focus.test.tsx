@@ -130,6 +130,6 @@ describe('focus after a gallery move or removal', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Remove Image 2/ }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: en['productEditor.gallery.removeConfirm']! }));
     await waitFor(() => expect(row(IMG[1]!)).toBeNull());
-    await waitFor(() => expect(document.getElementById('product-gallery-heading')).toHaveFocus());
+    await waitFor(() => expect(document.getElementById('product-gallery-title')).toHaveFocus());
   });
 });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { RotateCw, Trash2 } from 'lucide-react';
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EditorSection } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -11,7 +11,7 @@ import {
   urlKeyErrorMessage,
   type ProductUrlKeys,
 } from '../lib/product-url-keys-api.js';
-import { SectionHeading } from './editor/SectionHeading.js';
+import { sectionTitle } from './editor/SectionBadge.js';
 
 /**
  * Feature 174 (`contracts/editor-ui.md` §3, §11) — the product's old URLs, below the URL key on
@@ -24,7 +24,8 @@ import { SectionHeading } from './editor/SectionHeading.js';
  */
 export function ProductUrlRedirects({ productId, canWrite }: { productId: string; canWrite: boolean }): ReactNode {
   const t = useTranslation('catalog');
-  const headingId = useId();
+  // The section's id; `EditorSection` names its heading `${sectionId}-title`.
+  const sectionId = useId();
   const [redirects, setRedirects] = useState<ProductUrlKeys['redirects'] | null>(null);
   const [phase, setPhase] = useState<'loading' | 'ready' | 'absent' | 'failed'>('loading');
   const [busy, setBusy] = useState(false);
@@ -54,8 +55,8 @@ export function ProductUrlRedirects({ productId, canWrite }: { productId: string
       await deleteProductUrlRedirect(productId, redirectId);
       setStatus(t('productEditor.urlKeys.redirectDeleted'));
       await load();
-      // The row and its button are gone: focus the list's heading.
-      document.getElementById(headingId)?.focus();
+      // The row and its button are gone: focus the list's section, which its heading names.
+      document.getElementById(sectionId)?.focus();
     } catch (err) {
       setError(urlKeyErrorMessage(err, t) ?? t('productEditor.urlKeys.error.deleteRedirect'));
     } finally {
@@ -66,10 +67,16 @@ export function ProductUrlRedirects({ productId, canWrite }: { productId: string
 
   if (phase === 'absent') return null;
   return (
-    <div className="space-y-2 md:col-span-2" data-testid="product-url-redirects">
-      <div id={headingId} tabIndex={-1} className="outline-none">
-        <SectionHeading title={t('productEditor.urlKeys.redirectsHeading')} immediate={canWrite} />
-      </div>
+    // A sub-section of Details → Content (an `h3` under its `h2`), inside that section's grid.
+    <EditorSection
+      id={sectionId}
+      as="h3"
+      divider={false}
+      tabIndex={-1}
+      className="space-y-2 outline-none md:col-span-2"
+      data-testid="product-url-redirects"
+      title={sectionTitle(t('productEditor.urlKeys.redirectsHeading'), canWrite)}
+    >
       {phase === 'loading' ? (
         <div aria-busy="true" className="space-y-1">
           <span className="sr-only">{t('productEditor.urlKeys.redirectsLoading')}</span>
@@ -97,7 +104,7 @@ export function ProductUrlRedirects({ productId, canWrite }: { productId: string
       {phase !== 'ready' || !redirects ? null : redirects.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('productEditor.urlKeys.redirectsEmpty')}</p>
       ) : (
-        <ul aria-labelledby={headingId} className="space-y-1">
+        <ul aria-labelledby={`${sectionId}-title`} className="space-y-1">
           {redirects.map((r) => {
             const label = describeKeyInLanguage(r.key, r.languageCode, t);
             return (
@@ -144,6 +151,6 @@ export function ProductUrlRedirects({ productId, canWrite }: { productId: string
           <p className="text-sm">{t('productEditor.urlKeys.deleteRedirectBody', { key: toDelete.label })}</p>
         </ModalDialog>
       ) : null}
-    </div>
+    </EditorSection>
   );
 }

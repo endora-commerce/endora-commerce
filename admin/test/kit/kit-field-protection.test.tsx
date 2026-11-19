@@ -289,3 +289,35 @@ describe('admin-kit field protection — the controls', () => {
     expect(container.textContent).not.toContain('fieldProtection.summary.none');
   });
 });
+
+describe('admin-kit field protection — the summary is a section of its host (issue #1488, CAT-06)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders as a section labelled by its heading, with no frame of its own, by default', async () => {
+    // It mounts inside the product editor's card (a tab's zone): a bordered box there
+    // is a frame inside a card, which reads as a separate object (Common Region).
+    const h = harness({ label: 'Ergonode', scopeKey: `section:${PRODUCT_ID}` });
+    const { container } = renderTree(<FieldProtectionSummary source={h.source} />);
+    await waitFor(() => expect(container.textContent).toContain('fieldProtection.title'));
+    const section = container.querySelector('section[data-slot="editor-section"]');
+    expect(section).not.toBeNull();
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    expect(section!.className.split(/\s+/)).not.toContain('border');
+    const heading = section!.querySelector('h2');
+    // Two integrations on one record are two sections: the source names each one.
+    expect(heading).toHaveTextContent('fieldProtection.title');
+    expect(heading).toHaveTextContent('Ergonode');
+    expect(section).toHaveAccessibleName(/fieldProtection\.title.*Ergonode/);
+  });
+
+  it('takes `chrome="card"` where it stands alone on a page, and `titleAs` under a titled card', async () => {
+    const h = harness({ label: 'Pimcore', scopeKey: `card:${PRODUCT_ID}` });
+    const { container } = renderTree(<FieldProtectionSummary source={h.source} chrome="card" titleAs="h3" />);
+    await waitFor(() => expect(container.textContent).toContain('fieldProtection.title'));
+    const card = container.querySelector('[data-slot="card"]');
+    expect(card).not.toBeNull();
+    expect(card!.querySelector('h3')).toHaveTextContent('fieldProtection.title');
+  });
+});

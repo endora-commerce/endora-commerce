@@ -1,11 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Trash2 } from 'lucide-react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EditorSection, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { AssetPicker, ModalDialog, ScopedFieldGrid } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { EditorField, useProductEditor } from './editor/editor-context.js';
-import { SectionHeading } from './editor/SectionHeading.js';
+import { sectionTitle } from './editor/SectionBadge.js';
 import { BooleanControl, TextControl, TextareaControl } from './editor/scoped-controls.js';
 
 /**
@@ -74,13 +74,11 @@ export function AttachmentsSection(): ReactNode {
   };
 
   return (
-    <section className="space-y-4" aria-labelledby="product-attachments-heading">
-      <SectionHeading
-        id="product-attachments-heading"
-        title={t('productEditor.attachments.title')}
-        immediate={structural}
-        globalOnlyLabel={atGlobal ? undefined : t('productEditor.attachments.setGlobalOnly')}
-      />
+    <EditorSection
+      id="product-attachments"
+      title={sectionTitle(t('productEditor.attachments.title'), structural, atGlobal ? undefined : t('productEditor.attachments.setGlobalOnly'))}
+      contentClassName="space-y-4"
+    >
       <p role="status" className="sr-only">
         {status}
       </p>
@@ -92,11 +90,12 @@ export function AttachmentsSection(): ReactNode {
       {attachments.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('productEditor.attachments.empty')}</p>
       ) : null}
-      <ul className="space-y-4">
+      {/* Issue #1488 (CAT-06): rows divided by a rule, not a bordered box per file. */}
+      <ul className="divide-y divide-border">
         {attachments.map((attachment) => {
           const subject = attachment.fileName;
           return (
-            <li key={attachment.id} className="rounded-md border p-3" data-attachment={attachment.id}>
+            <li key={attachment.id} className="py-3 first:pt-0 last:pb-0" data-attachment={attachment.id}>
               <div className="mb-3 flex flex-wrap items-center gap-3">
                 <span className="flex-1 font-mono text-sm">{attachment.fileName}</span>
                 <span className="text-xs text-muted-foreground">{typeName(attachment.typeId)}</span>
@@ -191,7 +190,7 @@ export function AttachmentsSection(): ReactNode {
           <p className="text-sm">{t('productEditor.attachments.remove.body', { name: removing.name })}</p>
         </ModalDialog>
       ) : null}
-    </section>
+    </EditorSection>
   );
 }
 

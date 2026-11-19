@@ -108,12 +108,11 @@ describe('immediate actions beside staged changes (feature 174, US7 #7)', () => 
       IMMEDIATE_BADGE,
     );
     // Feature 180 (FR-025): the Inventory tab's product-row settings save with the one Save, so
-    // its heading no longer says "Applies immediately"; the per-warehouse table inside does
-    // (`product-editor-inventory-save.test.tsx`).
+    // its sections do not say "Applies immediately"; only the per-warehouse table does
+    // (`product-editor-inventory-save.test.tsx`). The stock panel is stubbed here; order rules
+    // are the tab's own section.
     fireEvent.click(screen.getByRole('tab', { name: en['productEditor.tab.inventory']! }));
-    expect(await screen.findByRole('heading', { name: new RegExp(en['productEditor.stock.title']!) })).not.toHaveTextContent(
-      IMMEDIATE_BADGE,
-    );
+    expect(await screen.findByRole('heading', { name: en['orderRules.title']! })).not.toHaveTextContent(IMMEDIATE_BADGE);
   });
 
   it('removing an image keeps the staged edits, stages nothing, and the next Save sends the version read first', async () => {
