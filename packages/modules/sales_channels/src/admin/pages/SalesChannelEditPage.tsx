@@ -415,18 +415,21 @@ function ChannelEditSection({
           session.discardAll();
           onCancel();
         }}
+        after={
+          <div ref={zoneRef} style={{ marginTop: 24 }}>
+            {/* Feature 091 / P7c — the place below this screen's identity form.
+                `inventory` contributes its warehouse routing panel here; this screen
+                used to import that panel out of `admin/src/modules/warehouses/`. The
+                mount is conditional on an existing channel, not on the zone being
+                empty: a create form has no id to pass, and `<AdminZone>` renders
+                nothing at all when no contribution survives the filter, so there is
+                no chrome of this screen's to hide. Feature 180 — the zone gets the
+                editor's save session; a participant's changes join the form's Save.
+                Issue #1449 — the form draws it before its save bar, so Save follows it. */}
+            <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id, saveSession: session.handle }} />
+          </div>
+        }
       />
-      {/* Feature 091 / P7c — the place below this screen's identity form.
-          `inventory` contributes its warehouse routing panel here; this screen
-          used to import that panel out of `admin/src/modules/warehouses/`. The
-          mount is conditional on an existing channel, not on the zone being
-          empty: a create form has no id to pass, and `<AdminZone>` renders
-          nothing at all when no contribution survives the filter, so there is
-          no chrome of this screen's to hide. Feature 180 — the zone gets the
-          editor's save session; a participant's changes join the form's Save. */}
-      <div ref={zoneRef} style={{ marginTop: 24 }}>
-        <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id, saveSession: session.handle }} />
-      </div>
     </div>
   );
 }
