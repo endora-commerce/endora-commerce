@@ -164,6 +164,32 @@ describe('sales_channels contributes the product editor channels zone', () => {
     await waitFor(() => expect(container.textContent).toContain('membership.title'));
   });
 
+  it('renders as a section of the editor card, its channels as divided rows (issue #1488, CAT-06)', async () => {
+    getSpy.mockImplementation(async (url: string) => {
+      if (url.includes('/by-entity/')) {
+        return {
+          entityType: 'product',
+          entityId: PRODUCT_ID,
+          channels: [
+            { id: 'c1', code: 'retail', name: { 'en-US': 'Retail' }, active: true, systemDefault: true },
+            { id: 'c2', code: 'b2b', name: { 'en-US': 'B2B' }, active: true, systemDefault: false },
+          ],
+        };
+      }
+      return { items: [], page: 1, pageSize: 20, total: 0 };
+    });
+    const container = renderZone({});
+    await waitFor(() => expect(container.textContent).toContain('retail'));
+    // The tab body sits inside the product editor's one card: a card there is a card in a card.
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    const section = container.querySelector('section[data-slot="editor-section"]')!;
+    expect(section.querySelector('h2')).toHaveTextContent('membership.title');
+    const rows = [...section.querySelectorAll('li')];
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(row.className.split(/\s+/)).not.toContain('border');
+    expect(rows[0]!.parentElement!.className.split(/\s+/)).toContain('divide-y');
+  });
+
   it('has no off state to drive, and says so from its own manifest', () => {
     expect(manifest.activation).toEqual(expect.objectContaining({ nonDeactivatable: true }));
   });

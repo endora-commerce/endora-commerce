@@ -1051,11 +1051,12 @@ function ScopedProductEditor({
       case 'pricing':
         return (
           // FR-024: the Pricing tab saves with the one Save; a contributor that still applies
-          // immediately labels its own section.
-          <EditorSection title={t('productEditor.tab.pricing')}>
+          // immediately labels its own section. No heading of the editor's own: it repeated the
+          // tab's name above the contributors' `h2` sections (#1488, and CAT-11's duplicate).
+          <div className="space-y-(--section-gap)">
             <AdminZone name="product.editor.pricing.before" props={{ productId, saveSession: session.handle }} />
             <AdminZone name="product.editor.pricing.after" props={{ productId, saveSession: session.handle }} />
-          </EditorSection>
+          </div>
         );
       case 'variants':
         return (
@@ -1133,9 +1134,9 @@ function ScopedProductEditor({
         );
       case 'channels':
         return (
-          <EditorSection title={sectionTitle(t('productEditor.tab.channels'), !readOnly)}>
-            <AdminZone name="product.editor.channels" props={{ productId, saveSession: session.handle }} />
-          </EditorSection>
+          // The contribution is the tab's section, with its own heading and "Applies immediately"
+          // badge (#1488): a heading here repeated the tab's name above it.
+          <AdminZone name="product.editor.channels" props={{ productId, saveSession: session.handle }} />
         );
       case 'scopes':
         return (
