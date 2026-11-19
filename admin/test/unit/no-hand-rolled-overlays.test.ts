@@ -30,7 +30,6 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 
 export type OverlayShape = 'fixed-inset' | 'position-fixed' | 'create-portal' | 'role-dialog';
 
-const CONTENT_03 = 'Page Builder chrome dialog; migrates to ModalDialog layer="overlay" under CONTENT-03 (#1493)';
 const DRAWER = 'side drawer (b2b-drawer) with its own scrim, trap and Escape; not a centred modal — no kit drawer primitive exists yet';
 const FULLSCREEN = 'the builder\'s fullscreen mode: a page surface, not an overlay';
 const ACTION_BAR = 'Puck floating action bar placed next to the selected block; not a dialog';
@@ -70,14 +69,6 @@ const LEDGER: Record<string, { shapes: Partial<Record<OverlayShape, number>>; re
     shapes: { 'position-fixed': 1, 'create-portal': 1 },
     reason: ACTION_BAR,
   },
-  'packages/modules/cms/src/admin/components/RowLayoutPicker.tsx': {
-    shapes: { 'fixed-inset': 1, 'create-portal': 1, 'role-dialog': 1 },
-    reason: CONTENT_03,
-  },
-  'packages/modules/cms/src/admin/components/PageBuilderTranslateAction.tsx': {
-    shapes: { 'fixed-inset': 1, 'create-portal': 1, 'role-dialog': 1 },
-    reason: CONTENT_03,
-  },
   'packages/modules/document_templates/src/admin/pages/DocumentTemplateEditor.tsx': {
     shapes: { 'fixed-inset': 1 },
     reason: `${FULLSCREEN}; the editor moves to the shared shell under CONTENT-12 (#1532)`,
@@ -93,26 +84,15 @@ const LEDGER: Record<string, { shapes: Partial<Record<OverlayShape, number>>; re
     shapes: { 'role-dialog': 2 },
     reason: 'the inspector drawer below desktop, and an alertdialog with its own trap; the latter to ConfirmDialog (follow-up to #1444)',
   },
-  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': { shapes: { 'fixed-inset': 1, 'role-dialog': 1 }, reason: CONTENT_03 },
-  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': { shapes: { 'fixed-inset': 1, 'role-dialog': 1 }, reason: CONTENT_03 },
-  'packages/page-builder-admin/src/chrome/ColorPaletteModal.tsx': { shapes: { 'fixed-inset': 1, 'role-dialog': 1 }, reason: CONTENT_03 },
   'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx': {
-    shapes: { 'fixed-inset': 4, 'create-portal': 5, 'role-dialog': 4 },
-    reason: `${CONTENT_03}; one portal mounts the leading actions into Puck's header`,
-  },
-  'packages/page-builder-admin/src/email/EmailRowLayoutPicker.tsx': {
-    shapes: { 'fixed-inset': 1, 'create-portal': 1, 'role-dialog': 1 },
-    reason: CONTENT_03,
+    shapes: { 'create-portal': 1 },
+    reason: "mounts the template actions into Puck's header column; not an overlay (its dialogs moved to ModalDialog under CONTENT-03, #1493)",
   },
   'packages/page-builder-admin/src/email/EmailBuilderActionBar.tsx': {
     shapes: { 'position-fixed': 1, 'create-portal': 1 },
     reason: ACTION_BAR,
   },
-  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': {
-    shapes: { 'fixed-inset': 2, 'role-dialog': 1 },
-    reason: `${CONTENT_03} (the preview modal); the other is the e-mail builder's fullscreen mode`,
-  },
-  'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': { shapes: { 'fixed-inset': 1, 'role-dialog': 1 }, reason: CONTENT_03 },
+  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': { shapes: { 'fixed-inset': 1 }, reason: FULLSCREEN },
 };
 
 function roots(): string[] {

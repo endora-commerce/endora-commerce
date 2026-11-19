@@ -15,8 +15,15 @@ import { TabPanelContext } from '../../ui/tabs.js';
  */
 export type ModalDialogLayer = 'page' | 'overlay';
 
-/** The z-index of the `overlay` layer: above the builder's 9999 action bar. */
-export const MODAL_OVERLAY_Z_INDEX = 10000;
+/**
+ * The z-index of the `overlay` layer: above the builder's 9999 action bar, and
+ * above the rich-text editor's own dialogs and fullscreen mode
+ * (`@endora-commerce/cms-components`, 2147483000–2147483001), which ship to the
+ * storefront and so cannot use the kit. The builder's asset library opens from
+ * inside the rich text's image dialog (issue #1493, UX audit CONTENT-03). It is
+ * the largest 32-bit z-index but one.
+ */
+export const MODAL_OVERLAY_Z_INDEX = 2147483646;
 
 /**
  * The open dialogs, innermost last. Only the last answers Escape, so closing a

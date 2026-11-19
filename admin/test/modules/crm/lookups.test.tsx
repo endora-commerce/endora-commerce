@@ -106,7 +106,14 @@ function lastListQuery(): URLSearchParams {
   return new URLSearchParams((all[all.length - 1] as string).split('?')[1] ?? '');
 }
 
+/** Opens the toolbar's *More filters* panel unless it is open (issue #1505: these filters are folded away). */
+async function openMoreFilters(): Promise<void> {
+  const toggle = screen.queryByRole('button', { name: /^(More filters|Więcej filtrów)/ });
+  if (toggle && toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
+}
+
 async function pick(comboLabel: string, optionLabel: string): Promise<void> {
+  await openMoreFilters();
   await userEvent.click(screen.getByLabelText(comboLabel));
   await userEvent.click(await screen.findByRole('option', { name: new RegExp(optionLabel) }));
 }
@@ -130,6 +137,7 @@ describe('the pickers of the CRM screens', () => {
   it('searches organizations on the server as the operator types', async () => {
     renderCrm(<OpportunitiesList />, { path: '/crm/opportunities', permissions: READ_ONLY });
     await screen.findByText('Fleet renewal');
+    await openMoreFilters();
     await userEvent.type(screen.getByLabelText(en('opportunity.list.filter.organization')), 'acm');
     await waitFor(() =>
       expect(requested()).toContain('/api/v1/admin/crm/lookups/organizations?q=acm'),
@@ -141,6 +149,7 @@ describe('the pickers of the CRM screens', () => {
     failing.add('/api/v1/admin/crm/lookups/organizations');
     renderCrm(<OpportunitiesList />, { path: '/crm/opportunities', permissions: READ_ONLY });
     await screen.findByText('Fleet renewal');
+    await openMoreFilters();
     expect(await screen.findByText(en('opportunity.picker.loadError'))).toBeInTheDocument();
   });
 

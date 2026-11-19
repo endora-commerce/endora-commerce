@@ -260,3 +260,49 @@ describe('OrderDetail — header actions (SALES-12)', () => {
     expect(more).toBeEnabled();
   });
 });
+
+/**
+ * Issue #1499 (UX audit SALES-17, DEC-12 a) — a header action's result is said
+ * beside the header's buttons, in an always-mounted polite region, not in a
+ * success banner above the tabs (Proximity, Von Restorff).
+ */
+describe('OrderDetail — header action results beside the buttons (SALES-17)', () => {
+  const banners = (): Element[] => Array.from(document.querySelectorAll('[data-slot="alert"]'));
+
+  it('says an issued invoice in the header region, and puts no banner above the tabs', async () => {
+    serve([]);
+    postSpy.mockResolvedValue({ data: { id: 'i1' }, email: { status: 'not_requested' } });
+    const user = userEvent.setup();
+    renderDetail();
+    const group = await header();
+    const region = within(group).getByRole('status');
+    expect(region.textContent).toBe('');
+    await user.click(await primaryOf(group));
+    await waitFor(() => expect(region).toHaveTextContent(text('orderDetail.issueInvoice.done')));
+    expect(region).toHaveAttribute('data-tone', 'success');
+    expect(banners()).toEqual([]);
+  });
+
+  it('an invoice issued without its e-mail is a warning, not a plain success', async () => {
+    serve([]);
+    postSpy.mockResolvedValue({ data: { id: 'i1' }, email: { status: 'not_sent', reason: 'no_recipient' } });
+    const user = userEvent.setup();
+    renderDetail();
+    const group = await header();
+    await user.click(await primaryOf(group));
+    const region = within(group).getByRole('status');
+    await waitFor(() => expect(region).toHaveAttribute('data-tone', 'warning'));
+    expect(banners()).toEqual([]);
+  });
+
+  it('says a copied order number in the same header region', async () => {
+    serve([]);
+    const user = userEvent.setup();
+    renderDetail();
+    const group = await header();
+    await user.click(screen.getByRole('button', { name: new RegExp(text('orderDetail.title').replace('{id}', 'ORD-0001')) }));
+    const region = within(group).getByRole('status');
+    await waitFor(() => expect(region).toHaveTextContent(text('orderDetail.copied').replace('{id}', 'ORD-0001')));
+    expect(banners()).toEqual([]);
+  });
+});

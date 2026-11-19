@@ -9,7 +9,9 @@ import {
   uuidSchema,
 } from '@endora-commerce/contracts';
 import {
+  BOARD_PRIMARY_FILTERS,
   NO_SHARED_FILTERS,
+  hiddenSharedFilterCount,
   type AssigneeFilter,
   type SharedOpportunityFilters,
 } from '../components/OpportunityFilterFields.js';
@@ -221,4 +223,20 @@ export function activeFieldFilters(
     if (Object.keys(kept).length > 0) active[field.ref] = kept;
   }
   return active;
+}
+
+/**
+ * How many filters the board folds behind *More filters* are in use: the
+ * shared ones it does not show, and each card-field filter of a field the
+ * cards show — a filter of a field no longer shown is not sent, so not counted.
+ */
+export function hiddenBoardFilterCount(
+  filters: SharedOpportunityFilters,
+  fieldFilters: OpportunityFieldFilters,
+  shownFields: readonly OpportunityBoardCardField[],
+): number {
+  return (
+    hiddenSharedFilterCount(filters, BOARD_PRIMARY_FILTERS) +
+    Object.keys(activeFieldFilters(fieldFilters, shownFields)).length
+  );
 }

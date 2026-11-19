@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_TAB_ID,
   EVENTS_TAB_ID,
-  ITEM_COUNT_LABEL_KEY,
   LINKS_TAB_ID,
   OPPORTUNITY_TABS,
   searchForTab,
@@ -63,7 +62,6 @@ describe('the tabs of the Opportunity screen', () => {
       attachments: undefined,
       history: undefined,
     });
-    expect(ITEM_COUNT_LABEL_KEY).toBe('opportunity.tabs.counted');
   });
 
   it('puts Events third, under an id that is in the addresses a reminder writes', () => {

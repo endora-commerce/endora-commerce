@@ -73,11 +73,16 @@ const BUNDLE = passthroughBundle('core', [
 function renderZone(options: {
   readonly permissions?: readonly string[];
   readonly present?: readonly string[];
+  readonly chrome?: 'section' | 'card';
 }): HTMLElement {
   const { container } = renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={['/sales-channels/x']}>
-        <AdminZone name="sales_channel.editor.after" props={{ channelId: CHANNEL_ID, saveSession: INERT_SAVE_SESSION }} />
+        <AdminZone
+          name="sales_channel.editor.after"
+          props={{ channelId: CHANNEL_ID, saveSession: INERT_SAVE_SESSION }}
+          {...(options.chrome ? { chrome: options.chrome } : {})}
+        />
       </MemoryRouter>,
       {
         session: adminSession({ permissions: [...(options.permissions ?? ['inventory:read'])] }),
@@ -114,7 +119,8 @@ describe('inventory contributes the sales-channel editor zone', () => {
 
   it('renders the warehouse panel for the channel it is mounted on', async () => {
     const container = renderZone({});
-    await waitFor(() => expect(container.textContent).toContain('warehouses.channel.title'));
+    // The first case pays for the chunk's cold import (the kit's `ui` barrel with it).
+    await waitFor(() => expect(container.textContent).toContain('warehouses.channel.title'), { timeout: 10_000 });
     expect(getSpy).toHaveBeenCalledWith(
       `/api/v1/admin/sales-channels/${CHANNEL_ID}/warehouses`,
     );
@@ -175,5 +181,66 @@ describe('inventory contributes the sales-channel editor zone', () => {
     expect(manifest.activation).toEqual(
       expect.objectContaining({ settingCode: 'inventory.enabled' }),
     );
+  });
+});
+
+describe('the warehouse panel follows its mount (issue #1503, SHELL-22; DS-03 #1437)', () => {
+  const WAREHOUSE = { id: 'w1', name: 'Main', code: 'MAIN' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getSpy.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/v1/admin/warehouses')) {
+        return { items: [WAREHOUSE, { id: 'w2', name: 'Spare', code: 'SPARE' }], page: 1, pageSize: 200, total: 2 };
+      }
+      if (url.endsWith('/warehouses')) {
+        return {
+          items: [
+            { id: 'a1', warehouseId: 'w1', warehouseName: 'Main', warehouseCode: 'MAIN', isDefault: true, sortOrder: 0 },
+          ],
+        };
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+  });
+
+  it('is one section with the add form as its sub-section, and no card of its own, inside a card', async () => {
+    const container = renderZone({ permissions: ['inventory:read', 'inventory:write'] });
+    await waitFor(() => expect(container.textContent).toContain('warehouses.channel.title'));
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    expect(container.querySelector('.b2b-card')).toBeNull();
+    const section = container.querySelector('section[data-slot="editor-section"]');
+    expect(section).not.toBeNull();
+    expect(section!.querySelector('h2')).toHaveTextContent('warehouses.channel.title');
+    expect(section).toHaveAccessibleName(/warehouses\.channel\.title/);
+    const add = section!.querySelector('section[data-slot="editor-section"]');
+    expect(add?.querySelector('h3')).toHaveTextContent('warehouses.channel.addTitle');
+  });
+
+  it('is one card under a page-level mount (`chrome="card"`), the add form inside it', async () => {
+    const container = renderZone({ permissions: ['inventory:read', 'inventory:write'], chrome: 'card' });
+    await waitFor(() => expect(container.textContent).toContain('warehouses.channel.title'));
+    const cards = container.querySelectorAll('[data-slot="card"]');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.textContent).toContain('warehouses.channel.addTitle');
+    expect(container.querySelector('.b2b-card')).toBeNull();
+  });
+
+  it('says a load failure in an alert, not in a card', async () => {
+    getSpy.mockRejectedValue(new Error('down'));
+    const container = renderZone({ chrome: 'card' });
+    await waitFor(() => expect(container.querySelector('[role="alert"]')).not.toBeNull());
+    expect(container.querySelector('[role="alert"]')).toHaveTextContent('warehouses.channel.error.load');
+    expect(container.querySelector('.b2b-card')).toBeNull();
+  });
+
+  it('is mounted at page level, between the identity card and the save bar, as a card', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const host = readFileSync(
+      resolve(process.cwd(), '../packages/modules/sales_channels/src/admin/pages/SalesChannelEditPage.tsx'),
+      'utf8',
+    );
+    expect(host).toMatch(/<AdminZone\s+name="sales_channel\.editor\.after"[^>]*chrome="card"/);
   });
 });

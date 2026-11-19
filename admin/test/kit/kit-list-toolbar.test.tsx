@@ -87,6 +87,7 @@ function Toolbar(props: {
   onClear?: () => void;
   withMore?: boolean;
   onMoreOpenChange?: (open: boolean) => void;
+  filtersActive?: boolean;
 }): ReactElement {
   const [q, setQ] = useState('');
   return (
@@ -113,6 +114,7 @@ function Toolbar(props: {
       {...(props.onMoreOpenChange ? { onMoreFiltersOpenChange: props.onMoreOpenChange } : {})}
       {...(props.applied ? { appliedFilters: props.applied } : {})}
       {...(props.onClear ? { onClearFilters: props.onClear } : {})}
+      {...(props.filtersActive !== undefined ? { filtersActive: props.filtersActive } : {})}
     />
   );
 }
@@ -169,6 +171,20 @@ describe('ListToolbar — More filters (n)', () => {
     expect(screen.getByRole('button', { name: 'More filters (2)' })).toBeInTheDocument();
   });
 
+  it('keeps focus on the toggle while it opens and closes the panel (issue #1505)', async () => {
+    renderWithI18n(<Toolbar hiddenActive={1} />, EN);
+    const toggle = screen.getByRole('button', { name: 'More filters (1)' });
+    toggle.focus();
+    await userEvent.keyboard('{Enter}');
+    expect(document.activeElement).toBe(toggle);
+    expect(toggle).toHaveAccessibleName('Fewer filters');
+    // The panel's controls are in the tab order once it is open.
+    expect(screen.getByRole('combobox', { name: 'Visibility' })).not.toHaveAttribute('tabindex', '-1');
+    await userEvent.keyboard(' ');
+    expect(document.activeElement).toBe(toggle);
+    expect(toggle).toHaveAccessibleName('More filters (1)');
+  });
+
   it('speaks Polish', async () => {
     renderWithI18n(<Toolbar hiddenActive={3} />, PL);
     expect(screen.getByRole('button', { name: 'Więcej filtrów (3)' })).toBeInTheDocument();
@@ -206,6 +222,52 @@ describe('ListToolbar — applied filters', () => {
   });
 });
 
+describe('ListToolbar — Clear without chips (issue #1505)', () => {
+  it('ends the row with Clear all filters while a filter is active, and moves focus to the first control', async () => {
+    const clear = vi.fn();
+    renderWithI18n(<Toolbar filtersActive onClear={clear} />, EN);
+    const button = screen.getByRole('button', { name: 'Clear all filters' });
+    // In the filter row, before the list's own controls.
+    const views = screen.getByRole('button', { name: 'Saved views' });
+    expect(button.compareDocumentPosition(views) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(button);
+    expect(clear).toHaveBeenCalledTimes(1);
+    // The button goes away with the filters; focus is not dropped on the body (WCAG 2.4.3).
+    expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search products' }));
+  });
+
+  it('offers no Clear while nothing is active', () => {
+    renderWithI18n(<Toolbar filtersActive={false} onClear={vi.fn()} />, EN);
+    expect(screen.queryByRole('button', { name: 'Clear all filters' })).toBeNull();
+  });
+
+  it('offers Clear once, in the chip row, when chips are given', () => {
+    renderWithI18n(
+      <Toolbar
+        filtersActive
+        applied={[{ key: 'a', label: 'Status: Paid', onRemove: vi.fn() }]}
+        onClear={vi.fn()}
+      />,
+      EN,
+    );
+    expect(screen.getAllByRole('button', { name: 'Clear all filters' })).toHaveLength(1);
+  });
+
+  it('moves focus to the first control after Clear all in the chip row too', async () => {
+    renderWithI18n(
+      <Toolbar applied={[{ key: 'a', label: 'Status: Paid', onRemove: vi.fn() }]} onClear={vi.fn()} />,
+      EN,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all filters' }));
+    expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search products' }));
+  });
+
+  it('speaks Polish', () => {
+    renderWithI18n(<Toolbar filtersActive onClear={vi.fn()} />, PL);
+    expect(screen.getByRole('button', { name: 'Wyczyść wszystkie filtry' })).toBeInTheDocument();
+  });
+});
+
 describe('ListToolbar — axe', () => {
   it.each([
     ['collapsed', <Toolbar key="collapsed" />],
@@ -219,6 +281,7 @@ describe('ListToolbar — axe', () => {
       />,
     ],
     ['a pressed chip', <Chip key="chip" initial />],
+    ['with Clear and no chips', <Toolbar key="clear" filtersActive onClear={(): void => undefined} />],
   ] as const)('%s has no WCAG 2.2 AA violation axe can see', async (_kind, ui) => {
     const { container } = renderWithI18n(ui, EN);
     await expectNoAxeViolations(container);

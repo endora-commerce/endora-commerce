@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, SlidersHorizontal, X } from 'lucide-react';
+import { Plus, SlidersHorizontal } from 'lucide-react';
 import type {
   OpportunityBoard as OpportunityBoardData,
   OpportunityBoardCardField,
@@ -20,11 +20,14 @@ import {
   CardContent,
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
+import { ListToolbar, ListToolbarSearch } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, MAX_PAGE_LIMIT } from '../api.js';
 import { BoardFieldFilters } from '../components/BoardFieldFilters.js';
 import { OpportunityBoard, type BoardColumnView } from '../components/OpportunityBoard.js';
 import {
+  BOARD_MORE_FILTERS,
+  BOARD_PRIMARY_FILTERS,
   OpportunityFilterFields,
   hasSharedFilters,
   sharedFilterParams,
@@ -35,6 +38,7 @@ import {
   NO_BOARD_FILTERS,
   activeFieldFilters,
   fieldFiltersKey,
+  hiddenBoardFilterCount,
   readBoardFilters,
   writeBoardFilters,
   type BoardFilters,
@@ -143,8 +147,10 @@ function viewOf(board: OpportunityBoardData): BoardColumnView[] {
  * cursor of its own. The cards are the list's first page in the list's order,
  * so the first continuation replaces them with a longer page of the same order.
  *
- * The filter fields are the list's (`OpportunityFilterFields`), the assignee
- * filter included, and after them one filter per field the cards show
+ * The filter fields are the list's (`OpportunityFilterFields`), on the kit
+ * `ListToolbar`: the search, the assignee and the Organization always shown,
+ * the rest behind *More filters (n)* (issue #1505, WORK-05) — and in that
+ * panel, after them, one filter per field the cards show
  * (`BoardFieldFilters`, User Story 19). **The filters live in the address**, so
  * a filtered board can be reloaded, bookmarked and sent to a colleague; the
  * search box is the one thing typed into, and it reaches the address once
@@ -529,31 +535,49 @@ export function OpportunityBoardPage(): ReactNode {
 
       <Card className="mb-4">
         <CardContent>
-          <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-            <OpportunityFilterFields
-              idPrefix="crm-board"
-              search={search}
-              onSearchChange={setSearch}
-              filters={filters}
-              onChange={change}
-            />
-            <BoardFieldFilters
-              idPrefix="crm-board-field"
-              fields={shownFields}
-              filters={boardFilters.fields}
-              onChange={changeField}
-              organizationId={filters.organizationId}
-              canPickContact={canWrite}
-            />
-          </div>
-          {filtered ? (
-            <div className="mt-4 flex justify-end">
-              <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-9" onClick={clear}>
-                <X aria-hidden="true" />
-                {t('opportunity.list.filter.clear')}
-              </Button>
-            </div>
-          ) : null}
+          <ListToolbar
+            label={t('opportunity.filter.toolbar')}
+            search={
+              <ListToolbarSearch
+                id="crm-board-search"
+                label={t('opportunity.list.filter.search')}
+                placeholder={t('opportunity.list.filter.searchPlaceholder')}
+                value={search}
+                onValueChange={setSearch}
+              />
+            }
+            filters={
+              <OpportunityFilterFields
+                idPrefix="crm-board"
+                filters={filters}
+                onChange={change}
+                only={BOARD_PRIMARY_FILTERS}
+                placement="toolbar"
+              />
+            }
+            moreFilters={
+              <>
+                <OpportunityFilterFields
+                  idPrefix="crm-board"
+                  filters={filters}
+                  onChange={change}
+                  only={BOARD_MORE_FILTERS}
+                  placement="panel"
+                />
+                <BoardFieldFilters
+                  idPrefix="crm-board-field"
+                  fields={shownFields}
+                  filters={boardFilters.fields}
+                  onChange={changeField}
+                  organizationId={filters.organizationId}
+                  canPickContact={canWrite}
+                />
+              </>
+            }
+            moreFiltersActiveCount={hiddenBoardFilterCount(filters, boardFilters.fields, shownFields)}
+            filtersActive={filtered}
+            onClearFilters={clear}
+          />
         </CardContent>
       </Card>
 

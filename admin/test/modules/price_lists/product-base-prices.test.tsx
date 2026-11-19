@@ -44,6 +44,19 @@ describe('base-price panel — what it shows', () => {
     expect(within(eur()).getByText('No base price in EUR: buyers paying in EUR cannot order this product.')).toBeInTheDocument();
   });
 
+  it('is two sibling h2 sections divided by a rule, as every other editor tab (#1490, CAT-11)', async () => {
+    await open();
+    const headings = screen.getAllByRole('heading');
+    expect(headings.map((h) => [h.tagName, h.textContent])).toEqual([
+      ['H2', 'Base prices'],
+      ['H2', 'Price books pricing this product'],
+    ]);
+    const sections = headings.map((h) => h.closest('section[data-slot=editor-section]'));
+    expect(sections[0]).toHaveAttribute('data-divider');
+    expect(sections[1]).toHaveAttribute('data-divider');
+    expect(sections[0]!.nextElementSibling).toBe(sections[1]);
+  });
+
   it('shows each variant inheriting or priced its own way, with a labelled preview', async () => {
     await open();
     const p5r = within(pln()).getByRole('group', { name: 'Variant P5R' });

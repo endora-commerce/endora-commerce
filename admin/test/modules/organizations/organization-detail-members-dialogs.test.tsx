@@ -382,6 +382,24 @@ describe('OrganizationDetail — one Members section (SALES-14)', () => {
     });
   });
 
+  // Issue #1499 (SALES-17, DEC-12 a) — a member write's result is said right above the
+  // Members section the operator acted in, in a region mounted empty from the first
+  // render, not as a success banner at the top of the page.
+  it('says a member write\'s result at the Members section, not in a banner at the top', async () => {
+    renderDetail();
+    await screen.findByText('bea@acme.test');
+    const section = membersSection();
+    const region = section.previousElementSibling as HTMLElement | null;
+    expect(region).not.toBeNull();
+    expect(region).toHaveAttribute('role', 'status');
+    expect(region!.textContent).toBe('');
+
+    fireEvent.click(screen.getByRole('button', { name: own('members.row.remove', { email: 'bea@acme.test' }) }));
+    await answerConfirm(true);
+    await waitFor(() => expect(region).toHaveTextContent(core('organizations.detail.info.memberRemoved')));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
+
   it('keeps a refused remove in the confirmation, where the operator is looking', async () => {
     deleteSpy.mockRejectedValueOnce(apiError(409, 'LAST_ADMINISTRATOR', 'The last administrator cannot be removed.'));
     renderDetail();

@@ -501,19 +501,19 @@ describe('TaskWorkflowPage — the board card (FR-022)', () => {
   it('lists the fields a card shows, in order, and saves a new choice through `PUT /tasks/board/card-fields`', async () => {
     await renderPage();
     const section = await screen.findByRole('region', { name: en('boardCard.title') });
-    const shown = await within(section).findByRole('list', { name: en('boardCard.shown.title') });
+    const shown = await within(section).findByRole('list', { name: core('boardCardFields.shown.title') });
     expect(within(shown).getAllByRole('listitem').map((item) => item.textContent)).toEqual([
       expect.stringContaining(en('board.field.number')),
       expect.stringContaining(en('board.field.due')),
     ]);
-    await userEvent.click(within(section).getByRole('button', { name: en('boardCard.add', { field: 'Region' }) }));
-    await userEvent.click(within(section).getByRole('button', { name: en('boardCard.moveUp', { field: 'Region' }) }));
-    await userEvent.click(within(section).getByRole('button', { name: en('boardCard.remove', { field: en('board.field.number') }) }));
+    await userEvent.click(within(section).getByRole('button', { name: core('boardCardFields.add', { field: 'Region' }) }));
+    await userEvent.click(within(section).getByRole('button', { name: core('boardCardFields.moveUp', { field: 'Region' }) }));
+    await userEvent.click(within(section).getByRole('button', { name: core('boardCardFields.remove', { field: en('board.field.number') }) }));
     await userEvent.click(within(section).getByRole('button', { name: core('common.action.save') }));
     await waitFor(() =>
       expect(putSpy).toHaveBeenCalledWith(`${API}/board/card-fields`, { fields: ['custom:region', 'builtin:due'] }),
     );
-    expect(await within(section).findByText(en('boardCard.saved'))).toBeInTheDocument();
+    expect(await within(section).findByText(core('boardCardFields.saved'))).toBeInTheDocument();
   });
 
   it('scrolls to the board card when opened at #board-card, once the workflow has loaded (#512)', async () => {
@@ -537,8 +537,8 @@ describe('TaskWorkflowPage — the board card (FR-022)', () => {
     try {
       await renderPage();
       const section = await screen.findByRole('region', { name: en('boardCard.title') });
-      await within(section).findByRole('list', { name: en('boardCard.shown.title') });
-      await userEvent.click(within(section).getByRole('button', { name: en('boardCard.add', { field: 'Region' }) }));
+      await within(section).findByRole('list', { name: core('boardCardFields.shown.title') });
+      await userEvent.click(within(section).getByRole('button', { name: core('boardCardFields.add', { field: 'Region' }) }));
       await userEvent.click(screen.getByRole('link', { name: en('settings.tags.link') }));
       expect(confirmSpy).toHaveBeenCalledWith(core('form.unsavedChanges.confirm'));
       expect(screen.getByRole('region', { name: en('boardCard.title') })).toBeInTheDocument();
@@ -550,30 +550,30 @@ describe('TaskWorkflowPage — the board card (FR-022)', () => {
   it('keeps focus on the moved row, or its neighbour, as the two lists change (WCAG 2.4.3)', async () => {
     await renderPage();
     const section = await screen.findByRole('region', { name: en('boardCard.title') });
-    await within(section).findByRole('list', { name: en('boardCard.shown.title') });
-    const button = (key: string, field: string): HTMLElement => within(section).getByRole('button', { name: en(key, { field }) });
+    await within(section).findByRole('list', { name: core('boardCardFields.shown.title') });
+    const button = (key: string, field: string): HTMLElement => within(section).getByRole('button', { name: core(key, { field }) });
     const number = en('board.field.number');
     const due = en('board.field.due');
     const priority = en('board.field.priority');
 
     // Down into the last place, where Move down is disabled: the row's Move up.
-    await userEvent.click(button('boardCard.moveDown', number));
-    expect(button('boardCard.moveUp', number)).toHaveFocus();
+    await userEvent.click(button('boardCardFields.moveDown', number));
+    expect(button('boardCardFields.moveUp', number)).toHaveFocus();
     // Up into the first place, where Move up is disabled: the row's Move down.
-    await userEvent.click(button('boardCard.moveUp', number));
-    expect(button('boardCard.moveDown', number)).toHaveFocus();
+    await userEvent.click(button('boardCardFields.moveUp', number));
+    expect(button('boardCardFields.moveDown', number)).toHaveFocus();
     // A removed row: the row that took its place.
-    await userEvent.click(button('boardCard.remove', number));
-    expect(button('boardCard.remove', due)).toHaveFocus();
+    await userEvent.click(button('boardCardFields.remove', number));
+    expect(button('boardCardFields.remove', due)).toHaveFocus();
     // The last row removed: the field's own Add, back in the offer.
-    await userEvent.click(button('boardCard.remove', due));
-    expect(button('boardCard.add', due)).toHaveFocus();
+    await userEvent.click(button('boardCardFields.remove', due));
+    expect(button('boardCardFields.add', due)).toHaveFocus();
     // An added field's chip goes: the next one offered in its group.
-    await userEvent.click(button('boardCard.add', due));
-    expect(button('boardCard.add', priority)).toHaveFocus();
+    await userEvent.click(button('boardCardFields.add', due));
+    expect(button('boardCardFields.add', priority)).toHaveFocus();
     // The last chip of its group: the added row.
-    await userEvent.click(button('boardCard.add', 'Region'));
-    expect(button('boardCard.moveUp', 'Region')).toHaveFocus();
+    await userEvent.click(button('boardCardFields.add', 'Region'));
+    expect(button('boardCardFields.moveUp', 'Region')).toHaveFocus();
   });
 });
 

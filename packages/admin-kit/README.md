@@ -415,8 +415,9 @@ what the message is:
   </div>
   ```
 
-  `tone` is `success` (default), `error` or `info`; success and error carry an icon, so colour is
-  never the only signal. `visuallyHidden` announces without showing — for a control whose visible
+  `tone` is `success` (default), `warning`, `error` or `info`; all but `info` carry an icon, so
+  colour is never the only signal. `warning` is a result that went through only in part — sent to
+  some recipients, issued without its e-mail (#1499). `visuallyHidden` announces without showing — for a control whose visible
   state already changed (a badge, a reordered row). An `InlineStatus` is always polite; an error
   that has to interrupt is an `Alert`.
 - **A banner** — a page-level error, a warning about the record, a static notice — is an
@@ -490,6 +491,11 @@ dropzone and a dialog are fields or overlays, not frames, and stay.
   `FieldProtectionSummary` (`./field-protection`) is a section too, with `chrome` and `titleAs`
   (issue #1488, CAT-06); its heading names the source, so two integrations are two sections. History and
   comments render no heading of their own as a section: the host's tab or heading names them.
+  `ScopePicker` (`./components`) and `FieldProtectionPricePanel` (`./field-protection`) are sections
+  too, with `chrome` and `titleAs` (issue #1503, SHELL-22). `RuleBuilder` draws no outer border and
+  no heading inside a card, and a group's children are `divide-y` rows; `chrome="card"` (with
+  `title`, *Conditions* by default, and `titleAs`) frames one that stands alone. `CommentThreadCopy.hint`, like
+  `RecordHistoryCopy.hint`, is optional: give it only for a rule the entries do not show.
 - Mount a zone at page level, between the host's own cards, as `<AdminZone … chrome="card" />`;
   inside a card, leave the prop off. A contribution that renders an `EditorSection` follows the
   mount, so the same panel is right in both places.
@@ -669,6 +675,14 @@ Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
   renders nothing when it has no action, and carries `data-slot="detail-header-actions"`. The order
   and quote-request detail headers use it (#1497).
 
+  **`status`** — the last header action's result (issue #1499, UX audit SALES-17; DEC-12 a). Pass
+  `useInlineStatus().props`: an `InlineStatus` is mounted, empty, before the buttons from the first
+  render, and the group renders even when the record has no action left, so "Approved", "Sent to 2
+  recipients" or "Invoice issued" is said beside the buttons that caused it rather than as a
+  success banner under the header. Above the content a detail screen keeps **at most one** banner:
+  an error first, then a standing state that carries its own remedy; a record's state that needs
+  no remedy (why it was canceled) belongs in the header's meta line.
+
 The component is pinned in `admin/test/kit/kit-detail-header-actions.test.tsx`, including an axe pass
 closed and open. The rule is also § Von Restorff of `.claude/skills/ux-laws/SKILL.md`.
 
@@ -766,6 +780,43 @@ page composes it. It is not a page shell, and it draws no card or border of its 
 The behaviour is pinned in `admin/test/kit/kit-list-toolbar.test.tsx`, including an axe pass. The
 screens that use it are the Orders, Products and Inventory lists.
 
+### `ListToolbar` as the filter bar: `filters`, `moreFilters` and *Clear* without chips
+
+Issue #1505 (UX audit 2026-11-17, WORK-05). The audit asked for a kit `FilterBar` with a `primary`
+and a `more` slot. `ListToolbar` already is that bar: `filters` is the primary slot and
+`moreFilters` is the more slot. No second primitive exists, so do not write one. The CRM board,
+the opportunity list, the Projects list, and Tasks and My Tasks use it.
+
+```tsx
+<ListToolbar
+  label={t('filter.toolbar')}
+  search={<ListToolbarSearch ref={searchRef} label={t('list.search')} value={q} onValueChange={setQ} />}
+  filters={<>{stateSelect}{assigneeSelect}<FilterChip …>{t('filter.overdue')}</FilterChip></>}
+  actions={sortSelect}
+  moreFilters={<>{/* labelled cells */}</>}
+  moreFiltersActiveCount={hiddenFilterCount(filters)}
+  filtersActive={hasFilters(filters)}
+  onClearFilters={clear}
+/>
+```
+
+- **`filtersActive`** is for a page that lists no `appliedFilters` chips. While it is true and
+  `onClearFilters` is given, the filter row ends with **Clear all filters**. With chips, the button
+  stays at the end of the chip row and the prop is not needed. Count the search as a filter here.
+- **Focus.** After **Clear all filters**, focus moves to the toolbar's first enabled control, which
+  is normally the search box, because the button goes away with the filters (WCAG 2.4.3). The
+  *More filters* toggle is one button whose name changes, so it keeps focus as the panel opens and
+  closes. In the tab order the panel comes after the row's `actions`.
+- **The count is the page's.** Write it as a pure exported function beside the page's filter state,
+  so it can be tested without rendering. Count each folded filter once, however many values it
+  holds, and each custom-field filter once. Do not count a filter the request does not carry, such
+  as a custom-field filter for a reader without `custom_fields:read`. Examples:
+  `tasks/src/admin/lib/task-filters.ts` `hiddenFilterCount`, `crm/src/admin/lib/board-fields.ts`
+  `hiddenBoardFilterCount`, `projects/src/admin/lib/list-filters.ts` `hiddenFilterCount`.
+- **The panel's controls mount only while it is open.** Data that a closed panel still needs, such
+  as the custom-field labels used to name a refused filter, is read by the page, not by a cell in
+  the panel.
+
 ## Known rough edge
 
 `./i18n` publishes `resolve` (the translation resolver) under that bare name, because it
@@ -790,8 +841,9 @@ what a hand-drawn scrim leaves out:
 - a **portal to `document.body`**, so a dialog opened inside a drawer moved with `transform`, a table
   row or a `<ul>` is placed against the viewport and does not nest a `<div>` where markup forbids it;
 - `layer` — `page` (default, `z-50`, the layer the kit's popovers share, so a select inside still
-  opens above the dialog) or `overlay` (`MODAL_OVERLAY_Z_INDEX`, above the fullscreen Page Builder
-  and its 9999 floating action bar), for a dialog opened from inside the builder.
+  opens above the dialog) or `overlay` (`MODAL_OVERLAY_Z_INDEX`, above the fullscreen Page Builder,
+  its 9999 floating action bar and the rich-text editor's own dialogs), for a dialog opened from
+  inside the builder — every Page Builder, e-mail builder and translate dialog uses it (#1493).
 
 ```tsx
 <ModalDialog title={t('x.dialog.title')} onClose={close} busy={busy} footer={<>{cancel}{apply}</>}>
@@ -866,3 +918,48 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   (DS-15, #1448, the kit `EmptyState`). Both slot into `toolbar` and `emptyState` when they land.
 - Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
   adopters are `CustomersList`, `OrganizationsList` and `CartsList`.
+
+## Board cards — `BoardCardFieldsEditor`
+
+Issue #1506 (UX audit 2026-11-17, WORK-15). It edits which fields a board card shows and in what order. CRM and
+Tasks used to keep their own copies, and a fix to one (#512) had to be ported to the other by hand.
+
+```tsx
+<BoardCardFieldsEditor
+  load={(): Promise<TaskBoardCardConfig> => tasksApi.boardCardFields()}
+  save={(refs): Promise<TaskBoardCardConfig> => tasksApi.setBoardCardFields(refs)}
+  fieldLabel={(field): string => boardFieldLabel(field, language, t)}
+  copy={{
+    titleAlways: t('boardCard.shown.titleAlways'),
+    builtinGroup: t('boardCard.available.builtin'),
+    noCustom: t('boardCard.available.noCustom'),
+  }}
+/>
+```
+
+- **The catalogue and the limit come from `load`.** `load` and `save` both return
+  `{ fields, available, maxFields }`: the stored choice in order, every field that can be chosen,
+  and the most a card shows. This is the shape both modules' endpoints already return. The server owns
+  the limit and rejects a choice over it, so the limit is not a separate prop. A field only needs
+  `ref` and `source` (`'builtin' | 'custom'`), which decides its group.
+- **Copy.** `copy` holds the three lines that name the module's record: the built-in group's
+  heading, the line under *Shown on the card*, and where custom fields are defined. Everything else
+  comes from `core`'s `boardCardFields.*` keys.
+- **The order is set with buttons**, *Move up* / *Move down*, not by dragging (WCAG 2.2 SC 2.5.7).
+  Before the limit is reached, the count says how many of how many are used. Once the card is full,
+  every *Add* is disabled and a line says why.
+- **Focus stays on the field being worked on** (WCAG 2.4.3):
+  - after a move, it lands on the moved row's control in that direction, or the other control if
+    the row reached an end;
+  - after a removal, it lands on the row that took its place, or on the field's own *Add* when no
+    row is left;
+  - after an add, it lands on the next field offered in the same group, or on the added row once
+    the card is full.
+- **Nothing is stored until *Save*.** *Discard changes* goes back to the stored choice. Leaving
+  through a link with unsaved changes asks first (`useUnsavedChangesPrompt`). After a save, the
+  lists show the server's answer. If the server refuses the save, its own sentence is shown and the
+  edit is kept. If the first read fails, a retry is offered.
+- The caller supplies the card around it (a `Card` with the section title).
+
+Pinned in `admin/test/kit/kit-board-card-fields.test.tsx`. Each module's endpoint and copy are
+pinned in its configuration screen's test.

@@ -117,10 +117,10 @@ describe('MyTasksPage', () => {
     renderTasks(<MyTasksPage />, { path: '/tasks/mine', pattern: '/tasks/mine' });
     await screen.findByText('Sign the handover');
     expect(screen.queryByLabelText(en('list.filter.assignee'))).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: en('filter.more') }));
+    await userEvent.click(screen.getByRole('button', { name: 'More filters' }));
     expect(screen.getByLabelText(en('filter.creator'))).toBeTruthy();
     expect(screen.queryByLabelText(en('filter.statusCategory'))).toBeNull();
-    expect(screen.queryByLabelText(en('filter.draft'))).toBeNull();
+    expect(screen.queryByRole('button', { name: en('filter.draft') })).toBeNull();
     await screen.findByRole('option', { name: STATUS.in_progress.name });
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.status')), 'in_progress');
     await waitFor(() => expect(lastQuery(MINE_PATH)?.getAll('status')).toEqual(['in_progress']));
@@ -160,7 +160,7 @@ describe('MyTasksPage', () => {
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.status')), 'in_progress');
     const block = await waitFor(() => document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!);
     expect(block).not.toBeNull();
-    await userEvent.click(within(block).getByRole('button', { name: en('list.filter.clear') }));
+    await userEvent.click(within(block).getByRole('button', { name: 'Clear filters' }));
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('list.search'))));
   });
 

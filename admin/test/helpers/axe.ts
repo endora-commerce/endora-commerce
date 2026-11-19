@@ -10,10 +10,21 @@ import axe from 'axe-core';
  * (`specs/147-saved-views/research.md` R-13). Contrast is argued from the
  * theme tokens the components use, not measured here.
  */
-export async function expectNoAxeViolations(container: Element): Promise<void> {
+export async function expectNoAxeViolations(
+  container: Element,
+  options: {
+    /**
+     * `false` for a subtree holding an `<iframe>` (the e-mail preview): jsdom's
+     * frames are not windows axe can message, so it would throw instead of
+     * checking. The frame's own `title` is still checked from outside.
+     */
+    iframes?: boolean;
+  } = {},
+): Promise<void> {
   const result = await axe.run(container, {
     runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] },
     rules: { 'color-contrast': { enabled: false } },
+    ...(options.iframes === false ? { iframes: false } : {}),
   });
   if (result.violations.length === 0) return;
   const lines = result.violations.map((violation) => {

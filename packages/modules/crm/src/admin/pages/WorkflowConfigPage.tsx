@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useLocation } from 'react-router-dom';
 import { Plus, Trash2 } from 'lucide-react';
 import type {
+  OpportunityBoardCardConfig,
   OpportunityWorkflow,
   OpportunityWorkflowStatus,
   OrderStatusMapping,
@@ -18,13 +19,14 @@ import {
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import {
+  BoardCardFieldsEditor,
   ModalDialog,
   StatusTransitionGraph,
   type StatusTransitionGraphStatus,
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OrderStatusOption } from '../api.js';
-import { BoardCardFieldsEditor } from '../components/BoardCardFieldsEditor.js';
+import { boardFieldLabel } from '../lib/board-fields.js';
 import { errorMessage, workflowStatusLabel } from '../lib/labels.js';
 import { useServerReorder } from '../lib/use-server-reorder.js';
 import { OrderStatusMappings } from './workflow/OrderStatusMappings.js';
@@ -287,7 +289,16 @@ export function WorkflowConfigPage(): ReactNode {
           <CardTitle>{t('boardCard.title')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <BoardCardFieldsEditor />
+          <BoardCardFieldsEditor
+            load={(): Promise<OpportunityBoardCardConfig> => crmApi.getBoardCardFields()}
+            save={(refs): Promise<OpportunityBoardCardConfig> => crmApi.setBoardCardFields(refs)}
+            fieldLabel={(field): string => boardFieldLabel(field, language, t)}
+            copy={{
+              titleAlways: t('boardCard.shown.titleAlways'),
+              builtinGroup: t('boardCard.available.builtin'),
+              noCustom: t('boardCard.available.noCustom'),
+            }}
+          />
         </CardContent>
       </Card>
       {/* --- end of User Story 19 ------------------------------------------ */}

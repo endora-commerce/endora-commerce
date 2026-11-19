@@ -43,8 +43,12 @@ export interface CommentThreadCopy {
   /** Names the list for assistive technology. */
   title: string;
   empty: string;
-  /** One line above the thread — who may read it. Keep it to one clause. */
-  hint: string;
+  /**
+   * One line above the thread — who may read it, a rule the entries do not show. Keep it to one
+   * clause, and omit it when there is none: nothing is drawn then (issue #1503, UX audit SHELL-22 —
+   * hints are off unless the tab has something to say).
+   */
+  hint?: string;
   composerLabel: string;
   /**
    * One line under the composer, describing the field — a rule about what is
@@ -211,7 +215,7 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
 
   const thread = (
     <div className="space-y-5">
-      <p className="text-sm text-muted-foreground">{copy.hint}</p>
+      {copy.hint ? <p className="text-sm text-muted-foreground">{copy.hint}</p> : null}
 
       {error ? (
         <Alert variant="destructive">

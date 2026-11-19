@@ -214,11 +214,11 @@ describe('crm admin copy', () => {
       // this bundle with the editor, for the kit's `core` one
       // (`specs/163-projects-and-tasks/` research R-17); `admin/test/kit/
       // kit-collaboration-bundle.test.ts` holds them there.
-      // What a board card shows (User Story 19): one name per built-in field,
-      // the names of a range's two boxes, and the two groups of the section.
+      // What a board card shows (User Story 19): one name per built-in field
+      // and the names of a range's two boxes. The section's editor and its
+      // groups' names are the kit's `BoardCardFieldsEditor` (issue #1506).
       'board.field.': [...OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS],
       'board.filter.': ['min', 'max', 'from', 'to', 'minShort', 'maxShort'],
-      'boardCard.available.': ['builtin', 'custom'],
       // The calendar and an Opportunity's Events (User Stories 21 and 22): one
       // name per view for each of the two arrows and for the switch, the two
       // scopes, and — from the contract's own vocabularies, so a state the

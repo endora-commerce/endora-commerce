@@ -1,6 +1,6 @@
 import { StrictMode, type ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ScopeRef, ScopedFieldView, ScopedWriteOp } from '@endora-commerce/contracts';
 import { AppLanguageContext, TranslationProvider } from '@endora-commerce/admin-kit/i18n';
@@ -112,7 +112,8 @@ describe('ProductSeoSection (feature 174, US10)', () => {
 
   it('#1 reads the SEO fields at the editor scope and shows each with its source', async () => {
     render(wrap());
-    const title = await screen.findByLabelText(seoEn['productSeo.field.title']);
+    // The lazy zone import is paid here, so the first query waits longer than the default 1 s.
+    const title = await screen.findByLabelText(seoEn['productSeo.field.title'], {}, { timeout: 14_000 });
     expect(get).toHaveBeenCalledWith(`/api/v1/admin/seo/meta/product/${PRODUCT_ID}?channelId=${CH}&languageCode=pl-PL`);
     expect(title).toHaveValue('Wiertarka | Sklep');
     expect(title).toHaveAccessibleDescription(expect.stringContaining('Set at this scope'));
@@ -159,6 +160,23 @@ describe('ProductSeoSection (feature 174, US10)', () => {
     get.mockResolvedValue(READ);
     fireEvent.click(retry);
     expect(await screen.findByLabelText(seoEn['productSeo.field.title'])).toHaveValue('Wiertarka | Sklep');
+  });
+
+  it('repeats no tab name: the search-result fields and the sharing fields are two h2 sections (#1490, CAT-11)', async () => {
+    render(wrap());
+    await screen.findByLabelText(seoEn['productSeo.field.title']);
+    const headings = screen.getAllByRole('heading');
+    expect(headings.map((h) => [h.tagName, h.textContent])).toEqual([
+      ['H2', seoEn['productSeo.search.title']],
+      ['H2', seoEn['productSeo.social.title']],
+    ]);
+    const search = screen.getByRole('region', { name: seoEn['productSeo.search.title'] });
+    expect(within(search).getByLabelText(seoEn['productSeo.field.title'])).toBeTruthy();
+    expect(within(search).getByLabelText(seoEn['productSeo.field.description'])).toBeTruthy();
+    const social = screen.getByRole('region', { name: seoEn['productSeo.social.title'] });
+    for (const field of ['ogTitle', 'ogDescription', 'ogImageUrl'] as const) {
+      expect(within(social).getByLabelText(seoEn[`productSeo.field.${field}`])).toBeTruthy();
+    }
   });
 
   it('renders in Polish and has no axe violations', async () => {

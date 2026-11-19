@@ -72,6 +72,12 @@ export interface EntityChannelMembershipProps {
   entityId: string | null | undefined;
   /** When set, called after every successful add / remove / fallback so the parent can refetch. */
   onChanged?: () => void;
+  /**
+   * Shows the channels only: no picker, no *Add*, no *Remove* and no "Applies immediately"
+   * badge, for an operator the server would refuse (issue #1644). The mount decides, because
+   * which permission writes an entity's membership is the entity editor's to say.
+   */
+  readOnly?: boolean;
 }
 
 const BASE = '/api/v1/admin/sales-channels';
@@ -80,6 +86,7 @@ export function EntityChannelMembership({
   entityType,
   entityId,
   onChanged,
+  readOnly = false,
 }: EntityChannelMembershipProps): ReactNode {
   const t = useTranslation('sales_channels');
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -190,7 +197,7 @@ export function EntityChannelMembership({
       title={
         <>
           {t('membership.title')}
-          <ImmediateBadge />
+          {readOnly ? null : <ImmediateBadge />}
         </>
       }
     >
@@ -226,19 +233,21 @@ export function EntityChannelMembership({
                       {c.name['en-US'] ?? c.name['en'] ?? Object.values(c.name)[0] ?? ''}
                     </span>
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => void handleRemove(c.code)}
-                  >
-                    {t('membership.action.remove')}
-                  </Button>
+                  {readOnly ? null : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => void handleRemove(c.code)}
+                    >
+                      {t('membership.action.remove')}
+                    </Button>
+                  )}
                 </li>
               ))}
             </ul>
           )}
-          {candidates.length > 0 && (
+          {!readOnly && candidates.length > 0 && (
             <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
               <Select
                 value={pickerCode}

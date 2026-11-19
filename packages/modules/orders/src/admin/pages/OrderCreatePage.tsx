@@ -48,6 +48,7 @@ import {
   parsePositiveInt,
   productDisplayName,
   splitLineInto,
+  StickyFormActions,
   type ProductBrowserItem,
   type ProductBrowserRules,
 } from '@endora-commerce/admin-kit/components';
@@ -1094,7 +1095,7 @@ export function OrderCreatePage(): ReactNode {
   );
 
   return (
-    <>
+    <div>
       <PageHeader
         title={t('orderCreate.title')}
         description={t('orderCreate.description')}
@@ -1109,12 +1110,6 @@ export function OrderCreatePage(): ReactNode {
       />
 
       <RouteTabsZone name="order.entry.tabs" props={{}} className="mb-4" />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
 
       <Card className="mb-4">
         <CardHeader>
@@ -1530,12 +1525,32 @@ export function OrderCreatePage(): ReactNode {
               onChange={(e): void => setCustomerNote(e.target.value)}
             />
           </FormField>
-          <Button disabled={!canSubmit || busy || previewLoading} onClick={(): void => void submit()}>
-            {t('orderCreate.submit')}
-          </Button>
         </CardContent>
       </Card>
-    </>
+
+      {/* Issue #1449 (DS-19) — the form's actions in the kit's sticky bar, the page's last child:
+          Cancel, then Create last, in view over a long list of lines, with a refused create
+          said beside them rather than at the top of the page. */}
+      <StickyFormActions
+        desktop="sticky"
+        error={error}
+        secondary={
+          <Button asChild variant="outline" className="min-h-11 sm:min-h-9">
+            <Link to={openedWith.returnTo ?? '/orders'}>{t('common.action.cancel')}</Link>
+          </Button>
+        }
+        primary={
+          <Button
+            className="min-h-11 sm:min-h-9"
+            disabled={!canSubmit || busy || previewLoading}
+            aria-busy={busy || undefined}
+            onClick={(): void => void submit()}
+          >
+            {t('orderCreate.submit')}
+          </Button>
+        }
+      />
+    </div>
   );
 }
 

@@ -295,6 +295,12 @@ describe('tags on an opportunity', () => {
   });
 });
 
+/** Opens the toolbar's *More filters* panel unless it is open (issue #1505: these filters are folded away). */
+async function openMoreFilters(): Promise<void> {
+  const toggle = screen.queryByRole('button', { name: /^(More filters|Więcej filtrów)/ });
+  if (toggle && toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
+}
+
 describe('tags elsewhere', () => {
   it('shows an opportunity\'s tags on the list and filters by every tag chosen', async () => {
     renderCrm(<OpportunitiesList />, { path: '/crm/opportunities' });
@@ -303,6 +309,7 @@ describe('tags elsewhere', () => {
     expect(within(row).getByText('Tender')).toBeInTheDocument();
     expect(lastQuery(LIST_PATH).has('tagId')).toBe(false);
 
+    await openMoreFilters();
     await tick(screen.getByRole('button', { name: en('tags.filter.label') }), 'Key account', 'Tender');
     await waitFor(() => expect(lastQuery(LIST_PATH).getAll('tagId')).toEqual([KEY.id, TENDER.id]));
   });
@@ -310,6 +317,7 @@ describe('tags elsewhere', () => {
   it('filters the board by tag', async () => {
     renderCrm(<OpportunityBoardPage />, { path: '/crm/board', pattern: '/crm/board' });
     await screen.findByRole('group', { name: en('board.column.label', { status: 'New' }) });
+    await openMoreFilters();
     await tick(screen.getByRole('button', { name: en('tags.filter.label') }), 'Tender');
     await waitFor(() => expect(lastQuery(BOARD_PATH).getAll('tagId')).toEqual([TENDER.id]));
   });

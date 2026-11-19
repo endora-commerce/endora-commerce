@@ -1171,6 +1171,7 @@
   "settingLabels.catalog.scope_completeness_gate.options.refuse": "Nie zapisuj",
   "productEditor.tab.scopes": "Mapa zakresów",
   "productEditor.scopeOverview.title": "Mapa zakresów",
+  "productEditor.scopeOverview.matrix.title": "Wartości według kanału i języka",
   "productEditor.scopeOverview.help": "Każda komórka to jeden kanał sprzedaży w jednym języku.",
   "productEditor.scopeOverview.readOnly": "Tylko do odczytu: widzisz zakresy, ale nie możesz ich zmieniać.",
   "productEditor.scopeOverview.loading": "Wczytywanie mapy zakresów…",

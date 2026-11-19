@@ -2,7 +2,7 @@ import '@endora-commerce/cms-components/styles.css';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Puck, type Config, type ComponentConfig, type Data, type PuckAction } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
-import { Eye, Monitor, Smartphone, X } from 'lucide-react';
+import { Eye, Monitor, Smartphone } from 'lucide-react';
 import {
   applyEmailRowLayoutPreset,
   buildSampleVariableContext,
@@ -67,7 +67,7 @@ import {
   getPageBuilderDescriptor,
 } from '../chrome/cms-page-builder-api.js';
 import { getEmailBranding } from './email-templates-api.js';
-import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
+import { fetchAssetDetail, ModalDialog } from '@endora-commerce/admin-kit/components';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { emailRichTextContentField, emailHtmlFromRichContent } from './EmailRichTextField.js';
@@ -607,68 +607,57 @@ export function EmailHtmlPreviewModal({
   const t = useTranslation('core');
   const [width, setWidth] = useState<EmailPreviewWidth>(600);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
   if (!open) return null;
 
+  // Issue #1493 (CONTENT-03): the kit's dialog, above the fullscreen builder —
+  // focus trapped, Escape closes it, focus returns to *Preview email*.
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={t('pageBuilder.emailPreview.title')}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <ModalDialog
+      layer="overlay"
+      title={t('pageBuilder.emailPreview.title')}
+      onClose={onClose}
+      widthClassName="max-w-4xl"
+      footer={
+        <Button type="button" variant="outline" onClick={onClose}>
+          {t('pageBuilder.emailPreview.close')}
+        </Button>
+      }
     >
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border bg-background shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold">{t('pageBuilder.emailPreview.title')}</span>
-            <Button
-              type="button"
-              variant={width === 600 ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setWidth(600)}
-              aria-pressed={width === 600}
-            >
-              <Monitor className="mr-1 h-4 w-4" aria-hidden="true" />
-              {t('pageBuilder.emailPreview.desktop')}
-            </Button>
-            <Button
-              type="button"
-              variant={width === 320 ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setWidth(320)}
-              aria-pressed={width === 320}
-            >
-              <Smartphone className="mr-1 h-4 w-4" aria-hidden="true" />
-              {t('pageBuilder.emailPreview.narrow')}
-            </Button>
-          </div>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label={t('pageBuilder.emailPreview.close')}>
-            <X className="h-4 w-4" />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant={width === 600 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setWidth(600)}
+            aria-pressed={width === 600}
+          >
+            <Monitor className="mr-1 h-4 w-4" aria-hidden="true" />
+            {t('pageBuilder.emailPreview.desktop')}
+          </Button>
+          <Button
+            type="button"
+            variant={width === 320 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setWidth(320)}
+            aria-pressed={width === 320}
+          >
+            <Smartphone className="mr-1 h-4 w-4" aria-hidden="true" />
+            {t('pageBuilder.emailPreview.narrow')}
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-muted/30 p-4">
+        <div className="overflow-auto rounded-md bg-muted/30 p-4">
           <iframe
             title={t('pageBuilder.emailPreview.frameTitle')}
             sandbox=""
             srcDoc={html}
-            className="mx-auto block h-[min(70vh,640px)] border-0 bg-white shadow-sm"
+            className="mx-auto block h-[min(65vh,640px)] border-0 bg-white shadow-sm"
             style={{ width, maxWidth: '100%', overflow: 'hidden' }}
             scrolling="auto"
           />
         </div>
       </div>
-    </div>
+    </ModalDialog>
   );
 }
 
