@@ -118,6 +118,15 @@ describe('OrderDetail — comments', () => {
     expect(screen.getByText('orderDetail.comments.internal')).toBeInTheDocument();
   });
 
+  it('lists the comments as rows divided by a rule, not as a bordered box each (#1498, SALES-13)', async () => {
+    renderDetail();
+    await userEvent.click(await screen.findByText('orderDetail.tabs.comments'));
+    const item = await screen.findByTestId('order-comment');
+    expect(item.className.split(/\s+/)).not.toContain('border');
+    expect(item.className.split(/\s+/)).not.toContain('rounded-md');
+    expect(item.parentElement!.className.split(/\s+/)).toContain('divide-y');
+  });
+
   it('posts a comment with the chosen visibility/notify flags', async () => {
     renderDetail();
     await userEvent.click(await screen.findByText('orderDetail.tabs.comments'));

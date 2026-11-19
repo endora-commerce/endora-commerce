@@ -12,7 +12,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { ApiError, apiBaseUrl, apiClient, cn, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useDetailResource, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, FormField, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, FormField, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section, Textarea } from '@endora-commerce/admin-kit/ui';
 import { CustomFieldValuesPanel, DetailHeaderActions, RowActionMenuItem, StatusChangeControl, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -927,9 +927,11 @@ export function OrderDetail(): ReactNode {
               {comments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('orderDetail.comments.empty')}</p>
               ) : (
-                <ul className="space-y-2">
+                // Rows divided by a rule, not a bordered box per comment: the tab
+                // card is the one region (Common Region, issue #1498).
+                <ul className="divide-y divide-border">
                   {comments.map((c) => (
-                    <li key={c.id} className="rounded-md border p-3 text-sm" data-testid="order-comment">
+                    <li key={c.id} className="py-3 text-sm first:pt-0 last:pb-0" data-testid="order-comment">
                       <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{formatDateTime(c.createdAt)}</span>
                         {c.systemNote ? (
@@ -962,8 +964,8 @@ export function OrderDetail(): ReactNode {
               <div className="space-y-2 border-t pt-3">
                 {/* A visible label, not a placeholder or a developer id, names the box (#1475). */}
                 <FormField label={tOrders('detail.comments.label')}>
-                  <textarea
-                    className="min-h-20 w-full rounded-md border p-2 text-sm"
+                  <Textarea
+                    className="min-h-20"
                     value={commentBody}
                     onChange={(e): void => setCommentBody(e.target.value)}
                     placeholder={t('orderDetail.comments.placeholder')}

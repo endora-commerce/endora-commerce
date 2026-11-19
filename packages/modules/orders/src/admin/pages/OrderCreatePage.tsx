@@ -27,6 +27,7 @@ import {
   Label,
   Separator,
   PageHeader,
+  Textarea,
   Combobox,
   FormField,
   TableCell,
@@ -579,7 +580,9 @@ function AddressPicker(props: {
           emptyMessage={props.emptyMessage}
         />
       ) : (
-        <div className="space-y-3 rounded-md border p-3">
+        // No frame of its own: the fields belong to the address group above
+        // them, inside the Parties card (Common Region, issue #1498).
+        <div className="space-y-3">
           {inlineField('recipientName', t('orderCreate.address.field.recipientName'))}
           {inlineField('street', t('orderCreate.address.field.street'))}
           <div className="grid grid-cols-2 gap-3">
@@ -1520,9 +1523,9 @@ export function OrderCreatePage(): ReactNode {
       <Card className="mb-4">
         <CardContent className="space-y-3">
           <FormField label={t('orderCreate.field.note')}>
-            <textarea
+            <Textarea
               id="customerNote"
-              className="min-h-20 w-full rounded-md border p-2 text-sm"
+              className="min-h-20"
               value={customerNote}
               onChange={(e): void => setCustomerNote(e.target.value)}
             />
