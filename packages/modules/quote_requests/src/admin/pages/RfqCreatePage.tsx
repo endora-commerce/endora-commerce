@@ -33,6 +33,7 @@ import {
   ProductPicker,
   parsePositiveInt,
   productDisplayName,
+  StickyFormActions,
   type ProductBrowserItem,
   type ProductBrowserRules,
 } from '@endora-commerce/admin-kit/components';
@@ -652,12 +653,6 @@ export function RfqCreatePage(): ReactNode {
         }
       />
 
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <Card className="mb-4">
         <CardHeader>
           <CardTitle>{t('rfqCreate.section.customer')}</CardTitle>
@@ -954,20 +949,27 @@ export function RfqCreatePage(): ReactNode {
         </Alert>
       ) : null}
 
-      {!channelChosen && !created && (channelOptions?.length ?? 0) > 0 ? (
-        // The disabled action says why (the order create screen's gate hint).
-        <p className="mb-2 text-right text-sm text-muted-foreground">{t('rfqCreate.gate.missingChannel')}</p>
-      ) : null}
-
-      <div className="flex justify-end">
-        {created ? (
-          <Button onClick={(): void => leaveFor(created.id)}>{t('rfqCreate.warnings.open')}</Button>
-        ) : (
-          <Button disabled={!canSubmit} onClick={(): void => void submit()}>
-            {busy ? t('rfqCreate.submitting') : t('rfqCreate.submit')}
-          </Button>
-        )}
-      </div>
+      {/* Issue #1449 (DS-19) — the one action stays in view over a long list of lines; a refused
+          create is said beside it, and so is why it is disabled (the order create screen's gate
+          hint), as the note that describes it. */}
+      <StickyFormActions
+        desktop="sticky"
+        error={error}
+        note={
+          !channelChosen && !created && (channelOptions?.length ?? 0) > 0
+            ? t('rfqCreate.gate.missingChannel')
+            : null
+        }
+        primary={
+          created ? (
+            <Button onClick={(): void => leaveFor(created.id)}>{t('rfqCreate.warnings.open')}</Button>
+          ) : (
+            <Button disabled={!canSubmit} aria-busy={busy || undefined} onClick={(): void => void submit()}>
+              {busy ? t('rfqCreate.submitting') : t('rfqCreate.submit')}
+            </Button>
+          )
+        }
+      />
     </div>
   );
 }

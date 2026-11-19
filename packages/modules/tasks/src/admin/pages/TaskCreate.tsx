@@ -3,11 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CornerLeftUp, Link2, UserCheck } from 'lucide-react';
 import type { CreateTaskBody, TaskContext, TaskDetail, TaskLinkTarget } from '@endora-commerce/contracts';
 import { TASK_LINK_KINDS, TASK_TITLE_MAX, UUID_SHAPE_PATTERN } from '@endora-commerce/contracts';
-import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
+import { CustomFieldValuesPanel, StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { readReturnTo, useAuth, withReturnTo } from '@endora-commerce/admin-kit/lib';
 import {
-  Alert,
-  AlertDescription,
   Button,
   Card,
   CardContent,
@@ -290,31 +288,34 @@ export function TaskCreate(): ReactNode {
               />
             ) : null}
 
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
+            <p id={ids.draftHint} className="text-xs text-muted-foreground">
+              {t('create.draftHint')}
+            </p>
 
-            <div className="flex flex-wrap gap-2 border-t pt-4">
-              <Button type="submit" className="min-h-11 sm:min-h-9" disabled={busy} aria-busy={pending === 'create'}>
-                {pending === 'create' ? t('create.submitting') : t('create.submit')}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="min-h-11 sm:min-h-9"
-                disabled={busy}
-                aria-busy={pending === 'draft'}
-                aria-describedby={ids.draftHint}
-                onClick={(event): void => void submit(event, true)}
-              >
-                {t('create.saveDraft')}
-              </Button>
-              <p id={ids.draftHint} className="basis-full text-xs text-muted-foreground">
-                {t('create.draftHint')}
-              </p>
-            </div>
+            {/* Issue #1449 (DS-19) — the form's actions in the kit's sticky bar: Save draft, then
+                Create last, with a refused create said beside them. */}
+            <StickyFormActions
+              desktop="sticky"
+              error={error}
+              secondary={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 sm:min-h-9"
+                  disabled={busy}
+                  aria-busy={pending === 'draft'}
+                  aria-describedby={ids.draftHint}
+                  onClick={(event): void => void submit(event, true)}
+                >
+                  {t('create.saveDraft')}
+                </Button>
+              }
+              primary={
+                <Button type="submit" className="min-h-11 sm:min-h-9" disabled={busy} aria-busy={pending === 'create'}>
+                  {pending === 'create' ? t('create.submitting') : t('create.submit')}
+                </Button>
+              }
+            />
           </form>
         </CardContent>
       </Card>

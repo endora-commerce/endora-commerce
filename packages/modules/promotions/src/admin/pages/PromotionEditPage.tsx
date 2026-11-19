@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Check, Copy } from 'lucide-react';
 import { ApiError, useDetailResource, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, DetailSkeleton, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { PaginationFooter, RuleBuilder, type RuleAttributeField, type RuleFieldOptions } from '@endora-commerce/admin-kit/components';
+import { PaginationFooter, RuleBuilder, StickyFormActions, type RuleAttributeField, type RuleFieldOptions } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { PromotionAction, PromotionActionType, PromotionRule } from '@endora-commerce/contracts';
 import { promotionsClient, promotionRulesClient, type Coupon } from '../api/promotions-client.js';
@@ -210,11 +210,6 @@ export const PromotionEditPage = (): ReactNode => {
         title={isNew ? t('promotions.edit.titleNew') : t('promotions.edit.titleEdit')}
         description={t('promotions.edit.description')}
       />
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
       <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
         <Card>
           <CardHeader>
@@ -341,14 +336,22 @@ export const PromotionEditPage = (): ReactNode => {
           </CardContent>
         </Card>
 
-        <div className="flex gap-2">
-          <Button type="submit" disabled={saving}>
-            {saving ? t('promotions.loading') : t('promotions.edit.save')}
-          </Button>
-          <Button type="button" variant="outline" onClick={() => { navigate('/promotions'); }}>
-            {t('promotions.edit.cancel')}
-          </Button>
-        </div>
+        {/* Issue #1449 (DS-19) — the one Save ends the form and stays in view while it scrolls;
+            a refused save is said here, beside it. The Coupons card below saves on its own. */}
+        <StickyFormActions
+          desktop="sticky"
+          error={error}
+          secondary={
+            <Button type="button" variant="outline" onClick={() => { navigate('/promotions'); }}>
+              {t('promotions.edit.cancel')}
+            </Button>
+          }
+          primary={
+            <Button type="submit" disabled={saving} aria-busy={saving || undefined}>
+              {saving ? t('promotions.loading') : t('promotions.edit.save')}
+            </Button>
+          }
+        />
       </form>
 
       {!isNew && id ? (

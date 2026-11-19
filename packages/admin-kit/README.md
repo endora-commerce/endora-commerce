@@ -672,6 +672,52 @@ Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
 The component is pinned in `admin/test/kit/kit-detail-header-actions.test.tsx`, including an axe pass
 closed and open. The rule is also § Von Restorff of `.claude/skills/ux-laws/SKILL.md`.
 
+## The editor's one Save — `StickyFormActions`
+
+Issue #1449 (UX audit 2026-11-17, DS-19). An editor has **one** Save (feature 180) and it has
+**one** place: the kit's `StickyFormActions`. Long editors had put Save mid-page, at the end of a
+long list, or inside the first card while it also saved the zone panels below it.
+
+```tsx
+<form onSubmit={save}>
+  …cards, sections, zone panels the Save also commits…
+  <StickyFormActions
+    desktop="sticky"
+    dirty={dirty}                       // the kit's UnsavedChangesHint, in the bar
+    error={saveError}                   // null while there is none
+    status={saveInfo}
+    note={t('rfq.detail.modify.notifiesCustomer')}
+    secondary={<Button type="button" variant="outline" onClick={cancel}>{t('…cancel')}</Button>}
+    primary={<Button type="submit" disabled={busy} aria-busy={busy}>{t('…save')}</Button>}
+  />
+</form>
+```
+
+- **Where.** Below 1024 px the bar is fixed to the bottom of the viewport (Fitts: where the thumb
+  is), and the page pads itself so nothing hides under it. At ≥ 1024 px, `desktop="sticky"` makes it
+  `position: sticky; bottom: 0`: in view while the form scrolls, settling at its end. Mount it as the
+  **last child of the form or page wrapper it commits** — a sticky box cannot leave its parent — and
+  **never inside a card or panel when it saves more than that panel** (Common Region). A Save that
+  must sit outside its `<form>` submits it with `form={formId}` (the sales-channel editor draws the
+  `sales_channel.editor.after` zone between its card and the bar this way). `desktop="inline"`, the
+  default, is for a place that is already in view: a `PageHeader`'s `actions` (`SaveSessionActions`)
+  or the product editor's sticky scope bar.
+- **What.** `primary` is drawn last and `secondary` before it (Von Restorff, Jakob); on a phone both
+  span the bar at 44 px. `note` is one muted line on what Save does, and is added to the primary's
+  `aria-describedby`. `dirty` shows "Unsaved changes" (`core`'s `form.unsavedChanges.hint`).
+  `error` and `status` say the last save's refusal and outcome **beside the button that caused
+  them**, not in a banner at the top of the page (Proximity): each region exists once the prop is
+  passed — `null` while there is nothing to say — mounted empty so the text that arrives is
+  announced (WCAG 4.1.3); while there is an error the status is not shown.
+- **What not.** A destructive action is not in the bar — it goes to the header or a menu, the form
+  away from Save (Fitts). "Add line" and other list actions stay with their list. `children` remains
+  the free layout of the callers that predate the slots; `.b2b-sticky-form-actions` is unlayered
+  CSS, so a utility in `className` does not override its layout.
+
+Adopted by the role editor, the profile, the promotion editor, RFQ Modify and RFQ create, the
+sales-channel editor, and the task, opportunity, project and project-template forms. Pinned in
+`admin/test/kit/kit-sticky-form-actions.test.tsx`, including an axe pass.
+
 ## List filters — `ListToolbar`, `ListToolbarSearch` and `FilterChip`
 
 Issue #1440 (UX audit 2026-11-17, DS-06). `ListToolbar` (`./components`) is a list page's filter row,

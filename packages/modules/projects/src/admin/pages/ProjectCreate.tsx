@@ -690,20 +690,26 @@ export function ProjectCreate(): ReactNode {
 
         <NewProjectCustomFields onChange={setCustomFieldValues} fieldErrors={customFieldErrors} />
 
-        <StickyFormActions className="flex justify-end gap-2">
-          <Button
-            className="min-h-11 sm:min-h-9"
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={(): void => void navigate(LIST_PATH)}
-          >
-            {tCore('common.action.cancel')}
-          </Button>
-          <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy} aria-busy={busy}>
-            {busy ? t('create.submitting') : t('create.submit')}
-          </Button>
-        </StickyFormActions>
+        {/* Issue #1449 (DS-19) — in view while the form scrolls; Cancel, then Create last. */}
+        <StickyFormActions
+          desktop="sticky"
+          secondary={
+            <Button
+              className="min-h-11 sm:min-h-9"
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={(): void => void navigate(LIST_PATH)}
+            >
+              {tCore('common.action.cancel')}
+            </Button>
+          }
+          primary={
+            <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy} aria-busy={busy}>
+              {busy ? t('create.submitting') : t('create.submit')}
+            </Button>
+          }
+        />
       </form>
       {confirmDialog}
     </>

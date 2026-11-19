@@ -425,19 +425,26 @@ export function OpportunityCreatePage(): ReactNode {
           <NewOpportunityCustomFields onChange={setCustomFieldValues} fieldErrors={customFieldErrors} />
         </div>
 
-        <StickyFormActions className="mt-4 flex justify-end gap-2">
-          <Button className="min-h-11 sm:min-h-9"
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={(): void => void navigate('/crm/opportunities')}
-          >
-            {tCore('common.action.cancel')}
-          </Button>
-          <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy || unlinked !== null} aria-busy={busy}>
-            {busy ? t('opportunity.create.submitting') : t('opportunity.create.submit')}
-          </Button>
-        </StickyFormActions>
+        {/* Issue #1449 (DS-19) — in view while the form scrolls; Cancel, then Create last. */}
+        <StickyFormActions
+          desktop="sticky"
+          secondary={
+            <Button
+              className="min-h-11 sm:min-h-9"
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={(): void => void navigate('/crm/opportunities')}
+            >
+              {tCore('common.action.cancel')}
+            </Button>
+          }
+          primary={
+            <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy || unlinked !== null} aria-busy={busy}>
+              {busy ? t('opportunity.create.submitting') : t('opportunity.create.submit')}
+            </Button>
+          }
+        />
       </form>
     </>
   );

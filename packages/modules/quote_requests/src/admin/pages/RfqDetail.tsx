@@ -28,6 +28,7 @@ import {
   RowActionMenuItem,
   RowActionMenuSeparator,
   SplitLineDialog,
+  StickyFormActions,
   canSplitLine,
   splitLineInto,
   useConfirmDialog,
@@ -1178,6 +1179,9 @@ function ModifyCard({
   const summaryText = useSectionSummaryText();
   const format = useRfqNumberFormat();
   const [headerNote, setHeaderNote] = useState(rfq.headerNote ?? '');
+  // Issue #1449 (DS-19) — a refused save is said in the save bar, beside "Save revision",
+  // not in the page-top alert the operator has scrolled away from.
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Feature 159 (research N-33) — the line whose *Split line* dialog is open.
   const [splitting, setSplitting] = useState<string | null>(null);
   // Feature 159 — the grouping draft. A stored group's key is its id (a valid
@@ -1295,11 +1299,12 @@ function ModifyCard({
   const save = async (): Promise<boolean> => {
     setBusy(true);
     setError(null);
+    setSaveError(null);
     setInfo(null);
     try {
       // Feature 159 — a group needs a name; the field says so too.
       if (groups.some((group) => group.name.trim() === '')) {
-        setError(tGroups('lineGroups.nameRequired'));
+        setSaveError(tGroups('lineGroups.nameRequired'));
         setBusy(false);
         return false;
       }
@@ -1330,7 +1335,7 @@ function ModifyCard({
           ...(sendGroups ? { groupKey: l.groupKey !== null && known.has(l.groupKey) ? l.groupKey : null } : {}),
         }));
       if (items.length === 0) {
-        setError(t('rfq.detail.modify.error.atLeastOneLine'));
+        setSaveError(t('rfq.detail.modify.error.atLeastOneLine'));
         setBusy(false);
         return false;
       }
@@ -1339,7 +1344,7 @@ function ModifyCard({
       // deadline would have been told nothing.
       const typedDays = expiresInDays.trim();
       if (isValidityDaysInvalid(typedDays, new Date())) {
-        setError(t('rfq.detail.validity.error.days'));
+        setSaveError(t('rfq.detail.validity.error.days'));
         setBusy(false);
         validityInputRef.current?.focus();
         return false;
@@ -1369,7 +1374,7 @@ function ModifyCard({
       await onSaved();
       return true;
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.modify.error.save'));
+      setSaveError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.modify.error.save'));
       return false;
     } finally {
       setBusy(false);
@@ -1726,11 +1731,18 @@ function ModifyCard({
             {t('rfq.detail.modify.addLine')}
           </Button>
         </div>
-        <div>
-          <Button onClick={(): void => void save()} disabled={busy}>
-            {t('rfq.detail.modify.saveRevision')}
-          </Button>
-        </div>
+        {/* Issue #1449 (DS-19) — the one Save stays in view over a long list of lines. */}
+        <StickyFormActions
+          desktop="sticky"
+          dirty={dirty}
+          error={saveError}
+          note={t('rfq.detail.modify.notifiesCustomer')}
+          primary={
+            <Button onClick={(): void => void save()} disabled={busy} aria-busy={busy || undefined}>
+              {t('rfq.detail.modify.saveRevision')}
+            </Button>
+          }
+        />
       </div>
     </Section>
   );
