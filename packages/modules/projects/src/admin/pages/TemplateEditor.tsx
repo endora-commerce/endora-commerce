@@ -436,7 +436,6 @@ export function TemplateEditor(): ReactNode {
     <>
       <PageHeader
         title={isNew ? t('templates.editor.titleNew') : graph.name || t('templates.editor.titleNew')}
-        description={t('templates.editor.intro')}
         back={{ label: t('templates.editor.back'), to: LIST_PATH }}
         titleActions={graph.archivedAt ? <Badge variant="secondary">{t('templates.list.archived')}</Badge> : undefined}
         actions={
@@ -494,7 +493,6 @@ export function TemplateEditor(): ReactNode {
 
         <Card>
           <CardContent className="space-y-5">
-            <p className="text-xs text-muted-foreground">{t('create.requiredHint')}</p>
             <div className="space-y-1">
               <Label htmlFor="template-name">
                 {t('templates.editor.name')}
@@ -531,11 +529,8 @@ export function TemplateEditor(): ReactNode {
               </p>
             </div>
             {offeredRoles.length > 0 ? (
-              <fieldset aria-describedby="template-roles-hint">
+              <fieldset>
                 <legend className="text-sm font-medium">{t('templates.editor.roles')}</legend>
-                <p id="template-roles-hint" className="text-xs text-muted-foreground">
-                  {t('templates.editor.rolesHint')}
-                </p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                   {offeredRoles.map((role) => {
                     const checkboxId = `template-role-${role.id}`;
@@ -564,14 +559,11 @@ export function TemplateEditor(): ReactNode {
 
         <Card>
           <CardContent>
-            <fieldset className="space-y-3" aria-describedby="template-stages-hint">
+            <fieldset className="space-y-3">
               <legend className="text-base font-semibold">
                 {t('templates.editor.stages')}
                 {required}
               </legend>
-              <p id="template-stages-hint" className="text-sm text-muted-foreground">
-                {t('templates.editor.stagesHint')}
-              </p>
               {/* Rows divided by a rule, not a box each (issue #1437, WORK-04). */}
               <ol className="divide-y divide-border">
                 {graph.stages.map((row, index) => {

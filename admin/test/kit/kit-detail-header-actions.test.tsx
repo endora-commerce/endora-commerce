@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   DetailHeaderActions,
   RowActionMenuItem,
   RowActionMenuSeparator,
+  useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import { renderWithI18n } from '../helpers/render-with-i18n';
@@ -152,5 +153,68 @@ describe('DetailHeaderActions — accessibility', () => {
     // axe reports against the page around the menu rather than the menu.
     const menu = await screen.findByRole('menu');
     await expectNoAxeViolations(menu);
+  });
+});
+
+/**
+ * Issue #1497 (SALES-12) — the order and RFQ headers put their destructive and
+ * long-tail entries into this menu, and several of them open a dialog.
+ */
+function ConfirmingHeader(props: { onAnswer: (ok: boolean) => void }): React.ReactNode {
+  const { confirm, confirmDialog } = useConfirmDialog();
+  return (
+    <>
+      <DetailHeaderActions primary={<Button type="button">Approve</Button>}>
+        <RowActionMenuItem
+          destructive
+          onSelect={(): void => {
+            void confirm({ title: 'Delete it?', message: 'Gone for good.', destructive: true }).then(props.onAnswer);
+          }}
+        >
+          Delete
+        </RowActionMenuItem>
+      </DetailHeaderActions>
+      {confirmDialog}
+    </>
+  );
+}
+
+describe('DetailHeaderActions — an entry that opens a dialog', () => {
+  it('leaves focus in the dialog and returns it to "More" when the dialog closes', async () => {
+    const user = userEvent.setup();
+    const onAnswer = vi.fn();
+    renderWithI18n(<ConfirmingHeader onAnswer={onAnswer} />, EN);
+
+    const trigger = screen.getByRole('button', { name: MORE_EN });
+    await user.click(trigger);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+
+    const dialog = await screen.findByRole('dialog');
+    // Radix hands focus back to the trigger after the menu has closed; the
+    // dialog the entry opened must not lose it to the trigger behind its scrim.
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(onAnswer).toHaveBeenCalledWith(false);
+    expect(trigger).toHaveFocus();
+  });
+});
+
+describe('DetailHeaderActions — while an entry runs', () => {
+  it('`moreBusy` disables the trigger and marks it busy, keeping its label', () => {
+    renderWithI18n(
+      <DetailHeaderActions moreBusy>
+        <RowActionMenuItem>Duplicate</RowActionMenuItem>
+      </DetailHeaderActions>,
+      EN,
+    );
+    const trigger = screen.getByRole('button', { name: MORE_EN });
+    expect(trigger).toBeDisabled();
+    expect(trigger).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('is not busy by default', () => {
+    renderWithI18n(<Header />, EN);
+    expect(screen.getByRole('button', { name: MORE_EN })).not.toHaveAttribute('aria-busy');
   });
 });

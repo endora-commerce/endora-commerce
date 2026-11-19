@@ -169,14 +169,17 @@ describe('the quote request screen', () => {
 
   it('offers Export PDF and Send PDF to customer while document templates and e-mails are present', async () => {
     renderDetail(['quote_requests', 'document_templates', 'transactional_emails']);
-    expect(await screen.findByRole('button', { name: 'Export PDF' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Send PDF to customer' })).toBeTruthy();
+    // In the header's "More" menu since #1497 (SALES-12).
+    fireEvent.pointerDown(await screen.findByRole('button', { name: /common\.action\.more|^More$/ }), { button: 0, ctrlKey: false });
+    expect(await screen.findByRole('menuitem', { name: 'Export PDF' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Send PDF to customer' })).toBeTruthy();
   });
 
   it('offers no send while the transactional e-mails are absent, and still the export (FR-099)', async () => {
     renderDetail(['quote_requests', 'document_templates']);
-    expect(await screen.findByRole('button', { name: 'Export PDF' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Send PDF to customer' })).toBeNull();
+    fireEvent.pointerDown(await screen.findByRole('button', { name: /common\.action\.more|^More$/ }), { button: 0, ctrlKey: false });
+    expect(await screen.findByRole('menuitem', { name: 'Export PDF' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: 'Send PDF to customer' })).toBeNull();
   });
 
   it('offers neither while document templates are absent (FR-060)', async () => {

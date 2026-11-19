@@ -72,8 +72,8 @@ export function TaskComments(props: {
         copy={{
           title: t('detail.comments'),
           empty: t('comments.empty'),
-          // The @ sentence is about the form: a reader without one is not told to type (T095).
-          hint: canComment ? t('comments.hint') : t('comments.hintReadOnly'),
+          // Who reads the thread is the one rule the screen does not show (UX audit WORK-11).
+          hint: t('comments.hintReadOnly'),
           composerLabel: t('comments.composer.label'),
           composerPlaceholder: t('comments.composer.placeholder'),
           composerSubmit: t('comments.composer.submit'),

@@ -657,8 +657,12 @@ Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
   (keyboard, typeahead, focus returned on Escape, never clipped). The trigger is an `outline` button
   with a **visible** label — `core`'s `common.action.more` ("More" / "Więcej") unless `moreLabel` is
   given — so its accessible name is the word on screen (WCAG 2.5.3), and it is **not rendered** when
-  every entry is conditional and off. `moreDisabled` + `moreTitle` disable it with a reason. The
-  group renders nothing when it has no action, and carries `data-slot="detail-header-actions"`.
+  every entry is conditional and off. `moreDisabled` + `moreTitle` disable it with a reason;
+  `moreBusy` disables it, marks it `aria-busy` and shows a spinner while an entry it started runs
+  (Doherty). An entry that opens a dialog runs only once the menu has given focus back to the
+  trigger, as in `RowActionMenu`, so the dialog keeps focus and returns it to "More". The group
+  renders nothing when it has no action, and carries `data-slot="detail-header-actions"`. The order
+  and quote-request detail headers use it (#1497).
 
 The component is pinned in `admin/test/kit/kit-detail-header-actions.test.tsx`, including an axe pass
 closed and open. The rule is also § Von Restorff of `.claude/skills/ux-laws/SKILL.md`.

@@ -21,9 +21,12 @@ import { apiClient, ApiError, cn, formatDateTime, isDraftEqual, readReturnTo, us
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, Input, Label, PageHeader, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldValuesPanel,
+  DetailHeaderActions,
   LineGroupsEditor,
   ModalDialog,
   ProductPicker,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
   SplitLineDialog,
   canSplitLine,
   splitLineInto,
@@ -298,8 +301,16 @@ export function RfqDetail(): ReactNode {
   const currentPrices = useCurrentPrices(rfq);
 
 
+  // Issue #1497 (SALES-12) — confirmed first: approving locks the agreed prices
+  // and notifies the customer, and it is not undone from this screen.
   const approve = async (): Promise<void> => {
     if (!rfq) return;
+    const ok = await confirm({
+      title: t('rfq.detail.approveConfirm.title', { id: rfq.businessId ?? rfq.id.slice(0, 8) }),
+      message: t('rfq.detail.approveConfirm.message'),
+      confirmLabel: t('rfq.detail.approve'),
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     setInfo(null);
@@ -437,88 +448,88 @@ export function RfqDetail(): ReactNode {
   };
 
   // Action buttons live in the PageHeader's top-right slot — mirroring the
-  // Order detail view — rather than in an in-body status row.
+  // Order detail view — rather than in an in-body status row. Issue #1497
+  // (SALES-12): one primary per view (`DetailHeaderActions`). The next step of
+  // the status is the one filled button — Approve on a Pending request, Prepare
+  // the customer's basket on an Approved one — and every other status has none
+  // (Von Restorff). The PDFs and Cancel are the long tail, in "More", Cancel
+  // last and set apart from the rest (Hick; Fitts: distance, not proximity).
   //
-  // Both are disabled past the deadline, because both can now only answer 410:
-  // convert-to-order is refused outright, and approving moves a lapsed request
-  // into `Approved`, which `modify` refuses — so the deadline could never be
-  // moved afterwards and the quote would be unusable by either party. The
-  // banner below carries the reason and the remedy; a disabled button cannot.
-  const headerActions: ReactNode[] = [];
+  // Approve and Prepare basket are disabled past the deadline, because both can
+  // now only answer 410: convert-to-order is refused outright, and approving
+  // moves a lapsed request into `Approved`, which `modify` refuses — so the
+  // deadline could never be moved afterwards and the quote would be unusable by
+  // either party. The banner below carries the reason and the remedy; a
+  // disabled button cannot.
+  //
   // While the Modify draft is unsaved, Approve, Convert and the PDF would act on
   // the stored revision, not on what the operator sees: they wait, and say why.
   const draftBlocked = draftOpen
     ? { 'aria-describedby': DRAFT_NOTE_ID, title: t('rfq.detail.modify.unsaved.blocked') }
     : {};
+  const busyMarker = busy ? { 'aria-busy': true } : {};
+  let primaryAction: ReactNode = null;
   if (rfq.status === 'Pending') {
-    headerActions.push(
+    primaryAction = (
       <Button
-        key="approve"
-        variant="outline"
-        size="sm"
-        className="bg-card"
         onClick={(): void => void approve()}
         disabled={busy || validityLapsed || draftOpen}
+        {...busyMarker}
         {...draftBlocked}
       >
-        <Check />
+        {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <Check aria-hidden="true" />}
         {t('rfq.detail.approve')}
-      </Button>,
+      </Button>
     );
   }
   if (rfq.status === 'Approved') {
-    headerActions.push(
+    primaryAction = (
       <Button
-        key="convert"
-        variant="outline"
-        size="sm"
-        className="bg-card"
         onClick={(): void => void convert()}
         disabled={busy || validityLapsed || draftOpen}
+        {...busyMarker}
         {...draftBlocked}
       >
-        <FileText />
+        {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <FileText aria-hidden="true" />}
         {t('rfq.detail.convert.placeOrder')}
-      </Button>,
+      </Button>
     );
   }
   // Feature 153 — every state of the quote (owner answer Q3); only while the
   // document templates facility is present (FR-060), and the send only while
   // the transactional e-mails are too (FR-099).
-  if (isPresent('document_templates')) {
-    headerActions.push(
-      <Button key="pdf-export" variant="outline" size="sm" className="bg-card" onClick={(): void => setPdfMode('download')} disabled={busy || draftOpen} {...draftBlocked}>
-        <FileDown />
-        {tPdf('pdf.export')}
-      </Button>,
-    );
-    if (isPresent('transactional_emails')) {
-      headerActions.push(
-        <Button key="pdf-send" variant="outline" size="sm" className="bg-card" onClick={(): void => setPdfMode('send')} disabled={busy || draftOpen} {...draftBlocked}>
-          <Send />
+  const pdfPresent = isPresent('document_templates');
+  const pdfSendPresent = pdfPresent && isPresent('transactional_emails');
+  const draftBlockedTitle = draftOpen ? t('rfq.detail.modify.unsaved.blocked') : undefined;
+  const headerActions = (
+    <DetailHeaderActions primary={primaryAction} moreDisabled={busy}>
+      {pdfPresent ? (
+        <RowActionMenuItem onSelect={(): void => setPdfMode('download')} disabled={draftOpen} title={draftBlockedTitle}>
+          <FileDown aria-hidden="true" />
+          {tPdf('pdf.export')}
+        </RowActionMenuItem>
+      ) : null}
+      {pdfSendPresent ? (
+        <RowActionMenuItem onSelect={(): void => setPdfMode('send')} disabled={draftOpen} title={draftBlockedTitle}>
+          <Send aria-hidden="true" />
           {tPdf('pdf.send')}
-        </Button>,
-      );
-    }
-  }
-  if (!isTerminal) {
-    headerActions.push(
-      <Button
-        key="cancel"
-        variant="outline"
-        size="sm"
-        className="bg-card border-destructive/40 text-destructive hover:bg-destructive/10"
-        onClick={(): void => {
-          setError(null);
-          setCancelOpen(true);
-        }}
-        disabled={busy}
-      >
-        <XCircle />
-        {t('rfq.detail.cancelRfq')}
-      </Button>,
-    );
-  }
+        </RowActionMenuItem>
+      ) : null}
+      {!isTerminal && pdfPresent ? <RowActionMenuSeparator /> : null}
+      {!isTerminal ? (
+        <RowActionMenuItem
+          destructive
+          onSelect={(): void => {
+            setError(null);
+            setCancelOpen(true);
+          }}
+        >
+          <XCircle aria-hidden="true" />
+          {t('rfq.detail.cancelRfq')}
+        </RowActionMenuItem>
+      ) : null}
+    </DetailHeaderActions>
+  );
 
   return (
     <>
@@ -576,7 +587,7 @@ export function RfqDetail(): ReactNode {
                   : ''}
           </span>
         }
-        actions={headerActions.length > 0 ? headerActions : null}
+        actions={headerActions}
       />
 
       {(error ?? loadError) ? (

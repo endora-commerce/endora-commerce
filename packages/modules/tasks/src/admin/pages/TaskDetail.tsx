@@ -810,18 +810,7 @@ function TaskEditForm(props: TaskEditFormProps): ReactNode {
           // A private Task is its Creator's alone (FR-038): no picker of other people.
           <p className="text-sm text-muted-foreground">{t('create.privateAssignee')}</p>
         ) : (
-          <>
-            <AssigneePicker
-              id={ids.assignee}
-              value={assignees}
-              onChange={setAssignees}
-              taskId={task.id}
-              ariaDescribedBy={`${ids.assignee}-hint`}
-            />
-            <p id={`${ids.assignee}-hint`} className="text-xs text-muted-foreground">
-              {t('field.assigneeHint')}
-            </p>
-          </>
+          <AssigneePicker id={ids.assignee} value={assignees} onChange={setAssignees} taskId={task.id} />
         )}
       </div>
       <div className="flex flex-wrap gap-2 border-t pt-3">

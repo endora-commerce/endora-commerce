@@ -9,7 +9,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   PageHeader,
@@ -81,7 +80,6 @@ export function TaskTagsPage(): ReactNode {
   const header = (
     <PageHeader
       title={t('tags.title')}
-      description={t('tags.description')}
       back={{ label: t('settings.back'), to: TASK_WORKFLOW_PATH }}
     />
   );
@@ -116,7 +114,6 @@ export function TaskTagsPage(): ReactNode {
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
             <CardTitle>{t('tags.list.title')}</CardTitle>
-            <CardDescription>{t('tags.list.description')}</CardDescription>
           </div>
           {tags.length > 0 ? (
             <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>

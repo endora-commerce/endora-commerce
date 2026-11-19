@@ -1892,6 +1892,8 @@
   "returns.title": "Returns / RMA",
   "rfq.detail.actions": "Actions",
   "rfq.detail.approve": "Approve",
+  "rfq.detail.approveConfirm.message": "Approving locks the agreed prices and notifies the customer, who can then convert the quote into an order.",
+  "rfq.detail.approveConfirm.title": "Approve quote request {id}?",
   "rfq.detail.approveDescription": "Approving locks the agreed prices and lets the customer convert the quote into an order.",
   "rfq.detail.backToList": "Back to list",
   "rfq.detail.badge.awaitingRevision": "Awaiting customer acceptance of revision",

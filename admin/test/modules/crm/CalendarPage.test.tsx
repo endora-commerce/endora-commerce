@@ -354,10 +354,10 @@ describe('CalendarPage — its entries', () => {
     expect(writeSpy).not.toHaveBeenCalled();
   });
 
-  it('has one first-level heading, and names the page', async () => {
+  it('has one first-level heading, and names the page without restating it (UX audit WORK-11)', async () => {
     await renderPage();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByText(en('calendar.description'))).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: en('calendar.title') })).toBeInTheDocument();
   });
 });
 

@@ -108,7 +108,8 @@ describe('TaskDetail — comments (US4)', () => {
     expect(within(items[0]!).getByRole('link', { name: /PRJ-000007/ })).toHaveAttribute('href', `/projects/${PROJECT_ID}`);
     expect(items[1]).toHaveTextContent('Thanks!');
     expect(items[2]).toHaveTextContent(core('comments.removedEntry'));
-    expect(within(section).getByText(en('comments.hint'))).toBeInTheDocument();
+    // One line on who reads the thread, for writer and reader alike (UX audit WORK-11).
+    expect(within(section).getByText(en('comments.hintReadOnly'))).toBeInTheDocument();
     // A comment's time is written as every date on the Tasks screens is (T095).
     expect(within(items[0]!).getByText(new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date('2026-10-21T10:00:00.000Z')))).toBeInTheDocument();
   });
@@ -206,8 +207,6 @@ describe('TaskDetail — comments (US4)', () => {
     const items = await entries(section);
     expect(within(section).queryByLabelText(en('comments.composer.label'))).toBeNull();
     expect(within(items[0]!).queryByRole('button')).toBeNull();
-    // No form, so no "Type @ to mention someone" either (T095).
-    expect(within(section).queryByText(en('comments.hint'))).toBeNull();
     expect(within(section).getByText(en('comments.hintReadOnly'))).toBeTruthy();
   });
 });

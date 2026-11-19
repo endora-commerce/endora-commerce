@@ -151,7 +151,7 @@ describe('ProductsList — the Archived filter (FR-113)', () => {
     renderList();
     await screen.findByText('Oak chair');
 
-    expect(screen.getAllByRole('tab').map((el) => el.textContent)).toEqual(['All2', 'Active1', 'Inactive1', 'Archived2']);
+    expect(screen.getAllByRole('tab').map((el) => el.textContent)).toEqual(['All 2', 'Active 1', 'Inactive 1', 'Archived 2']);
     expect(screen.queryByRole('tab', { name: /^Draft/ })).toBeNull();
     expect(tab('All')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Pine desk')).toBeInTheDocument();
@@ -302,13 +302,13 @@ describe('ProductsList — the Archived filter (FR-113)', () => {
     expect(screen.queryByRole('button', { name: t('productsList.empty.searchArchived') })).toBeNull();
   });
 
+  // Issue #1491: the kit's strip, one tab stop and the arrows between tabs (WAI-ARIA tabs).
   it('the tabs are keyboard reachable', async () => {
     const user = renderList();
     await screen.findByText('Oak chair');
-    tab('Inactive').focus();
-    await user.keyboard('{Tab}');
+    tab('All').focus();
+    await user.keyboard('{End}');
     expect(document.activeElement).toBe(tab('Archived'));
-    await user.keyboard('{Enter}');
     await waitFor(() => expect(listRequests().at(-1)!.get('archived')).toBe('only'));
   });
 });

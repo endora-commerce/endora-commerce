@@ -226,8 +226,6 @@ export function StageEditor(props: StageEditorProps): ReactNode {
 
   return (
     <div className="space-y-6">
-      {canWrite ? <p className="text-sm text-muted-foreground">{t('editor.hint')}</p> : null}
-
       {/* One rule between stages, not a box around each: a frame inside the tab's card is a
           defect unless it is a field (issue #1437, WORK-01). */}
       <ol className="divide-y divide-border">
@@ -556,6 +554,7 @@ export function StageFields(props: StageFieldsProps): ReactNode {
               id={`${idPrefix}-alerts`}
               value={draft.alerts}
               inputMode="numeric"
+              placeholder="7, 1"
               aria-invalid={alertsInvalid}
               aria-describedby={`${idPrefix}-alerts-hint`}
               onChange={(event): void => onChange({ alerts: event.target.value })}
@@ -666,10 +665,7 @@ export function StageWorkflow(props: StageWorkflowProps): ReactNode {
 
   return (
     <section className="space-y-3">
-      <div className="space-y-1">
-        <h3 className="text-base font-semibold">{t('editor.moves')}</h3>
-        <p className="text-sm text-muted-foreground">{t('editor.movesHint')}</p>
-      </div>
+      <h3 className="text-base font-semibold">{t('editor.moves')}</h3>
       {unreachable.length > 0 ? (
         <Alert>
           <AlertDescription>{t('editor.unreachable', { stages: unreachable.join(', ') })}</AlertDescription>

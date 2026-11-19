@@ -9,6 +9,7 @@
   "productsList.tab.active": "Active",
   "productsList.tab.inactive": "Inactive",
   "productsList.tab.archived": "Archived",
+  "productsList.tabs.label": "Products by status",
   "productsList.status.active": "Active",
   "productsList.status.inactive": "Inactive",
   "productsList.status.archived": "Archived",

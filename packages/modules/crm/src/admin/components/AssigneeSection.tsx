@@ -72,7 +72,6 @@ export function AssigneeSection(props: AssigneeSectionProps): ReactNode {
             placeholder={t('assignment.picker.placeholder')}
             emptyMessage={t('assignment.picker.empty')}
           />
-          <p className="text-xs text-muted-foreground">{t('assignment.changeHint')}</p>
         </div>
       ) : null}
       {error ? (

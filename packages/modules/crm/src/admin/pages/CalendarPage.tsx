@@ -146,7 +146,7 @@ export function CalendarPage(): ReactNode {
 
   return (
     <>
-      <PageHeader title={t('calendar.title')} description={t('calendar.description')} />
+      <PageHeader title={t('calendar.title')} />
       <Card className="min-w-0">
         <CardContent>
           <EventCalendar

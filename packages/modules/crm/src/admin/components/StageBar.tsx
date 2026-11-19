@@ -248,25 +248,16 @@ export function StageBar(props: StageBarProps): ReactNode {
       ) : transitions.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('opportunity.status.none')}</p>
       ) : (
-        <>
-          <p className="text-xs text-muted-foreground">
-            {t('opportunity.stage.hint')}
-          </p>
-          <div className="max-w-xl space-y-1">
-            <Label htmlFor={reasonId}>{t('opportunity.status.reason')}</Label>
-            <Input
-              id={reasonId}
-              value={reason}
-              maxLength={2000}
-              disabled={movingTo !== null}
-              aria-describedby={`${reasonId}-hint`}
-              onChange={(event): void => setReason(event.target.value)}
-            />
-            <p id={`${reasonId}-hint`} className="text-xs text-muted-foreground">
-              {t('opportunity.status.reasonHint')}
-            </p>
-          </div>
-        </>
+        <div className="max-w-xl space-y-1">
+          <Label htmlFor={reasonId}>{t('opportunity.status.reason')}</Label>
+          <Input
+            id={reasonId}
+            value={reason}
+            maxLength={2000}
+            disabled={movingTo !== null}
+            onChange={(event): void => setReason(event.target.value)}
+          />
+        </div>
       )}
 
       {error ? (

@@ -203,7 +203,6 @@ export function OpportunityCreatePage(): ReactNode {
     <>
       <PageHeader
         title={t('opportunity.create.title')}
-        description={t('opportunity.create.description')}
         back={{ label: t('opportunity.detail.back'), to: '/crm/opportunities' }}
       />
 
@@ -236,8 +235,6 @@ export function OpportunityCreatePage(): ReactNode {
                 {linksAnOrder ? t('orderPanel.createForm.hint') : t('orderPanel.createForm.hintQuoteRequest')}
               </p>
             ) : null}
-
-            <p className="text-xs text-muted-foreground">{t('opportunity.create.requiredHint')}</p>
 
             <div className="space-y-1">
               <Label htmlFor="crm-create-title">

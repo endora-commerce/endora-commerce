@@ -71,6 +71,7 @@ const BUNDLE = passthroughBundle('core', [
   'orderDetail.comments.internal',
   'orderDetail.reorder.action',
   'orderDetail.cloneToQuote.action',
+  'common.action.more',
 ]);
 // The comment box's label is the orders module's own copy (#1475).
 const ORDERS_BUNDLE = shippedModuleBundle('orders', 'en');
@@ -137,10 +138,14 @@ describe('OrderDetail — comments', () => {
   it('reorder and clone-to-quote actions hit their endpoints', async () => {
     postSpy.mockResolvedValue({ data: { unavailableItems: [], quoteRequestId: 'q1' } });
     renderDetail();
-    await waitFor(() => expect(screen.getByText('orderDetail.reorder.action')).toBeInTheDocument());
-    await userEvent.click(screen.getByText('orderDetail.reorder.action'));
+    // Both live in the header's "More" menu since #1497 (SALES-12).
+    const more = await screen.findByRole('button', { name: 'common.action.more' });
+    await userEvent.click(more);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'orderDetail.reorder.action' }));
     await waitFor(() => expect(postSpy).toHaveBeenCalledWith('/api/v1/admin/orders/o1/reorder', {}));
-    await userEvent.click(screen.getByText('orderDetail.cloneToQuote.action'));
+    await waitFor(() => expect(more).toBeEnabled());
+    await userEvent.click(more);
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'orderDetail.cloneToQuote.action' }));
     await waitFor(() => expect(postSpy).toHaveBeenCalledWith('/api/v1/admin/orders/o1/clone-to-quote', {}));
   });
 });
