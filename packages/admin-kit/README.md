@@ -906,6 +906,12 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   (DS-15, #1448, the kit `EmptyState`). Both slot into `toolbar` and `emptyState` when they land.
 - Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
   adopters are `CustomersList`, `OrganizationsList` and `CartsList`.
+- **A value edited from the row** (issue #1501, SHELL-14) is a `StatusChangeControl` with
+  `labelVisuallyHidden`, not a `<select>` that saves on `change`: the column header already names
+  it, so the label stays the button's accessible name without being drawn on every row. The Users
+  list's role column is the first; the five SHELL-14 lists (Users, API keys, Webhooks, Taxes,
+  Setting groups) are the pattern's next adopters, API keys and Webhooks with their create form on
+  a `/new` route because it ends on a one-time secret.
 
 ## Board cards — `BoardCardFieldsEditor`
 

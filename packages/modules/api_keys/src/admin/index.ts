@@ -1,5 +1,5 @@
 /**
- * `api_keys`' admin surface — one route and one sidebar entry, declared by the
+ * `api_keys`' admin surface — two routes and one sidebar entry, declared by the
  * module that owns them (feature 091, Phase 4, the plan's batch 6;
  * `specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md`).
  *
@@ -34,8 +34,10 @@
  */
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 
-/** The module's only route: issuing, binding and revoking machine keys. */
-const ROUTE_PATH = '/api-keys';
+import { API_KEYS_NEW_PATH, API_KEYS_PATH } from './paths.js';
+
+/** The list: binding and revoking machine keys. */
+const ROUTE_PATH = API_KEYS_PATH;
 
 /**
  * The code every route of this module's admin API enforces —
@@ -53,6 +55,14 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/ApiKeysPage.js'),
       requiredPermission: PERMISSION,
       index: true,
+    },
+    {
+      // Issuing a key (issue #1501, UX audit SHELL-14): the form that was drawn
+      // open above the list, reached from its *New API key*. Same gate — the
+      // create route enforces the same code as the list.
+      path: API_KEYS_NEW_PATH,
+      component: () => import('./pages/ApiKeyCreatePage.js'),
+      requiredPermission: PERMISSION,
     },
   ],
   nav: [
