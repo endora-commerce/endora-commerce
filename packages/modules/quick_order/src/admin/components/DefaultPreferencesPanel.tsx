@@ -12,10 +12,7 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+  EditorSection,
   Label,
   Select,
 } from '@endora-commerce/admin-kit/ui';
@@ -289,77 +286,72 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
   const shippingAddresses = addresses.filter((a) => a.kind === 'delivery');
 
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle>{t('defaultPreferences.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-xs text-muted-foreground">{t('defaultPreferences.description')}</p>
+    <EditorSection title={t('defaultPreferences.title')} className="mb-4" contentClassName="space-y-4">
+      <p className="text-xs text-muted-foreground">{t('defaultPreferences.description')}</p>
 
-        {shownError ? (
-          <Alert variant="destructive">
-            <AlertDescription>{shownError}</AlertDescription>
-          </Alert>
-        ) : null}
-        {info && !inSession ? (
-          <Alert variant="success">
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
+      {shownError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{shownError}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info && !inSession ? (
+        <Alert variant="success">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
-        ) : (
-          <>
-            <div className="grid gap-4 md:grid-cols-2">
-              <PrefSelect
-                id="pref-payment"
-                label={t('defaultPreferences.paymentMethod')}
-                emptyLabel={emptyLabel}
-                value={values.payment}
-                options={paymentMethods}
-                onChange={(value): void => change('payment', value)}
-                disabled={participant.status === 'saving'}
-              />
-              <PrefSelect
-                id="pref-delivery"
-                label={t('defaultPreferences.deliveryMethod')}
-                emptyLabel={emptyLabel}
-                value={values.delivery}
-                options={deliveryMethods}
-                onChange={(value): void => change('delivery', value)}
-                disabled={participant.status === 'saving'}
-              />
-              <PrefSelect
-                id="pref-billing"
-                label={t('defaultPreferences.billingAddress')}
-                emptyLabel={emptyLabel}
-                value={values.billing}
-                options={billingAddresses}
-                onChange={(value): void => change('billing', value)}
-                disabled={participant.status === 'saving'}
-              />
-              <PrefSelect
-                id="pref-shipping"
-                label={t('defaultPreferences.shippingAddress')}
-                emptyLabel={emptyLabel}
-                value={values.shipping}
-                options={shippingAddresses}
-                onChange={(value): void => change('shipping', value)}
-                disabled={participant.status === 'saving'}
-              />
+      {loading ? (
+        <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2">
+            <PrefSelect
+              id="pref-payment"
+              label={t('defaultPreferences.paymentMethod')}
+              emptyLabel={emptyLabel}
+              value={values.payment}
+              options={paymentMethods}
+              onChange={(value): void => change('payment', value)}
+              disabled={participant.status === 'saving'}
+            />
+            <PrefSelect
+              id="pref-delivery"
+              label={t('defaultPreferences.deliveryMethod')}
+              emptyLabel={emptyLabel}
+              value={values.delivery}
+              options={deliveryMethods}
+              onChange={(value): void => change('delivery', value)}
+              disabled={participant.status === 'saving'}
+            />
+            <PrefSelect
+              id="pref-billing"
+              label={t('defaultPreferences.billingAddress')}
+              emptyLabel={emptyLabel}
+              value={values.billing}
+              options={billingAddresses}
+              onChange={(value): void => change('billing', value)}
+              disabled={participant.status === 'saving'}
+            />
+            <PrefSelect
+              id="pref-shipping"
+              label={t('defaultPreferences.shippingAddress')}
+              emptyLabel={emptyLabel}
+              value={values.shipping}
+              options={shippingAddresses}
+              onChange={(value): void => change('shipping', value)}
+              disabled={participant.status === 'saving'}
+            />
+          </div>
+          {inSession ? null : (
+            <div className="flex justify-end">
+              <Button onClick={(): void => void save()} disabled={busy}>
+                {t('defaultPreferences.save')}
+              </Button>
             </div>
-            {inSession ? null : (
-              <div className="flex justify-end">
-                <Button onClick={(): void => void save()} disabled={busy}>
-                  {t('defaultPreferences.save')}
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </>
+      )}
+    </EditorSection>
   );
 }
 

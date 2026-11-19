@@ -226,9 +226,11 @@ export function StageEditor(props: StageEditorProps): ReactNode {
 
   return (
     <div className="space-y-6">
-      <ol className="space-y-3">
+      {/* One rule between stages, not a box around each: a frame inside the tab's card is a
+          defect unless it is a field (issue #1437, WORK-01). */}
+      <ol className="divide-y divide-border">
         {stages.map((stage, index) => (
-          <li key={`${stage.id}:${JSON.stringify(stage)}`}>
+          <li key={`${stage.id}:${JSON.stringify(stage)}`} className="py-4 first:pt-0 last:pb-0">
             <StageRow
               stage={stage}
               position={index + 1}
@@ -342,7 +344,7 @@ function StageRow(props: StageRowProps): ReactNode {
 
   if (!canWrite) {
     return (
-      <div className="space-y-1 rounded-md border p-3 text-sm">
+      <div className="space-y-1 text-sm">
         {header}
         <p className="text-muted-foreground">
           {stage.plannedDurationDays} {t('stage.durationShort').toLowerCase()}
@@ -371,7 +373,7 @@ function StageRow(props: StageRowProps): ReactNode {
   };
 
   return (
-    <div className="space-y-3 rounded-md border p-3">
+    <div className="space-y-3">
       {header}
       {deadline}
       {props.tasksPresent && stage.tasksMaterializeFailed ? (

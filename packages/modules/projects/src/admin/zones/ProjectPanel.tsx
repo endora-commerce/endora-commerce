@@ -1,8 +1,8 @@
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { ProjectPanelRecordKind, ProjectSummary } from '@endora-commerce/contracts';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
+import { EditorSection } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../api.js';
 import { StageDot } from '../components/StageDot.js';
@@ -38,7 +38,6 @@ const NO_PROJECT = new Set([403, 404, 503]);
 export function ProjectPanel({ kind, recordId }: ProjectPanelProps): ReactNode {
   const t = useTranslation('projects');
   const { language } = useAppLanguage();
-  const headingId = useId();
   const [state, setState] = useState<State>({ phase: 'loading' });
 
   useEffect(() => {
@@ -61,57 +60,52 @@ export function ProjectPanel({ kind, recordId }: ProjectPanelProps): ReactNode {
   if (state.phase === 'loading' || state.phase === 'none') return null;
 
   return (
-    <section aria-labelledby={headingId} className="mt-4">
-      <Card>
-        <CardHeader>
-          <CardTitle id={headingId}>
-            {t('panel.title')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {state.phase === 'failed' ? (
-            <p role="alert" className="text-destructive">
-              {t('panel.error')}
-            </p>
-          ) : (
-            <>
-              <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <Link
-                  to={`/projects/${state.project.id}`}
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {state.project.number}
-                </Link>
-                <span className="min-w-0 [overflow-wrap:anywhere]">{state.project.title}</span>
-                <StateBadge state={state.project.state} />
-              </p>
-              <dl>
-                <dt className="text-muted-foreground">{t('panel.stage')}</dt>
-                <dd className="flex flex-wrap items-center gap-x-2">
-                  {state.project.currentStage ? (
-                    <>
-                      <StageDot color={state.project.currentStage.color} />
-                      <span>{state.project.currentStage.name}</span>
-                      {state.project.currentStage.deadlineOn ? (
-                        <span
-                          className={
-                            state.project.currentStage.overdue ? 'font-medium text-destructive' : 'text-muted-foreground'
-                          }
-                        >
-                          {t('panel.deadline', { date: calendarDateLabel(state.project.currentStage.deadlineOn, language) })}
-                          {state.project.currentStage.overdue ? ` · ${t('list.overdue')}` : null}
-                        </span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">{t('panel.closed')}</span>
-                  )}
-                </dd>
-              </dl>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </section>
+    <EditorSection
+      title={t('panel.title')}
+      className="mt-4"
+      contentClassName="space-y-3 text-sm"
+    >
+      {state.phase === 'failed' ? (
+        <p role="alert" className="text-destructive">
+          {t('panel.error')}
+        </p>
+      ) : (
+        <>
+          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <Link
+              to={`/projects/${state.project.id}`}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {state.project.number}
+            </Link>
+            <span className="min-w-0 [overflow-wrap:anywhere]">{state.project.title}</span>
+            <StateBadge state={state.project.state} />
+          </p>
+          <dl>
+            <dt className="text-muted-foreground">{t('panel.stage')}</dt>
+            <dd className="flex flex-wrap items-center gap-x-2">
+              {state.project.currentStage ? (
+                <>
+                  <StageDot color={state.project.currentStage.color} />
+                  <span>{state.project.currentStage.name}</span>
+                  {state.project.currentStage.deadlineOn ? (
+                    <span
+                      className={
+                        state.project.currentStage.overdue ? 'font-medium text-destructive' : 'text-muted-foreground'
+                      }
+                    >
+                      {t('panel.deadline', { date: calendarDateLabel(state.project.currentStage.deadlineOn, language) })}
+                      {state.project.currentStage.overdue ? ` · ${t('list.overdue')}` : null}
+                    </span>
+                  ) : null}
+                </>
+              ) : (
+                <span className="text-muted-foreground">{t('panel.closed')}</span>
+              )}
+            </dd>
+          </dl>
+        </>
+      )}
+    </EditorSection>
   );
 }

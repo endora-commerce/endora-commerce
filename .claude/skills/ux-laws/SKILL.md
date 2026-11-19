@@ -135,6 +135,11 @@ Two hard framing rules before anything else:
 
 - Wrap a coherent unit (a cart line, an address, an order summary) in one card with a single
   padding value — do not fence individual fields inside it.
+- **A frame inside a card is a defect unless it is a field.** One card per editor tab; the
+  groups inside it are sections — a heading, at most one line, a rule between them
+  (`EditorSection` in the admin kit). A list inside a card is rows divided by a rule
+  (`divide-y`), not a bordered box per item. Only an input's own border, a chip or an overlay
+  may draw a frame there; a panel that stands alone on a page takes the card (`chrome="card"`).
 
 ### Law of Similarity
 > Visually similar elements are perceived as sharing a function.

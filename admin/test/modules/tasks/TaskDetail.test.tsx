@@ -429,7 +429,7 @@ describe('TaskDetail — history and the zone', () => {
       resolve(process.cwd(), '../packages/modules/tasks/src/admin/pages/TaskDetail.tsx'),
       'utf8',
     );
-    expect(source).toContain('<AdminZone name="task.detail.after" props={{ taskId: task.id }} />');
+    expect(source).toContain('<AdminZone name="task.detail.after" props={{ taskId: task.id }} chrome="card" />');
     expect(source).not.toMatch(/mod-projects|projects:/);
   });
 });

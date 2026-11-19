@@ -493,13 +493,14 @@ export function ProjectCreate(): ReactNode {
                     {t('create.stages.section')}
                     {required}
                   </legend>
-                  <ol className="space-y-3">
+                  {/* Rows divided by a rule, not a box each (issue #1437). */}
+                  <ol className="divide-y divide-border">
                     {stages.map((row, index) => {
                       const position = index + 1;
                       const nameInvalid = errors.stageName !== undefined && row.name.trim() === '';
                       const durationInvalid = errors.stageDuration !== undefined && parseDuration(row.duration) === null;
                       return (
-                        <li key={row.key} className="flex flex-wrap items-end gap-3 rounded-md border p-3">
+                        <li key={row.key} className="flex flex-wrap items-end gap-3 py-3 first:pt-0 last:pb-0">
                           <span aria-hidden="true" className="min-h-9 pt-2 text-sm font-medium tabular-nums text-muted-foreground">
                             {position}.
                           </span>
@@ -615,12 +616,12 @@ export function ProjectCreate(): ReactNode {
                   {t('create.members.rolesError')}
                 </p>
               ) : null}
-              <ul className="space-y-3">
+              <ul className="divide-y divide-border">
                 {members.map((row, index) => {
                   const position = index + 1;
                   const personId = `project-create-member-${row.key}`;
                   return (
-                    <li key={row.key} className="space-y-2 rounded-md border p-3">
+                    <li key={row.key} className="space-y-2 py-3 first:pt-0 last:pb-0">
                       <div className="flex flex-wrap items-end gap-3">
                         <div className="min-w-56 flex-1 space-y-1">
                           <Label htmlFor={personId}>{t('create.members.person', { position })}</Label>
@@ -722,9 +723,9 @@ function TemplateStages(props: { template: ProjectTemplateDetail; tasksPresent: 
         {t('create.template.stages')}
       </h2>
       <p className="text-sm text-muted-foreground">{t('create.template.stagesHint')}</p>
-      <ol aria-label={t('create.template.stages')} className="space-y-2">
+      <ol aria-label={t('create.template.stages')} className="divide-y divide-border">
         {stages.map((stage, index) => (
-          <li key={stage.id} className="flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm">
+          <li key={stage.id} className="flex flex-wrap items-center gap-2 py-2 text-sm first:pt-0 last:pb-0">
             <span aria-hidden="true" className="font-medium tabular-nums text-muted-foreground">
               {index + 1}.
             </span>

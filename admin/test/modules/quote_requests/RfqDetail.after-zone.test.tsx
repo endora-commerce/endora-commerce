@@ -195,7 +195,7 @@ describe('RfqDetail — the quote_request.detail.after zone', () => {
       resolve(process.cwd(), '../packages/modules/quote_requests/src/admin/pages/RfqDetail.tsx'),
       'utf8',
     );
-    expect(source).toContain('<AdminZone name="quote_request.detail.after" props={{ quoteRequestId: id }} />');
+    expect(source).toContain('<AdminZone name="quote_request.detail.after" props={{ quoteRequestId: id }} chrome="card" />');
     expect(source).not.toMatch(/mod-crm|crm:|opportunit/i);
     const manifest = readFileSync(
       resolve(process.cwd(), '../packages/modules/quote_requests/package.json'),

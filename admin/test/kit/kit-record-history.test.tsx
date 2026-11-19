@@ -65,6 +65,7 @@ const COPY = {
 function History(props: {
   renderLead?: (entry: RecordHistoryEntry) => ReactNode;
   copy?: RecordHistoryCopy;
+  chrome?: 'section' | 'card';
 }): ReactElement {
   const load = useCallback((cursor: string | null) => loadPage(cursor), []);
   const history = useRecordHistory(load, 'v1');
@@ -77,6 +78,7 @@ function History(props: {
       fieldLabel={(field): string => `Label of ${field}`}
       renderValue={(_field, raw): ReactNode => `«${String(raw)}»`}
       {...(props.renderLead ? { renderLead: props.renderLead } : {})}
+      {...(props.chrome ? { chrome: props.chrome } : {})}
     />
   );
 }
@@ -208,5 +210,31 @@ describe('CursorPagination', () => {
     expect(onPrevious).toHaveBeenCalledTimes(1);
     await userEvent.selectOptions(within(nav).getByRole('combobox'), String(sizes[0]));
     expect(onPageSizeChange).toHaveBeenCalledWith(sizes[0]);
+  });
+});
+
+describe('RecordHistory — a section, not a card (issue #1437, DS-03)', () => {
+  it('lists its entries as rows divided by a rule, not as a bordered box each, and draws no card', async () => {
+    loadPage.mockResolvedValue({ data: [entry(2), entry(1)], pagination: { hasMore: false, cursor: null }, truncated: false });
+    mount(<History />);
+
+    const list = await screen.findByRole('list', { name: core('history.title') });
+    expect(list.className.split(/\s+/)).toContain('divide-y');
+    for (const item of within(list).getAllByRole('listitem')) {
+      expect(item.className.split(/\s+/)).not.toContain('border');
+      expect(item.className.split(/\s+/)).not.toContain('rounded-md');
+    }
+    expect(list.closest('[data-slot=card]')).toBeNull();
+  });
+
+  it('draws its own titled card with `chrome="card"`, for a history standing alone on a page', async () => {
+    loadPage.mockResolvedValue({ data: [entry(2)], pagination: { hasMore: false, cursor: null }, truncated: false });
+    mount(<History chrome="card" />);
+
+    const heading = await screen.findByRole('heading', { level: 2, name: core('history.title') });
+    expect(heading.closest('[data-slot=card]')).not.toBeNull();
+    expect((await screen.findByRole('list', { name: core('history.title') })).closest('[data-slot=card]')).toBe(
+      heading.closest('[data-slot=card]'),
+    );
   });
 });

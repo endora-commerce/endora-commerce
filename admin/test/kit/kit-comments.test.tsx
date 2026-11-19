@@ -84,13 +84,20 @@ function mount(ui: ReactElement): void {
 }
 
 function thread(
-  props: { kind?: 'note' | 'message'; canWrite?: boolean; keepDeleted?: boolean; copy?: CommentThreadCopy } = {},
+  props: {
+    kind?: 'note' | 'message';
+    canWrite?: boolean;
+    keepDeleted?: boolean;
+    copy?: CommentThreadCopy;
+    chrome?: 'section' | 'card';
+  } = {},
 ): ReactElement {
   return (
     <CommentThread
       kind={props.kind ?? 'note'}
       canWrite={props.canWrite ?? true}
       {...(props.keepDeleted ? { keepDeleted: true } : {})}
+      {...(props.chrome ? { chrome: props.chrome } : {})}
       api={API}
       copy={props.copy ?? COPY}
       referenceKinds={[]}
@@ -267,5 +274,28 @@ describe('CommentComposer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByText(core('comments.error.save'))).toBeInTheDocument();
     expect(field).toHaveTextContent('Hello');
+  });
+});
+
+describe('CommentThread — a section, not a card (issue #1437, DS-03)', () => {
+  it('lists its entries as rows divided by a rule, not as a bordered box each, and draws no card', async () => {
+    list.mockResolvedValue([entry(), entry({ id: '00000000-0000-4000-8000-0000000c0002', body: 'Agreed.' })]);
+    mount(thread());
+
+    const thread_ = await screen.findByRole('list', { name: COPY.title });
+    expect(thread_.className.split(/\s+/)).toContain('divide-y');
+    for (const item of within(thread_).getAllByRole('listitem')) {
+      expect(item.className.split(/\s+/)).not.toContain('border');
+      expect(item.className.split(/\s+/)).not.toContain('rounded-md');
+    }
+    expect(thread_.closest('[data-slot=card]')).toBeNull();
+  });
+
+  it('draws its own titled card with `chrome="card"`', async () => {
+    list.mockResolvedValue([entry()]);
+    mount(thread({ chrome: 'card' }));
+
+    const heading = await screen.findByRole('heading', { level: 2, name: COPY.title });
+    expect(heading.closest('[data-slot=card]')).not.toBeNull();
   });
 });

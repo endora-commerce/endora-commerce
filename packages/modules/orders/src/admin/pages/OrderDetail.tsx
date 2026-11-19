@@ -1001,10 +1001,11 @@ export function OrderDetail(): ReactNode {
       </Card>
 
       {/* The panels other modules add to an order, below the tab panels so they
-          are there whichever tab is open. No chrome around the zone: every
-          contribution renders its own card, and an empty zone renders nothing
-          at all — the screen is then exactly the one above. */}
-      <AdminZone name="order.detail.after" props={{ orderId: id }} />
+          are there whichever tab is open. No chrome around the zone: at page
+          level each contribution is a card of its own (`chrome="card"`, issue
+          #1437), and an empty zone renders nothing at all — the screen is then
+          exactly the one above. */}
+      <AdminZone name="order.detail.after" props={{ orderId: id }} chrome="card" />
     </>
   );
 }

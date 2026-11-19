@@ -4,6 +4,7 @@ import { ApiError, formatDateTime } from '../../lib/index.js';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { Button } from '../../ui/button.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { EditorSection, useEditorSectionChrome, type EditorSectionChrome } from '../../ui/editor-section.js';
 
 /**
  * A record's change history — what was done, by whom and when, newest first, a
@@ -176,6 +177,14 @@ export interface RecordHistoryProps<E extends RecordHistoryEntryShape> {
   renderLead?: (entry: E, changes: readonly RecordHistoryChange[]) => ReactNode;
   /** An entry's time in words; `formatDateTime` when the record has no format of its own. */
   formatTime?: (iso: string) => string;
+  /**
+   * Issue #1437 (DS-03) — `section` by default: the history sits under the host's own heading or
+   * tab, with no frame and no heading of its own. `card` draws a titled card around it, for a
+   * history standing alone on a page.
+   */
+  chrome?: EditorSectionChrome;
+  /** The card's title under `chrome="card"`; *Change history* when omitted. */
+  title?: string;
 }
 
 /**
@@ -189,6 +198,17 @@ export function RecordHistory<E extends RecordHistoryEntryShape>(props: RecordHi
   const { history, copy } = props;
   const { entries, loading, error, nextCursor, truncated, notice, load } = history;
   const t = useTranslation('core');
+  const inherited = useEditorSectionChrome();
+  const chrome = props.chrome ?? inherited;
+  // The host's heading names a section; a card standing alone names itself.
+  const frame = (body: ReactNode): ReactNode =>
+    chrome === 'card' ? (
+      <EditorSection chrome="card" title={props.title ?? t('history.title')}>
+        {body}
+      </EditorSection>
+    ) : (
+      body
+    );
 
   const actor = (entry: E): string => {
     if (entry.actor.kind !== 'admin') return t('history.actor.system');
@@ -196,7 +216,7 @@ export function RecordHistory<E extends RecordHistoryEntryShape>(props: RecordHi
   };
 
   if (entries === null) {
-    return error ? (
+    return frame(error ? (
       <Alert variant="destructive">
         <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
           <span>{error}</span>
@@ -209,10 +229,10 @@ export function RecordHistory<E extends RecordHistoryEntryShape>(props: RecordHi
       <p role="status" className="text-sm text-muted-foreground">
         {t('common.state.loading')}
       </p>
-    );
+    ));
   }
 
-  return (
+  return frame(
     <div className="space-y-4" aria-busy={loading}>
       {copy.hint ? <p className="max-w-prose text-sm text-muted-foreground">{copy.hint}</p> : null}
 
@@ -223,16 +243,18 @@ export function RecordHistory<E extends RecordHistoryEntryShape>(props: RecordHi
       ) : null}
 
       {entries.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-3 py-2 text-sm text-muted-foreground">
           <History aria-hidden="true" className="size-5 shrink-0" />
           <span>{copy.empty}</span>
         </div>
       ) : (
-        <ol aria-label={t('history.title')} className="space-y-3">
+        // One rule between entries, not a box around each: a frame inside the host's card is a
+        // defect unless it is a field (issue #1437).
+        <ol aria-label={t('history.title')} className="divide-y divide-border">
           {entries.map((entry) => {
             const changes = props.changes(entry);
             return (
-              <li key={entry.id} className="space-y-2 rounded-md border border-border p-3">
+              <li key={entry.id} className="space-y-2 py-3 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <h3 className="text-sm font-medium">{props.heading(entry)}</h3>
                   <p className="text-xs text-muted-foreground">
@@ -299,6 +321,6 @@ export function RecordHistory<E extends RecordHistoryEntryShape>(props: RecordHi
       <p role="status" className="sr-only">
         {notice}
       </p>
-    </div>
+    </div>,
   );
 }

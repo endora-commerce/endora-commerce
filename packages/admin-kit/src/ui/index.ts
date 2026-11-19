@@ -60,6 +60,14 @@ export { RouteTabs, RouteTabLink, activeTabPath } from './route-tabs.js';
 export type { RouteTab, RouteTabsProps, RouteTabLinkProps } from './route-tabs.js';
 export { SaveButtonGroup } from './save-button-group.js';
 export type { SaveButtonGroupProps } from './save-button-group.js';
+// Issue #1437 (UX audit DS-03) — an editor's section: heading, one line, a divider; a card only on request.
+export { EditorSection, EditorSectionChromeProvider, useEditorSectionChrome } from './editor-section.js';
+export type {
+  EditorSectionChrome,
+  EditorSectionChromeProviderProps,
+  EditorSectionHeading,
+  EditorSectionProps,
+} from './editor-section.js';
 export { Section } from './section.js';
 export type { SectionProps } from './section.js';
 export { Select } from './select.js';

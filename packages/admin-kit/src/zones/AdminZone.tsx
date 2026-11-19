@@ -19,6 +19,7 @@ import type {
 } from '@endora-commerce/contracts';
 
 import { ZoneContributionContext, type ZoneContributionInfo } from '../save-session/contribution-context.js';
+import { EditorSectionChromeProvider, type EditorSectionChrome } from '../ui/editor-section.js';
 import { useAdminZone } from './use-admin-zone.js';
 import { ZoneErrorBoundary } from './ZoneErrorBoundary.js';
 
@@ -55,6 +56,14 @@ function lazyComponentFor(load: AdminComponentFactory): ZoneComponentType {
 export interface AdminZoneRenderProps<Z extends AdminZoneName> {
   readonly name: Z;
   readonly props: AdminZoneProps<Z>;
+  /**
+   * The zone panel frame (issue #1437, DS-03): how a contributed panel built on `EditorSection`
+   * draws itself here. Omitted, it is a **section** of the host card the zone is mounted in —
+   * no card in a card. `card` for a mount that stands at page level, between the host's own
+   * cards, where each contribution is a card of its own. The contribution still decides
+   * explicitly where it must (`<EditorSection chrome=…>`).
+   */
+  readonly chrome?: EditorSectionChrome;
 }
 
 /**
@@ -69,6 +78,7 @@ export interface AdminZoneRenderProps<Z extends AdminZoneName> {
 export function AdminZone<Z extends AdminZoneName>({
   name,
   props,
+  chrome = 'section',
 }: AdminZoneRenderProps<Z>): ReactNode {
   const contributions = useAdminZone(name, props);
   // One entry per contribution, so a contributor added or removed by a presence
@@ -97,7 +107,7 @@ export function AdminZone<Z extends AdminZoneName>({
   );
   if (rendered.length === 0) return null;
   return (
-    <>
+    <EditorSectionChromeProvider chrome={chrome}>
       {rendered.map((entry) => (
         <ZoneErrorBoundary key={entry.key} module={entry.module} zone={name}>
           {/* `null`, not a spinner: a contribution is an addition, and a chunk
@@ -110,6 +120,6 @@ export function AdminZone<Z extends AdminZoneName>({
           </ZoneContributionContext.Provider>
         </ZoneErrorBoundary>
       ))}
-    </>
+    </EditorSectionChromeProvider>
   );
 }
