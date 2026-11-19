@@ -501,6 +501,16 @@ describe.each(['en', 'pl'] as const)('OrderCreatePage — fields named by their 
     ).toBeInTheDocument();
   });
 
+  it('lays a new address\'s fields out in the parties card, not in a frame of their own (#1498, SALES-13)', async () => {
+    renderTranslated();
+    const delivery = await screen.findByRole('group', { name: copy('orderCreate.address.deliveryHeading') });
+    await userEvent.click(within(delivery).getByRole('button', { name: copy('orderCreate.address.mode.new') }));
+    const street = within(delivery).getByRole('textbox', { name: copy('orderCreate.address.field.street') });
+    for (let node = street.parentElement; node && node !== delivery; node = node.parentElement) {
+      expect(node.className.split(/\s+/)).not.toContain('border');
+    }
+  });
+
   it('carries no developer id as an accessible name, and passes axe', async () => {
     const { container } = renderTranslated();
     await screen.findByRole('combobox', { name: copy('orderCreate.field.customer') });

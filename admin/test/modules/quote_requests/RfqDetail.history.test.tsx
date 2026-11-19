@@ -641,3 +641,20 @@ describe('RfqHistory — failure and source hygiene', () => {
     expect(readFileSync(HISTORY_SOURCE, 'utf8')).not.toContain('dangerouslySetInnerHTML');
   });
 });
+
+describe('RfqHistory — rows, not a frame per entry (issue #1498, SALES-13)', () => {
+  it('lists its entries as rows divided by a rule inside the tab card, never a bordered box each', async () => {
+    answerHistory(FULL);
+    const { container } = renderHistory('en');
+    await screen.findAllByText(tr('en', 'entry.modified'));
+    const list = container.querySelector(':scope > div > ul');
+    expect(list).not.toBeNull();
+    expect(list!.className.split(/\s+/)).toContain('divide-y');
+    const items = list!.querySelectorAll(':scope > li');
+    expect(items.length).toBeGreaterThan(1);
+    for (const item of items) {
+      expect(item.className.split(/\s+/)).not.toContain('border');
+      expect(item.className.split(/\s+/)).not.toContain('rounded-md');
+    }
+  });
+});

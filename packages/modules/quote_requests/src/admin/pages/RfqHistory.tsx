@@ -265,7 +265,7 @@ function HistoryEntry({ entry, f }: { entry: QuoteRequestHistoryEntry; f: Format
   const keys = entry.changes === null ? [] : changeKeys(entry.changes);
   const carry = entry.customFieldCarry ?? null;
   return (
-    <li className="rounded-md border p-3 text-sm">
+    <li className="py-3 text-sm first:pt-0 last:pb-0">
       <div className="mb-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
         <time dateTime={entry.occurredAt}>{f.dateTime(entry.occurredAt)}</time>
         <span>{actorLabel(t, entry.actor)}</span>
@@ -389,7 +389,9 @@ export function RfqHistory({ quoteRequestId }: { quoteRequestId: string }): Reac
         <p className="text-sm text-muted-foreground">{t('empty')}</p>
       ) : null}
       {history !== null && history.entries.length > 0 ? (
-        <ul className="space-y-2">
+        // Rows divided by a rule inside the tab card, not a bordered box per
+        // entry (Common Region, issue #1498).
+        <ul className="divide-y divide-border">
           {history.entries.map((entry) => (
             <HistoryEntry key={entry.id} entry={entry} f={f} />
           ))}
