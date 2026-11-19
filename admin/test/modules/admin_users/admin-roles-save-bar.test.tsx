@@ -100,7 +100,7 @@ describe('AdminRolesPage — the one Save in the sticky bar', () => {
   it('reports a refused save in the bar, not at the top of the page', async () => {
     await openRole();
     vi.mocked(apiClient.put).mockRejectedValue(
-      new ApiError(409, { error: { code: 'CONFLICT', message: 'The role changed meanwhile.' } }),
+      new ApiError(409, { error: { code: 'VERSION_CONFLICT', message: 'The role changed meanwhile.' } }),
     );
     fireEvent.click(screen.getByRole('button', { name: core['adminRoles.save']! }));
     const alert = within(saveBar()).getByRole('alert');

@@ -84,7 +84,7 @@ describe('ProfilePage — the one Save in the sticky bar', () => {
   });
 
   it('says a refusal in the bar', async () => {
-    patchSpy.mockRejectedValue(new ApiError(400, { error: { code: 'VALIDATION', message: 'The name is too long.' } }));
+    patchSpy.mockRejectedValue(new ApiError(422, { error: { code: 'VALIDATION_FAILED', message: 'The name is too long.' } }));
     renderProfile();
     fireEvent.change(screen.getByLabelText('First name'), { target: { value: 'Augusta' } });
     fireEvent.submit(document.querySelector('form')!);

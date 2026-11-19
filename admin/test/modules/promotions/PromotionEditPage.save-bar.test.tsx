@@ -107,7 +107,7 @@ describe('PromotionEditPage — the one Save in the sticky bar (DS-19)', () => {
 
   it('says a refused save in the bar', async () => {
     await renderEditor();
-    putSpy.mockRejectedValue(new ApiError(409, { error: { code: 'CONFLICT', message: 'The code is taken.' } }));
+    putSpy.mockRejectedValue(new ApiError(409, { error: { code: 'VERSION_CONFLICT', message: 'The code is taken.' } }));
     fireEvent.click(within(saveBar()).getByRole('button', { name: CORE_EN['promotions.edit.save']! }));
     await waitFor(() => expect(within(saveBar()).getByRole('alert')).toHaveTextContent('The code is taken.'));
   });

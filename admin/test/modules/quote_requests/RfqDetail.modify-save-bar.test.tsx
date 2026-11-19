@@ -85,7 +85,7 @@ describe('RfqDetail Modify — Save revision in the sticky bar (DS-19)', () => {
     const input = await openModify();
     await userEvent.clear(input);
     await userEvent.type(input, '110');
-    patchSpy.mockRejectedValue(new ApiError(409, { error: { code: 'CONFLICT', message: 'The quote changed meanwhile.' } }));
+    patchSpy.mockRejectedValue(new ApiError(409, { error: { code: 'VERSION_CONFLICT', message: 'The quote changed meanwhile.' } }));
     await userEvent.click(within(saveBar()).getByRole('button', { name: 'rfq.detail.modify.saveRevision' }));
     await waitFor(() =>
       expect(within(saveBar()).getByRole('alert')).toHaveTextContent('The quote changed meanwhile.'),
