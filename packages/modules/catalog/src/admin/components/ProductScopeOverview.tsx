@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, CircleSlash, RotateCcw, Trash2 } from 'lucide-react';
 import { apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, EditorSection } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { ScopeRef } from '@endora-commerce/contracts';
@@ -103,10 +103,17 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('catalog:write');
   const language = useContext(AppLanguageContext)?.language ?? 'en';
-  const headingId = useId();
-  const orphansHeadingId = useId();
+  const sectionId = useId();
   const confirmBodyId = useId();
-  const headingRef = useRef<HTMLHeadingElement | null>(null);
+  /**
+   * The map section's heading — where focus goes after a reset. `EditorSection` names it
+   * `${id}-title`; it is made programmatically focusable only when it is the target.
+   */
+  const heading = (): HTMLElement | null => {
+    const element = document.getElementById(`${sectionId}-title`);
+    element?.setAttribute('tabindex', '-1');
+    return element;
+  };
   /** Where focus lands when the confirmation closes: the heading after a done action, else the opener. */
   const dialogFinalFocus = useRef<HTMLElement | null>(null);
 
@@ -193,8 +200,8 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
         setStatus(t(doneKey));
         setReloadToken((n) => n + 1);
         // D11b — the control unmounts with the value it removed; keep focus in the overview.
-        dialogFinalFocus.current = headingRef.current;
-        headingRef.current?.focus();
+        dialogFinalFocus.current = heading();
+        dialogFinalFocus.current?.focus();
       } catch (err) {
         setActionError(
           urlKeyErrorMessage(err, t) ??
@@ -265,152 +272,152 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
   const bodyCell = { verticalAlign: 'top', padding: '8px 12px' } as const;
 
   return (
-    <section className="b2b-col" style={{ gap: 12 }} aria-labelledby={headingId} aria-busy={busy || undefined}>
-      <h3 id={headingId} ref={headingRef} tabIndex={-1} className="text-sm font-semibold" style={{ margin: 0 }}>
-        {t('productEditor.scopeOverview.title')}
-      </h3>
-      <p className="b2b-help" style={{ margin: 0 }}>
-        {t('productEditor.scopeOverview.help')}
-      </p>
-      {!canWrite ? (
-        <p className="b2b-help" style={{ margin: 0 }}>
-          {t('productEditor.scopeOverview.readOnly')}
-        </p>
-      ) : null}
-      {actionError ? (
-        <p role="alert" className="text-sm text-destructive" style={{ margin: 0 }}>
-          {actionError}
-        </p>
-      ) : null}
-      {liveRegion}
-      {links ? (
-        <p className="m-0">
-          <ScopeLink links={links} scope={{ level: 'global' }}>
-            {t('productEditor.scopeOverview.editAt', { scope: links.words({ level: 'global' }) })}
-          </ScopeLink>
-        </p>
-      ) : null}
+    // Issue #1490 (UX audit CAT-11): no "Scope map" heading under the Scope map tab — the tab names
+    // the panel. The map and the values that no longer apply are its two `h2` sections, the
+    // editor's one section style; the map's help line is its section's description.
+    <div className="space-y-(--section-gap)" aria-busy={busy || undefined}>
+      <EditorSection
+        id={sectionId}
+        title={t('productEditor.scopeOverview.matrix.title')}
+        description={t('productEditor.scopeOverview.help')}
+      >
+        {!canWrite ? (
+          <p className="b2b-help" style={{ margin: 0 }}>
+            {t('productEditor.scopeOverview.readOnly')}
+          </p>
+        ) : null}
+        {actionError ? (
+          <p role="alert" className="text-sm text-destructive" style={{ margin: 0 }}>
+            {actionError}
+          </p>
+        ) : null}
+        {liveRegion}
+        {links ? (
+          <p className="m-0">
+            <ScopeLink links={links} scope={{ level: 'global' }}>
+              {t('productEditor.scopeOverview.editAt', { scope: links.words({ level: 'global' }) })}
+            </ScopeLink>
+          </p>
+        ) : null}
 
-      {members.length === 0 ? (
-        <Alert role="note">
-          <AlertDescription>{t('productEditor.scopeOverview.noChannels')}</AlertDescription>
-        </Alert>
-      ) : (
-        <div
-          role="region"
-          tabIndex={0}
-          aria-label={t('productEditor.scopeOverview.tableRegion')}
-          style={{ overflowX: 'auto' }}
-        >
-          <table className="b2b-tbl" style={{ width: '100%' }}>
-            <caption className="sr-only">{t('productEditor.scopeOverview.title')}</caption>
-            <thead>
-              <tr>
-                <th scope="col" style={stickyRowHeader}>
-                  {t('productEditor.scopeOverview.channelColumn')}
-                </th>
-                <th scope="col">{t('productEditor.scopeOverview.wholeChannelColumn')}</th>
-                {overview.languages.map((code) => (
-                  <th key={code} scope="col" style={{ verticalAlign: 'top' }}>
-                    {/* A language tag in its canonical case (`de-DE`), not the header style's
-                        upper case: the theme's `thead th` rule outranks a class on the `th`,
-                        so the span opts out (issue #501). Monospace, as on Dictionaries. */}
-                    <span className="font-semibold normal-case font-mono">{code}</span>
+        {members.length === 0 ? (
+          <Alert role="note">
+            <AlertDescription>{t('productEditor.scopeOverview.noChannels')}</AlertDescription>
+          </Alert>
+        ) : (
+          <div
+            role="region"
+            tabIndex={0}
+            aria-label={t('productEditor.scopeOverview.tableRegion')}
+            style={{ overflowX: 'auto' }}
+          >
+            <table className="b2b-tbl" style={{ width: '100%' }}>
+              <caption className="sr-only">{t('productEditor.scopeOverview.title')}</caption>
+              <thead>
+                <tr>
+                  <th scope="col" style={stickyRowHeader}>
+                    {t('productEditor.scopeOverview.channelColumn')}
                   </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {overview.channels.map((channel) => {
-                const name = pickLocalized(channel.name, language);
-                const globalName = t('productEditor.scope.global');
-                const rowFields =
-                  overview.channelRows.find((r) => r.channelId === channel.channelId)?.overriddenFields ?? [];
-                return (
-                  <tr key={channel.channelId}>
-                    <th scope="row" style={{ ...stickyRowHeader, ...bodyCell, textAlign: 'left' }}>
-                      <span className="font-semibold">{name}</span>
-                      {links && channel.isMember ? (
-                        <>
-                          <br />
-                          <ScopeLink links={links} scope={{ level: 'channel', channelId: channel.channelId }}>
-                            {t('productEditor.scopeOverview.editAt', {
-                              scope: links.words({ level: 'channel', channelId: channel.channelId }),
-                            })}
-                          </ScopeLink>
-                        </>
-                      ) : null}
-                      {!channel.isMember ? (
-                        <>
-                          {' '}
-                          <Badge variant="outline">{t('productEditor.scopeOverview.notAMember')}</Badge>
-                        </>
-                      ) : null}
+                  <th scope="col">{t('productEditor.scopeOverview.wholeChannelColumn')}</th>
+                  {overview.languages.map((code) => (
+                    <th key={code} scope="col" style={{ verticalAlign: 'top' }}>
+                      {/* A language tag in its canonical case (`de-DE`), not the header style's
+                          upper case: the theme's `thead th` rule outranks a class on the `th`,
+                          so the span opts out (issue #501). Monospace, as on Dictionaries. */}
+                      <span className="font-semibold normal-case font-mono">{code}</span>
                     </th>
-                    <td style={bodyCell}>
-                      {rowFields.length > 0 ? (
-                        <FieldList
-                          fields={rowFields}
-                          fieldLabel={fieldLabel}
-                          resetFor={(field): ScopeFieldRequest | null =>
-                            canWrite
-                              ? resetRequestFor({ field, level: 'channel', channelId: channel.channelId, languageCode: '' })
-                              : null
-                          }
-                          resetLabel={(field): string =>
-                            t('productEditor.scopeOverview.resetAria', {
-                              field: fieldLabel(field),
-                              scope: name,
-                              parent: globalName,
-                            })
-                          }
-                          parent={globalName}
-                          busy={busy}
-                          onReset={(request, field): void => reset(request, field, name, globalName)}
-                          t={t}
-                        />
-                      ) : (
-                        <span className="b2b-help">{t('productEditor.scopeOverview.nothingSetChannel')}</span>
-                      )}
-                    </td>
-                    {overview.languages.map((code) => {
-                      const cell = overview.cells.find(
-                        (c) => c.channelId === channel.channelId && c.languageCode === code,
-                      );
-                      const offered = channel.isMember && channel.languages.includes(code);
-                      const scopeName = `${name} · ${code}`;
-                      return (
-                        <td key={code} style={bodyCell}>
-                          {cell && offered ? (
-                            <OverviewCell
-                              cell={cell}
-                              scopeName={scopeName}
-                              channelName={name}
-                              links={links}
-                              canWrite={canWrite}
-                              busy={busy}
-                              fieldLabel={fieldLabel}
-                              onReset={(request, field): void => reset(request, field, scopeName, name)}
-                              t={t}
-                            />
-                          ) : (
-                            <span className="b2b-help">{t('productEditor.scopeOverview.notOffered')}</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {overview.channels.map((channel) => {
+                  const name = pickLocalized(channel.name, language);
+                  const globalName = t('productEditor.scope.global');
+                  const rowFields =
+                    overview.channelRows.find((r) => r.channelId === channel.channelId)?.overriddenFields ?? [];
+                  return (
+                    <tr key={channel.channelId}>
+                      <th scope="row" style={{ ...stickyRowHeader, ...bodyCell, textAlign: 'left' }}>
+                        <span className="font-semibold">{name}</span>
+                        {links && channel.isMember ? (
+                          <>
+                            <br />
+                            <ScopeLink links={links} scope={{ level: 'channel', channelId: channel.channelId }}>
+                              {t('productEditor.scopeOverview.editAt', {
+                                scope: links.words({ level: 'channel', channelId: channel.channelId }),
+                              })}
+                            </ScopeLink>
+                          </>
+                        ) : null}
+                        {!channel.isMember ? (
+                          <>
+                            {' '}
+                            <Badge variant="outline">{t('productEditor.scopeOverview.notAMember')}</Badge>
+                          </>
+                        ) : null}
+                      </th>
+                      <td style={bodyCell}>
+                        {rowFields.length > 0 ? (
+                          <FieldList
+                            fields={rowFields}
+                            fieldLabel={fieldLabel}
+                            resetFor={(field): ScopeFieldRequest | null =>
+                              canWrite
+                                ? resetRequestFor({ field, level: 'channel', channelId: channel.channelId, languageCode: '' })
+                                : null
+                            }
+                            resetLabel={(field): string =>
+                              t('productEditor.scopeOverview.resetAria', {
+                                field: fieldLabel(field),
+                                scope: name,
+                                parent: globalName,
+                              })
+                            }
+                            parent={globalName}
+                            busy={busy}
+                            onReset={(request, field): void => reset(request, field, name, globalName)}
+                            t={t}
+                          />
+                        ) : (
+                          <span className="b2b-help">{t('productEditor.scopeOverview.nothingSetChannel')}</span>
+                        )}
+                      </td>
+                      {overview.languages.map((code) => {
+                        const cell = overview.cells.find(
+                          (c) => c.channelId === channel.channelId && c.languageCode === code,
+                        );
+                        const offered = channel.isMember && channel.languages.includes(code);
+                        const scopeName = `${name} · ${code}`;
+                        return (
+                          <td key={code} style={bodyCell}>
+                            {cell && offered ? (
+                              <OverviewCell
+                                cell={cell}
+                                scopeName={scopeName}
+                                channelName={name}
+                                links={links}
+                                canWrite={canWrite}
+                                busy={busy}
+                                fieldLabel={fieldLabel}
+                                onReset={(request, field): void => reset(request, field, scopeName, name)}
+                                t={t}
+                              />
+                            ) : (
+                              <span className="b2b-help">{t('productEditor.scopeOverview.notOffered')}</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </EditorSection>
 
-      <section aria-labelledby={orphansHeadingId} className="b2b-col" style={{ gap: 8 }}>
-        <h4 id={orphansHeadingId} className="text-sm font-semibold" style={{ margin: 0 }}>
-          {t('productEditor.scopeOverview.orphans.title')}
-        </h4>
+      <EditorSection title={t('productEditor.scopeOverview.orphans.title')}>
         {overview.orphans.length === 0 ? (
           <p className="b2b-help" style={{ margin: 0 }}>
             {t('productEditor.scopeOverview.orphans.none')}
@@ -445,7 +452,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
             </ul>
           </>
         )}
-      </section>
+      </EditorSection>
 
       {confirming ? (
         <ModalDialog
@@ -498,7 +505,7 @@ export function ProductScopeOverview({ productId, links }: ProductScopeOverviewP
           </p>
         </ModalDialog>
       ) : null}
-    </section>
+    </div>
   );
 }
 
