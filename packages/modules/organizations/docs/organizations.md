@@ -1351,10 +1351,15 @@ holding `organizations:read-roles` or `organizations:manage-roles`, and never fo
 a personal Organization. With the read code it is read-only; with
 `organizations:manage-roles` the operator creates, edits and deletes roles under
 the storefront's rules — the create form also opens with every permission
-unticked, and a held role is deleted only with a replacement. The members table
-on the same screen shows each member's role and, for `customers:manage`, a role
-select. The tab links to the Organization's history in the audit log, where each
-role change is recorded.
+unticked, and a held role is deleted only with a replacement. The *Members*
+section on the same screen lists each member with their role. For
+`customers:manage` it offers **Add member** — a dialog choosing between sending an
+invitation and creating the account now, which alone asks for the names, a
+temporary password and the member's custom fields — and, per member, **Edit**, a
+dialog holding the profile and the role, saved together, and **Remove**, asked
+before it applies. The last administrator can be neither removed nor demoted
+there, and a personal Organization offers no *Add member*. The tab links to the
+Organization's history in the audit log, where each role change is recorded.
 
 ### Members, invitations and the session
 

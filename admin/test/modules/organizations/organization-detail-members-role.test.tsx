@@ -24,6 +24,10 @@ import { expectNoAxeViolations } from '../../helpers/axe';
  * `organizationRole.kind`, never off a role name. The *Roles* tab is not offered
  * for a personal Organization.
  *
+ * Since issue #1516 (SALES-14) the role is changed in the member's *Edit* dialog, written
+ * on its Save, rather than by a row select that wrote on change; the invitation and the
+ * direct create are the two ways of the *Add member* dialog.
+ *
  * **Waits for WP-03** at the boundary: these tests drive the screen against the
  * member shapes WP-03 ships (`organizationRole` on embedded members, `roleId` in
  * the three bodies); the backend routes accepting them are WP-03's.
@@ -190,8 +194,37 @@ function renderDetail(permissions: readonly string[], detail = org()): ReturnTyp
   );
 }
 
-function roleSelectOf(email: string): HTMLSelectElement {
-  return screen.getByLabelText(core('organizations.detail.roleForLabel').replace('{email}', email)) as HTMLSelectElement;
+const own = (key: string, vars: Record<string, string> = {}): string => {
+  const value = OWN_EN[key];
+  if (value === undefined) throw new Error(`missing organizations key ${key}`);
+  return Object.entries(vars).reduce((text, [name, v]) => text.replace(`{${name}}`, v), value);
+};
+
+/** Issue #1516 (SALES-14) — a member's role is changed in its edit dialog, not in the row. */
+async function openEdit(email: string): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole('button', { name: own('members.row.edit', { email }) }));
+  return screen.findByRole('dialog', { name: core('organizations.detail.editMember') });
+}
+
+/** Issue #1516 — invitation and direct create are the two ways of one *Add member* dialog. */
+async function openAdd(way: 'invite' | 'create' = 'invite'): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole('button', { name: own('members.add') }));
+  const dialog = await screen.findByRole('dialog', { name: own('members.add') });
+  if (way === 'create') fireEvent.click(within(dialog).getByRole('radio', { name: own('members.add.create') }));
+  return dialog;
+}
+
+/** A field by its label, the required asterisk (hidden from assistive technology) aside. */
+function labelPattern(text: string): RegExp {
+  return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( \\*)?$`);
+}
+
+function byLabel(container: HTMLElement, text: string): HTMLInputElement {
+  return within(container).getByLabelText(labelPattern(text)) as HTMLInputElement;
+}
+
+function roleSelectIn(dialog: HTMLElement): HTMLSelectElement {
+  return within(dialog).getByLabelText(labelPattern(core('organizations.detail.role'))) as HTMLSelectElement;
 }
 
 function optionsOf(select: HTMLElement): string[] {
@@ -211,10 +244,14 @@ describe('OrganizationDetail — members and their roles', () => {
     renderDetail(['customers:read', 'customers:manage', 'organizations:read-roles']);
 
     await screen.findByText('ada@acme.test');
-    await waitFor(() => expect(optionsOf(roleSelectOf('bea@acme.test'))).toContain('Approver'));
-    expect(optionsOf(roleSelectOf('bea@acme.test'))).toEqual(['Administrator', 'Member', 'Approver', 'Junior buyer']);
-    expect(roleSelectOf('bea@acme.test')).toHaveValue(BUYER_ROLE);
-    expect(roleSelectOf('ada@acme.test')).toHaveValue(ADMIN_ROLE);
+    const row = screen.getByText('bea@acme.test').closest('li') as HTMLElement;
+    expect(within(row).getByText('Junior buyer')).toBeInTheDocument();
+    await waitFor(() => expect(getSpy.mock.calls.map((c) => c[0])).toContain(ROLES_PATH));
+
+    const dialog = await openEdit('bea@acme.test');
+    await waitFor(() => expect(optionsOf(roleSelectIn(dialog))).toContain('Approver'));
+    expect(optionsOf(roleSelectIn(dialog))).toEqual(['Administrator', 'Member', 'Approver', 'Junior buyer']);
+    expect(roleSelectIn(dialog)).toHaveValue(BUYER_ROLE);
   });
 
   it('changes a member\'s role by id under customers:manage alone, without reading the roles', async () => {
@@ -222,11 +259,17 @@ describe('OrganizationDetail — members and their roles', () => {
 
     await screen.findByText('bea@acme.test');
     expect(getSpy.mock.calls.map((c) => c[0])).not.toContain(ROLES_PATH);
-    // The members' own roles; Member is offered on the forms as the default, not here,
-    // because its id is not known without the role list.
-    expect(optionsOf(roleSelectOf('bea@acme.test'))).toEqual(['Administrator', 'Junior buyer']);
+    // No select in the row: picking a role there committed it at once (DS-18, SALES-14).
+    expect(screen.queryByRole('combobox')).toBeNull();
 
-    fireEvent.change(roleSelectOf('bea@acme.test'), { target: { value: ADMIN_ROLE } });
+    const dialog = await openEdit('bea@acme.test');
+    // The members' own roles; Member is offered on the add form as the default, not here,
+    // because its id is not known without the role list.
+    expect(optionsOf(roleSelectIn(dialog))).toEqual(['Administrator', 'Junior buyer']);
+
+    fireEvent.change(roleSelectIn(dialog), { target: { value: ADMIN_ROLE } });
+    expect(patchSpy).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: core('organizations.detail.save') }));
 
     await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
     expect(patchSpy).toHaveBeenCalledWith(`/api/v1/admin/organizations/${ORG_ID}/members/${BEA}/role`, {
@@ -239,39 +282,42 @@ describe('OrganizationDetail — members and their roles', () => {
     renderDetail(['customers:read', 'customers:manage', 'organizations:read-roles']);
 
     await screen.findByText('ada@acme.test');
-    const inviteRole = screen.getByLabelText(core('organizations.detail.role'), { selector: '#invite-role' });
-    await waitFor(() => expect(optionsOf(inviteRole)).toContain('Approver'));
-    expect(inviteRole).toHaveValue(MEMBER_ROLE);
+    await waitFor(() => expect(getSpy.mock.calls.map((c) => c[0])).toContain(ROLES_PATH));
+    let dialog = await openAdd();
+    await waitFor(() => expect(optionsOf(roleSelectIn(dialog))).toContain('Approver'));
+    expect(roleSelectIn(dialog)).toHaveValue(MEMBER_ROLE);
 
-    fireEvent.change(screen.getByLabelText(core('organizations.detail.email'), { selector: '#invite-email' }), {
+    fireEvent.change(byLabel(dialog, core('organizations.detail.email')), {
       target: { value: 'dan@acme.test' },
     });
-    fireEvent.click(screen.getByRole('button', { name: core('organizations.detail.sendInvite') }));
+    fireEvent.click(within(dialog).getByRole('button', { name: core('organizations.detail.sendInvite') }));
     await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
     expect(postSpy.mock.calls[0]).toEqual([
       `/api/v1/admin/organizations/${ORG_ID}/members/invite`,
       { email: 'dan@acme.test', roleId: MEMBER_ROLE },
     ]);
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
-    fireEvent.change(inviteRole, { target: { value: APPROVER_ROLE } });
-    fireEvent.change(screen.getByLabelText(core('organizations.detail.email'), { selector: '#invite-email' }), {
+    dialog = await openAdd();
+    fireEvent.change(roleSelectIn(dialog), { target: { value: APPROVER_ROLE } });
+    fireEvent.change(byLabel(dialog, core('organizations.detail.email')), {
       target: { value: 'eve@acme.test' },
     });
-    fireEvent.click(screen.getByRole('button', { name: core('organizations.detail.sendInvite') }));
+    fireEvent.click(within(dialog).getByRole('button', { name: core('organizations.detail.sendInvite') }));
     await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(2));
     expect(postSpy.mock.calls[1]?.[1]).toEqual({ email: 'eve@acme.test', roleId: APPROVER_ROLE });
   });
 
-  it('without the role list, the forms default to Member and send no roleId', async () => {
+  it('without the role list, the add form defaults to Member and sends no roleId', async () => {
     renderDetail(['customers:read', 'customers:manage']);
 
     await screen.findByText('ada@acme.test');
-    const inviteRole = screen.getByLabelText(core('organizations.detail.role'), { selector: '#invite-role' });
-    expect(optionsOf(inviteRole)).toEqual([OWN_EN['organizationRoles.member.name'], 'Administrator', 'Junior buyer']);
-    fireEvent.change(screen.getByLabelText(core('organizations.detail.email'), { selector: '#invite-email' }), {
+    const dialog = await openAdd();
+    expect(optionsOf(roleSelectIn(dialog))).toEqual([OWN_EN['organizationRoles.member.name'], 'Administrator', 'Junior buyer']);
+    fireEvent.change(byLabel(dialog, core('organizations.detail.email')), {
       target: { value: 'dan@acme.test' },
     });
-    fireEvent.click(screen.getByRole('button', { name: core('organizations.detail.sendInvite') }));
+    fireEvent.click(within(dialog).getByRole('button', { name: core('organizations.detail.sendInvite') }));
     await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
     expect(postSpy.mock.calls[0]?.[1]).toEqual({ email: 'dan@acme.test' });
   });
@@ -280,22 +326,23 @@ describe('OrganizationDetail — members and their roles', () => {
     renderDetail(['customers:read', 'customers:manage', 'organizations:read-roles']);
 
     await screen.findByText('ada@acme.test');
-    const directRole = screen.getByLabelText(core('organizations.detail.role'), { selector: '#d-role' });
-    await waitFor(() => expect(optionsOf(directRole)).toContain('Approver'));
-    fireEvent.change(screen.getByLabelText(core('organizations.detail.email'), { selector: '#d-email' }), {
+    await waitFor(() => expect(getSpy.mock.calls.map((c) => c[0])).toContain(ROLES_PATH));
+    const dialog = await openAdd('create');
+    await waitFor(() => expect(optionsOf(roleSelectIn(dialog))).toContain('Approver'));
+    fireEvent.change(byLabel(dialog, core('organizations.detail.email')), {
       target: { value: 'fay@acme.test' },
     });
-    fireEvent.change(screen.getByLabelText(core('organizations.detail.tempPassword')), {
+    fireEvent.change(byLabel(dialog, core('organizations.detail.tempPassword')), {
       target: { value: 'a-long-password-1' },
     });
-    fireEvent.change(screen.getByLabelText(core('organizations.detail.firstName'), { selector: '#d-fn' }), {
+    fireEvent.change(byLabel(dialog, core('organizations.detail.firstName')), {
       target: { value: 'Fay' },
     });
-    fireEvent.change(screen.getByLabelText(core('organizations.detail.lastName'), { selector: '#d-ln' }), {
+    fireEvent.change(byLabel(dialog, core('organizations.detail.lastName')), {
       target: { value: 'Doe' },
     });
-    fireEvent.change(directRole, { target: { value: BUYER_ROLE } });
-    fireEvent.click(screen.getByRole('button', { name: core('organizations.detail.createMember') }));
+    fireEvent.change(roleSelectIn(dialog), { target: { value: BUYER_ROLE } });
+    fireEvent.click(within(dialog).getByRole('button', { name: core('organizations.detail.createMember') }));
 
     await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
     expect(postSpy.mock.calls[0]).toEqual([
@@ -315,11 +362,15 @@ describe('OrganizationDetail — members and their roles', () => {
 
     await screen.findByText('ada@acme.test');
     const removeOf = (email: string): HTMLElement =>
-      within(screen.getByText(email).closest('tr') as HTMLElement).getByRole('button', {
-        name: core('organizations.detail.remove'),
-      });
+      screen.getByRole('button', { name: own('members.row.remove', { email }) });
     expect(removeOf('ada@acme.test')).toBeDisabled();
+    // The reason is said, not only implied by a disabled button.
+    expect(removeOf('ada@acme.test')).toHaveAccessibleDescription(own('members.lastAdministrator'));
     expect(removeOf('bea@acme.test')).not.toBeDisabled();
+
+    // Nor can the last administrator be demoted from the edit dialog.
+    const dialog = await openEdit('ada@acme.test');
+    expect(roleSelectIn(dialog)).toBeDisabled();
   });
 
   it('offers the Roles tab for a company Organization to an operator reading roles', async () => {
@@ -336,11 +387,14 @@ describe('OrganizationDetail — members and their roles', () => {
     expect(getSpy.mock.calls.map((c) => c[0])).not.toContain(ROLES_PATH);
   });
 
-  it('keeps the screen clean under axe', async () => {
+  it('keeps the screen and the edit dialog clean under axe', async () => {
     const { container } = renderDetail(['customers:read', 'customers:manage', 'organizations:read-roles']);
 
     await screen.findByText('ada@acme.test');
-    await waitFor(() => expect(optionsOf(roleSelectOf('bea@acme.test'))).toContain('Approver'));
+    await waitFor(() => expect(getSpy.mock.calls.map((c) => c[0])).toContain(ROLES_PATH));
     await expectNoAxeViolations(container);
+    const dialog = await openEdit('bea@acme.test');
+    await waitFor(() => expect(optionsOf(roleSelectIn(dialog))).toContain('Approver'));
+    await expectNoAxeViolations(document.body);
   });
 });
