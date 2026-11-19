@@ -146,6 +146,8 @@ export type {
 // Issue #1435 (DS-18) — a status changed through a confirmed dialog, never a select that writes on change.
 export { StatusChangeControl } from './status-change/StatusChangeControl.js';
 export type { StatusChangeControlProps, StatusChangeOption } from './status-change/StatusChangeControl.js';
+// Issue #1495 (CONTENT-13) — a list search that runs as the operator types, one request per pause.
+export { SEARCH_DEBOUNCE_MS, useDebouncedValue } from './hooks/useDebouncedValue.js';
 export { useViewportTier } from './hooks/useViewportTier.js';
 export type { ViewportTier } from './hooks/useViewportTier.js';
 export { MethodAvailabilityCaption, MethodAvailabilityCell, MethodNotOfferedNotice } from './payment-method-availability/MethodAvailabilityCell.js';

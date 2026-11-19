@@ -907,6 +907,25 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
 - Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
   adopters are `CustomersList`, `OrganizationsList` and `CartsList`.
 
+### Search as you type — `useDebouncedValue`
+
+Issue #1495 (UX audit CONTENT-13). A list's search runs while the operator types, never only on
+Enter or behind a *Search* button (Doherty). One request goes out per pause, not one per keystroke.
+The box shows what was typed, and the request reads the debounced value:
+
+```tsx
+const [q, setQ] = useState('');
+const query = useDebouncedValue(q.trim());        // SEARCH_DEBOUNCE_MS = 300 by default
+useEffect(() => { /* load with `query` */ }, [query]);
+<ListToolbarSearch label={t('list.search')} value={q} onValueChange={setQ} />
+```
+
+- The first render returns the value at once, so the list loads without waiting. Each later change
+  restarts the wait.
+- Decide "nothing matches" from `query`, the value that produced the rows, not from `q`.
+- Pinned in `admin/test/kit/kit-use-debounced-value.test.tsx`. Used by the CMS page list and the
+  blog post and tag lists.
+
 ## Board cards — `BoardCardFieldsEditor`
 
 Issue #1506 (UX audit 2026-11-17, WORK-15). It edits which fields a board card shows and in what order. CRM and

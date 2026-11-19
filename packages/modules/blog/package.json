@@ -66,6 +66,7 @@
     "@puckeditor/core": "^0",
     "fastify": "^5.11.0",
     "ioredis": "^5",
+    "lucide-react": "^1",
     "react": "^19",
     "react-router-dom": "^7",
     "zod": "^4"
@@ -81,6 +82,9 @@
       "optional": true
     },
     "@puckeditor/core": {
+      "optional": true
+    },
+    "lucide-react": {
       "optional": true
     },
     "react": {
@@ -105,6 +109,7 @@
     "@types/react": "^19.2.14",
     "fastify": "^5.12.8",
     "ioredis": "^5.10.1",
+    "lucide-react": "^1.11.0",
     "react": "^19.2.5",
     "react-router-dom": "^7.18.2",
     "typescript": "^5.9.3",

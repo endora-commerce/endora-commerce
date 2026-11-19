@@ -1,108 +1,158 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { LayoutTemplate, Plus } from 'lucide-react';
 import type { CmsTemplateSummary } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EmptyState } from '@endora-commerce/admin-kit/ui';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@endora-commerce/admin-kit/ui';
+  ListPage,
+  ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+  useConfirmDialog,
+  type ListPageLoad,
+  type ResponsiveColumn,
+} from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cmsClient } from '../api/cms-client.js';
+import { cmsDeleteErrorMessage, loadErrorMessage } from '../components/list-delete-error.js';
 
+/**
+ * The CMS template list — the kit's `ListPage` (issue #1495, UX audit
+ * CONTENT-13): one heading and a row menu that opens a template or deletes it
+ * through the confirmation and `DELETE /api/v1/admin/cms/templates/:id`
+ * (refused while a legacy embed still uses it). The endpoint answers the whole
+ * list: no pager, no search.
+ */
 export function TemplatesListPage(): ReactNode {
   const t = useTranslation('cms');
   const { hasPermission } = useAuth();
-  // The create route this screen links to takes the **write** code (feature
-  // 091, batch 16), so the button is gated on the same one: a link whose
-  // destination the operator's codes cannot open answers the admin's not-found
-  // page, which says nothing about permissions at all. That is batch 14's
-  // `/sales-channels/new` shape, applied to the five create entry points these
-  // two modules have.
+  // The create route takes the **write** code (feature 091, batch 16), and so
+  // do the row actions, so both are gated on it.
   const canWrite = hasPermission('cms.write');
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<CmsTemplateSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const out = await cmsClient.listTemplates();
-      setRows(out.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
+  const [reloadKey, setReloadKey] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let alive = true;
+    setLoad({ kind: 'loading' });
+    cmsClient
+      .listTemplates()
+      .then((out) => {
+        if (!alive) return;
+        setRows(out.data);
+        setLoad({ kind: 'ready' });
+      })
+      .catch((err: unknown) => {
+        if (alive) setLoad({ kind: 'error', ...loadErrorMessage(err) });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [reloadKey]);
+
+  const remove = async (template: CmsTemplateSummary): Promise<void> => {
+    setNotice(null);
+    const deleted = await confirm({
+      title: t('templatesList.deleteTitle'),
+      message: t('templatesList.deleteConfirm', { name: template.name }),
+      confirmLabel: t('listActions.delete'),
+      destructive: true,
+      action: () => cmsClient.deleteTemplate(template.id),
+      describeError: (err) => cmsDeleteErrorMessage(err, t),
+    });
+    if (!deleted) return;
+    setRows((current) => current.filter((row) => row.id !== template.id));
+    setNotice(t('templatesList.deleted', { name: template.name }));
+  };
+
+  const createLink = (
+    <Button asChild className="min-h-11 sm:min-h-9">
+      <Link to="/cms/templates/new">
+        <Plus size={16} aria-hidden="true" />
+        {t('templatesList.new')}
+      </Link>
+    </Button>
+  );
+  // With no template at all the empty state carries the one create action (Von Restorff).
+  const nothingYet = load.kind === 'ready' && rows.length === 0;
+
+  const columns: ResponsiveColumn<CmsTemplateSummary>[] = [
+    {
+      id: 'name',
+      header: t('columns.name'),
+      primary: true,
+      render: (template) => (
+        <Link to={`/cms/templates/${template.id}`} className="font-medium text-primary hover:underline">
+          {template.name}
+        </Link>
+      ),
+      meta: (template) => <code className="text-xs">{template.code}</code>,
+    },
+    {
+      id: 'code',
+      header: t('columns.code'),
+      hideOnMobile: true,
+      render: (template) => <code className="text-xs">{template.code}</code>,
+    },
+    {
+      id: 'languages',
+      header: t('columns.languages'),
+      hideOnMobile: true,
+      render: (template) => <span className="text-xs text-muted-foreground">{template.languages.join(', ')}</span>,
+    },
+  ];
 
   return (
-    <div className="b2b-page b2b-page--wide space-y-4">
-      <PageHeader
+    <div className="b2b-page b2b-page--wide">
+      <ListPage
         title={t('templatesList.title')}
-        description={t('templatesList.description')}
-        actions={
-          canWrite ? (
-            <Button asChild>
-              <Link to="/cms/templates/new">{t('templatesList.new')}</Link>
-            </Button>
+        actions={canWrite && !nothingYet ? createLink : null}
+        count={t('templatesList.count', { count: rows.length })}
+        notice={
+          notice ? (
+            <Alert live="polite">
+              <AlertDescription>{notice}</AlertDescription>
+            </Alert>
           ) : null
         }
-      />
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('templatesList.cardTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">{t('templatesList.loading')}</p>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('templatesList.empty')}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('columns.name')}</TableHead>
-                  <TableHead>{t('columns.code')}</TableHead>
-                  <TableHead>{t('columns.languages')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((template) => (
-                  <TableRow key={template.id}>
-                    <TableCell>
-                      <Link
-                        to={`/cms/templates/${template.id}`}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        {template.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">{template.code}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {template.languages.join(', ')}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+        load={load}
+        onRetry={() => setReloadKey((key) => key + 1)}
+      >
+        <ResponsiveTable
+          columns={columns}
+          data={rows}
+          keyExtractor={(template) => template.id}
+          emptyState={
+            <EmptyState
+              icon={<LayoutTemplate size={20} />}
+              title={t('templatesList.emptyTitle')}
+              description={t('templatesList.emptyBody')}
+              action={canWrite ? createLink : null}
+            />
+          }
+          {...(canWrite
+            ? {
+                renderActions: (template: CmsTemplateSummary) => (
+                  <RowActionMenu label={t('listActions.label', { name: template.name })}>
+                    <RowActionMenuItem asChild>
+                      <Link to={`/cms/templates/${template.id}`}>{t('listActions.open')}</Link>
+                    </RowActionMenuItem>
+                    <RowActionMenuSeparator />
+                    <RowActionMenuItem destructive onSelect={() => void remove(template)}>
+                      {t('listActions.delete')}
+                    </RowActionMenuItem>
+                  </RowActionMenu>
+                ),
+              }
+            : {})}
+        />
+      </ListPage>
+      {confirmDialog}
     </div>
   );
 }
