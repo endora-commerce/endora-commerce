@@ -199,8 +199,10 @@ describe('RfqDetail — the primary of each status (SALES-12)', () => {
 
   it('a closed request with the PDFs off has no header actions at all', async () => {
     renderDetail('Completed', ['quote_requests']);
-    await screen.findByRole('tablist');
-    expect(document.querySelector('[data-slot="detail-header-actions"]')).toBeNull();
+    const group = await header();
+    expect(within(group).queryAllByRole('button')).toEqual([]);
+    // Only the region an action's result is said in (#1499), empty.
+    expect(within(group).getByRole('status').textContent).toBe('');
   });
 
   it('Cancel opens its dialog from the menu and returns focus to "More"', async () => {

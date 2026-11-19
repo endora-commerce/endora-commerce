@@ -45,7 +45,7 @@ import {
   type FulfilmentStrategyValue,
 } from '@endora-commerce/admin-kit/components';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, Label, PageHeader, InlineStatus, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /** The VAT validation panel's heading — where the moderation notice's link lands. */
@@ -174,7 +174,15 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   const [registryDivergenceCount, setRegistryDivergenceCount] = useState(0);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  /**
+   * Issue #1499 (SALES-17, DEC-12 a) — a result is said beside the control that caused it, in
+   * a region mounted empty from the first render: Save and the header's dialogs in the
+   * header, a member write right above the Members section — not as a success banner above
+   * the page.
+   */
+  const actionStatus = useInlineStatus();
+  const membersStatus = useInlineStatus();
+  const clearActionStatus = actionStatus.clear;
 
   const { hasPermission } = useAuth();
   const [roleList, setRoleList] = useState<OrganizationRoleView[] | null>(null);
@@ -270,8 +278,8 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     setEdits((current) => ({ ...current, ...patch }));
     // The last save's summary belongs to it: an edit clears it (FR-016).
     sessionRef.current.clearOutcome();
-    setInfo(null);
-  }, []);
+    clearActionStatus();
+  }, [clearActionStatus]);
 
   // The member dialogs hold unsaved data-entry of their own (each applies immediately on its
   // button); the page's Save covers the rest. Warn before leaving if any of them holds an edit.
@@ -361,7 +369,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
     if (host === null && sessionRef.current.dirtyCount === 0) return;
     setSaving(true);
     setError(null);
-    setInfo(null);
+    actionStatus.clear();
     conflictRef.current = false;
     try {
       const outcome = await sessionRef.current.run(host);
@@ -376,7 +384,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         setError(own('detail.save.conflict'));
         return;
       }
-      if (outcome.result === 'saved') setInfo(t('organizations.detail.info.saved'));
+      if (outcome.result === 'saved') actionStatus.show(t('organizations.detail.info.saved'));
     } finally {
       setSaving(false);
     }
@@ -399,10 +407,10 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
   /** Issue #1516 — a member write succeeded: say so, then re-read the Organization. */
   const membersChanged = useCallback(
     async (message: string): Promise<void> => {
-      setInfo(message);
+      membersStatus.show(message);
       await refresh();
     },
-    [refresh],
+    [refresh, membersStatus],
   );
 
   if (resource.initialLoading) return <DetailSkeleton label={t('organizations.loading')} />;
@@ -454,6 +462,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <InlineStatus {...actionStatus.props} className="max-w-sm" />
             <Button asChild variant="outline">
               <Link to="/organizations">
                 <ArrowLeft />
@@ -493,11 +502,6 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
       {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error ?? loadError}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -556,6 +560,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
 
       {/* Issue #1516 (SALES-14) — one Members section: the list, one Add member, and the
           edit and remove dialogs. Its writes stay immediate. */}
+      <InlineStatus {...membersStatus.props} className={membersStatus.props.children ? 'mb-2' : ''} />
       <OrganizationMembersSection
         organizationId={org.id}
         organizationName={org.name}
@@ -581,7 +586,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onCancel={(): void => setConverting(false)}
             onConverted={(result: ConvertToCompanyResult): void => {
               setConverting(false);
-              setInfo(conversionMessage(own, result));
+              actionStatus.show(conversionMessage(own, result));
               void refresh();
             }}
           />
@@ -597,7 +602,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onCancel={(): void => setChangingTaxId(false)}
             onChanged={(result: ChangeTaxIdResult): void => {
               setChangingTaxId(false);
-              setInfo(taxIdChangeMessage(own, result));
+              actionStatus.show(taxIdChangeMessage(own, result));
               void refresh();
             }}
           />
@@ -618,7 +623,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
             onStale={(): void => void refresh()}
             onChanged={(changed): void => {
               setChangingVatStatus(false);
-              setInfo(own(changed ? 'changeVatStatus.success.changed' : 'changeVatStatus.success.unchanged'));
+              actionStatus.show(own(changed ? 'changeVatStatus.success.changed' : 'changeVatStatus.success.unchanged'), changed ? 'success' : 'info');
               if (changed) void refresh();
             }}
           />

@@ -218,3 +218,40 @@ describe('DetailHeaderActions — while an entry runs', () => {
     expect(screen.getByRole('button', { name: MORE_EN })).not.toHaveAttribute('aria-busy');
   });
 });
+
+/**
+ * Issue #1499 (UX audit SALES-17, owner decision DEC-12 a) — the result of a
+ * header action is said beside the header's buttons, in an always-mounted
+ * polite region, not as a success banner stacked under the header.
+ */
+describe('DetailHeaderActions — `status`, the last header action\'s result', () => {
+  it('mounts an empty polite region inside the group as soon as `status` is passed', () => {
+    renderWithI18n(<DetailHeaderActions status={{ children: null }} primary={<Button type="button">Approve</Button>} />, EN);
+    const region = within(actionsGroup()).getByRole('status');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    expect(region.textContent).toBe('');
+  });
+
+  it('draws the result before the buttons, so the primary stays last in reading order', () => {
+    renderWithI18n(
+      <DetailHeaderActions status={{ children: 'Approved.' }} primary={<Button type="button">Approve</Button>} />,
+      EN,
+    );
+    const group = actionsGroup();
+    const region = within(group).getByRole('status');
+    expect(region).toHaveTextContent('Approved.');
+    expect(group.firstElementChild).toBe(region);
+  });
+
+  it('keeps the region on a header that has no action at all, so a result can still be said', () => {
+    renderWithI18n(<DetailHeaderActions status={{ children: 'Copied RFQ-1', tone: 'info' }} />, EN);
+    expect(within(actionsGroup()).getByRole('status')).toHaveTextContent('Copied RFQ-1');
+  });
+
+  it('renders no region without `status`, and nothing at all with neither status nor actions', () => {
+    const { container } = renderWithI18n(<DetailHeaderActions />, EN);
+    expect(container.querySelector('[data-slot="detail-header-actions"]')).toBeNull();
+    renderWithI18n(<Header />, EN);
+    expect(within(actionsGroup()).queryByRole('status')).toBeNull();
+  });
+});

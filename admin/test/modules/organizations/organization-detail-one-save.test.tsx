@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import {
   adminSession,
@@ -359,6 +359,23 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     });
     expect(putSpy.mock.calls.find(([url]) => url === NEGOTIATION_URL)?.[1]).toEqual({ priceProposalsAllowed: true });
     await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save'));
+  });
+
+  // Issue #1499 (SALES-17, DEC-12 a) — "Saved" is said beside Save, in the header, in a
+  // region mounted empty from the first render — not as a success banner above the page.
+  it('says "Saved" beside Save and puts no success banner on the page', async () => {
+    renderDetail();
+    await ready();
+    const header = saveButton().closest('header')!;
+    const region = within(header).getByRole('status');
+    expect(region.textContent).toBe('');
+    fireEvent.change(emailsField(), { target: { value: 'ops@example.com' } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(region).toHaveTextContent(coreEn['organizations.detail.info.saved']!));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+    // The next edit is a new draft: the old "Saved" goes.
+    fireEvent.change(emailsField(), { target: { value: 'ops@example.com\nx@example.com' } });
+    expect(region.textContent).toBe('');
   });
 
   it('sends only what changed: a lone custom field is a lone PATCH', async () => {

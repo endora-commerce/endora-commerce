@@ -154,6 +154,19 @@ describe('OrderDetail — the order-status control (#1470)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
+  // Issue #1499 (SALES-17) — the control announces the change itself and its badge shows
+  // the new value; the page adds no success banner of its own above the tabs.
+  it('adds no success banner above the tabs once the change committed', async () => {
+    renderDetail('processing');
+    const dialog = await openDialog();
+    await userEvent.click(within(dialog).getByRole('radio', { name: 'Shipped' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.continue' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.statusChange.confirm' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByText(/orderDetail\.messages\.orderMoved/)).not.toBeInTheDocument();
+    expect(document.querySelector('[data-slot="alert"]')).toBeNull();
+  });
+
   it('keeps the dialog open with the server\'s refusal', async () => {
     postSpy.mockRejectedValue(
       new ApiError(409, { error: { code: 'INVALID_TRANSITION', message: 'Not allowed from here.' } }),

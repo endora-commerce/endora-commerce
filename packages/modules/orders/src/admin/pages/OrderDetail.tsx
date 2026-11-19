@@ -12,7 +12,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { ApiError, apiBaseUrl, apiClient, cn, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useDetailResource, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, FormField, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, FormField, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { CustomFieldValuesPanel, DetailHeaderActions, RowActionMenuItem, StatusChangeControl, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -285,7 +285,12 @@ export function OrderDetail(): ReactNode {
   const [commentVisible, setCommentVisible] = useState(true);
   const [commentNotify, setCommentNotify] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  /**
+   * Issue #1499 (SALES-17, DEC-12 a) — a header action's result, the copied number's
+   * included, is said beside the header's buttons, in a region mounted empty from the
+   * first render, rather than as a success banner above the tabs.
+   */
+  const actionStatus = useInlineStatus();
   const [tab, setTab] = useState<OrderTab>('overview');
   /**
    * Issue #1497 (SALES-12) — the header action whose request is in flight. Every
@@ -402,46 +407,46 @@ export function OrderDetail(): ReactNode {
     if (!order) return;
     try {
       await navigator.clipboard.writeText(order.businessId);
-      setInfo(t('orderDetail.copied', { id: order.businessId }));
+      actionStatus.show(t('orderDetail.copied', { id: order.businessId }), 'info');
     } catch {
-      setError(t('orderDetail.copyError'));
+      actionStatus.show(t('orderDetail.copyError'), 'error');
     }
-  }, [order, t]);
+  }, [order, t, actionStatus]);
 
   const handleReorder = useCallback(async (): Promise<void> => {
     setPendingAction('reorder');
+    actionStatus.clear();
     try {
       const res = await apiClient.post<{ data: { unavailableItems: unknown[] } }>(
         `/api/v1/admin/orders/${id}/reorder`,
         {},
       );
       const unavailable = res.data.unavailableItems.length;
-      setInfo(
-        unavailable > 0
-          ? t('orderDetail.reorder.doneWithSkips', { count: unavailable })
-          : t('orderDetail.reorder.done'),
-      );
+      if (unavailable > 0) actionStatus.show(t('orderDetail.reorder.doneWithSkips', { count: unavailable }), 'warning');
+      else actionStatus.show(t('orderDetail.reorder.done'));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.reorder.error'));
     } finally {
       setPendingAction(null);
     }
-  }, [id, t]);
+  }, [id, t, actionStatus]);
 
   const handleCloneToQuote = useCallback(async (): Promise<void> => {
     setPendingAction('cloneToQuote');
+    actionStatus.clear();
     try {
       await apiClient.post(`/api/v1/admin/orders/${id}/clone-to-quote`, {});
-      setInfo(t('orderDetail.cloneToQuote.done'));
+      actionStatus.show(t('orderDetail.cloneToQuote.done'));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.cloneToQuote.error'));
     } finally {
       setPendingAction(null);
     }
-  }, [id, t]);
+  }, [id, t, actionStatus]);
 
   const handleIssueInvoice = useCallback(async (): Promise<void> => {
     setPendingAction('issueInvoice');
+    actionStatus.clear();
     try {
       const res = await apiClient.post<{ email?: IssueInvoiceEmailOutcome }>(
         `/api/v1/admin/orders/${id}/invoices`,
@@ -450,34 +455,34 @@ export function OrderDetail(): ReactNode {
       // Issue #149 — the invoice was issued either way, so this is never an
       // error; the notification is the part that varies, and it is said out
       // loud instead of being reported as an unqualified success.
-      setInfo(issueInvoiceNotice(res.email, t));
+      // Issued without its e-mail is a result that went through only in part.
+      actionStatus.show(issueInvoiceNotice(res.email, t), res.email?.status === 'not_sent' ? 'warning' : 'success');
       await loadInvoices();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.issueInvoice.error'));
     } finally {
       setPendingAction(null);
     }
-  }, [id, loadInvoices, t]);
+  }, [id, loadInvoices, t, actionStatus]);
 
   // Both run from the confirm step of a `StatusChangeControl` dialog (issue
   // #1470, DS-18) and let a refusal propagate, so the dialog stays open and
-  // shows it; the page-level notice reports the change once it committed.
+  // shows it. The control announces the committed change itself and its badge
+  // shows the new value, so the page adds no banner of its own (#1499, SALES-17).
   const handleStatus = useCallback(
     async (to: string): Promise<void> => {
       await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/status`, { to });
-      setInfo(t('orderDetail.messages.orderMoved', { status: statusName(graph, to, language) }));
       await refresh();
     },
-    [id, refresh, graph, language, t],
+    [id, refresh],
   );
 
   const handlePaymentStatus = useCallback(
     async (to: string): Promise<void> => {
       await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/payment-status`, { to });
-      setInfo(t('orderDetail.messages.paymentMoved', { status: t(paymentStatusLabelKey(to)) }));
       await refresh();
     },
-    [id, refresh, t],
+    [id, refresh],
   );
 
   if (resource.initialLoading) return <DetailSkeleton />;
@@ -559,6 +564,7 @@ export function OrderDetail(): ReactNode {
                 )
               }
               moreDisabled={busy}
+              status={actionStatus.props}
               moreBusy={pendingAction === 'reorder' || pendingAction === 'cloneToQuote' || (hasInvoice && pendingAction === 'issueInvoice')}
             >
               <RowActionMenuItem onSelect={(): void => void handleReorder()}>
@@ -594,11 +600,6 @@ export function OrderDetail(): ReactNode {
       {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error ?? loadError}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
