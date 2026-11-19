@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
@@ -21,6 +21,7 @@ import {
 import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useConfirmRemoval } from './editor/confirm-removal.js';
+import { RowRemoveButton } from './editor/RowRemoveButton.js';
 import { useProductEditor } from './editor/editor-context.js';
 import {
   OPTION_VALUE_TYPES,
@@ -291,17 +292,10 @@ export function ProductVariantsSection({ productId, readOnly = false }: { produc
                             <Pencil className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         ) : null}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive max-lg:h-11 max-lg:w-11"
-                          aria-label={t('productEditor.variants.action.deleteFor', { sku: v.sku })}
-                          title={t('productEditor.variants.action.deleteFor', { sku: v.sku })}
+                        <RowRemoveButton
+                          label={t('productEditor.variants.action.deleteFor', { sku: v.sku })}
                           onClick={(): void => void handleDelete(v.id, v.sku)}
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        </Button>
+                        />
                       </div>
                     </TableCell>
                   )}
@@ -503,12 +497,14 @@ function CreateVariantInline({
         ) : null}
         <Button
           type="button"
+          variant="outline"
           disabled={busy}
           aria-busy={busy || undefined}
           aria-describedby={duplicateOf ? duplicateId : undefined}
           className="max-lg:min-h-11"
           onClick={(): void => void submit()}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.variants.action.add')}
         </Button>
       </div>
@@ -581,6 +577,7 @@ function EditVariantRow({
         <div className="flex items-center gap-1">
           <Button
             type="button"
+            variant="outline"
             size="sm"
             className="max-lg:min-h-11"
             disabled={busy}

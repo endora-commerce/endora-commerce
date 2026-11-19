@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Archive, ArchiveRestore, ChevronDown, Copy, Lock, RotateCw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronDown, Copy, Lock, Plus, RotateCw, Trash2 } from 'lucide-react';
 import {
   ERROR_CODES,
   type ScopeMissingValue,
@@ -70,6 +70,7 @@ import { EditorField, ProductEditorContextProvider, fieldDomId, type ProductEdit
 import { sectionTitle } from '../components/editor/SectionBadge.js';
 import { TextControl } from '../components/editor/scoped-controls.js';
 import { useConfirmRemoval } from '../components/editor/confirm-removal.js';
+import { RowRemoveButton } from '../components/editor/RowRemoveButton.js';
 import { ProductCreateForm } from './ProductCreateForm.js';
 import { describeIncompletePair } from '../lib/product-scopes-api.js';
 import { takeoverDetails, urlKeyErrorMessage, describeKeyInLanguage } from '../lib/product-url-keys-api.js';
@@ -1753,15 +1754,12 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
                           <TableCell>{link.position}</TableCell>
                           {readOnly ? null : (
                             <TableCell>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="max-lg:min-h-11"
-                                variant="destructive"
+                              <RowRemoveButton
+                                label={t('productEditor.links.action.removeFor', {
+                                  product: target ? pickProductName(target.name, target.slug) : `${link.targetProductId.slice(0, 8)}…`,
+                                })}
                                 onClick={() => void handleDelete(link.id)}
-                              >
-                                {t('productEditor.links.action.remove')}
-                              </Button>
+                              />
                             </TableCell>
                           )}
                         </TableRow>
@@ -1823,6 +1821,8 @@ function CreateProductLinkInline({
       <div className="md:col-span-3">
         <Button
           type="button"
+          variant="outline"
+          className="max-lg:min-h-11"
           disabled={targetProductId === null}
           onClick={() => {
             if (targetProductId === null) return;
@@ -1831,6 +1831,7 @@ function CreateProductLinkInline({
             });
           }}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.links.action.add')}
         </Button>
       </div>
@@ -1952,15 +1953,10 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
                 <TableCell>{item.position}</TableCell>
                 {readOnly ? null : (
                   <TableCell>
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="max-lg:min-h-11"
-                      variant="destructive"
+                    <RowRemoveButton
+                      label={t('productEditor.grouped.action.removeFor', { product: item.childProductId })}
                       onClick={() => void handleDelete(item.id)}
-                    >
-                      {t('productEditor.grouped.action.remove')}
-                    </Button>
+                    />
                   </TableCell>
                 )}
               </TableRow>
@@ -2012,6 +2008,8 @@ function CreateGroupedItemInline({
       <div className="md:col-span-3">
         <Button
           type="button"
+          variant="outline"
+          className="max-lg:min-h-11"
           onClick={() => {
             if (!childProductId) return;
             void onCreate({ childProductId, quantity }).then(() => {
@@ -2020,6 +2018,7 @@ function CreateGroupedItemInline({
             });
           }}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.grouped.action.add')}
         </Button>
       </div>
@@ -2206,6 +2205,7 @@ function BundleSlotRow({
 }): ReactNode {
   const t = useTranslation('catalog');
   const [optionId, setOptionId] = useState('');
+  const slotName = slot.name['en-US'] ?? Object.values(slot.name)[0] ?? '—';
 
   return (
     <li className="py-3 first:pt-0 last:pb-0">
@@ -2217,7 +2217,7 @@ function BundleSlotRow({
         divider={false}
         title={
           <>
-            {slot.name['en-US'] ?? Object.values(slot.name)[0] ?? '—'}{' '}
+            {slotName}{' '}
             <span className="text-xs font-normal text-muted-foreground">
               {t('productEditor.bundle.slotMeta', {
                 min: slot.minQuantity,
@@ -2229,15 +2229,10 @@ function BundleSlotRow({
         }
         action={
           readOnly ? null : (
-            <Button
-              type="button"
-              size="sm"
-              className="max-lg:min-h-11"
-              variant="destructive"
+            <RowRemoveButton
+              label={t('productEditor.bundle.action.deleteSlotFor', { slot: slotName })}
               onClick={() => void onDeleteSlot(slot.id)}
-            >
-              {t('productEditor.bundle.action.deleteSlot')}
-            </Button>
+            />
           )
         }
       >
@@ -2262,15 +2257,10 @@ function BundleSlotRow({
                     <TableCell>{opt.position}</TableCell>
                     {readOnly ? null : (
                       <TableCell>
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="max-lg:min-h-11"
-                          variant="destructive"
+                        <RowRemoveButton
+                          label={t('productEditor.bundle.action.removeOptionFor', { product: opt.optionProductId })}
                           onClick={() => void onRemoveOption(slot.id, opt.id)}
-                        >
-                          {t('productEditor.bundle.action.removeOption')}
-                        </Button>
+                        />
                       </TableCell>
                     )}
                   </TableRow>
@@ -2292,12 +2282,15 @@ function BundleSlotRow({
             </div>
             <Button
               type="button"
+              variant="outline"
+              className="max-lg:min-h-11"
               onClick={() => {
                 void onAddOption(slot.id, optionId).then(() => {
                   setOptionId('');
                 });
               }}
             >
+              <Plus aria-hidden="true" />
               {t('productEditor.bundle.action.addOption')}
             </Button>
           </div>
@@ -2355,6 +2348,8 @@ function CreateBundleSlotInline({
       <div className="md:col-span-4">
         <Button
           type="button"
+          variant="outline"
+          className="max-lg:min-h-11"
           onClick={() => {
             if (!name) return;
             void onCreate({ name, minQuantity, maxQuantity }).then(() => {
@@ -2364,6 +2359,7 @@ function CreateBundleSlotInline({
             });
           }}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.bundle.action.add')}
         </Button>
       </div>
