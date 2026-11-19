@@ -10,7 +10,7 @@ import type {
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { FulfilmentStrategyPicker, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import type { FulfilmentStrategyValue } from '@endora-commerce/admin-kit/components';
-import { Alert, Button, InlineStatus, SettingRow, Switch, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { Alert, Button, EditorSection, InlineStatus, SettingRow, Switch, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useProductEditor } from './editor/editor-context.js';
 
@@ -251,135 +251,111 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
   if (loading) return <div className="b2b-help">{t('inventoryTab.loading')}</div>;
 
   return (
-    <div className="b2b-col" style={{ gap: 16 }}>
-      <div className="b2b-card">
-        <div className="b2b-card__head">
-          <h2>{t('inventoryTab.stockMgmt.title')}</h2>
-        </div>
-        <div className="b2b-card__body b2b-col" style={{ gap: 12 }}>
-          {/* A positive state, not "Disable stock management" checked when it is off (Mental Model). */}
-          <SettingRow label={t('inventoryTab.stockMgmt.trackStock')}>
-            <Switch checked={manageStock} onCheckedChange={(next): void => stage('manageStock', next)} />
-          </SettingRow>
-          <SettingRow
-            label={t('inventoryTab.stockMgmt.backorder')}
-            description={
-              !allowNegativeGlobal
-                ? t('inventoryTab.stockMgmt.backorderGloballyDisabled')
-                : !manageStock
-                  ? t('inventoryTab.stockMgmt.backorderUnmanaged')
-                  : t('inventoryTab.stockMgmt.backorderHelp')
-            }
-          >
-            {/* The reason it is unavailable is the row's description, already on screen. */}
-            <Switch
-              checked={backorderEnabled}
-              disabled={!manageStock || !allowNegativeGlobal}
-              onCheckedChange={(next): void => stage('backorderEnabled', next)}
-            />
-          </SettingRow>
-        </div>
-      </div>
-
-      <div className="b2b-card" style={{ padding: 12 }}>
-        <div className="b2b-row" style={{ gap: 16 }}>
-          <div>
-            <div className="b2b-muted" style={{ fontSize: 11, textTransform: 'uppercase' }}>
-              {t('inventoryTab.summary.cumulativeOnHand')}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 600 }}>{totalOnHand.toLocaleString()}</div>
-          </div>
-          <div>
-            <div className="b2b-muted" style={{ fontSize: 11, textTransform: 'uppercase' }}>
-              {t('inventoryTab.summary.activeWarehouses')}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 600 }}>{warehouses.length}</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="b2b-card">
-        <div className="b2b-card__head">
-          <h2>{t('inventoryTab.lowStock.title')}</h2>
-        </div>
-        <div className="b2b-card__body">
-          <div className="b2b-row" style={{ gap: 16, alignItems: 'flex-start', marginBottom: 12 }}>
-            <label className="b2b-row" style={{ gap: 6, alignItems: 'center' }}>
-              <input
-                type="radio"
-                name={`low-stock-mode-${productId}`}
-                checked={mode === 'cumulative'}
-                onChange={(): void => stage('lowStockThresholdMode', 'cumulative')}
-              />
-              {t('inventoryTab.lowStock.modeCumulative')}
-            </label>
-            <label className="b2b-row" style={{ gap: 6, alignItems: 'center' }}>
-              <input
-                type="radio"
-                name={`low-stock-mode-${productId}`}
-                checked={mode === 'per_warehouse'}
-                onChange={(): void => stage('lowStockThresholdMode', 'per_warehouse')}
-              />
-              {t('inventoryTab.lowStock.modePerWarehouse')}
-            </label>
-          </div>
-
-          {mode === 'cumulative' ? (
-            <>
-              <div className="b2b-row" style={{ gap: 8, alignItems: 'flex-end' }}>
-                <div style={{ minWidth: 220 }}>
-                  <input
-                    className="b2b-field"
-                    type="number"
-                    min="0"
-                    aria-label={t('inventoryTab.lowStock.title')}
-                    value={lowStockThreshold}
-                    placeholder={t('inventoryTab.lowStock.placeholder')}
-                    onChange={(e): void => setLowStockThreshold(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="b2b-help" style={{ marginTop: 6 }}>
-                {t('inventoryTab.lowStock.help')}
-              </div>
-            </>
-          ) : (
-            <div className="b2b-help">
-              {t('inventoryTab.lowStock.perWarehouseHelp')}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="b2b-card">
-        <div className="b2b-card__head">
-          <h2>{t('inventoryTab.fulfilment.title')}</h2>
-        </div>
-        <div className="b2b-card__body">
-          <FulfilmentStrategyPicker
-            value={fulfilment}
-            onChange={setFulfilment}
-            warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
-            allowInherit
-            idPrefix={`product-${productId}`}
+    // Issue #1488 (CAT-06): sections of the editor's card, not cards inside it. A fragment, so
+    // they are siblings of the tab's other sections and take the rule between them.
+    <>
+      <EditorSection title={t('inventoryTab.stockMgmt.title')}>
+        {/* A positive state, not "Disable stock management" checked when it is off (Mental Model). */}
+        <SettingRow label={t('inventoryTab.stockMgmt.trackStock')}>
+          <Switch checked={manageStock} onCheckedChange={(next): void => stage('manageStock', next)} />
+        </SettingRow>
+        <SettingRow
+          label={t('inventoryTab.stockMgmt.backorder')}
+          description={
+            !allowNegativeGlobal
+              ? t('inventoryTab.stockMgmt.backorderGloballyDisabled')
+              : !manageStock
+                ? t('inventoryTab.stockMgmt.backorderUnmanaged')
+                : t('inventoryTab.stockMgmt.backorderHelp')
+          }
+        >
+          {/* The reason it is unavailable is the row's description, already on screen. */}
+          <Switch
+            checked={backorderEnabled}
+            disabled={!manageStock || !allowNegativeGlobal}
+            onCheckedChange={(next): void => stage('backorderEnabled', next)}
           />
+        </SettingRow>
+      </EditorSection>
+
+      <EditorSection title={t('inventoryTab.lowStock.title')}>
+        <div className="b2b-row" style={{ gap: 16, alignItems: 'flex-start', marginBottom: 12 }}>
+          <label className="b2b-row" style={{ gap: 6, alignItems: 'center' }}>
+            <input
+              type="radio"
+              name={`low-stock-mode-${productId}`}
+              checked={mode === 'cumulative'}
+              onChange={(): void => stage('lowStockThresholdMode', 'cumulative')}
+            />
+            {t('inventoryTab.lowStock.modeCumulative')}
+          </label>
+          <label className="b2b-row" style={{ gap: 6, alignItems: 'center' }}>
+            <input
+              type="radio"
+              name={`low-stock-mode-${productId}`}
+              checked={mode === 'per_warehouse'}
+              onChange={(): void => stage('lowStockThresholdMode', 'per_warehouse')}
+            />
+            {t('inventoryTab.lowStock.modePerWarehouse')}
+          </label>
         </div>
-      </div>
+
+        {mode === 'cumulative' ? (
+          <>
+            <div className="b2b-row" style={{ gap: 8, alignItems: 'flex-end' }}>
+              <div style={{ minWidth: 220 }}>
+                <input
+                  className="b2b-field"
+                  type="number"
+                  min="0"
+                  aria-label={t('inventoryTab.lowStock.title')}
+                  value={lowStockThreshold}
+                  placeholder={t('inventoryTab.lowStock.placeholder')}
+                  onChange={(e): void => setLowStockThreshold(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="b2b-help" style={{ marginTop: 6 }}>
+              {t('inventoryTab.lowStock.help')}
+            </div>
+          </>
+        ) : (
+          <div className="b2b-help">
+            {t('inventoryTab.lowStock.perWarehouseHelp')}
+          </div>
+        )}
+      </EditorSection>
+
+      <EditorSection title={t('inventoryTab.fulfilment.title')}>
+        <FulfilmentStrategyPicker
+          value={fulfilment}
+          onChange={setFulfilment}
+          warehouses={warehouses.map((w) => ({ id: w.id, code: w.code, name: w.name }))}
+          allowInherit
+          idPrefix={`product-${productId}`}
+        />
+      </EditorSection>
 
       {error ? (
         <Alert variant="destructive">{error === LOAD_FAILED ? t('inventoryTab.error.load') : error}</Alert>
       ) : null}
 
-      <div className="b2b-card">
-        {/* Per-warehouse stock and thresholds write at once, each its own audited command. */}
-        <div className="b2b-card__head">
-          <h2>
+      {/* Per-warehouse stock and thresholds write at once, each its own audited command. The
+          stock summary is the section's stat line, not a box of its own (#1488). */}
+      <EditorSection
+        title={
+          <>
             {t('inventoryTab.table.title')}
             {editable ? <ImmediateBadge /> : null}
-          </h2>
-          {/* Mounted before it has text, so the result of a row's Apply is announced (WCAG 4.1.3). */}
-          <InlineStatus {...status.props} />
-        </div>
+          </>
+        }
+        description={t('inventoryTab.summary.line', {
+          onHand: totalOnHand.toLocaleString(),
+          warehouses: String(warehouses.length),
+        })}
+        // Mounted before it has text, so the result of a row's Apply is announced (WCAG 4.1.3).
+        action={<InlineStatus {...status.props} />}
+      >
         <table className="b2b-tbl">
           <thead>
             <tr>
@@ -477,8 +453,8 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
             })}
           </tbody>
         </table>
-      </div>
-    </div>
+      </EditorSection>
+    </>
   );
 }
 

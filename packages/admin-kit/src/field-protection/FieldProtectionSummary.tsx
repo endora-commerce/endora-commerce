@@ -11,6 +11,11 @@
 import type { ReactNode } from 'react';
 import { Boxes, Lock, ShieldCheck } from 'lucide-react';
 
+import {
+  EditorSection,
+  type EditorSectionChrome,
+  type EditorSectionHeading,
+} from '../ui/editor-section.js';
 import { describeFieldPath } from './describe-path.js';
 import { useFieldProtection } from './use-field-protection.js';
 import type { FieldProtectionSource } from './types.js';
@@ -18,11 +23,22 @@ import type { FieldProtectionSource } from './types.js';
 export interface FieldProtectionSummaryProps {
   readonly source: FieldProtectionSource;
   readonly className?: string;
+  /**
+   * `section` (the default, unless the mount says otherwise): a section of the
+   * card it is mounted in — the product editor's tab. `card` where it stands
+   * alone on a page (issue #1488, UX audit CAT-06; the DS-03 rule: a frame
+   * inside a card is a defect unless it is a field).
+   */
+  readonly chrome?: EditorSectionChrome;
+  /** The heading level: `h2` by default, `h3` under a titled card or section. */
+  readonly titleAs?: EditorSectionHeading;
 }
 
 export function FieldProtectionSummary({
   source,
   className,
+  chrome,
+  titleAs,
 }: FieldProtectionSummaryProps): ReactNode {
   const protection = useFieldProtection(source);
   if (!protection.available) return null;
@@ -31,22 +47,25 @@ export function FieldProtectionSummary({
   const synced = protection.lastSyncedAt ? new Date(protection.lastSyncedAt) : null;
 
   return (
-    <div
-      className={`rounded-md border border-border bg-muted/30 px-3 py-2 text-xs ${className ?? ''}`}
-    >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <span className="inline-flex items-center gap-1.5 font-medium">
-          <ShieldCheck size={13} aria-hidden="true" />
+    <EditorSection
+      title={
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <ShieldCheck size={14} aria-hidden="true" />
           {t('fieldProtection.title')}
-          {/* Two connected integrations render two of these cards; without the
+          {/* Two connected integrations render two of these sections; without the
               label they are two identical headings. */}
-          <span className="opacity-70">{source.sourceLabel}</span>
+          <span className="font-normal text-muted-foreground">{source.sourceLabel}</span>
         </span>
-        {protection.integrationManaged ? (
-          <span className="text-muted-foreground">{t('fieldProtection.integrationManaged')}</span>
-        ) : null}
+      }
+      description={t('fieldProtection.description')}
+      {...(chrome ? { chrome } : {})}
+      {...(titleAs ? { as: titleAs } : {})}
+      {...(className ? { className } : {})}
+    >
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {protection.integrationManaged ? <span>{t('fieldProtection.integrationManaged')}</span> : null}
         {protection.sourceKind ? (
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
             <Boxes size={13} aria-hidden="true" />
             {/* The owner's own vocabulary in the owner's own namespace: the two
                 integrations enumerate different structural kinds, and neither
@@ -61,17 +80,16 @@ export function FieldProtectionSummary({
           </span>
         ) : null}
         {synced && !Number.isNaN(synced.getTime()) ? (
-          <span className="text-muted-foreground">
+          <span>
             {t('fieldProtection.lastSyncedAt')}:{' '}
             <time dateTime={protection.lastSyncedAt ?? undefined}>{synced.toLocaleString()}</time>
           </span>
         ) : null}
       </div>
-      <p className="mt-1 text-muted-foreground">{t('fieldProtection.description')}</p>
       {protection.protections.length === 0 ? (
-        <p className="mt-1 text-muted-foreground">{t('fieldProtection.summary.none')}</p>
+        <p className="text-xs text-muted-foreground">{t('fieldProtection.summary.none')}</p>
       ) : (
-        <ul className="mt-1 flex flex-wrap gap-1.5">
+        <ul className="flex flex-wrap gap-1.5 text-xs">
           {protection.protections.map((entry) => (
             <li
               key={`${entry.fieldPath}|${entry.languageCode ?? ''}`}
@@ -88,6 +106,6 @@ export function FieldProtectionSummary({
           ))}
         </ul>
       )}
-    </div>
+    </EditorSection>
   );
 }

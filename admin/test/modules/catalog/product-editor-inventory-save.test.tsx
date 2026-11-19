@@ -100,7 +100,8 @@ describe('the Inventory tab saves with the product (feature 180, WP-4)', () => {
   it('stages the five product-row settings and writes them with the one Save, in the scoped write', async () => {
     await openInventory();
     fireEvent.click(screen.getByLabelText(new RegExp(escape(en['inventoryTab.stockMgmt.backorder']!))));
-    fireEvent.change(screen.getByLabelText(en['inventoryTab.lowStock.title']!), { target: { value: '4' } });
+    // The input and its section share a name (#1488: the section is a region labelled by its heading).
+    fireEvent.change(screen.getByRole('spinbutton', { name: en['inventoryTab.lowStock.title']! }), { target: { value: '4' } });
     fireEvent.change(screen.getByLabelText(CORE['fulfilment.label']!), { target: { value: 'lowest_stock_first' } });
     expect(saveButton()).toHaveAccessibleName(/^Save 3 changes/);
     expect(api.patch).not.toHaveBeenCalled();
@@ -173,8 +174,8 @@ describe('the Inventory tab saves with the product (feature 180, WP-4)', () => {
       expect(api.put).toHaveBeenCalledWith('/api/v1/admin/inventory/levels', { productId: PRODUCT_ID, warehouseId: WH_A, onHand: 7 }),
     );
     expect(scopedPuts()).toHaveLength(0);
-    // The stock heading of the editor no longer claims the whole tab applies immediately.
-    expect(document.getElementById('product-stock-heading')).not.toHaveTextContent(
+    // The tab's first section does not claim the whole tab applies immediately.
+    expect(screen.getByRole('heading', { name: en['inventoryTab.stockMgmt.title']! })).not.toHaveTextContent(
       IMMEDIATE_BADGE,
     );
   });
@@ -271,7 +272,7 @@ describe('the per-warehouse rows (issue #1454, UX audit CAT-01)', () => {
 
   it('has no axe violations in either threshold mode', async () => {
     await openInventory();
-    const tab = document.getElementById('product-stock-heading')!.closest('section')!;
+    const tab = screen.getByRole('tabpanel');
     await expectNoAxeViolations(tab);
     fireEvent.click(screen.getByLabelText(en['inventoryTab.lowStock.modePerWarehouse']!));
     await expectNoAxeViolations(tab);

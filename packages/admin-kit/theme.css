@@ -1607,7 +1607,6 @@ textarea.b2b-field {
 .b2b-muted { color: var(--fg-muted); }
 .b2b-mono { font-family: var(--ff-mono); }
 .b2b-tabular { font-variant-numeric: tabular-nums; }
-.b2b-hr { height: 1px; background: var(--border-subtle); border: none; margin: 0; }
 
 .b2b-thumb {
   border-radius: var(--r-sm);

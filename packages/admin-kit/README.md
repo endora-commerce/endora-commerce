@@ -486,7 +486,9 @@ dropzone and a dialog are fields or overlays, not frames, and stay.
   under `<AdminZone chrome="card">`; a section resets it for its children, so a section inside a
   carded one is never a card in a card.
 - `CustomFieldValuesPanel`, `RecordHistory`, `CommentThread` and the zone panel frame are sections
-  by default and take `chrome="card"`. `CustomFieldValuesPanel` also takes `titleAs`. History and
+  by default and take `chrome="card"`. `CustomFieldValuesPanel` also takes `titleAs`.
+  `FieldProtectionSummary` (`./field-protection`) is a section too, with `chrome` and `titleAs`
+  (issue #1488, CAT-06); its heading names the source, so two integrations are two sections. History and
   comments render no heading of their own as a section: the host's tab or heading names them.
 - Mount a zone at page level, between the host's own cards, as `<AdminZone … chrome="card" />`;
   inside a card, leave the prop off. A contribution that renders an `EditorSection` follows the
