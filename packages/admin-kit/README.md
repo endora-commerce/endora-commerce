@@ -932,6 +932,8 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
 - **What the kit deliberately leaves to the screen:** the filters themselves and their "More
   filters" disclosure (DS-06, #1440, the kit `ListToolbar`), and the empty state's icon and copy
   (DS-15, #1448, the kit `EmptyState`). Both slot into `toolbar` and `emptyState` when they land.
+- **`help`** goes to `PageHeader`'s ⓘ, for a list whose header needs a longer explanation than a
+  one-line `description` (the Modules screen, #1520).
 - Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
   adopters are `CustomersList`, `OrganizationsList` and `CartsList`.
 - **A value edited from the row** (issue #1501, SHELL-14) is a `StatusChangeControl` with

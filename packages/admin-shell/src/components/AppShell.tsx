@@ -380,6 +380,15 @@ const NAV: NavSection[] = [
 ];
 
 /**
+ * The sidebar's sections in its own order, with their heading keys — what the
+ * Modules screen groups its rows by (issue #1520, UX audit SHELL-12), so a
+ * module is listed under the heading an operator already finds it under in the
+ * menu. Derived from `NAV`, never written out a second time.
+ */
+export const NAV_SECTION_HEADINGS: readonly { readonly key: string; readonly labelKey: string }[] =
+  NAV.map(({ key, labelKey }) => ({ key, labelKey }));
+
+/**
  * Map URL pathname → breadcrumb trail. Each crumb carries a label and
  * an optional `href`; the trailing segment (current page) carries
  * `null` so the renderer can disable it. Hrefs are picked so every

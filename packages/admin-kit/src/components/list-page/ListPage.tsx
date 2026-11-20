@@ -24,6 +24,8 @@ export type ListPageLoad =
 export interface ListPageProps {
   title: ReactNode;
   description?: ReactNode;
+  /** A longer explanation behind the title's ⓘ — passed to `PageHeader`'s `help`. */
+  help?: ReactNode;
   /**
    * The header's actions: the **one** primary "New …" (Von Restorff), and at
    * most an overflow menu for screen-wide secondary actions. A create form is
@@ -76,13 +78,13 @@ const SKELETON_ROWS = ['a', 'b', 'c', 'd', 'e'] as const;
  * README's "List pages" section.
  */
 export function ListPage(props: ListPageProps): ReactNode {
-  const { title, description, actions, tabs, toolbar, count, notice, load, onRetry, pagination, children } = props;
+  const { title, description, help, actions, tabs, toolbar, count, notice, load, onRetry, pagination, children } = props;
   const t = useTranslation('core');
   const loading = load.kind === 'loading';
 
   return (
     <>
-      <PageHeader title={title} description={description} actions={actions} />
+      <PageHeader title={title} description={description} help={help} actions={actions} />
       {tabs}
       <div className="mb-4 flex flex-wrap items-end gap-3">
         {toolbar}

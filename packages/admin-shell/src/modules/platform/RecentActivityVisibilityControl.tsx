@@ -1,6 +1,5 @@
 import { useCallback, useState, type ReactNode } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
-import { Button } from '@endora-commerce/admin-kit/ui';
+import { Switch } from '@endora-commerce/admin-kit/ui';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { setRecentActivityVisibility } from './api.js';
 
@@ -62,25 +61,20 @@ export function RecentActivityVisibilityControl({
     }
   }, [moduleId, onChanged, onError, visible]);
 
+  // Issue #1520 (SHELL-12): a `Switch` in the *Dashboard* column. It used to be
+  // a ghost button whose label was the state ("On the dashboard"), which read
+  // as a status rather than as something to press (Similarity). The choice
+  // takes effect at once, so it is a switch rather than a checkbox (DEC-04);
+  // the column header carries the explanation, and the accessible name says
+  // what the switch is about.
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      disabled={pending}
-      onClick={() => void toggle()}
-      title={t('platform.modules.recentActivity.hint', { name: moduleName })}
+    <Switch
+      checked={visible}
+      busy={pending}
+      onCheckedChange={() => void toggle()}
+      aria-label={t('platform.modules.recentActivity.switchLabel', { name: moduleName })}
       data-testid={`recent-activity-visibility-${moduleId}`}
       data-visible={visible ? 'true' : 'false'}
-    >
-      {visible ? (
-        <Eye className="mr-1 size-3.5" aria-hidden="true" />
-      ) : (
-        <EyeOff className="mr-1 size-3.5" aria-hidden="true" />
-      )}
-      {visible
-        ? t('platform.modules.recentActivity.shown')
-        : t('platform.modules.recentActivity.hidden')}
-    </Button>
+    />
   );
 }
