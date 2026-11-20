@@ -72,6 +72,21 @@ export interface AuditPort {
   query(filter?: AuditLogFilter): Promise<AuditLogEntry[]>;
 
   /**
+   * The actions the log holds, and the object types they were recorded for —
+   * what the admin audit viewer offers in its filters instead of asking for a
+   * code (issue #1555).
+   *
+   * Bounded by the number of distinct actions, never by the number of rows: a
+   * loose index scan steps from one `action` value to the next, and each action
+   * contributes the object type of one of its rows. `object_type` has no index
+   * of its own, so an exact distinct over it would read the whole table on every
+   * screen open. An action is recorded for one object type in practice; one
+   * recorded for two contributes one of them, and the viewer still shows — and
+   * filters by — a type that arrives in its URL.
+   */
+  queryFacets(): Promise<AuditLogFacets>;
+
+  /**
    * Every entry recorded under one action for a **set** of objects, oldest
    * first (issue #284).
    *
@@ -114,12 +129,33 @@ export interface RecordAuditInput {
   requestId?: string | null;
 }
 
-/** The filter {@link AuditPort.query} takes. Every field is an equality match. */
+/**
+ * The filter {@link AuditPort.query} takes. Every field but `after` and `limit`
+ * is an equality match.
+ */
 export interface AuditLogFilter {
   actorAdminUserId?: string;
   impersonatedCustomerAccountId?: string;
   action?: string;
   objectType?: string;
   objectId?: string;
+  /**
+   * Only the entries after this one in the read's order, `(actedAt desc, id
+   * desc)` — the last row of the previous page (issue #1555). The id breaks a
+   * tie on `actedAt`, so a page boundary neither skips nor repeats an entry.
+   */
+  after?: AuditLogPosition;
   limit?: number;
+}
+
+/** Where an entry stands in {@link AuditPort.query}'s order. */
+export interface AuditLogPosition {
+  actedAt: Date;
+  id: string;
+}
+
+/** What {@link AuditPort.queryFacets} answers; both lists sorted. */
+export interface AuditLogFacets {
+  actions: string[];
+  objectTypes: string[];
 }

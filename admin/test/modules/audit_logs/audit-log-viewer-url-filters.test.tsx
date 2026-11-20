@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { passthroughBundle, renderWithI18n } from '../../helpers/render-with-i18n';
@@ -14,7 +14,11 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * a shared link shows the same view). Owned by `audit_logs`.
  */
 
-const get = vi.fn(async (_url: string) => ({ data: [] as unknown[] }));
+const get = vi.fn(async (url: string) =>
+  url.startsWith('/api/v1/admin/audit-log/facets')
+    ? { data: { actions: [{ action: 'price_list.rows_replace', moduleId: 'core' }], objectTypes: ['price_list', 'product'] } }
+    : { data: [] as unknown[] },
+);
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>('@endora-commerce/admin-kit/lib');
@@ -56,11 +60,17 @@ async function mount(url: string): Promise<void> {
       </MemoryRouter>,
       { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: ['audit_logs'] }) },
     ),
-    passthroughBundle('core', ['auditLog.filter.action', 'auditLog.filter.objectType', 'auditLog.filter.objectId']),
+    passthroughBundle('core', [
+      'auditLog.filter.action',
+      'auditLog.filter.objectType',
+      'auditLog.filter.objectId',
+      'common.combobox.clearSelection',
+      'common.listToolbar.moreFilters',
+    ]),
   );
 }
 
-const auditCalls = (): string[] => get.mock.calls.map((c) => c[0]).filter((u) => u.startsWith('/api/v1/admin/audit-log'));
+const auditCalls = (): string[] => get.mock.calls.map((c) => c[0]).filter((u) => u.startsWith('/api/v1/admin/audit-log?'));
 
 describe('audit-log viewer — filters in the URL (161 G13)', () => {
   beforeEach(() => {
@@ -76,33 +86,40 @@ describe('audit-log viewer — filters in the URL (161 G13)', () => {
     expect(first.searchParams.get('filter[action]')).toBe('price_list.rows_replace');
     expect(auditCalls().every((u) => new URL(u, 'http://x').searchParams.get('filter[objectId]') === BOOK_ID)).toBe(true);
     expect((screen.getByLabelText('auditLog.filter.objectType') as HTMLInputElement).value).toBe('price_list');
+    // An object's *History* link opens the folded filters, so its id is on screen.
     expect((screen.getByLabelText('auditLog.filter.objectId') as HTMLInputElement).value).toBe(BOOK_ID);
   });
 
   it('writes a changed filter back to the URL, and drops a cleared one', async () => {
     await mount('/audit-log?objectType=price_list');
     await waitFor(() => expect(auditCalls().length).toBeGreaterThan(0));
-    fireEvent.change(screen.getByLabelText('auditLog.filter.objectId'), { target: { value: BOOK_ID } });
+    fireEvent.click(screen.getByRole('button', { name: 'common.listToolbar.moreFilters' }));
+    fireEvent.change(screen.getByLabelText('auditLog.filter.objectId'), { target: { value: ` ${BOOK_ID}\n` } });
     await waitFor(() => {
       const search = new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1] ?? '');
       expect(search.get('objectType')).toBe('price_list');
+      // A pasted id is trimmed, not refused.
       expect(search.get('objectId')).toBe(BOOK_ID);
     });
-    fireEvent.change(screen.getByLabelText('auditLog.filter.objectType'), { target: { value: '' } });
+    const objectType = screen.getByLabelText('auditLog.filter.objectType');
+    fireEvent.click(within(objectType.parentElement!).getByRole('button', { name: 'common.combobox.clearSelection' }));
     await waitFor(() => {
       const search = new URLSearchParams(screen.getByTestId('location').textContent!.split('?')[1] ?? '');
       expect(search.has('objectType')).toBe(false);
       expect(search.get('objectId')).toBe(BOOK_ID);
     });
-    const last = new URL(auditCalls().at(-1)!, 'http://x');
-    expect(last.searchParams.get('filter[objectType]')).toBeNull();
-    expect(last.searchParams.get('filter[objectId]')).toBe(BOOK_ID);
+    await waitFor(() => {
+      const last = new URL(auditCalls().at(-1)!, 'http://x');
+      expect(last.searchParams.get('filter[objectType]')).toBeNull();
+      expect(last.searchParams.get('filter[objectId]')).toBe(BOOK_ID);
+    });
   });
 
   it('asks without filters when the URL names none', async () => {
     await mount('/audit-log');
     await waitFor(() => expect(auditCalls().length).toBeGreaterThan(0));
-    expect(auditCalls()[0]).toBe('/api/v1/admin/audit-log');
+    const first = new URL(auditCalls()[0]!, 'http://x');
+    expect([...first.searchParams.keys()].filter((key) => key.startsWith('filter['))).toEqual([]);
     expect(screen.getByTestId('location').textContent).toBe('/audit-log');
   });
 });

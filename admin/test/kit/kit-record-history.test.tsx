@@ -9,6 +9,7 @@ import type { RecordHistoryEntry } from '@endora-commerce/contracts';
 import {
   CursorPagination,
   RecordHistory,
+  RecordHistoryChangeList,
   recordHistoryChanges,
   useRecordHistory,
   type RecordHistoryCopy,
@@ -105,6 +106,42 @@ describe('recordHistoryChanges', () => {
     expect(recordHistoryChanges({ before: { fileName: 'a.pdf' }, after: null })).toEqual([
       { field: 'fileName', after: 'a.pdf' },
     ]);
+  });
+});
+
+describe('RecordHistoryChangeList', () => {
+  /**
+   * Issue #1555 (UX audit SHELL-20) — the list an entry's rows are drawn with,
+   * published on its own so a screen showing one audited change (the audit
+   * log's row detail) draws the same before → after list as every history.
+   */
+  it('draws each field as its label, the old value struck through with "from" spoken, and the new one', () => {
+    mount(
+      <RecordHistoryChangeList
+        changes={[
+          { field: 'status', before: 'draft', after: 'active' },
+          { field: 'title', after: 'New' },
+        ]}
+        fieldLabel={(field): string => `Label of ${field}`}
+        renderValue={(_field, raw): ReactNode => `«${String(raw)}»`}
+        renderChange={(change): ReactNode | undefined => (change.field === 'title' ? <em>whole row</em> : undefined)}
+      />,
+    );
+    const status = screen.getByText('Label of status').nextElementSibling as HTMLElement;
+    expect(status).toHaveTextContent(`${core('history.status.from')}«draft»${core('history.status.to')}«active»`);
+    expect(within(status).getByText('«draft»').className.split(/\s+/)).toContain('line-through');
+    const title = screen.getByText('Label of title').nextElementSibling as HTMLElement;
+    expect(title).toHaveTextContent('whole row');
+    expect(title).not.toHaveTextContent(core('history.status.from'));
+  });
+
+  it('draws nothing when there is no change, leaving what to say to the caller', () => {
+    mount(
+      <div data-testid="host">
+        <RecordHistoryChangeList changes={[]} fieldLabel={(f): string => f} renderValue={(): ReactNode => null} />
+      </div>,
+    );
+    expect(screen.getByTestId('host')).toBeEmptyDOMElement();
   });
 });
 

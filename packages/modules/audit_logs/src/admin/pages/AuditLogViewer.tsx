@@ -1,17 +1,14 @@
-import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ScrollText } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import type { AuditLogFacetsResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import {
-  Alert,
-  AlertDescription,
   Button,
-  Card,
-  CardContent,
+  Combobox,
   EmptyState,
   Input,
   Label,
-  PageHeader,
   Table,
   TableBody,
   TableCell,
@@ -19,19 +16,38 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { AdminUserPicker, CustomerPicker } from '@endora-commerce/admin-kit/components';
+import {
+  AdminUserPicker,
+  CustomerPicker,
+  ListPage,
+  ListToolbar,
+  useCursorPagination,
+  useDebouncedValue,
+  type ListPageLoad,
+} from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
-import { AuditStateView, AuditTextValue } from '../components/AuditStateView.js';
+import { AuditTextValue } from '../components/AuditStateView.js';
+import { AuditEntryDiff } from '../components/AuditEntryDiff.js';
+import { actionFilterOptions, hiddenAuditFilterCount, objectTypeFilterOptions } from '../lib/audit-log-view.js';
 
 /**
  * Audit Log viewer (T195 / FR-084). Append-only — no edit / delete UI.
  * Filters mirror the backend query: actor, action, objectType, objectId,
- * impersonated customer. The detail row expands stateBefore / stateAfter
- * as JSON so support can compare changes inline.
+ * impersonated customer.
+ *
+ * Issue #1555 (UX audit SHELL-20): a kit `ListPage`. The filters are a toolbar
+ * row above the one results card, and apply as they change — there is no
+ * *Apply*. The action and object-type filters offer what the log holds
+ * (`GET /audit-log/facets`), each action under the label the table gives it,
+ * instead of asking for a code (recognition over recall). The list pages by
+ * cursor under the kit pager, and a row's detail is the entry's change field by
+ * field — the record-history change list — with the stored JSON one disclosure
+ * away.
  *
  * An anonymised subject's history is erased in place (issue #844): its values
  * are the stored marker `[erased]`, which the detail row draws as a translated
- * token — in the snapshots, and as the IP or user agent — rather than raw.
+ * token — in the change list, the JSON, and as the IP or user agent — rather
+ * than raw.
  *
  * The action, object type and object id filters live in the URL query
  * (`?action=…&objectType=…&objectId=…`, feature 161 G13), so another screen
@@ -44,6 +60,9 @@ import { AuditStateView, AuditTextValue } from '../components/AuditStateView.js'
 /** The filters kept in the URL, by their query-parameter name. */
 const URL_FILTERS = ['action', 'objectType', 'objectId'] as const;
 type UrlFilter = (typeof URL_FILTERS)[number];
+
+/** The route's largest page (`AUDIT_LOG_MAX_LIMIT`). */
+const AUDIT_LOG_MAX_LIMIT = 200;
 
 interface AuditLogRow {
   id: string;
@@ -72,16 +91,26 @@ interface AuditLogRow {
   requestId: string | null;
 }
 
+interface AuditLogPage {
+  data: AuditLogRow[];
+  pagination?: { cursor: string | null; hasMore: boolean };
+}
+
 export default function AuditLogViewer(): ReactNode {
   const t = useTranslation('core');
+  const ta = useTranslation('audit_logs');
   const { t: translate } = useTranslationContext();
   const [rows, setRows] = useState<AuditLogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [facets, setFacets] = useState<AuditLogFacetsResponse | null>(null);
+  const [facetsFailed, setFacetsFailed] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const action = searchParams.get('action') ?? '';
   const objectType = searchParams.get('objectType') ?? '';
   const objectId = searchParams.get('objectId') ?? '';
+  const pager = useCursorPagination({ scope: 'audit-log', maxPageSize: AUDIT_LOG_MAX_LIMIT });
+  const { resetPage, syncPage } = pager;
   const setUrlFilters = useCallback(
     (values: Partial<Record<UrlFilter, string>>): void => {
       setSearchParams(
@@ -97,25 +126,28 @@ export default function AuditLogViewer(): ReactNode {
         },
         { replace: true },
       );
+      resetPage();
     },
-    [setSearchParams],
+    [setSearchParams, resetPage],
   );
-  const setAction = (value: string): void => setUrlFilters({ action: value });
-  const setObjectType = (value: string): void => setUrlFilters({ objectType: value });
-  const setObjectId = (value: string): void => setUrlFilters({ objectId: value });
   const [actor, setActor] = useState('');
   const [impersonated, setImpersonated] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  // Where focus returns after "Clear filters" (WCAG 2.2 SC 2.4.3): the first filter.
+  // The object id is typed (or pasted), so the request waits for a pause.
+  const queriedObjectId = useDebouncedValue(objectId);
+  // Where focus returns after the empty state's "Clear filters" (WCAG 2.2 SC 2.4.3): the first filter.
   const firstFilterRef = useRef<HTMLInputElement>(null);
-  const filtered = Boolean(actor || action || objectType || objectId || impersonated);
+  const filtered = Boolean(actor || action || objectType || queriedObjectId || impersonated);
   const clearFilters = (): void => {
     setActor('');
     setUrlFilters({ action: '', objectType: '', objectId: '' });
     setImpersonated('');
   };
+  const generation = useRef(0);
 
+  const { cursor, limit } = pager.query;
   const refresh = useCallback(async (): Promise<void> => {
+    const current = ++generation.current;
     setLoading(true);
     setError(null);
     try {
@@ -123,201 +155,228 @@ export default function AuditLogViewer(): ReactNode {
       if (actor) params.set('filter[actor]', actor);
       if (action) params.set('filter[action]', action);
       if (objectType) params.set('filter[objectType]', objectType);
-      if (objectId) params.set('filter[objectId]', objectId);
+      if (queriedObjectId) params.set('filter[objectId]', queriedObjectId);
       if (impersonated) params.set('filter[customer]', impersonated);
-      const path = '/api/v1/admin/audit-log' + (params.toString() ? `?${params.toString()}` : '');
-      const res = await apiClient.get<{ data: AuditLogRow[] }>(path);
+      params.set('limit', String(limit));
+      if (cursor) params.set('cursor', cursor);
+      const res = await apiClient.get<AuditLogPage>(`/api/v1/admin/audit-log?${params.toString()}`);
+      if (current !== generation.current) return;
       setRows(res.data);
+      syncPage(res.pagination ?? { cursor: null, hasMore: false }, res.data.length);
     } catch (err) {
+      if (current !== generation.current) return;
       setError(err instanceof ApiError ? err.envelope.error.message : t('auditLog.error.load'));
     } finally {
-      setLoading(false);
+      if (current === generation.current) setLoading(false);
     }
-  }, [actor, action, objectType, objectId, impersonated]);
+  }, [actor, action, objectType, queriedObjectId, impersonated, cursor, limit, syncPage, t]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
+  // What the filters offer. A failure leaves the list working: the pickers say
+  // the values could not be read, and a filter in the URL still applies.
+  useEffect(() => {
+    let live = true;
+    apiClient
+      .get<{ data: AuditLogFacetsResponse }>('/api/v1/admin/audit-log/facets')
+      .then((res) => {
+        if (live) setFacets(res.data);
+      })
+      .catch(() => {
+        if (live) setFacetsFailed(true);
+      });
+    return (): void => {
+      live = false;
+    };
+  }, []);
+
+  const actionOptions = useMemo(
+    () =>
+      actionFilterOptions(facets?.actions ?? [], action, (code, moduleId) =>
+        translateAuditAction(translate, { action: code, actionModuleId: moduleId }),
+      ),
+    [facets, action, translate],
+  );
+  const objectTypeOptions = useMemo(
+    () => objectTypeFilterOptions(facets?.objectTypes ?? [], objectType),
+    [facets, objectType],
+  );
+  const facetsLoading = facets === null && !facetsFailed;
+  const facetsEmpty = facetsFailed ? ta('auditLog.filter.optionsFailed') : undefined;
+
+  const load: ListPageLoad = loading
+    ? { kind: 'loading' }
+    : error !== null
+      ? { kind: 'error', message: error }
+      : { kind: 'ready' };
+
   return (
-    <>
-      <PageHeader
-        title={t('auditLog.page.title')}
-      />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card className="mb-4">
-        <CardContent>
-          <form
-            onSubmit={(e: FormEvent): void => {
-              e.preventDefault();
-              void refresh();
-            }}
-            className="space-y-4"
-          >
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label htmlFor="f-action">{t('auditLog.filter.action')}</Label>
-                <Input
+    <ListPage
+      title={t('auditLog.page.title')}
+      load={load}
+      onRetry={(): void => void refresh()}
+      pagination={pager.footer(rows.length)}
+      toolbar={
+        <ListToolbar
+          className="min-w-0 flex-1"
+          label={ta('auditLog.toolbar.label')}
+          filters={
+            <>
+              <div className="w-64">
+                <Combobox
                   ref={firstFilterRef}
-                  id="f-action"
-                  placeholder="product.update"
-                  value={action}
-                  onChange={(e): void => setAction(e.target.value.trim())}
+                  ariaLabel={t('auditLog.filter.action')}
+                  placeholder={ta('auditLog.filter.anyAction')}
+                  options={actionOptions}
+                  value={action || null}
+                  onChange={(v): void => setUrlFilters({ action: v ?? '' })}
+                  loading={facetsLoading}
+                  {...(facetsEmpty ? { emptyMessage: facetsEmpty } : {})}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="f-otype">{t('auditLog.filter.objectType')}</Label>
-                <Input
-                  id="f-otype"
-                  placeholder="product"
-                  value={objectType}
-                  onChange={(e): void => setObjectType(e.target.value.trim())}
+              <div className="w-52">
+                <Combobox
+                  ariaLabel={t('auditLog.filter.objectType')}
+                  placeholder={ta('auditLog.filter.anyObjectType')}
+                  options={objectTypeOptions}
+                  value={objectType || null}
+                  onChange={(v): void => setUrlFilters({ objectType: v ?? '' })}
+                  loading={facetsLoading}
+                  {...(facetsEmpty ? { emptyMessage: facetsEmpty } : {})}
                 />
               </div>
-              <div className="space-y-2">
+              <div className="w-56">
+                <AdminUserPicker
+                  ariaLabel={t('auditLog.filter.actor')}
+                  value={actor || null}
+                  onChange={(v): void => {
+                    setActor(v ?? '');
+                    resetPage();
+                  }}
+                />
+              </div>
+            </>
+          }
+          moreFilters={
+            <>
+              <div className="space-y-1.5">
                 <Label htmlFor="f-oid">{t('auditLog.filter.objectId')}</Label>
                 <Input
                   id="f-oid"
-                  placeholder="UUID"
                   value={objectId}
-                  onChange={(e): void => setObjectId(e.target.value.trim())}
+                  // A pasted id often carries a space or a line break (Postel).
+                  onChange={(e): void => setUrlFilters({ objectId: e.target.value.trim() })}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="f-actor">{t('auditLog.filter.actor')}</Label>
-                <AdminUserPicker
-                  id="f-actor"
-                  value={actor || null}
-                  onChange={(v): void => setActor(v ?? '')}
-                />
-              </div>
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="f-customer">{t('auditLog.filter.impersonatedCustomer')}</Label>
                 <CustomerPicker
                   id="f-customer"
                   value={impersonated || null}
-                  onChange={(v): void => setImpersonated(v ?? '')}
+                  onChange={(v): void => {
+                    setImpersonated(v ?? '');
+                    resetPage();
+                  }}
                 />
               </div>
-            </div>
-            <div className="flex gap-2">
-              <Button type="submit">{t('auditLog.filter.apply')}</Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={clearFilters}
-              >
-                {t('auditLog.filter.clear')}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
-          ) : rows.length === 0 ? (
-            // "Nothing recorded yet" and "these filters match nothing" are two
-            // situations with two next steps (#1448, DS-15). The log is
-            // append-only, so the no-data state offers no action.
-            filtered ? (
-              <EmptyState
-                variant="no-results"
-                title={t('auditLog.empty')}
-                onClearFilters={clearFilters}
-                focusAfterClear={firstFilterRef}
-              />
-            ) : (
-              <EmptyState
-                icon={<ScrollText size={20} />}
-                title={t('auditLog.emptyState.title')}
-                description={t('auditLog.emptyState.body')}
-              />
-            )
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('auditLog.column.when')}</TableHead>
-                  <TableHead>{t('auditLog.column.actor')}</TableHead>
-                  <TableHead>{t('auditLog.column.action')}</TableHead>
-                  <TableHead>{t('auditLog.column.object')}</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <Fragment key={r.id}>
+            </>
+          }
+          moreFiltersActiveCount={hiddenAuditFilterCount({ objectId, customer: impersonated })}
+          // An object's *History* link arrives with its id: show it, not a folded count.
+          defaultMoreFiltersOpen={Boolean(objectId)}
+          filtersActive={Boolean(actor || action || objectType || objectId || impersonated)}
+          onClearFilters={clearFilters}
+        />
+      }
+    >
+      {rows.length === 0 ? (
+        // "Nothing recorded yet" and "these filters match nothing" are two
+        // situations with two next steps (#1448, DS-15). The log is
+        // append-only, so the no-data state offers no action.
+        filtered ? (
+          <EmptyState
+            variant="no-results"
+            title={t('auditLog.empty')}
+            onClearFilters={clearFilters}
+            focusAfterClear={firstFilterRef}
+          />
+        ) : (
+          <EmptyState
+            icon={<ScrollText size={20} />}
+            title={t('auditLog.emptyState.title')}
+            description={t('auditLog.emptyState.body')}
+          />
+        )
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('auditLog.column.when')}</TableHead>
+              <TableHead>{t('auditLog.column.actor')}</TableHead>
+              <TableHead>{t('auditLog.column.action')}</TableHead>
+              <TableHead>{t('auditLog.column.object')}</TableHead>
+              <TableHead>
+                <span className="sr-only">{ta('auditLog.column.detail')}</span>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => {
+              const open = expandedId === r.id;
+              const detailId = `audit-entry-${r.id}`;
+              return (
+                <Fragment key={r.id}>
+                  <TableRow>
+                    <TableCell>{formatDateTime(r.actedAt)}</TableCell>
+                    <TableCell>
+                      <ActorCell row={r} />
+                    </TableCell>
+                    <TableCell>{translateAuditAction(translate, r)}</TableCell>
+                    <TableCell>
+                      {r.objectType}
+                      <br />
+                      <ObjectIdCell objectType={r.objectType} objectId={r.objectId} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        aria-expanded={open}
+                        aria-controls={open ? detailId : undefined}
+                        onClick={(): void => setExpandedId(open ? null : r.id)}
+                      >
+                        {open ? t('auditLog.action.hide') : t('auditLog.action.detail')}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                  {open ? (
                     <TableRow>
-                      <TableCell>{formatDateTime(r.actedAt)}</TableCell>
-                      <TableCell>
-                        <ActorCell row={r} />
-                      </TableCell>
-                      <TableCell>{translateAuditAction(translate, r)}</TableCell>
-                      <TableCell>
-                        {r.objectType}
-                        <br />
-                        <ObjectIdCell objectType={r.objectType} objectId={r.objectId} />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(): void => setExpandedId(expandedId === r.id ? null : r.id)}
-                        >
-                          {expandedId === r.id ? t('auditLog.action.hide') : t('auditLog.action.detail')}
-                        </Button>
+                      <TableCell colSpan={5} id={detailId}>
+                        <AuditEntryDiff before={r.stateBefore} after={r.stateAfter} />
+                        <div className="mt-3 text-xs text-muted-foreground">
+                          {t('auditLog.detail.ip')} <AuditTextValue value={r.ipAddress} /> ·{' '}
+                          {t('auditLog.detail.userAgent')} <AuditTextValue value={r.userAgent} maxLength={60} /> ·{' '}
+                          {t('auditLog.detail.request')} {r.requestId ?? '—'}
+                          {r.impersonatedCustomerAccountId ? (
+                            <>
+                              {' '}
+                              · {t('auditLog.detail.impersonatedCustomer')}{' '}
+                              {r.impersonatedCustomerAccountId.slice(0, 8)}
+                            </>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
-                    {expandedId === r.id ? (
-                      <TableRow>
-                        <TableCell colSpan={5}>
-                          <div className="grid gap-4 md:grid-cols-2">
-                            <div>
-                              <strong>{t('auditLog.detail.before')}</strong>
-                              <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">
-                                <AuditStateView value={r.stateBefore ?? null} />
-                              </pre>
-                            </div>
-                            <div>
-                              <strong>{t('auditLog.detail.after')}</strong>
-                              <pre className="mt-1 max-h-80 overflow-auto rounded-md bg-muted p-3 text-xs">
-                                <AuditStateView value={r.stateAfter ?? null} />
-                              </pre>
-                            </div>
-                          </div>
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            {t('auditLog.detail.ip')} <AuditTextValue value={r.ipAddress} /> ·{' '}
-                            {t('auditLog.detail.userAgent')} <AuditTextValue value={r.userAgent} maxLength={60} /> ·{' '}
-                            {t('auditLog.detail.request')}{' '}
-                            {r.requestId ?? '—'}
-                            {r.impersonatedCustomerAccountId ? (
-                              <>
-                                {' '}
-                                · {t('auditLog.detail.impersonatedCustomer')}{' '}
-                                {r.impersonatedCustomerAccountId.slice(0, 8)}
-                              </>
-                            ) : null}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ) : null}
-                  </Fragment>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </>
+                  ) : null}
+                </Fragment>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
+    </ListPage>
   );
 }
 

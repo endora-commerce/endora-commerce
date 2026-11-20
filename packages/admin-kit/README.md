@@ -513,6 +513,15 @@ dropzone and a dialog are fields or overlays, not frames, and stay.
 `CustomFieldValuesPanel`, `RecordHistory` or `CommentThread` on its own, outside a card, now gets
 no card; pass `chrome="card"` to keep it.
 
+### One audited change — `RecordHistoryChangeList`
+
+Issue #1555 (UX audit SHELL-20). The field-by-field list `RecordHistory` draws under each entry is
+published as `RecordHistoryChangeList` (`./components`), for a screen that shows one audited change
+outside a history — the audit log's row detail. Feed it `recordHistoryChanges(...)` or rows of your
+own, a `fieldLabel` and a `renderValue`; it draws the old value struck through with *from* / *to*
+spoken, and nothing at all for no rows, so what an empty entry says stays the caller's. Do not draw
+a change as two JSON blocks to compare by eye. Pinned in `admin/test/kit/kit-record-history.test.tsx`.
+
 ## Tabs — `Tabs`, `TabPanel` and `RecordTabs`
 
 Issue #1445 (UX audit 2026-11-17, DS-12). The one in-page tab strip; `RouteTabs` stays the strip

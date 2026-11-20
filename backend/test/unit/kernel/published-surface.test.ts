@@ -177,9 +177,11 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'request-scope-hook.js': ['scopeRequestToActor'],
   /**
    * D-160.10 — the port replaces the class. `RecordAuditInput` and
-   * `AuditLogFilter` are the argument shapes of its own methods.
+   * `AuditLogFilter` are the argument shapes of its own methods;
+   * `AuditLogPosition` is the filter's keyset `after`, and `AuditLogFacets`
+   * the answer of `queryFacets` (issue #1555).
    */
-  'ports/audit.js': ['AuditPort', 'RecordAuditInput', 'AuditLogFilter'],
+  'ports/audit.js': ['AuditPort', 'RecordAuditInput', 'AuditLogFilter', 'AuditLogFacets', 'AuditLogPosition'],
   /** Row 37 — the return shape of every {@link AuditPort} method. */
   'audit/audit-log-entry.entity.js': ['AuditLogEntry'],
   /**

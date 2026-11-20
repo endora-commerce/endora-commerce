@@ -431,6 +431,19 @@ export const auditLogEntrySchema = z.object({
   requestId: z.string().nullable(),
 });
 export type AuditLogEntryResponse = z.infer<typeof auditLogEntrySchema>;
+
+/**
+ * `GET /api/v1/admin/audit-log/facets` (issue #1555): the actions the log
+ * holds and the object types they were recorded for, so the viewer's filters
+ * offer them instead of asking for a code. `moduleId` names the bundle that
+ * labels an action (`auditLog.<action>`), the same one the list answers per
+ * row as `actionModuleId`. Both lists sorted by code.
+ */
+export const auditLogFacetsSchema = z.object({
+  actions: z.array(z.object({ action: z.string(), moduleId: z.string() })),
+  objectTypes: z.array(z.string()),
+});
+export type AuditLogFacetsResponse = z.infer<typeof auditLogFacetsSchema>;
 /**
  * @deprecated Use {@link AuditLogEntryResponse}. `@endora-commerce/platform/kernel`
  * publishes `AuditLogEntry` as the MikroORM entity of an `audit_logs` row, a
