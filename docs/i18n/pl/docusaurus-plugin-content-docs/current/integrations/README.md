@@ -25,7 +25,7 @@ Platforma udostępnia trzy mechanizmy integracji, każdy należący do osobnego 
 
 ## Uwierzytelnianie kluczem API
 
-Utwórz klucz w **Panel administracyjny → API Keys → New Key**, wybierając zakresy, z których klucz
+Utwórz klucz w **Panel administracyjny → Klucze API → Nowy klucz API**, wybierając zakresy, z których klucz
 może korzystać, i opcjonalnie **powiązanie z organizacją** (zobacz niżej). Pełny token bearer
 (`sk_live_…`) jest pokazywany **tylko raz**; potem przechowywane są tylko jego cztery ostatnie znaki.
 Platforma przechowuje skrót SHA-256 tokenu, nigdy sam token.
@@ -92,7 +92,7 @@ aby można było odnaleźć wpisy w logach.
 
 ## Subskrypcja webhooków
 
-Utwórz subskrypcję webhooka w **Panel administracyjny → Webhooks → New Webhook** (albo przez
+Utwórz subskrypcję webhooka w **Panel administracyjny → Webhooki → Nowy webhook** (albo przez
 `POST /api/v1/admin/webhooks` z uprawnieniem administracyjnym `integrations:manage`). Platforma
 generuje dla każdej subskrypcji 64-znakowy szesnastkowy `secret`; dostajesz go w odpowiedzi na
 utworzenie **tylko ten jeden raz** — przechowuj go w menedżerze sekretów.

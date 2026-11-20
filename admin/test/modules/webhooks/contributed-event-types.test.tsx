@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { setMobileViewport } from '../../setup';
 import {
   CATALOG_WEBHOOK_EVENT_TYPES,
@@ -32,6 +32,8 @@ import { renderWithI18n } from '../../helpers/render-with-i18n';
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
+const patchSpy = vi.fn();
+const deleteSpy = vi.fn();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -43,8 +45,8 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
       get: (...args: unknown[]) => getSpy(...args),
       post: (...args: unknown[]) => postSpy(...args),
       put: vi.fn(),
-      patch: vi.fn(),
-      delete: vi.fn(),
+      patch: (...args: unknown[]) => patchSpy(...args),
+      delete: (...args: unknown[]) => deleteSpy(...args),
     },
   };
 });
@@ -60,6 +62,10 @@ vi.mock('@endora-commerce/admin-kit/components', async () => {
 
 const { default: WebhooksPage } = await import(
   '../../../../packages/modules/webhooks/src/admin/pages/WebhooksPage'
+);
+// The form is its own route since issue #1501 (UX audit SHELL-14).
+const { default: WebhookCreatePage } = await import(
+  '../../../../packages/modules/webhooks/src/admin/pages/WebhookCreatePage'
 );
 
 const EVENT_TYPES_PATH = '/api/v1/admin/webhooks/event-types';
@@ -120,20 +126,31 @@ function offered(): string[] {
   return Array.from(document.querySelectorAll('form code')).map((node) => node.textContent ?? '');
 }
 
-async function renderPage(): Promise<void> {
+/** The list and the create form, mounted as the admin mounts them, starting at `path`. */
+async function renderAt(path: '/webhooks' | '/webhooks/new'): Promise<void> {
   renderWithI18n(
-    <MemoryRouter>
-      <WebhooksPage />
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/webhooks" element={<WebhooksPage />} />
+        <Route path="/webhooks/new" element={<WebhookCreatePage />} />
+      </Routes>
     </MemoryRouter>,
     { core: {}, webhooks: { 'subscription.eventType.notDelivered': NOT_DELIVERED } },
   );
   await waitFor(() => expect(getSpy).toHaveBeenCalledWith(EVENT_TYPES_PATH));
 }
 
+/** The create form — the subject of the "offers what is delivered" tests. */
+const renderPage = (): Promise<void> => renderAt('/webhooks/new');
+/** The subscription list — the subject of the "marks what is not delivered" tests. */
+const renderList = (): Promise<void> => renderAt('/webhooks');
+
 beforeEach(() => {
   setMobileViewport(false);
   getSpy.mockReset();
   postSpy.mockReset();
+  patchSpy.mockReset();
+  deleteSpy.mockReset();
   contributed = [];
   stored = [];
   getSpy.mockImplementation((path: string) => {
@@ -180,7 +197,15 @@ describe('the webhook subscription form — it offers what is delivered', () => 
     ];
     contributed = six;
     stored = [subscription('w-six', ['rfq.created.v1', 'credit_limit.adjusted.v1'])];
-    await renderPage();
+    await renderList();
+    // A stored subscription naming them is not marked as undelivered.
+    await screen.findByText('Hook w-six');
+    await waitFor(() => expect(getSpy).toHaveBeenCalledWith(EVENT_TYPES_PATH));
+    expect(marked()).toEqual([]);
+
+    // The header's *New webhook* opens the form on its own route.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('link', { name: 'core.webhooks.create.action' }));
     await waitFor(() =>
       expect(offered()).toEqual([
         ...BUILT_IN,
@@ -192,11 +217,6 @@ describe('the webhook subscription form — it offers what is delivered', () => 
         'credit_limit.adjusted.v1',
       ]),
     );
-    // A stored subscription naming them is not marked as undelivered.
-    await screen.findByText('Hook w-six');
-    expect(marked()).toEqual([]);
-
-    const user = userEvent.setup();
     for (const eventType of ['product.archived.v1', 'rfq.expired.v1', 'credit_limit.adjusted.v1']) {
       await user.click(
         Array.from(document.querySelectorAll('form code')).find((node) => node.textContent === eventType) as HTMLElement,
@@ -217,9 +237,10 @@ describe('the webhook subscription form — it offers what is delivered', () => 
     // What `GET …/event-types` answers while those two owners are off: the registry leaves them out.
     contributed = CATALOG_WEBHOOK_EVENT_TYPES.map((eventType) => ({ ownerModuleId: 'catalog', eventType }));
     stored = [subscription('w-off', ['product.created.v1', 'rfq.created.v1', 'credit_limit.adjusted.v1'])];
-    await renderPage();
-    await waitFor(() => expect(offered()).toEqual([...BUILT_IN, ...CATALOG_WEBHOOK_EVENT_TYPES]));
+    await renderList();
     await waitFor(() => expect(marked()).toEqual(['rfq.created.v1', 'credit_limit.adjusted.v1']));
+    await userEvent.click(screen.getByRole('link', { name: 'core.webhooks.create.action' }));
+    await waitFor(() => expect(offered()).toEqual([...BUILT_IN, ...CATALOG_WEBHOOK_EVENT_TYPES]));
   });
 
   it('subscribes to a contributed type like to any other', async () => {
@@ -255,7 +276,7 @@ describe('the webhook list — a subscription stored with a type nothing deliver
   it('shows every stored type and marks the ones that are not delivered', async () => {
     contributed = [{ ownerModuleId: 'crm', eventType: 'crm.opportunity.created.v1' }];
     stored = [subscription('w1', ['order.created.v1', 'product.updated.v1', 'crm.opportunity.created.v1'])];
-    await renderPage();
+    await renderList();
 
     await waitFor(() => expect(marked()).toEqual(['product.updated.v1']));
     const row = screen.getByText('Hook w1').closest('tr') as HTMLElement;
@@ -269,7 +290,7 @@ describe('the webhook list — a subscription stored with a type nothing deliver
 
   it('marks nothing on a subscription whose every type is delivered', async () => {
     stored = [subscription('w2', ['order.created.v1', 'order.status_changed.v1'])];
-    await renderPage();
+    await renderList();
     await screen.findByText('Hook w2');
     expect(marked()).toEqual([]);
   });
@@ -281,8 +302,57 @@ describe('the webhook list — a subscription stored with a type nothing deliver
       if (path === WEBHOOKS_PATH) return Promise.resolve({ data: stored });
       return Promise.resolve({ data: [] });
     });
-    await renderPage();
+    await renderList();
     await screen.findByText('Hook w3');
     expect(marked()).toEqual([]);
+  });
+});
+
+describe('the webhook list — the list comes first (issue #1501, SHELL-14)', () => {
+  it('draws no create form, and links its header action to the create route', async () => {
+    await renderList();
+    // With no subscription yet the empty state offers the same link a second time.
+    const links = await screen.findAllByRole('link', { name: 'core.webhooks.create.action' });
+    expect(links).toHaveLength(2);
+    for (const link of links) expect(link).toHaveAttribute('href', '/webhooks/new');
+    expect(document.querySelector('form')).toBeNull();
+  });
+
+  it('pauses and deletes from the row menu, deleting only after the confirmation', async () => {
+    stored = [subscription('w9', ['order.created.v1'])];
+    patchSpy.mockResolvedValue({ data: stored[0] });
+    deleteSpy.mockResolvedValue(undefined);
+    await renderList();
+    await screen.findByText('Hook w9');
+    expect(screen.queryByRole('button', { name: 'core.webhooks.action.delete' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'core.webhooks.rowActions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'core.webhooks.action.pause' }));
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledWith('/api/v1/admin/webhooks/w9', { status: 'paused' }));
+
+    await userEvent.click(screen.getByRole('button', { name: 'core.webhooks.rowActions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'core.webhooks.action.delete' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(deleteSpy).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'core.webhooks.action.delete' }));
+    await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith('/api/v1/admin/webhooks/w9'));
+  });
+});
+
+describe('the webhook create page — the signing secret, once', () => {
+  it('shows the secret in place of the form, and goes back to the list without it', async () => {
+    postSpy.mockResolvedValue({ data: { id: 'w1', secret: 'whsec_test' } });
+    await renderPage();
+    await waitFor(() => expect(offered()).toEqual(BUILT_IN));
+    const user = userEvent.setup();
+    await user.click(screen.getByText('order.created.v1'));
+    await user.type(document.getElementById('webhook-name') as HTMLElement, 'ERP feed');
+    await user.type(document.getElementById('webhook-url') as HTMLElement, 'https://example.test/hook');
+    await user.click(document.querySelector('form button[type="submit"]') as HTMLElement);
+    expect(await screen.findByDisplayValue('whsec_test')).toBeInTheDocument();
+    expect(document.querySelector('form')).toBeNull();
+    await user.click(screen.getByRole('link', { name: 'core.webhooks.revealed.confirm' }));
+    expect(await screen.findByText('core.webhooks.page.title')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('whsec_test')).toBeNull();
   });
 });
