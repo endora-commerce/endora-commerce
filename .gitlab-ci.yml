@@ -623,8 +623,8 @@ quality:
     # module, which is the thing the ruling forbids.
     - pnpm --filter backend run check:bundle-pairing
     # Issue #1451 (UX audit 2026-11-17, DS-23) — copy read in passing has a length
-    # budget: a page description, a subtitle, a field hint or help at most 80
-    # characters, a setting description at most 120, measured in the English
+    # budget: a page description, a subtitle, a field hint at most 80 characters,
+    # a help popover at most 280, a setting description at most 120, in the English
     # bundle. A ratchet over the copy that stood when it landed (DEC-01: the rule
     # now, the check after the first text pass); the ledger only shrinks.
     - pnpm --filter backend run check:text-budget

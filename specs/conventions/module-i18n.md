@@ -72,9 +72,9 @@ key left behind with no reader is copy a translator keeps paying for. The same b
 
 **The budget is a table, and it has an instrument** (issue #1451, DS-23; DEC-01 *"the rule now,
 the check after the first text pass"*). Measured in characters of the **English** bundle:
-`*.page.description` and `*.subtitle` ≤ 80, `*.hint` and `*.help` ≤ 80 — a `help` popover is read
-at a glance too, so an explanation that outgrows it goes to the module's documentation page —
-and `settingLabels.*.description` ≤ 120, the full explanation linked from the docs. Only English
+`*.page.description` and `*.subtitle` ≤ 80, `*.hint` ≤ 80; text over 80 moves to `help` (the
+`HelpTip` ⓘ popover), which is capped at 280 — anything longer goes to the module's docs, linked.
+`settingLabels.*.description` ≤ 120, the full explanation linked from the docs. Only English
 is measured because it is the source language: the Polish is rewritten from it in the same
 change, and runs longer than its source by a margin no author can remove. `pnpm --filter backend
 run check:text-budget` holds it as a two-way ratchet over the copy that stood when it landed

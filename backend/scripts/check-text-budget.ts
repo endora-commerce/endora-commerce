@@ -7,9 +7,10 @@
  * English bundle:
  *
  *   - `*.page.description`, `*.subtitle` — at most 80: one line under a title;
- *   - `*.hint`, `*.help` — at most 80: one line beside a field, or a popover a
- *     reader takes in at a glance; anything longer belongs in the module's
- *     documentation page;
+ *   - `*.hint` — at most 80: one line beside a field; text over 80 moves to
+ *     the field's `help`;
+ *   - `*.help` — at most 280: the `HelpTip` ⓘ popover; anything longer belongs
+ *     in the module's documentation page, linked;
  *   - `settingLabels.*.description` — at most 120: one row of the settings
  *     screen, with the full explanation in the module's documentation.
  *
@@ -80,7 +81,7 @@ export const TEXT_BUDGETS: readonly TextBudgetRule[] = [
   { id: 'page-description', pattern: /(^|\.)page\.description$/, budget: 80 },
   { id: 'subtitle', pattern: /(^|\.)subtitle$/, budget: 80 },
   { id: 'hint', pattern: /(^|\.)hint$/, budget: 80 },
-  { id: 'help', pattern: /(^|\.)help$/, budget: 80 },
+  { id: 'help', pattern: /(^|\.)help$/, budget: 280 },
 ];
 
 /** The family a key belongs to, or `null` for an unbudgeted key. */
@@ -247,44 +248,28 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   '_i18n:platform.commandHooks.outbox.hint': 94,
   '_i18n:platform.commandHooks.plan.afterCommit.hint': 107,
   '_i18n:platform.modules.recentActivity.hint': 114,
-  '_i18n:priceLists.displayModes.help': 138,
-  '_i18n:profilePage.section.language.help': 91,
   '_i18n:promotions.page.description': 83,
   '_i18n:returns.detail.settlement.charge.hint': 200,
   'admin_feedback:settingLabels.admin_feedback.module_enabled.description': 251,
   'admin_feedback:settingLabels.admin_feedback.relay_url.description': 139,
   'admin_notifications:settingLabels.admin_notifications.enabled.description': 233,
-  'admin_users:roles.twoFactor.help': 130,
   'analytics:settingLabels.analytics.reporting_time_zone.description': 229,
   'blog:urlKeys.hint': 90,
-  'catalog:attributes.adminAccess.help': 114,
-  'catalog:productEditor.create.help': 112,
-  'catalog:productEditor.scopeOverview.orphans.help': 244,
   'catalog:productsList.bulkEdit.archive.hint': 123,
   'catalog:productsList.bulkEdit.restore.hint': 112,
   'catalog:settingLabels.catalog.scope_completeness_gate.description': 141,
   'cms:brand.schemes.hint': 92,
-  'cms:pageEditor.languageVersion.help': 115,
-  'cms:pageEditor.share.help': 168,
   'cms:presets.panel.hint': 94,
   'cms:settingLabels.cms.contact_form_recipients.description': 240,
   'cms:settingLabels.cms.page_builder.translation.enabled.description': 254,
   'cms:settingLabels.cms.page_builder.translation.llm_credentials.description': 279,
   'cms:settingLabels.cms.page_builder.translation.max_source_characters.description': 359,
-  'custom_fields:customFields.adminAccess.help': 115,
-  'custom_fields:customFields.audience.help': 90,
-  'custom_fields:customFields.carry.help': 95,
-  'custom_fields:customFields.customerInput.help': 125,
-  'custom_fields:customFields.listFilter.help': 96,
-  'customer_accounts:groups.field.code.help': 108,
   'customer_accounts:groups.page.description': 219,
   'customer_notifications:settingLabels.customer_notifications.enabled.description': 299,
   'customers:detail.dangerZone.hint': 89,
-  'delivery_methods:methods.adapter.help': 122,
   'document_templates:page.description': 169,
   'forms:notifications.recipients.hint': 94,
   'forms:palette.hint': 82,
-  'import_export:page.help': 148,
   'inventory:settingLabels.inventory.low_stock_alert_recipient_email.description': 168,
   'linkedin_ads:mappings.subtitle': 88,
   'meta_ads:customEvents.subtitle': 161,
@@ -294,19 +279,12 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'organizations:settingLabels.organizations.registration.gus_credentials.description': 272,
   'organizations:settingLabels.organizations.registration.registry_lookup_enabled.description': 490,
   'organizations:settingLabels.organizations.registration.registry_lookup_pl_sources.description': 726,
-  'price_lists:settings.listPrice.help': 94,
   'product_feeds:builder.outputFormat.hint': 108,
   'product_feeds:checks.reason.transport.hint': 140,
   'product_feeds:delivery.empty.subtitle': 121,
-  'product_feeds:delivery.field.directoryPath.help': 106,
-  'product_feeds:delivery.field.headers.help': 123,
-  'product_feeds:delivery.field.host.help': 91,
-  'product_feeds:delivery.field.privateKey.help': 112,
-  'product_feeds:delivery.field.requestUrl.help': 107,
   'product_feeds:delivery.subtitle': 92,
   'product_feeds:feeds.empty.subtitle': 90,
   'product_feeds:feeds.settings.priceBook.hint': 98,
-  'product_feeds:revisions.help': 157,
   'product_feeds:templates.startingPoint.hint': 103,
   'projects:settingLabels.projects.alerts_time_zone.description': 216,
   'returns:settingLabels.returns.guest_complaints_enabled.description': 299,

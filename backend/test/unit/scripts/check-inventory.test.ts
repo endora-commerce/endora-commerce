@@ -5239,6 +5239,16 @@ const CHECKS: readonly CheckEntry[] = [
           ? 1
           : 0,
       ),
+      // A help popover is held to 280: a hint's overflow is what it is for, so
+      // a grammar that held it to the hint's 80 would report this one.
+      'a-help-popover-at-280-is-not-a-finding': top(() =>
+        textBudgetFindings({ 'orders.field.code.help': 'x'.repeat(280) }, {}, 'over-budget') === 0
+          ? 1
+          : 0,
+      ),
+      'help-over-280': top(() =>
+        textBudgetFindings({ 'orders.field.code.help': 'x'.repeat(281) }, {}, 'over-budget'),
+      ),
       // A palette entry's description is outside the grammar.
       'an-action-description-is-not-budgeted': top(() =>
         textBudgetFindings(
@@ -12187,9 +12197,10 @@ describe('every red proof enters at the top of the analysis', () => {
       // it still tells a vocabulary name from a utility.
       'backend/scripts/check-class-vocabulary.ts': 7,
       'backend/scripts/check-bundle-pairing.ts': 5,
-      // Four findings and two discriminations: the 120 budget of a setting
-      // description, and a palette description outside the grammar.
-      'backend/scripts/check-text-budget.ts': 6,
+      // Four findings, the help popover's own 280 edge, and three
+      // discriminations: a setting description at 120, a help popover at 280,
+      // and a palette description outside the grammar.
+      'backend/scripts/check-text-budget.ts': 8,
       // Seven findings, one proof each. The discriminations — the allowed
       // imports, a scoped stylesheet, a package with no layer — assert zero
       // findings and are in the companion test, as are the two refusals that

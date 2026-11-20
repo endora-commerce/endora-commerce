@@ -40,7 +40,7 @@ describe('check-text-budget — the key grammar', () => {
     expect(budgetOf('orders.page.description')?.budget).toBe(80);
     expect(budgetOf('home.recentActivity.subtitle')?.budget).toBe(80);
     expect(budgetOf('adminUsers.resetPassword.hint')?.budget).toBe(80);
-    expect(budgetOf('warehouses.page.help')?.budget).toBe(80);
+    expect(budgetOf('warehouses.page.help')?.budget).toBe(280);
     expect(budgetOf('settingLabels.analytics.reporting_time_zone.description')?.budget).toBe(120);
   });
 
@@ -80,6 +80,16 @@ describe('check-text-budget — what it refuses', () => {
     expect(kinds(run([bundle('orders', { [key]: long(121) })]), 'over-budget')).toEqual([
       `orders:${key}`,
     ]);
+  });
+
+  it('holds a help popover to 280, not to the 80 of a hint', () => {
+    // The `HelpTip` popover is where a hint's overflow goes, so copy between
+    // 81 and 280 characters is exactly what it is for.
+    expect(run([bundle('orders', { 'orders.field.code.help': long(200) })]).findings).toEqual([]);
+    expect(run([bundle('orders', { 'orders.field.code.help': long(280) })]).findings).toEqual([]);
+    expect(
+      kinds(run([bundle('orders', { 'orders.field.code.help': long(281) })]), 'over-budget'),
+    ).toEqual(['orders:orders.field.code.help']);
   });
 
   it('reports a ledgered key that grew past its recorded length', () => {
@@ -127,10 +137,10 @@ describe('check-text-budget — what it refuses', () => {
 
   it('keys the ledger by module, so one key in two modules is two entries', () => {
     const result = run(
-      [bundle('orders', { 'page.help': long(90) }), bundle('cms', { 'page.help': long(90) })],
-      { [baselineKey('orders', 'page.help')]: 90 },
+      [bundle('orders', { 'page.hint': long(90) }), bundle('cms', { 'page.hint': long(90) })],
+      { [baselineKey('orders', 'page.hint')]: 90 },
     );
-    expect(kinds(result, 'over-budget')).toEqual(['cms:page.help']);
+    expect(kinds(result, 'over-budget')).toEqual(['cms:page.hint']);
   });
 
   it('counts the bundles it opened and the budgeted keys it judged', () => {
