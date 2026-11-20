@@ -3,7 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import type { OpportunityDetail, OpportunityDocumentKind } from '@endora-commerce/contracts';
 import { useAuth, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button } from '@endora-commerce/admin-kit/ui';
+import { Button, InlineStatus, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useReturnHere } from '../lib/return-here.js';
 
@@ -144,6 +144,12 @@ export interface CreatedDocumentNoticeProps {
  *
  * Says nothing on any other visit: it speaks only when the return address
  * carries this module's own marker **and** the create screen handed an id over.
+ *
+ * Issue #1499 (UX audit SALES-17, DEC-12 a) — it is an `InlineStatus` beside the
+ * "Create …" button that started it, not a banner under the section heading.
+ * The region is mounted on every visit, empty, and the sentence is put into it
+ * after the first paint: a region created already carrying its text is not
+ * reliably announced (WCAG 2.2 SC 4.1.3).
  */
 export function CreatedDocumentNotice(props: CreatedDocumentNoticeProps): ReactNode {
   const { kind, opportunity, reload } = props;
@@ -152,6 +158,7 @@ export function CreatedDocumentNotice(props: CreatedDocumentNoticeProps): ReactN
   const [searchParams] = useSearchParams();
   const returnHere = useReturnHere();
   const [attempt, setAttempt] = useState(0);
+  const { props: statusProps, show, clear } = useInlineStatus();
   const target = TARGETS[kind];
   const words = wording(kind, t);
 
@@ -169,32 +176,32 @@ export function CreatedDocumentNotice(props: CreatedDocumentNoticeProps): ReactN
     return (): void => clearTimeout(timer);
   }, [waiting, attempt, reload]);
 
-  if (createdId === null) return null;
+  // Which sentence is due; the region learns it after it is on screen.
+  const phase: 'none' | 'linked' | 'waiting' | 'notLinked' =
+    createdId === null ? 'none' : link ? 'linked' : waiting ? 'waiting' : 'notLinked';
+  const linkedText = link ? words.linked(link.number ?? t('links.unavailable')) : '';
+  const linkingText = words.linking();
+  const notLinkedText = words.notLinked();
+  const openText = words.open();
+  const documentHref = createdId ? returnHere(`${target.documentPath}/${createdId}`) : '';
 
-  if (link) {
-    return (
-      <Alert role="status" variant="success">
-        <AlertDescription>
-          {words.linked(link.number ?? t('links.unavailable'))}
-        </AlertDescription>
-      </Alert>
-    );
-  }
-  if (waiting) {
-    return (
-      <Alert role="status" aria-busy="true">
-        <AlertDescription>{words.linking()}</AlertDescription>
-      </Alert>
-    );
-  }
-  return (
-    <Alert role="status" variant="warning">
-      <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
-        <span>{words.notLinked()}</span>
-        <Button asChild variant="outline" size="sm" className="min-h-11 sm:min-h-9">
-          <Link to={returnHere(`${target.documentPath}/${createdId}`)}>{words.open()}</Link>
-        </Button>
-      </AlertDescription>
-    </Alert>
-  );
+  useEffect(() => {
+    if (phase === 'none') clear();
+    else if (phase === 'linked') show(linkedText, 'success');
+    else if (phase === 'waiting') show(linkingText, 'info');
+    else {
+      // The document exists but this Opportunity does not list it: a partial result.
+      show(
+        <>
+          {notLinkedText}{' '}
+          <Link className="underline" to={documentHref}>
+            {openText}
+          </Link>
+        </>,
+        'warning',
+      );
+    }
+  }, [phase, linkedText, linkingText, notLinkedText, openText, documentHref, show, clear]);
+
+  return <InlineStatus {...statusProps} className="max-w-md" />;
 }

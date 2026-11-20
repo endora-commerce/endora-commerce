@@ -18,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  InlineStatus,
   Input,
   Label,
   Select,
@@ -28,6 +29,7 @@ import {
   TableHeader,
   TableRow,
   Textarea,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { organizationRolesClient } from '../api/roles.js';
@@ -95,7 +97,11 @@ function OrganizationRolesPanel({
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — a create, edit or delete is said
+  // beside the tab header's Create button — the dialog that did it is gone, and
+  // the header stays on screen — in a region mounted before it has text, not as
+  // a success banner inside the card.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [deleting, setDeleting] = useState<OrganizationRoleView | null>(null);
 
@@ -122,14 +128,20 @@ function OrganizationRolesPanel({
 
   const afterWrite = useCallback(
     async (message: string): Promise<void> => {
-      setInfo(message);
+      showStatus(message);
       setEditor(null);
       setDeleting(null);
       await refresh();
       onRolesChanged?.();
     },
-    [refresh, onRolesChanged],
+    [refresh, onRolesChanged, showStatus],
   );
+
+  /** A new action starts: the previous result no longer applies. */
+  const openEditor = (next: EditorState): void => {
+    clearStatus();
+    setEditor(next);
+  };
 
   // The link is offered only to an operator who may open the audit log, so it
   // never leads to a 403. Gated on the code alone: naming the audit module here
@@ -149,7 +161,8 @@ function OrganizationRolesPanel({
           </div>
           <CardDescription>{t('roles.tab.description')}</CardDescription>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {canManage ? <InlineStatus {...statusProps} /> : null}
           {showHistory ? (
             <Button asChild variant="outline" size="sm">
               <Link to={`/audit-log?objectType=organization&objectId=${encodeURIComponent(organizationId)}`}>
@@ -159,7 +172,7 @@ function OrganizationRolesPanel({
             </Button>
           ) : null}
           {canManage ? (
-            <Button type="button" size="sm" onClick={(): void => setEditor({ mode: 'create' })} disabled={loading || catalogue === null}>
+            <Button type="button" size="sm" onClick={(): void => openEditor({ mode: 'create' })} disabled={loading || catalogue === null}>
               <Plus aria-hidden="true" />
               {t('roles.action.create')}
             </Button>
@@ -169,11 +182,6 @@ function OrganizationRolesPanel({
       <CardContent className="space-y-4">
         <div role="status" aria-live="polite" className="text-sm">
           {loading ? <span className="text-muted-foreground">{t('roles.loading')}</span> : null}
-          {info && !loading ? (
-            <Alert variant="success">
-              <AlertDescription>{info}</AlertDescription>
-            </Alert>
-          ) : null}
         </div>
         {loadError ? (
           <Alert variant="destructive">
@@ -206,8 +214,11 @@ function OrganizationRolesPanel({
                   key={role.id}
                   role={role}
                   canManage={canManage}
-                  onOpen={(): void => setEditor({ mode: canManage ? 'edit' : 'view', role })}
-                  onDelete={(): void => setDeleting(role)}
+                  onOpen={(): void => openEditor({ mode: canManage ? 'edit' : 'view', role })}
+                  onDelete={(): void => {
+                    clearStatus();
+                    setDeleting(role);
+                  }}
                 />
               ))}
             </TableBody>

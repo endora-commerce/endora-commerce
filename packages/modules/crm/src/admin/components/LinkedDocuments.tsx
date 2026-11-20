@@ -174,9 +174,12 @@ export function LinkedDocuments(props: LinkedDocumentsProps): ReactNode {
         <h2 id={headingId} className="text-sm font-semibold tracking-tight">
           {t('links.title')}
         </h2>
-        <CreateDocumentButton kind="order" opportunity={opportunity} />
+        {/* The result of "Create order" is said beside it (#1499). */}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <CreatedDocumentNotice kind="order" opportunity={opportunity} reload={reload} />
+          <CreateDocumentButton kind="order" opportunity={opportunity} />
+        </div>
       </div>
-      <CreatedDocumentNotice kind="order" opportunity={opportunity} reload={reload} />
 
       {error ? (
         <Alert variant="destructive">
