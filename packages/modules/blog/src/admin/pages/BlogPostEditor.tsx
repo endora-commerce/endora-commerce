@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import { slugify as slugifyText, type BlogPostDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { AssetFieldPicker, ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { AssetFieldPicker, ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
 import { PageBuilderEditor } from '@endora-commerce/mod-cms/admin-ui';
 import {
   PageBuilderEditorLayout,
@@ -42,6 +43,22 @@ function savedFields(post: BlogPostDetail, language: string): LanguageFields {
     metaDescription: pickValue(post.metaDescription, language),
     metaKeywords: pickValue(post.metaKeywords, language),
   };
+}
+
+/** The whole form as `post` was last saved, in `language` (issue #1461: what `dirty` compares against). */
+function savedForm(post: BlogPostDetail, language: string): FormState {
+  return {
+    slug: post.slug,
+    active: post.active,
+    description: post.description ?? '',
+    mainImageAssetId: post.mainImageAssetId ?? '',
+    ...savedFields(post, language),
+  };
+}
+
+/** Same channels and languages, in any order. */
+function sameMembers(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value) => b.includes(value));
 }
 
 function languageFieldsOf(form: FormState): LanguageFields {
@@ -133,13 +150,7 @@ export function BlogPostEditor(): ReactNode {
   const reloadFormFromPost = useCallback(
     (loaded: BlogPostDetail, language: string | null) => {
       const lang = language ?? loaded.languages[0] ?? 'en-US';
-      setForm({
-        slug: loaded.slug,
-        active: loaded.active,
-        description: loaded.description ?? '',
-        mainImageAssetId: loaded.mainImageAssetId ?? '',
-        ...savedFields(loaded, lang),
-      });
+      setForm(savedForm(loaded, lang));
       setStash({});
     },
     [],
@@ -227,14 +238,11 @@ export function BlogPostEditor(): ReactNode {
     [settingsPanel],
   );
 
-  const create = async (): Promise<void> => {
+  const create = async (): Promise<boolean> => {
     setInfo(null);
     const found = blogEditorProblem({ ...form, ...scope });
     setProblem(found);
-    if (found) {
-      refuse(t(found));
-      return;
-    }
+    if (found) return refuse(t(found));
     setSaving(true);
     setError(null);
     try {
@@ -259,8 +267,9 @@ export function BlogPostEditor(): ReactNode {
           : {}),
       });
       navigate(`/blog/posts/${created.id}`);
+      return true;
     } catch (err) {
-      refuse(err instanceof Error ? err.message : String(err));
+      return refuse(err instanceof Error ? err.message : String(err));
     } finally {
       setSaving(false);
     }
@@ -452,12 +461,50 @@ export function BlogPostEditor(): ReactNode {
 
   const ready = !isNew && post !== null && activeLanguage !== null && draftData !== null;
 
+  /**
+   * Issue #1461 (CONTENT-02) — the draft against the last saved version: the
+   * language on screen (fields and canvas), every stashed language, and the scope.
+   * A new post is dirty once anything was typed into it.
+   */
+  const dirty = ((): boolean => {
+    if (!post) {
+      return isNew && (!isDraftEqual(form, blankForm) || scope.salesChannelIds.length > 0);
+    }
+    const lang = activeLanguage ?? post.languages[0] ?? 'en-US';
+    if (!isDraftEqual(form, savedForm(post, lang))) return true;
+    if (!sameMembers(scope.salesChannelIds, post.salesChannelIds) || !sameMembers(scope.languages, post.languages)) return true;
+    if (contentDirty && draftData && !isDraftEqual(draftData, dataFor(post, lang))) return true;
+    return Object.entries(stash).some(
+      ([language, kept]) =>
+        (kept.fields !== undefined && !isDraftEqual(kept.fields, savedFields(post, language))) ||
+        (kept.canvas !== undefined && !isDraftEqual(kept.canvas, dataFor(post, language))),
+    );
+  })();
+
+  const discard = (): void => {
+    if (!post) {
+      setForm(blankForm);
+      setScope({ salesChannelIds: [], languages: ['en-US'] });
+      return;
+    }
+    const lang = activeLanguage ?? post.languages[0] ?? 'en-US';
+    setForm(savedForm(post, lang));
+    setScope({ salesChannelIds: post.salesChannelIds, languages: post.languages });
+    setStash({});
+    setDraftData(dataFor(post, lang));
+    setContentDirty(false);
+  };
+
   return (
     <PageBuilderEditorLayout
       settingsPanel={settingsPanel}
+      dirty={dirty}
+      onSave={isNew ? create : save}
+      onDiscard={discard}
       header={
         <>
           <PageHeader
+            back={{ label: t('postEditor.backToList'), to: '/blog/posts' }}
             title={isNew ? t('postEditor.title.new') : form.name || t('postEditor.title.edit')}
             description={
               isNew
@@ -465,10 +512,8 @@ export function BlogPostEditor(): ReactNode {
                 : t('postEditor.description.edit')
             }
             actions={
-              <div className="flex flex-wrap gap-2">
-                <Button asChild variant="outline">
-                  <Link to="/blog/posts">{t('postEditor.backToList')}</Link>
-                </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <UnsavedChangesHint dirty={dirty} />
                 {/* Publishing is the last step of writing, not a setting: it
                     stays in the header, where it is reachable with the panel
                     put away. Only the transition the status allows is offered. */}
@@ -591,7 +636,7 @@ export function BlogPostEditor(): ReactNode {
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
+              <CardTitle>{t('sections.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
@@ -656,7 +701,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('author.title')}</CardTitle>
+                <CardTitle>{t('author.title')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <AuthorPicker value={post.author ?? null} disabled={saving} onChange={(id) => void onSaveAuthor(id)} />
@@ -676,11 +721,11 @@ export function BlogPostEditor(): ReactNode {
             />
           ) : null}
 
-          <ScopePicker value={scope} onChange={setScope} />
+          <ScopePicker value={scope} onChange={setScope} chrome="card" />
 
           <Card data-settings-group="seo">
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.seo')}</CardTitle>
+              <CardTitle>{t('sections.seo')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
@@ -720,7 +765,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('sections.tags')}</CardTitle>
+                <CardTitle>{t('sections.tags')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <TagPicker
@@ -734,7 +779,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('sections.relatedPosts')}</CardTitle>
+                <CardTitle>{t('sections.relatedPosts')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <RelatedPostsPicker
@@ -749,7 +794,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('sections.relatedProducts')}</CardTitle>
+                <CardTitle>{t('sections.relatedProducts')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <RelatedProductsPicker
@@ -765,7 +810,7 @@ export function BlogPostEditor(): ReactNode {
           {post ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">{t('sections.lifecycle')}</CardTitle>
+                <CardTitle>{t('sections.lifecycle')}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-sm text-muted-foreground">{t('postEditor.archiveHint')}</p>

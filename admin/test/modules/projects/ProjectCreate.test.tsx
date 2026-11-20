@@ -303,3 +303,22 @@ describe('ProjectCreate', () => {
     });
   });
 });
+
+/**
+ * Issue #1449 (UX audit 2026-11-17, DS-19; WORK-16) — every create form ends with the kit's
+ * sticky save bar: in view while the form scrolls, the secondary action first and the one
+ * primary last (Von Restorff, Jakob).
+ */
+describe('ProjectCreate — the sticky save bar (#1449)', () => {
+  it('ends the form with Cancel, then Create last', async () => {
+    await renderForm();
+    const bar = screen.getByRole('button', { name: en('create.submit') }).closest<HTMLElement>('[data-slot="sticky-form-actions"]');
+    expect(bar).not.toBeNull();
+    expect(bar).toHaveAttribute('data-desktop', 'sticky');
+    expect(
+      within(bar!)
+        .getAllByRole('button')
+        .map((button) => button.textContent?.trim()),
+    ).toEqual([core('common.action.cancel'), en('create.submit')]);
+  });
+});

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { CategoryTreePicker, OrganizationPickerMulti, ScopedFieldGrid, type ScopedFieldControlProps } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, Button, Input } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EditorSection, Input } from '@endora-commerce/admin-kit/ui';
 import { useContext } from 'react';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
@@ -31,12 +31,15 @@ export interface DetailsTabProps {
 type Audience = { visibility: 'public' | 'logged_in_only' | 'organization_restricted'; allowedOrganizationIds: string[] };
 const VISIBILITIES = ['public', 'logged_in_only', 'organization_restricted'] as const;
 
+/**
+ * One group of the tab. Issue #1488 (UX audit CAT-06): the kit's `EditorSection`, the heading every
+ * tab of the editor uses — one style at one level (`h2`), a rule between sibling sections.
+ */
 function Section({ title, children }: { title: string; children: ReactNode }): ReactNode {
   return (
-    <section className="space-y-2">
-      <h3 className="b2b-label">{title}</h3>
+    <EditorSection title={title}>
       <ScopedFieldGrid>{children}</ScopedFieldGrid>
-    </section>
+    </EditorSection>
   );
 }
 
@@ -66,7 +69,7 @@ export function DetailsTab({
   };
 
   return (
-    <div className="b2b-col" style={{ gap: 18 }}>
+    <div className="space-y-(--section-gap)">
       <AdminZone name="product.editor.details.before" props={{ productId: ctx.productId, saveSession: ctx.saveSession }} />
 
       {referenceError ? (
@@ -161,6 +164,7 @@ export function DetailsTab({
               {product.archivedAt ? <> {t('productEditor.field.status.archivedNote')}</> : null}
             </>
           }
+          help={t('productEditor.field.status.helpTip')}
           render={(p): ReactNode => (
             <SelectControl
               {...p}
@@ -182,13 +186,12 @@ export function DetailsTab({
           wide
           emptyMeaning={t('productEditor.emptyMeaning.noLimit')}
           note={t('productEditor.field.publishWindow.help')}
+          help={t('productEditor.field.publishWindow.helpTip')}
           render={(p): ReactNode => (
             <WindowControl {...p} fromLabel={t('productEditor.field.publishFrom')} untilLabel={t('productEditor.field.publishUntil')} />
           )}
         />
       </Section>
-
-      <hr className="b2b-hr" />
 
       <Section title={t('productEditor.section.categories')}>
         <EditorField<string[]>
@@ -197,12 +200,7 @@ export function DetailsTab({
           view={globalOnlyView(product.categoryIds)}
           globalOnly
           wide
-          note={
-            <>
-              {t('productEditor.section.categories.help')}
-              <AdminZone name="product.editor.field.after" props={zoneProps('categories')} />
-            </>
-          }
+          note={<AdminZone name="product.editor.field.after" props={zoneProps('categories')} />}
           render={(p): ReactNode =>
             p.readOnly ? (
               <Input {...p.inputProps} readOnly value={(p.value ?? []).map(categoryName).join('; ')} />

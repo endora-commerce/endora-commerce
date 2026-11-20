@@ -29,12 +29,17 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Module | Binding | What it means |
 | --- | --- | --- |
+| `_i18n` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `admin_users` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `assets_library` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `catalog` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `customer_accounts` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `orders` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `organizations` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `admin_notifications` | no | degrades-without `adminNotificationRecordPort` — no bell entry is recorded for a new return or complaint; the case, the shop e-mail and the customer e-mails are unaffected |
 | `credit_limits` | no | refuses-without `creditTopupPort` — a return cannot be settled as store credit — the credit resolution refuses; refunds, replacements and repairs are unaffected |
 | `invoices` | no | refuses-without `correctiveInvoicePort` — no return that moves money can be settled while a corrective invoice is requested — clearing that box on the settlement lets it through, and a replacement or a repair is unaffected either way |
 | `payments` | no | refuses-without `paymentRefundPort` — a return cannot be settled as a refund — the money-back resolution refuses and the case stays where it was, retryable; every other resolution, and the rest of the returns flow, is unaffected |
@@ -43,6 +48,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Code | Label | Also needs |
 | --- | --- | --- |
+| `returns:erase_personal_data` | Erase personal data of guest returns and complaints | `returns:read` |
 | `returns:read` | View returns / RMA cases | — |
 | `returns:write` | Manage returns / RMA cases, settlement, and configuration | — |
 
@@ -51,6 +57,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | Action | Opens | Permission |
 | --- | --- | --- |
 | `open-returns` | `/returns` | `returns:read` |
+| `return-clauses` | `/returns/clauses` | `returns:read` |
 | `return-statuses` | `/returns/statuses` | `returns:read` |
 
 ## Settings
@@ -60,6 +67,11 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `returns.default_cost_bearer_outside_window` | Return cost bearer outside the free-return window | `string` |
 | `returns.enabled` | Returns enabled | `boolean` |
 | `returns.free_return_days` | Free-return window (days) | `number` |
+| `returns.guest_complaints_enabled` | Complaints from guests | `boolean` |
+| `returns.guest_data_retention_days` | Guest data retention (days) | `number` |
+| `returns.new_case_recipients` | New-case recipients | `string_list` |
+| `returns.off_platform_complaints_enabled` | Complaints without a platform order | `boolean` |
+| `returns.proof_of_purchase_required` | Proof of purchase required | `boolean` |
 | `returns.rma_number_prefix` | RMA number prefix | `string` |
 | `returns.rma_number_suffix` | RMA number suffix | `string` |
 | `returns.time_zone` | Time zone of the return windows | `string` |

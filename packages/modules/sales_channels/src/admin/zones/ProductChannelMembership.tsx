@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import type { AdminZoneProps } from '@endora-commerce/contracts';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { EntityChannelMembership } from '../components/EntityChannelMembership.js';
 
 /**
@@ -20,7 +21,11 @@ export type ProductChannelMembershipProps = AdminZoneProps<'product.editor.chann
 export function ProductChannelMembership({
   productId,
 }: ProductChannelMembershipProps): ReactNode {
-  return <EntityChannelMembership entityType="product" entityId={productId} />;
+  const { hasPermission } = useAuth();
+  // Issue #1644 — read-only without `catalog:write`, as the editor's other tabs are; and
+  // without `sales_channels:write`, the code the membership routes enforce.
+  const canWrite = hasPermission('catalog:write') && hasPermission('sales_channels:write');
+  return <EntityChannelMembership entityType="product" entityId={productId} readOnly={!canWrite} />;
 }
 
 /**

@@ -721,3 +721,35 @@ describe('CustomFieldValuesPanel — only the keys the operator changed leave th
     expect(onChange.mock.lastCall?.[0]).toStrictEqual({ region: 'north!' });
   });
 });
+
+describe('CustomFieldValuesPanel — a section, not a card (issue #1437, DS-03)', () => {
+  it('renders as a section of the host card by default: an h2 region, no card of its own', async () => {
+    getSpy.mockResolvedValue({ data: [definition()] });
+    renderWithI18n(<CustomFieldValuesPanel entityType="customer" values={{}} onChange={(): void => {}} />, bundle);
+
+    const heading = await screen.findByRole('heading', { level: 2, name: COPY.title });
+    expect(heading.closest('[data-slot=card]')).toBeNull();
+    expect(heading.closest('section')?.getAttribute('data-slot')).toBe('editor-section');
+  });
+
+  it('draws its own card with `chrome="card"`, for a panel standing alone on a page', async () => {
+    getSpy.mockResolvedValue({ data: [definition()] });
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={{}} onChange={(): void => {}} chrome="card" />,
+      bundle,
+    );
+
+    const heading = await screen.findByRole('heading', { level: 2, name: COPY.title });
+    expect(heading.closest('[data-slot=card]')).not.toBeNull();
+  });
+
+  it('takes the heading level a host card needs through `titleAs`', async () => {
+    getSpy.mockResolvedValue({ data: [definition()] });
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={{}} onChange={(): void => {}} titleAs="h3" />,
+      bundle,
+    );
+
+    expect(await screen.findByRole('heading', { level: 3, name: COPY.title })).toBeTruthy();
+  });
+});

@@ -78,7 +78,7 @@ describe('Pricing settings — show the list price (FR-026)', () => {
     expect(api.get).toHaveBeenCalledWith(SETTING);
     expect(
       within(region).getByText(
-        'Buyers whose price is below the catalogue price see both on the product page and the product lists. The basket and the checkout always show only the price charged.',
+        'Buyers paying less than the catalogue price see both; the basket shows only the price charged.',
       ),
     ).toBeTruthy();
   });

@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { setMobileViewport } from '../../setup';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 
 /**
  * Issue #1387 — the admin cart detail printed the raw cart status and approval
@@ -252,11 +253,15 @@ describe.each(['en', 'pl'] as const)('Carts list literals (%s) — issue #1387',
   };
 
   function renderList(): void {
-    getSpy.mockResolvedValue({ data: [ROW] });
+    getSpy.mockResolvedValue({ data: [ROW], meta: { page: 1, pageSize: 20, totalCount: 1 } });
     renderWithI18n(
-      <MemoryRouter>
-        <CartsList />
-      </MemoryRouter>,
+      // The list remembers its page size as the admin's preference (#1473).
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       CATALOGUES[language],
       { language },
     );
@@ -269,11 +274,18 @@ describe.each(['en', 'pl'] as const)('Carts list literals (%s) — issue #1387',
   });
 
   it('leads each row with its owner, linked to the cart, and no UUID (issue #1477)', async () => {
-    getSpy.mockResolvedValue({ data: [{ ...ROW, ownerDisplayName: 'Jane Buyer' }] });
+    getSpy.mockResolvedValue({
+      data: [{ ...ROW, ownerDisplayName: 'Jane Buyer' }],
+      meta: { page: 1, pageSize: 20, totalCount: 1 },
+    });
     renderWithI18n(
-      <MemoryRouter>
-        <CartsList />
-      </MemoryRouter>,
+      // The list remembers its page size as the admin's preference (#1473).
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       CATALOGUES[language],
       { language },
     );

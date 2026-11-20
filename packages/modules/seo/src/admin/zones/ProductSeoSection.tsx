@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { RotateCw } from 'lucide-react';
 import type { AdminZoneProps, ResolvedMeta, ScopeRef, ScopedFieldView } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
-import { Button, Input, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Button, EditorSection, Input, Textarea } from '@endora-commerce/admin-kit/ui';
 import { ScopedField, ScopedFieldGrid } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -20,8 +20,12 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 export type ProductSeoSectionProps = AdminZoneProps<'product.editor.seo'>;
 
-const FIELDS = ['title', 'description', 'ogTitle', 'ogDescription', 'ogImageUrl'] as const;
-type SeoField = (typeof FIELDS)[number];
+type SeoField = 'title' | 'description' | 'ogTitle' | 'ogDescription' | 'ogImageUrl';
+/** The sections of the tab: what a search engine shows, and what a shared link shows. */
+const GROUPS: readonly { key: 'search' | 'social'; fields: readonly SeoField[] }[] = [
+  { key: 'search', fields: ['title', 'description'] },
+  { key: 'social', fields: ['ogTitle', 'ogDescription', 'ogImageUrl'] },
+];
 const MULTILINE = new Set<SeoField>(['description', 'ogDescription']);
 const MAX_LENGTH: Record<SeoField, number> = { title: 255, description: 1000, ogTitle: 255, ogDescription: 1000, ogImageUrl: 2048 };
 
@@ -108,65 +112,67 @@ export function ProductSeoSection(props: ProductSeoSectionProps): ReactNode {
   }
 
   const views = (view ?? read.scoped) as Record<SeoField, ScopedFieldView<string>>;
-  return (
-    <section className="space-y-2" aria-labelledby="product-seo-heading">
-      <h3 id="product-seo-heading" className="text-base font-semibold">
-        {t('productSeo.title')}
-      </h3>
-      <p className="m-0 text-sm text-muted-foreground">{t('productSeo.help')}</p>
-      <ScopedFieldGrid>
-        {FIELDS.map((field) => {
-          const fieldView = views[field];
-          if (!fieldView) return null;
-          const derived = derivedOf(field, read.resolved);
-          const op = staged.get(field);
-          const shown = op?.op === 'set' ? op.value : op?.op === 'empty' || op?.op === 'inherit' ? null : fieldView.value;
-          const note = !shown && derived ? t('productSeo.derived', { value: derived }) : undefined;
-          return (
-            <ScopedField<string>
-              key={field}
-              id={`product-seo-${field}`}
-              label={t(`productSeo.field.${field}`)}
-              fieldPath={`seo:${field}`}
-              view={fieldView}
-              scope={scope}
-              scopeLabel={scopeLabel}
-              parentScopeLabel={parentScopeLabel ?? ''}
-              staged={op}
-              onStage={(next): void => onStage(field, next)}
-              readOnly={readOnly}
-              textField
-              wide={MULTILINE.has(field)}
-              note={note}
-              error={errors[field]}
-              renderControl={({ value, readOnly: ro, onChange, inputProps }): ReactNode =>
-                MULTILINE.has(field) ? (
-                  <Textarea
-                    {...inputProps}
-                    rows={3}
-                    readOnly={ro}
-                    maxLength={MAX_LENGTH[field]}
-                    placeholder={derived ?? undefined}
-                    value={value ?? ''}
-                    onChange={(e): void => onChange(e.target.value === '' ? null : e.target.value)}
-                  />
-                ) : (
-                  <Input
-                    {...inputProps}
-                    type={field === 'ogImageUrl' ? 'url' : 'text'}
-                    readOnly={ro}
-                    maxLength={MAX_LENGTH[field]}
-                    placeholder={derived ?? undefined}
-                    value={value ?? ''}
-                    onChange={(e): void => onChange(e.target.value === '' ? null : e.target.value)}
-                  />
-                )
-              }
+  const renderField = (field: SeoField): ReactNode => {
+    const fieldView = views[field];
+    if (!fieldView) return null;
+    const derived = derivedOf(field, read.resolved);
+    const op = staged.get(field);
+    const shown = op?.op === 'set' ? op.value : op?.op === 'empty' || op?.op === 'inherit' ? null : fieldView.value;
+    const note = !shown && derived ? t('productSeo.derived', { value: derived }) : undefined;
+    return (
+      <ScopedField<string>
+        key={field}
+        id={`product-seo-${field}`}
+        label={t(`productSeo.field.${field}`)}
+        fieldPath={`seo:${field}`}
+        view={fieldView}
+        scope={scope}
+        scopeLabel={scopeLabel}
+        parentScopeLabel={parentScopeLabel ?? ''}
+        staged={op}
+        onStage={(next): void => onStage(field, next)}
+        readOnly={readOnly}
+        textField
+        wide={MULTILINE.has(field)}
+        note={note}
+        error={errors[field]}
+        renderControl={({ value, readOnly: ro, onChange, inputProps }): ReactNode =>
+          MULTILINE.has(field) ? (
+            <Textarea
+              {...inputProps}
+              rows={3}
+              readOnly={ro}
+              maxLength={MAX_LENGTH[field]}
+              placeholder={derived ?? undefined}
+              value={value ?? ''}
+              onChange={(e): void => onChange(e.target.value === '' ? null : e.target.value)}
             />
-          );
-        })}
-      </ScopedFieldGrid>
-    </section>
+          ) : (
+            <Input
+              {...inputProps}
+              type={field === 'ogImageUrl' ? 'url' : 'text'}
+              readOnly={ro}
+              maxLength={MAX_LENGTH[field]}
+              placeholder={derived ?? undefined}
+              value={value ?? ''}
+              onChange={(e): void => onChange(e.target.value === '' ? null : e.target.value)}
+            />
+          )
+        }
+      />
+    );
+  };
+  // Issue #1490 (UX audit CAT-11): no heading that says "SEO" again under the SEO tab — the tab
+  // names the panel. The fields are chunked by where they show (Miller): in search results, and
+  // when the page is shared. Two kit `EditorSection`s, `h2`, the editor's one section style.
+  return (
+    <div className="space-y-(--section-gap)">
+      {GROUPS.map((group) => (
+        <EditorSection key={group.key} id={`product-seo-${group.key}`} title={t(`productSeo.${group.key}.title`)}>
+          <ScopedFieldGrid>{group.fields.map(renderField)}</ScopedFieldGrid>
+        </EditorSection>
+      ))}
+    </div>
   );
 }
 

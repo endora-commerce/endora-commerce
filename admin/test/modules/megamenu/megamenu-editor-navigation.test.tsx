@@ -15,6 +15,8 @@ import { MenuItemTree } from '../../../../packages/modules/megamenu/src/admin/co
  * tab's presentation and alignment, offers the kinds a level allows, sets an
  * audience, configures a category tree, and says when a label is inherited.
  */
+// The pickers are stubbed; everything else is the kit's own — `MenuItemTree`
+// asks through the real `useConfirmDialog` before deleting (issue #1464).
 vi.mock('@endora-commerce/admin-kit/components', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   // A picker named by its own `ariaLabel`, or — when the panel wires it to a
@@ -287,6 +289,10 @@ describe('MenuItemTree — row actions (UX audit CONTENT-17, #1467)', () => {
     const items = await screen.findAllByRole('menuitem');
     expect(items.map((el) => el.textContent)).toEqual(['Add child item', 'Delete item']);
     await user.click(screen.getByRole('menuitem', { name: 'Delete item' }));
+    // The menu item asks first (issue #1464); confirming deletes.
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this menu item?' });
+    expect(onDelete).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete item' }));
     expect(onDelete).toHaveBeenCalledWith('item-2');
   });
 });

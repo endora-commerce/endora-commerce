@@ -77,8 +77,9 @@ podatkowe* niżej).
 ## Emitowane zdarzenia
 
 `organization.registered.v1`, `organization.verified.v1`,
-`organization.status_changed.v1` (`{ organizationId, newStatus }`, po zatwierdzeniu, odrzuceniu,
-zablokowaniu lub odblokowaniu), `organization_role.permissions_changed.v1` (`{ organizationId,
+`organization.status_changed.v1` (`{ organizationId, newStatus, previousStatus, reason }`, po
+zatwierdzeniu, odrzuceniu, zablokowaniu lub odblokowaniu; `reason` to powód podany przez operatora
+przy odrzuceniu lub zablokowaniu, w pozostałych przypadkach `null`), `organization_role.permissions_changed.v1` (`{ organizationId,
 roleId, added, removed }`, po zmianie uprawnień roli),
 `organization.converted_to_company.v1` (`OrganizationConvertedToCompanyEvent`: `{ eventId,
 occurredAt, organizationId, convertedAt }` — bez nazwy i bez NIP; wysyłane raz, po zatwierdzeniu
@@ -1287,9 +1288,14 @@ Ekran szczegółów organizacji ma zakładkę **Role**. Widzi ją operator z upr
 Z uprawnieniem do odczytu zakładka jest tylko do odczytu; z `organizations:manage-roles` operator
 tworzy, edytuje i usuwa role według tych samych reguł co w storefroncie — formularz tworzenia
 również otwiera się z odznaczonymi wszystkimi uprawnieniami, a rolę, którą ktoś ma, można usunąć
-tylko ze wskazaniem roli zastępczej. Tabela członków na tym samym ekranie pokazuje rolę każdego
-członka, a operatorowi z `customers:manage` — listę wyboru roli. Zakładka prowadzi do historii
-organizacji w dzienniku audytu, gdzie zapisana jest każda zmiana roli.
+tylko ze wskazaniem roli zastępczej. Sekcja *Członkowie* na tym samym ekranie wymienia każdego
+członka z jego rolą. Operatorowi z `customers:manage` oferuje **Dodaj członka** — okno, w którym
+wybiera się wysłanie zaproszenia albo utworzenie konta od razu, i tylko ta druga droga pyta o imię,
+nazwisko, hasło tymczasowe i pola niestandardowe członka — a przy każdym członku **Edytuj**, okno
+z profilem i rolą zapisywanymi razem, oraz **Usuń**, które przed wykonaniem prosi o potwierdzenie.
+Ostatniego administratora nie można tam ani usunąć, ani pozbawić roli, a organizacja osobista nie
+oferuje *Dodaj członka*. Zakładka prowadzi do historii organizacji w dzienniku audytu, gdzie
+zapisana jest każda zmiana roli.
 
 ### Członkowie, zaproszenia i sesja
 

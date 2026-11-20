@@ -210,6 +210,17 @@ export const AdminZoneNameSchema = z.enum([
    */
   'payment_method.list.integrations',
   /**
+   * The products list's header actions, before *New product* — issue #1455
+   * (UX audit CAT-02). The list's Import and Export buttons had no handler; the
+   * screen that does both belongs to `import_export`, so the host names the
+   * place and that module contributes its own link, gated by its own presence
+   * and permission, and `catalog` names no other module.
+   *
+   * Mounted **once** per list screen and carrying no props.
+   * Props: {@link ProductListActionsZoneProps}.
+   */
+  'product.list.actions',
+  /**
    * Below the invoice detail's totals column, at the end of the right-hand
    * stack.
    *
@@ -662,6 +673,9 @@ export interface DeliveryMethodIntegrationsZoneProps {}
 /** The payment-method integrations mount carries no host-owned data. */
 export interface PaymentMethodIntegrationsZoneProps {}
 
+/** The products list's header-actions mount carries no host-owned data. */
+export interface ProductListActionsZoneProps {}
+
 /**
  * A zone mounted once at the end of the invoice detail's totals column.
  *
@@ -969,6 +983,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'product.editor.field.after': ProductEditorFieldZoneProps;
   'delivery_method.list.integrations': DeliveryMethodIntegrationsZoneProps;
   'payment_method.list.integrations': PaymentMethodIntegrationsZoneProps;
+  'product.list.actions': ProductListActionsZoneProps;
   'invoice.detail.after': InvoiceDetailZoneProps;
   'category.editor.after': CategoryEditorZoneProps;
   // Reused, not aliased: a props type is the shape the mount carries, and two

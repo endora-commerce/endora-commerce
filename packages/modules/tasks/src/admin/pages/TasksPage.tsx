@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ListChecks, Plus, SearchX, SlidersHorizontal, X } from 'lucide-react';
+import { ListChecks, Plus, SlidersHorizontal } from 'lucide-react';
 import { TASK_LIST_LIMIT_MAX, TASK_LIST_SORTS, type TaskSummary } from '@endora-commerce/contracts';
 import { useAuth, useListViewModePreference, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import {
   CursorPagination,
   ResponsiveTable,
@@ -63,6 +63,8 @@ const SORT_OPTIONS = TASK_LIST_SORTS.flatMap((sort) =>
  */
 export function TasksPage(): ReactNode {
   const t = useTranslation('tasks');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const tCore = useTranslation('core');
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('tasks:write');
@@ -167,26 +169,20 @@ export function TasksPage(): ReactNode {
   );
 
   const emptyState = filtered ? (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <SearchX aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('list.noResults.title')}</div>
-      <div className="b2b-empty__sub">{t('list.noResults.body')}</div>
-      <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={clear}>
-        <X aria-hidden="true" />
-        {t('list.filter.clear')}
-      </Button>
-    </div>
+    <EmptyState
+      variant="no-results"
+      title={t('list.noResults.title')}
+      description={t('list.noResults.body')}
+      onClearFilters={clear}
+      focusAfterClear={searchRef}
+    />
   ) : (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <ListChecks aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('list.empty.title')}</div>
-      <div className="b2b-empty__sub">{canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}</div>
-      {canWrite ? newTask : null}
-    </div>
+    <EmptyState
+      icon={<ListChecks size={20} />}
+      title={t('list.empty.title')}
+      description={canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}
+      action={canWrite ? newTask : null}
+    />
   );
 
   const showNewInHeader = canWrite && (mode === 'board' || rows.length > 0 || filtered || !loaded);
@@ -195,7 +191,6 @@ export function TasksPage(): ReactNode {
     <>
       <PageHeader
         title={t('list.title')}
-        description={t('list.description')}
         actions={
           <>
             <ViewModeToggle mode={mode} onChange={setMode} />
@@ -213,29 +208,7 @@ export function TasksPage(): ReactNode {
       />
 
       <Card className="mb-4">
-        <CardContent className="space-y-4 pt-6">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <SavedViewsControl endpoint={VIEWS_ENDPOINT} current={savedState} onApply={applyView} onError={setViewsError} />
-            {mode === 'list' ? (
-              <div className="space-y-1">
-                <Label htmlFor="tasks-sort">{t('list.sort.label')}</Label>
-                <Select
-                  id="tasks-sort"
-                  value={`${sort.sort}:${sort.dir}`}
-                  onChange={(event): void => {
-                    const [field, dir] = event.target.value.split(':');
-                    navigate(withFilter(withFilter(params, 'sort', field ?? null), 'dir', dir ?? null));
-                  }}
-                >
-                  {SORT_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {t(`list.sort.${option.replace(':', '.')}`)}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            ) : null}
-          </div>
+        <CardContent className="space-y-4">
           {viewsError ? (
             <Alert variant="destructive">
               <AlertDescription>{viewsError}</AlertDescription>
@@ -247,20 +220,38 @@ export function TasksPage(): ReactNode {
           </p>
           <TaskFilters
             idPrefix="tasks"
+            searchRef={searchRef}
             params={params}
             onChange={navigate}
             statuses={vocabulary.workflow?.statuses ?? []}
             priorities={vocabulary.priorities ?? []}
             customFields={customFields}
+            filtered={filtered}
+            onClear={clear}
+            actions={
+              <>
+                {mode === 'list' ? (
+                  <Select
+                    id="tasks-sort"
+                    aria-label={t('list.sort.label')}
+                    className="w-auto"
+                    value={`${sort.sort}:${sort.dir}`}
+                    onChange={(event): void => {
+                      const [field, dir] = event.target.value.split(':');
+                      navigate(withFilter(withFilter(params, 'sort', field ?? null), 'dir', dir ?? null));
+                    }}
+                  >
+                    {SORT_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {t(`list.sort.${option.replace(':', '.')}`)}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
+                <SavedViewsControl endpoint={VIEWS_ENDPOINT} current={savedState} onApply={applyView} onError={setViewsError} />
+              </>
+            }
           />
-          {filtered ? (
-            <div className="flex justify-end">
-              <Button className="min-h-11 sm:min-h-8" variant="ghost" size="sm" onClick={clear}>
-                <X aria-hidden="true" />
-                {t('list.filter.clear')}
-              </Button>
-            </div>
-          ) : null}
         </CardContent>
       </Card>
 
@@ -286,7 +277,7 @@ export function TasksPage(): ReactNode {
         <TaskBoard query={boardQuery} workflow={vocabulary.workflow} filtered={filtered} />
       ) : (
         <Card>
-          <CardContent className="pt-6" aria-busy={loading}>
+          <CardContent aria-busy={loading}>
             {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
             <p role="status" className="sr-only">
               {loading && loaded ? t('list.loading') : ''}

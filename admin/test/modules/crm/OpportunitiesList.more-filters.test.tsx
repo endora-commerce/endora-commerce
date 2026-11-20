@@ -8,10 +8,14 @@ import { WORKFLOW, crmLookupResponse, renderCrm, summary } from './crm-fixtures'
 import { expectNoAxeViolations } from '../../helpers/axe';
 
 /**
- * Feature 157, owner ruling U1 A (2026-10-19) — the Opportunities list's
- * filter panel is always open, so it shows the first three custom-field
- * filters and puts the rest behind a "More filters (n)" disclosure. A hidden
- * field whose filter is active is shown without expanding.
+ * Issue #1505 (UX audit 2026-11-17, WORK-05) — the Opportunities list's
+ * filters are the kit `ListToolbar`: the search, the state, the status and
+ * the assignee always shown; the Organization, the tags, the Sales Channel,
+ * the creation range and every custom-field filter behind *More filters*,
+ * which counts those in use while it is closed. This replaces feature 157's
+ * owner ruling U1 A (the first three custom fields always open, an active
+ * later one promoted beside them): the count, not the field, now says a
+ * folded filter is in use.
  */
 
 const getSpy = vi.fn();
@@ -118,75 +122,56 @@ function lastListQuery(): URLSearchParams {
   return new URLSearchParams(path.split('?')[1] ?? '');
 }
 
-describe('OpportunitiesList — More filters disclosure (U1 A)', () => {
-  it('shows the first three of six offered filters and "More filters (3)"', async () => {
+describe('OpportunitiesList — More filters (issue #1505)', () => {
+  it('shows the search, the state, the status and the assignee, and folds the rest away', async () => {
     renderList();
-    const more = await screen.findByRole('button', { name: 'More filters (3)' });
-    expect(shownLabels()).toEqual(['Region', 'Fleet size', 'Industry']);
+    const more = await screen.findByRole('button', { name: 'More filters' });
+    expect(screen.getByRole('search', { name: 'Filter opportunities' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'State' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Assignee' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Organization')).toBeNull();
+    expect(screen.queryByLabelText('Sales channel')).toBeNull();
+    expect(shownLabels()).toEqual([]);
     expect(more).toHaveAttribute('aria-expanded', 'false');
     const controlled = more.getAttribute('aria-controls');
     expect(controlled).toBeTruthy();
     expect(document.getElementById(controlled!)).not.toBeNull();
   });
 
-  it('shows all six once expanded and three again once collapsed', async () => {
+  it('shows the folded filters and every custom field once expanded, and none once collapsed', async () => {
     renderList();
-    fireEvent.click(await screen.findByRole('button', { name: 'More filters (3)' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'More filters' }));
     const fewer = screen.getByRole('button', { name: 'Fewer filters' });
     expect(fewer).toHaveAttribute('aria-expanded', 'true');
-    expect(shownLabels()).toEqual([...NAMES]);
+    expect(screen.getByLabelText('Organization')).toBeInTheDocument();
+    expect(screen.getByLabelText('Sales channel')).toBeInTheDocument();
+    await waitFor(() => expect(shownLabels()).toEqual([...NAMES]));
     fireEvent.click(fewer);
-    expect(screen.getByRole('button', { name: 'More filters (3)' })).toHaveAttribute('aria-expanded', 'false');
-    expect(shownLabels()).toEqual(['Region', 'Fleet size', 'Industry']);
+    expect(screen.getByRole('button', { name: 'More filters' })).toHaveAttribute('aria-expanded', 'false');
+    expect(shownLabels()).toEqual([]);
   });
 
-  it('offers no disclosure when three or fewer fields are offered', async () => {
-    getSpy.mockImplementation((path: string) => {
-      if (path === OFFERED_PATH) return Promise.resolve({ data: SIX.slice(0, 3) });
-      if (path.startsWith(LIST_PATH)) {
-        return Promise.resolve({ data: [summary()], pagination: { cursor: null, hasMore: false, limit: 20 } });
-      }
-      if (path === '/api/v1/admin/crm/workflow') return Promise.resolve({ data: WORKFLOW });
-      return crmLookupResponse(path) ?? Promise.reject(new Error(`unexpected GET ${path}`));
-    });
-    renderList();
-    await screen.findByLabelText('Industry');
-    expect(screen.queryByRole('button', { name: /More filters/ })).toBeNull();
-  });
-
-  it('shows an active filter on a hidden field without expanding', async () => {
+  it('counts an active folded filter while collapsed, and still sends it', async () => {
     renderList('/crm/opportunities?cf.field_5.contains=acme');
-    const more = await screen.findByRole('button', { name: 'More filters (2)' });
+    const more = await screen.findByRole('button', { name: 'More filters (1)' });
     expect(more).toHaveAttribute('aria-expanded', 'false');
-    expect(shownLabels()).toEqual(['Region', 'Fleet size', 'Industry', 'Partner']);
-    expect(screen.getByLabelText('Partner')).toHaveValue('acme');
+    expect(shownLabels()).toEqual([]);
     await waitFor(() =>
       expect(JSON.parse(lastListQuery().get('fieldFilters') ?? 'null')).toEqual({
         'custom:field_5': { contains: 'acme' },
       }),
     );
+    fireEvent.click(more);
+    expect(await screen.findByLabelText('Partner')).toHaveValue('acme');
   });
 
-  it('keeps the filters already visible in place when expanding', async () => {
-    renderList('/crm/opportunities?cf.field_5.contains=acme');
-    await screen.findByRole('button', { name: 'More filters (2)' });
-    const visibleBefore = ['Region', 'Fleet size', 'Industry', 'Partner'].map((name) => screen.getByLabelText(name));
-    const inputs = (): HTMLElement[] => NAMES.map((name) => screen.getByLabelText(name));
-    fireEvent.click(screen.getByRole('button', { name: 'More filters (2)' }));
-    // The same nodes, in the same order, first; the newly shown ones follow.
-    for (const input of visibleBefore) expect(input).toBeInTheDocument();
-    const order = inputs().sort((a, b) =>
-      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
-    );
-    expect(order.slice(0, 4)).toEqual(visibleBefore);
-  });
-
-  it('does not reorder the grid while expanded when a later filter turns active', async () => {
+  it('counts a filter set in the panel once the panel is closed', async () => {
     renderList();
-    fireEvent.click(await screen.findByRole('button', { name: 'More filters (3)' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'More filters' }));
+    const tier = await screen.findByLabelText('Tier');
     installSteppedTimers();
-    const tier = screen.getByLabelText('Tier');
-    tier.focus();
     fireEvent.change(tier, { target: { value: 'gold' } });
     await stepPastCommitPause();
     await waitFor(() =>
@@ -194,33 +179,15 @@ describe('OpportunitiesList — More filters disclosure (U1 A)', () => {
         'custom:field_6': { contains: 'gold' },
       }),
     );
-    expect(screen.getByLabelText('Tier')).toBe(tier);
-    expect(tier).toHaveFocus();
-    const inputs = NAMES.map((name) => screen.getByLabelText(name));
-    const order = [...inputs].sort((a, b) =>
-      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
-    );
-    expect(order).toEqual(inputs);
-    // Collapsing keeps the now-active field on screen.
     fireEvent.click(screen.getByRole('button', { name: 'Fewer filters' }));
-    expect(shownLabels()).toEqual(['Region', 'Fleet size', 'Industry', 'Tier']);
-    expect(screen.getByRole('button', { name: 'More filters (2)' })).toBeInTheDocument();
-  });
-
-  it('keeps a field shown while its filter is cleared, collapsed', async () => {
-    renderList('/crm/opportunities?cf.field_5.contains=acme');
-    const partner = await screen.findByLabelText('Partner');
-    installSteppedTimers();
-    fireEvent.change(partner, { target: { value: '' } });
-    await stepPastCommitPause();
-    await waitFor(() => expect(lastListQuery().get('fieldFilters')).toBeNull());
-    expect(screen.getByLabelText('Partner')).toBe(partner);
+    expect(screen.getByRole('button', { name: 'More filters (1)' })).toBeInTheDocument();
   });
 
   it('clears a filter cleared the moment it appears (#524)', async () => {
-    // The field appears when the offered fields load; clearing it in that very
-    // commit, before its passive effects run, is what a loaded host's
-    // `findByLabelText` did once — and the clear was lost.
+    // The field mounts when the panel opens; clearing it in that very commit,
+    // before its passive effects run, once lost the clear.
+    renderList('/crm/opportunities?cf.field_5.contains=acme');
+    const more = await screen.findByRole('button', { name: 'More filters (1)' });
     const cleared = new Promise<HTMLInputElement>((resolve) => {
       const observer = new MutationObserver(() => {
         const input = document.getElementById('crm-opportunity-cf-field_5');
@@ -232,7 +199,7 @@ describe('OpportunitiesList — More filters disclosure (U1 A)', () => {
       });
       observer.observe(document.body, { childList: true, subtree: true });
     });
-    renderList('/crm/opportunities?cf.field_5.contains=acme');
+    fireEvent.click(more);
     const partner = await cleared;
     await stepPastCommitPause();
     await waitFor(() => expect(lastListQuery().get('fieldFilters')).toBeNull());
@@ -240,33 +207,46 @@ describe('OpportunitiesList — More filters disclosure (U1 A)', () => {
     expect(screen.getByLabelText('Partner')).toBe(partner);
   });
 
-  it('is a real button operable from the keyboard', async () => {
+  it('keeps focus on the toggle as it opens and closes from the keyboard', async () => {
     const user = userEvent.setup();
     renderList();
-    const more = await screen.findByRole('button', { name: 'More filters (3)' });
+    const more = await screen.findByRole('button', { name: 'More filters' });
     expect(more.tagName).toBe('BUTTON');
     expect(more).toHaveAttribute('type', 'button');
     more.focus();
     await user.keyboard('{Enter}');
     expect(screen.getByRole('button', { name: 'Fewer filters' })).toHaveFocus();
-    expect(shownLabels()).toEqual([...NAMES]);
+    await waitFor(() => expect(shownLabels()).toEqual([...NAMES]));
     await user.keyboard(' ');
-    expect(screen.getByRole('button', { name: 'More filters (3)' })).toHaveFocus();
-    expect(shownLabels()).toEqual(['Region', 'Fleet size', 'Industry']);
+    expect(screen.getByRole('button', { name: 'More filters' })).toHaveFocus();
+    expect(shownLabels()).toEqual([]);
+  });
+
+  it('clears every filter, the folded ones included, and returns focus to the search', async () => {
+    const user = userEvent.setup();
+    renderList('/crm/opportunities?cf.field_5.contains=acme');
+    await screen.findByRole('button', { name: 'More filters (1)' });
+    await user.click(screen.getByRole('button', { name: 'Clear all filters' }));
+    await waitFor(() => expect(lastListQuery().get('fieldFilters')).toBeNull());
+    expect(screen.getByRole('button', { name: 'More filters' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear all filters' })).toBeNull();
+    expect(screen.getByRole('searchbox', { name: 'Search' })).toHaveFocus();
   });
 
   it('has no axe violations collapsed or expanded', async () => {
     const { container } = renderList();
-    await screen.findByRole('button', { name: 'More filters (3)' });
+    await screen.findByRole('button', { name: 'More filters' });
     await expectNoAxeViolations(container);
-    fireEvent.click(screen.getByRole('button', { name: 'More filters (3)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More filters' }));
+    await screen.findByLabelText('Tier');
     await expectNoAxeViolations(container);
   });
 
   it('speaks Polish', async () => {
-    renderList('/crm/opportunities', 'pl');
-    fireEvent.click(await screen.findByRole('button', { name: 'Więcej filtrów (3)' }));
+    renderList('/crm/opportunities?cf.field_5.contains=acme', 'pl');
+    fireEvent.click(await screen.findByRole('button', { name: 'Więcej filtrów (1)' }));
     expect(screen.getByRole('button', { name: 'Mniej filtrów' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByLabelText('Tier PL')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Tier PL')).toBeInTheDocument();
+    expect(screen.getByRole('search', { name: 'Filtruj szanse sprzedażowe' })).toBeInTheDocument();
   });
 });

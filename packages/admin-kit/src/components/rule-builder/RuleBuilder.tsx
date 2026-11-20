@@ -1,6 +1,12 @@
 import { type ReactNode } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '../../ui/button.js';
+import {
+  EditorSection,
+  useEditorSectionChrome,
+  type EditorSectionChrome,
+  type EditorSectionHeading,
+} from '../../ui/editor-section.js';
 import { Input } from '../../ui/input.js';
 import { MultiSelect } from '../../ui/multi-select.js';
 import { Select } from '../../ui/select.js';
@@ -219,6 +225,17 @@ export interface RuleBuilderProps<T extends StructuralRule = PromotionRule> {
   fieldOptions?: RuleFieldOptions;
   labels?: RuleBuilderLabels;
   disabled?: boolean;
+  /**
+   * Issue #1503 (UX audit SHELL-22, K3; the DS-03 rule, #1437) — `section` (the default, unless
+   * the mount says otherwise): the builder is part of the card it sits in, under the host's own
+   * heading, with no frame and no heading of its own. `card` draws a titled card around it, for
+   * a builder standing alone on a page.
+   */
+  chrome?: EditorSectionChrome;
+  /** The card's title under `chrome="card"`; *Conditions* when omitted. */
+  title?: ReactNode;
+  /** The card's heading level: `h2` by default, `h3` under a titled card or section. */
+  titleAs?: EditorSectionHeading;
 }
 
 export function RuleBuilder<T extends StructuralRule = PromotionRule>({
@@ -229,16 +246,21 @@ export function RuleBuilder<T extends StructuralRule = PromotionRule>({
   fieldOptions = {},
   labels,
   disabled = false,
+  chrome,
+  title,
+  titleAs,
 }: RuleBuilderProps<T>): ReactNode {
   const t = useTranslation('core');
+  const inherited = useEditorSectionChrome();
   const copy = Object.fromEntries(
     (Object.keys(DEFAULT_LABEL_KEYS) as Array<keyof RuleBuilderLabels>).map((name) => [
       name,
       labels?.[name] ?? t(DEFAULT_LABEL_KEYS[name]),
     ]),
   ) as Required<RuleBuilderLabels>;
-  return (
-    <div className="rounded-md border border-line p-3">
+  const resolved = chrome ?? inherited;
+  const body = (
+    <div data-slot="rule-builder">
       <RuleNode
         node={value}
         // The editor produces structural nodes; the caller owns the concrete
@@ -253,6 +275,14 @@ export function RuleBuilder<T extends StructuralRule = PromotionRule>({
         depth={0}
       />
     </div>
+  );
+  // A frame inside a card is a defect unless it is a field: the builder's own controls keep their
+  // borders, the builder does not draw one around them. Standing alone, it is a titled card.
+  if (resolved !== 'card') return body;
+  return (
+    <EditorSection chrome="card" title={title ?? t('ruleBuilder.title')} {...(titleAs ? { as: titleAs } : {})}>
+      {body}
+    </EditorSection>
   );
 }
 
@@ -356,9 +386,11 @@ function RuleNode({
         </Select>
         <span className="text-xs text-muted-foreground">{labels.groupSuffix}</span>
       </div>
-      <div className="flex flex-col gap-2 border-l-2 border-line pl-3">
+      {/* One rule between a group's children, not a ruled-off column or a box around them
+          (issue #1503, K3); the indent carries the nesting. */}
+      <div data-slot="rule-group-children" className="flex flex-col divide-y divide-border pl-4">
         {node.children.map((child, idx) => (
-          <div key={idx} className="flex items-start gap-2">
+          <div key={idx} className="flex items-start gap-2 py-2 first:pt-0">
             <div className="flex-1">
               <RuleNode
                 node={child}
@@ -383,7 +415,7 @@ function RuleNode({
             </Button>
           </div>
         ))}
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-2">
           <Button
             type="button"
             size="sm"

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
-import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { ApiError, useDerivedKey } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   ERROR_CODES,
@@ -151,6 +151,9 @@ function issueSentences(
   return errors;
 }
 
+/** The longest key the contract accepts (`^[a-z][a-z0-9_]{0,63}$`). */
+const KEY_MAX_LENGTH = 64;
+
 function initialValue(props: DefinitionEditorDialogProps): DefinitionFormValue {
   if (props.mode === 'create') {
     return {
@@ -241,7 +244,7 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
   const driftCancelRef = useRef<HTMLButtonElement>(null);
   const driftOpener = useRef<HTMLElement | null>(null);
   const optionsHeadingRef = useRef<HTMLHeadingElement>(null);
-  const keyInputRef = useRef<HTMLInputElement>(null);
+  const labelInputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
   /** The control focus goes to once the errors it describes are rendered. */
   const [focusField, setFocusField] = useState<string | null>(null);
@@ -354,14 +357,34 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
     if (patch.entityType !== undefined) setCarryError(null);
   };
 
-  /** Runs the checks; on a refusal says it at its fields and moves focus to the first. */
-  const checked = (): boolean => {
-    const issues = validateDefinitionDraft(value, creating ? 'create' : 'edit');
+  // Issue #1531 (DS-22) — the key follows the default label until the operator
+  // edits it, and is normalised on blur; a taken key is refused, never suffixed.
+  const keyField = useDerivedKey({
+    source: value.labelDefault,
+    value: value.key,
+    onChange: (key): void => change({ key }),
+    separator: '_',
+    maxLength: KEY_MAX_LENGTH,
+    enabled: creating,
+  });
+
+  /**
+   * Runs the checks; on a refusal says it at its fields and moves focus to the
+   * first. `draft` is the value as it is sent — on create, with the key just
+   * normalised, which state has not caught up with yet.
+   */
+  const checked = (draft: DefinitionFormValue = value): boolean => {
+    const issues = validateDefinitionDraft(draft, creating ? 'create' : 'edit');
     if (!hasIssues(issues)) {
+      if (creating && keyTaken(draft)) {
+        setErrors({ key: t('customFields.form.keyTaken', { key: shownKey(draft.key.trim()) }) });
+        setFocusField('[data-field="key"]');
+        return false;
+      }
       setErrors({});
       return true;
     }
-    setErrors(issueSentences(t, issues, value));
+    setErrors(issueSentences(t, issues, draft));
     const first = firstIssue(issues);
     if (first === null) return false;
     setFocusField(
@@ -372,14 +395,18 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
     return false;
   };
 
+  /** Whether the record type already has a field with the draft's key — the server would refuse it. */
+  const keyTaken = (draft: DefinitionFormValue): boolean =>
+    definitions.some((definition) => definition.entityType === draft.entityType && definition.key === draft.key.trim());
+
   /** Says a refused save: at its field, beside the carry options, or beside the submit button. */
-  const refused = (err: unknown, fallbackKey: string): void => {
+  const refused = (err: unknown, fallbackKey: string, key = value.key.trim()): void => {
     const sentence = refusalSentence(t, err, typeLabel, t(fallbackKey));
     if (isCarryRefusal(err)) {
       setCarryError(sentence);
       return;
     }
-    const placed = placeRefusal(t, err, value.key.trim());
+    const placed = placeRefusal(t, err, key);
     if (placed === null || (placed.place === 'key' && !creating)) {
       setError(sentence);
       return;
@@ -389,15 +416,19 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
   };
 
   const create = async (): Promise<void> => {
-    if (props.mode !== 'create' || !checked()) return;
-    const { entityType } = value;
+    if (props.mode !== 'create') return;
+    // A click on *Add field* blurs the key first, but a key set without a blur
+    // is normalised here all the same.
+    const draft = { ...value, key: keyField.commit() };
+    if (!checked(draft)) return;
+    const { entityType } = draft;
     setBusy(true);
     setError(null);
     setCarryError(null);
     try {
       await customFieldsClient.create({
         entityType,
-        key: value.key.trim(),
+        key: draft.key.trim(),
         label: trimmedLabel(value.labels),
         labelDefault: value.labelDefault.trim(),
         valueType: value.valueType,
@@ -416,7 +447,7 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
       });
       props.onSaved(entityType);
     } catch (err) {
-      refused(err, 'customFields.form.createFailed');
+      refused(err, 'customFields.form.createFailed', draft.key.trim());
       setBusy(false);
     }
   };
@@ -468,7 +499,7 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
       title={drift ? t('customFields.carry.warning.title') : title}
       onClose={drift ? (): void => settleDrift(false) : onClose}
       busy={busy}
-      {...(creating ? { initialFocusRef: keyInputRef } : {})}
+      {...(creating ? { initialFocusRef: labelInputRef } : {})}
       {...(drift ? { 'aria-describedby': driftNoticeId } : {})}
       footer={
         drift ? (
@@ -547,7 +578,8 @@ export function DefinitionEditorDialog(props: DefinitionEditorDialogProps): Reac
             busy={busy}
             carryError={carryError}
             carryErrorRef={carryErrorRef}
-            keyInputRef={keyInputRef}
+            keyField={keyField}
+            labelInputRef={labelInputRef}
             optionsHeadingRef={optionsHeadingRef}
           />
         ) : (

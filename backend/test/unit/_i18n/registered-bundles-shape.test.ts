@@ -188,8 +188,8 @@ describe('registered module i18n bundles — real filesystem shape', () => {
   it('every manifest action keyword is English — a word the English bundles use, or allowlisted', () => {
     const KEYWORD_TOKENS_OUTSIDE_THE_ENGLISH_BUNDLES = new Set([
       '2fa', 'article', 'balance', 'clients', 'datalayer', 'ecommerce', 'ga4',
-      'i18n', 'insight', 'kanban', 'multimedia', 'orgs', 'pipeline', 'presence', 'purge',
-      'rbac', 'sgtm', 'swagger', 'timezone', 'todo', 'urgency',
+      'i18n', 'insight', 'kanban', 'location', 'multimedia', 'orgs', 'pipeline', 'presence',
+      'purge', 'rbac', 'responses', 'sgtm', 'swagger', 'timezone', 'todo', 'urgency',
     ]);
     const wordsOf = (text: string): string[] => text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 
@@ -474,12 +474,10 @@ describe('registered module i18n bundles — real filesystem shape', () => {
       }
     }
 
-    const PAGE_HEADER_TITLE = /<PageHeader\b[^>]*?\btitle="([^"]+)"/g;
-    for (const file of filesUnder(join(REPO_ROOT, 'packages/modules'), /\/src\/admin\/.*\.tsx$/)) {
-      for (const match of readFileSync(file, 'utf8').matchAll(PAGE_HEADER_TITLE)) {
-        judge('page header', `${relative(REPO_ROOT, file)} <PageHeader title>`, match[1]!.replace(/&amp;/g, '&'));
-      }
-    }
+    // A literal `<PageHeader title="…">` was judged here until the last one —
+    // the Dictionaries page — moved its title into the bundle (#1445). Titles
+    // now reach this test as bundle values; a new literal is caught by
+    // `i18n:hardcoded`, not by this population.
 
     for (const [key, value] of Object.entries(MESSAGES['en-US']!)) {
       if (NAV_LABEL.test(key)) judge('storefront nav label', `storefront en-US → ${key}`, value);
@@ -537,7 +535,6 @@ describe('registered module i18n bundles — real filesystem shape', () => {
       'docs title',
       'manifest name',
       'module name and nav label',
-      'page header',
       'palette label',
       'settings group',
       'storefront nav label',

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Check, Copy } from 'lucide-react';
-import { ApiError, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { PaginationFooter, RuleBuilder, type RuleAttributeField, type RuleFieldOptions } from '@endora-commerce/admin-kit/components';
+import { ApiError, useDetailResource, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, DetailSkeleton, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { PaginationFooter, RuleBuilder, StickyFormActions, type RuleAttributeField, type RuleFieldOptions } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { PromotionAction, PromotionActionType, PromotionRule } from '@endora-commerce/contracts';
 import { promotionsClient, promotionRulesClient, type Coupon } from '../api/promotions-client.js';
@@ -77,7 +77,6 @@ export const PromotionEditPage = (): ReactNode => {
   const [attributeFields, setAttributeFields] = useState<RuleAttributeField[]>([]);
   const [fieldOptions, setFieldOptions] = useState<RuleFieldOptions>({});
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -110,35 +109,32 @@ export const PromotionEditPage = (): ReactNode => {
     })();
   }, []);
 
-  useEffect(() => {
-    if (isNew) return;
-    setLoading(true);
-    void promotionsClient
-      .get(id)
-      .then((p) => {
-        setName(p.name);
-        setDescription(p.description ?? '');
-        setCode(p.code ?? '');
-        setIsActive(p.isActive);
-        setPriority(p.priority);
-        setStopFurther(p.stopFurther);
-        if (p.action) setAction(p.action);
-        if (p.rule) {
-          setRule(p.rule);
-        } else if (p.ruleId) {
-          setPendingRuleId(p.ruleId);
-        } else {
-          setRule({ kind: 'all' });
-        }
-        setUsageGlobal(p.usageLimitGlobal != null ? String(p.usageLimitGlobal) : '');
-        setUsagePerOrg(p.usageLimitPerOrganization != null ? String(p.usageLimitPerOrganization) : '');
-        setUsagePerCustomer(p.usageLimitPerCustomer != null ? String(p.usageLimitPerCustomer) : '');
-      })
-      .catch((err) =>
-        setError(err instanceof ApiError ? err.envelope.error.message : t('promotions.error.load')),
-      )
-      .finally(() => setLoading(false));
-  }, [id, isNew, t]);
+  // Issue #1447 (DS-14, SALES-06) — the stored promotion is read once into the
+  // form. Until it arrives a skeleton stands in for the form; a read that fails
+  // shows its error and a retry instead of an empty form whose Save would
+  // overwrite the promotion with blanks.
+  const resource = useDetailResource(id ?? '', async () => {
+    if (!id) return null;
+    const p = await promotionsClient.get(id);
+    setName(p.name);
+    setDescription(p.description ?? '');
+    setCode(p.code ?? '');
+    setIsActive(p.isActive);
+    setPriority(p.priority);
+    setStopFurther(p.stopFurther);
+    if (p.action) setAction(p.action);
+    if (p.rule) {
+      setRule(p.rule);
+    } else if (p.ruleId) {
+      setPendingRuleId(p.ruleId);
+    } else {
+      setRule({ kind: 'all' });
+    }
+    setUsageGlobal(p.usageLimitGlobal != null ? String(p.usageLimitGlobal) : '');
+    setUsagePerOrg(p.usageLimitPerOrganization != null ? String(p.usageLimitPerOrganization) : '');
+    setUsagePerCustomer(p.usageLimitPerCustomer != null ? String(p.usageLimitPerCustomer) : '');
+    return p;
+  });
 
   // Resolve a legacy linked rule into an independent snapshot once the saved
   // rule list is available.
@@ -190,7 +186,23 @@ export const PromotionEditPage = (): ReactNode => {
     ],
   );
 
-  if (loading) return <p className="p-4 text-sm text-muted-foreground">{t('promotions.loading')}</p>;
+  if (!isNew && resource.initialLoading) {
+    return <DetailSkeleton label={t('promotions.loading')} tabs={false} />;
+  }
+  if (!isNew && resource.data === null) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+          {resource.error instanceof ApiError
+            ? resource.error.envelope.error.message
+            : t('promotions.error.load')}
+          <Button variant="outline" size="sm" onClick={(): void => void resource.refresh()}>
+            {t('common.action.retry')}
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <>
@@ -198,11 +210,6 @@ export const PromotionEditPage = (): ReactNode => {
         title={isNew ? t('promotions.edit.titleNew') : t('promotions.edit.titleEdit')}
         description={t('promotions.edit.description')}
       />
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
       <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
         <Card>
           <CardHeader>
@@ -329,14 +336,22 @@ export const PromotionEditPage = (): ReactNode => {
           </CardContent>
         </Card>
 
-        <div className="flex gap-2">
-          <Button type="submit" disabled={saving}>
-            {saving ? t('promotions.loading') : t('promotions.edit.save')}
-          </Button>
-          <Button type="button" variant="outline" onClick={() => { navigate('/promotions'); }}>
-            {t('promotions.edit.cancel')}
-          </Button>
-        </div>
+        {/* Issue #1449 (DS-19) — the one Save ends the form and stays in view while it scrolls;
+            a refused save is said here, beside it. The Coupons card below saves on its own. */}
+        <StickyFormActions
+          desktop="sticky"
+          error={error}
+          secondary={
+            <Button type="button" variant="outline" onClick={() => { navigate('/promotions'); }}>
+              {t('promotions.edit.cancel')}
+            </Button>
+          }
+          primary={
+            <Button type="submit" disabled={saving} aria-busy={saving || undefined}>
+              {saving ? t('promotions.loading') : t('promotions.edit.save')}
+            </Button>
+          }
+        />
       </form>
 
       {!isNew && id ? (

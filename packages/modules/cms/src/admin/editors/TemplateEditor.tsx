@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type { CmsTemplateDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
 import { PageBuilderEditor } from '../components/PageBuilderEditor.js';
 import {
   emptyPageBuilderData,
+  hasUnsavedCanvas,
   PageBuilderEditorLayout,
   usePageBuilderEditorSettingsPanel,
 } from '@endora-commerce/page-builder-admin';
@@ -16,8 +18,9 @@ import {
   loadCmsTemplateCanvas,
   saveCanvasAsCmsTemplate,
 } from '../components/cms-template-layout.js';
-import { resolveScopedContentLanguage } from '../components/scope-utils.js';
+import { isSameScope, resolveScopedContentLanguage } from '../components/scope-utils.js';
 import { cmsClient } from '../api/cms-client.js';
+import { useDuplicatedLanding } from '../components/duplicate-record.js';
 
 interface FormState {
   name: string;
@@ -26,6 +29,17 @@ interface FormState {
 }
 
 const blankForm: FormState = { name: '', code: '', description: '' };
+
+function formFor(template: CmsTemplateDetail | null): FormState {
+  if (!template) return blankForm;
+  return { name: template.name, code: template.code, description: template.description ?? '' };
+}
+
+function scopeFor(template: CmsTemplateDetail | null): ScopePickerValue {
+  return template
+    ? { salesChannelIds: template.salesChannelIds, languages: template.languages }
+    : { salesChannelIds: [], languages: [] };
+}
 
 function dataFor(template: CmsTemplateDetail | null, language: string | null): Data | null {
   if (!template || !language) return null;
@@ -41,6 +55,14 @@ export function TemplateEditor(): ReactNode {
   const navigate = useNavigate();
   const settingsPanel = usePageBuilderEditorSettingsPanel(isNew);
   const [template, setTemplate] = useState<CmsTemplateDetail | null>(null);
+  // Issue #1495 (DEC-17) — opened on a fresh copy: the notice, and focus on its name.
+  const nameRef = useRef<HTMLInputElement>(null);
+  const landedOnCopy = useDuplicatedLanding({
+    ready: template !== null,
+    reveal: settingsPanel.reveal,
+    open: settingsPanel.open,
+    nameRef,
+  });
   const [form, setForm] = useState<FormState>(blankForm);
   const [scope, setScope] = useState<ScopePickerValue>({ salesChannelIds: [], languages: [] });
   const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
@@ -53,12 +75,8 @@ export function TemplateEditor(): ReactNode {
     if (isNew || !id) return;
     const loaded = await cmsClient.getTemplate(id);
     setTemplate(loaded);
-    setForm({
-      name: loaded.name,
-      code: loaded.code,
-      description: loaded.description ?? '',
-    });
-    setScope({ salesChannelIds: loaded.salesChannelIds, languages: loaded.languages });
+    setForm(formFor(loaded));
+    setScope(scopeFor(loaded));
     setActiveLanguage(loaded.languages[0] ?? null);
   }, [id, isNew]);
 
@@ -96,6 +114,24 @@ export function TemplateEditor(): ReactNode {
     }
     return dataFor(template, activeLanguage);
   }, [activeLanguage, draftData, languageContentOverrides, template]);
+
+  // Issue #1461 (CONTENT-02) — the draft against the last saved version.
+  const dirty =
+    !isDraftEqual(form, formFor(template)) ||
+    !isSameScope(scope, scopeFor(template)) ||
+    hasUnsavedCanvas({
+      draft: draftData,
+      activeLanguage,
+      overrides: languageContentOverrides,
+      saved: (language) => (template ? dataFor(template, language) : null),
+    });
+
+  const discard = (): void => {
+    setForm(formFor(template));
+    setScope(scopeFor(template));
+    setDraftData(null);
+    setLanguageContentOverrides({});
+  };
 
   const save = async (): Promise<boolean> => {
     if (scope.salesChannelIds.length === 0) {
@@ -171,16 +207,18 @@ export function TemplateEditor(): ReactNode {
   return (
     <PageBuilderEditorLayout
       settingsPanel={settingsPanel}
+      dirty={dirty}
+      onSave={save}
+      onDiscard={discard}
       header={
         <>
           <PageHeader
+            back={{ label: t('common.back'), to: '/cms/templates' }}
             title={isNew ? t('templateEditor.title.new') : form.name || t('templateEditor.title.edit')}
             description={t('templateEditor.description')}
             actions={
-              <div className="flex gap-2">
-                <Button asChild variant="outline">
-                  <Link to="/cms/templates">{t('common.back')}</Link>
-                </Button>
+              <div className="flex items-center gap-2">
+                <UnsavedChangesHint dirty={dirty} />
                 <SaveButtonGroup
                   onSave={() => void save()}
                   onSaveAndExit={() => void saveAndExit()}
@@ -197,17 +235,22 @@ export function TemplateEditor(): ReactNode {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
+          {landedOnCopy ? (
+            <Alert live="polite">
+              <AlertDescription>{t('duplicate.created')}</AlertDescription>
+            </Alert>
+          ) : null}
         </>
       }
       settings={
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('templateEditor.metadata')}</CardTitle>
+              <CardTitle>{t('templateEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>
-                <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                <Input ref={nameRef} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
               </FormField>
               <FormField label={t('fields.code')}>
                 <Input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />
@@ -220,7 +263,7 @@ export function TemplateEditor(): ReactNode {
               </FormField>
             </CardContent>
           </Card>
-          <ScopePicker value={scope} onChange={setScope} />
+          <ScopePicker value={scope} onChange={setScope} chrome="card" />
         </>
       }
       canvasBar={

@@ -193,6 +193,17 @@ describe('RfqCreatePage — the sales channel', () => {
     expect(resolves.at(-1)?.[1]).toMatchObject({ salesChannelId: B2C });
   });
 
+  it('puts Create in the sticky save bar, described by why it is disabled (issue #1449, DS-19)', async () => {
+    assigned = [B2B, B2C];
+    openForCustomer();
+    await waitFor(() => expect(screen.getByLabelText('rfqCreate.field.salesChannel')).toHaveValue(''));
+    await addUnpricedLine();
+    const submit = screen.getByRole('button', { name: 'rfqCreate.submit' });
+    const bar = submit.closest('[data-slot="sticky-form-actions"]');
+    expect(bar).toHaveAttribute('data-desktop', 'sticky');
+    expect(submit).toHaveAccessibleDescription('rfqCreate.gate.missingChannel');
+  });
+
   it('asks the operator to choose when the Organization shops on several channels', async () => {
     assigned = [B2B, B2C];
     openForCustomer();
@@ -223,7 +234,8 @@ describe('RfqCreatePage — the sales channel', () => {
     openForCustomer();
     await waitFor(() => expect(screen.getByLabelText('rfqCreate.field.salesChannel')).toHaveValue('Retail'));
     await addLineAndSubmit();
-    const alert = await screen.findByRole('alert');
+    // The save bar's own alert region stays empty (issue #1449); the warning is the one that speaks.
+    const alert = (await screen.findByText('rfqCreate.warnings.title')).closest<HTMLElement>('[role="alert"]')!;
     expect(alert).toHaveTextContent('rfqCreate.warnings.title');
     expect(alert).toHaveTextContent('Widget');
     expect(navigateSpy).not.toHaveBeenCalled();

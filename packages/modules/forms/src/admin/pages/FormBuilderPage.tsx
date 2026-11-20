@@ -12,7 +12,7 @@ import {
 } from '@endora-commerce/contracts';
 import { ContentLanguageTabs, StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { cn, useAuth } from '@endora-commerce/admin-kit/lib';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -26,6 +26,8 @@ import {
   Input,
   Label,
   PageHeader,
+  TabPanel,
+  Tabs,
 } from '@endora-commerce/admin-kit/ui';
 import { formsApi, type FormVersionItem } from '../api.js';
 import { BuilderCanvas } from '../components/BuilderCanvas.js';
@@ -431,196 +433,182 @@ export function FormBuilderPage(): ReactNode {
         </Card>
       ) : null}
 
-      <div role="tablist" aria-label={t('builder.tabs.label')} className="flex gap-2 overflow-x-auto border-b border-border">
-        {TABS.map((name) => (
-          <button
-            key={name}
-            type="button"
-            role="tab"
-            id={`${tabsId}-${name}`}
-            aria-selected={tab === name}
-            aria-controls={`${tabsId}-${name}-panel`}
-            onClick={() => setTab(name)}
-            className={cn(
-              '-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              tab === name ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground',
-            )}
-          >
-            {t(`builder.tabs.${name}`)}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        items={TABS.map((name) => ({ value: name, label: t(`builder.tabs.${name}`) }))}
+        value={tab}
+        onValueChange={setTab}
+        idBase={tabsId}
+        aria-label={t('builder.tabs.label')}
+      />
 
-      {tab === 'fields' ? (
-        <div role="tabpanel" id={`${tabsId}-fields-panel`} aria-labelledby={`${tabsId}-fields`} className="space-y-4">
-          <Card role="region" aria-labelledby={`${formTextsId}-title`}>
-            <CardHeader className="p-4 pb-2">
-              <CardTitle>
-                <h2 id={`${formTextsId}-title`}>{t('builder.formCard')}</h2>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 p-4 pt-0 md:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor={nameId}>{t('builder.name')}</Label>
-                <Input
-                  id={nameId}
-                  value={draft.name}
-                  maxLength={200}
-                  disabled={writing || translating}
-                  aria-describedby={`${nameId}-hint`}
-                  onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+      <TabPanel idBase={tabsId} value={tab}>
+        {tab === 'fields' ? (
+          <div className="space-y-4">
+            <Card role="region" aria-labelledby={`${formTextsId}-title`}>
+              <CardHeader className="p-4 pb-2">
+                <CardTitle id={`${formTextsId}-title`}>{t('builder.formCard')}</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-4 p-4 pt-0 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor={nameId}>{t('builder.name')}</Label>
+                  <Input
+                    id={nameId}
+                    value={draft.name}
+                    maxLength={200}
+                    disabled={writing || translating}
+                    aria-describedby={`${nameId}-hint`}
+                    onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+                  />
+                  <p id={`${nameId}-hint`} className="text-xs text-muted-foreground">
+                    {t('builder.nameHint')}
+                  </p>
+                </div>
+                <TranslatableText
+                  id={`${formTextsId}-form-title`}
+                  label={t('builder.formTitle')}
+                  definition={definition}
+                  language={language}
+                  defaultLanguage={defaultLanguage}
+                  textId="form.title"
+                  maxLength={FORMS_LIMITS.singleLineChars}
+                  disabled={writing}
+                  onChange={edit}
                 />
-                <p id={`${nameId}-hint`} className="text-xs text-muted-foreground">
-                  {t('builder.nameHint')}
-                </p>
-              </div>
-              <TranslatableText
-                id={`${formTextsId}-form-title`}
-                label={t('builder.formTitle')}
-                definition={definition}
-                language={language}
-                defaultLanguage={defaultLanguage}
-                textId="form.title"
-                maxLength={FORMS_LIMITS.singleLineChars}
-                disabled={writing}
-                onChange={edit}
-              />
-              <TranslatableText
-                id={`${formTextsId}-form-description`}
-                label={t('builder.formDescription')}
-                definition={definition}
-                language={language}
-                defaultLanguage={defaultLanguage}
-                textId="form.description"
-                rows={2}
-                disabled={writing}
-                onChange={edit}
-              />
-              <TranslatableText
-                id={`${formTextsId}-submit`}
-                label={t('builder.submitLabel')}
-                definition={definition}
-                language={language}
-                defaultLanguage={defaultLanguage}
-                textId="form.submitLabel"
-                maxLength={FORMS_LIMITS.singleLineChars}
-                disabled={writing}
-                onChange={edit}
-              />
-            </CardContent>
-          </Card>
+                <TranslatableText
+                  id={`${formTextsId}-form-description`}
+                  label={t('builder.formDescription')}
+                  definition={definition}
+                  language={language}
+                  defaultLanguage={defaultLanguage}
+                  textId="form.description"
+                  rows={2}
+                  disabled={writing}
+                  onChange={edit}
+                />
+                <TranslatableText
+                  id={`${formTextsId}-submit`}
+                  label={t('builder.submitLabel')}
+                  definition={definition}
+                  language={language}
+                  defaultLanguage={defaultLanguage}
+                  textId="form.submitLabel"
+                  maxLength={FORMS_LIMITS.singleLineChars}
+                  disabled={writing}
+                  onChange={edit}
+                />
+              </CardContent>
+            </Card>
 
-          <div className="grid items-start gap-4 lg:grid-cols-[13rem_minmax(0,1fr)_22rem]">
-            <FieldPalette
-              onAdd={(type) => addField(targetSection(), type)}
-              disabled={writing}
-              lockedFor={translating ? defaultLanguage : null}
-            />
-            <BuilderCanvas
+            <div className="grid items-start gap-4 lg:grid-cols-[13rem_minmax(0,1fr)_22rem]">
+              <FieldPalette
+                onAdd={(type) => addField(targetSection(), type)}
+                disabled={writing}
+                lockedFor={translating ? defaultLanguage : null}
+              />
+              <BuilderCanvas
+                definition={definition}
+                language={language}
+                defaultLanguage={defaultLanguage}
+                selectedId={selectedId}
+                issues={issuesByElement}
+                disabled={writing}
+                onChange={edit}
+                onSelect={setSelectedId}
+                onAddField={addField}
+                onAddSection={() => edit(addSection(definition, newSection()))}
+              />
+              {selectedId && findField(definition, selectedId) ? (
+                <FieldInspector
+                  definition={definition}
+                  fieldId={selectedId}
+                  language={language}
+                  defaultLanguage={defaultLanguage}
+                  publishedKeys={publishedKeys}
+                  issues={issues ?? []}
+                  disabled={writing}
+                  onChange={edit}
+                  onRemove={(fieldId) => {
+                    edit(removeField(definition, fieldId));
+                    setSelectedId(null);
+                  }}
+                />
+              ) : (
+                <Card className="border-dashed lg:sticky lg:top-4">
+                  <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
+                    <MousePointerClick size={24} aria-hidden="true" className="text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">{t('inspector.empty')}</p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+            <FormPreview formId={form.id} language={language} version={form.revision} stale={dirty} />
+          </div>
+        ) : tab === 'settings' ? (
+          <div>
+            <FormSettingsPanel
+              form={form}
               definition={definition}
               language={language}
               defaultLanguage={defaultLanguage}
-              selectedId={selectedId}
-              issues={issuesByElement}
               disabled={writing}
-              onChange={edit}
-              onSelect={setSelectedId}
-              onAddField={addField}
-              onAddSection={() => edit(addSection(definition, newSection()))}
+              onDefinitionChange={edit}
+              // Retention is live and not part of the draft: the form takes the new revision.
+              onSaved={(saved) => setForm(saved)}
             />
-            {selectedId && findField(definition, selectedId) ? (
-              <FieldInspector
-                definition={definition}
-                fieldId={selectedId}
-                language={language}
-                defaultLanguage={defaultLanguage}
-                publishedKeys={publishedKeys}
-                issues={issues ?? []}
-                disabled={writing}
-                onChange={edit}
-                onRemove={(fieldId) => {
-                  edit(removeField(definition, fieldId));
-                  setSelectedId(null);
-                }}
-              />
-            ) : (
-              <Card className="border-dashed lg:sticky lg:top-4">
-                <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
-                  <MousePointerClick size={24} aria-hidden="true" className="text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">{t('inspector.empty')}</p>
-                </CardContent>
-              </Card>
-            )}
           </div>
-          <FormPreview formId={form.id} language={language} version={form.revision} stale={dirty} />
-        </div>
-      ) : tab === 'settings' ? (
-        <div role="tabpanel" id={`${tabsId}-settings-panel`} aria-labelledby={`${tabsId}-settings`}>
-          <FormSettingsPanel
-            form={form}
-            definition={definition}
-            language={language}
-            defaultLanguage={defaultLanguage}
-            disabled={writing}
-            onDefinitionChange={edit}
-            // Retention is live and not part of the draft: the form takes the new revision.
-            onSaved={(saved) => setForm(saved)}
-          />
-        </div>
-      ) : tab === 'notifications' ? (
-        <div role="tabpanel" id={`${tabsId}-notifications-panel`} aria-labelledby={`${tabsId}-notifications`}>
-          <NotificationsPanel
-            form={form}
-            definition={definition}
-            language={language}
-            defaultLanguage={defaultLanguage}
-            disabled={writing}
-            onDefinitionChange={edit}
-            // The recipients are live and not part of the draft: the form takes the new revision and
-            // the unsaved draft stays on screen.
-            onSaved={(saved) => setForm(saved)}
-          />
-        </div>
-      ) : (
-        <div role="tabpanel" id={`${tabsId}-versions-panel`} aria-labelledby={`${tabsId}-versions`}>
-          <Card>
-            <CardHeader className="p-4">
-              <CardTitle>
-                <h2>{t('versions.title')}</h2>
-              </CardTitle>
-              <CardDescription>
-                {form.publishedVersionNumber > 0 ? t('builder.liveVersion', { number: form.publishedVersionNumber }) : t('builder.notPublished')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              {versions === null ? null : versions.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border p-8 text-center">
-                  <History size={24} aria-hidden="true" className="text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">{t('versions.empty')}</p>
-                </div>
-              ) : (
-                <ul className="divide-y divide-border rounded-md border border-border">
-                  {versions.map((version) => (
-                    <li key={version.number} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                      <span className="inline-flex items-center gap-2 font-medium">
-                        {t('versions.item', { number: version.number })}
-                        {version.number === form.publishedVersionNumber ? (
-                          <span className="rounded-md border border-border px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
-                            {t('versions.live')}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {t('versions.publishedAt', { date: updated.format(new Date(version.publishedAt)) })}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+        ) : tab === 'notifications' ? (
+          <div>
+            <NotificationsPanel
+              form={form}
+              definition={definition}
+              language={language}
+              defaultLanguage={defaultLanguage}
+              disabled={writing}
+              onDefinitionChange={edit}
+              // The recipients are live and not part of the draft: the form takes the new revision and
+              // the unsaved draft stays on screen.
+              onSaved={(saved) => setForm(saved)}
+            />
+          </div>
+        ) : (
+          <div>
+            <Card>
+              <CardHeader className="p-4">
+                <CardTitle>{t('versions.title')}</CardTitle>
+                <CardDescription>
+                  {form.publishedVersionNumber > 0 ? t('builder.liveVersion', { number: form.publishedVersionNumber }) : t('builder.notPublished')}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-4 pt-0">
+                {versions === null ? null : versions.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border p-8 text-center">
+                    <History size={24} aria-hidden="true" className="text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">{t('versions.empty')}</p>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-border rounded-md border border-border">
+                    {versions.map((version) => (
+                      <li key={version.number} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                        <span className="inline-flex items-center gap-2 font-medium">
+                          {t('versions.item', { number: version.number })}
+                          {version.number === form.publishedVersionNumber ? (
+                            <span className="rounded-md border border-border px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
+                              {t('versions.live')}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {t('versions.publishedAt', { date: updated.format(new Date(version.publishedAt)) })}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </TabPanel>
 
       {canWrite ? (
         <StickyFormActions>

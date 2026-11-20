@@ -177,6 +177,8 @@ const SUBJECTS: readonly Subject[] = [
       '/returns/statuses',
       '/returns/reasons',
       '/returns/delivery-methods',
+      // `specs/180-off-platform-complaints/` US7.
+      '/returns/clauses',
       '/returns/:id',
     ],
     retiredSharedKey: 'appShell.nav.returns',
@@ -467,6 +469,7 @@ describe('the moved screens take no reach the package cannot resolve', () => {
       'returns/src/admin/pages/ReturnReasonsPage.tsx',
       'returns/src/admin/pages/ReturnStatusesConfigPage.tsx',
       'returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx',
+      'returns/src/admin/pages/ReturnClausesPage.tsx',
       'returns/src/admin/api/returns-client.ts',
     ];
     for (const file of files) {

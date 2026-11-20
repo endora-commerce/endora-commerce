@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { CustomFieldListFilterField } from '@endora-commerce/contracts';
 import { setMobileViewport } from '../../setup';
-import { EVERY_PROJECTS_PERMISSION, core, en, renderProjects, summary } from './projects-fixtures';
+import { EVERY_PROJECTS_PERMISSION, core, renderProjects, summary } from './projects-fixtures';
 
 /**
  * Custom-field filters on the Projects list (`specs/163-projects-and-tasks/`,
@@ -83,7 +83,14 @@ async function renderList(permissions: readonly string[] = CAN_FILTER): Promise<
   await screen.findByText('Warehouse fit-out');
 }
 
+/** Opens the toolbar's *More filters* panel unless it is open (issue #1505: these filters are folded away). */
+async function openMoreFilters(): Promise<void> {
+  const toggle = screen.queryByRole('button', { name: /^(More filters|Więcej filtrów)/ });
+  if (toggle && toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
+}
+
 async function chooseSmb(): Promise<void> {
+  await openMoreFilters();
   fireEvent.click(await screen.findByRole('button', { name: 'Segment' }));
   fireEvent.click(screen.getByLabelText('Small business'));
 }
@@ -91,6 +98,7 @@ async function chooseSmb(): Promise<void> {
 describe('ProjectsList — custom-field filters', () => {
   it('offers the fields the module marks as list filters, to a reader who may view custom fields', async () => {
     await renderList();
+    await openMoreFilters();
     expect(await screen.findByRole('button', { name: 'Segment' })).toBeInTheDocument();
     expect(getSpy).toHaveBeenCalledWith(OFFERED_PATH);
     expect(lastQuery().has('customFieldFilters')).toBe(false);
@@ -109,7 +117,7 @@ describe('ProjectsList — custom-field filters', () => {
     await renderList();
     await chooseSmb();
     await waitFor(() => expect(lastQuery().has('customFieldFilters')).toBe(true));
-    await userEvent.click(screen.getAllByRole('button', { name: en('list.filter.clear') })[0]!);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Clear all filters' })[0]!);
     await waitFor(() => expect(lastQuery().has('customFieldFilters')).toBe(false));
   });
 
@@ -136,6 +144,7 @@ describe('ProjectsList — custom-field filters', () => {
 
   it('offers nothing, and asks for nothing, without custom_fields:read', async () => {
     await renderList(EVERY_PROJECTS_PERMISSION);
+    await openMoreFilters();
     expect(screen.queryByRole('button', { name: 'Segment' })).toBeNull();
     expect(getSpy).not.toHaveBeenCalledWith(OFFERED_PATH);
   });

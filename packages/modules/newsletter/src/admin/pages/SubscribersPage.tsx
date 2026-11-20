@@ -1,12 +1,19 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { ScopeNoticeCode, SubscriberSummary } from '@endora-commerce/contracts';
-import { ScopeNotice } from '@endora-commerce/admin-kit/components';
+import { ScopeNotice, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { Alert, AlertDescription, Button, Card, CardContent, FormField, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { newsletterClient } from '../api/newsletter-client.js';
+import { describeDeleteError } from '../describe-delete-error.js';
+import { subscriberStatusLabels } from '../lib/labels.js';
 
 export function SubscribersPage(): React.ReactElement {
   const { hasPermission } = useAuth();
+  const t = useTranslation('newsletter');
+  const tc = useTranslation('core');
+  const { language } = useTranslationContext();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const canWrite = hasPermission('newsletter:write');
   const [items, setItems] = useState<SubscriberSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -35,12 +42,28 @@ export function SubscribersPage(): React.ReactElement {
   if (!hasPermission('newsletter:read')) {
     return (
       <Alert>
-        <AlertDescription>You do not have permission to view the newsletter.</AlertDescription>
+        <AlertDescription>{t('common.noPermission')}</AlertDescription>
       </Alert>
     );
   }
 
   const exportHref = newsletterClient.subscribersExportUrl({ ...(q ? { q } : {}), ...(tag ? { tag } : {}) });
+
+  /** Issue #1464 — a delete asks first, and runs inside the dialog. */
+  async function confirmDelete(subscriber: SubscriberSummary): Promise<void> {
+    setError(null);
+    await confirm({
+      title: t('delete.subscriber.title'),
+      message: t('delete.subscriber.message', { email: subscriber.email }),
+      confirmLabel: t('delete.subscriber.action'),
+      destructive: true,
+      action: async () => {
+        await newsletterClient.deleteSubscriber(subscriber.id);
+        load();
+      },
+      describeError: describeDeleteError(t),
+    });
+  }
 
   async function action(fn: () => Promise<unknown>): Promise<void> {
     try {
@@ -53,17 +76,26 @@ export function SubscribersPage(): React.ReactElement {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Newsletter — Subscribers" description={`${total} subscriber(s)`} />
+      <PageHeader
+        title={t('subscribers.title')}
+        description={t(`subscribers.count.${new Intl.PluralRules(language).select(total)}`, {
+          count: new Intl.NumberFormat(language).format(total),
+        })}
+      />
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <Input placeholder="Search email…" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
-        <Input placeholder="Tag code…" value={tag} onChange={(e) => setTag(e.target.value)} className="max-w-xs" />
+      <div className="flex flex-wrap items-end gap-3">
+        <FormField label={t('subscribers.search')} className="w-full max-w-xs">
+          <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} />
+        </FormField>
+        <FormField label={t('subscribers.tagFilter')} className="w-full max-w-xs">
+          <Input value={tag} onChange={(e) => setTag(e.target.value)} />
+        </FormField>
         <Button asChild variant="outline" className="ml-auto">
-          <a href={exportHref}>Export CSV</a>
+          <a href={exportHref}>{t('subscribers.export')}</a>
         </Button>
       </div>
       <Card>
@@ -71,19 +103,18 @@ export function SubscribersPage(): React.ReactElement {
           <table className="w-full text-sm">
             <thead className="border-b text-left text-muted-foreground">
               <tr>
-                <th className="p-3 font-medium">Email</th>
-                <th className="p-3 font-medium">Status</th>
-                <th className="p-3 font-medium">Tags</th>
-                <th className="p-3 font-medium">Source</th>
-                {canWrite ? <th className="p-3 font-medium">Actions</th> : null}
+                <th className="p-3 font-medium">{t('subscribers.column.email')}</th>
+                <th className="p-3 font-medium">{t('common.column.status')}</th>
+                <th className="p-3 font-medium">{t('subscribers.column.tags')}</th>
+                <th className="p-3 font-medium">{t('subscribers.column.source')}</th>
+                {canWrite ? <th className="p-3 font-medium">{t('common.actions')}</th> : null}
               </tr>
             </thead>
             <tbody>
               {items.map((s) => (
                 <tr key={s.id} className="border-b last:border-0 hover:bg-muted/40">
                   <td className="p-3 font-medium">{s.email}</td>
-                  {/* eslint-disable-next-line no-restricted-syntax -- raw status on an untranslated screen, drained by #1463 (CONTENT-05) */}
-                  <td className="p-3">{s.status}</td>
+                  <td className="p-3">{subscriberStatusLabels.label(t, s.status)}</td>
                   <td className="p-3 text-xs">{s.tags.join(', ') || '—'}</td>
                   <td className="p-3 text-xs">{s.source ?? '—'}</td>
                   {canWrite ? (
@@ -99,11 +130,11 @@ export function SubscribersPage(): React.ReactElement {
                             })
                           }
                         >
-                          Unsubscribe
+                          {t('subscribers.action.unsubscribe')}
                         </Button>
                       ) : null}
-                      <Button variant="ghost" size="sm" onClick={() => void action(() => newsletterClient.deleteSubscriber(s.id))}>
-                        Delete
+                      <Button variant="ghost" size="sm" onClick={() => void confirmDelete(s)}>
+                        {tc('common.action.delete')}
                       </Button>
                     </td>
                   ) : null}
@@ -112,12 +143,7 @@ export function SubscribersPage(): React.ReactElement {
               {items.length === 0 ? (
                 <tr>
                   <td className="p-3 text-muted-foreground" colSpan={canWrite ? 5 : 4}>
-                    {/* The fragment keeps this screen's remaining untranslated
-                        literal where `i18n:hardcoded` can still see it: as the
-                        alternative of a ternary it is a string expression, which
-                        the check reads as translated, and the file's debt would
-                        drop by one without a key being added. */}
-                    {scopeNotice ? <ScopeNotice notice={scopeNotice} /> : <>No subscribers found.</>}
+                    {scopeNotice ? <ScopeNotice notice={scopeNotice} /> : t('subscribers.empty')}
                   </td>
                 </tr>
               ) : null}
@@ -125,6 +151,7 @@ export function SubscribersPage(): React.ReactElement {
           </table>
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

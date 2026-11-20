@@ -1,15 +1,13 @@
 import { useCallback, useContext, useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+  EditorSection,
+  InlineStatus,
   Input,
   Label,
   Select,
@@ -23,6 +21,7 @@ import {
 import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useConfirmRemoval } from './editor/confirm-removal.js';
+import { RowRemoveButton } from './editor/RowRemoveButton.js';
 import { useProductEditor } from './editor/editor-context.js';
 import {
   OPTION_VALUE_TYPES,
@@ -216,118 +215,109 @@ export function ProductVariantsSection({ productId, readOnly = false }: { produc
   };
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>
+    <EditorSection
+      title={
+        <>
           {t('productEditor.variants.title')}
           {readOnly ? null : <ImmediateBadge />}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {/* Mounted before it has text, so the outcome of a write is announced (WCAG 4.1.3). */}
-        <div role="status" aria-live="polite">
-          {info ? <p className="rounded-lg border p-4 text-sm">{info}</p> : null}
-        </div>
-        {axesFailed ? (
-          <Alert variant="warning">
-            <AlertDescription>{t('productEditor.variants.error.axes')}</AlertDescription>
-          </Alert>
-        ) : null}
+        </>
+      }
+    >
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {/* Mounted before it has text, so the outcome of a write is announced (WCAG 4.1.3). No
+          frame of its own: a box inside the editor card reads as another object (#1488). */}
+      <InlineStatus>{info}</InlineStatus>
+      {axesFailed ? (
+        <Alert variant="warning">
+          <AlertDescription>{t('productEditor.variants.error.axes')}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {loading || axes === null ? (
-          <p className="text-sm text-muted-foreground" aria-busy="true">
-            {t('productEditor.loading')}
-          </p>
-        ) : variants.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.variants.empty')}</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('productEditor.variants.column.sku')}</TableHead>
-                {axisList.map((axis) => (
-                  <TableHead key={axis.key}>{axis.label}</TableHead>
-                ))}
-                {otherKeys.length > 0 ? <TableHead>{t('productEditor.variants.column.other')}</TableHead> : null}
-                {readOnly ? null : (
-                  <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.variants.column.actions')}</TableHead>
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {variants.map((v) =>
-                editingId === v.id && !readOnly ? (
-                  <EditVariantRow
-                    key={v.id}
-                    variant={v}
-                    axes={axisList}
-                    variants={variants}
-                    otherKeys={otherKeys}
-                    onSave={(values): Promise<boolean> => handleUpdate(v, values)}
-                    onCancel={(): void => setEditingId(null)}
-                  />
-                ) : (
-                  <TableRow key={v.id}>
-                    <TableCell className="font-mono">{v.sku}</TableCell>
-                    {axisList.map((axis) => (
-                      <TableCell key={axis.key}>{formatVariantAxisValue(axis, v.variantAttributeValues[axis.key], valueLabels)}</TableCell>
-                    ))}
-                    {otherKeys.length > 0 ? <OtherValuesCell values={v.variantAttributeValues} keys={otherKeys} /> : null}
-                    {readOnly ? null : (
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {axisList.length > 0 ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="max-lg:h-11 max-lg:w-11"
-                              aria-label={t('productEditor.variants.action.editFor', { sku: v.sku })}
-                              title={t('productEditor.variants.action.editFor', { sku: v.sku })}
-                              onClick={(): void => setEditingId(v.id)}
-                            >
-                              <Pencil className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                          ) : null}
+      {loading || axes === null ? (
+        <p className="text-sm text-muted-foreground" aria-busy="true">
+          {t('productEditor.loading')}
+        </p>
+      ) : variants.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.variants.empty')}</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('productEditor.variants.column.sku')}</TableHead>
+              {axisList.map((axis) => (
+                <TableHead key={axis.key}>{axis.label}</TableHead>
+              ))}
+              {otherKeys.length > 0 ? <TableHead>{t('productEditor.variants.column.other')}</TableHead> : null}
+              {readOnly ? null : (
+                <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.variants.column.actions')}</TableHead>
+              )}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {variants.map((v) =>
+              editingId === v.id && !readOnly ? (
+                <EditVariantRow
+                  key={v.id}
+                  variant={v}
+                  axes={axisList}
+                  variants={variants}
+                  otherKeys={otherKeys}
+                  onSave={(values): Promise<boolean> => handleUpdate(v, values)}
+                  onCancel={(): void => setEditingId(null)}
+                />
+              ) : (
+                <TableRow key={v.id}>
+                  <TableCell className="font-mono">{v.sku}</TableCell>
+                  {axisList.map((axis) => (
+                    <TableCell key={axis.key}>{formatVariantAxisValue(axis, v.variantAttributeValues[axis.key], valueLabels)}</TableCell>
+                  ))}
+                  {otherKeys.length > 0 ? <OtherValuesCell values={v.variantAttributeValues} keys={otherKeys} /> : null}
+                  {readOnly ? null : (
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {axisList.length > 0 ? (
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="text-destructive max-lg:h-11 max-lg:w-11"
-                            aria-label={t('productEditor.variants.action.deleteFor', { sku: v.sku })}
-                            title={t('productEditor.variants.action.deleteFor', { sku: v.sku })}
-                            onClick={(): void => void handleDelete(v.id, v.sku)}
+                            className="max-lg:h-11 max-lg:w-11"
+                            aria-label={t('productEditor.variants.action.editFor', { sku: v.sku })}
+                            title={t('productEditor.variants.action.editFor', { sku: v.sku })}
+                            onClick={(): void => setEditingId(v.id)}
                           >
-                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
                           </Button>
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ),
-              )}
-            </TableBody>
-          </Table>
-        )}
+                        ) : null}
+                        <RowRemoveButton
+                          label={t('productEditor.variants.action.deleteFor', { sku: v.sku })}
+                          onClick={(): void => void handleDelete(v.id, v.sku)}
+                        />
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ),
+            )}
+          </TableBody>
+        </Table>
+      )}
 
-        {readOnly || axes === null || axesFailed ? null : axisList.length === 0 ? (
-          <div className="border-t pt-4 text-sm">
-            <p className="text-muted-foreground">{t('productEditor.variants.noAxes.body')}</p>
-            <Link to="/catalog/attribute-sets" className="mt-1 inline-block underline underline-offset-2">
-              {t('productEditor.variants.noAxes.action')}
-            </Link>
-          </div>
-        ) : (
-          <CreateVariantInline axes={axisList} variants={variants} onCreate={handleCreate} />
-        )}
-      </CardContent>
+      {readOnly || axes === null || axesFailed ? null : axisList.length === 0 ? (
+        <div className="border-t pt-4 text-sm">
+          <p className="text-muted-foreground">{t('productEditor.variants.noAxes.body')}</p>
+          <Link to="/catalog/attribute-sets" className="mt-1 inline-block underline underline-offset-2">
+            {t('productEditor.variants.noAxes.action')}
+          </Link>
+        </div>
+      ) : (
+        <CreateVariantInline axes={axisList} variants={variants} onCreate={handleCreate} />
+      )}
       {removalDialog}
-    </Card>
+    </EditorSection>
   );
 }
 
@@ -507,12 +497,14 @@ function CreateVariantInline({
         ) : null}
         <Button
           type="button"
+          variant="outline"
           disabled={busy}
           aria-busy={busy || undefined}
           aria-describedby={duplicateOf ? duplicateId : undefined}
           className="max-lg:min-h-11"
           onClick={(): void => void submit()}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.variants.action.add')}
         </Button>
       </div>
@@ -585,6 +577,7 @@ function EditVariantRow({
         <div className="flex items-center gap-1">
           <Button
             type="button"
+            variant="outline"
             size="sm"
             className="max-lg:min-h-11"
             disabled={busy}

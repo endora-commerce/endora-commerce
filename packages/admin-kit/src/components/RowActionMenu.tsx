@@ -1,6 +1,7 @@
-import { type ReactNode } from 'react';
-import { MoreVertical } from 'lucide-react';
+import { createContext, useContext, useRef, type MutableRefObject, type ReactNode, type RefObject } from 'react';
+import { ChevronDown, MoreVertical } from 'lucide-react';
 import { Button } from '../ui/button.js';
+import { cn } from '../lib/utils.js';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +21,30 @@ import {
  * The trigger is an icon button with a real accessible name (`label`): "⋮" on
  * its own tells a screen-reader user nothing, and a `title` alone is not a name
  * on every platform (WCAG 2.2 AA, 4.1.2).
+ *
+ * **An item that opens a dialog** (`specs/181-guest-complaints/` design review A-1). Radix
+ * closes the menu in the same event that selects an item, and gives focus back to the trigger
+ * only later — in a timer queued when the content unmounts, after its exit animation. An
+ * item's action that mounts a dialog at once had the dialog take focus first and then lose
+ * it to the trigger behind the scrim: Tab left the modal, Enter reopened the menu instead of
+ * answering, and the destructive dialog's "open on *Cancel*" was defeated (WCAG 2.4.3,
+ * 2.1.2). So an item's action is **deferred** to the menu's `onCloseAutoFocus`: focus is put
+ * on the trigger there, and the action runs after it, so the dialog's focus trap finds the
+ * trigger as its opener and returns focus to it on close. A plain close keeps Radix's own
+ * trigger focus; an `asChild` navigation item has no action and is untouched.
  */
+
+/**
+ * The hit area of a 32 px (`h-8 w-8`) icon-only button on a touch screen. The visual chrome
+ * stays 32 px; on a coarse pointer a transparent pseudo-element reaching 6 px past each edge
+ * makes the target 44 × 44 (`.claude/skills/ux-laws/SKILL.md` §Fitts, #1567). Shared with
+ * `LineGroupsEditor`'s heading controls; not part of the barrel.
+ */
+export const COARSE_POINTER_ICON_HIT_AREA =
+  "relative pointer-coarse:before:absolute pointer-coarse:before:-inset-1.5 pointer-coarse:before:content-['']";
+
+/** The action an item chose, run once the menu has let go of focus. */
+const DeferredActionContext = createContext<MutableRefObject<(() => void) | null> | null>(null);
 
 export interface RowActionMenuProps {
   /** Accessible name for the trigger — say what it opens, e.g. "Actions for Winter feed". */
@@ -29,6 +53,13 @@ export interface RowActionMenuProps {
   /** Disables the trigger outright; pair with `title` to say why. */
   disabled?: boolean;
   title?: string | undefined;
+  /**
+   * Shows `label` as the trigger's text, in an outline button with a chevron, instead of the
+   * icon alone — for a menu outside a table row, where an icon-only ⋮ hides the only actions
+   * of a page (Picture Superiority: icon plus label on a path that matters). The text is then
+   * the accessible name.
+   */
+  showLabel?: boolean;
 }
 
 export function RowActionMenu({
@@ -36,24 +67,72 @@ export function RowActionMenu({
   children,
   disabled = false,
   title,
+  showLabel = false,
 }: RowActionMenuProps): ReactNode {
+  const triggerRef = useRef<HTMLButtonElement>(null);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8"
-          aria-label={label}
-          disabled={disabled}
-          {...(title === undefined ? {} : { title })}
-        >
-          <MoreVertical size={16} aria-hidden="true" />
-        </Button>
+        {showLabel ? (
+          <Button
+            ref={triggerRef}
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled}
+            {...(title === undefined ? {} : { title })}
+          >
+            {label}
+            <ChevronDown size={16} aria-hidden="true" />
+          </Button>
+        ) : (
+          <Button
+            ref={triggerRef}
+            type="button"
+            size="icon"
+            variant="ghost"
+            className={cn('h-8 w-8', COARSE_POINTER_ICON_HIT_AREA)}
+            aria-label={label}
+            disabled={disabled}
+            {...(title === undefined ? {} : { title })}
+          >
+            <MoreVertical size={16} aria-hidden="true" />
+          </Button>
+        )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
+      <DeferredActionMenuContent triggerRef={triggerRef}>{children}</DeferredActionMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * The menu panel that runs an item's action only once the menu has let go of
+ * focus (see above). Shared with `DetailHeaderActions`, whose "More" menu holds
+ * the same dialog-opening entries; not part of the barrel.
+ */
+export function DeferredActionMenuContent({
+  triggerRef,
+  children,
+}: {
+  triggerRef: RefObject<HTMLButtonElement | null>;
+  children: ReactNode;
+}): ReactNode {
+  const deferred = useRef<(() => void) | null>(null);
+  return (
+    <DropdownMenuContent
+      align="end"
+      onCloseAutoFocus={(event) => {
+        const run = deferred.current;
+        if (!run) return;
+        deferred.current = null;
+        // Radix's own trigger focus is skipped; the action runs with the trigger focused.
+        event.preventDefault();
+        triggerRef.current?.focus();
+        run();
+      }}
+    >
+      <DeferredActionContext.Provider value={deferred}>{children}</DeferredActionContext.Provider>
+    </DropdownMenuContent>
   );
 }
 
@@ -81,13 +160,20 @@ export function RowActionMenuItem({
   destructive = false,
   asChild = false,
 }: RowActionMenuItemProps): ReactNode {
+  const deferred = useContext(DeferredActionContext);
+  const select = (): void => {
+    if (!onSelect) return;
+    // Inside a `RowActionMenu`: run after the menu has closed and focus is settled.
+    if (deferred) deferred.current = onSelect;
+    else onSelect();
+  };
   return (
     <DropdownMenuItem
       asChild={asChild}
       destructive={destructive}
       disabled={disabled}
       {...(title === undefined ? {} : { title })}
-      {...(onSelect === undefined ? {} : { onSelect: () => onSelect() })}
+      {...(onSelect === undefined ? {} : { onSelect: select })}
     >
       {children}
     </DropdownMenuItem>

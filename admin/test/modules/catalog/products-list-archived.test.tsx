@@ -4,7 +4,10 @@ import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
-import { adminSession, withSession } from '../../helpers/render-with-session';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
+
+// Issue #1455 (CAT-02) — the list asks whether `import_export` is on before it offers Import / export.
+const PRESENCE = modulePresence({ present: ['catalog', 'import_export'] });
 import core from '../../../../packages/modules/_i18n/i18n/en.json';
 import catalog from '../../../../packages/modules/catalog/i18n/en.json';
 
@@ -122,7 +125,7 @@ function renderList(options: { permissions?: readonly string[]; url?: string } =
       <MemoryRouter initialEntries={[options.url ?? '/catalog/products']}>
         <ProductsList />
       </MemoryRouter>,
-      { session: adminSession({ permissions: options.permissions ?? ['*'] }) },
+      { presence: PRESENCE, session: adminSession({ permissions: options.permissions ?? ['*'] }) },
     ),
     BUNDLE,
   );
@@ -148,7 +151,7 @@ describe('ProductsList — the Archived filter (FR-113)', () => {
     renderList();
     await screen.findByText('Oak chair');
 
-    expect(screen.getAllByRole('tab').map((el) => el.textContent)).toEqual(['All2', 'Active1', 'Inactive1', 'Archived2']);
+    expect(screen.getAllByRole('tab').map((el) => el.textContent)).toEqual(['All 2', 'Active 1', 'Inactive 1', 'Archived 2']);
     expect(screen.queryByRole('tab', { name: /^Draft/ })).toBeNull();
     expect(tab('All')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Pine desk')).toBeInTheDocument();
@@ -224,7 +227,7 @@ describe('ProductsList — the Archived filter (FR-113)', () => {
           <GoTo to="/catalog/products?status=inactive" label="go inactive" />
           <ProductsList />
         </MemoryRouter>,
-        { session: adminSession({ permissions: ['*'] }) },
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
       ),
       BUNDLE,
     );
@@ -299,13 +302,13 @@ describe('ProductsList — the Archived filter (FR-113)', () => {
     expect(screen.queryByRole('button', { name: t('productsList.empty.searchArchived') })).toBeNull();
   });
 
+  // Issue #1491: the kit's strip, one tab stop and the arrows between tabs (WAI-ARIA tabs).
   it('the tabs are keyboard reachable', async () => {
     const user = renderList();
     await screen.findByText('Oak chair');
-    tab('Inactive').focus();
-    await user.keyboard('{Tab}');
+    tab('All').focus();
+    await user.keyboard('{End}');
     expect(document.activeElement).toBe(tab('Archived'));
-    await user.keyboard('{Enter}');
     await waitFor(() => expect(listRequests().at(-1)!.get('archived')).toBe('only'));
   });
 });

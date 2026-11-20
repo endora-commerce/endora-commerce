@@ -30,6 +30,9 @@ import {
  * contributed, fails as stale.
  */
 const PALETTE_EXEMPTIONS: PaletteLedger = {
+  api_keys: {
+    '/api-keys/new': 'Create form opened from the API-key list header (issue #1501); the palette carries the list.',
+  },
   blog: {
     '/blog/categories/new':
       'Create form opened from the category tree (*New category*, *+ Child* with a parent id); the palette carries the tree.',
@@ -70,6 +73,9 @@ const PALETTE_EXEMPTIONS: PaletteLedger = {
     '/returns/reasons': 'Configuration sub-screen reached from the returns list, by the module’s own design.',
     '/returns/delivery-methods':
       'Configuration sub-screen reached from the returns list, by the module’s own design.',
+  },
+  webhooks: {
+    '/webhooks/new': 'Create form opened from the webhook list header (issue #1501); the palette carries the list.',
   },
 };
 

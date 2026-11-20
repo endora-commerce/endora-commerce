@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 import { ApiError, formatMoney, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { CurrencyPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import {
   MethodSalesChannelsCell,
@@ -99,7 +99,10 @@ export function DeliveryMethodsPage(): ReactNode {
   const [adaptersState, setAdaptersState] = useState<AdaptersState>('loading');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // A save is said beside the form's title, in a region mounted before it has
+  // text — not a success banner (issue #1499, DEC-12 a). The form remounts on
+  // save, which is why the region sits in the card header and not in the form.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [editing, setEditing] = useState<AdminDeliveryMethod | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -171,22 +174,23 @@ export function DeliveryMethodsPage(): ReactNode {
             ? { salesChannelIds: input.salesChannelIds }
             : {}),
         });
-        setInfo(t('legacyMethods.messages.saved', { code: input.code }));
+        showStatus(t('legacyMethods.messages.saved', { code: input.code }));
         setEditing(null);
         await refresh();
       } catch (err) {
+        clearStatus();
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.save'));
       }
     },
-    [refresh],
+    [refresh, t, clearStatus, showStatus],
   );
 
   const handleEdit = useCallback((row: AdminDeliveryMethod): void => {
     setEditing(row);
-    setInfo(null);
+    clearStatus();
     setError(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  }, [clearStatus]);
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
@@ -200,10 +204,11 @@ export function DeliveryMethodsPage(): ReactNode {
         await deliveryMethodsClient.remove(id);
         await refresh();
       } catch (err) {
+        clearStatus();
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
       }
     },
-    [refresh, t, confirm],
+    [refresh, t, confirm, clearStatus],
   );
 
   if (!canRead) {
@@ -226,11 +231,6 @@ export function DeliveryMethodsPage(): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
 
       {integrations.length > 0 ? (
         <Card className="mb-4">
@@ -247,12 +247,13 @@ export function DeliveryMethodsPage(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardHeader>
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle>
             {editing
               ? t('legacyMethods.delivery.editTitle', { code: editing.code })
               : t('legacyMethods.formTitle')}
           </CardTitle>
+          <InlineStatus {...statusProps} />
         </CardHeader>
         <CardContent>
           <UpsertForm
@@ -270,7 +271,7 @@ export function DeliveryMethodsPage(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (

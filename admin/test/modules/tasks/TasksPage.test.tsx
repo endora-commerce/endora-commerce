@@ -140,7 +140,8 @@ function lastBoardQuery(): URLSearchParams | null {
 
 /** The filter bar's disclosure while it is collapsed and nothing hidden is in use. */
 function moreFilters(): HTMLElement {
-  return screen.getByRole('button', { name: en('filter.more') });
+  // The kit's own copy (`ListToolbar`, issue #1505).
+  return screen.getByRole('button', { name: 'More filters' });
 }
 
 function viewButton(name: 'list' | 'board'): HTMLElement {
@@ -215,9 +216,10 @@ describe('TasksPage — the list', () => {
     await waitFor(() => expect(lastListQuery().get('creator')).toBe('me'));
     await userEvent.selectOptions(screen.getByLabelText(en('filter.hierarchy')), 'subtasks');
     await waitFor(() => expect(lastListQuery().get('isSubtask')).toBe('true'));
-    await userEvent.click(screen.getByLabelText(en('list.filter.overdue')));
+    // On/off filters are the kit's `FilterChip`s, toggle buttons (issue #1505).
+    await userEvent.click(screen.getByRole('button', { name: en('list.filter.overdue') }));
     await waitFor(() => expect(lastListQuery().get('overdue')).toBe('true'));
-    await userEvent.click(screen.getByLabelText(en('filter.draft')));
+    await userEvent.click(screen.getByRole('button', { name: en('filter.draft') }));
     await waitFor(() => expect(lastListQuery().get('draft')).toBe('true'));
     await userEvent.type(screen.getByLabelText(en('filter.dueFrom')), '2026-11-01');
     await waitFor(() => expect(lastListQuery().get('dueFrom')).toBe('2026-11-01'));
@@ -294,24 +296,37 @@ describe('TasksPage — the list', () => {
     await screen.findByRole('option', { name: STATUS.done.name });
     await userEvent.selectOptions(screen.getByLabelText(en('list.filter.status')), 'done');
     expect(await screen.findByText(en('list.noResults.title'))).toBeTruthy();
+    // Clearing from the empty state puts focus on the search box, not <body> (WCAG 2.4.3).
+    const block = document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!;
+    await userEvent.click(within(block).getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('list.search'))));
   });
 });
 
-describe('TasksPage — the filter bar (#512, Hick’s law)', () => {
-  it('shows search, status, assignee and due at once, and the rest behind More filters', async () => {
+describe('TasksPage — the filter bar (#512, #1505, Hick’s law)', () => {
+  it('shows search, status, assignee, due and Overdue at once, and the rest behind More filters', async () => {
     renderTasks(<TasksPage />, { path: '/tasks', pattern: '/tasks' });
     await screen.findByText('Order the racking');
-    for (const label of ['list.search', 'list.filter.status', 'list.filter.assignee', 'filter.dueFrom', 'filter.dueTo', 'list.filter.overdue']) {
+    expect(screen.getByRole('search', { name: en('filter.toolbar') })).toBeTruthy();
+    for (const label of ['list.search', 'list.filter.status', 'list.filter.assignee', 'filter.dueFrom', 'filter.dueTo']) {
       expect(screen.getByLabelText(en(label))).toBeTruthy();
     }
-    for (const label of ['filter.statusCategory', 'filter.creator', 'filter.hierarchy', 'filter.draft', 'filter.private']) {
+    expect(screen.getByRole('group', { name: en('filter.due') })).toBeTruthy();
+    expect(screen.getByRole('button', { name: en('list.filter.overdue') })).toHaveAttribute('aria-pressed', 'false');
+    for (const label of ['filter.statusCategory', 'filter.creator', 'filter.hierarchy']) {
       expect(screen.queryByLabelText(en(label))).toBeNull();
+    }
+    for (const chip of ['filter.draft', 'filter.private']) {
+      expect(screen.queryByRole('button', { name: en(chip) })).toBeNull();
     }
     const toggle = moreFilters();
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await userEvent.click(toggle);
-    const fewer = screen.getByRole('button', { name: en('filter.fewer') });
+    const fewer = screen.getByRole('button', { name: 'Fewer filters' });
     expect(fewer).toHaveAttribute('aria-expanded', 'true');
+    // The same button: opening the panel does not move focus anywhere else.
+    expect(fewer).toBe(toggle);
+    expect(fewer).toHaveFocus();
     expect(document.getElementById(fewer.getAttribute('aria-controls') ?? '')).toContainElement(
       screen.getByLabelText(en('filter.creator')),
     );
@@ -325,7 +340,19 @@ describe('TasksPage — the filter bar (#512, Hick’s law)', () => {
       pattern: '/tasks',
     });
     await screen.findByText('Order the racking');
-    expect(screen.getByRole('button', { name: en('filter.moreCount', { count: 3 }) })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: 'More filters (3)' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('clears every filter from the bar and returns focus to the search', async () => {
+    renderTasks(<TasksPage />, { path: '/tasks?private=true&status=done', pattern: '/tasks' });
+    await screen.findByText('Order the racking');
+    expect(screen.getByRole('button', { name: 'More filters (1)' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all filters' }));
+    await waitFor(() => expect(lastListQuery().get('private')).toBeNull());
+    expect(lastListQuery().getAll('status')).toEqual([]);
+    expect(screen.getByRole('button', { name: 'More filters' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Clear all filters' })).toBeNull();
+    expect(screen.getByLabelText(en('list.search'))).toHaveFocus();
   });
 });
 

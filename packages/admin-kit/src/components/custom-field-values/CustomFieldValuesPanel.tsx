@@ -12,7 +12,7 @@ import type {
 import { ApiError, apiClient } from '../../lib/index.js';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { Button } from '../../ui/button.js';
-import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card.js';
+import { EditorSection, type EditorSectionChrome, type EditorSectionHeading } from '../../ui/editor-section.js';
 import { Label } from '../../ui/label.js';
 import { Select } from '../../ui/select.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
@@ -64,6 +64,14 @@ export interface CustomFieldValuesPanelProps {
    * would never write the bag must not offer to edit it). `false` when omitted, as before.
    */
   readOnly?: boolean;
+  /**
+   * Issue #1437 (DS-03) — a section of the host's card by default: a heading and the fields, no
+   * frame. `card` for a panel that stands alone on a page, with no card around it. A mount that
+   * sets the chrome (`<AdminZone chrome="card">`) decides it when this is omitted.
+   */
+  chrome?: EditorSectionChrome;
+  /** The heading level — `h2` by default; `h3` inside a card or section that has its own title. */
+  titleAs?: EditorSectionHeading;
 }
 
 type Bag = Record<string, unknown>;
@@ -166,6 +174,8 @@ export function CustomFieldValuesPanel({
   language = 'en',
   saveSession,
   readOnly = false,
+  chrome,
+  titleAs,
 }: CustomFieldValuesPanelProps): ReactNode {
   const t = useTranslation('core');
   const [defs, setDefs] = useState<CustomFieldDefinitionDto[]>([]);
@@ -314,55 +324,54 @@ export function CustomFieldValuesPanel({
   if (shown.length === 0 && error === null && nonEditRefusals.length === 0) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('customFields.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error.message ?? t(error.fallbackKey)}</AlertDescription>
-          </Alert>
-        )}
-        {nonEditRefusals.map((r) => (
-          <Alert key={`refusal-${r.key}`} variant="destructive">
-            <AlertDescription>{r.text}</AlertDescription>
-          </Alert>
-        ))}
-        {shown.map((d) => {
-          if (levelOf(d) === 'read') {
-            return (
-              <div key={d.id} className="space-y-1">
-                <Label>{d.label[language] ?? d.labelDefault}</Label>
-                <p id={`cf-${d.key}`} aria-readonly="true" className="text-sm">
-                  {formatReadValue(d, current[d.key], language, t)}
-                </p>
-              </div>
-            );
-          }
-          const fieldError = refusals[d.key];
+    <EditorSection
+      title={t('customFields.title')}
+      {...(chrome ? { chrome } : {})}
+      {...(titleAs ? { as: titleAs } : {})}
+    >
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error.message ?? t(error.fallbackKey)}</AlertDescription>
+        </Alert>
+      )}
+      {nonEditRefusals.map((r) => (
+        <Alert key={`refusal-${r.key}`} variant="destructive">
+          <AlertDescription>{r.text}</AlertDescription>
+        </Alert>
+      ))}
+      {shown.map((d) => {
+        if (levelOf(d) === 'read') {
           return (
             <div key={d.id} className="space-y-1">
-              <Label htmlFor={`cf-${d.key}`}>
-                {d.label[language] ?? d.labelDefault}
-                {d.required && <span className="text-destructive"> *</span>}
-              </Label>
-              {renderInput(d, current[d.key], (v) => set(d.key, v), language)}
-              {fieldError ? (
-                <p role="alert" className="text-xs text-destructive">
-                  {fieldError}
-                </p>
-              ) : null}
+              <Label>{d.label[language] ?? d.labelDefault}</Label>
+              <p id={`cf-${d.key}`} aria-readonly="true" className="text-sm">
+                {formatReadValue(d, current[d.key], language, t)}
+              </p>
             </div>
           );
-        })}
-        {save && !inSession && editKeys.size > 0 && (
-          <Button size="sm" disabled={saving} onClick={() => void onSave()}>
-            {t('customFields.save')}
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+        }
+        const fieldError = refusals[d.key];
+        return (
+          <div key={d.id} className="space-y-1">
+            <Label htmlFor={`cf-${d.key}`}>
+              {d.label[language] ?? d.labelDefault}
+              {d.required && <span className="text-destructive"> *</span>}
+            </Label>
+            {renderInput(d, current[d.key], (v) => set(d.key, v), language)}
+            {fieldError ? (
+              <p role="alert" className="text-xs text-destructive">
+                {fieldError}
+              </p>
+            ) : null}
+          </div>
+        );
+      })}
+      {save && !inSession && editKeys.size > 0 && (
+        <Button size="sm" disabled={saving} onClick={() => void onSave()}>
+          {t('customFields.save')}
+        </Button>
+      )}
+    </EditorSection>
   );
 }
 

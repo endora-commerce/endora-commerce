@@ -1,10 +1,30 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Upload } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import type { Warehouse } from '@endora-commerce/contracts';
-import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, cn, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  FormField,
+  Input,
+  PageHeader,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Textarea,
+} from '@endora-commerce/admin-kit/ui';
 import { warehousesClient } from '../api/warehouses-client.js';
+import { importErrorReasonLabels } from '../lib/labels.js';
 
 interface ImportError {
   row: number;
@@ -108,101 +128,114 @@ export function StockImportWizard(): ReactNode {
 
   return (
     <div className="b2b-page">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <Link to="/inventory" className="b2b-btn b2b-btn--ghost b2b-btn--sm" style={{ marginBottom: 8, display: 'inline-flex' }}>
-            <ArrowLeft size={13} /> {t('inventory.import.back')}
-          </Link>
-          <div className="b2b-page-head__title">{t('inventory.import.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('inventory.import.subPrefix')} <code className="b2b-mono">sku,onHand</code>{t('inventory.import.subSuffix')}
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        back={{ label: t('inventory.import.back'), to: '/inventory' }}
+        title={t('inventory.import.title')}
+        description={
+          <>
+            {t('inventory.import.subPrefix')} <code className="font-mono">sku,onHand</code>{t('inventory.import.subSuffix')}
+          </>
+        }
+      />
 
+      {/* Issue #1492 (CAT-17): a failure is a kit Alert (role="alert"), not a card painted red. */}
       {error ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(8 80% 85%)',
-          }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <div className="b2b-card" style={{ marginBottom: 16 }}>
-        <div className="b2b-card__head"><h2>{t('inventory.import.step1')}</h2></div>
-        <div className="b2b-card__body">
-          <select
-            className="b2b-field"
-            value={warehouseId}
-            onChange={(e): void => setWarehouseId(e.target.value)}
-          >
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {/* The three steps stay three numbered cards in reading order (Zeigarnik): the
+          operator sees where they are and what is left. */}
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('inventory.import.step1')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FormField label={t('inventory.import.field.warehouse')} className="max-w-md">
+              <Select value={warehouseId} onChange={(e): void => setWarehouseId(e.target.value)}>
+                {warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name} ({w.code})
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </CardContent>
+        </Card>
 
-      <div className="b2b-card" style={{ marginBottom: 16 }}>
-        <div className="b2b-card__head"><h2>{t('inventory.import.step2')}</h2></div>
-        <div className="b2b-card__body">
-          <input type="file" accept=".csv,text/csv" onChange={handleFile} />
-          {filename ? (
-            <div className="b2b-help" style={{ marginTop: 8 }}>
-              {t('inventory.import.loadedPrefix')} <code className="b2b-mono">{filename}</code> {t('inventory.import.loadedSuffix', { count: csv.split(/\r?\n/).length })}
-            </div>
-          ) : (
-            <div className="b2b-help" style={{ marginTop: 8 }}>
-              {t('inventory.import.pasteDirectly')}
-              <textarea
-                className="b2b-field"
-                rows={6}
-                style={{ marginTop: 8, fontFamily: 'monospace' }}
-                placeholder={exampleCsv}
-                value={csv}
-                onChange={(e): void => setCsv(e.target.value)}
-              />
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="b2b-card" style={{ marginBottom: 16 }}>
-        <div className="b2b-card__head"><h2>{t('inventory.import.step3')}</h2></div>
-        <div className="b2b-card__body">
-          <div className="b2b-row" style={{ gap: 8 }}>
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--default"
-              onClick={(): void => { void send(true); }}
-              disabled={busy || !csv || !warehouseId}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('inventory.import.step2')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <FormField
+              label={t('inventory.import.field.file')}
+              hint={
+                filename ? (
+                  <>
+                    {t('inventory.import.loadedPrefix')} <code className="font-mono">{filename}</code>{' '}
+                    {t('inventory.import.loadedSuffix', { count: csv.split(/\r?\n/).length })}
+                  </>
+                ) : undefined
+              }
             >
-              <Upload size={13} /> {t('inventory.import.previewDryRun')}
-            </button>
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--primary"
-              onClick={(): void => { void send(false); }}
-              disabled={busy || !csv || !warehouseId || !preview}
-            >
-              {busy ? t('inventory.import.working') : t('inventory.import.commit')}
-            </button>
-          </div>
+              <Input type="file" accept=".csv,text/csv" onChange={handleFile} className="max-w-md" />
+            </FormField>
+            {filename ? null : (
+              <FormField label={t('inventory.import.field.paste')}>
+                <Textarea
+                  rows={6}
+                  className="font-mono"
+                  placeholder={exampleCsv}
+                  value={csv}
+                  onChange={(e): void => setCsv(e.target.value)}
+                />
+              </FormField>
+            )}
+          </CardContent>
+        </Card>
 
-          {preview ? (
-            <ResultBlock title={t('inventory.import.dryRunSummary')} result={preview} tone="warn" />
-          ) : null}
-          {committed ? (
-            <ResultBlock title={t('inventory.import.committed')} result={committed} tone="success" />
-          ) : null}
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('inventory.import.step3')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Preview first, then Commit: Commit is the one filled button and stays
+                disabled until a dry run has been seen (Von Restorff). */}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={(): void => {
+                  void send(true);
+                }}
+                disabled={busy || !csv || !warehouseId}
+              >
+                <Upload aria-hidden="true" /> {t('inventory.import.previewDryRun')}
+              </Button>
+              <Button
+                type="button"
+                onClick={(): void => {
+                  void send(false);
+                }}
+                disabled={busy || !csv || !warehouseId || !preview}
+                aria-busy={busy || undefined}
+              >
+                {busy ? t('inventory.import.working') : t('inventory.import.commit')}
+              </Button>
+            </div>
+
+            {/* Mounted before it has a result, so each summary is announced (WCAG 4.1.3). */}
+            <div role="status" className="empty:hidden">
+              {preview ? <ResultBlock title={t('inventory.import.dryRunSummary')} result={preview} tone="warn" /> : null}
+              {committed ? (
+                <ResultBlock title={t('inventory.import.committed')} result={committed} tone="success" />
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -220,60 +253,57 @@ function ResultBlock({
   const t = useTranslation('core');
   return (
     <div
-      className="b2b-card"
-      style={{
-        marginTop: 12,
-        padding: 12,
-        background: tone === 'success' ? 'var(--success-soft)' : 'var(--surface-muted)',
-      }}
+      className={cn(
+        'mt-3 rounded-md border p-3',
+        tone === 'success' ? 'border-(--success)/40 bg-(--success-soft)' : 'bg-muted',
+      )}
     >
-      <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
-      <div className="b2b-row" style={{ gap: 16, marginTop: 8 }}>
-        <div>
-          <div className="b2b-muted" style={{ fontSize: 11 }}>{t('inventory.import.rowsRead')}</div>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>{result.rowsRead}</div>
-        </div>
-        <div>
-          <div className="b2b-muted" style={{ fontSize: 11 }}>{t('inventory.import.applied')}</div>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>{result.rowsApplied}</div>
-        </div>
-        <div>
-          <div className="b2b-muted" style={{ fontSize: 11 }}>{t('inventory.import.skipped')}</div>
-          <div style={{ fontSize: 18, fontWeight: 600 }}>{result.rowsSkipped}</div>
-        </div>
-      </div>
+      <p className="text-sm font-semibold">{title}</p>
+      <dl className="mt-2 flex flex-wrap gap-4">
+        <ResultCount label={t('inventory.import.rowsRead')} value={result.rowsRead} />
+        <ResultCount label={t('inventory.import.applied')} value={result.rowsApplied} />
+        <ResultCount label={t('inventory.import.skipped')} value={result.rowsSkipped} />
+      </dl>
       {result.errors.length > 0 ? (
-        <div style={{ marginTop: 12 }}>
-          <div className="b2b-muted" style={{ fontSize: 11 }}>
+        <div className="mt-3">
+          <p className="text-xs text-muted-foreground">
             {t('inventory.import.errorsCount', { count: result.errors.length })}
-          </div>
-          <table className="b2b-tbl" style={{ marginTop: 4, fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th style={{ width: 60 }}>{t('inventory.import.errors.row')}</th>
-                <th>{t('inventory.import.errors.sku')}</th>
-                <th>{t('inventory.import.errors.reason')}</th>
-              </tr>
-            </thead>
-            <tbody>
+          </p>
+          <Table className="mt-1 text-xs">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-16">{t('inventory.import.errors.row')}</TableHead>
+                <TableHead>{t('inventory.import.errors.sku')}</TableHead>
+                <TableHead>{t('inventory.import.errors.reason')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {result.errors.slice(0, 50).map((err, i) => (
-                <tr key={`${err.row}-${i}`}>
-                  <td>{err.row}</td>
-                  <td>
-                    <span className="b2b-mono">{err.sku || '—'}</span>
-                  </td>
-                  <td>{err.reason}</td>
-                </tr>
+                <TableRow key={`${err.row}-${i}`}>
+                  <TableCell className="tabular-nums">{err.row}</TableCell>
+                  <TableCell className="font-mono">{err.sku || '—'}</TableCell>
+                  <TableCell>{importErrorReasonLabels.label(t, err.reason)}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {result.errors.length > 50 ? (
-            <div className="b2b-help">
+            <p className="mt-1 text-xs text-muted-foreground">
               {t('inventory.import.errorsTruncated', { total: result.errors.length })}
-            </div>
+            </p>
           ) : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** One count of the import summary: a term and its value inside the summary's `<dl>`. */
+function ResultCount({ label, value }: { label: string; value: number }): ReactNode {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-lg font-semibold tabular-nums">{value}</dd>
     </div>
   );
 }

@@ -289,3 +289,77 @@ describe('admin-kit field protection — the controls', () => {
     expect(container.textContent).not.toContain('fieldProtection.summary.none');
   });
 });
+
+describe('admin-kit field protection — the summary is a section of its host (issue #1488, CAT-06)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders as a section labelled by its heading, with no frame of its own, by default', async () => {
+    // It mounts inside the product editor's card (a tab's zone): a bordered box there
+    // is a frame inside a card, which reads as a separate object (Common Region).
+    const h = harness({ label: 'Ergonode', scopeKey: `section:${PRODUCT_ID}` });
+    const { container } = renderTree(<FieldProtectionSummary source={h.source} />);
+    await waitFor(() => expect(container.textContent).toContain('fieldProtection.title'));
+    const section = container.querySelector('section[data-slot="editor-section"]');
+    expect(section).not.toBeNull();
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    expect(section!.className.split(/\s+/)).not.toContain('border');
+    const heading = section!.querySelector('h2');
+    // Two integrations on one record are two sections: the source names each one.
+    expect(heading).toHaveTextContent('fieldProtection.title');
+    expect(heading).toHaveTextContent('Ergonode');
+    expect(section).toHaveAccessibleName(/fieldProtection\.title.*Ergonode/);
+  });
+
+  it('takes `chrome="card"` where it stands alone on a page, and `titleAs` under a titled card', async () => {
+    const h = harness({ label: 'Pimcore', scopeKey: `card:${PRODUCT_ID}` });
+    const { container } = renderTree(<FieldProtectionSummary source={h.source} chrome="card" titleAs="h3" />);
+    await waitFor(() => expect(container.textContent).toContain('fieldProtection.title'));
+    const card = container.querySelector('[data-slot="card"]');
+    expect(card).not.toBeNull();
+    expect(card!.querySelector('h3')).toHaveTextContent('fieldProtection.title');
+  });
+});
+
+describe('admin-kit field protection — the price panel is a section of its host (issue #1503, SHELL-22)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const livePricePaths = [
+    {
+      fieldPath: `price.${LIST_ID}.EUR`,
+      priceListId: LIST_ID,
+      priceListName: 'Ergonode prices',
+      currencyCode: 'EUR',
+    },
+  ];
+
+  it('renders as a section labelled by its heading, with no bordered box of its own, by default', async () => {
+    // It mounts in the product editor's Pricing tab, inside the tab's card: a bordered
+    // note there is a frame inside a card (Common Region).
+    const h = harness({ label: 'Ergonode', scopeKey: `price-section:${PRODUCT_ID}`, initial: view({ livePricePaths }) });
+    const { container } = renderTree(<FieldProtectionPricePanel source={h.source} />);
+    await waitFor(() => expect(checkboxes(container)).toHaveLength(1));
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
+    const section = container.querySelector('section[data-slot="editor-section"]');
+    expect(section).not.toBeNull();
+    expect(section!.className.split(/\s+/)).not.toContain('border');
+    expect(container.querySelector('.rounded-md.border')).toBeNull();
+    const heading = section!.querySelector('h2');
+    expect(heading).toHaveTextContent('fieldProtection.price.title');
+    expect(heading).toHaveTextContent('Ergonode');
+    // The description is the section's own one line, not a paragraph in a box.
+    expect(section).toHaveAccessibleDescription('fieldProtection.price.description');
+  });
+
+  it('takes `chrome="card"` where it stands alone on a page, and `titleAs` under a titled card', async () => {
+    const h = harness({ label: 'Pimcore', scopeKey: `price-card:${PRODUCT_ID}`, initial: view({ livePricePaths }) });
+    const { container } = renderTree(<FieldProtectionPricePanel source={h.source} chrome="card" titleAs="h3" />);
+    await waitFor(() => expect(checkboxes(container)).toHaveLength(1));
+    const card = container.querySelector('[data-slot="card"]');
+    expect(card).not.toBeNull();
+    expect(card!.querySelector('h3')).toHaveTextContent('fieldProtection.price.title');
+  });
+});

@@ -4,6 +4,7 @@ import {
   ERROR_CODES,
   TASK_STATUS_REASSIGN_MAX,
   type CreateTaskPriorityBody,
+  type ReorderTaskPrioritiesBody,
   type TaskPriorityConfig,
   type UpdateTaskPriorityBody,
 } from '@endora-commerce/contracts';
@@ -11,6 +12,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { TaskPriority } from '../entities/task-priority.entity.js';
+import { REORDER_WEIGHT_STEP, assertCompleteOrder } from './reorder.js';
 import { heldIds, holdTasksFor, recordReassignments } from './task-reassignment.js';
 import type { TaskVisibility } from './task-visibility.js';
 import type { TaskWorkflowRead } from './task-workflow-read.js';
@@ -143,6 +145,36 @@ export class TaskPriorityService {
         if (patch.color !== undefined) priority.color = patch.color;
         if (patch.weight !== undefined) priority.weight = patch.weight;
         return { result: undefined, before, after: snapshot(priority) };
+      },
+    });
+    return this.list();
+  }
+
+  /**
+   * `PUT /tasks/priorities/order` (issue #1560): the whole list in its new
+   * order, most urgent first, one Command. Every priority row is locked first;
+   * the weights are rewritten {@link REORDER_WEIGHT_STEP} apart.
+   */
+  async reorder(input: ReorderTaskPrioritiesBody): Promise<TaskPriorityConfig[]> {
+    await this.deps.commandBus.run({
+      action: 'tasks.priority.reorder',
+      objectType: 'task_priority',
+      objectId: 'order',
+      run: async ({ em: commandEm }) => {
+        const em = commandEm as EntityManager;
+        const priorities = await em.find(
+          TaskPriority,
+          {},
+          { orderBy: { weight: 'asc', code: 'asc' }, lockMode: LockMode.PESSIMISTIC_WRITE },
+        );
+        const before = priorities.map((priority) => priority.code);
+        assertCompleteOrder(before, input.orderedCodes);
+        const byCode = new Map(priorities.map((priority) => [priority.code, priority]));
+        input.orderedCodes.forEach((code, index) => {
+          const priority = byCode.get(code);
+          if (priority) priority.weight = (index + 1) * REORDER_WEIGHT_STEP;
+        });
+        return { result: undefined, before: { order: before }, after: { order: [...input.orderedCodes] } };
       },
     });
     return this.list();

@@ -73,7 +73,6 @@ export function TasksTab({ project }: ProjectTabProps): ReactNode {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">{t('tasks.hint')}</p>
       {stages.map((stage) => (
         <StageTasks
           key={stage.id}

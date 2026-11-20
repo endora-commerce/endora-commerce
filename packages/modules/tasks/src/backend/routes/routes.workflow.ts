@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import {
   CreateTaskStatusBodySchema,
   DeleteTaskStatusQuerySchema,
+  ReorderTaskStatusesBodySchema,
   SetTaskTransitionsBodySchema,
   UpdateTaskStatusBodySchema,
 } from '@endora-commerce/contracts';
@@ -13,7 +14,7 @@ export interface TaskWorkflowRoutesDeps {
   taskService: Pick<TaskService, 'workflow'>;
   workflowConfigService: Pick<
     TaskWorkflowConfigService,
-    'createStatus' | 'updateStatus' | 'deleteStatus' | 'setTransitions'
+    'createStatus' | 'updateStatus' | 'reorderStatuses' | 'deleteStatus' | 'setTransitions'
   >;
   requireAdmin: RequireAdminFactory;
 }
@@ -40,6 +41,16 @@ export async function registerTaskWorkflowRoutes(app: FastifyInstance, deps: Tas
     async (request, reply) => {
       await config.createStatus(CreateTaskStatusBodySchema.parse(request.body));
       reply.code(201);
+      return workflow();
+    },
+  );
+
+  // Issue #1560 — the whole list in its new order, one Command.
+  app.put(
+    `${API}/statuses/order`,
+    { preHandler: requireAdmin('tasks:configure'), schema: { body: ReorderTaskStatusesBodySchema } },
+    async (request) => {
+      await config.reorderStatuses(ReorderTaskStatusesBodySchema.parse(request.body));
       return workflow();
     },
   );

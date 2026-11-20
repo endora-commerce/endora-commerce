@@ -515,14 +515,14 @@ describe('Event dialog — adding', () => {
     const dialog = await openAdd(panel);
     const checkbox = within(dialog).getByRole('checkbox', { name: 'Set a reminder' });
     const hint = document.getElementById(checkbox.getAttribute('aria-describedby') ?? '')?.textContent ?? '';
-    expect(hint).toMatch(/assigned to the opportunity/);
-    expect(hint).toMatch(/nobody is assigned.*created the event/i);
+    expect(hint).toMatch(/goes to the assignee/i);
+    expect(hint).toMatch(/author if none/i);
 
     const polish = JSON.parse(
       readFileSync(resolve(process.cwd(), '../packages/modules/crm/i18n/pl.json'), 'utf8'),
     ) as Record<string, string>;
     expect(polish['events.field.remind']).toBe('Ustaw przypomnienie');
-    expect(polish['events.field.remindHint']).toMatch(/nikt nie jest przypisany.*autor/i);
+    expect(polish['events.field.remindHint']).toMatch(/przypisanej.*brak.*autora/i);
   });
 
   it('shows the reminder time with Set a reminder — set to the start, following it until it is edited, and not after', async () => {

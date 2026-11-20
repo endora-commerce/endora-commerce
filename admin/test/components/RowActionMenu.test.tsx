@@ -1,13 +1,16 @@
+import { useState } from 'react';
 import { describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
+  ConfirmDialog,
   ResponsiveTable,
   type ResponsiveColumn,
   RowActionMenu,
   RowActionMenuItem,
   RowActionMenuSeparator,
 } from '@endora-commerce/admin-kit/components';
+import { renderWithI18n } from '../helpers/render-with-i18n';
 
 /**
  * The defect this pins: a row menu positioned with `absolute` lives inside the
@@ -123,5 +126,102 @@ describe('RowActionMenu', () => {
     await user.click(item);
 
     expect(fired).toBe(false);
+  });
+});
+
+/**
+ * `specs/181-guest-complaints/` design review A-1: an item that opens a dialog. Radix
+ * gives focus back to the trigger after the menu has closed, in a timer queued at unmount
+ * — after the dialog has already taken focus — so the dialog lost its focus to a control
+ * behind its scrim. The menu now runs the item's action from `onCloseAutoFocus`, once it
+ * has let go of focus.
+ */
+function MenuOpeningADialog(): React.ReactNode {
+  const [asking, setAsking] = useState(false);
+  return (
+    <>
+      <RowActionMenu label="Row actions">
+        <RowActionMenuItem destructive onSelect={() => setAsking(true)}>
+          Erase
+        </RowActionMenuItem>
+      </RowActionMenu>
+      {asking ? (
+        <ConfirmDialog destructive message="Erase it?" confirmLabel="Erase now" cancelLabel="Keep it" onConfirm={() => setAsking(false)} onCancel={() => setAsking(false)} />
+      ) : null}
+    </>
+  );
+}
+
+const flushTimers = (): Promise<void> => act(() => new Promise<void>((resolve) => setTimeout(resolve, 20)));
+
+describe('RowActionMenu — an item that opens a dialog (181 A-1)', () => {
+  it('leaves focus in the dialog, on Cancel for a destructive question, and gives it back to the trigger', async () => {
+    const user = userEvent.setup();
+    renderWithI18n(<MenuOpeningADialog />, { core: {} });
+    const trigger = screen.getByRole('button', { name: 'Row actions' });
+
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    await screen.findByRole('menu');
+    await user.keyboard('{Enter}');
+    await flushTimers();
+
+    const dialog = await screen.findByRole('dialog');
+    const cancel = screen.getByRole('button', { name: 'Keep it' });
+    await waitFor(() => expect(cancel).toHaveFocus());
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    // Enter answers the question, not the menu behind the scrim.
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    await flushTimers();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('still returns focus to the trigger when the menu closes with no item chosen', async () => {
+    const user = userEvent.setup();
+    renderWithI18n(<MenuOpeningADialog />, { core: {} });
+    const trigger = screen.getByRole('button', { name: 'Row actions' });
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    await screen.findByRole('menu');
+    await user.keyboard('{Escape}');
+    await flushTimers();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+});
+
+describe('RowActionMenu — a labelled trigger (181 design review F-21)', () => {
+  it('shows its label as the button’s text when asked, the text being the accessible name', () => {
+    render(
+      <RowActionMenu label="Guest data" showLabel>
+        <RowActionMenuItem onSelect={() => undefined}>Open</RowActionMenuItem>
+      </RowActionMenu>,
+    );
+    const trigger = screen.getByRole('button', { name: 'Guest data' });
+    expect(trigger).toHaveTextContent('Guest data');
+    expect(trigger).not.toHaveAttribute('aria-label');
+  });
+});
+
+describe('RowActionMenu — touch target (#1567, Fitts)', () => {
+  // jsdom lays nothing out, so the hit area is pinned by its rule: the 32 px
+  // chrome stays, and on a coarse pointer a transparent pseudo-element centred on
+  // the button grows the target to 44 × 44 (`.claude/skills/ux-laws/SKILL.md` §Fitts).
+  it('keeps the 32 px icon trigger and grows its hit area to 44 × 44 on a coarse pointer', () => {
+    render(
+      <RowActionMenu label="Row actions">
+        <RowActionMenuItem onSelect={() => undefined}>Open</RowActionMenuItem>
+      </RowActionMenu>,
+    );
+    const cls = screen.getByRole('button', { name: 'Row actions' }).className;
+    expect(cls).toContain('h-8');
+    expect(cls).toContain('w-8');
+    expect(cls).toContain('relative');
+    expect(cls).toContain("pointer-coarse:before:content-['']");
+    expect(cls).toContain('pointer-coarse:before:absolute');
+    expect(cls).toContain('pointer-coarse:before:-inset-1.5');
   });
 });

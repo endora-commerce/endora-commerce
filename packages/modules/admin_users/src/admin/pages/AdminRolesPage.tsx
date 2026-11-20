@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { StickyFormActions, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Info, Plus, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Info, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { missingPermissionRequirements } from '@endora-commerce/contracts';
 import { ApiError, apiClient, cn, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import {
@@ -12,9 +12,11 @@ import {
   Card,
   CardContent,
   Checkbox,
+  InlineStatus,
   Input,
   Label,
   PageHeader,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { resolvePermissionLabel } from '../permission-label.js';
@@ -65,8 +67,26 @@ export default function AdminRolesPage(): ReactNode {
   const [permissions, setPermissions] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  const [editingCode, setEditingCode] = useState<string | null>(null);
+  // A deletion closes the editor, so it is said beside "New role" in a region
+  // mounted before it has text — not a success banner (issue #1499, DEC-12 a).
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
+  // Issue #1449 (DS-19) — a save's refusal and outcome are said in the editor's save bar,
+  // beside the Save that caused them, not in the page banner above the role list.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveInfo, setSaveInfo] = useState<string | null>(null);
+  const [editingCode, setEditingCodeState] = useState<string | null>(null);
+  const setEditingCode = useCallback((next: string | null): void => {
+    setSaveError(null);
+    setSaveInfo(null);
+    setEditingCodeState(next);
+  }, []);
+  const openEditor = useCallback(
+    (next: string): void => {
+      clearStatus();
+      setEditingCode(next);
+    },
+    [clearStatus, setEditingCode],
+  );
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -109,6 +129,8 @@ export default function AdminRolesPage(): ReactNode {
       permissions: string[];
       requiresTwoFactor: boolean;
     }): Promise<void> => {
+      setSaveError(null);
+      setSaveInfo(null);
       try {
         // Issue #349 — turning the requirement on signs out the holders who
         // have no second factor, so say how many before the save.
@@ -135,18 +157,18 @@ export default function AdminRolesPage(): ReactNode {
           },
         );
         const signedOut = saved.data.signedOutAdministrators;
-        setInfo(
+        setEditingCode(input.code);
+        setSaveInfo(
           signedOut > 0
             ? tu('roles.twoFactor.signedOut', { code: input.code, count: signedOut })
             : t('adminRoles.info.saved', { code: input.code }),
         );
-        setEditingCode(input.code);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.save'));
+        setSaveError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.save'));
       }
     },
-    [refresh, t, tu, roles, mfaPresent, confirm],
+    [refresh, t, tu, roles, mfaPresent, confirm, setEditingCode],
   );
 
   const handleDelete = useCallback(
@@ -157,16 +179,17 @@ export default function AdminRolesPage(): ReactNode {
         destructive: true,
       });
       if (!ok) return;
+      clearStatus();
       try {
         await apiClient.delete<void>(`/api/v1/admin/admin-roles/${role.id}`);
-        setInfo(t('adminRoles.info.deleted', { code: role.code }));
+        showStatus(t('adminRoles.info.deleted', { code: role.code }));
         if (editingCode === role.code) setEditingCode(null);
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.delete'));
       }
     },
-    [refresh, editingCode, t, confirm],
+    [refresh, editingCode, t, confirm, setEditingCode, clearStatus, showStatus],
   );
 
   return (
@@ -183,10 +206,13 @@ export default function AdminRolesPage(): ReactNode {
           </>
         }
         actions={
-          <Button onClick={(): void => setEditingCode(NEW_ROLE_KEY)}>
-            <Plus />
-            {t('adminRoles.newRole')}
-          </Button>
+          <div className="flex items-center gap-3">
+            <InlineStatus {...statusProps} />
+            <Button onClick={(): void => openEditor(NEW_ROLE_KEY)}>
+              <Plus />
+              {t('adminRoles.newRole')}
+            </Button>
+          </div>
         }
       />
 
@@ -195,24 +221,19 @@ export default function AdminRolesPage(): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">{t('adminRoles.loading')}</p>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <ul className="space-y-1">
                 {roles.map((r) => (
                   <li key={r.id}>
                     <button
                       type="button"
-                      onClick={(): void => setEditingCode(r.code)}
+                      onClick={(): void => openEditor(r.code)}
                       className={cn(
                         'flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-sm transition-colors',
                         editingCode === r.code
@@ -247,6 +268,8 @@ export default function AdminRolesPage(): ReactNode {
               role={editing}
               permissions={permissions}
               mfaPresent={mfaPresent}
+              saveError={saveError}
+              saveInfo={saveInfo}
               onSave={(input): void =>
                 void handleSave({
                   originalCode: editingCode === NEW_ROLE_KEY ? null : editingCode,
@@ -264,7 +287,7 @@ export default function AdminRolesPage(): ReactNode {
             />
           ) : (
             <Card>
-              <CardContent className="pt-6 text-sm text-muted-foreground">
+              <CardContent className="text-sm text-muted-foreground">
                 {t('adminRoles.selectHint')}
               </CardContent>
             </Card>
@@ -288,6 +311,10 @@ interface RoleEditorProps {
     requiresTwoFactor: boolean;
   }) => void;
   onDelete: (() => void) | null;
+  /** The last save's refusal, said in the save bar. */
+  saveError: string | null;
+  /** The last save's outcome, said in the save bar. */
+  saveInfo: string | null;
 }
 
 function RoleEditor(props: RoleEditorProps): ReactNode {
@@ -337,9 +364,29 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
     [wildcard, permissions, props.permissions],
   );
 
+  // Issue #1449 — the draft against the stored role, for the bar's "Unsaved changes".
+  const storedPermissions = props.role.permissions.filter((p) => p !== '*');
+  const dirty =
+    code !== props.role.code ||
+    name !== props.role.name ||
+    requiresTwoFactor !== props.role.requiresTwoFactor ||
+    wildcard !== (isPlatformAdmin || props.role.permissions.includes('*')) ||
+    permissions.size !== storedPermissions.length ||
+    storedPermissions.some((p) => !permissions.has(p));
+
   return (
     <Card>
-      <CardContent className="space-y-4 pt-6">
+      <CardContent className="space-y-4">
+        {props.onDelete ? (
+          // Issue #1449 (DS-19) — Delete sits at the top of the editor, the whole form away from
+          // Save (Fitts: a destructive action gets distance, not proximity).
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={props.onDelete}>
+              <Trash2 aria-hidden="true" />
+              {t('adminRoles.delete')}
+            </Button>
+          </div>
+        ) : null}
         <Alert variant="warning">
           <ShieldAlert className="size-4" />
           <AlertTitle>{t('adminRoles.wildcardTitle')}</AlertTitle>
@@ -514,14 +561,14 @@ function RoleEditor(props: RoleEditorProps): ReactNode {
             ))}
           </div>
 
-          <div className="flex gap-2">
-            <Button type="submit">{t('adminRoles.save')}</Button>
-            {props.onDelete ? (
-              <Button type="button" variant="destructive" onClick={props.onDelete}>
-                {t('adminRoles.delete')}
-              </Button>
-            ) : null}
-          </div>
+          {/* Issue #1449 (DS-19) — the one Save stays in view over a long permission list. */}
+          <StickyFormActions
+            desktop="sticky"
+            dirty={dirty}
+            error={props.saveError}
+            status={props.saveInfo}
+            primary={<Button type="submit">{t('adminRoles.save')}</Button>}
+          />
         </form>
       </CardContent>
     </Card>

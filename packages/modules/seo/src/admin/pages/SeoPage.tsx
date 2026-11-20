@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { SeoEntityType, SitemapChannelStatus } from '@endora-commerce/contracts';
 import { ApiError, apiBaseUrl, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { CategorySelect, ProductPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { SeoMetaScopeEditor } from './SeoMetaScopeEditor.js';
@@ -26,10 +26,7 @@ export function SeoPage(): ReactNode {
   const t = useTranslation('core');
   return (
     <>
-      <PageHeader
-        title={t('seo.page.title')}
-        description={t('seo.page.description')}
-      />
+      <PageHeader title={t('seo.page.title')} />
       <div className="space-y-4">
         <SitemapCard />
         <MetaEditorCard />
@@ -43,7 +40,9 @@ function SitemapCard(): ReactNode {
   const [rows, setRows] = useState<SitemapChannelStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyChannel, setBusyChannel] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  // A regeneration's result is said in the card header, in a region mounted
+  // before it has text — not a success banner (issue #1499, DEC-12 a).
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -65,13 +64,13 @@ function SitemapCard(): ReactNode {
   const regenerate = useCallback(
     async (code: string): Promise<void> => {
       setBusyChannel(code);
-      setMessage(null);
+      clearStatus();
       setError(null);
       try {
         const res = await apiClient.post<RegenerateEnvelope>(
           `/api/v1/admin/seo/sitemap/${encodeURIComponent(code)}/regenerate`,
         );
-        setMessage(
+        showStatus(
           t('seo.sitemap.regenerated', {
             code,
             count: res.data.urlCount,
@@ -85,7 +84,7 @@ function SitemapCard(): ReactNode {
         setBusyChannel(null);
       }
     },
-    [refresh, t],
+    [refresh, t, clearStatus, showStatus],
   );
 
   const fetchXml = useCallback(async (code: string): Promise<Blob> => {
@@ -104,6 +103,7 @@ function SitemapCard(): ReactNode {
     async (code: string): Promise<void> => {
       setBusyChannel(code);
       setError(null);
+      clearStatus();
       try {
         const blob = await fetchXml(code);
         const objectUrl = URL.createObjectURL(blob);
@@ -119,13 +119,14 @@ function SitemapCard(): ReactNode {
         setBusyChannel(null);
       }
     },
-    [fetchXml, t],
+    [fetchXml, t, clearStatus],
   );
 
   const download = useCallback(
     async (code: string): Promise<void> => {
       setBusyChannel(code);
       setError(null);
+      clearStatus();
       try {
         const blob = await fetchXml(code);
         const objectUrl = URL.createObjectURL(blob);
@@ -142,23 +143,19 @@ function SitemapCard(): ReactNode {
         setBusyChannel(null);
       }
     },
-    [fetchXml, t],
+    [fetchXml, t, clearStatus],
   );
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 space-y-0">
         <CardTitle>{t('seo.sitemap.title')}</CardTitle>
+        <InlineStatus {...statusProps} />
       </CardHeader>
       <CardContent className="space-y-3">
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {message ? (
-          <Alert variant="success">
-            <AlertDescription>{message}</AlertDescription>
           </Alert>
         ) : null}
         {loading ? (

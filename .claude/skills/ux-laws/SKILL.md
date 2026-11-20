@@ -82,6 +82,9 @@ Two hard framing rules before anything else:
   brand from the first digits, infer the country from the locale, pre-fill from the last
   order, resolve tax display mode from the organization rather than asking.
 - If a step exists only because the backend finds it convenient, that is a design bug.
+- A slug, key or code is proposed from the name, never typed from scratch: the admin kit's
+  `deriveKey` / `useDerivedKey` (`./lib`) follow the name until edited and normalise on blur.
+  Refuse only what stays invalid or is already taken — never auto-suffix a collision.
 
 ### Doherty Threshold
 > Productivity soars when the interaction stays under ~400 ms.
@@ -111,6 +114,12 @@ Two hard framing rules before anything else:
   link.
 - Two competing filled buttons of the same colour cancel each other out — that is the single
   most common failure in generated commerce UI.
+- The same budget applies inside lists and tables: a row never carries a filled button. Row
+  actions are ghost icon buttons with an `aria-label` that names the row, or entries of an
+  overflow menu once there are more than two; an "Add …" inside a form is `outline`.
+- A record's header gets one primary, at most one or two visible secondary actions, and a
+  labelled "More" menu for the rest. Destructive actions live in that menu, away from the
+  primary, and ask for confirmation.
 - Use the highlight budget deliberately: one "Most popular" tier, one "Best price" badge.
 
 ### Law of Proximity
@@ -126,6 +135,11 @@ Two hard framing rules before anything else:
 
 - Wrap a coherent unit (a cart line, an address, an order summary) in one card with a single
   padding value — do not fence individual fields inside it.
+- **A frame inside a card is a defect unless it is a field.** One card per editor tab; the
+  groups inside it are sections — a heading, at most one line, a rule between them
+  (`EditorSection` in the admin kit). A list inside a card is rows divided by a rule
+  (`divide-y`), not a bordered box per item. Only an input's own border, a chip or an overlay
+  may draw a frame there; a panel that stands alone on a page takes the card (`chrome="card"`).
 
 ### Law of Similarity
 > Visually similar elements are perceived as sharing a function.
@@ -289,7 +303,9 @@ Hard constraints that shape the design:
 Never deliver only the happy path:
 
 1. **Loading** — skeleton matching the final layout (no layout shift), or an inline spinner
-   for actions.
+   for actions. A skeleton is for the **first load only**: a refresh after an action keeps the
+   content on screen and marks it `aria-busy`, or the open tab, the scroll position and the
+   focus are lost (admin: `useDetailResource` + `DetailSkeleton`/`Skeleton`, DS-14).
 2. **Empty** — icon/illustration + one-line explanation + one primary action.
 3. **Error** — specific, constructive, actionable, and it never blames the user; a retry path.
 4. **Partial / degraded** — out of stock, price unavailable, quote-only, over credit limit.

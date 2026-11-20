@@ -84,9 +84,9 @@ describe('CustomFieldsPage — the audience of a definition', () => {
     const dialog = await openCreate('internal_note');
     const select = within(dialog).getByLabelText(NEW_FIELD_AUDIENCE) as HTMLSelectElement;
     expect(select.value).toBe('internal');
-    expect(select).toHaveAccessibleDescription(/Internal values are shown to administrators only\./);
+    expect(select).toHaveAccessibleDescription(/Internal: administrators only\./);
     expect(
-      within(dialog).getByText(/also returned to the customer in the storefront and to integrations/),
+      within(dialog).getByText(/Customer-visible: also the storefront and the external API/),
     ).toBeInTheDocument();
   });
 

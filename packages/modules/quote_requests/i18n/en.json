@@ -196,5 +196,12 @@
   "customerNotifications.approved.title": "Quote request {number} was approved",
   "customerNotifications.canceled.title": "Quote request {number} was canceled",
   "customerPush.title": "Quote request update",
-  "negotiation.partLabel": "Price negotiation"
+  "negotiation.partLabel": "Price negotiation",
+  "list.toolbar.label": "Filter quote requests",
+  "list.count": "Quote requests: {count}",
+  "list.emptyTitle": "No quote requests yet",
+  "list.empty": "A quote request appears here once a customer sends it or you create one.",
+  "list.rowMenu.label": "Actions for quote request {number}",
+  "list.rowMenu.organization": "Open organization",
+  "detail.tabs.label": "Quote request sections"
 }

@@ -68,7 +68,8 @@ const SUBJECTS: readonly Subject[] = [
   { module: 'credit_limits', actions: ['open-credit-limits'], axis: 'deactivated' },
   { module: 'delivery_methods', actions: ['open-delivery-methods'], axis: 'deactivated' },
   { module: 'megamenu', actions: ['edit-megamenu'], axis: 'deactivated' },
-  { module: 'returns', actions: ['open-returns', 'return-statuses'], axis: 'deactivated' },
+  // `specs/180-off-platform-complaints/` adds `return-clauses` (contracts/settings-emails-events.md §8).
+  { module: 'returns', actions: ['open-returns', 'return-clauses', 'return-statuses'], axis: 'deactivated' },
 ];
 
 describe('batch 8 contributes no palette action while off (Constitution XVII item 5)', () => {

@@ -3,6 +3,22 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  EmptyState,
+  PageHeader,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
+import { productInventoryHref } from '../lib/labels.js';
 interface LowStockRow {
   productId: string;
   productSku: string;
@@ -59,81 +75,65 @@ export function LowStockPage(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('inventory.lowStock.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('inventory.lowStock.description')}
-          </div>
-        </div>
-      </div>
+      <PageHeader title={t('inventory.lowStock.title')} description={t('inventory.lowStock.description')} />
 
+      {/* Issue #1492 (CAT-17): a failure is a kit Alert (role="alert"), not a card painted red. */}
       {error ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(8 80% 85%)',
-          }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <div className="b2b-card">
-        <div className="b2b-card__body b2b-card__body--flush">
+      <Card flush>
+        <CardContent>
           {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('inventory.loading')}</div>
+            <p role="status" className="p-8 text-sm text-muted-foreground">
+              {t('inventory.loading')}
+            </p>
           ) : rows.length === 0 ? (
-            <div className="b2b-empty">
-              <div className="b2b-empty__icon"><AlertTriangle size={20} /></div>
-              <div className="b2b-empty__title">{t('inventory.lowStock.empty')}</div>
-              <div className="b2b-empty__sub">
-                {t('inventory.lowStock.emptyHintPrefix')} <code className="b2b-mono">lowStockThreshold</code> {t('inventory.lowStock.emptyHintSuffix')}
-              </div>
-            </div>
+            <EmptyState
+              icon={<AlertTriangle size={20} />}
+              title={t('inventory.lowStock.empty')}
+              description={
+                <>
+                  {t('inventory.lowStock.emptyHintPrefix')} <code className="font-mono">lowStockThreshold</code>{' '}
+                  {t('inventory.lowStock.emptyHintSuffix')}
+                </>
+              }
+            />
           ) : (
-            <table className="b2b-tbl">
-              <thead>
-                <tr>
-                  <th>{t('inventory.column.product')}</th>
-                  <th>{t('inventory.column.sku')}</th>
-                  <th className="num">{t('inventory.column.cumulativeOnHand')}</th>
-                  <th className="num">{t('inventory.column.threshold')}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('inventory.column.product')}</TableHead>
+                  <TableHead>{t('inventory.column.sku')}</TableHead>
+                  <TableHead className="text-right">{t('inventory.column.cumulativeOnHand')}</TableHead>
+                  <TableHead className="text-right">{t('inventory.column.threshold')}</TableHead>
+                  <TableHead className="w-[1%]" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {rows.map((r) => (
-                  <tr key={r.productId}>
-                    <td>{r.productName}</td>
-                    <td>
-                      <span className="b2b-mono" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                        {r.productSku}
-                      </span>
-                    </td>
-                    <td className="num b2b-tabular" style={{ fontWeight: 600 }}>
+                  <TableRow key={r.productId}>
+                    <TableCell>{r.productName}</TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{r.productSku}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">
                       {r.cumulativeOnHand.toLocaleString()}
-                    </td>
-                    <td className="num b2b-tabular">{r.lowStockThreshold.toLocaleString()}</td>
-                    <td className="actions">
-                      <Link
-                        to={`/catalog/products/${r.productId}`}
-                        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-                      >
-                        {t('inventory.action.editStock')}
-                      </Link>
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{r.lowStockThreshold.toLocaleString()}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {/* Edit *stock*: the Inventory tab, as the inventory list's rows do. */}
+                      <Button asChild variant="ghost" size="sm">
+                        <Link to={productInventoryHref(r.productId)}>{t('inventory.action.editStock')}</Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

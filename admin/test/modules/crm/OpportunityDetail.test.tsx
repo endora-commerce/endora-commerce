@@ -520,7 +520,6 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
     expect(side('forward')).toEqual(['Negotiation', LOST_SPOKEN]);
     expect(within(stageBar()).queryAllByRole('button')).toEqual([]);
     expect(screen.queryByLabelText(en('opportunity.status.reason'))).toBeNull();
-    expect(screen.queryByText(en('opportunity.stage.hint'))).toBeNull();
     expect(screen.getByText(en('opportunity.status.noPermission'))).toBeInTheDocument();
   });
 

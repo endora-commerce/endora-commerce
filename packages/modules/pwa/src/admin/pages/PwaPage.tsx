@@ -11,9 +11,10 @@ import type {
 import { ApiError, apiClient, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { ConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, ColorPicker, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, ColorPicker, FormField, InlineStatus, Input, PageHeader, Select, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { pwaClient } from '../api/pwa-client.js';
 import { PushAudienceRuleBuilder } from '../components/PushAudienceRuleBuilder.js';
+import { displayModeLabels } from '../lib/labels.js';
 
 /**
  * List sales channels (feature 091, P6).
@@ -50,6 +51,11 @@ function channelLabel(name: SalesChannelSummary['name'], code: string): string {
  */
 export function PwaPage(): ReactNode {
   const t = useTranslation('pwa');
+  // `refresh` reloads on a scope change only, not when the bundle arrives.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const { language } = useTranslationContext();
   // Quote pushes come from `quote_requests` (through `customerPushPort` since
   // `specs/179-rfq-and-customer-notifications/` WP-10): while it is absent no
@@ -60,7 +66,17 @@ export function PwaPage(): ReactNode {
   const [config, setConfig] = useState<PwaAdminConfig | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Each action's result is said beside its own button, in a region mounted
+  // before it has text — not one success banner at the top (issue #1499,
+  // DEC-12 a). A new action empties every one, so only the latest stands.
+  const saveStatus = useInlineStatus();
+  const resetStatus = useInlineStatus();
+  const iconStatus = useInlineStatus();
+  const vapidStatus = useInlineStatus();
+  const pushStatus = useInlineStatus();
+  const clearResults = (): void => {
+    for (const status of [saveStatus, resetStatus, iconStatus, vapidStatus, pushStatus]) status.clear();
+  };
   const [stats, setStats] = useState<{ active: number; invalid: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -90,7 +106,7 @@ export function PwaPage(): ReactNode {
       setConfig(cfg);
       setStats(st);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load PWA settings.');
+      setError(err instanceof Error ? err.message : tRef.current('settings.loadError'));
     }
   }, [selectedChannelId]);
 
@@ -114,7 +130,7 @@ export function PwaPage(): ReactNode {
     if (!config) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearResults();
     try {
       await pwaClient.updateConfig({
         ...(selectedChannelId ? { salesChannelId: selectedChannelId } : {}),
@@ -128,10 +144,10 @@ export function PwaPage(): ReactNode {
         orderStatusPushEnabled: config.orderStatusPushEnabled,
         ...(quotesPresent ? { quoteStatusPushEnabled: config.quoteStatusPushEnabled } : {}),
       });
-      setInfo('Settings saved.');
+      saveStatus.show(t('settings.saved'));
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Save failed.');
+      setError(err instanceof Error ? err.message : t('settings.saveError'));
     } finally {
       setBusy(false);
     }
@@ -141,13 +157,13 @@ export function PwaPage(): ReactNode {
     if (!selectedChannelId) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearResults();
     try {
       await pwaClient.resetConfig(selectedChannelId);
-      setInfo('Channel override cleared; this channel now inherits the global configuration.');
+      resetStatus.show(t('settings.resetDone'));
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Reset failed.');
+      setError(err instanceof Error ? err.message : t('settings.resetError'));
     } finally {
       setBusy(false);
     }
@@ -156,13 +172,13 @@ export function PwaPage(): ReactNode {
   const generateVapid = async (): Promise<void> => {
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearResults();
     try {
       await pwaClient.generateVapid();
-      setInfo('VAPID keys generated.');
+      vapidStatus.show(t('settings.vapid.generated'));
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not generate VAPID keys.');
+      setError(err instanceof Error ? err.message : t('settings.vapid.error'));
     } finally {
       setBusy(false);
     }
@@ -171,13 +187,13 @@ export function PwaPage(): ReactNode {
   const uploadIcon = async (file: File): Promise<void> => {
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearResults();
     try {
       await pwaClient.uploadIcon(file, selectedChannelId);
-      setInfo('Icon uploaded and resized.');
+      iconStatus.show(t('settings.icon.uploaded'));
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Icon upload failed.');
+      setError(err instanceof Error ? err.message : t('settings.icon.uploadError'));
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -189,7 +205,7 @@ export function PwaPage(): ReactNode {
   const requestSend = (): void => {
     // Sends are per-channel: the operator must pick a concrete channel scope.
     if (!selectedChannelId) {
-      setError('Select a sales channel above to send a notification.');
+      setError(t('push.selectChannel'));
       return;
     }
     setSendError(null);
@@ -200,7 +216,7 @@ export function PwaPage(): ReactNode {
     if (!selectedChannelId) return;
     setBusy(true);
     setSendError(null);
-    setInfo(null);
+    clearResults();
     try {
       // A 'rule' audience that resolves to "all" is equivalent to a broadcast.
       const audience: PushAudience = targeted ? { kind: 'rule', rule: audienceRule } : { kind: 'all' };
@@ -212,7 +228,8 @@ export function PwaPage(): ReactNode {
         audience,
       });
       setConfirmingSend(false);
-      setInfo(`Queued ${res.queuedDeliveries} notification(s).`);
+      const form = new Intl.PluralRules(language).select(res.queuedDeliveries);
+      pushStatus.show(t(`push.queued.${form}`, { count: new Intl.NumberFormat(language).format(res.queuedDeliveries) }));
       setPushTitle('');
       setPushBody('');
       setPushUrl('');
@@ -252,33 +269,36 @@ export function PwaPage(): ReactNode {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Progressive web app"
-        description="Installable-app identity, asset caching, and push notifications."
-      />
+      <PageHeader title={t('settings.title')} />
 
-      <div className="flex items-center gap-2">
-        <Label htmlFor="pwa-scope">Scope</Label>
-        <select
-          id="pwa-scope"
-          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm"
-          value={selectedChannelId ?? ''}
-          onChange={(e) => setSelectedChannelId(e.target.value === '' ? null : e.target.value)}
+      <div className="flex flex-wrap items-end gap-3">
+        <FormField
+          label={t('settings.scope')}
+          hint={selectedChannelId ? t('settings.scope.editingChannel') : t('settings.scope.editingGlobal')}
+          className="w-full max-w-xs"
         >
-          <option value="">Global (all channels)</option>
-          {channels.map((c) => (
-            <option key={c.id} value={c.id}>
-              {channelLabel(c.name, c.code)} ({c.code})
-            </option>
-          ))}
-        </select>
-        <span className="text-sm text-muted-foreground">
-          {selectedChannelId ? 'Editing a per-channel override.' : 'Editing the global value.'}
-        </span>
+          <Select
+            value={selectedChannelId ?? ''}
+            onChange={(e) => {
+              clearResults();
+              setSelectedChannelId(e.target.value === '' ? null : e.target.value);
+            }}
+          >
+            <option value="">{t('settings.channel.global')}</option>
+            {channels.map((c) => (
+              <option key={c.id} value={c.id}>
+                {channelLabel(c.name, c.code)} ({c.code})
+              </option>
+            ))}
+          </Select>
+        </FormField>
         {selectedChannelId ? (
-          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void resetToGlobal()}>
-            Reset to global
-          </Button>
+          <div className="mb-5 flex items-center gap-3">
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void resetToGlobal()}>
+              {t('settings.resetToGlobal')}
+            </Button>
+            <InlineStatus {...resetStatus.props} />
+          </div>
         ) : null}
       </div>
 
@@ -287,59 +307,51 @@ export function PwaPage(): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {info ? (
-        <Alert variant="success">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
 
       {config ? (
         <>
           <Card>
             <CardHeader>
-              <CardTitle>App identity</CardTitle>
+              <CardTitle>{t('settings.section.identity')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="pwa-name">App name</Label>
-                  <Input id="pwa-name" value={config.appName} onChange={(e) => patch({ appName: e.target.value })} />
-                </div>
-                <div>
-                  <Label htmlFor="pwa-short">Short name</Label>
-                  <Input id="pwa-short" value={config.shortName} onChange={(e) => patch({ shortName: e.target.value })} />
-                </div>
+                <FormField label={t('settings.field.appName')}>
+                  <Input value={config.appName} onChange={(e) => patch({ appName: e.target.value })} />
+                </FormField>
+                <FormField label={t('settings.field.shortName')}>
+                  <Input value={config.shortName} onChange={(e) => patch({ shortName: e.target.value })} />
+                </FormField>
                 <div className="flex flex-col gap-1.5">
-                  <span aria-hidden="true" className="text-sm font-medium leading-none">Theme color</span>
+                  <span aria-hidden="true" className="text-sm font-medium leading-none">{t('settings.field.themeColor')}</span>
                   <ColorPicker
                     value={config.themeColor}
                     onChange={(hex) => patch({ themeColor: hex })}
-                    label="Theme color"
-                    customLabel="Custom theme color"
+                    label={t('settings.field.themeColor')}
+                    customLabel={t('settings.field.themeColorCustom')}
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <span aria-hidden="true" className="text-sm font-medium leading-none">Background color</span>
+                  <span aria-hidden="true" className="text-sm font-medium leading-none">{t('settings.field.backgroundColor')}</span>
                   <ColorPicker
                     value={config.backgroundColor}
                     onChange={(hex) => patch({ backgroundColor: hex })}
-                    label="Background color"
-                    customLabel="Custom background color"
+                    label={t('settings.field.backgroundColor')}
+                    customLabel={t('settings.field.backgroundColorCustom')}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="pwa-display">Display mode</Label>
-                  <select
-                    id="pwa-display"
-                    className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                <FormField label={t('settings.field.displayMode')}>
+                  <Select
                     value={config.displayMode}
                     onChange={(e) => patch({ displayMode: e.target.value as PwaDisplayMode })}
                   >
-                    <option value="standalone">standalone</option>
-                    <option value="fullscreen">fullscreen</option>
-                    <option value="minimal-ui">minimal-ui</option>
-                  </select>
-                </div>
+                    {displayModeLabels.options(t).map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                </FormField>
               </div>
 
               <div className="flex items-center gap-3">
@@ -354,27 +366,29 @@ export function PwaPage(): ReactNode {
                   }}
                 />
                 <Button type="button" variant="outline" disabled={busy} onClick={() => fileRef.current?.click()}>
-                  <Upload className="mr-2 h-4 w-4" /> Upload icon
+                  <Upload className="mr-2 h-4 w-4" aria-hidden="true" /> {t('settings.icon.upload')}
                 </Button>
                 <span className="text-sm text-muted-foreground">
-                  PNG or WebP, at least 512×512, square.{config.iconAssetId ? ' Icon set.' : ''}
+                  {t('settings.icon.hint')}
+                  {config.iconAssetId ? <> {t('settings.icon.set')}</> : null}
                 </span>
+                <InlineStatus {...iconStatus.props} />
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>Capabilities</CardTitle>
+              <CardTitle>{t('settings.section.capabilities')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <label className="flex items-center gap-2">
                 <Checkbox checked={config.cachingEnabled} onChange={(e) => patch({ cachingEnabled: e.target.checked })} />
-                <span>Enable static-asset caching on the storefront</span>
+                <span>{t('settings.field.cachingEnabled')}</span>
               </label>
               <label className="flex items-center gap-2">
                 <Checkbox checked={config.pushEnabled} onChange={(e) => patch({ pushEnabled: e.target.checked })} />
-                <span>Enable push notifications</span>
+                <span>{t('settings.field.pushEnabled')}</span>
               </label>
               <div className="space-y-2 pl-6">
                 <label className="flex items-center gap-2">
@@ -399,46 +413,45 @@ export function PwaPage(): ReactNode {
               </div>
               <div className="flex items-center gap-3 pt-1">
                 <Button type="button" variant="outline" disabled={busy} onClick={() => void generateVapid()}>
-                  <KeyRound className="mr-2 h-4 w-4" /> Generate VAPID keys
+                  <KeyRound className="mr-2 h-4 w-4" aria-hidden="true" /> {t('settings.vapid.generate')}
                 </Button>
                 <span className="text-sm text-muted-foreground">
-                  {config.vapidPrivateKeyIsSet ? 'VAPID keys configured.' : 'No VAPID keys configured.'}
+                  {config.vapidPrivateKeyIsSet ? t('settings.vapid.set') : t('settings.vapid.unset')}
                 </span>
+                <InlineStatus {...vapidStatus.props} />
               </div>
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-3">
+            <InlineStatus {...saveStatus.props} />
             <Button type="button" disabled={busy} onClick={() => void save()}>
-              <Save className="mr-2 h-4 w-4" /> Save
+              <Save className="mr-2 h-4 w-4" aria-hidden="true" /> {t('settings.save')}
             </Button>
           </div>
 
           <Card>
             <CardHeader>
-              <CardTitle>Send push notification</CardTitle>
+              <CardTitle>{t('push.title')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {stats ? (
                 <p className="text-sm text-muted-foreground">
-                  Subscribers — active: {stats.active}, invalid: {stats.invalid}
+                  {t('push.subscribers.summary', { active: stats.active, invalid: stats.invalid })}
                 </p>
               ) : null}
-              <div>
-                <Label htmlFor="push-title">Title</Label>
-                <Input id="push-title" value={pushTitle} onChange={(e) => setPushTitle(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="push-body">Message</Label>
-                <Input id="push-body" value={pushBody} onChange={(e) => setPushBody(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="push-url">Link (optional, opened on tap)</Label>
-                <Input id="push-url" value={pushUrl} onChange={(e) => setPushUrl(e.target.value)} placeholder="/account/orders/123" />
-              </div>
+              <FormField label={t('push.field.title')} required>
+                <Input value={pushTitle} onChange={(e) => setPushTitle(e.target.value)} />
+              </FormField>
+              <FormField label={t('push.field.body')} required>
+                <Input value={pushBody} onChange={(e) => setPushBody(e.target.value)} />
+              </FormField>
+              <FormField label={t('push.field.url')}>
+                <Input value={pushUrl} onChange={(e) => setPushUrl(e.target.value)} placeholder="/account/orders/123" />
+              </FormField>
 
               <div className="space-y-2">
-                <span id="push-audience-label" className="text-sm font-medium leading-none">Audience</span>
+                <span id="push-audience-label" className="text-sm font-medium leading-none">{t('push.field.audience')}</span>
                 <div className="flex items-center gap-4" role="radiogroup" aria-labelledby="push-audience-label">
                   <label className="flex items-center gap-2 text-sm">
                     <input
@@ -447,7 +460,7 @@ export function PwaPage(): ReactNode {
                       checked={audienceMode === 'all'}
                       onChange={() => setAudienceMode('all')}
                     />
-                    All subscribers
+                    {t('push.audience.all')}
                   </label>
                   <label className="flex items-center gap-2 text-sm">
                     <input
@@ -456,7 +469,7 @@ export function PwaPage(): ReactNode {
                       checked={audienceMode === 'rule'}
                       onChange={() => setAudienceMode('rule')}
                     />
-                    Target by criteria
+                    {t('push.audience.rule')}
                   </label>
                 </div>
                 {audienceMode === 'rule' ? (
@@ -465,27 +478,24 @@ export function PwaPage(): ReactNode {
               </div>
 
               {!selectedChannelId ? (
-                <p className="text-sm text-muted-foreground">
-                  Select a sales channel in the Scope selector above to send a notification.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('push.selectChannel')}</p>
               ) : null}
-              <div className="flex justify-end">
+              <div className="flex items-center justify-end gap-3">
+                <InlineStatus {...pushStatus.props} />
                 <Button
                   type="button"
                   disabled={busy || !selectedChannelId || !config.pushEnabled || !pushTitle || !pushBody}
                   onClick={requestSend}
                 >
-                  <Send className="mr-2 h-4 w-4" />{' '}
-                  {targeted
-                    ? 'Send to targeted subscribers'
-                    : 'Send to all subscribers'}
+                  <Send className="mr-2 h-4 w-4" aria-hidden="true" />{' '}
+                  {targeted ? t('push.sendTargeted') : t('push.sendAll')}
                 </Button>
               </div>
             </CardContent>
           </Card>
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{t('settings.loading')}</p>
       )}
       {confirmingSend ? sendConfirmation() : null}
     </div>

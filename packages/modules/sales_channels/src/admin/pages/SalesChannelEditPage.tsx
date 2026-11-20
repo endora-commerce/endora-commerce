@@ -33,9 +33,8 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  * conflict banner so the operator can choose to refresh and retry
  * (412) or rename / re-pick a code (409).
  *
- * Membership tabs (US3 / T064) are NOT rendered here yet; the page
- * deliberately scopes itself to identity + lifecycle so US2 ships
- * standalone.
+ * The header carries no description (issue #1482): the title, the status
+ * badges and the lifecycle actions beside it already say what the page is.
  */
 export function SalesChannelEditPage(): ReactNode {
   const t = useTranslation('sales_channels');
@@ -221,11 +220,6 @@ export function SalesChannelEditPage(): ReactNode {
               )}
             </span>
           )
-        }
-        description={
-          isCreate
-            ? t('edit.page.createDescription')
-            : t('edit.page.editDescription')
         }
         actions={
           channel ? (
@@ -421,18 +415,26 @@ function ChannelEditSection({
           session.discardAll();
           onCancel();
         }}
+        after={
+          <div ref={zoneRef} style={{ marginTop: 24 }}>
+            {/* Feature 091 / P7c — the place below this screen's identity form.
+                `inventory` contributes its warehouse routing panel here; this screen
+                used to import that panel out of `admin/src/modules/warehouses/`. The
+                mount is conditional on an existing channel, not on the zone being
+                empty: a create form has no id to pass, and `<AdminZone>` renders
+                nothing at all when no contribution survives the filter, so there is
+                no chrome of this screen's to hide. Feature 180 — the zone gets the
+                editor's save session; a participant's changes join the form's Save.
+                Issue #1449 — the form draws it before its save bar, so Save follows it.
+                Issue #1503 — at page level, beside the identity card: each panel is a card. */}
+            <AdminZone
+              name="sales_channel.editor.after"
+              props={{ channelId: channel.id, saveSession: session.handle }}
+              chrome="card"
+            />
+          </div>
+        }
       />
-      {/* Feature 091 / P7c — the place below this screen's identity form.
-          `inventory` contributes its warehouse routing panel here; this screen
-          used to import that panel out of `admin/src/modules/warehouses/`. The
-          mount is conditional on an existing channel, not on the zone being
-          empty: a create form has no id to pass, and `<AdminZone>` renders
-          nothing at all when no contribution survives the filter, so there is
-          no chrome of this screen's to hide. Feature 180 — the zone gets the
-          editor's save session; a participant's changes join the form's Save. */}
-      <div ref={zoneRef} style={{ marginTop: 24 }}>
-        <AdminZone name="sales_channel.editor.after" props={{ channelId: channel.id, saveSession: session.handle }} />
-      </div>
     </div>
   );
 }

@@ -31,9 +31,7 @@ export function FieldPalette({ onAdd, disabled = false, lockedFor = null }: Fiel
   return (
     <Card role="region" aria-labelledby="forms-palette-title" className="lg:sticky lg:top-4">
       <CardHeader className="p-4 pb-2">
-        <CardTitle>
-          <h2 id="forms-palette-title">{t('palette.title')}</h2>
-        </CardTitle>
+        <CardTitle id="forms-palette-title">{t('palette.title')}</CardTitle>
         {lockedFor === null ? <CardDescription className="text-xs">{t('palette.hint')}</CardDescription> : null}
       </CardHeader>
       <CardContent className="p-4 pt-0">

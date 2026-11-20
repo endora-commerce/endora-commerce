@@ -1,6 +1,8 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Input } from '@endora-commerce/admin-kit/ui';
 import { normalize } from '@endora-commerce/admin-kit/lib';
+import { ModalDialog } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { varSnippet } from './insert-at-cursor.js';
 import type { EmailVariableItem } from './variables.js';
 
@@ -36,6 +38,8 @@ export function EmailVariablesProvider({
   variables: EmailVariableItem[];
   children: ReactNode;
 }): React.ReactElement {
+  const t = useTranslation('core');
+  const searchRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [pendingInsert, setPendingInsert] = useState<InsertHandler | null>(null);
@@ -59,76 +63,64 @@ export function EmailVariablesProvider({
     );
   }, [variables, query]);
 
+  const close = (): void => {
+    setOpen(false);
+    setPendingInsert(null);
+  };
+
   const pick = (item: EmailVariableItem): void => {
     const snippet = item.snippet ?? varSnippet(item.key);
     pendingInsert?.(snippet);
-    setOpen(false);
-    setPendingInsert(null);
+    close();
   };
 
   return (
     <EmailVariablesContext.Provider value={value}>
       {children}
       {open ? (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Insert variable"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setOpen(false);
-              setPendingInsert(null);
-            }
-          }}
+        // Issue #1493 (CONTENT-03): the kit's dialog, above the fullscreen
+        // builder — focus trapped, Escape closes it, focus returns to the field.
+        <ModalDialog
+          layer="overlay"
+          title={t('pageBuilder.emailVariables.title')}
+          onClose={close}
+          initialFocusRef={searchRef}
+          footer={
+            <Button type="button" variant="outline" onClick={close}>
+              {t('common.action.cancel')}
+            </Button>
+          }
         >
-          <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-lg border bg-background shadow-lg">
-            <div className="space-y-2 border-b p-4">
-              <h2 className="text-sm font-semibold">Insert variable</h2>
-              <Input
-                autoFocus
-                placeholder="Search variables…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-            <ul className="min-h-0 flex-1 overflow-y-auto p-2">
+          <div className="space-y-2">
+            <Input
+              ref={searchRef}
+              type="search"
+              aria-label={t('pageBuilder.emailVariables.search')}
+              placeholder={`${t('pageBuilder.emailVariables.search')}…`}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <ul className="max-h-[50vh] overflow-y-auto">
               {filtered.map((v) => (
                 <li key={v.key}>
                   <button
                     type="button"
-                    className="flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left hover:bg-muted"
+                    className="flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={() => pick(v)}
                   >
                     <span className="text-sm font-medium">{v.label}</span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {v.snippet ?? varSnippet(v.key)}
-                    </span>
-                    {v.description ? (
-                      <span className="text-xs text-muted-foreground">{v.description}</span>
-                    ) : null}
+                    <span className="font-mono text-xs text-muted-foreground">{v.snippet ?? varSnippet(v.key)}</span>
+                    {v.description ? <span className="text-xs text-muted-foreground">{v.description}</span> : null}
                   </button>
                 </li>
               ))}
-              {filtered.length === 0 ? (
-                <li className="px-3 py-6 text-center text-sm text-muted-foreground">No matches.</li>
-              ) : null}
             </ul>
-            <div className="flex justify-end border-t p-3">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setOpen(false);
-                  setPendingInsert(null);
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
+            {/* Mounted before it has text, so "no match" is announced as the query narrows. */}
+            <p role="status" className="px-3 text-center text-sm text-muted-foreground">
+              {filtered.length === 0 ? t('pageBuilder.emailVariables.empty') : null}
+            </p>
           </div>
-        </div>
+        </ModalDialog>
       ) : null}
     </EmailVariablesContext.Provider>
   );

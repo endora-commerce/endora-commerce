@@ -112,7 +112,7 @@ describe('read-only access (feature 174, US8)', () => {
   it('#5 leaving the product with staged changes asks first', async () => {
     renderEditor(ProductEditor);
     fireEvent.change(await screen.findByLabelText(en['productEditor.field.name']!), { target: { value: 'Wiertarka' } });
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(en['productEditor.back']!) }));
+    fireEvent.click(screen.getByRole('link', { name: new RegExp(en['productEditor.back']!) }));
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toHaveAccessibleDescription(/1 unsaved change at this scope/);
     expect(screen.queryByText('product list')).toBeNull();

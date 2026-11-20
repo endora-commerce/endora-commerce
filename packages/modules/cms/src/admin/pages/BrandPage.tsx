@@ -207,7 +207,7 @@ function setTierScale<K extends keyof TierScale>(draft: CmsBrandTokens, key: K, 
 function BrandCard(props: { title: string; description?: string; children: ReactNode }): ReactElement {
   return (
     <Card>
-      <CardContent className="pt-6">
+      <CardContent>
         <Section title={props.title}>
           {props.description ? <p className="text-sm text-muted-foreground">{props.description}</p> : null}
           {props.children}
@@ -388,7 +388,7 @@ export function BrandPage(): ReactNode {
       {feedback ? <FeedbackAlert feedback={feedback} t={t} /> : null}
 
       <Card>
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <Section title={t('brand.scope.title')}>
             <div className="max-w-md space-y-1.5">
               <Label htmlFor="brand-scope-channel">{t('brand.scope.channelLabel')}</Label>
@@ -702,7 +702,7 @@ export function BrandPage(): ReactNode {
           <section aria-label={t('brand.preview.title')} className="lg:col-span-4">
             <div className="space-y-4 lg:sticky lg:top-4">
               {findings.length > 0 ? (
-                <Alert variant="warning">
+                <Alert variant="warning" live="polite">
                   <AlertTitle>{t('brand.contrast.title')}</AlertTitle>
                   <AlertDescription className="space-y-2">
                     <p>{t('brand.contrast.description')}</p>
@@ -715,7 +715,7 @@ export function BrandPage(): ReactNode {
                 </Alert>
               ) : null}
               <Card>
-                <CardContent className="pt-6">
+                <CardContent>
                   <Section title={t('brand.preview.title')}>
                     <p className="text-xs text-muted-foreground">{t('brand.preview.hint')}</p>
                     <BrandPreview tokens={draft} />

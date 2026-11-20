@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { setMobileViewport } from '../../setup';
 
 const getSpy = vi.fn();
@@ -18,9 +19,9 @@ const getSpy = vi.fn();
  * would throw `useAuth must be used inside <AuthProvider>`, which is what it
  * did.
  *
- * `useAuth` and `usePageSizePreference` are stubbed for the reason they always
- * were: this is a layout-only test with no `AuthProvider` mounted, which is the
- * pattern `OrdersList.mobile` and `AppShell.mobile` follow.
+ * `useAuth` is stubbed, so the screen sees a platform admin. Since issue #1500
+ * the list is rendered inside a real session too, because the kit pager reads
+ * the admin's remembered page size from it.
  */
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -36,7 +37,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
       delete: vi.fn(),
     },
     useAuth: () => ({ me: { role: { code: 'platform_admin' } } }),
-    usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }),
   };
 });
 
@@ -117,9 +117,13 @@ describe.each(['en', 'pl'] as const)('RfqList — the amount and its agreement m
 
   it('shows the four states', async () => {
     renderWithI18n(
+      withSession(
       <MemoryRouter>
-        <RfqList />
-      </MemoryRouter>,
+          <RfqList />
+        </MemoryRouter>,
+      // The kit pager reads the admin's remembered page size, inside the session (issue #1500).
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
       { core: bundle },
       { language },
     );

@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
   type ReactNode,
 } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -15,7 +14,7 @@ import type {
   OpportunityTransitionResult,
   PropagationOutcome,
 } from '@endora-commerce/contracts';
-import { cn, statusBadgeStyle, useAuth } from '@endora-commerce/admin-kit/lib';
+import { statusBadgeStyle, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -24,6 +23,7 @@ import {
   Card,
   CardContent,
   PageHeader,
+  RecordTabs,
 } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
@@ -36,7 +36,7 @@ import { errorMessage } from '../lib/labels.js';
 import { OpportunitySidebar } from './opportunity-detail/OpportunitySidebar.js';
 import { OpportunityTitle } from './opportunity-detail/OpportunityTitle.js';
 import {
-  ITEM_COUNT_LABEL_KEY,
+  DEFAULT_TAB_ID,
   OPPORTUNITY_TABS,
   searchForTab,
   tabFromSearch,
@@ -94,7 +94,6 @@ export function OpportunityDetail(): ReactNode {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const sequence = useRef(0);
-  const tablistRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('crm:write');
@@ -274,33 +273,6 @@ export function OpportunityDetail(): ReactNode {
   const tab = OPPORTUNITY_TABS.find((candidate) => candidate.id === activeTab) ?? OPPORTUNITY_TABS[0];
   const TabComponent = tab?.component;
 
-  /** Arrow keys walk the strip, as the tabs pattern has it; Tab leaves it for the panel. */
-  const onTabKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    const index = OPPORTUNITY_TABS.findIndex((candidate) => candidate.id === tab?.id);
-    const last = OPPORTUNITY_TABS.length - 1;
-    const next =
-      event.key === 'ArrowRight'
-        ? index === last
-          ? 0
-          : index + 1
-        : event.key === 'ArrowLeft'
-          ? index === 0
-            ? last
-            : index - 1
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? last
-              : -1;
-    const target = OPPORTUNITY_TABS[next];
-    if (!target) return;
-    event.preventDefault();
-    selectTab(target.id);
-    tablistRef.current
-      ?.querySelector<HTMLButtonElement>(`#crm-opportunity-tab-${target.id}`)
-      ?.focus();
-  };
-
   return (
     <>
       <OpportunityTitle
@@ -403,7 +375,7 @@ export function OpportunityDetail(): ReactNode {
       */}
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_auto_1fr]">
         <Card className="min-w-0 lg:col-start-1">
-          <CardContent className="pt-6">
+          <CardContent>
             <StageBar
               // The reason typed for one Opportunity is not the next one's.
               key={opportunity.id}
@@ -417,7 +389,7 @@ export function OpportunityDetail(): ReactNode {
 
         {outcomesShown || outcomes.length > 0 ? (
           <Card className="min-w-0 lg:col-start-1">
-            <CardContent className="pt-6">
+            <CardContent>
               <PropagationOutcomes
                 opportunityId={opportunity.id}
                 outcomes={outcomes}
@@ -442,91 +414,54 @@ export function OpportunityDetail(): ReactNode {
           reload={reload}
         />
 
-        <Card className="min-w-0 overflow-hidden lg:col-start-1">
-          <div className="b2b-tabs-scroll px-1 pt-1">
-            <div
-              ref={tablistRef}
-              className="b2b-tabs"
-              role="tablist"
-              aria-label={t('opportunity.tabs.label')}
-              onKeyDown={onTabKeyDown}
-            >
-              {OPPORTUNITY_TABS.map((candidate) => {
-                const selected = candidate.id === tab?.id;
-                const count = candidate.count?.(opportunity) ?? 0;
-                const label = t(candidate.labelKey);
-                return (
-                  <button
-                    key={candidate.id}
-                    type="button"
-                    role="tab"
-                    id={`crm-opportunity-tab-${candidate.id}`}
-                    aria-selected={selected}
-                    // A bare number says nothing when it is read aloud: the name
-                    // says what is counted — "Notes, items: 3", "Messages,
-                    // unread: 2". It still begins with the words on screen, so
-                    // it can be asked for by voice.
-                    aria-label={
-                      count > 0 ? t(candidate.countLabelKey ?? ITEM_COUNT_LABEL_KEY, { label, count }) : undefined
-                    }
-                    aria-controls="crm-opportunity-tabpanel"
-                    // One stop for the strip; the arrows move inside it.
-                    tabIndex={selected ? 0 : -1}
-                    className={cn('b2b-tab', selected && 'is-active')}
-                    onClick={(): void => selectTab(candidate.id)}
-                  >
-                    {label}
-                    {/*
-                      Zero draws nothing: a tab with a number has something
-                      behind it, and four grey zeros would say less than none.
-                    */}
-                    {count > 0 ? (
-                      <>
-                        {/* A real space, so a copy of the strip reads "Links 2" and not "Links2". */}
-                        {' '}
-                        <span className="b2b-badge tabular-nums">{count}</span>
-                      </>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <CardContent
-            className="pt-6"
-            id="crm-opportunity-tabpanel"
-            role="tabpanel"
-            aria-labelledby={`crm-opportunity-tab-${tab?.id ?? ''}`}
+        <RecordTabs
+          className="min-w-0 overflow-hidden lg:col-start-1"
+          // A tab's count is read from the Opportunity the page holds; zero draws
+          // nothing. The kit names a counted tab "Notes, items: 3" unless the tab
+          // says what it counts ("Messages, unread: 2").
+          items={OPPORTUNITY_TABS.map((candidate) => {
+            const label = t(candidate.labelKey);
+            const count = candidate.count?.(opportunity) ?? 0;
+            return {
+              value: candidate.id,
+              label,
+              count,
+              ...(candidate.countLabelKey ? { countLabel: t(candidate.countLabelKey, { label, count }) } : {}),
+            };
+          })}
+          value={tab?.id ?? DEFAULT_TAB_ID}
+          onValueChange={selectTab}
+          idBase="crm-opportunity"
+          aria-label={t('opportunity.tabs.label')}
+        >
+          <Suspense
+            fallback={
+              <p role="status" className="text-sm text-muted-foreground">
+                {tCore('common.state.loading')}
+              </p>
+            }
           >
-            <Suspense
-              fallback={
-                <p role="status" className="text-sm text-muted-foreground">
-                  {tCore('common.state.loading')}
-                </p>
-              }
-            >
-              {TabComponent ? (
-                <TabComponent
-                  // A tab holds state about one Opportunity; another one starts clean.
-                  key={opportunity.id}
-                  opportunity={opportunity}
-                  onChange={setOpportunity}
-                  reload={reload}
-                  orderStatuses={orderStatuses}
-                />
-              ) : null}
-            </Suspense>
-          </CardContent>
-        </Card>
+            {TabComponent ? (
+              <TabComponent
+                // A tab holds state about one Opportunity; another one starts clean.
+                key={opportunity.id}
+                opportunity={opportunity}
+                onChange={setOpportunity}
+                reload={reload}
+                orderStatuses={orderStatuses}
+              />
+            ) : null}
+          </Suspense>
+        </RecordTabs>
 
       </div>
 
       {/*
         Panels other modules add about this Opportunity as a whole. The zone
-        brings no chrome and renders nothing when empty; `crm` names no
-        contributor.
+        renders nothing when empty; at page level each contribution is a card
+        of its own (`chrome="card"`, issue #1437). `crm` names no contributor.
       */}
-      <AdminZone name="opportunity.detail.after" props={{ opportunityId: id }} />
+      <AdminZone name="opportunity.detail.after" props={{ opportunityId: id }} chrome="card" />
     </>
   );
 }

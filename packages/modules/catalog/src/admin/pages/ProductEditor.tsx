@@ -6,11 +6,10 @@ import {
   useReducer,
   useRef,
   useState,
-  type KeyboardEvent,
   type ReactNode,
 } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Archive, ArchiveRestore, ChevronDown, ChevronLeft, Copy, Lock, RotateCw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ChevronDown, Copy, Lock, Plus, RotateCw, Trash2 } from 'lucide-react';
 import {
   ERROR_CODES,
   type ScopeMissingValue,
@@ -24,7 +23,6 @@ import {
   apiClient,
   useAuth,
   useUnsavedChangesPrompt,
-  cn,
   INERT_SAVE_SESSION,
   SaveSessionProvider,
   useSaveSession,
@@ -35,17 +33,16 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  EditorSection,
   Input,
   Label,
+  PageHeader,
+  RecordTabs,
   Select,
   Table,
   TableBody,
@@ -54,7 +51,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog, ProductPicker, SaveSessionSummary, ImmediateBadge } from '@endora-commerce/admin-kit/components';
+import { ModalDialog, ProductPicker, SaveSessionSummary } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { ProductInventoryTab } from '../components/ProductInventoryTab.js';
@@ -70,9 +67,10 @@ import { ProductScopeBar } from '../components/ProductScopeBar.js';
 import { ProductEditorSaveAction } from '../components/ProductEditorSaveAction.js';
 import { DetailsTab } from '../components/editor/DetailsTab.js';
 import { EditorField, ProductEditorContextProvider, fieldDomId, type ProductEditorContextValue } from '../components/editor/editor-context.js';
-import { SectionHeading } from '../components/editor/SectionHeading.js';
+import { sectionTitle } from '../components/editor/SectionBadge.js';
 import { TextControl } from '../components/editor/scoped-controls.js';
 import { useConfirmRemoval } from '../components/editor/confirm-removal.js';
+import { RowRemoveButton } from '../components/editor/RowRemoveButton.js';
 import { ProductCreateForm } from './ProductCreateForm.js';
 import { describeIncompletePair } from '../lib/product-scopes-api.js';
 import { takeoverDetails, urlKeyErrorMessage, describeKeyInLanguage } from '../lib/product-url-keys-api.js';
@@ -839,7 +837,8 @@ function ScopedProductEditor({
     requestedTab && (TAB_IDS as readonly string[]).includes(requestedTab) && (visibleTabs.includes(requestedTab) || type === null)
       ? requestedTab
       : 'details';
-  const selectTab = (id: TabId, focus = false): void => {
+  // The kit's `RecordTabs` owns the keyboard model and moves focus (issue #1445).
+  const selectTab = (id: TabId): void => {
     setSearchParams(
       (prev) => {
         const sp = new URLSearchParams(prev);
@@ -849,18 +848,6 @@ function ScopedProductEditor({
       },
       { replace: true },
     );
-    if (focus) setTimeout(() => document.getElementById(`product-tab-${id}`)?.focus(), 0);
-  };
-  const onTabKey = (event: KeyboardEvent<HTMLButtonElement>): void => {
-    const index = visibleTabs.indexOf(activeTab);
-    let next = index;
-    if (event.key === 'ArrowRight') next = (index + 1) % visibleTabs.length;
-    else if (event.key === 'ArrowLeft') next = (index - 1 + visibleTabs.length) % visibleTabs.length;
-    else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = visibleTabs.length - 1;
-    else return;
-    event.preventDefault();
-    selectTab(visibleTabs[next]!, true);
   };
 
   const missingText = useCallback(
@@ -1064,10 +1051,10 @@ function ScopedProductEditor({
         return <ProductAttributesTab />;
       case 'pricing':
         return (
-          <div className="b2b-col" style={{ gap: 16 }}>
-            {/* FR-024: the Pricing tab saves with the one Save; a contributor that still applies
-                immediately labels its own section. */}
-            <SectionHeading title={t('productEditor.tab.pricing')} immediate={false} />
+          // FR-024: the Pricing tab saves with the one Save; a contributor that still applies
+          // immediately labels its own section. No heading of the editor's own: it repeated the
+          // tab's name above the contributors' `h2` sections (#1488, and CAT-11's duplicate).
+          <div className="space-y-(--section-gap)">
             <AdminZone name="product.editor.pricing.before" props={{ productId, saveSession: session.handle }} />
             <AdminZone name="product.editor.pricing.after" props={{ productId, saveSession: session.handle }} />
           </div>
@@ -1099,22 +1086,20 @@ function ScopedProductEditor({
         );
       case 'inventory':
         return (
-          <div className="b2b-col" style={{ gap: 16 }}>
+          // Issue #1488 (CAT-06): one card per tab, its sections inside it, a rule between them.
+          // Feature 180 (FR-025): the product-row settings save with the one Save; only the
+          // per-warehouse table applies immediately, and its section carries the badge.
+          <div className="space-y-(--section-gap)">
             {atGlobal ? null : globalOnlyNotice}
-            <section aria-labelledby="product-stock-heading" className="space-y-2">
-              {/* Feature 180 (FR-025): the product-row settings save with the one Save; only the
-                  per-warehouse table inside applies immediately, and carries the badge. */}
-              <SectionHeading id="product-stock-heading" title={t('productEditor.stock.title')} immediate={false} />
-              {structuralReadOnly ? (
-                // Stock outside Global (or without catalog:write) is shown, not edited: the panel
-                // has no read-only mode of its own, so its controls are disabled as a group.
-                <fieldset disabled className="m-0 min-w-0 border-0 p-0" data-testid="stock-read-only">
-                  <ProductInventoryTab productId={productId} editable={false} />
-                </fieldset>
-              ) : (
-                <ProductInventoryTab productId={productId} />
-              )}
-            </section>
+            {structuralReadOnly ? (
+              // Stock outside Global (or without catalog:write) is shown, not edited: the panel
+              // has no read-only mode of its own, so its controls are disabled as a group.
+              <fieldset disabled className="m-0 min-w-0 space-y-(--section-gap) border-0 p-0" data-testid="stock-read-only">
+                <ProductInventoryTab productId={productId} editable={false} />
+              </fieldset>
+            ) : (
+              <ProductInventoryTab productId={productId} />
+            )}
             <ProductOrderRulesCard productType={type ?? 'simple'} />
             {type === 'simple' || type === 'configurable' ? (
               <PackagingUnitsEditor
@@ -1150,10 +1135,9 @@ function ScopedProductEditor({
         );
       case 'channels':
         return (
-          <div className="space-y-2">
-            <SectionHeading title={t('productEditor.tab.channels')} immediate={!readOnly} />
-            <AdminZone name="product.editor.channels" props={{ productId, saveSession: session.handle }} />
-          </div>
+          // The contribution is the tab's section, with its own heading and "Applies immediately"
+          // badge (#1488): a heading here repeated the tab's name above it.
+          <AdminZone name="product.editor.channels" props={{ productId, saveSession: session.handle }} />
         );
       case 'scopes':
         return (
@@ -1218,43 +1202,51 @@ function ScopedProductEditor({
   return (
     <ProductEditorContextProvider value={contextValue}>
       <div className="b2b-page b2b-page--wide">
-        <div className="b2b-page-head">
-          <div className="b2b-grow">
-            <button
-              type="button"
-              className="b2b-page-head__back"
-              onClick={(): void => {
-                if (hasUnsaved()) setGuard({ kind: 'leave' });
-                else navigate('/catalog/products');
-              }}
-            >
-              <ChevronLeft size={14} /> {t('productEditor.back')}
-            </button>
-            <div className="b2b-page-head__title">
-              <span>{title}</span>
-              {data ? <ProductStatusPill status={statusValue} archived={Boolean(archivedAt)} /> : null}
-              {statusSource ? <span className="text-xs text-muted-foreground">{statusSource}</span> : null}
-              {archivedAt ? <ArchivedPill /> : null}
-            </div>
-            {data ? (
-              <div className="b2b-page-head__sub">
-                <span className="b2b-mono">{data.product.sku}</span> · <span>{t(`productEditor.type.${data.product.type}`)}</span>
-              </div>
-            ) : null}
-          </div>
-          {canWrite ? (
+        <PageHeader
+          back={{
+            label: t('productEditor.back'),
+            to: '/catalog/products',
+            onClick: (event): void => {
+              // Unsaved edits: ask first (Save / Discard / Stay) instead of leaving.
+              if (hasUnsaved()) {
+                event.preventDefault();
+                setGuard({ kind: 'leave' });
+              }
+            },
+          }}
+          title={title}
+          titleActions={
+            data || statusSource || archivedAt ? (
+              <span className="flex flex-wrap items-center gap-2">
+                {data ? <ProductStatusPill status={statusValue} archived={Boolean(archivedAt)} /> : null}
+                {statusSource ? <span className="text-xs text-muted-foreground">{statusSource}</span> : null}
+                {archivedAt ? <ArchivedPill /> : null}
+              </span>
+            ) : undefined
+          }
+          description={
+            data ? (
+              <>
+                <span className="font-mono">{data.product.sku}</span> · <span>{t(`productEditor.type.${data.product.type}`)}</span>
+              </>
+            ) : undefined
+          }
+          actions={
+            canWrite ? (
             <div className="flex items-start gap-2">
               {/* The whole-product actions (FR-084, §11): one menu, captioned; each applies at once. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button
+                  {/* Issue #1492 (CAT-17): the kit button, one look with the tabs' Save below it. */}
+                  <Button
                     type="button"
-                    className="b2b-btn b2b-btn--default max-lg:min-h-11"
+                    variant="outline"
+                    className="max-lg:min-h-11"
                     aria-describedby="product-whole-caption"
                     disabled={!data}
                   >
-                    {t('productEditor.wholeProduct.menu')} <ChevronDown size={14} aria-hidden="true" />
-                  </button>
+                    {t('productEditor.wholeProduct.menu')} <ChevronDown aria-hidden="true" />
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" aria-labelledby="product-whole-caption" onCloseAutoFocus={afterProductMenuClosed}>
                   <p aria-hidden="true" className="m-0 px-2 py-1.5 text-xs text-muted-foreground">
@@ -1278,8 +1270,9 @@ function ScopedProductEditor({
                 {t('productEditor.wholeProduct.caption')}
               </span>
             </div>
-          ) : null}
-        </div>
+          ) : null
+          }
+        />
 
         <ProductScopeBar
           scope={state.scope}
@@ -1382,43 +1375,17 @@ function ScopedProductEditor({
           </Alert>
         ) : null}
 
-        <div className="b2b-card">
-          <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
-            <div className="b2b-tabs-scroll">
-              <div className="b2b-tabs" role="tablist" aria-label={t('productEditor.tabs.label')}>
-                {visibleTabs.map((id) => {
-                  const selected = activeTab === id;
-                  return (
-                    <button
-                      key={id}
-                      id={`product-tab-${id}`}
-                      type="button"
-                      role="tab"
-                      aria-selected={selected}
-                      aria-controls="product-tabpanel"
-                      tabIndex={selected ? 0 : -1}
-                      className={cn('b2b-tab', selected && 'is-active')}
-                      onClick={(): void => selectTab(id)}
-                      onKeyDown={onTabKey}
-                    >
-                      {tabLabel(id)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-          <div
-            className="b2b-card__body"
-            role="tabpanel"
-            id="product-tabpanel"
-            aria-labelledby={`product-tab-${activeTab}`}
-            aria-busy={state.busy && !loadError}
-            tabIndex={-1}
-          >
-            {panel()}
-          </div>
-        </div>
+        <RecordTabs
+          items={visibleTabs.map((id) => ({ value: id, label: tabLabel(id) }))}
+          value={activeTab}
+          onValueChange={selectTab}
+          idBase="product"
+          aria-label={t('productEditor.tabs.label')}
+          // `-1`: Reload and "Show" focus the panel programmatically; the tabs are the stop.
+          panelProps={{ 'aria-busy': state.busy && !loadError, tabIndex: -1 }}
+        >
+          {panel()}
+        </RecordTabs>
 
         {guardOpen && guard ? (
           <ModalDialog
@@ -1716,112 +1683,101 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
   }, [links]);
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>{t('productEditor.links.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {info ? (
-          <Alert>
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
+    <EditorSection title={sectionTitle(t('productEditor.links.title'), !readOnly)}>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert live="polite">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
-        ) : (
-          <div className="space-y-6">
-            {LINK_KINDS.map((kind) => (
-              <div key={kind} className="space-y-2">
-                <h3 className="text-sm font-medium uppercase tracking-wide">
-                  {t(`productEditor.links.kind.${kind}`)} ({byKind[kind].length})
-                </h3>
-                {byKind[kind].length === 0 ? (
-                  <p className="text-xs text-muted-foreground">{t('productEditor.links.empty')}</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('productEditor.links.column.target')}</TableHead>
-                        <TableHead>{t('productEditor.links.column.sku')}</TableHead>
-                        <TableHead>{t('productEditor.links.column.position')}</TableHead>
-                        {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.links.column.actions')}</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {byKind[kind].map((link) => {
-                        const target = targetsById.get(link.targetProductId);
-                        const isMissing = !target;
-                        // `inactive` is plain off; archived is its own fact.
-                        const isInactive = target?.status === 'inactive';
-                        const isArchived = target?.archivedAt != null;
-                        return (
-                          <TableRow key={link.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className={
-                                    isMissing || isInactive || isArchived ? 'text-muted-foreground' : ''
-                                  }
-                                >
-                                  {target
-                                    ? pickProductName(target.name, target.slug)
-                                    : `${link.targetProductId.slice(0, 8)}…`}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
+      ) : (
+        <div className="space-y-(--section-gap)">
+          {LINK_KINDS.map((kind) => (
+            <EditorSection key={kind} as="h3" title={`${t(`productEditor.links.kind.${kind}`)} (${byKind[kind].length})`}>
+              {byKind[kind].length === 0 ? (
+                <p className="text-xs text-muted-foreground">{t('productEditor.links.empty')}</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('productEditor.links.column.target')}</TableHead>
+                      <TableHead>{t('productEditor.links.column.sku')}</TableHead>
+                      <TableHead>{t('productEditor.links.column.position')}</TableHead>
+                      {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.links.column.actions')}</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {byKind[kind].map((link) => {
+                      const target = targetsById.get(link.targetProductId);
+                      const isMissing = !target;
+                      // `inactive` is plain off; archived is its own fact.
+                      const isInactive = target?.status === 'inactive';
+                      const isArchived = target?.archivedAt != null;
+                      return (
+                        <TableRow key={link.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={
+                                  isMissing || isInactive || isArchived ? 'text-muted-foreground' : ''
+                                }
+                              >
+                                {target
+                                  ? pickProductName(target.name, target.slug)
+                                  : `${link.targetProductId.slice(0, 8)}…`}
+                              </span>
+                              {isMissing ? (
+                                <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                  {t('productEditor.links.badge.missing')}
                                 </span>
-                                {isMissing ? (
-                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                                    {t('productEditor.links.badge.missing')}
-                                  </span>
-                                ) : null}
-                                {isInactive ? (
-                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                                    {t('productEditor.links.badge.inactive')}
-                                  </span>
-                                ) : null}
-                                {isArchived ? (
-                                  <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
-                                    {t('productEditor.links.badge.archived')}
-                                  </span>
-                                ) : null}
-                              </div>
+                              ) : null}
+                              {isInactive ? (
+                                <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                  {t('productEditor.links.badge.inactive')}
+                                </span>
+                              ) : null}
+                              {isArchived ? (
+                                <span className="rounded border px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                                  {t('productEditor.links.badge.archived')}
+                                </span>
+                              ) : null}
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {target?.sku ?? '—'}
+                          </TableCell>
+                          <TableCell>{link.position}</TableCell>
+                          {readOnly ? null : (
+                            <TableCell>
+                              <RowRemoveButton
+                                label={t('productEditor.links.action.removeFor', {
+                                  product: target ? pickProductName(target.name, target.slug) : `${link.targetProductId.slice(0, 8)}…`,
+                                })}
+                                onClick={() => void handleDelete(link.id)}
+                              />
                             </TableCell>
-                            <TableCell className="font-mono text-xs">
-                              {target?.sku ?? '—'}
-                            </TableCell>
-                            <TableCell>{link.position}</TableCell>
-                            {readOnly ? null : (
-                              <TableCell>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  className="max-lg:min-h-11"
-                                  variant="destructive"
-                                  onClick={() => void handleDelete(link.id)}
-                                >
-                                  {t('productEditor.links.action.remove')}
-                                </Button>
-                              </TableCell>
-                            )}
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+                          )}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </EditorSection>
+          ))}
+        </div>
+      )}
 
-        {readOnly ? null : <CreateProductLinkInline onCreate={handleCreate} sourceProductId={productId} />}
-      </CardContent>
+      {readOnly ? null : <CreateProductLinkInline onCreate={handleCreate} sourceProductId={productId} />}
       {removalDialog}
-    </Card>
+    </EditorSection>
   );
 }
 
@@ -1867,6 +1823,8 @@ function CreateProductLinkInline({
       <div className="md:col-span-3">
         <Button
           type="button"
+          variant="outline"
+          className="max-lg:min-h-11"
           disabled={targetProductId === null}
           onClick={() => {
             if (targetProductId === null) return;
@@ -1875,6 +1833,7 @@ function CreateProductLinkInline({
             });
           }}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.links.action.add')}
         </Button>
       </div>
@@ -1962,65 +1921,55 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
   );
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>{t('productEditor.grouped.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {info ? (
-          <Alert>
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
+    <EditorSection title={sectionTitle(t('productEditor.grouped.title'), !readOnly)}>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert live="polite">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
-        ) : items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.grouped.empty')}</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('productEditor.grouped.column.child')}</TableHead>
-                <TableHead>{t('productEditor.grouped.column.quantity')}</TableHead>
-                <TableHead>{t('productEditor.grouped.column.position')}</TableHead>
-                {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.grouped.column.actions')}</TableHead>}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.grouped.empty')}</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('productEditor.grouped.column.child')}</TableHead>
+              <TableHead>{t('productEditor.grouped.column.quantity')}</TableHead>
+              <TableHead>{t('productEditor.grouped.column.position')}</TableHead>
+              {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.grouped.column.actions')}</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className="font-mono text-xs">{item.childProductId}</TableCell>
+                <TableCell>{item.quantity}</TableCell>
+                <TableCell>{item.position}</TableCell>
+                {readOnly ? null : (
+                  <TableCell>
+                    <RowRemoveButton
+                      label={t('productEditor.grouped.action.removeFor', { product: item.childProductId })}
+                      onClick={() => void handleDelete(item.id)}
+                    />
+                  </TableCell>
+                )}
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-mono text-xs">{item.childProductId}</TableCell>
-                  <TableCell>{item.quantity}</TableCell>
-                  <TableCell>{item.position}</TableCell>
-                  {readOnly ? null : (
-                    <TableCell>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="max-lg:min-h-11"
-                        variant="destructive"
-                        onClick={() => void handleDelete(item.id)}
-                      >
-                        {t('productEditor.grouped.action.remove')}
-                      </Button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
-        {readOnly ? null : <CreateGroupedItemInline onCreate={handleCreate} />}
-      </CardContent>
+      {readOnly ? null : <CreateGroupedItemInline onCreate={handleCreate} />}
       {removalDialog}
-    </Card>
+    </EditorSection>
   );
 }
 
@@ -2061,6 +2010,8 @@ function CreateGroupedItemInline({
       <div className="md:col-span-3">
         <Button
           type="button"
+          variant="outline"
+          className="max-lg:min-h-11"
           onClick={() => {
             if (!childProductId) return;
             void onCreate({ childProductId, quantity }).then(() => {
@@ -2069,6 +2020,7 @@ function CreateGroupedItemInline({
             });
           }}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.grouped.action.add')}
         </Button>
       </div>
@@ -2202,49 +2154,45 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
   );
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>{t('productEditor.bundle.title')}{readOnly ? null : <ImmediateBadge />}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {info ? (
-          <Alert>
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
+    <EditorSection title={sectionTitle(t('productEditor.bundle.title'), !readOnly)}>
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {info ? (
+        <Alert live="polite">
+          <AlertDescription>{info}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {loading ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
-        ) : slots.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('productEditor.bundle.empty')}</p>
-        ) : (
-          <div className="space-y-4">
-            {slots.map((slot) => (
-              <BundleSlotCard
-                key={slot.id}
-                slot={slot}
-                onAddOption={handleAddOption}
-                onRemoveOption={handleRemoveOption}
-                onDeleteSlot={handleDeleteSlot}
-                readOnly={readOnly}
-              />
-            ))}
-          </div>
-        )}
+      {loading ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.loading')}</p>
+      ) : slots.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('productEditor.bundle.empty')}</p>
+      ) : (
+        // Issue #1488 (CAT-06): the slots are rows divided by a rule, not a box per slot.
+        <ul className="divide-y divide-border">
+          {slots.map((slot) => (
+            <BundleSlotRow
+              key={slot.id}
+              slot={slot}
+              onAddOption={handleAddOption}
+              onRemoveOption={handleRemoveOption}
+              onDeleteSlot={handleDeleteSlot}
+              readOnly={readOnly}
+            />
+          ))}
+        </ul>
+      )}
 
-        {readOnly ? null : <CreateBundleSlotInline onCreate={handleCreateSlot} />}
-      </CardContent>
+      {readOnly ? null : <CreateBundleSlotInline onCreate={handleCreateSlot} />}
       {removalDialog}
-    </Card>
+    </EditorSection>
   );
 }
 
-function BundleSlotCard({
+function BundleSlotRow({
   slot,
   onAddOption,
   onRemoveOption,
@@ -2259,94 +2207,98 @@ function BundleSlotCard({
 }): ReactNode {
   const t = useTranslation('catalog');
   const [optionId, setOptionId] = useState('');
+  const slotName = slot.name['en-US'] ?? Object.values(slot.name)[0] ?? '—';
 
   return (
-    <div className="rounded border p-3">
-      <div className="flex items-center justify-between">
-        <h3 className="font-medium">
-          {slot.name['en-US'] ?? Object.values(slot.name)[0] ?? '—'}{' '}
-          <span className="text-xs text-muted-foreground">
-            {t('productEditor.bundle.slotMeta', {
-              min: slot.minQuantity,
-              max: slot.maxQuantity,
-              position: slot.position,
-            })}
-          </span>
-        </h3>
-        {readOnly ? null : (
-          <Button
-            type="button"
-            size="sm"
-            className="max-lg:min-h-11"
-            variant="destructive"
-            onClick={() => void onDeleteSlot(slot.id)}
-          >
-            {t('productEditor.bundle.action.deleteSlot')}
-          </Button>
-        )}
-      </div>
-      <div className="mt-2">
-        {slot.options.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{t('productEditor.bundle.optionsEmpty')}</p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('productEditor.bundle.column.optionProductId')}</TableHead>
-                <TableHead>{t('productEditor.bundle.column.defaultQuantity')}</TableHead>
-                <TableHead>{t('productEditor.bundle.column.position')}</TableHead>
-                {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.bundle.column.actions')}</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {slot.options.map((opt) => (
-                <TableRow key={opt.id}>
-                  <TableCell className="font-mono text-xs">{opt.optionProductId}</TableCell>
-                  <TableCell>{opt.defaultQuantity}</TableCell>
-                  <TableCell>{opt.position}</TableCell>
-                  {readOnly ? null : (
-                    <TableCell>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="max-lg:min-h-11"
-                        variant="destructive"
-                        onClick={() => void onRemoveOption(slot.id, opt.id)}
-                      >
-                        {t('productEditor.bundle.action.removeOption')}
-                      </Button>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </div>
-      {readOnly ? null : (
-      <div className="mt-3 flex items-end gap-2">
-          <div className="flex-1 space-y-1">
-            <Label htmlFor={`opt-${slot.id}`}>{t('productEditor.bundle.column.optionProductId')}</Label>
-            <ProductPicker
-              id={`opt-${slot.id}`}
-              mode="select"
-              value={optionId || null}
-              onChange={(v): void => setOptionId(v ?? '')}
+    <li className="py-3 first:pt-0 last:pb-0">
+      {/* Issue #1490 (UX audit CAT-11): a slot is a sub-section of Bundle slots — the kit's
+          `EditorSection` at `h3`, the editor's one heading style, not a hand-styled `h3`. The
+          list's `divide-y` separates the slots, so the section draws no rule of its own. */}
+      <EditorSection
+        as="h3"
+        divider={false}
+        title={
+          <>
+            {slotName}{' '}
+            <span className="text-xs font-normal text-muted-foreground">
+              {t('productEditor.bundle.slotMeta', {
+                min: slot.minQuantity,
+                max: slot.maxQuantity,
+                position: slot.position,
+              })}
+            </span>
+          </>
+        }
+        action={
+          readOnly ? null : (
+            <RowRemoveButton
+              label={t('productEditor.bundle.action.deleteSlotFor', { slot: slotName })}
+              onClick={() => void onDeleteSlot(slot.id)}
             />
-          </div>
-          <Button
-            type="button"
-            onClick={() => {
-              void onAddOption(slot.id, optionId).then(() => {
-                setOptionId('');
-              });
-            }}
-          >
-            {t('productEditor.bundle.action.addOption')}
-          </Button>
+          )
+        }
+      >
+        <div>
+          {slot.options.length === 0 ? (
+            <p className="text-xs text-muted-foreground">{t('productEditor.bundle.optionsEmpty')}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('productEditor.bundle.column.optionProductId')}</TableHead>
+                  <TableHead>{t('productEditor.bundle.column.defaultQuantity')}</TableHead>
+                  <TableHead>{t('productEditor.bundle.column.position')}</TableHead>
+                  {readOnly ? null : <TableHead className="w-[1%] whitespace-nowrap">{t('productEditor.bundle.column.actions')}</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {slot.options.map((opt) => (
+                  <TableRow key={opt.id}>
+                    <TableCell className="font-mono text-xs">{opt.optionProductId}</TableCell>
+                    <TableCell>{opt.defaultQuantity}</TableCell>
+                    <TableCell>{opt.position}</TableCell>
+                    {readOnly ? null : (
+                      <TableCell>
+                        <RowRemoveButton
+                          label={t('productEditor.bundle.action.removeOptionFor', { product: opt.optionProductId })}
+                          onClick={() => void onRemoveOption(slot.id, opt.id)}
+                        />
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
-      )}
-    </div>
+        {readOnly ? null : (
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1">
+              <Label htmlFor={`opt-${slot.id}`}>{t('productEditor.bundle.column.optionProductId')}</Label>
+              <ProductPicker
+                id={`opt-${slot.id}`}
+                mode="select"
+                value={optionId || null}
+                onChange={(v): void => setOptionId(v ?? '')}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="max-lg:min-h-11"
+              onClick={() => {
+                void onAddOption(slot.id, optionId).then(() => {
+                  setOptionId('');
+                });
+              }}
+            >
+              <Plus aria-hidden="true" />
+              {t('productEditor.bundle.action.addOption')}
+            </Button>
+          </div>
+        )}
+      </EditorSection>
+    </li>
   );
 }
 
@@ -2398,6 +2350,8 @@ function CreateBundleSlotInline({
       <div className="md:col-span-4">
         <Button
           type="button"
+          variant="outline"
+          className="max-lg:min-h-11"
           onClick={() => {
             if (!name) return;
             void onCreate({ name, minQuantity, maxQuantity }).then(() => {
@@ -2407,6 +2361,7 @@ function CreateBundleSlotInline({
             });
           }}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.bundle.action.add')}
         </Button>
       </div>

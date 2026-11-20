@@ -38,6 +38,10 @@ vi.mock('../../../../packages/modules/product_feeds/src/admin/api', async () => 
 });
 
 const bundle = passthroughBundle('product_feeds', [
+  'feeds.settings.binding',
+  'feeds.settings.criteria',
+  'feeds.settings.schedule',
+  'feeds.settings.danger',
   'feeds.settings.prices',
   'feeds.settings.priceBook',
   'feeds.settings.priceBook.none',
@@ -185,5 +189,31 @@ describe('FeedSettingsForm — pinning the feed to a price book (issue #414)', (
     renderForm({ ...FEED, priceListId: 'live' });
     expect(await screen.findByText('feeds.settings.priceBook.loadFailed')).toBeTruthy();
     expect(picker().disabled).toBe(true);
+  });
+});
+
+describe('FeedSettingsForm — one card, sections inside it (issue #1503, SHELL-22; DS-03 #1437)', () => {
+  beforeEach(() => {
+    update.mockReset();
+    priceBookOptions.mockReset();
+    priceBookOptions.mockResolvedValue({ data: OPTIONS });
+  });
+
+  it('draws the settings tab as one card of h2 sections divided by a rule, not five cards', async () => {
+    renderForm();
+    await waitFor(() => expect(within(picker()).getAllByRole('option')).toHaveLength(4));
+    const cards = document.querySelectorAll('[data-slot="card"]');
+    expect(cards).toHaveLength(1);
+    const sections = Array.from(cards[0]!.querySelectorAll(':scope section[data-slot="editor-section"]'));
+    expect(sections.map((section) => section.querySelector('h2')?.textContent)).toEqual([
+      'feeds.settings.binding',
+      'feeds.settings.prices',
+      'feeds.settings.criteria',
+      'feeds.settings.schedule',
+      'feeds.settings.danger',
+    ]);
+    for (const section of sections) expect(section).toHaveAccessibleName();
+    // No card inside the card: a frame inside a card is a defect unless it is a field.
+    expect(cards[0]!.querySelector('[data-slot="card"]')).toBeNull();
   });
 });

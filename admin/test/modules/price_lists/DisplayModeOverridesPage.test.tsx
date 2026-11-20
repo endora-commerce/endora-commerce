@@ -24,6 +24,7 @@ import { withSession } from '../../helpers/render-with-session';
  */
 
 const getSpy = vi.fn();
+const putSpy = vi.fn();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>(
@@ -31,7 +32,7 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   );
   return {
     ...actual,
-    apiClient: { get: (...args: unknown[]) => getSpy(...args), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+    apiClient: { get: (...args: unknown[]) => getSpy(...args), post: vi.fn(), put: (...args: unknown[]) => putSpy(...args), patch: vi.fn(), delete: vi.fn() },
   };
 });
 
@@ -101,7 +102,7 @@ describe('DisplayModeOverridesPage — names in the admin language', () => {
   it('names a category override in English, with its slug', async () => {
     const user = userEvent.setup();
     mount('en');
-    await user.click(await screen.findByRole('button', { name: 'Category' }));
+    await user.click(await screen.findByRole('tab', { name: 'Category' }));
     const table = await screen.findByRole('table');
     expect(await within(table).findByText('Screws')).toBeInTheDocument();
     expect(within(table).getByText('screws')).toBeInTheDocument();
@@ -110,7 +111,7 @@ describe('DisplayModeOverridesPage — names in the admin language', () => {
   it('names a category override in Polish', async () => {
     const user = userEvent.setup();
     mount('pl');
-    await user.click(await screen.findByRole('button', { name: 'Kategoria' }));
+    await user.click(await screen.findByRole('tab', { name: 'Kategoria' }));
     expect(await within(await screen.findByRole('table')).findByText('Wkręty')).toBeInTheDocument();
   });
 
@@ -118,9 +119,59 @@ describe('DisplayModeOverridesPage — names in the admin language', () => {
   it('names a product override by its Global name, with its SKU', async () => {
     const user = userEvent.setup();
     mount('pl');
-    await user.click(await screen.findByRole('button', { name: 'Produkt' }));
+    await user.click(await screen.findByRole('tab', { name: 'Produkt' }));
     const table = await screen.findByRole('table');
     expect(await within(table).findByText('Screws 0200')).toBeInTheDocument();
     expect(within(table).getByText('P1')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Issue #1492 (UX audit CAT-17): the page drew its scope switch as three
+ * hand-coloured buttons and its results as cards painted green or red, with no
+ * live role. The switch is the kit's tabs; a result is an `Alert` — a saved
+ * override a polite status, a failure an alert.
+ */
+describe('DisplayModeOverridesPage — one visual system (#1492)', () => {
+  beforeEach(() => {
+    getSpy.mockReset();
+    getSpy.mockImplementation(async (url: string) => answer(url));
+    putSpy.mockReset();
+    putSpy.mockResolvedValue({});
+  });
+
+  it('switches scope through tabs that say which one is selected', async () => {
+    const user = userEvent.setup();
+    mount('en');
+    const organization = await screen.findByRole('tab', { name: 'Organization' });
+    expect(organization).toHaveAttribute('aria-selected', 'true');
+    const category = screen.getByRole('tab', { name: 'Category' });
+    expect(category).toHaveAttribute('aria-selected', 'false');
+    await user.click(category);
+    expect(category).toHaveAttribute('aria-selected', 'true');
+    expect(await screen.findByRole('tabpanel')).toContainElement(await screen.findByRole('table'));
+  });
+
+  it('announces a saved override politely, as a status', async () => {
+    const user = userEvent.setup();
+    mount('en');
+    await user.click(await screen.findByRole('tab', { name: 'Category' }));
+    const table = await screen.findByRole('table');
+    await within(table).findByText('Screws');
+    await user.selectOptions(within(table).getByRole('combobox'), 'both');
+    const status = await screen.findByText('Override saved.');
+    expect(status.closest('[role="status"]')).not.toBeNull();
+    expect(status.closest('[role="alert"]')).toBeNull();
+  });
+
+  it('shows a failed save as an alert', async () => {
+    const user = userEvent.setup();
+    putSpy.mockRejectedValueOnce(new Error('down'));
+    mount('en');
+    await user.click(await screen.findByRole('tab', { name: 'Category' }));
+    const table = await screen.findByRole('table');
+    await within(table).findByText('Screws');
+    await user.selectOptions(within(table).getByRole('combobox'), 'both');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Save failed.');
   });
 });

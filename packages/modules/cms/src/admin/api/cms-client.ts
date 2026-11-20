@@ -14,6 +14,7 @@ import type {
   CreateCmsHookRequest,
   CreateCmsPageRequest,
   CreateCmsTemplateRequest,
+  DuplicateCmsRecordRequest,
   PatchCmsBlockRequest,
   PatchCmsHookRequest,
   PatchCmsPageRequest,
@@ -51,6 +52,7 @@ export type {
   CreateCmsHookRequest,
   CreateCmsPageRequest,
   CreateCmsTemplateRequest,
+  DuplicateCmsRecordRequest,
   PatchCmsBlockRequest,
   PatchCmsHookRequest,
   PatchCmsPageRequest,
@@ -190,6 +192,15 @@ export const cmsClient = {
     await apiClient.delete(`/api/v1/admin/cms/pages/${encodeURIComponent(id)}`);
   },
 
+  /** Issue #1495 (DEC-17) — a draft copy under a derived slug; the admin sends the localized name. */
+  async duplicatePage(id: string, body: DuplicateCmsRecordRequest): Promise<CmsPageDetail> {
+    const out = await apiClient.post<{ data: CmsPageDetail }>(
+      `/api/v1/admin/cms/pages/${encodeURIComponent(id)}/duplicate`,
+      body,
+    );
+    return out.data;
+  },
+
   /**
    * The deployment's reserved first path segments (feature 105, FR-033).
    *
@@ -288,6 +299,15 @@ export const cmsClient = {
     await apiClient.delete(`/api/v1/admin/cms/blocks/${encodeURIComponent(id)}`);
   },
 
+  /** Issue #1495 (DEC-17) — a copy under a derived code; the admin sends the localized name. */
+  async duplicateBlock(id: string, body: DuplicateCmsRecordRequest): Promise<CmsBlockDetail> {
+    const out = await apiClient.post<{ data: CmsBlockDetail }>(
+      `/api/v1/admin/cms/blocks/${encodeURIComponent(id)}/duplicate`,
+      body,
+    );
+    return out.data;
+  },
+
   listTemplates(query: { salesChannelId?: string } = {}): Promise<ListTemplatesResponse> {
     const params = new URLSearchParams();
     if (query.salesChannelId) params.set('salesChannelId', query.salesChannelId);
@@ -334,6 +354,15 @@ export const cmsClient = {
 
   async deleteTemplate(id: string): Promise<void> {
     await apiClient.delete(`/api/v1/admin/cms/templates/${encodeURIComponent(id)}`);
+  },
+
+  /** Issue #1495 (DEC-17) — a copy under a derived code; the admin sends the localized name. */
+  async duplicateTemplate(id: string, body: DuplicateCmsRecordRequest): Promise<CmsTemplateDetail> {
+    const out = await apiClient.post<{ data: CmsTemplateDetail }>(
+      `/api/v1/admin/cms/templates/${encodeURIComponent(id)}/duplicate`,
+      body,
+    );
+    return out.data;
   },
 
   listHooks(query: { salesChannelId?: string } = {}): Promise<ListHooksResponse> {

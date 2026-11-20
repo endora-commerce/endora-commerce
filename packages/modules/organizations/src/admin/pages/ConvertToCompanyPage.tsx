@@ -48,7 +48,7 @@ export function ConvertToCompanyPage(): ReactNode {
         </li>
       </ol>
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {step === 1 ? (
             <div className="grid gap-4 md:max-w-md">
               <div className="grid gap-1.5">

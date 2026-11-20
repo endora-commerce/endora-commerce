@@ -155,13 +155,13 @@ export function InvoicesList(): ReactNode {
         </Alert>
       ) : null}
       {notice ? (
-        <Alert className="mb-4">
+        <Alert live="polite" className="mb-4">
           <AlertDescription>{notice}</AlertDescription>
         </Alert>
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="iorder">{t('invoices.fields.orderNumber')}</Label>
@@ -252,7 +252,7 @@ export function InvoicesList(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (

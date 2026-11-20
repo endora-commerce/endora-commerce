@@ -618,6 +618,24 @@ export const UpdateTaskPriorityBodySchema = z
   .refine((body) => Object.keys(body).length > 0, { message: 'Nothing to change' });
 export type UpdateTaskPriorityBody = z.infer<typeof UpdateTaskPriorityBodySchema>;
 
+/**
+ * `PUT /tasks/statuses/order` and `PUT /tasks/priorities/order` (issue #1560)
+ * — the whole list in its new order, one Command. `orderedCodes` names
+ * must be exactly the configured codes, each once: anything else — a code that
+ * is not configured, a row left out, one named twice — answers 409
+ * `ORDER_STALE` (the list changed under the caller; reload it). Duplicates are
+ * therefore not refused by the schema.
+ */
+export const ReorderTaskStatusesBodySchema = z
+  .object({ orderedCodes: z.array(taskStatusCodeSchema).min(1).max(500) })
+  .strict();
+export type ReorderTaskStatusesBody = z.infer<typeof ReorderTaskStatusesBodySchema>;
+
+export const ReorderTaskPrioritiesBodySchema = z
+  .object({ orderedCodes: z.array(taskPriorityCodeSchema).min(1).max(500) })
+  .strict();
+export type ReorderTaskPrioritiesBody = z.infer<typeof ReorderTaskPrioritiesBodySchema>;
+
 /** `DELETE /tasks/priorities/:code?replacement=` — a code, or `none` to clear it (FR-024). */
 export const DeleteTaskPriorityQuerySchema = z.object({ replacement: priorityFilterSchema.optional() });
 export type DeleteTaskPriorityQuery = z.infer<typeof DeleteTaskPriorityQuerySchema>;

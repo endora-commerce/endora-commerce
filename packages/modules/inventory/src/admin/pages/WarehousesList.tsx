@@ -1,9 +1,24 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { Warehouse } from '@endora-commerce/contracts';
-import { Plus, Search, Warehouse as WarehouseIcon } from 'lucide-react';
+import { Plus, Warehouse as WarehouseIcon } from 'lucide-react';
 import { ApiError, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { FilterChip, ListToolbar, ListToolbarSearch } from '@endora-commerce/admin-kit/components';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  EmptyState,
+  PageHeader,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
 import { warehousesClient } from '../api/warehouses-client.js';
 /**
  * WarehousesList — admin landing for warehouse identity (feature 010 / US1).
@@ -59,114 +74,92 @@ export function WarehousesList(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('warehouses.page.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('warehouses.page.sub.prefix')} <code className="b2b-mono">default</code> {t('warehouses.page.sub.suffix')}
-          </div>
-        </div>
-        <div className="b2b-page-head__actions">
-          {canWrite ? (
-            <Link to="/warehouses/new" className="b2b-btn b2b-btn--primary">
-              <Plus size={14} /> {t('warehouses.action.new')}
-            </Link>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        title={t('warehouses.page.title')}
+        help={t('warehouses.page.help')}
+        actions={
+          canWrite ? (
+            <Button asChild>
+              <Link to="/warehouses/new">
+                <Plus aria-hidden="true" /> {t('warehouses.action.new')}
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
+      {/* Issue #1492 (CAT-17): a failure is a kit Alert (role="alert"), not a card painted red. */}
       {error ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(8 80% 85%)',
-          }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <div className="b2b-card">
-        <div className="b2b-filterbar">
-          <div className="b2b-filterbar__search">
-            <div className="b2b-input-wrap">
-              <Search size={16} className="lead" />
-              <input
-                className="b2b-field b2b-field--addon"
-                placeholder={t('warehouses.search.placeholder')}
-                value={query}
-                onChange={(e): void => setQuery(e.target.value)}
-              />
-            </div>
-          </div>
-          <label className="b2b-row" style={{ gap: 6, alignItems: 'center', fontSize: 13 }}>
-            <input
-              type="checkbox"
-              checked={activeOnly}
-              onChange={(e): void => setActiveOnly(e.target.checked)}
+      <Card className="overflow-hidden">
+        {/* The kit toolbar (#1440), as on the inventory list: a named search box, then a chip
+            whose on/off state is announced (aria-pressed), not only drawn. */}
+        <ListToolbar
+          label={t('warehouses.toolbar.label')}
+          className="border-b border-border px-3 py-2.5"
+          search={
+            <ListToolbarSearch
+              label={t('warehouses.search.label')}
+              placeholder={t('warehouses.search.placeholder')}
+              value={query}
+              onValueChange={setQuery}
             />
-            {t('warehouses.filter.activeOnly')}
-          </label>
-        </div>
+          }
+          filters={
+            <FilterChip pressed={activeOnly} onPressedChange={setActiveOnly}>
+              {t('warehouses.filter.activeOnly')}
+            </FilterChip>
+          }
+        />
 
-        <div className="b2b-card__body b2b-card__body--flush">
-          {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('warehouses.loading')}</div>
-          ) : filtered.length === 0 ? (
-            <div className="b2b-empty">
-              <div className="b2b-empty__icon"><WarehouseIcon size={20} /></div>
-              <div className="b2b-empty__title">{t('warehouses.empty')}</div>
-            </div>
-          ) : (
-            <table className="b2b-tbl">
-              <thead>
-                <tr>
-                  <th>{t('warehouses.column.code')}</th>
-                  <th>{t('warehouses.column.name')}</th>
-                  <th className="num">{t('warehouses.column.products')}</th>
-                  <th className="num">{t('warehouses.column.onHand')}</th>
-                  <th className="num">{t('warehouses.column.defaultFor')}</th>
-                  <th>{t('warehouses.column.status')}</th>
-                  <th>{t('warehouses.column.updated')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <Link
-                        to={`/warehouses/${r.id}`}
-                        className="b2b-mono"
-                        style={{ fontSize: 12 }}
-                      >
-                        {r.code}
-                      </Link>
-                    </td>
-                    <td>{r.name}</td>
-                    <td className="num b2b-tabular">{r.totals?.products?.toLocaleString() ?? '—'}</td>
-                    <td className="num b2b-tabular">{r.totals?.onHand?.toLocaleString() ?? '—'}</td>
-                    <td className="num b2b-tabular">{r.totals?.isDefaultForChannelCount ?? '—'}</td>
-                    <td>
-                      <span className={cn('b2b-badge', r.active ? 'b2b-badge--success' : 'b2b-badge--muted')}>
-                        {r.active ? t('warehouses.status.active') : t('warehouses.status.inactive')}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="b2b-muted" style={{ fontSize: 12 }}>
-                        {formatDateTime(r.updatedAt)}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+        {loading ? (
+          <p role="status" className="p-8 text-sm text-muted-foreground">
+            {t('warehouses.loading')}
+          </p>
+        ) : filtered.length === 0 ? (
+          <EmptyState icon={<WarehouseIcon size={20} />} title={t('warehouses.empty')} />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('warehouses.column.code')}</TableHead>
+                <TableHead>{t('warehouses.column.name')}</TableHead>
+                <TableHead className="text-right">{t('warehouses.column.products')}</TableHead>
+                <TableHead className="text-right">{t('warehouses.column.onHand')}</TableHead>
+                <TableHead className="text-right">{t('warehouses.column.defaultFor')}</TableHead>
+                <TableHead>{t('warehouses.column.status')}</TableHead>
+                <TableHead>{t('warehouses.column.updated')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>
+                    <Link to={`/warehouses/${r.id}`} className="font-mono text-xs text-primary hover:underline">
+                      {r.code}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{r.name}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.totals?.products?.toLocaleString() ?? '—'}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.totals?.onHand?.toLocaleString() ?? '—'}</TableCell>
+                  <TableCell className="text-right tabular-nums">{r.totals?.isDefaultForChannelCount ?? '—'}</TableCell>
+                  <TableCell>
+                    {/* Inactive is the neutral pill, `b2b-badge` unmodified (a `--muted` modifier was never defined). */}
+                    <span className={cn('b2b-badge', r.active && 'b2b-badge--success')}>
+                      {r.active ? t('warehouses.status.active') : t('warehouses.status.inactive')}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{formatDateTime(r.updatedAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
     </div>
   );
 }

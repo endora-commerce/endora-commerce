@@ -119,7 +119,14 @@ async function renderList(path = '/crm/opportunities'): Promise<void> {
   await screen.findByText('Fleet renewal');
 }
 
+/** Opens *More filters*, where the custom-field filters are (issue #1505), unless it is open. */
+function openMoreFilters(): void {
+  const toggle = screen.queryByRole('button', { name: /^More filters/ });
+  if (toggle && toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle);
+}
+
 async function chooseSmb(): Promise<void> {
+  openMoreFilters();
   fireEvent.click(await screen.findByRole('button', { name: 'Segment' }));
   fireEvent.click(screen.getByLabelText('Small business'));
 }
@@ -127,6 +134,7 @@ async function chooseSmb(): Promise<void> {
 describe('OpportunitiesList — custom-field filters', () => {
   it('offers the fields the offered-fields endpoint answers', async () => {
     await renderList();
+    openMoreFilters();
     expect(await screen.findByRole('button', { name: 'Segment' })).toBeInTheDocument();
     expect(getSpy).toHaveBeenCalledWith(OFFERED_PATH);
   });

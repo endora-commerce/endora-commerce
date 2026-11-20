@@ -9,7 +9,7 @@
   "errors.LLM_CONFIG_INCOMPLETE": "LLM search configuration is incomplete.",
   "settingGroups.search.name": "Search",
   "settingLabels.search.llm.enabled.name": "LLM-augmented search — enabled",
-  "settingLabels.search.llm.enabled.description": "When on, Meilisearch runs hybrid lexical + semantic search using the configured embedder. It can be switched on only when the embedder credentials setting below references an LLM credential that supplies a Base URL, API key and model.",
+  "settingLabels.search.llm.enabled.description": "Adds meaning-based matches to search. Needs the embedder credentials setting below to name an LLM credential.",
   "settingLabels.search.llm.embedder_credentials.name": "LLM-augmented search — embedder credentials",
   "settingLabels.search.llm.embedder_credentials.description": "Reference a reusable LLM credential configuration (Credentials screen). Its Base URL, API Key and Model provide the embedder endpoint, credential and model. Required to enable LLM-augmented search."
 }

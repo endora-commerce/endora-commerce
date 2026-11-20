@@ -105,7 +105,7 @@ export default function ComparisonsListPage(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="pt-6">
+        <CardContent>
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="sales-channel-id">{t('list.filter.salesChannelId')}</Label>
@@ -152,7 +152,7 @@ export default function ComparisonsListPage(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading && rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : rows.length === 0 ? (

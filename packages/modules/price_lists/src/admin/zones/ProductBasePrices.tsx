@@ -14,7 +14,7 @@ import {
 } from '@endora-commerce/contracts';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { ApiError, useAuth, useSaveParticipant, type ParticipantIssues, type SaveParticipantHandlers } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Input, Section, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EditorSection, Input, Select } from '@endora-commerce/admin-kit/ui';
 import { errorMessage } from '../lib/api-errors.js';
 import { audienceLabel } from '../lib/book-labels.js';
 import { kindLabel, priceKindText, refusalText } from '../lib/grid-labels.js';
@@ -359,9 +359,10 @@ export function ProductBasePrices({ productId, saveSession }: ProductBasePricesP
   const label = (vid: string): string => skus[vid] ?? vid.slice(0, 8);
 
   return (
-    <div>
-      <Section title={t('basePrices.title')}>
-        <p className="text-sm text-muted-foreground">{t('basePrices.description')}</p>
+    // Issue #1490 (UX audit CAT-11): the Pricing tab's two sections are kit `EditorSection`s, `h2`,
+    // divided by a rule as on every other tab of the editor — not two headings spaced apart by hand.
+    <div className="space-y-(--section-gap)">
+      <EditorSection title={t('basePrices.title')}>
         {loadError !== null ? (
           <Alert variant="destructive">
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
@@ -381,11 +382,15 @@ export function ProductBasePrices({ productId, saveSession }: ProductBasePricesP
           </div>
         ) : (
           <div className="space-y-4">
+            {/* What a base price is, said once — where there is none yet (issue #1459). */}
             {anyPrice ? null : (
-              <Alert variant="warning">
-                <AlertTriangle aria-hidden="true" />
-                <AlertDescription>{t('basePrices.notOrderable')}</AlertDescription>
-              </Alert>
+              <>
+                <p className="text-sm text-muted-foreground">{t('basePrices.description')}</p>
+                <Alert variant="warning">
+                  <AlertTriangle aria-hidden="true" />
+                  <AlertDescription>{t('basePrices.notOrderable')}</AlertDescription>
+                </Alert>
+              </>
             )}
             {writable ? null : <p className="text-sm text-muted-foreground">{t('basePrices.readOnly')}</p>}
             {refusal ? (
@@ -417,7 +422,7 @@ export function ProductBasePrices({ productId, saveSession }: ProductBasePricesP
             ) : null}
           </div>
         )}
-      </Section>
+      </EditorSection>
       <BooksPricingProduct productId={productId} books={books} language={language} />
     </div>
   );
@@ -640,7 +645,7 @@ function BooksPricingProduct(props: {
   const t = useTranslation('price_lists');
   const listLabel = t('basePrices.books.title');
   return (
-    <Section title={listLabel} className="mt-6">
+    <EditorSection title={listLabel}>
       {props.books === null ? (
         <div className="h-12 rounded bg-muted motion-safe:animate-pulse" aria-hidden="true" />
       ) : props.books.length === 0 ? (
@@ -681,7 +686,7 @@ function BooksPricingProduct(props: {
       <Link to={`/price-lists/explain?${new URLSearchParams({ productId: props.productId }).toString()}`} className="text-sm underline underline-offset-2">
         {t('grid.detail.explain')}
       </Link>
-    </Section>
+    </EditorSection>
   );
 }
 

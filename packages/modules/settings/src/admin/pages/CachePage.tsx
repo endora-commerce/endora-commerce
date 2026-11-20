@@ -138,7 +138,7 @@ export function CachePage(): ReactNode {
         </Alert>
       ) : null}
       {result ? (
-        <Alert>
+        <Alert live="polite">
           <AlertDescription>{result}</AlertDescription>
         </Alert>
       ) : null}

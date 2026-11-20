@@ -280,6 +280,25 @@ describe('ScopedField (feature 174, FR-060…FR-065)', () => {
     expect(wrapper.className).not.toContain('var(--muted)_');
   });
 
+  // Issue #1459 (UX audit CAT-14): the note stays one clause; the rest is behind a ⓘ.
+  it('help: a ⓘ named after the label, outside the control\'s description, opened on click', async () => {
+    const { container } = renderEn(<Harness scope={{ level: 'global' }} note="Short note." help="The long explanation." />);
+    const tip = screen.getByRole('button', { name: 'More information Name' });
+    expect(tip).toHaveAttribute('aria-expanded', 'false');
+    const control = screen.getByRole('textbox', { name: 'Name' });
+    expect(control).toHaveAccessibleDescription('Short note.');
+    fireEvent.click(tip);
+    expect(tip).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('The long explanation.')).toBeVisible();
+    expect(control).toHaveAccessibleDescription('Short note.');
+    await expectNoAxeViolations(container);
+  });
+
+  it('no help: no ⓘ', () => {
+    renderEn(<Harness scope={{ level: 'global' }} />);
+    expect(screen.queryByRole('button', { name: /More information/ })).toBeNull();
+  });
+
   it('renders its Polish copy from the core bundle', () => {
     render(
       <TranslationProvider language="pl" initialBundle={shippedCoreBundle('pl')}>

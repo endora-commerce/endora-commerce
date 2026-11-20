@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus } from 'lucide-react';
 import type { AssetDetail, AssetSummary } from '@endora-commerce/contracts';
 import { ApiError, apiClient, toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Input, Label } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EditorSection, Input, Label } from '@endora-commerce/admin-kit/ui';
 import { AssetPicker, ModalDialog, ScopedFieldGrid } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { EditorField, useProductEditor } from './editor/editor-context.js';
-import { SectionHeading } from './editor/SectionHeading.js';
+import { sectionTitle } from './editor/SectionBadge.js';
+import { RowRemoveButton } from './editor/RowRemoveButton.js';
 import { BooleanControl, SelectControl, TextControl } from './editor/scoped-controls.js';
 
 /**
@@ -55,7 +56,7 @@ export function GallerySection(): ReactNode {
     if (focusAfter === null) return;
     const { target } = focusAfter;
     if (target === 'heading') {
-      const heading = document.getElementById('product-gallery-heading');
+      const heading = document.getElementById('product-gallery-title');
       heading?.setAttribute('tabindex', '-1');
       heading?.focus();
       return;
@@ -111,16 +112,12 @@ export function GallerySection(): ReactNode {
   const roleOptions = items.map((i) => ({ value: i.id, label: itemName(i.id) }));
 
   return (
-    <section className="space-y-4" aria-labelledby="product-gallery-heading">
-      <SectionHeading
-        id="product-gallery-heading"
-        title={t('productEditor.gallery.title')}
-        immediate={structural}
-        globalOnlyLabel={atGlobal ? undefined : t('productEditor.gallery.setGlobalOnly')}
-      />
-      <p className="text-sm text-muted-foreground">
-        {atGlobal ? t('productEditor.gallery.help.global') : t('productEditor.gallery.help.scoped', { scope: ctx.scopeLabel })}
-      </p>
+    // `EditorSection` names its heading `${id}-title`: the focus target after a removal.
+    <EditorSection
+      id="product-gallery"
+      title={sectionTitle(t('productEditor.gallery.title'), structural, atGlobal ? undefined : t('productEditor.gallery.setGlobalOnly'))}
+      contentClassName="space-y-4"
+    >
       <p role="status" className="sr-only">
         {status}
       </p>
@@ -130,11 +127,12 @@ export function GallerySection(): ReactNode {
         </Alert>
       ) : null}
       {items.length === 0 ? <p className="text-sm text-muted-foreground">{t('productEditor.gallery.empty')}</p> : null}
-      <ul className="space-y-4">
+      {/* Issue #1488 (CAT-06): rows divided by a rule, not a bordered box per image. */}
+      <ul className="divide-y divide-border">
         {items.map((item, index) => {
           const name = itemName(item.id);
           return (
-            <li key={item.id} className="rounded-md border p-3" data-gallery-item={item.id}>
+            <li key={item.id} className="py-3 first:pt-0 last:pb-0" data-gallery-item={item.id}>
               <div className="mb-3 flex flex-wrap items-center gap-3">
                 <img src={toAbsoluteAssetUrl(item.url)} alt="" className="h-16 w-16 rounded border object-cover" />
                 <span className="flex-1 text-sm font-medium">{name}</span>
@@ -165,10 +163,11 @@ export function GallerySection(): ReactNode {
                     >
                       <ArrowDown className="size-4" aria-hidden="true" />
                     </Button>
-                    <Button type="button" variant="destructive" size="sm" className="max-lg:min-h-11" disabled={busy} onClick={(): void => setRemoving(item.id)}>
-                      <Trash2 className="size-4" aria-hidden="true" />
-                      {t('productEditor.gallery.action.removeItem', { item: name })}
-                    </Button>
+                    <RowRemoveButton
+                      label={t('productEditor.gallery.action.removeItem', { item: name })}
+                      disabled={busy}
+                      onClick={(): void => setRemoving(item.id)}
+                    />
                   </>
                 ) : null}
               </div>
@@ -195,10 +194,7 @@ export function GallerySection(): ReactNode {
       </ul>
 
       {items.length > 0 ? (
-        <section className="space-y-2" aria-labelledby="product-gallery-roles-heading">
-          <h4 id="product-gallery-roles-heading" className="text-sm font-semibold">
-            {t('productEditor.gallery.roles.title')}
-          </h4>
+        <EditorSection as="h3" title={t('productEditor.gallery.roles.title')}>
           <ScopedFieldGrid>
             {ROLE_LABELS.map((label) => (
               <EditorField<string>
@@ -210,7 +206,7 @@ export function GallerySection(): ReactNode {
               />
             ))}
           </ScopedFieldGrid>
-        </section>
+        </EditorSection>
       ) : null}
 
       {structural ? (
@@ -259,7 +255,7 @@ export function GallerySection(): ReactNode {
           <p className="text-sm">{t('productEditor.gallery.removeBody')}</p>
         </ModalDialog>
       ) : null}
-    </section>
+    </EditorSection>
   );
 }
 
@@ -284,12 +280,15 @@ function AddGalleryItem({ disabled, onAdd }: { disabled: boolean; onAdd(assetId:
         </Button>
         <Button
           type="button"
+          variant="outline"
+          className="max-lg:min-h-11"
           disabled={disabled || !picked}
           onClick={(): void => {
             if (!picked) return;
             void onAdd(picked.id).then(() => setPicked(null));
           }}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.gallery.action.add')}
         </Button>
       </div>

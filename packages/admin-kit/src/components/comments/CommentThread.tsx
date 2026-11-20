@@ -7,6 +7,7 @@ import { Badge } from '../../ui/badge.js';
 import { Button } from '../../ui/button.js';
 import { Label } from '../../ui/label.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { EditorSection, useEditorSectionChrome, type EditorSectionChrome } from '../../ui/editor-section.js';
 import { ModalDialog } from '../modal-dialog/ModalDialog.js';
 import { ReferenceField } from '../references/ReferenceField.js';
 import { ReferenceText } from '../references/ReferenceText.js';
@@ -42,8 +43,12 @@ export interface CommentThreadCopy {
   /** Names the list for assistive technology. */
   title: string;
   empty: string;
-  /** One line above the thread — who may read it. Keep it to one clause. */
-  hint: string;
+  /**
+   * One line above the thread — who may read it, a rule the entries do not show. Keep it to one
+   * clause, and omit it when there is none: nothing is drawn then (issue #1503, UX audit SHELL-22 —
+   * hints are off unless the tab has something to say).
+   */
+  hint?: string;
   composerLabel: string;
   /**
    * One line under the composer, describing the field — a rule about what is
@@ -90,6 +95,12 @@ export interface CommentThreadProps<C extends RecordComment = RecordComment> {
   keepDeleted?: boolean;
   /** An entry's time in words; `formatDateTime` when the record has no format of its own. */
   formatTime?: (iso: string) => string;
+  /**
+   * Issue #1437 (DS-03) — `section` by default: the thread sits under the host's own heading or
+   * tab, with no frame and no heading of its own. `card` draws a card titled `copy.title` around
+   * it, for a thread standing alone on a page.
+   */
+  chrome?: EditorSectionChrome;
 }
 
 /**
@@ -107,6 +118,8 @@ export interface CommentThreadProps<C extends RecordComment = RecordComment> {
 export function CommentThread<C extends RecordComment = RecordComment>(props: CommentThreadProps<C>): ReactNode {
   const { api, kind, copy, canWrite, onCountChange, onEntries } = props;
   const t = useTranslation('core');
+  const inherited = useEditorSectionChrome();
+  const chrome = props.chrome ?? inherited;
   const { me } = useAuth();
   const myId = me?.adminUser.id ?? null;
   const editFieldId = useId();
@@ -200,9 +213,9 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
     }
   };
 
-  return (
+  const thread = (
     <div className="space-y-5">
-      <p className="text-sm text-muted-foreground">{copy.hint}</p>
+      {copy.hint ? <p className="text-sm text-muted-foreground">{copy.hint}</p> : null}
 
       {error ? (
         <Alert variant="destructive">
@@ -224,14 +237,16 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
       ) : entries.length === 0 ? (
         <p className="py-4 text-sm text-muted-foreground">{copy.empty}</p>
       ) : (
-        <ol aria-label={copy.title} className="space-y-3">
+        // One rule between entries, not a box around each: a frame inside the host's card is a
+        // defect unless it is a field (issue #1437).
+        <ol aria-label={copy.title} className="divide-y divide-border">
           {entries.map((item) => {
             const deleted = Boolean(item.deletedAt);
             // Only a note, only its author, only with the right to write at all — and never once deleted.
             const mine = !deleted && canWrite && kind === 'note' && myId !== null && item.author.id === myId;
             const editing = editingId === item.id;
             return (
-              <li key={item.id} className="rounded-md border border-border p-3">
+              <li key={item.id} className="py-3 first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                     <span className="text-sm font-medium text-foreground">{item.author.name}</span>
@@ -386,5 +401,14 @@ export function CommentThread<C extends RecordComment = RecordComment>(props: Co
         </ModalDialog>
       ) : null}
     </div>
+  );
+
+  // The host's heading or tab names a section; a card standing alone names itself.
+  return chrome === 'card' ? (
+    <EditorSection chrome="card" title={copy.title}>
+      {thread}
+    </EditorSection>
+  ) : (
+    thread
   );
 }

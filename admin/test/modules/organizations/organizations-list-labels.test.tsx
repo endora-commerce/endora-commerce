@@ -40,7 +40,7 @@ const ROW = {
 beforeEach(() => {
   setMobileViewport(false);
   getSpy.mockReset();
-  getSpy.mockResolvedValue({ data: [ROW] });
+  getSpy.mockResolvedValue({ data: [ROW], meta: { page: 1, pageSize: 20, total: 1 } });
 });
 afterEach(() => cleanup());
 
@@ -64,7 +64,7 @@ describe.each(['en', 'pl'] as const)('Organizations list labels (%s) — issue #
     const filter = screen.getByLabelText(core['organizations.field.status']!);
     const options = within(filter).getAllByRole('option').map((o) => o.textContent);
     expect(options).toEqual([
-      core['organizations.filter.all'],
+      own['list.filter.allStatuses'],
       ...['pending_verification', 'active', 'blocked', 'rejected'].map((s) => own[`status.${s}`]),
     ]);
     expect(options.every(Boolean)).toBe(true);

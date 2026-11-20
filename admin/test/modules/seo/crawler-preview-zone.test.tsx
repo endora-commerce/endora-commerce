@@ -433,7 +433,7 @@ describe('the robots.txt preview', () => {
     const warning = notice(container, 'storefront-outdated') as HTMLElement;
     // It says what is known — not confirmed — rather than what is inferred.
     expect(warning.textContent).toContain('did not confirm');
-    expect(warning.textContent).toContain('may run an older version');
+    expect(warning.textContent).toContain('may need an update');
     const block = file(container) as HTMLElement;
     expect(block.textContent).toBe(BASE);
     expect(warning.compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

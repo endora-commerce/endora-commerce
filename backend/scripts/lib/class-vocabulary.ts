@@ -57,8 +57,9 @@
  *
  * That leaves one real collision and it is declared rather than discovered:
  * **Tailwind's own utilities can land inside a design-system namespace.** The
- * page builder owns `pb-*` and Tailwind spells padding-bottom `pb-4`; this
- * repository's `col-cb` puts `col-span-10` in the same position. So a token is
+ * page builder owns `pb-*` and Tailwind spells padding-bottom `pb-4`; a
+ * design-system `col-cb` (the products list's checkbox column until #1492)
+ * put `col-span-10` in the same position. So a token is
  * a **vocabulary name** — and therefore judged — when it carries a BEM
  * separator (`--` or `__`), which no utility spelling produces, **or** when its
  * last segment is not a scale index: a bare integer, a decimal, a fraction, a

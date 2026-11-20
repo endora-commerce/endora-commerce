@@ -138,4 +138,66 @@ describe('the inventory list', () => {
     low.click();
     await waitFor(() => expect(low.getAttribute('aria-pressed')).toBe('true'));
   });
+
+  // Issue #1440 (DS-06) — the toolbar is the kit's `ListToolbar` and the chips are its `FilterChip`.
+  it('is the kit toolbar: a search landmark named for what it filters', async () => {
+    const en = await mount();
+    const region = screen.getByRole('search', { name: en['inventory.toolbar.label'] as string });
+    expect(within(region).getByRole('searchbox')).toBeInTheDocument();
+    expect(within(region).getAllByRole('button', { pressed: false })).toHaveLength(2);
+  });
+
+  it('keeps the two stock chips exclusive and asks the API for the one pressed', async () => {
+    const en = await mount();
+    const low = screen.getByRole('button', { name: en['inventory.stat.lowStock'] as string });
+    const out = screen.getByRole('button', { name: en['inventory.stat.outOfStock'] as string });
+    low.click();
+    await waitFor(() => expect(low.getAttribute('aria-pressed')).toBe('true'));
+    out.click();
+    await waitFor(() => expect(out.getAttribute('aria-pressed')).toBe('true'));
+    expect(low.getAttribute('aria-pressed')).toBe('false');
+    await waitFor(() =>
+      expect(get.mock.calls.some(([url]) => url.includes('/levels?') && url.includes('out=1'))).toBe(true),
+    );
+  });
+
+  it('shows a load failure as an alert, not a card painted red', async () => {
+    get.mockRejectedValueOnce(new Error('down')).mockRejectedValueOnce(new Error('down'));
+    const en = read('en');
+    const { InventoryPage } = await import('../../../../packages/modules/inventory/src/admin/pages/InventoryPage');
+    renderWithI18n(
+      withSession(
+        <MemoryRouter initialEntries={['/inventory']}>
+          <InventoryPage />
+        </MemoryRouter>,
+        {
+          session: adminSession({ permissions: ['inventory:read'] }),
+          presence: modulePresence({ present: ['inventory'] }),
+        },
+      ),
+      { core: en },
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(en['inventory.error.load'] as string);
+  });
+});
+
+/**
+ * Issue #1492 (UX audit CAT-17): the KPI tiles were `b2b-card`s with hand-written
+ * font sizes beside kit Alerts, and their label and number were two unrelated
+ * `<div>`s. They are kit cards now, and each reads as a term and its value.
+ */
+describe('the inventory KPIs (#1492)', () => {
+  it('reads each KPI as a label and its value', async () => {
+    const en = await mount();
+    const term = screen.getByText(en['inventory.stat.totalOnHand'] as string);
+    expect(term.tagName).toBe('DT');
+    expect(term.nextElementSibling?.tagName).toBe('DD');
+    expect(term.nextElementSibling).toHaveTextContent('25');
+  });
+
+  it('draws each KPI as a kit card', async () => {
+    const en = await mount();
+    const term = screen.getByText(en['inventory.stat.tracked'] as string);
+    expect(term.closest('[data-slot="card"]')).not.toBeNull();
+  });
 });

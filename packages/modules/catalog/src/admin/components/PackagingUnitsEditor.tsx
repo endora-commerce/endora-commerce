@@ -1,11 +1,25 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { ORDER_MINIMUM_MAX, type PackagingUnitDto } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription } from '@endora-commerce/admin-kit/ui';
+import { ArrowDown, ArrowUp, Plus } from 'lucide-react';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  EditorSection,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { parseOrderMinimumInput } from '../lib/order-minimum-input.js';
-import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
-import { GlobalOnlyBadge } from './editor/SectionHeading.js';
+import { sectionTitle } from './editor/SectionBadge.js';
+import { RowRemoveButton } from './editor/RowRemoveButton.js';
+import { useConfirmRemoval } from './editor/confirm-removal.js';
 
 /**
  * Feature 043 — Packaging units editor, rendered inside the product card's
@@ -41,6 +55,7 @@ export function PackagingUnitsEditor({
   onChanged?: () => Promise<void>;
 }): ReactNode {
   const t = useTranslation('catalog');
+  const { ask, dialog: removalDialog } = useConfirmRemoval();
   const base = `/api/v1/admin/catalog/products/${productId}/packaging-units`;
 
   const [units, setUnits] = useState<PackagingUnitDto[]>([]);
@@ -139,7 +154,11 @@ export function PackagingUnitsEditor({
   const minimumA11y = (key: string): { 'aria-invalid'?: true; 'aria-describedby'?: string } =>
     invalidMinimum === key ? { 'aria-invalid': true, 'aria-describedby': errorId } : {};
 
-  const remove = (id: string): void => {
+  // Issue #1489 (CAT-07): removing a unit deletes it at once, so it asks first, in the same
+  // dialog as every other structural removal of the editor.
+  const remove = async (unit: PackagingUnitDto): Promise<void> => {
+    if (!(await ask(t('packagingUnits.removeConfirm', { name: unit.name })))) return;
+    const id = unit.id;
     if (invalidMinimum === id) setInvalidMinimum(null);
     void run(async () => {
       await apiClient.delete(`${base}/${id}`);
@@ -157,186 +176,187 @@ export function PackagingUnitsEditor({
   };
 
   return (
-    <div className="b2b-card">
-      <div className="b2b-card__head">
-        {t('packagingUnits.title')}
-        {structural ? <ImmediateBadge /> : !atGlobal ? <GlobalOnlyBadge label={t('packagingUnits.setGlobalOnly')} /> : null}
-      </div>
-      <div className="b2b-card__body b2b-col" style={{ gap: 12 }}>
-        <div className="b2b-help">{t('packagingUnits.help')}</div>
-        <div className="b2b-help">{t('packagingUnits.minOrderUnitsHelp')}</div>
-        {!canWrite ? <div className="b2b-help">{t('packagingUnits.readOnly')}</div> : null}
-        {invalidMinimum !== null ? (
-          <Alert id={errorId} variant="destructive">
-            <AlertDescription>{minimumMessage()}</AlertDescription>
-          </Alert>
-        ) : null}
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
+    // Issue #1488 (UX audit CAT-06): a section of the Inventory tab's card, not a card inside it;
+    // its title is now a heading, where the card head was a plain line of text.
+    <EditorSection
+      title={sectionTitle(t('packagingUnits.title'), structural, atGlobal ? undefined : t('packagingUnits.setGlobalOnly'))}
+    >
+      {/* Issue #1492 (CAT-17): kit inputs, table and buttons. The legacy input class these
+          used was never defined, so they drew unstyled beside the kit's "Add". */}
+      <p className="text-xs text-muted-foreground">{t('packagingUnits.help')}</p>
+      {!canWrite ? <p className="text-xs text-muted-foreground">{t('packagingUnits.readOnly')}</p> : null}
+      {invalidMinimum !== null ? (
+        <Alert id={errorId} variant="destructive">
+          <AlertDescription>{minimumMessage()}</AlertDescription>
+        </Alert>
+      ) : null}
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        {loading ? (
-          <div className="b2b-help">{t('packagingUnits.loading')}</div>
-        ) : units.length === 0 ? (
-          <div className="b2b-help">{t('packagingUnits.empty')}</div>
-        ) : (
-          <table className="b2b-table">
-            <thead>
-              <tr>
-                <th>{t('packagingUnits.col.name')}</th>
-                <th>{t('packagingUnits.col.baseQuantity')}</th>
-                <th>{t('packagingUnits.col.minOrderUnits')}</th>
-                <th>{t('packagingUnits.col.default')}</th>
-                <th>{t('packagingUnits.col.order')}</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {units.map((u, i) => (
-                <tr key={u.id}>
-                  <td style={{ minWidth: 220 }}>
-                    {renderName ? (
-                      renderName(u)
-                    ) : (
-                      <input className="b2b-input" value={u.name} readOnly aria-label={t('packagingUnits.col.name')} />
-                    )}
-                  </td>
-                  <td>
-                    <input
-                      className="b2b-input"
-                      type="number"
-                      min={1}
-                      step={1}
-                      defaultValue={u.baseQuantity}
-                      disabled={busy || !structural}
-                      aria-label={t('packagingUnits.col.baseQuantity')}
-                      onBlur={(e) => {
-                        const v = Number(e.target.value);
-                        if (Number.isInteger(v) && v >= 1 && v !== u.baseQuantity) {
-                          patch(u.id, { baseQuantity: v });
-                        }
-                      }}
+      {loading ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t('packagingUnits.loading')}
+        </p>
+      ) : units.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('packagingUnits.empty')}</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('packagingUnits.col.name')}</TableHead>
+              <TableHead>{t('packagingUnits.col.baseQuantity')}</TableHead>
+              <TableHead>{t('packagingUnits.col.minOrderUnits')}</TableHead>
+              <TableHead>{t('packagingUnits.col.default')}</TableHead>
+              <TableHead>{t('packagingUnits.col.order')}</TableHead>
+              <TableHead className="w-[1%]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {units.map((u, i) => (
+              <TableRow key={u.id}>
+                <TableCell className="min-w-56">
+                  {renderName ? (
+                    renderName(u)
+                  ) : (
+                    <Input value={u.name} readOnly aria-label={t('packagingUnits.col.name')} />
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Input
+                    className="w-28"
+                    type="number"
+                    min={1}
+                    step={1}
+                    defaultValue={u.baseQuantity}
+                    disabled={busy || !structural}
+                    aria-label={t('packagingUnits.col.baseQuantity')}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (Number.isInteger(v) && v >= 1 && v !== u.baseQuantity) {
+                        patch(u.id, { baseQuantity: v });
+                      }
+                    }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    className="w-28"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={ORDER_MINIMUM_MAX}
+                    step={1}
+                    defaultValue={u.minOrderUnits ?? ''}
+                    disabled={busy || !structural}
+                    aria-label={t('packagingUnits.col.minOrderUnits')}
+                    {...minimumA11y(u.id)}
+                    onChange={() => {
+                      if (invalidMinimum === u.id) setInvalidMinimum(null);
+                    }}
+                    onBlur={(e) => saveMinimum(u, e.target.value)}
+                  />
+                </TableCell>
+                <TableCell>
+                  <input
+                    type="radio"
+                    className="size-4 accent-primary"
+                    name={`pkg-default-${productId}`}
+                    checked={u.isDefault}
+                    disabled={busy || !structural}
+                    aria-label={t('packagingUnits.col.default')}
+                    onChange={() => {
+                      if (!u.isDefault) patch(u.id, { isDefault: true });
+                    }}
+                  />
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="max-lg:size-11"
+                    disabled={busy || !structural || i === 0}
+                    aria-label={t('packagingUnits.action.moveUp')}
+                    onClick={() => move(i, -1)}
+                  >
+                    <ArrowUp aria-hidden="true" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="max-lg:size-11"
+                    disabled={busy || !structural || i === units.length - 1}
+                    aria-label={t('packagingUnits.action.moveDown')}
+                    onClick={() => move(i, 1)}
+                  >
+                    <ArrowDown aria-hidden="true" />
+                  </Button>
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {structural ? (
+                    <RowRemoveButton
+                      label={t('packagingUnits.action.removeFor', { name: u.name })}
+                      disabled={busy}
+                      onClick={() => void remove(u)}
                     />
-                  </td>
-                  <td>
-                    <input
-                      className="b2b-input"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      max={ORDER_MINIMUM_MAX}
-                      step={1}
-                      defaultValue={u.minOrderUnits ?? ''}
-                      disabled={busy || !structural}
-                      aria-label={t('packagingUnits.col.minOrderUnits')}
-                      {...minimumA11y(u.id)}
-                      onChange={() => {
-                        if (invalidMinimum === u.id) setInvalidMinimum(null);
-                      }}
-                      onBlur={(e) => saveMinimum(u, e.target.value)}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="radio"
-                      name={`pkg-default-${productId}`}
-                      checked={u.isDefault}
-                      disabled={busy || !structural}
-                      aria-label={t('packagingUnits.col.default')}
-                      onChange={() => {
-                        if (!u.isDefault) patch(u.id, { isDefault: true });
-                      }}
-                    />
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-                      disabled={busy || !structural || i === 0}
-                      aria-label={t('packagingUnits.action.moveUp')}
-                      onClick={() => move(i, -1)}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-                      disabled={busy || !structural || i === units.length - 1}
-                      aria-label={t('packagingUnits.action.moveDown')}
-                      onClick={() => move(i, 1)}
-                    >
-                      ↓
-                    </button>
-                  </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    {structural ? (
-                      <button
-                        type="button"
-                        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-                        disabled={busy}
-                        onClick={() => remove(u.id)}
-                      >
-                        {t('packagingUnits.action.remove')}
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+                  ) : null}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
 
-        {structural ? (
-          <div className="b2b-row" style={{ gap: 8, alignItems: 'flex-end' }}>
-            <input
-              className="b2b-input"
-              placeholder={t('packagingUnits.newName')}
-              value={newName}
-              disabled={busy}
-              aria-label={t('packagingUnits.col.name')}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-            <input
-              className="b2b-input"
-              type="number"
-              min={1}
-              step={1}
-              placeholder={t('packagingUnits.newQuantity')}
-              value={newQty}
-              disabled={busy}
-              aria-label={t('packagingUnits.col.baseQuantity')}
-              onChange={(e) => setNewQty(e.target.value)}
-            />
-            <input
-              className="b2b-input"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              max={ORDER_MINIMUM_MAX}
-              step={1}
-              placeholder={t('packagingUnits.newMinimum')}
-              value={newMin}
-              disabled={busy}
-              aria-label={t('packagingUnits.col.minOrderUnits')}
-              {...minimumA11y('new')}
-              onChange={(e) => {
-                setNewMin(e.target.value);
-                if (invalidMinimum === 'new') setInvalidMinimum(null);
-              }}
-            />
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--primary b2b-btn--sm"
-              disabled={busy}
-              onClick={add}
-            >
-              {t('packagingUnits.action.add')}
-            </button>
-          </div>
-        ) : null}
-      </div>
-    </div>
+      {structural ? (
+        <div className="flex flex-wrap items-end gap-2">
+          <Input
+            className="w-auto min-w-48 flex-1"
+            placeholder={t('packagingUnits.newName')}
+            value={newName}
+            disabled={busy}
+            aria-label={t('packagingUnits.col.name')}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <Input
+            className="w-28"
+            type="number"
+            min={1}
+            step={1}
+            placeholder={t('packagingUnits.newQuantity')}
+            value={newQty}
+            disabled={busy}
+            aria-label={t('packagingUnits.col.baseQuantity')}
+            onChange={(e) => setNewQty(e.target.value)}
+          />
+          <Input
+            className="w-40"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={ORDER_MINIMUM_MAX}
+            step={1}
+            placeholder={t('packagingUnits.newMinimum')}
+            value={newMin}
+            disabled={busy}
+            aria-label={t('packagingUnits.col.minOrderUnits')}
+            {...minimumA11y('new')}
+            onChange={(e) => {
+              setNewMin(e.target.value);
+              if (invalidMinimum === 'new') setInvalidMinimum(null);
+            }}
+          />
+          {/* Issue #1489 (CAT-07): "Add" adds a row; the page's one Save stays the only filled action. */}
+          <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" disabled={busy} onClick={add}>
+            <Plus aria-hidden="true" />
+            {t('packagingUnits.action.add')}
+          </Button>
+        </div>
+      ) : null}
+      {removalDialog}
+    </EditorSection>
   );
 }

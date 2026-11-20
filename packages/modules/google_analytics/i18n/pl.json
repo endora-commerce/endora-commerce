@@ -31,5 +31,11 @@
   "customEvents.actions.add_to_shopping_list": "Dodaj do listy zakupowej",
   "customEvents.actions.button_click_by_id": "Kliknięcie przycisku (wg ID)",
   "actions.newCustomEvent.keywords": "zdarzenie",
-  "settingGroups.google_analytics.name": "Google Analytics"
+  "settingGroups.google_analytics.name": "Google Analytics",
+  "customEvents.dangerZone.title": "Usuń to zdarzenie",
+  "customEvents.dangerZone.hint": "Sklep przestanie wysyłać je do Google Analytics. Usunięcia nie da się cofnąć.",
+  "customEvents.deleteConfirm.title": "Usunąć to zdarzenie własne?",
+  "customEvents.deleteConfirm.message": "„{name}” zostanie usunięte, a sklep przestanie wysyłać je do Google Analytics. Raporty zachowają już zebrane dane.",
+  "customEvents.deleteConfirm.action": "Usuń zdarzenie",
+  "customEvents.deleteConfirm.failed": "Nie udało się usunąć zdarzenia i nic nie zostało zmienione. Spróbuj ponownie."
 }

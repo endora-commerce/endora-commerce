@@ -11,10 +11,7 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
+  EditorSection,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -151,7 +148,8 @@ export function useNegotiationParticipant<T>(
 }
 
 /**
- * The card both panels render: a title, an optional lead (`before`), the
+ * The section both panels render — a card of its own at page level, where the
+ * host mounts the zone with `chrome="card"` (issue #1437): a title, an optional lead (`before`), the
  * panel's control — or the read error with its retry in its place — an
  * optional trailer (`after`), the read-only hint, the live status region and
  * the save error.
@@ -174,45 +172,40 @@ export function NegotiationCard({
   const t = useTranslation('quote_requests');
   const { loading, loadError, saving, saveError, retry } = resource;
   return (
-    <Card className="mb-4" aria-busy={loading || saving}>
-      <CardHeader>
-        <CardTitle>{t('negotiation.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {before}
+    <EditorSection title={t('negotiation.title')} className="mb-4" aria-busy={loading || saving}>
+      {before}
 
-        {loadError ? (
-          <Alert variant="destructive">
-            <AlertDescription className="flex flex-wrap items-center gap-3">
-              <span>{loadError}</span>
-              <Button type="button" variant="outline" size="sm" onClick={retry}>
-                {t('negotiation.retry')}
-              </Button>
-            </AlertDescription>
-          </Alert>
-        ) : (
-          children
-        )}
+      {loadError ? (
+        <Alert variant="destructive">
+          <AlertDescription className="flex flex-wrap items-center gap-3">
+            <span>{loadError}</span>
+            <Button type="button" variant="outline" size="sm" onClick={retry}>
+              {t('negotiation.retry')}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        children
+      )}
 
-        {after}
+      {after}
 
-        {!canManage ? (
-          <p id={hintId} className="text-xs text-muted-foreground">
-            {t('negotiation.readOnlyHint')}
-          </p>
-        ) : null}
+      {!canManage ? (
+        <p id={hintId} className="text-xs text-muted-foreground">
+          {t('negotiation.readOnlyHint')}
+        </p>
+      ) : null}
 
-        <div role="status" aria-live="polite" className="text-sm">
-          {loading ? t('negotiation.loading') : null}
-          {saving ? t('negotiation.saving') : null}
-        </div>
+      <div role="status" aria-live="polite" className="text-sm">
+        {loading ? t('negotiation.loading') : null}
+        {saving ? t('negotiation.saving') : null}
+      </div>
 
-        {saveError ? (
-          <Alert variant="destructive">
-            <AlertDescription>{saveError}</AlertDescription>
-          </Alert>
-        ) : null}
-      </CardContent>
-    </Card>
+      {saveError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{saveError}</AlertDescription>
+        </Alert>
+      ) : null}
+    </EditorSection>
   );
 }

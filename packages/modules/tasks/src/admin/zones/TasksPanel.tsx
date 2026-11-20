@@ -1,9 +1,9 @@
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import type { TaskLinkKind, TaskSummary } from '@endora-commerce/contracts';
 import { useAuth, withReturnTo } from '@endora-commerce/admin-kit/lib';
-import { Button, Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
+import { Button, EditorSection } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../api.js';
 import { StatusBadge } from '../components/StatusBadge.js';
@@ -38,7 +38,6 @@ export function TasksPanel({ kind, recordId }: TasksPanelProps): ReactNode {
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
   const { hasPermission } = useAuth();
-  const headingId = useId();
   const [state, setState] = useState<State>({ phase: 'loading' });
   /** Bumped by *Retry*: the read runs again. */
   const [attempt, setAttempt] = useState(0);
@@ -66,76 +65,71 @@ export function TasksPanel({ kind, recordId }: TasksPanelProps): ReactNode {
   const backHere = (target: string): string => withReturnTo(target, `${location.pathname}${location.search}`);
 
   return (
-    <section aria-labelledby={headingId} className="mt-4">
-      <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-          <CardTitle>
-            <h2 id={headingId} className="text-base font-semibold">
-              {t('panel.title')}
-            </h2>
-          </CardTitle>
-          {hasPermission('tasks:write') ? (
-            <Button asChild variant="outline" size="sm" className="min-h-11 sm:min-h-8">
-              <Link to={backHere(`/tasks/new?link=${kind}:${recordId}`)}>
-                <Plus aria-hidden="true" />
-                {t('panel.add')}
-              </Link>
-            </Button>
-          ) : null}
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {state.phase === 'loading' ? (
-            <p role="status" className="text-muted-foreground">
-              {t('panel.loading')}
-            </p>
-          ) : state.phase === 'failed' ? (
-            <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
-              <span className="text-destructive">{t('panel.error')}</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="min-h-11 sm:min-h-8"
-                onClick={(): void => setAttempt((previous) => previous + 1)}
-              >
-                {tCore('common.action.retry')}
-              </Button>
-            </div>
-          ) : state.tasks.length === 0 ? (
-            <p className="text-muted-foreground">{t('panel.empty')}</p>
-          ) : (
-            <>
-              <ul aria-label={t('panel.title')} className="divide-y">
-                {state.tasks.map((task) => (
-                  <li key={task.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
-                    <Link
-                      to={backHere(`/tasks/${task.id}`)}
-                      className="min-w-0 font-medium text-primary underline-offset-4 [overflow-wrap:anywhere] hover:underline"
-                    >
-                      <span className="text-muted-foreground">{task.number}</span> {task.title}
-                    </Link>
-                    <StatusBadge status={task.status} />
-                    <span className="text-muted-foreground [overflow-wrap:anywhere]">
-                      {task.assignees.length > 0
-                        ? task.assignees.map((person) => person.name).join(', ')
-                        : t('list.unassigned')}
-                    </span>
-                    {task.dueAt || task.dueOn ? (
-                      <span className={task.overdue ? 'font-medium text-destructive' : 'text-muted-foreground'}>
-                        {task.dueAt ? momentLabel(task.dueAt, language) : calendarDateLabel(task.dueOn, language)}
-                        {task.overdue ? ` · ${t('list.overdue')}` : null}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-              <Link to={filtered} className="inline-block text-primary underline-offset-4 hover:underline">
-                {t('panel.all')}
-              </Link>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </section>
+    <EditorSection
+      title={t('panel.title')}
+      action={
+        hasPermission('tasks:write') ? (
+          <Button asChild variant="outline" size="sm" className="min-h-11 sm:min-h-8">
+            <Link to={backHere(`/tasks/new?link=${kind}:${recordId}`)}>
+              <Plus aria-hidden="true" />
+              {t('panel.add')}
+            </Link>
+          </Button>
+        ) : null
+      }
+      className="mt-4"
+      contentClassName="space-y-3 text-sm"
+    >
+      {state.phase === 'loading' ? (
+        <p role="status" className="text-muted-foreground">
+          {t('panel.loading')}
+        </p>
+      ) : state.phase === 'failed' ? (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-destructive">{t('panel.error')}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="min-h-11 sm:min-h-8"
+            onClick={(): void => setAttempt((previous) => previous + 1)}
+          >
+            {tCore('common.action.retry')}
+          </Button>
+        </div>
+      ) : state.tasks.length === 0 ? (
+        <p className="text-muted-foreground">{t('panel.empty')}</p>
+      ) : (
+        <>
+          <ul aria-label={t('panel.title')} className="divide-y">
+            {state.tasks.map((task) => (
+              <li key={task.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
+                <Link
+                  to={backHere(`/tasks/${task.id}`)}
+                  className="min-w-0 font-medium text-primary underline-offset-4 [overflow-wrap:anywhere] hover:underline"
+                >
+                  <span className="text-muted-foreground">{task.number}</span> {task.title}
+                </Link>
+                <StatusBadge status={task.status} />
+                <span className="text-muted-foreground [overflow-wrap:anywhere]">
+                  {task.assignees.length > 0
+                    ? task.assignees.map((person) => person.name).join(', ')
+                    : t('list.unassigned')}
+                </span>
+                {task.dueAt || task.dueOn ? (
+                  <span className={task.overdue ? 'font-medium text-destructive' : 'text-muted-foreground'}>
+                    {task.dueAt ? momentLabel(task.dueAt, language) : calendarDateLabel(task.dueOn, language)}
+                    {task.overdue ? ` · ${t('list.overdue')}` : null}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          <Link to={filtered} className="inline-block text-primary underline-offset-4 hover:underline">
+            {t('panel.all')}
+          </Link>
+        </>
+      )}
+    </EditorSection>
   );
 }

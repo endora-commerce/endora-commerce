@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
@@ -194,9 +194,10 @@ describe('ModerationActionsPanel — interaction', () => {
     });
     expect(confirm).toBeDisabled();
 
-    const textarea = screen.getByPlaceholderText(
-      'organizations.moderation.modal.reasonRequired',
-    );
+    // Issue #1474 — the kit's labelled dialog, and a reason with a visible label.
+    const dialog = screen.getByRole('dialog', { name: 'organizations.moderation.modal.reject.title' });
+    const textarea = within(dialog).getByLabelText('organizations.moderation.modal.reasonRequired');
+    expect(textarea).toBeRequired();
     await user.type(textarea, 'Niezweryfikowane dane.');
 
     expect(confirm).not.toBeDisabled();

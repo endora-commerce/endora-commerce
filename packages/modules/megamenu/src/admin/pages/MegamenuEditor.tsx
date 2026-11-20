@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { randomUUID } from '@endora-commerce/admin-kit/lib';
+import { useParams } from 'react-router-dom';
+import { isDraftEqual, randomUUID } from '@endora-commerce/admin-kit/lib';
+import { UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { MegamenuDetail, MegamenuItem, MegamenuItemKind } from '@endora-commerce/contracts';
@@ -63,12 +64,18 @@ export function MegamenuEditor(): ReactNode {
   const [warnings, setWarnings] = useState<Array<{ code: string; message: string }>>([]);
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async (): Promise<void> => {
+  /**
+   * `keepDrafts` re-reads the menu without touching what the operator is editing:
+   * a binding saves on its own and reloads, and that reload used to put the
+   * stored tree back over an unsaved one (issue #1461).
+   */
+  const load = useCallback(async (options: { keepDrafts?: boolean } = {}): Promise<void> => {
     if (!id) return;
     setError(null);
     try {
       const loaded = await megamenuClient.getMenu(id);
       setMenu(loaded);
+      if (options.keepDrafts) return;
       setName(loaded.name);
       setDescription(loaded.description ?? '');
       setItems(indexItems(loaded.items));
@@ -114,43 +121,69 @@ export function MegamenuEditor(): ReactNode {
     setItems((prev) => prev.map((i) => (i.id === next.id ? next : i)));
   };
 
-  const saveMetadata = async (): Promise<void> => {
-    if (!menu) return;
+  /** Saves the name and description on `base`; the menu as saved, or `null` when refused. */
+  const saveMetadata = async (base: MegamenuDetail | null = menu): Promise<MegamenuDetail | null> => {
+    if (!base) return null;
     setSaving(true);
     setError(null);
     try {
-      const updated = await megamenuClient.patchMenu(menu.id, {
+      const updated = await megamenuClient.patchMenu(base.id, {
         name,
         description: description || null,
-        version: menu.version,
+        version: base.version,
       });
       setMenu(updated);
+      return updated;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return null;
     } finally {
       setSaving(false);
     }
   };
 
-  const saveTree = async (): Promise<void> => {
-    if (!menu) return;
+  /** Saves the item tree on `base`; the menu as saved, or `null` when refused. */
+  const saveTree = async (base: MegamenuDetail | null = menu): Promise<MegamenuDetail | null> => {
+    if (!base) return null;
     setSaving(true);
     setError(null);
     setWarnings([]);
     try {
-      const out = await megamenuClient.putItems(menu.id, {
+      const out = await megamenuClient.putItems(base.id, {
         items: items.map((i) => ({ ...i }) as MegamenuItem),
-        version: menu.version,
+        version: base.version,
       });
       setMenu(out.data);
       setItems(indexItems(out.data.items));
       if (out.meta?.warnings) setWarnings(out.meta.warnings);
+      return out.data;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return null;
     } finally {
       setSaving(false);
     }
   };
+
+  // Issue #1461 (CONTENT-02) — each card's draft against the last saved menu.
+  const metadataDirty = menu !== null && (name !== menu.name || description !== (menu.description ?? ''));
+  const treeDirty = menu !== null && !isDraftEqual(items, indexItems(menu.items));
+  const unsavedGuard = useUnsavedChangesGuard({
+    dirty: metadataDirty || treeDirty,
+    // The leave dialog's Save covers both cards, in turn, each on the version the previous one answered with.
+    onSave: async () => {
+      let base = menu;
+      if (metadataDirty) base = await saveMetadata(base);
+      if (base && treeDirty) base = await saveTree(base);
+      return base !== null;
+    },
+    onDiscard: () => {
+      if (!menu) return;
+      setName(menu.name);
+      setDescription(menu.description ?? '');
+      setItems(indexItems(menu.items));
+    },
+  });
 
   if (!menu) {
     return <p className="px-2 py-6 text-sm text-muted-foreground">{t('common.loading')}</p>;
@@ -159,13 +192,9 @@ export function MegamenuEditor(): ReactNode {
   return (
     <div className="space-y-4">
       <PageHeader
+        back={{ label: t('common.back'), to: '/megamenu' }}
         title={menu.name || t('editor.fallbackTitle')}
         description={t('editor.description')}
-        actions={
-          <Button asChild variant="outline">
-            <Link to="/megamenu">{t('common.back')}</Link>
-          </Button>
-        }
       />
       {error ? (
         <Alert variant="destructive">
@@ -182,7 +211,7 @@ export function MegamenuEditor(): ReactNode {
         <div className="col-span-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.metadata')}</CardTitle>
+              <CardTitle>{t('sections.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>
@@ -194,7 +223,8 @@ export function MegamenuEditor(): ReactNode {
                   onChange={(event) => setDescription(event.target.value)}
                 />
               </FormField>
-              <div className="text-right">
+              <div className="flex items-center justify-end gap-2">
+                <UnsavedChangesHint dirty={metadataDirty} />
                 <Button onClick={() => void saveMetadata()} disabled={saving}>
                   {t('common.saveMetadata')}
                 </Button>
@@ -204,10 +234,10 @@ export function MegamenuEditor(): ReactNode {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.bindings')}</CardTitle>
+              <CardTitle>{t('sections.bindings')}</CardTitle>
             </CardHeader>
             <CardContent>
-              <BindingsPanel menuId={menu.id} bindings={menu.bindings} onChanged={() => void load()} />
+              <BindingsPanel menuId={menu.id} bindings={menu.bindings} onChanged={() => void load({ keepDrafts: true })} />
             </CardContent>
           </Card>
         </div>
@@ -215,7 +245,7 @@ export function MegamenuEditor(): ReactNode {
         <div className="col-span-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.items')}</CardTitle>
+              <CardTitle>{t('sections.items')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <MenuItemTree
@@ -226,7 +256,8 @@ export function MegamenuEditor(): ReactNode {
                 onDelete={(itemId) => setItems((prev) => deleteSubtree(prev, itemId))}
                 onAddChild={addChild}
               />
-              <div className="text-right">
+              <div className="flex items-center justify-end gap-2">
+                <UnsavedChangesHint dirty={treeDirty} />
                 <Button onClick={() => void saveTree()} disabled={saving}>
                   {t('common.saveTree')}
                 </Button>
@@ -238,7 +269,7 @@ export function MegamenuEditor(): ReactNode {
         <div className="col-span-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('sections.item')}</CardTitle>
+              <CardTitle>{t('sections.item')}</CardTitle>
             </CardHeader>
             <CardContent>
               <MenuItemConfigPanel
@@ -250,6 +281,7 @@ export function MegamenuEditor(): ReactNode {
           </Card>
         </div>
       </div>
+      {unsavedGuard.dialog}
     </div>
   );
 }

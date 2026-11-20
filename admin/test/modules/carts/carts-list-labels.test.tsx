@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { setMobileViewport } from '../../setup';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 
 /**
  * Issue #1368 — the carts list printed the raw cart status and approval status
@@ -55,7 +56,7 @@ const ROW = {
 beforeEach(() => {
   setMobileViewport(false);
   getSpy.mockReset();
-  getSpy.mockResolvedValue({ data: [ROW] });
+  getSpy.mockResolvedValue({ data: [ROW], meta: { page: 1, pageSize: 20, totalCount: 1 } });
 });
 afterEach(() => cleanup());
 
@@ -64,9 +65,12 @@ describe.each(['en', 'pl'] as const)('Carts list labels (%s) — issue #1368', (
 
   function renderList(): void {
     renderWithI18n(
-      <MemoryRouter>
-        <CartsList />
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter>
+          <CartsList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       CATALOGUES[language],
       { language },
     );
@@ -78,13 +82,13 @@ describe.each(['en', 'pl'] as const)('Carts list labels (%s) — issue #1368', (
 
     const status = screen.getByLabelText(own['carts.column.status']!);
     expect(within(status).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      own['carts.filter.all'],
+      own['carts.filter.allStatuses'],
       ...STATUSES.map((s) => own[`carts.status.${s}`]),
     ]);
 
     const approval = screen.getByLabelText(own['carts.column.approval']!);
     expect(within(approval).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      own['carts.filter.all'],
+      own['carts.filter.allApprovals'],
       ...APPROVAL_STATUSES.map((s) => own[`carts.approvalStatus.${s}`]),
     ]);
   });

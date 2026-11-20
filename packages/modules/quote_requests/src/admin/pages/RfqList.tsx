@@ -1,25 +1,32 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Columns3, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
-import { apiClient, ApiError, formatDateTime, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Label, MultiSelect, PageHeader, Select, type MultiSelectOption } from '@endora-commerce/admin-kit/ui';
+import { Columns3, FileText, Plus } from 'lucide-react';
+import { apiClient, ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, EmptyState, Label, MultiSelect, Select, type MultiSelectOption } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldListFilters,
   customFieldDisplayName,
   customFieldFilterChips,
   customFieldFilterRefusal,
   emptyCustomFieldFilters,
+  ListPage,
+  ListToolbar,
+  ListToolbarSearch,
   OrganizationPicker,
-  PaginationFooter,
   pruneRemovedOptions,
   readCustomFieldFilterParams,
   ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
   SavedViewsControl,
   sanitizeCustomFieldFilters,
   toCustomFieldFiltersParam,
   useCustomFieldListFilterFields,
+  useListPagination,
   withCustomFieldFilter,
   writeCustomFieldFilterParams,
+  type AppliedFilter,
+  type ListPageLoad,
   type ResponsiveColumn,
   type SavedViewState,
 } from '@endora-commerce/admin-kit/components';
@@ -27,11 +34,11 @@ import type { CustomFieldFilters } from '@endora-commerce/contracts';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { rfqStatusLabels } from '../lib/labels.js';
 /**
- * Admin Quote Requests list (feature 008 / T042). Restructured to mirror the
- * Orders list view: a PageHeader above a toolbar Card (search + status filter
- * + sort + a collapsible advanced-filters panel + a column picker, with
- * removable applied-filter chips) and a ResponsiveTable with a paginated
- * footer. Order-only affordances that do not apply to a Quote Request — sales
+ * Admin Quote Requests list (feature 008 / T042). The kit's `ListPage` with
+ * the kit `ListToolbar`, as the Orders list (issue #1500, SALES-24): search +
+ * status filter + sort, the long tail behind *More filters (n)*, a column
+ * picker and saved views, removable applied-filter chips, and one results card
+ * with the table, the two empty states and the pager. Order-only affordances that do not apply to a Quote Request — sales
  * channel / payment / delivery columns + filters, bulk status, invoice
  * printing, CSV export — are omitted. Every filter — visibility scope,
  * organization, status, search, the custom-field filters (feature 157) — the
@@ -140,6 +147,11 @@ function rowTotal(r: AdminRfqRow): number | null {
   return Number.isFinite(amount) ? amount : null;
 }
 
+/** The number the operator reads a request by: its business ID, else the id's first eight characters. */
+function rfqNumber(r: AdminRfqRow): string {
+  return r.businessId ?? r.id.slice(0, 8);
+}
+
 function formatTotal(r: AdminRfqRow): string {
   const total = rowTotal(r);
   if (total === null) return '—';
@@ -149,8 +161,15 @@ function formatTotal(r: AdminRfqRow): string {
 export function RfqList(): ReactNode {
   const t = useTranslation('core');
   const { language } = useTranslationContext();
+  const own = useTranslation('quote_requests');
   const { me } = useAuth();
-  const { pageSize, setPageSize } = usePageSizePreference('quote-requests');
+  // Issue #1500 — the kit pager, fitted to what the endpoint serves.
+  const pager = useListPagination({ scope: 'quote-requests', maxPageSize: PAGE_SIZE_MAX });
+  const { resetPage, syncTotal } = pager;
+  /** Prefix of the folded filters' ids, so each label names its control. */
+  const filterId = useId();
+  /** The search box, where focus goes once *Clear filters* empties the list's filters. */
+  const searchRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // A platform admin sees every organization's requests, so the per-user "mine"
@@ -161,8 +180,10 @@ export function RfqList(): ReactNode {
   /** How many requests the filters match — the server's count, not the page's length. */
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  /** Why the list could not be read — the list's own state, beside which *Retry* is offered. */
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(0);
+  /** A saved-views action that failed — a notice above the results. */
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Server-side filters (bound caller visibility / dataset size).
   const [scope, setScope] = useState<AssignmentScope>(() => {
@@ -184,6 +205,8 @@ export function RfqList(): ReactNode {
   const customFieldParam = toCustomFieldFiltersParam(customFieldFilters);
   /** The results region, focused once a refused filter is removed. */
   const resultsRef = useRef<HTMLDivElement | null>(null);
+  /** Set when a refused filter is removed: focus the results once they are back. */
+  const focusResultsOnLoad = useRef(false);
   /** Numbers each list request, so a slower, older answer cannot land last. */
   const requestSequence = useRef(0);
   /**
@@ -199,9 +222,9 @@ export function RfqList(): ReactNode {
    */
   const changeCustomFieldFilters = useCallback((next: CustomFieldFilters): void => {
     setCustomFieldFilters(next);
-    setPage(0);
+    resetPage();
     setDroppedCustomFields([]);
-  }, []);
+  }, [resetPage]);
 
   const [statusCodes, setStatusCodes] = useState<string[]>(() => {
     const fromUrl = searchParams.get('status');
@@ -211,30 +234,25 @@ export function RfqList(): ReactNode {
   const [q, setQ] = useState('');
   const [searchedQ, setSearchedQ] = useState('');
   const [sort, setSort] = useState<string>(DEFAULT_SORT);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [visibleColumnIds, setVisibleColumnIds] = useState<ColumnId[]>(DEFAULT_VISIBLE);
 
   // Each filter returns the list to its first page in the same update, so no
   // request pairs the new filter with the old page.
   const changeScope = (next: AssignmentScope): void => {
     setScope(next);
-    setPage(0);
+    resetPage();
   };
   const changeOrganization = (next: string): void => {
     setOrganizationId(next);
-    setPage(0);
+    resetPage();
   };
   const changeStatusCodes = (next: string[]): void => {
     setStatusCodes(next);
-    setPage(0);
+    resetPage();
   };
   const changeSort = (next: string): void => {
     setSort(next);
-    setPage(0);
-  };
-  const changePageSize = (next: Parameters<typeof setPageSize>[0]): void => {
-    setPageSize(next);
-    setPage(0);
+    resetPage();
   };
 
   // The search is sent once typing settles; a settled change is a new first page.
@@ -243,10 +261,10 @@ export function RfqList(): ReactNode {
     if (next === searchedQ) return;
     const id = window.setTimeout(() => {
       setSearchedQ(next);
-      setPage(0);
+      resetPage();
     }, SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(id);
-  }, [q, searchedQ]);
+  }, [q, searchedQ, resetPage]);
 
   const listPath = useMemo(() => {
     const params = new URLSearchParams();
@@ -256,10 +274,10 @@ export function RfqList(): ReactNode {
     if (searchedQ) params.set('q', searchedQ);
     if (customFieldParam !== null) params.set('customFieldFilters', customFieldParam);
     params.set('sort', sort);
-    params.set('page', String(page + 1));
-    params.set('pageSize', String(Math.min(pageSize, PAGE_SIZE_MAX)));
+    params.set('page', String(pager.query.page));
+    params.set('pageSize', String(pager.query.pageSize));
     return `/api/v1/admin/quote-requests?${params.toString()}`;
-  }, [scope, organizationId, statusCodes, searchedQ, customFieldParam, sort, page, pageSize]);
+  }, [scope, organizationId, statusCodes, searchedQ, customFieldParam, sort, pager.query.page, pager.query.pageSize]);
 
   const refresh = useCallback(async (): Promise<void> => {
     const path = listPath;
@@ -273,7 +291,9 @@ export function RfqList(): ReactNode {
       const res = await apiClient.get<AdminRfqListResponse>(path);
       if (current !== requestSequence.current) return;
       setRows(res.data);
-      setTotal(res.pagination?.total ?? res.data.length);
+      const matched = res.pagination?.total ?? res.data.length;
+      setTotal(matched);
+      syncTotal(matched);
     } catch (err) {
       if (current !== requestSequence.current) return;
       const refused = customFieldFilterRefusal(err);
@@ -287,7 +307,13 @@ export function RfqList(): ReactNode {
     } finally {
       if (current === requestSequence.current) setLoading(false);
     }
-  }, [listPath, t]);
+  }, [listPath, syncTotal, t]);
+
+  /** *Retry* after a failed read: the same request again, past the unchanged-request guard. */
+  const retry = (): void => {
+    lastRequest.current = null;
+    void refresh();
+  };
 
   // Once the offered fields are known, options removed since a link was made
   // are dropped from it; an unknown key stays, for the server to refuse.
@@ -314,6 +340,12 @@ export function RfqList(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (loading || !focusResultsOnLoad.current) return;
+    focusResultsOnLoad.current = false;
+    resultsRef.current?.focus();
+  }, [loading]);
+
   const statusOptions: MultiSelectOption[] = rfqStatusLabels.options(t);
   const columnOptions: MultiSelectOption[] = COLUMN_IDS.map((id) => ({
     value: id,
@@ -323,8 +355,7 @@ export function RfqList(): ReactNode {
   const advancedActiveCount =
     (scope !== 'mine' ? 1 : 0) + (organizationId ? 1 : 0) + Object.keys(customFieldFilters).length;
 
-  type FilterChip = { key: string; label: string; onRemove: () => void; removeLabel?: string };
-  const filterChips: FilterChip[] = [
+  const filterChips: AppliedFilter[] = [
     ...statusCodes.map((code) => ({
       key: `status:${code}`,
       label: `${t('rfq.list.field.status')}: ${rfqStatusLabels.label(t, code)}`,
@@ -421,9 +452,14 @@ export function RfqList(): ReactNode {
       COLUMN_IDS.includes(c as ColumnId),
     );
     setVisibleColumnIds(columns.length > 0 ? columns : DEFAULT_VISIBLE);
-    setPage(0);
+    resetPage();
   };
 
+  // The search narrows the list as much as a filter does, so *Clear all
+  // filters* and the empty state's *Clear filters* empty it too.
+  const filtersActive = filterChips.length > 0 || q.trim() !== '';
+  /** Whether the rows on screen were read through a filter — what the empty state tells apart. */
+  const resultsFiltered = filterChips.length > 0 || searchedQ !== '';
   const clearAllFilters = (): void => {
     setStatusCodes([]);
     setOrganizationId('');
@@ -437,8 +473,10 @@ export function RfqList(): ReactNode {
     if (refusedCustomField === null) return;
     changeCustomFieldFilters(withCustomFieldFilter(customFieldFilters, refusedCustomField, null));
     setRefusedCustomField(null);
-    // Focus follows the operator to what they are waiting for: the results.
-    resultsRef.current?.focus();
+    // Focus follows the operator to what they are waiting for: the results,
+    // once they are read again — the list page draws its skeleton meanwhile,
+    // and the region it would have focused now is gone with it.
+    focusResultsOnLoad.current = true;
   };
 
   const columnDefs: Record<ColumnId, ResponsiveColumn<AdminRfqRow>> = {
@@ -448,7 +486,7 @@ export function RfqList(): ReactNode {
       primary: true,
       render: (r) => (
         <Link to={`/quote-requests/${r.id}`} className="font-mono text-xs underline underline-offset-2">
-          #{r.businessId ?? r.id.slice(0, 8)}
+          #{rfqNumber(r)}
         </Link>
       ),
       meta: (r) => formatDateTime(r.updatedAt),
@@ -509,137 +547,96 @@ export function RfqList(): ReactNode {
     visibleSet.has(id),
   ).map((id) => columnDefs[id]);
 
+  const load: ListPageLoad = loading
+    ? { kind: 'loading' }
+    : error !== null
+      ? { kind: 'error', message: error }
+      : { kind: 'ready' };
+
+  const create = (
+    <Button asChild>
+      <Link to="/quote-requests/new">
+        <Plus aria-hidden="true" />
+        {t('rfq.list.create')}
+      </Link>
+    </Button>
+  );
+
+  // The kit list page (issue #1500, SALES-24): the toolbar is a plain row, not
+  // a card, and the results, the empty states and the pager share one card.
   return (
-    <>
-      <PageHeader
-        title={t('rfq.list.title')}
-        description={t('rfq.list.description')}
-        actions={
-          <Button asChild>
-            <Link to="/quote-requests/new">
-              <Plus />
-              {t('rfq.list.create')}
-            </Link>
-          </Button>
-        }
-      />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {droppedCustomFields.length > 0 ? (
-        <Alert variant="warning" className="mb-4">
-          <AlertDescription>
-            {t('customFieldFilters.notice.dropped', {
-              fields: droppedCustomFields
-                .map((key) => customFieldDisplayName(customFieldFields.fields, key, language))
-                .join(', '),
-            })}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card className="mb-4">
-        <CardContent className="space-y-3 pt-6">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative min-w-[220px] flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                id="rfqsearch"
-                className="h-9 w-full rounded-md border pl-8 pr-3 text-sm"
-                value={q}
-                onChange={(e): void => setQ(e.target.value)}
-                placeholder={t('rfq.list.search.placeholder')}
-                aria-label={t('rfq.list.field.search')}
-              />
-            </div>
-            <MultiSelect
-              className="w-44"
-              ariaLabel={t('rfq.list.field.status')}
-              placeholder={t('rfq.list.field.status')}
-              options={statusOptions}
-              selected={statusCodes}
-              onChange={changeStatusCodes}
+    <ListPage
+      title={t('rfq.list.title')}
+      description={t('rfq.list.description')}
+      actions={create}
+      load={load}
+      onRetry={retry}
+      count={own('list.count', { count: total })}
+      toolbar={
+        <ListToolbar
+          className="min-w-0 flex-1"
+          label={own('list.toolbar.label')}
+          search={
+            <ListToolbarSearch
+              ref={searchRef}
+              label={t('rfq.list.field.search')}
+              placeholder={t('rfq.list.search.placeholder')}
+              value={q}
+              onValueChange={setQ}
             />
-            <Select
-              id="rfqsort"
-              aria-label={t('rfq.list.field.sort')}
-              value={sort}
-              onChange={(e): void => changeSort(e.target.value)}
-              className="w-auto"
-            >
-              {SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {t(option.labelKey)}
-                </option>
-              ))}
-            </Select>
-            <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={filtersOpen || advancedActiveCount > 0 ? 'default' : 'outline'}
-                aria-expanded={filtersOpen}
-                onClick={(): void => setFiltersOpen((o) => !o)}
+          }
+          filters={
+            <>
+              <MultiSelect
+                className="w-44"
+                ariaLabel={t('rfq.list.field.status')}
+                placeholder={t('rfq.list.field.status')}
+                options={statusOptions}
+                selected={statusCodes}
+                onChange={changeStatusCodes}
+              />
+              <Select
+                aria-label={t('rfq.list.field.sort')}
+                value={sort}
+                onChange={(e): void => changeSort(e.target.value)}
+                className="w-auto"
               >
-                <SlidersHorizontal />
-                {t('rfq.list.filter.toggle')}
-                {advancedActiveCount > 0 ? ` (${advancedActiveCount})` : ''}
-              </Button>
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.labelKey)}
+                  </option>
+                ))}
+              </Select>
+            </>
+          }
+          actions={
+            <>
               <MultiSelect
                 className="w-40"
                 ariaLabel={t('rfq.list.columns.label')}
                 placeholder={t('rfq.list.columns.label')}
-                icon={<Columns3 className="size-4 opacity-70" />}
+                icon={<Columns3 className="size-4 opacity-70" aria-hidden="true" />}
                 options={columnOptions}
                 selected={visibleColumnIds}
                 onChange={(next): void =>
-                  setVisibleColumnIds(
-                    next.filter((c): c is ColumnId => COLUMN_IDS.includes(c as ColumnId)),
-                  )
+                  setVisibleColumnIds(next.filter((c): c is ColumnId => COLUMN_IDS.includes(c as ColumnId)))
                 }
               />
               <SavedViewsControl
                 endpoint="/api/v1/admin/quote-requests/list-views"
                 current={toSavedViewState()}
                 onApply={applySavedView}
-                onError={setError}
+                onError={setNotice}
               />
-            </div>
-          </div>
-
-          {filterChips.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2">
-              {filterChips.map((chip) => (
-                <button
-                  key={chip.key}
-                  type="button"
-                  aria-label={chip.removeLabel}
-                  onClick={chip.onRemove}
-                  className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2.5 py-1 text-xs hover:bg-muted"
-                >
-                  <span>{chip.label}</span>
-                  <X className="size-3 opacity-70" />
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-              >
-                {t('rfq.list.filter.clearAll')}
-              </button>
-            </div>
-          ) : null}
-
-          {filtersOpen ? (
-            <div className="grid grid-cols-2 gap-3 border-t pt-3 sm:grid-cols-3 lg:grid-cols-4">
+            </>
+          }
+          moreFiltersActiveCount={advancedActiveCount}
+          moreFilters={
+            <>
               <div className="space-y-1">
-                <Label htmlFor="rfq-scope">{t('rfq.list.field.visibility')}</Label>
+                <Label htmlFor={`${filterId}-scope`}>{t('rfq.list.field.visibility')}</Label>
                 <Select
-                  id="rfq-scope"
+                  id={`${filterId}-scope`}
                   value={scope}
                   onChange={(e): void => changeScope(e.target.value as AssignmentScope)}
                 >
@@ -649,9 +646,9 @@ export function RfqList(): ReactNode {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="rfq-org">{t('rfq.list.field.organizationId')}</Label>
+                <Label htmlFor={`${filterId}-org`}>{t('rfq.list.field.organizationId')}</Label>
                 <OrganizationPicker
-                  id="rfq-org"
+                  id={`${filterId}-org`}
                   value={organizationId || null}
                   onChange={(v): void => changeOrganization(v ?? '')}
                 />
@@ -667,68 +664,91 @@ export function RfqList(): ReactNode {
                   changeCustomFieldFilters(withCustomFieldFilter(customFieldFilters, key, filter))
                 }
               />
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent ref={resultsRef} tabIndex={-1} className="pt-6 focus:outline-none" aria-busy={loading}>
-          {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
-          <p role="status" className="sr-only">
-            {loading ? t('rfq.list.loading') : ''}
-          </p>
-          {refusedCustomField !== null ? (
-            <Alert variant="destructive">
-              <AlertDescription className="flex flex-wrap items-center gap-3">
-                <span>
-                  {t('customFieldFilters.error.unavailable', {
-                    field: customFieldDisplayName(customFieldFields.fields, refusedCustomField, language),
+            </>
+          }
+          appliedFilters={filterChips}
+          filtersActive={filtersActive}
+          onClearFilters={clearAllFilters}
+        />
+      }
+      notice={
+        notice !== null || droppedCustomFields.length > 0 ? (
+          <>
+            {notice !== null ? (
+              <Alert variant="destructive">
+                <AlertDescription>{notice}</AlertDescription>
+              </Alert>
+            ) : null}
+            {droppedCustomFields.length > 0 ? (
+              <Alert variant="warning">
+                <AlertDescription>
+                  {t('customFieldFilters.notice.dropped', {
+                    fields: droppedCustomFields
+                      .map((key) => customFieldDisplayName(customFieldFields.fields, key, language))
+                      .join(', '),
                   })}
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="min-h-11 sm:min-h-8"
-                  onClick={removeRefusedCustomField}
-                >
-                  {t('customFieldFilters.error.remove')}
-                </Button>
-              </AlertDescription>
-            </Alert>
-          ) : loading ? (
-            <p className="text-sm text-muted-foreground">{t('rfq.list.loading')}</p>
-          ) : total === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('rfq.list.empty')}</p>
-          ) : (
-            <ResponsiveTable
-              data={rows}
-              keyExtractor={(r) => r.id}
-              columns={tableColumns}
-              renderActions={(r) => (
-                <Button asChild variant="outline" size="sm" className="min-h-11">
-                  <Link to={`/quote-requests/${r.id}`}>
-                    {t('rfq.list.open')}
-                    <ArrowRight />
-                  </Link>
-                </Button>
-              )}
-            />
-          )}
-          {refusedCustomField === null ? (
-            <PaginationFooter
-              page={page}
-              pageSize={pageSize}
-              total={total}
-              onPageSizeChange={changePageSize}
-              onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
-              onNext={(): void => setPage((p) => p + 1)}
-            />
-          ) : null}
-        </CardContent>
-      </Card>
-    </>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+          </>
+        ) : null
+      }
+      pagination={refusedCustomField === null ? pager.footer(total) : null}
+    >
+      <div ref={resultsRef} tabIndex={-1} className="focus:outline-none">
+        {refusedCustomField !== null ? (
+          <Alert variant="destructive">
+            <AlertDescription className="flex flex-wrap items-center gap-3">
+              <span>
+                {t('customFieldFilters.error.unavailable', {
+                  field: customFieldDisplayName(customFieldFields.fields, refusedCustomField, language),
+                })}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="min-h-11 sm:min-h-8"
+                onClick={removeRefusedCustomField}
+              >
+                {t('customFieldFilters.error.remove')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <ResponsiveTable
+            data={rows}
+            keyExtractor={(r) => r.id}
+            columns={tableColumns}
+            emptyState={
+              resultsFiltered ? (
+                <EmptyState
+                  variant="no-results"
+                  title={t('rfq.list.empty')}
+                  onClearFilters={clearAllFilters}
+                  focusAfterClear={searchRef}
+                />
+              ) : (
+                <EmptyState
+                  icon={<FileText size={20} />}
+                  title={own('list.emptyTitle')}
+                  description={own('list.empty')}
+                  action={create}
+                />
+              )
+            }
+            // The number is the way in; the menu holds where else a row leads.
+            renderActions={(r) => (
+              <RowActionMenu label={own('list.rowMenu.label', { number: rfqNumber(r) })}>
+                <RowActionMenuItem asChild>
+                  <Link to={`/organizations/${r.organizationId}`}>{own('list.rowMenu.organization')}</Link>
+                </RowActionMenuItem>
+              </RowActionMenu>
+            )}
+          />
+        )}
+      </div>
+    </ListPage>
   );
 }
 

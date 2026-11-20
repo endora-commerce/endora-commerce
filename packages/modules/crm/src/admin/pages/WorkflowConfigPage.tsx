@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useLocation } from 'react-router-dom';
 import { Plus, Trash2 } from 'lucide-react';
 import type {
+  OpportunityBoardCardConfig,
   OpportunityWorkflow,
   OpportunityWorkflowStatus,
   OrderStatusMapping,
@@ -18,14 +19,16 @@ import {
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import {
+  BoardCardFieldsEditor,
   ModalDialog,
   StatusTransitionGraph,
   type StatusTransitionGraphStatus,
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OrderStatusOption } from '../api.js';
-import { BoardCardFieldsEditor } from '../components/BoardCardFieldsEditor.js';
+import { boardFieldLabel } from '../lib/board-fields.js';
 import { errorMessage, workflowStatusLabel } from '../lib/labels.js';
+import { useServerReorder } from '../lib/use-server-reorder.js';
 import { OrderStatusMappings } from './workflow/OrderStatusMappings.js';
 import { StatusDialog, type StatusDialogSubmit } from './workflow/StatusDialog.js';
 import { StatusesTable } from './workflow/StatusesTable.js';
@@ -92,6 +95,19 @@ export function WorkflowConfigPage(): ReactNode {
     if (loaded && hash === `#${BOARD_CARD_ANCHOR}`) boardCardSection.current?.scrollIntoView?.();
   }, [loaded, hash]);
 
+  const orderedStatuses = useMemo(
+    () => [...(workflow?.statuses ?? [])].sort((a, b) => a.weight - b.weight || a.code.localeCompare(b.code)),
+    [workflow],
+  );
+  const reorder = useServerReorder({
+    rows: orderedStatuses,
+    show: (statuses) => setWorkflow((current) => (current ? { ...current, statuses } : current)),
+    save: async (orderedCodes) => setWorkflow(await crmApi.reorderStatuses(orderedCodes)),
+    reload: async () => setWorkflow(await crmApi.getWorkflow()),
+    staleMessage: t('reorder.stale'),
+    failedMessage: (error) => errorMessage(error, t('reorder.failed')),
+  });
+
   const graphStatuses = useMemo<StatusTransitionGraphStatus[]>(
     () =>
       (workflow?.statuses ?? []).map((status) => ({
@@ -154,7 +170,7 @@ export function WorkflowConfigPage(): ReactNode {
     }
   };
 
-  const header = <PageHeader title={t('workflow.title')} description={t('workflow.description')} />;
+  const header = <PageHeader title={t('workflow.title')} />;
 
   if (workflow === null) {
     return (
@@ -194,19 +210,25 @@ export function WorkflowConfigPage(): ReactNode {
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
             <CardTitle>{t('workflow.statuses.title')}</CardTitle>
-            <CardDescription>{t('workflow.statuses.description')}</CardDescription>
           </div>
           <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
             <Plus aria-hidden="true" />
             {t('workflow.status.add')}
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {reorder.notice ? (
+            <Alert variant={reorder.notice.kind === 'stale' ? 'warning' : 'destructive'} live="assertive">
+              <AlertDescription>{reorder.notice.message}</AlertDescription>
+            </Alert>
+          ) : null}
           <StatusesTable
-            statuses={workflow.statuses}
+            statuses={orderedStatuses}
             language={language}
             onEdit={(status): void => setDialog({ kind: 'edit', status })}
             onDelete={setPendingDelete}
+            onMove={(status, delta): void => reorder.move(status.code, delta)}
+            reordering={reorder.busy}
           />
         </CardContent>
       </Card>
@@ -265,10 +287,18 @@ export function WorkflowConfigPage(): ReactNode {
       <Card id={BOARD_CARD_ANCHOR} ref={boardCardSection} className="scroll-mt-4">
         <CardHeader>
           <CardTitle>{t('boardCard.title')}</CardTitle>
-          <CardDescription>{t('boardCard.description')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <BoardCardFieldsEditor />
+          <BoardCardFieldsEditor
+            load={(): Promise<OpportunityBoardCardConfig> => crmApi.getBoardCardFields()}
+            save={(refs): Promise<OpportunityBoardCardConfig> => crmApi.setBoardCardFields(refs)}
+            fieldLabel={(field): string => boardFieldLabel(field, language, t)}
+            copy={{
+              titleAlways: t('boardCard.shown.titleAlways'),
+              builtinGroup: t('boardCard.available.builtin'),
+              noCustom: t('boardCard.available.noCustom'),
+            }}
+          />
         </CardContent>
       </Card>
       {/* --- end of User Story 19 ------------------------------------------ */}
@@ -277,6 +307,7 @@ export function WorkflowConfigPage(): ReactNode {
         <StatusDialog
           status={dialog.kind === 'edit' ? dialog.status : null}
           nextWeight={nextWeight}
+          takenCodes={workflow.statuses.map((status) => status.code)}
           language={language}
           onSubmit={submitStatus}
           onClose={(): void => setDialog(null)}

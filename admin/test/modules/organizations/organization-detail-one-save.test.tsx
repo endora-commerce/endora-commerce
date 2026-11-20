@@ -10,6 +10,7 @@ import {
   renderWithSession,
 } from '../../helpers/render-with-session';
 import { organizationSalesChannelsAnswer } from '../../helpers/organization-sales-channels';
+import { answerConfirm } from '../../helpers/confirm-dialog';
 
 /**
  * Feature 180, WP-7 — the organization detail gets one Save
@@ -360,6 +361,23 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save'));
   });
 
+  // Issue #1499 (SALES-17, DEC-12 a) — "Saved" is said beside Save, in the header, in a
+  // region mounted empty from the first render — not as a success banner above the page.
+  it('says "Saved" beside Save and puts no success banner on the page', async () => {
+    renderDetail();
+    await ready();
+    const header = saveButton().closest('header')!;
+    const region = within(header).getByRole('status');
+    expect(region.textContent).toBe('');
+    fireEvent.change(emailsField(), { target: { value: 'ops@example.com' } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(region).toHaveTextContent(coreEn['organizations.detail.info.saved']!));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+    // The next edit is a new draft: the old "Saved" goes.
+    fireEvent.change(emailsField(), { target: { value: 'ops@example.com\nx@example.com' } });
+    expect(region.textContent).toBe('');
+  });
+
   it('sends only what changed: a lone custom field is a lone PATCH', async () => {
     renderDetail();
     await ready();
@@ -457,8 +475,8 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
     await ready();
     const badge = coreEn['saveSession.immediateBadge']!;
     for (const title of [
-      coreEn['organizations.detail.inviteCard']!,
-      coreEn['organizations.detail.directAddCard']!,
+      // Issue #1516 (SALES-14) — inviting and creating a member are the Members section's
+      // *Add member* dialog now, not two cards of their own.
       coreEn['organizations.detail.membersCard']!,
       coreEn['organizations.detail.hierarchyCard']!,
       coreEn['organizations.moderation.title']!,
@@ -474,7 +492,9 @@ describe('organization detail — one Save (feature 180, WP-7)', () => {
 
     // Removing a member still applies at once, and a staged host change stays staged.
     fireEvent.change(emailsField(), { target: { value: 'ops@example.com' } });
-    fireEvent.click(within(screen.getByText(MEMBER.email).closest('tr') as HTMLElement).getByRole('button', { name: coreEn['organizations.detail.remove']! }));
+    fireEvent.click(screen.getByRole('button', { name: orgEn['members.row.remove']!.replace('{email}', MEMBER.email) }));
+    // Issue #1516 — asked first, then applied at once.
+    await answerConfirm(true);
     await waitFor(() => expect(writes).toEqual([`DELETE ${ORG_URL}/members/${MEMBER.id}`]));
     await waitFor(() => expect(saveButton()).toHaveAccessibleName('Save 1 change'));
     expect(emailsField()).toHaveValue('ops@example.com');

@@ -6,13 +6,14 @@ import {
   CreditCard,
   FileDown,
   FileText,
+  Loader2,
   MessageSquare,
   RotateCcw,
   Truck,
 } from 'lucide-react';
-import { ApiError, apiBaseUrl, apiClient, cn, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, FormField, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section } from '@endora-commerce/admin-kit/ui';
-import { CustomFieldValuesPanel, StatusChangeControl, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
+import { ApiError, apiBaseUrl, apiClient, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useDetailResource, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, DetailSkeleton, FormField, PageHeader, RecordTabs, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { CustomFieldValuesPanel, DetailHeaderActions, RowActionMenuItem, StatusChangeControl, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
 import { OrderExternalReferences } from '../components/OrderExternalReferences.js';
@@ -33,6 +34,9 @@ import {
 import { OrderSectionSummary, orderSectionTotals, useOrderSectionSummaryText } from '../line-groups.js';
 
 type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
+
+/** The header actions that send a request (issue #1497). */
+type HeaderAction = 'reorder' | 'cloneToQuote' | 'issueInvoice';
 
 interface OrderItem {
   id: string;
@@ -271,17 +275,29 @@ export function OrderDetail(): ReactNode {
   const { id = '' } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const returnTo = readReturnTo(searchParams);
-  const [order, setOrder] = useState<OrderDetail | null>(null);
   const [invoices, setInvoices] = useState<OrderInvoiceRow[]>([]);
+  // Issue #1497 — the header's primary depends on whether the order has an
+  // invoice, so it is not drawn until the first read of the list has answered.
+  const [invoicesLoaded, setInvoicesLoaded] = useState(false);
   const [graph, setGraph] = useState<StatusGraph | null>(null);
   const [comments, setComments] = useState<OrderCommentRow[]>([]);
   const [commentBody, setCommentBody] = useState('');
   const [commentVisible, setCommentVisible] = useState(true);
   const [commentNotify, setCommentNotify] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  /**
+   * Issue #1499 (SALES-17, DEC-12 a) — a header action's result, the copied number's
+   * included, is said beside the header's buttons, in a region mounted empty from the
+   * first render, rather than as a success banner above the tabs.
+   */
+  const actionStatus = useInlineStatus();
   const [tab, setTab] = useState<OrderTab>('overview');
+  /**
+   * Issue #1497 (SALES-12) — the header action whose request is in flight. Every
+   * header action waits for it, so a second press cannot send it twice
+   * (Doherty), and the control that started it shows the spinner.
+   */
+  const [pendingAction, setPendingAction] = useState<HeaderAction | null>(null);
 
   /**
    * Feature 091 / P7d, Z15 — the Payment tab's button is a count of its own
@@ -305,28 +321,31 @@ export function OrderDetail(): ReactNode {
   // Warn before leaving with an unsent comment draft.
   useUnsavedChangesPrompt(commentBody.trim() !== '');
 
-  // `silent` re-reads without the page-wide loading state, so a control that
-  // just wrote keeps its place and its focus (issue #1470).
-  const refresh = useCallback(async (options?: { silent?: boolean }): Promise<void> => {
-    if (!options?.silent) setLoading(true);
-    setError(null);
+  // Issue #1447 (DS-14, SALES-06) — the first load is the only one that shows a
+  // skeleton; every re-read after an action keeps the page, its open tab, the
+  // scroll position and the focus, and marks the content `aria-busy`.
+  const resource = useDetailResource<OrderDetail>(id, async () => {
     try {
       const res = await apiClient.get<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}`);
-      setOrder(res.data);
+      return res.data;
     } catch (err) {
-      if (err instanceof ApiError && err.envelope.error.code === 'ORDER_NOT_FOUND') {
-        setOrder(null);
-      } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
-      }
-    } finally {
-      setLoading(false);
+      if (err instanceof ApiError && err.envelope.error.code === 'ORDER_NOT_FOUND') return null;
+      throw err;
     }
-  }, [id]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  });
+  const order = resource.data;
+  const reread = resource.refresh;
+  // A re-read clears the previous action's error, as the old full reload did.
+  const refresh = useCallback(async (): Promise<void> => {
+    setError(null);
+    await reread();
+  }, [reread]);
+  const loadError =
+    resource.error === null
+      ? null
+      : resource.error instanceof ApiError
+        ? resource.error.envelope.error.message
+        : t('orderDetail.errors.load');
 
   // Load the configurable status graph so the selector offers only valid
   // next transitions (feature 038 US1).
@@ -360,6 +379,8 @@ export function OrderDetail(): ReactNode {
       setInvoices(res.data);
     } catch {
       setInvoices([]);
+    } finally {
+      setInvoicesLoaded(true);
     }
   }, [id]);
 
@@ -386,39 +407,46 @@ export function OrderDetail(): ReactNode {
     if (!order) return;
     try {
       await navigator.clipboard.writeText(order.businessId);
-      setInfo(t('orderDetail.copied', { id: order.businessId }));
+      actionStatus.show(t('orderDetail.copied', { id: order.businessId }), 'info');
     } catch {
-      setError(t('orderDetail.copyError'));
+      actionStatus.show(t('orderDetail.copyError'), 'error');
     }
-  }, [order, t]);
+  }, [order, t, actionStatus]);
 
   const handleReorder = useCallback(async (): Promise<void> => {
+    setPendingAction('reorder');
+    actionStatus.clear();
     try {
       const res = await apiClient.post<{ data: { unavailableItems: unknown[] } }>(
         `/api/v1/admin/orders/${id}/reorder`,
         {},
       );
       const unavailable = res.data.unavailableItems.length;
-      setInfo(
-        unavailable > 0
-          ? t('orderDetail.reorder.doneWithSkips', { count: unavailable })
-          : t('orderDetail.reorder.done'),
-      );
+      if (unavailable > 0) actionStatus.show(t('orderDetail.reorder.doneWithSkips', { count: unavailable }), 'warning');
+      else actionStatus.show(t('orderDetail.reorder.done'));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.reorder.error'));
+    } finally {
+      setPendingAction(null);
     }
-  }, [id, t]);
+  }, [id, t, actionStatus]);
 
   const handleCloneToQuote = useCallback(async (): Promise<void> => {
+    setPendingAction('cloneToQuote');
+    actionStatus.clear();
     try {
       await apiClient.post(`/api/v1/admin/orders/${id}/clone-to-quote`, {});
-      setInfo(t('orderDetail.cloneToQuote.done'));
+      actionStatus.show(t('orderDetail.cloneToQuote.done'));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.cloneToQuote.error'));
+    } finally {
+      setPendingAction(null);
     }
-  }, [id, t]);
+  }, [id, t, actionStatus]);
 
   const handleIssueInvoice = useCallback(async (): Promise<void> => {
+    setPendingAction('issueInvoice');
+    actionStatus.clear();
     try {
       const res = await apiClient.post<{ email?: IssueInvoiceEmailOutcome }>(
         `/api/v1/admin/orders/${id}/invoices`,
@@ -427,37 +455,48 @@ export function OrderDetail(): ReactNode {
       // Issue #149 — the invoice was issued either way, so this is never an
       // error; the notification is the part that varies, and it is said out
       // loud instead of being reported as an unqualified success.
-      setInfo(issueInvoiceNotice(res.email, t));
+      // Issued without its e-mail is a result that went through only in part.
+      actionStatus.show(issueInvoiceNotice(res.email, t), res.email?.status === 'not_sent' ? 'warning' : 'success');
       await loadInvoices();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderDetail.issueInvoice.error'));
+    } finally {
+      setPendingAction(null);
     }
-  }, [id, loadInvoices, t]);
+  }, [id, loadInvoices, t, actionStatus]);
 
   // Both run from the confirm step of a `StatusChangeControl` dialog (issue
   // #1470, DS-18) and let a refusal propagate, so the dialog stays open and
-  // shows it; the page-level notice reports the change once it committed.
+  // shows it. The control announces the committed change itself and its badge
+  // shows the new value, so the page adds no banner of its own (#1499, SALES-17).
   const handleStatus = useCallback(
     async (to: string): Promise<void> => {
       await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/status`, { to });
-      setInfo(t('orderDetail.messages.orderMoved', { status: statusName(graph, to, language) }));
-      await refresh({ silent: true });
+      await refresh();
     },
-    [id, refresh, graph, language, t],
+    [id, refresh],
   );
 
   const handlePaymentStatus = useCallback(
     async (to: string): Promise<void> => {
       await apiClient.post<{ data: OrderDetail }>(`/api/v1/admin/orders/${id}/payment-status`, { to });
-      setInfo(t('orderDetail.messages.paymentMoved', { status: t(paymentStatusLabelKey(to)) }));
-      await refresh({ silent: true });
+      await refresh();
     },
-    [id, refresh, t],
+    [id, refresh],
   );
 
-  if (loading) return <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>;
+  if (resource.initialLoading) return <DetailSkeleton />;
   if (!order)
-    return (
+    return loadError !== null ? (
+      <Alert variant="destructive">
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+          {loadError}
+          <Button variant="outline" size="sm" onClick={(): void => void refresh()}>
+            {t('common.action.retry')}
+          </Button>
+        </AlertDescription>
+      </Alert>
+    ) : (
       <Alert variant="warning">
         <AlertDescription>{t('orderDetail.notFound')}</AlertDescription>
       </Alert>
@@ -488,109 +527,106 @@ export function OrderDetail(): ReactNode {
           </>
         }
         description={<span>{t('orderDetail.placedAt', { date: formatDateTime(order.placedAt) })}</span>}
-        actions={
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-card"
-              onClick={(): void => void handleReorder()}
-            >
-              <RotateCcw />
-              {t('orderDetail.reorder.action')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-card"
-              onClick={(): void => void handleCloneToQuote()}
-            >
-              <FileText />
-              {t('orderDetail.cloneToQuote.action')}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="bg-card"
-              onClick={(): void => void handleIssueInvoice()}
-            >
-              <FileText />
+        actions={(() => {
+          // Issue #1497 (SALES-12) — one primary per view (`DetailHeaderActions`).
+          // The order's next step is its invoice: *Issue invoice* is the one
+          // filled button while the order has none, and once it has one the
+          // header has no primary (Von Restorff). The rest is the long tail and
+          // lives in "More" (Hick). Until the invoice list has answered, the
+          // slot stays empty: a primary that appears and then jumps into the
+          // menu would break that rule and move a control under the pointer.
+          const hasInvoice = invoices.some((inv) => inv.kind === 'invoice');
+          // Newest invoice first (the list is ordered issuedAt desc); only a
+          // fully rendered invoice exposes a downloadable PDF.
+          const readyPdf = invoices.find((inv) => inv.pdfReady);
+          const busy = pendingAction !== null;
+          const issueInvoiceLabel = (
+            <>
+              {pendingAction === 'issueInvoice' ? (
+                <Loader2 aria-hidden="true" className="motion-safe:animate-spin" />
+              ) : (
+                <FileText aria-hidden="true" />
+              )}
               {t('orderDetail.issueInvoice.action')}
-            </Button>
-            {(() => {
-              // Newest invoice first (the list is ordered issuedAt desc); only
-              // a fully rendered invoice exposes a downloadable PDF.
-              const ready = invoices.find((inv) => inv.pdfReady);
-              if (!ready) return null;
-              return (
-                <Button asChild variant="outline" size="sm" className="bg-card">
+            </>
+          );
+          return (
+            <DetailHeaderActions
+              primary={
+                !invoicesLoaded || hasInvoice ? null : (
+                  <Button
+                    onClick={(): void => void handleIssueInvoice()}
+                    disabled={busy}
+                    {...(pendingAction === 'issueInvoice' ? { 'aria-busy': true } : {})}
+                  >
+                    {issueInvoiceLabel}
+                  </Button>
+                )
+              }
+              moreDisabled={busy}
+              status={actionStatus.props}
+              moreBusy={pendingAction === 'reorder' || pendingAction === 'cloneToQuote' || (hasInvoice && pendingAction === 'issueInvoice')}
+            >
+              <RowActionMenuItem onSelect={(): void => void handleReorder()}>
+                <RotateCcw aria-hidden="true" />
+                {t('orderDetail.reorder.action')}
+              </RowActionMenuItem>
+              <RowActionMenuItem onSelect={(): void => void handleCloneToQuote()}>
+                <FileText aria-hidden="true" />
+                {t('orderDetail.cloneToQuote.action')}
+              </RowActionMenuItem>
+              {hasInvoice ? (
+                <RowActionMenuItem onSelect={(): void => void handleIssueInvoice()}>
+                  {issueInvoiceLabel}
+                </RowActionMenuItem>
+              ) : null}
+              {readyPdf ? (
+                <RowActionMenuItem asChild>
                   <a
-                    href={`${apiBaseUrl}/api/v1/admin/invoices/${ready.id}/pdf`}
+                    href={`${apiBaseUrl}/api/v1/admin/invoices/${readyPdf.id}/pdf`}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    <FileDown />
+                    <FileDown aria-hidden="true" />
                     {t('orderDetail.invoicePdf')}
                   </a>
-                </Button>
-              );
-            })()}
-          </>
-        }
+                </RowActionMenuItem>
+              ) : null}
+            </DetailHeaderActions>
+          );
+        })()}
       />
 
-      {error ? (
+      {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
+          <AlertDescription>{error ?? loadError}</AlertDescription>
         </Alert>
       ) : null}
 
       <OrderPendingEffectsNotice pendingEffects={order.pendingEffects} />
 
-      <Card className="mb-4 overflow-hidden">
-        <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
-          <div className="b2b-tabs-scroll">
-            <div className="b2b-tabs" role="tablist">
-              <TabBtn
-                id="overview"
-                label={t('orderDetail.tabs.overview')}
-                icon={<ClipboardList size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-              {paymentContributions.length > 0 ? (
-                <TabBtn
-                  id="payment"
-                  label={t('orderDetail.tabs.payment')}
-                  icon={<CreditCard size={14} />}
-                  active={tab}
-                  onChange={setTab}
-                />
-              ) : null}
-              <TabBtn
-                id="delivery"
-                label={t('orderDetail.tabs.delivery')}
-                icon={<Truck size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-              <TabBtn
-                id="comments"
-                label={t('orderDetail.tabs.comments')}
-                icon={<MessageSquare size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-            </div>
-          </div>
-        </div>
-
-        <CardContent className="divide-y divide-border pt-6 [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+      {/* Issue #1445 (DS-12) — the kit's record tabs: one tab in the tab order,
+          ←/→/Home/End, every tab controlling the one panel. Payment is a tab
+          only while something fills it (Z15), so it is left out, not disabled. */}
+      <RecordTabs
+        className="mb-4 overflow-hidden"
+        items={[
+          { value: 'overview', label: t('orderDetail.tabs.overview'), icon: <ClipboardList /> },
+          ...(paymentContributions.length > 0
+            ? [{ value: 'payment' as const, label: t('orderDetail.tabs.payment'), icon: <CreditCard /> }]
+            : []),
+          { value: 'delivery', label: t('orderDetail.tabs.delivery'), icon: <Truck /> },
+          { value: 'comments', label: t('orderDetail.tabs.comments'), icon: <MessageSquare /> },
+        ]}
+        value={tab}
+        onValueChange={setTab}
+        idBase="order-detail"
+        aria-label={tOrders('detail.tabs.label')}
+        panelProps={{
+          ...resource.busyProps,
+          className: 'divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0',
+        }}
+      >
           {tab === 'overview' ? (
             <>
               <Section title={t('orderDetail.sections.status')}>
@@ -875,9 +911,11 @@ export function OrderDetail(): ReactNode {
               {comments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('orderDetail.comments.empty')}</p>
               ) : (
-                <ul className="space-y-2">
+                // Rows divided by a rule, not a bordered box per comment: the tab
+                // card is the one region (Common Region, issue #1498).
+                <ul className="divide-y divide-border">
                   {comments.map((c) => (
-                    <li key={c.id} className="rounded-md border p-3 text-sm" data-testid="order-comment">
+                    <li key={c.id} className="py-3 text-sm first:pt-0 last:pb-0" data-testid="order-comment">
                       <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                         <span>{formatDateTime(c.createdAt)}</span>
                         {c.systemNote ? (
@@ -910,8 +948,8 @@ export function OrderDetail(): ReactNode {
               <div className="space-y-2 border-t pt-3">
                 {/* A visible label, not a placeholder or a developer id, names the box (#1475). */}
                 <FormField label={tOrders('detail.comments.label')}>
-                  <textarea
-                    className="min-h-20 w-full rounded-md border p-2 text-sm"
+                  <Textarea
+                    className="min-h-20"
                     value={commentBody}
                     onChange={(e): void => setCommentBody(e.target.value)}
                     placeholder={t('orderDetail.comments.placeholder')}
@@ -945,36 +983,15 @@ export function OrderDetail(): ReactNode {
               </div>
             </Section>
           ) : null}
-        </CardContent>
-      </Card>
+      </RecordTabs>
 
       {/* The panels other modules add to an order, below the tab panels so they
-          are there whichever tab is open. No chrome around the zone: every
-          contribution renders its own card, and an empty zone renders nothing
-          at all — the screen is then exactly the one above. */}
-      <AdminZone name="order.detail.after" props={{ orderId: id }} />
+          are there whichever tab is open. No chrome around the zone: at page
+          level each contribution is a card of its own (`chrome="card"`, issue
+          #1437), and an empty zone renders nothing at all — the screen is then
+          exactly the one above. */}
+      <AdminZone name="order.detail.after" props={{ orderId: id }} chrome="card" />
     </>
-  );
-}
-
-function TabBtn(props: {
-  id: OrderTab;
-  label: string;
-  icon: ReactNode;
-  active: OrderTab;
-  onChange: (id: OrderTab) => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={props.active === props.id}
-      className={cn('b2b-tab', props.active === props.id && 'is-active')}
-      onClick={(): void => props.onChange(props.id)}
-    >
-      {props.icon}
-      {props.label}
-    </button>
   );
 }
 

@@ -86,16 +86,17 @@ async function mountAndCompose(language: 'en' | 'pl' = 'en'): Promise<void> {
     bundle(language),
     { language },
   );
-  const scope = await screen.findByLabelText(/Scope/);
+  const copy = bundle(language).pwa!;
+  const scope = await screen.findByRole('combobox', { name: copy['settings.scope']! });
   await screen.findByRole('option', { name: /B2B/ });
   fireEvent.change(scope, { target: { value: CHANNEL } });
   await waitFor(() => expect(get).toHaveBeenCalledWith(expect.stringContaining(`subscriptions?salesChannelId=${CHANNEL}`)));
-  fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'Winter sale' } });
-  fireEvent.change(screen.getByLabelText('Message'), { target: { value: 'Prices drop tonight' } });
+  fireEvent.change(await screen.findByRole('textbox', { name: copy['push.field.title']! }), { target: { value: 'Winter sale' } });
+  fireEvent.change(screen.getByRole('textbox', { name: copy['push.field.body']! }), { target: { value: 'Prices drop tonight' } });
 }
 
 function sendButton(): HTMLElement {
-  return screen.getByRole('button', { name: /Send to all subscribers/ });
+  return screen.getByRole('button', { name: /Send to all subscribers|Wyślij do wszystkich subskrybentów/ });
 }
 
 describe('PWA screen — a push send asks first (#1462)', () => {
@@ -127,6 +128,28 @@ describe('PWA screen — a push send asks first (#1462)', () => {
 
     await waitFor(() => expect(post).toHaveBeenCalledWith('/api/v1/admin/pwa/messages', expect.objectContaining({ title: 'Winter sale', audience: { kind: 'all' } })));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): the queued count is said beside
+  // Send, in a region mounted before it has text, and not as a success banner
+  // at the top of the page; Save says "Settings saved" beside Save the same way.
+  it('says the queued count beside Send and "saved" beside Save, with no success banner', async () => {
+    post.mockResolvedValue({ queuedDeliveries: 1240 });
+    await mountAndCompose();
+    const sendRegion = within(sendButton().parentElement!).getByRole('status');
+    expect(sendRegion.textContent).toBe('');
+    await userEvent.click(sendButton());
+    await answerConfirm(true);
+    await waitFor(() => expect(sendRegion).toHaveTextContent('Queued 1,240 notifications.'));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+
+    const save = screen.getByRole('button', { name: 'Save' });
+    const saveRegion = within(save.parentElement!).getByRole('status');
+    fireEvent.click(save);
+    await waitFor(() => expect(saveRegion).toHaveTextContent('Settings saved.'));
+    // The earlier result is not left standing beside Send.
+    expect(sendRegion.textContent).toBe('');
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
   });
 
   it('keeps a failed send in the dialog', async () => {

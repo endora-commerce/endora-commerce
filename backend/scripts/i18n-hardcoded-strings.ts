@@ -1313,14 +1313,25 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // declares `endora: { type: 'admin-ui' }`; forget that block and all six go
   // *stale* in the same run rather than silently unread, which is the property
   // that makes a self-declared population safe here.
-  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 12,
+  //
+  // Issue #1463 (UX audit CONTENT-05) — drained from 12: the preview modal and
+  // the header's *Preview email* button read `core`. The three left are the
+  // product card's "Select a product" written into the block's props and the
+  // embed select's "Block" field label, which are Puck field data, not the
+  // preview.
+  'packages/page-builder-admin/src/email/EmailEditorPane.tsx': 3,
   'packages/page-builder-admin/src/email/EmailRichTextField.tsx': 3,
-  'packages/page-builder-admin/src/email/EmailRowLayoutPicker.tsx': 3,
-  'packages/page-builder-admin/src/email/EmailVariablesProvider.tsx': 5,
   // Feature 163, R17 (T201): the picker's Change / Select / Clear selection and
   // the source's two options read the `core` bundle; lowered from 5.
-  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 6,
-  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 36,
+  //
+  // Issue #1493 (UX audit CONTENT-03) — the dialogs moved to the kit's
+  // `ModalDialog` and their copy to `core`, re-measured: the asset dialog's
+  // Close (6 → 5); the product and category searches' titles, labels, states,
+  // pagination and buttons (36 → 16 — what is left is the field controls
+  // outside the dialogs). `EmailRowLayoutPicker` (3), `EmailVariablesProvider`
+  // (5) and `cms`' `RowLayoutPicker` (3) reached zero and were deleted.
+  'packages/page-builder-admin/src/chrome/AssetPickers.tsx': 5,
+  'packages/page-builder-admin/src/chrome/CatalogPickers.tsx': 16,
   // Feature 091, Phase 4 batch 16 — re-keyed, not raised and not dropped:
   // `cms` took its admin surface into its package and these files went with
   // it. Every count is unmoved; the same strings in the same components, under
@@ -1334,7 +1345,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // (4 findings) was deleted, and its successor, `page-builder-admin`'s
   // `LinkField.tsx`, reads every string from the `core` bundle.
   'packages/modules/cms/src/admin/components/ComponentDragHandle.tsx': 2,
-  'packages/modules/cms/src/admin/components/RowLayoutPicker.tsx': 3,
   // Feature 091, Phase 4 batch 12 — re-keyed, not dropped: `invoices` took its
   // admin surface into its package and this file went with it. The count is
   // untouched; nothing about the strings changed, only their address. This
@@ -1375,9 +1385,9 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // than as a debt that quietly moved house.
   'packages/modules/delivery_methods/src/admin/pages/DeliveryMethodsPage.tsx': 6,
   'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 11,
-  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 24,
+  'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 14,
   'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 14,
-  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 11,
+  'packages/modules/returns/src/admin/pages/ReturnStatusesConfigPage.tsx': 4,
   // Feature 091, Phase 4 batch five: the screen moved into `stripe`'s package
   // and the entry is **re-keyed**, not raised and not dropped — the same
   // twenty-nine strings at a new address, which this check's two-way ratchet
@@ -1420,20 +1430,11 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // Translating them is two screens' worth of keys per module and belongs to
   // whoever repairs those screens, not to a batch whose subject is where the
   // file lives.
-  'packages/modules/newsletter/src/admin/pages/AutomationBuilder.tsx': 20,
-  'packages/modules/newsletter/src/admin/pages/AutomationsPage.tsx': 12,
-  'packages/modules/newsletter/src/admin/pages/BlocksPage.tsx': 20,
-  'packages/modules/newsletter/src/admin/pages/CampaignEditor.tsx': 26,
-  'packages/modules/newsletter/src/admin/pages/CampaignStats.tsx': 7,
-  'packages/modules/newsletter/src/admin/pages/CampaignsPage.tsx': 9,
-  'packages/modules/newsletter/src/admin/pages/ProviderSettingsPage.tsx': 13,
-  'packages/modules/newsletter/src/admin/pages/SubscribersPage.tsx': 14,
-  'packages/modules/newsletter/src/admin/pages/TagsPage.tsx': 19,
-  'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 10,
-  'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 8,
-  'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 9,
-  'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 22,
-  'packages/modules/pwa/src/admin/pages/PwaPage.tsx': 51,
+  //
+  // Issue #1463 (UX audit CONTENT-05) — fourteen of those entries **drained to
+  // zero and deleted**: every newsletter page, `EmailsList`, `EmailBlocksPage`
+  // and `EmailTemplatesPage`, and both `pwa` files read their module's bundle in
+  // both shipped languages now.
   'packages/modules/settings/src/admin/components/AssetIdSettingInput.tsx': 1,
   // Feature 091, Phase 4 batch 14 — re-keyed, not dropped: `organizations`
   // took its admin surface into its package and this panel went with it. The
@@ -1452,8 +1453,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // translation: it was a hex colour placeholder, which is not copy.
   'packages/admin-kit/src/zones/ZoneErrorBoundary.tsx': 1,
   'packages/admin-shell/src/components/AppShell.tsx': 5,
-  'packages/modules/carts/src/admin/pages/CartsList.tsx': 1,
-  'packages/modules/catalog/src/admin/components/ProductInventoryTab.tsx': 3,
   'packages/modules/catalog/src/admin/pages/AttributeSetsPage.tsx': 3,
   'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': 2,
   'packages/modules/cms/src/admin/components/BackgroundFields.tsx': 5,
@@ -1462,18 +1461,12 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/cms/src/admin/components/HeroFields.tsx': 14,
   'packages/modules/cms/src/admin/components/PageBuilderActionBar.tsx': 7,
   'packages/modules/cms/src/admin/components/SectionBlockFields.tsx': 6,
-  'packages/modules/dictionaries/src/admin/pages/DictionaryPage.tsx': 5,
-  'packages/modules/dictionaries/src/admin/tabs/CountriesTab.tsx': 29,
-  'packages/modules/dictionaries/src/admin/tabs/CurrenciesTab.tsx': 27,
-  'packages/modules/dictionaries/src/admin/tabs/LanguagesTab.tsx': 23,
   'packages/modules/invoices/src/admin/pages/InvoicesList.tsx': 3,
-  'packages/modules/orders/src/admin/pages/OrderDetail.tsx': 1,
   'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx': 2,
   'packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx': 1,
   'packages/modules/payment_methods/src/admin/pages/PaymentMethodsPage.tsx': 1,
   'packages/modules/quick_order/src/admin/pages/QuickOrderOnBehalfPage.tsx': 1,
   'packages/modules/settings/src/admin/components/ConflictBanner.tsx': 2,
-  'packages/modules/settings/src/admin/pages/GroupsPage.tsx': 3,
   'packages/modules/settings/src/admin/pages/SettingsPage.tsx': 6,
   'packages/page-builder-admin/src/email/EmailBuilderActionBar.tsx': 5,
   'packages/page-builder-admin/src/email/EmailVariableFields.tsx': 2,

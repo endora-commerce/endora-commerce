@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useNavigate } from 'react-router-dom';
 import { Info, Loader2 } from 'lucide-react';
 import type { FeedTaxonomyCheck, FeedTaxonomyRevision, TaxonomyProviderCode } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, PageHeader, TabPanel, Tabs } from '@endora-commerce/admin-kit/ui';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { feedTaxonomiesClient } from '../taxonomy-api.js';
@@ -147,6 +147,7 @@ export function TaxonomyRevisionsPage(): ReactNode {
       <PageHeader
         title={t('revisions.title')}
         description={t('revisions.subtitle')}
+        help={t('revisions.help')}
         back={{ to: '/product-feeds/category-mapping', label: t('revisions.back') }}
       />
 
@@ -156,222 +157,217 @@ export function TaxonomyRevisionsPage(): ReactNode {
         {announcement}
       </p>
 
-      <div role="tablist" aria-label={t('revisions.title')} className="flex gap-2">
-        {PROVIDERS.map((code) => (
-          <button
-            key={code}
-            type="button"
-            role="tab"
-            aria-selected={providerCode === code}
-            className={`rounded-md border px-3 py-1 text-sm ${
-              providerCode === code ? 'border-primary bg-muted font-medium' : 'border-border'
-            }`}
-            onClick={(): void => setProviderCode(code)}
-          >
-            {t(`revisions.provider.${code}`)}
-          </button>
-        ))}
-      </div>
+      {/* The kit's strip (issue #1491): one tab stop, ←/→ and Home/End, and
+          everything below it is the selected provider's, in the one panel. */}
+      <Tabs
+        items={PROVIDERS.map((code) => ({ value: code, label: t(`revisions.provider.${code}`) }))}
+        value={providerCode}
+        onValueChange={setProviderCode}
+        idBase="taxonomy-provider"
+        aria-label={t('revisions.providerTabs')}
+      />
 
-      {loadFailed ? (
-        <Alert variant="destructive">
-          <AlertDescription>
-            {t('revisions.loadFailed')}{' '}
-            <Button type="button" variant="outline" size="sm" onClick={(): void => void load()}>
-              {t('revisions.retry')}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {mechanismOff ? (
-        <Card>
-          <CardContent className="space-y-3 pt-4">
-            <div className="flex items-start gap-2">
-              <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-              <div>
-                <h2 className="text-sm font-medium">{t('revisions.off.title')}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{t('revisions.off.body')}</p>
-              </div>
-            </div>
-            {/* The consent moment: what will be contacted is shown BEFORE the
-                switch is reachable, not after (research §R24). */}
-            <p className="text-sm">{t('revisions.off.urls.intro')}</p>
-            <p className="text-sm">{t('revisions.off.urls.promise')}</p>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/settings?group=product_feeds_taxonomy">{t('revisions.off.cta')}</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-4">
-            <p className="text-sm text-muted-foreground" aria-busy={inFlight}>
-              {lastFinishedCheck
-                ? t('revisions.status.lastCheck')
-                    .replace('{ago}', formatDate(lastFinishedCheck.startedAt, language))
-                    .replace('{outcome}', outcomeLabel(t, lastFinishedCheck, providerLabel))
-                : t('revisions.status.neverChecked')}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!canWrite || starting || inFlight}
-                aria-busy={starting || inFlight}
-                title={canWrite ? undefined : t('permission.needWrite')}
-                onClick={(): void => void startCheck()}
-              >
-                {starting || inFlight ? (
-                  <>
-                    <Loader2 aria-hidden="true" className="mr-1 h-3 w-3 animate-spin" />
-                    {t('revisions.checking')}
-                  </>
-                ) : (
-                  t('revisions.checkNow')
-                )}
+      <TabPanel idBase="taxonomy-provider" value={providerCode} className="space-y-4">
+        {loadFailed ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              {t('revisions.loadFailed')}{' '}
+              <Button type="button" variant="outline" size="sm" onClick={(): void => void load()}>
+                {t('revisions.retry')}
               </Button>
-              <Button asChild variant="ghost" size="sm">
-                <Link to="/settings?group=product_feeds_taxonomy">{t('revisions.settings')}</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-      {refused && !mechanismOff ? (
-        <Alert variant="warning">
-          <AlertDescription>{refused}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {waiting ? (
-        <Card>
-          <CardContent className="space-y-2 pt-4">
-            <h2 className="text-sm font-medium">
-              {t('revisions.available.title').replace('{provider}', providerLabel)}
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              {t('revisions.available.body')
-                .replace('{revision}', waiting.revision)
-                .replace('{ago}', formatDate(waiting.installedAt, language))
-                .replace('{count}', String(waiting.nodeCount))}
-            </p>
-            {/* The page's only filled button (Von Restorff): there is exactly
-                one decision to make here. */}
-            <Button type="button" onClick={(): void => setReviewing(waiting)}>
-              {t('revisions.available.cta')}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : current && !mechanismOff && lastFinishedCheck ? (
-        <Alert>
-          <AlertDescription>
-            {t('revisions.upToDate.title').replace('{provider}', providerLabel)}{' '}
-            {t('revisions.upToDate.body').replace(
-              '{ago}',
-              formatDate(lastFinishedCheck.startedAt, language),
-            )}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium">{t('revisions.list.title')}</h2>
-        {revisions === null ? (
-          <div aria-hidden="true" className="space-y-2">
-            <div className="h-8 animate-pulse rounded bg-muted" />
-            <div className="h-8 animate-pulse rounded bg-muted" />
-            <div className="h-8 animate-pulse rounded bg-muted" />
-          </div>
-        ) : revisions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {t('revisions.empty').replace('{provider}', providerLabel)}
-          </p>
-        ) : (
-          <ul role="list" className="divide-y divide-border rounded-md border border-border">
-            {revisions.map((revision) => (
-              <li
-                key={revision.id}
-                className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
-              >
+        {mechanismOff ? (
+          <Card>
+            <CardContent className="space-y-3 pt-4">
+              <div className="flex items-start gap-2">
+                <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
-                  <span className="font-medium">{revision.revision}</span>
-                  <span className="ml-2 text-muted-foreground">
-                    {revision.source === 'bundled'
-                      ? t('revisions.source.bundled').replace(
-                          '{date}',
-                          formatDate(revision.installedAt, language),
-                        )
-                      : t('revisions.source.fetched').replace(
-                          '{ago}',
-                          formatDate(revision.fetchedAt ?? revision.installedAt, language),
-                        )}
-                    {' · '}
-                    {t('revisions.nodeCount').replace('{count}', String(revision.nodeCount))}
-                  </span>
+                  <h2 className="text-sm font-medium">{t('revisions.off.title')}</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">{t('revisions.off.body')}</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* Icon + word, never a coloured dot alone (WCAG 1.4.1). */}
-                  <Badge variant={revision.isCurrent ? 'success' : 'outline'}>
-                    {revision.isCurrent
-                      ? t('revisions.badge.inUse')
-                      : revision.supersededAt
-                        ? t('revisions.badge.superseded')
-                        : t('revisions.badge.notInUse')}
-                  </Badge>
-                  {revision.flags.includes('shrink') ? (
-                    <Badge variant="warning">{t('revisions.badge.shrink')}</Badge>
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={(): void => setReviewing(revision)}
-                  >
-                    {t('revisions.review')}
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+              {/* The consent moment: what will be contacted is shown BEFORE the
+                  switch is reachable, not after (research §R24). */}
+              <p className="text-sm">{t('revisions.off.urls.intro')}</p>
+              <p className="text-sm">{t('revisions.off.urls.promise')}</p>
+              <Button asChild variant="outline" size="sm">
+                <Link to="/settings?group=product_feeds_taxonomy">{t('revisions.off.cta')}</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-4">
+              <p className="text-sm text-muted-foreground" aria-busy={inFlight}>
+                {lastFinishedCheck
+                  ? t('revisions.status.lastCheck')
+                      .replace('{ago}', formatDate(lastFinishedCheck.startedAt, language))
+                      .replace('{outcome}', outcomeLabel(t, lastFinishedCheck, providerLabel))
+                  : t('revisions.status.neverChecked')}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!canWrite || starting || inFlight}
+                  aria-busy={starting || inFlight}
+                  title={canWrite ? undefined : t('permission.needWrite')}
+                  onClick={(): void => void startCheck()}
+                >
+                  {starting || inFlight ? (
+                    <>
+                      <Loader2 aria-hidden="true" className="mr-1 h-3 w-3 animate-spin" />
+                      {t('revisions.checking')}
+                    </>
+                  ) : (
+                    t('revisions.checkNow')
+                  )}
+                </Button>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/settings?group=product_feeds_taxonomy">{t('revisions.settings')}</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
-      </section>
 
-      <section>
-        <button
-          type="button"
-          aria-expanded={checksOpen}
-          className="text-sm font-medium underline-offset-2 hover:underline"
-          onClick={(): void => setChecksOpen((value) => !value)}
-        >
-          {t('revisions.checks.title').replace('{count}', String(checks.length))}
-        </button>
-        {checksOpen ? (
-          checks.length === 0 ? (
-            <p className="mt-1 text-sm text-muted-foreground">{t('revisions.checks.empty')}</p>
+        {refused && !mechanismOff ? (
+          <Alert variant="warning" live="assertive">
+            <AlertDescription>{refused}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {waiting ? (
+          <Card>
+            <CardContent className="space-y-2 pt-4">
+              <h2 className="text-sm font-medium">
+                {t('revisions.available.title').replace('{provider}', providerLabel)}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {t('revisions.available.body')
+                  .replace('{revision}', waiting.revision)
+                  .replace('{ago}', formatDate(waiting.installedAt, language))
+                  .replace('{count}', String(waiting.nodeCount))}
+              </p>
+              {/* The page's only filled button (Von Restorff): there is exactly
+                  one decision to make here. */}
+              <Button type="button" onClick={(): void => setReviewing(waiting)}>
+                {t('revisions.available.cta')}
+              </Button>
+            </CardContent>
+          </Card>
+        ) : current && !mechanismOff && lastFinishedCheck ? (
+          <Alert>
+            <AlertDescription>
+              {t('revisions.upToDate.title').replace('{provider}', providerLabel)}{' '}
+              {t('revisions.upToDate.body').replace(
+                '{ago}',
+                formatDate(lastFinishedCheck.startedAt, language),
+              )}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium">{t('revisions.list.title')}</h2>
+          {revisions === null ? (
+            <div aria-hidden="true" className="space-y-2">
+              <div className="h-8 animate-pulse rounded bg-muted" />
+              <div className="h-8 animate-pulse rounded bg-muted" />
+              <div className="h-8 animate-pulse rounded bg-muted" />
+            </div>
+          ) : revisions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t('revisions.empty').replace('{provider}', providerLabel)}
+            </p>
           ) : (
-            <ul role="list" className="mt-1 space-y-1 text-sm text-muted-foreground">
-              {checks.map((check) => (
-                <li key={check.id}>
-                  <span className="text-foreground">
-                    {formatDate(check.startedAt, language)}
-                  </span>{' '}
-                  · {t(`revisions.checks.trigger.${check.trigger}`)} ·{' '}
-                  {check.finishedAt === null
-                    ? t('revisions.checks.running').replace(
-                        '{ago}',
-                        formatDate(check.startedAt, language),
-                      )
-                    : outcomeLabel(t, check, providerLabel)}
-                  {check.detail ? <span className="block">{check.detail}</span> : null}
+            <ul role="list" className="divide-y divide-border rounded-md border border-border">
+              {revisions.map((revision) => (
+                <li
+                  key={revision.id}
+                  className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm"
+                >
+                  <div>
+                    <span className="font-medium">{revision.revision}</span>
+                    <span className="ml-2 text-muted-foreground">
+                      {revision.source === 'bundled'
+                        ? t('revisions.source.bundled').replace(
+                            '{date}',
+                            formatDate(revision.installedAt, language),
+                          )
+                        : t('revisions.source.fetched').replace(
+                            '{ago}',
+                            formatDate(revision.fetchedAt ?? revision.installedAt, language),
+                          )}
+                      {' · '}
+                      {t('revisions.nodeCount').replace('{count}', String(revision.nodeCount))}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Icon + word, never a coloured dot alone (WCAG 1.4.1). */}
+                    <Badge variant={revision.isCurrent ? 'success' : 'outline'}>
+                      {revision.isCurrent
+                        ? t('revisions.badge.inUse')
+                        : revision.supersededAt
+                          ? t('revisions.badge.superseded')
+                          : t('revisions.badge.notInUse')}
+                    </Badge>
+                    {revision.flags.includes('shrink') ? (
+                      <Badge variant="warning">{t('revisions.badge.shrink')}</Badge>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={(): void => setReviewing(revision)}
+                    >
+                      {t('revisions.review')}
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
-          )
-        ) : null}
-      </section>
+          )}
+        </section>
+
+        <section>
+          <button
+            type="button"
+            aria-expanded={checksOpen}
+            className="text-sm font-medium underline-offset-2 hover:underline"
+            onClick={(): void => setChecksOpen((value) => !value)}
+          >
+            {t('revisions.checks.title').replace('{count}', String(checks.length))}
+          </button>
+          {checksOpen ? (
+            checks.length === 0 ? (
+              <p className="mt-1 text-sm text-muted-foreground">{t('revisions.checks.empty')}</p>
+            ) : (
+              <ul role="list" className="mt-1 space-y-1 text-sm text-muted-foreground">
+                {checks.map((check) => (
+                  <li key={check.id}>
+                    <span className="text-foreground">
+                      {formatDate(check.startedAt, language)}
+                    </span>{' '}
+                    · {t(`revisions.checks.trigger.${check.trigger}`)} ·{' '}
+                    {check.finishedAt === null
+                      ? t('revisions.checks.running').replace(
+                          '{ago}',
+                          formatDate(check.startedAt, language),
+                        )
+                      : outcomeLabel(t, check, providerLabel)}
+                    {check.detail ? <span className="block">{check.detail}</span> : null}
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : null}
+        </section>
+      </TabPanel>
 
       {reviewing ? (
         <RevisionImpactDrawer

@@ -147,7 +147,8 @@ async function expectNoArchiveInMenu(user: User): Promise<void> {
 }
 
 async function statusSelect(): Promise<HTMLSelectElement> {
-  return (await screen.findByLabelText(tr('productEditor.field.status'))) as HTMLSelectElement;
+  // `select`: the field's ⓘ is named after the label too (issue #1459).
+  return (await screen.findByLabelText(tr('productEditor.field.status'), { selector: 'select' })) as HTMLSelectElement;
 }
 
 beforeEach(() => {
@@ -187,7 +188,7 @@ describe('ProductEditor — two status values (FR-010)', () => {
     await user.click(screen.getByRole('menuitem', { name: tr('productEditor.action.duplicate') }));
     const dialog = await screen.findByRole('dialog', { name: tr('productEditor.duplicateTitle', { product: 'Oak chair' }) });
     expect(dialog).toHaveAccessibleDescription(tr('productEditor.duplicateConfirm'));
-    expect(tr('productEditor.duplicateConfirm')).toMatch(/every scope .* except status and URL keys/);
+    expect(tr('productEditor.duplicateConfirm')).toMatch(/every scope except status and URL keys/);
     expect(tr('productEditor.duplicateConfirm')).not.toMatch(/draft/i);
     await user.click(within(dialog).getByRole('button', { name: tr('productEditor.archive.cancel') }));
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -228,7 +229,7 @@ describe('ProductEditor — Archive (FR-019)', () => {
     // The status is kept, drawn as a neutral outline beside the one coloured
     // Archived pill.
     expect((await statusSelect()).value).toBe('active');
-    const head = document.querySelector('.b2b-page-head__title')!;
+    const head = screen.getByRole('heading', { level: 1 }).closest('header')!;
     expect(head.querySelector('.b2b-badge--dot')).toHaveClass('b2b-badge--outline');
     expect(head.querySelector('.b2b-badge--dot')).not.toHaveClass('b2b-badge--success');
     expect(within(head as HTMLElement).getByText(tr('productsList.status.archived'))).toHaveClass('b2b-badge--warn');
@@ -292,7 +293,7 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
 
     const dialog = screen.getByRole('dialog', { name: tr('productEditor.restore.confirmTitle') });
     expect(dialog).toHaveAccessibleDescription(tr('productEditor.restore.confirmBody'));
-    expect(tr('productEditor.restore.confirmBody')).toMatch(/status is Inactive it stays off/);
+    expect(tr('productEditor.restore.confirmBody')).toMatch(/Inactive, it stays off/);
     await user.click(within(dialog).getByRole('button', { name: tr('productEditor.restore.confirm') }));
 
     await waitFor(() =>

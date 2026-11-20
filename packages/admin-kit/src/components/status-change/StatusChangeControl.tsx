@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { Badge, type BadgeProps } from '../../ui/badge.js';
 import { Button } from '../../ui/button.js';
+import { InlineStatus } from '../../ui/inline-status.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { cn } from '../../lib/utils.js';
 import { ModalDialog } from '../modal-dialog/ModalDialog.js';
 
 /**
@@ -56,6 +57,12 @@ export interface StatusChangeControlProps {
   errorMessage?: (error: unknown) => ReactNode;
   /** When set the button is disabled and this explains why. */
   disabledReason?: ReactNode;
+  /**
+   * Keeps `label` as the button's and the radio group's name but hides it
+   * visually — for a control inside a table cell, whose column header already
+   * says it, where a label repeated on every row is noise (issue #1501).
+   */
+  labelVisuallyHidden?: boolean;
   className?: string;
 }
 
@@ -74,6 +81,7 @@ export function StatusChangeControl(props: StatusChangeControlProps): ReactNode 
     consequence,
     errorMessage,
     disabledReason,
+    labelVisuallyHidden = false,
     className,
   } = props;
   const t = useTranslation('core');
@@ -157,10 +165,10 @@ export function StatusChangeControl(props: StatusChangeControlProps): ReactNode 
 
   return (
     <div className={className}>
-      <p id={labelId} className="text-sm font-medium leading-none">
+      <p id={labelId} className={cn('text-sm font-medium leading-none', labelVisuallyHidden && 'sr-only')}>
         {label}
       </p>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className={cn('flex flex-wrap items-center gap-2', !labelVisuallyHidden && 'mt-2')}>
         <Badge variant={badgeVariant} style={badgeStyle}>
           {currentLabel}
         </Badge>
@@ -184,12 +192,11 @@ export function StatusChangeControl(props: StatusChangeControlProps): ReactNode 
         </p>
       ) : null}
       {/* Mounted before it has text, so the change is announced (WCAG 4.1.3). */}
-      <p role="status" className="sr-only">
-        {announcement}
-      </p>
+      <InlineStatus visuallyHidden>{announcement}</InlineStatus>
 
+      {/* ModalDialog renders into document.body itself (issue #1444). */}
       {open
-        ? createPortal(
+        ? (
             <ModalDialog
               title={step === 'choose' ? dialogTitle : t('common.statusChange.confirmTitle')}
               onClose={close}
@@ -280,8 +287,7 @@ export function StatusChangeControl(props: StatusChangeControlProps): ReactNode 
                   </p>
                 </div>
               )}
-            </ModalDialog>,
-            document.body,
+            </ModalDialog>
           )
         : null}
     </div>

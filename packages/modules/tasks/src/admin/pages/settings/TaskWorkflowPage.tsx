@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import type { TaskStatusConfig, TaskWorkflow } from '@endora-commerce/contracts';
+import type { TaskBoardCardConfig, TaskStatusConfig, TaskWorkflow } from '@endora-commerce/contracts';
 import {
   Alert,
   AlertDescription,
@@ -13,15 +13,20 @@ import {
   CardTitle,
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
-import { StatusTransitionGraph, type StatusTransitionGraphStatus } from '@endora-commerce/admin-kit/components';
+import {
+  BoardCardFieldsEditor,
+  StatusTransitionGraph,
+  type StatusTransitionGraphStatus,
+} from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { tasksApi } from '../../api.js';
 import { BOARD_CARD_ANCHOR, TASK_GENERAL_SETTINGS_PATH, TASK_PRIORITIES_PATH, TASK_TAGS_PATH } from '../../lib/settings-paths.js';
 import { TaskStatusDeleteDialog } from '../../components/workflow/TaskStatusDeleteDialog.js';
-import { BoardCardFieldsEditor } from '../../components/BoardCardFieldsEditor.js';
+import { boardFieldLabel } from '../../components/TaskCard.js';
 import { TaskStatusDialog, type TaskStatusDialogSubmit } from '../../components/workflow/TaskStatusDialog.js';
 import { TaskStatusesTable } from '../../components/workflow/TaskStatusesTable.js';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
+import { useServerReorder } from '../../lib/use-server-reorder.js';
 
 type DialogState = { kind: 'create' } | { kind: 'edit'; status: TaskStatusConfig } | null;
 
@@ -78,6 +83,19 @@ export function TaskWorkflowPage(): ReactNode {
   useEffect(() => {
     if (loaded && hash === `#${BOARD_CARD_ANCHOR}`) boardCardSection.current?.scrollIntoView?.();
   }, [loaded, hash]);
+
+  const orderedStatuses = useMemo(
+    () => [...(workflow?.statuses ?? [])].sort((a, b) => a.weight - b.weight || a.code.localeCompare(b.code)),
+    [workflow],
+  );
+  const reorder = useServerReorder({
+    rows: orderedStatuses,
+    show: (statuses) => setWorkflow((current) => (current ? { ...current, statuses } : current)),
+    save: async (orderedCodes) => setWorkflow(await tasksApi.reorderStatuses(orderedCodes)),
+    reload: async () => setWorkflow(await tasksApi.workflow()),
+    staleMessage: t('reorder.stale'),
+    failedMessage: (error) => errorMessage(error, t('reorder.failed')),
+  });
 
   const graphStatuses = useMemo<StatusTransitionGraphStatus[]>(
     () =>
@@ -136,7 +154,6 @@ export function TaskWorkflowPage(): ReactNode {
   const header = (
     <PageHeader
       title={t('workflow.title')}
-      description={t('workflow.description')}
       actions={
         <nav aria-label={t('settings.nav')} className="flex flex-wrap items-center gap-x-4 gap-y-1">
           {(
@@ -191,19 +208,25 @@ export function TaskWorkflowPage(): ReactNode {
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
             <CardTitle>{t('workflow.statuses.title')}</CardTitle>
-            <CardDescription>{t('workflow.statuses.description')}</CardDescription>
           </div>
           <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
             <Plus aria-hidden="true" />
             {t('workflow.status.add')}
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {reorder.notice ? (
+            <Alert variant={reorder.notice.kind === 'stale' ? 'warning' : 'destructive'} live="assertive">
+              <AlertDescription>{reorder.notice.message}</AlertDescription>
+            </Alert>
+          ) : null}
           <TaskStatusesTable
-            statuses={workflow.statuses}
+            statuses={orderedStatuses}
             language={language}
             onEdit={(status): void => setDialog({ kind: 'edit', status })}
             onDelete={setPendingDelete}
+            onMove={(status, delta): void => reorder.move(status.code, delta)}
+            reordering={reorder.busy}
           />
         </CardContent>
       </Card>
@@ -236,10 +259,18 @@ export function TaskWorkflowPage(): ReactNode {
         <Card>
           <CardHeader>
             <CardTitle id="tasks-board-card-title">{t('boardCard.title')}</CardTitle>
-            <CardDescription>{t('boardCard.description')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <BoardCardFieldsEditor />
+            <BoardCardFieldsEditor
+              load={(): Promise<TaskBoardCardConfig> => tasksApi.boardCardFields()}
+              save={(refs): Promise<TaskBoardCardConfig> => tasksApi.setBoardCardFields(refs)}
+              fieldLabel={(field): string => boardFieldLabel(field, language, t)}
+              copy={{
+                titleAlways: t('boardCard.shown.titleAlways'),
+                builtinGroup: t('boardCard.available.builtin'),
+                noCustom: t('boardCard.available.noCustom'),
+              }}
+            />
           </CardContent>
         </Card>
       </section>
@@ -248,6 +279,7 @@ export function TaskWorkflowPage(): ReactNode {
         <TaskStatusDialog
           status={dialog.kind === 'edit' ? dialog.status : null}
           nextWeight={nextWeight}
+          takenCodes={workflow.statuses.map((status) => status.code)}
           language={language}
           onSubmit={submitStatus}
           onClose={(): void => setDialog(null)}

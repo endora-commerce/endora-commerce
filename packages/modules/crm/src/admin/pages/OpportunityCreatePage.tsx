@@ -203,13 +203,12 @@ export function OpportunityCreatePage(): ReactNode {
     <>
       <PageHeader
         title={t('opportunity.create.title')}
-        description={t('opportunity.create.description')}
         back={{ label: t('opportunity.detail.back'), to: '/crm/opportunities' }}
       />
 
       <form noValidate onSubmit={(event): void => void submit(event)}>
         <Card>
-          <CardContent className="space-y-5 pt-6">
+          <CardContent className="space-y-5">
             {submitError ? (
               <Alert variant="destructive">
                 <AlertDescription>{submitError}</AlertDescription>
@@ -236,8 +235,6 @@ export function OpportunityCreatePage(): ReactNode {
                 {linksAnOrder ? t('orderPanel.createForm.hint') : t('orderPanel.createForm.hintQuoteRequest')}
               </p>
             ) : null}
-
-            <p className="text-xs text-muted-foreground">{t('opportunity.create.requiredHint')}</p>
 
             <div className="space-y-1">
               <Label htmlFor="crm-create-title">
@@ -428,19 +425,26 @@ export function OpportunityCreatePage(): ReactNode {
           <NewOpportunityCustomFields onChange={setCustomFieldValues} fieldErrors={customFieldErrors} />
         </div>
 
-        <StickyFormActions className="mt-4 flex justify-end gap-2">
-          <Button className="min-h-11 sm:min-h-9"
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={(): void => void navigate('/crm/opportunities')}
-          >
-            {tCore('common.action.cancel')}
-          </Button>
-          <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy || unlinked !== null} aria-busy={busy}>
-            {busy ? t('opportunity.create.submitting') : t('opportunity.create.submit')}
-          </Button>
-        </StickyFormActions>
+        {/* Issue #1449 (DS-19) — in view while the form scrolls; Cancel, then Create last. */}
+        <StickyFormActions
+          desktop="sticky"
+          secondary={
+            <Button
+              className="min-h-11 sm:min-h-9"
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={(): void => void navigate('/crm/opportunities')}
+            >
+              {tCore('common.action.cancel')}
+            </Button>
+          }
+          primary={
+            <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy || unlinked !== null} aria-busy={busy}>
+              {busy ? t('opportunity.create.submitting') : t('opportunity.create.submit')}
+            </Button>
+          }
+        />
       </form>
     </>
   );

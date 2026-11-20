@@ -9,7 +9,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   PageHeader,
@@ -24,9 +23,11 @@ import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n'
 import { tasksApi } from '../../api.js';
 import { TaskPriorityDeleteDialog } from '../../components/priorities/TaskPriorityDeleteDialog.js';
 import { TaskPriorityDialog, type TaskPriorityDialogSubmit } from '../../components/priorities/TaskPriorityDialog.js';
+import { ReorderControls } from '../../components/reorder/ReorderControls.js';
 import { SettingsEmptyState } from '../../components/SettingsEmptyState.js';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
 import { TASK_WORKFLOW_PATH } from '../../lib/settings-paths.js';
+import { useServerReorder } from '../../lib/use-server-reorder.js';
 
 type DialogState = { kind: 'create' } | { kind: 'edit'; priority: TaskPriorityConfig } | null;
 
@@ -40,7 +41,7 @@ function byPosition(a: TaskPriorityConfig, b: TaskPriorityConfig): number {
  * FR-024, FR-041, research R-9; `contracts/admin-surfaces.md` §1): the
  * operator's list, most urgent first, each with how many Tasks the operator
  * can see hold it. Adding one, renaming it in both languages, recolouring it
- * and moving it are configuration — the route is gated `tasks:configure` —
+ * and moving it (one batch reorder per move, issue #1560) are configuration — the route is gated `tasks:configure` —
  * and the list's sort by priority follows the order set here. Removing one
  * that Tasks hold asks which priority, or none, they get.
  *
@@ -73,6 +74,14 @@ export function TaskPrioritiesPage(): ReactNode {
   }, [load]);
 
   const ordered = useMemo(() => [...(priorities ?? [])].sort(byPosition), [priorities]);
+  const reorder = useServerReorder({
+    rows: ordered,
+    show: setPriorities,
+    save: async (orderedCodes) => setPriorities(await tasksApi.reorderPriorities(orderedCodes)),
+    reload: async () => setPriorities(await tasksApi.priorities()),
+    staleMessage: t('reorder.stale'),
+    failedMessage: (error) => errorMessage(error, t('reorder.failed')),
+  });
 
   const submitPriority = async (submit: TaskPriorityDialogSubmit): Promise<void> => {
     setPriorities(
@@ -90,7 +99,6 @@ export function TaskPrioritiesPage(): ReactNode {
   const header = (
     <PageHeader
       title={t('priorities.title')}
-      description={t('priorities.description')}
       back={{ label: t('settings.back'), to: TASK_WORKFLOW_PATH }}
     />
   );
@@ -127,7 +135,6 @@ export function TaskPrioritiesPage(): ReactNode {
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
           <div className="space-y-1.5">
             <CardTitle>{t('priorities.list.title')}</CardTitle>
-            <CardDescription>{t('priorities.list.description')}</CardDescription>
           </div>
           {ordered.length > 0 ? (
             <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
@@ -136,7 +143,12 @@ export function TaskPrioritiesPage(): ReactNode {
             </Button>
           ) : null}
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {reorder.notice ? (
+            <Alert variant={reorder.notice.kind === 'stale' ? 'warning' : 'destructive'} live="assertive">
+              <AlertDescription>{reorder.notice.message}</AlertDescription>
+            </Alert>
+          ) : null}
           {ordered.length === 0 ? (
             <SettingsEmptyState
               icon={<Flag size={20} />}
@@ -159,7 +171,7 @@ export function TaskPrioritiesPage(): ReactNode {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ordered.map((priority) => {
+                {ordered.map((priority, index) => {
                   const name = workflowStatusName(priority, language);
                   return (
                     <TableRow key={priority.code}>
@@ -169,10 +181,17 @@ export function TaskPrioritiesPage(): ReactNode {
                         </Badge>
                       </TableCell>
                       <TableCell className="font-mono text-xs">{priority.code}</TableCell>
-                      <TableCell className="text-right tabular-nums">{priority.weight}</TableCell>
+                      <TableCell className="text-right tabular-nums">{index + 1}</TableCell>
                       <TableCell className="text-right tabular-nums">{priority.inUseCount}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1">
+                          <ReorderControls
+                            name={name}
+                            isFirst={index === 0}
+                            isLast={index === ordered.length - 1}
+                            disabled={reorder.busy}
+                            onMove={(delta): void => reorder.move(priority.code, delta)}
+                          />
                           <Button
                             className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
                             variant="ghost"
@@ -206,6 +225,7 @@ export function TaskPrioritiesPage(): ReactNode {
         <TaskPriorityDialog
           priority={dialog.kind === 'edit' ? dialog.priority : null}
           nextWeight={nextWeight}
+          takenCodes={ordered.map((priority) => priority.code)}
           language={language}
           onSubmit={submitPriority}
           onClose={(): void => setDialog(null)}

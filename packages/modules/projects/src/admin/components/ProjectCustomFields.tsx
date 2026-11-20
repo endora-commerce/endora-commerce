@@ -138,7 +138,9 @@ export function NewProjectCustomFields(props: {
   const { language } = useAppLanguage();
   if (!useCanSeeCustomFields()) return null;
   return (
+    // Between the create form's cards, not inside one: a card of its own (issue #1437).
     <CustomFieldValuesPanel
+      chrome="card"
       entityType="project"
       values={EMPTY}
       onChange={props.onChange}

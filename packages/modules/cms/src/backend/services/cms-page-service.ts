@@ -7,6 +7,7 @@ import {
   type CmsPageSummary,
   type CmsPageTranslations,
   type CreateCmsPageRequest,
+  type DuplicateCmsRecordRequest,
   type PatchCmsPageRequest,
   isUuidShape,
 } from '@endora-commerce/contracts';
@@ -19,6 +20,7 @@ import { assertAnchors } from './anchor-guard.js';
 import type { CmsContentInvalidator } from './cms-content-invalidator.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';
 import { addressesOf, anyNested, duplicatePath, loadChannelPageNodes } from './page-paths.js';
+import { copyCandidate, copyName, copyPrefix, likeLiteral, pickCopyNumber } from './copy-naming.js';
 
 type PageRow = {
   id: string;
@@ -235,33 +237,46 @@ export class CmsPageService {
    * a consumer to branch on, the sentence for the operator to read.
    */
   private async assertSlugNotReserved(slug: string, salesChannelIds: readonly string[]): Promise<void> {
-    const segment = firstSlugSegment(slug);
-    if (segment.length === 0) return;
+    (await this.slugReservationJudge(salesChannelIds))(slug);
+  }
+
+  /**
+   * The refusal above as a function of the slug alone, with every settings read
+   * it depends on already made. `duplicate` needs it because the slug it judges
+   * is only known inside the Command, under the lock, and a settings read must
+   * not hold the Command's connection while it waits for its own.
+   */
+  private async slugReservationJudge(salesChannelIds: readonly string[]): Promise<(slug: string) => void> {
     // Feature 171 — a segment another module serves in one of the page's channels
     // (the blog's prefix) is that module's address there, never the page's.
-    const claimedBy = this.claimedSegmentsResolver
-      ? (await this.claimedSegmentsResolver(salesChannelIds)).get(segment)
-      : undefined;
-    if (claimedBy !== undefined) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.CMS_SLUG_RESERVED,
-        `The first path segment "${segment}" is served by the ${claimedBy} module in this sales channel.`,
-        { segment, claimedBy },
-      );
-    }
+    const claimed = this.claimedSegmentsResolver
+      ? await this.claimedSegmentsResolver(salesChannelIds)
+      : new Map<string, string>();
     const reserved = await this.reservedSegments();
     // Feature 167 (FR-040, OR-5, OR-12) — a language prefix of any channel is the
     // storefront's too: the URL `/<prefix>/…` is that language's page, never the
     // CMS page. A prefix of a language no channel serves is an ordinary segment.
-    const languagePrefix = (await this.languagePrefixes()).has(segment.toLowerCase());
-    if (!reserved.includes(segment) && !languagePrefix) return;
-    throw new HttpError(
-      409,
-      ERROR_CODES.CMS_SLUG_RESERVED,
-      `The first path segment "${segment}" is reserved by this storefront.`,
-      { segment },
-    );
+    const prefixes = await this.languagePrefixes();
+    return (slug: string): void => {
+      const segment = firstSlugSegment(slug);
+      if (segment.length === 0) return;
+      const claimedBy = claimed.get(segment);
+      if (claimedBy !== undefined) {
+        throw new HttpError(
+          409,
+          ERROR_CODES.CMS_SLUG_RESERVED,
+          `The first path segment "${segment}" is served by the ${claimedBy} module in this sales channel.`,
+          { segment, claimedBy },
+        );
+      }
+      if (!reserved.includes(segment) && !prefixes.has(segment.toLowerCase())) return;
+      throw new HttpError(
+        409,
+        ERROR_CODES.CMS_SLUG_RESERVED,
+        `The first path segment "${segment}" is reserved by this storefront.`,
+        { segment },
+      );
+    };
   }
 
   /**
@@ -632,6 +647,161 @@ export class CmsPageService {
 
     await this.invalidateForSlugs(createdAddresses);
     return this.get(id);
+  }
+
+  /**
+   * Issue #1495 (UX audit CONTENT-13, DEC-17) — a draft copy of a page, as one
+   * `cms_page.duplicate` Command audited against the **copy**.
+   *
+   * What is copied: every language's tree byte for byte, the languages, the
+   * description, the meta fields, the per-language names, the parent (the copy
+   * is a sibling), the breadcrumb and sharing-image settings, `active` and the
+   * channel set. What is not: the publication state (the copy is a draft at
+   * version 1), the history, the children, inbound references and the `seo`
+   * module's overrides, which that module owns.
+   *
+   * The slug and every language slug get **one** suffix number, the lowest for
+   * which all of them are free anywhere — the page slug, a channel slug or a
+   * language slug of any page — so the result does not depend on the channel
+   * scope. The taken set is read under the public-path lock, which serialises
+   * two duplicates of one page into `-copy` and `-copy-2`.
+   *
+   * The identity checks `create` runs still run, and are the authority; the
+   * content checks do not, because the content is a stored row's that already
+   * passed them, and a block deleted since would otherwise make an unchanged
+   * page impossible to copy.
+   */
+  async duplicate(sourceId: string, input: DuplicateCmsRecordRequest): Promise<CmsPageDetail> {
+    if (!isUuidShape(sourceId)) {
+      throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
+    }
+    // The settings the reserved-segment refusal reads, read before the Command
+    // (see `slugReservationJudge`). The copy keeps the source's channels.
+    const assertNotReserved = await this.slugReservationJudge(await this.channelIdsFor(sourceId));
+    const id = randomUUID();
+    const createdAddresses = new Set<string>();
+
+    await this.commandBus.run<void>({
+      action: 'cms_page.duplicate',
+      objectType: PAGE_OBJECT_TYPE,
+      objectId: id,
+      run: async ({ em: tx }) => {
+        await tx.execute("select pg_advisory_xact_lock(hashtext('cms_pages.public_path'))");
+        const source = await this.findRow(sourceId, tx);
+        if (!source) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
+        const channelIds = await this.channelIdsFor(sourceId, tx);
+        const sourceTranslations = source.translations ?? {};
+        const bases = [
+          source.slug,
+          ...Object.values(sourceTranslations).flatMap((entry) => (entry.slug ? [entry.slug] : [])),
+        ];
+        const n = pickCopyNumber(bases, await this.takenPageSlugs(tx, bases));
+        if (n === null) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.CMS_SLUG_CONFLICT,
+            `Could not allocate a free slug derived from "${source.slug}".`,
+            { path: source.slug },
+          );
+        }
+        const slug = copyCandidate(source.slug, n);
+        const translations: CmsPageTranslations = {};
+        for (const [language, entry] of Object.entries(sourceTranslations)) {
+          translations[language] = { ...entry, ...(entry.slug ? { slug: copyCandidate(entry.slug, n) } : {}) };
+        }
+        for (const candidate of this.requestedSlugs(slug, translations)) assertNotReserved(candidate);
+        await this.assertLanguagesInChannelScope(tx, source.languages, channelIds);
+        if (source.parent_page_id) await this.assertParentAllowed(tx, id, source.parent_page_id);
+
+        const now = new Date();
+        const copy: PageRow = {
+          ...source,
+          id,
+          name: copyName(source.name, input.name),
+          slug,
+          status: 'draft',
+          translations,
+          version: 1,
+          created_at: now,
+          updated_at: now,
+        };
+        const title = Object.fromEntries(
+          copy.languages.map((language) => [language, copy.meta_title?.[language]?.trim() || copy.name]),
+        );
+        const body = Object.fromEntries(copy.languages.map((language) => [language, '']));
+        await tx.execute(
+          `insert into cms_pages
+            (id, path, status, title, body, published_at, archived_at, created_at, updated_at,
+             name, slug, active, description, meta_title, meta_description, meta_keywords,
+             content, languages, version,
+             parent_page_id, breadcrumbs_visible, breadcrumbs_scheme, share_image_asset_id,
+             parent_path_in_url, breadcrumbs_overlay, translations)
+           values (?, ?, 'draft', ?::jsonb, ?::jsonb, null, null, ?, ?,
+             ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, 1,
+             ?, ?, ?, ?, ?, ?, ?::jsonb)`,
+          [
+            id,
+            this.legacyPath(slug, id),
+            JSON.stringify(title),
+            JSON.stringify(body),
+            now,
+            now,
+            copy.name,
+            slug,
+            copy.active,
+            copy.description,
+            JSON.stringify(copy.meta_title ?? {}),
+            JSON.stringify(copy.meta_description ?? {}),
+            JSON.stringify(copy.meta_keywords ?? {}),
+            JSON.stringify({ languages: source.content.languages ?? {} }),
+            JSON.stringify(copy.languages),
+            copy.parent_page_id,
+            copy.breadcrumbs_visible,
+            copy.breadcrumbs_scheme,
+            copy.share_image_asset_id,
+            copy.parent_path_in_url === true,
+            copy.breadcrumbs_overlay === true,
+            JSON.stringify(translations),
+          ],
+        );
+        await this.replaceChannelScope(tx, id, channelIds, slug);
+        await this.assertSlugAvailable(tx, slug, channelIds, id);
+        await this.assertPathsUnique(tx, new Set([id]));
+        for (const address of this.requestedSlugs(slug, translations)) createdAddresses.add(address);
+        for (const address of (await this.addressSnapshot(tx, new Set([id]))).addresses) {
+          createdAddresses.add(address);
+        }
+        return {
+          result: undefined,
+          before: null,
+          after: { ...(await this.auditState(tx, copy)), sourcePageId: sourceId },
+        };
+      },
+    });
+
+    await this.invalidateForSlugs(createdAddresses);
+    return this.get(id);
+  }
+
+  /**
+   * Every slug a page holds anywhere that a copy of `bases` could collide with
+   * — a page's own slug, a channel slug, a language slug — read in **one**
+   * query over each base's copy prefix, so the free number is picked in memory.
+   */
+  private async takenPageSlugs(em: EntityManager, bases: readonly string[]): Promise<Set<string>> {
+    const patterns = [...new Set(bases)].map((base) => `${likeLiteral(copyPrefix(base))}%`);
+    const any = (column: string): string => patterns.map(() => `${column} like ?`).join(' or ');
+    const rows = (await em.execute(
+      `select slug as value from cms_pages where ${any('slug')}
+       union
+       select slug as value from cms_page_sales_channels where ${any('slug')}
+       union
+       select t.value ->> 'slug' as value
+       from cms_pages p, jsonb_each(coalesce(p.translations, '{}'::jsonb)) t
+       where ${any("t.value ->> 'slug'")}`,
+      [...patterns, ...patterns, ...patterns],
+    )) as Array<{ value: string | null }>;
+    return new Set(rows.flatMap((row) => (row.value ? [row.value] : [])));
   }
 
   async get(id: string): Promise<CmsPageDetail> {

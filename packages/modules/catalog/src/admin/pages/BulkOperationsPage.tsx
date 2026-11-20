@@ -98,7 +98,7 @@ export function BulkOperationsPage(): ReactNode {
 
   return (
     <>
-      <PageHeader title={t('bulkOperations.title')} description={t('bulkOperations.subtitle')} />
+      <PageHeader title={t('bulkOperations.title')} />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">

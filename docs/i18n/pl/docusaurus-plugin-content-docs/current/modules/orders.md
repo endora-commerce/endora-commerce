@@ -660,7 +660,7 @@ Każdy inny komentarz zwraca `systemNote: null`.
 ## Filtry pól niestandardowych
 
 Pole niestandardowe zamówienia z włączoną opcją **Używaj jako filtra listy** (ustawianą na ekranie
-**Pola niestandardowe**) jest dostępne jako filtr wśród filtrów zaawansowanych listy zamówień,
+**Pola niestandardowe**) jest dostępne jako filtr pod przyciskiem **Więcej filtrów** listy zamówień,
 opisany w twoim języku: tekst, który zawiera, zakres liczb lub dat, tak lub nie albo jedna lub
 więcej opcji. Zamówienie bez wartości tego pola nigdy nie pasuje. Każdy filtr pola
 niestandardowego jest pokazany jako usuwalna etykieta obok pozostałych aktywnych filtrów, zawęża

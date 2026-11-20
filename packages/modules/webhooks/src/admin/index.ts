@@ -1,5 +1,5 @@
 /**
- * `webhooks`' admin surface — one route and one sidebar entry, declared by the
+ * `webhooks`' admin surface — two routes and one sidebar entry, declared by the
  * module that owns them (feature 091, Phase 4, the plan's batch 6;
  * `specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md`).
  *
@@ -30,9 +30,10 @@
  * whether or not anybody remembers to ask for one.
  */
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import { WEBHOOKS_NEW_PATH, WEBHOOKS_PATH } from './paths.js';
 
-/** The module's only route: the subscription registry and its delivery log. */
-const ROUTE_PATH = '/webhooks';
+/** The list: the subscription registry and its delivery log. */
+const ROUTE_PATH = WEBHOOKS_PATH;
 
 /**
  * The code every route of this module's admin API enforces —
@@ -50,6 +51,14 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/WebhooksPage.js'),
       requiredPermission: PERMISSION,
       index: true,
+    },
+    {
+      // Subscribing (issue #1501, UX audit SHELL-14): the form that was drawn
+      // open above the list, reached from its *New webhook*. Same gate — the
+      // create route enforces the same code as the list.
+      path: WEBHOOKS_NEW_PATH,
+      component: () => import('./pages/WebhookCreatePage.js'),
+      requiredPermission: PERMISSION,
     },
   ],
   nav: [

@@ -135,7 +135,7 @@ export function CreditLimitsPage(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('creditLimits.loading')}</p>
           ) : rows.length === 0 ? (

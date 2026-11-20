@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import type { CustomFieldListFilterField, SavedListView } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
@@ -31,7 +32,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   );
   return {
     ...actual,
-    usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }),
     apiClient: {
       get: (...args: unknown[]) => api.get(...args),
       post: (...args: unknown[]) => api.post(...args),
@@ -170,10 +170,14 @@ async function renderList(entry = '/orders', rowsExpected = true): Promise<Retur
   const user = userEvent.setup();
   renderWithI18n(
     <StrictMode>
+      {withSession(
       <MemoryRouter initialEntries={[entry]}>
-        <OrdersList />
-        <LocationProbe />
-      </MemoryRouter>
+          <OrdersList />
+          <LocationProbe />
+        </MemoryRouter>,
+      // The kit pager reads the admin's remembered page size, inside the session (issue #1500).
+      { session: adminSession({ permissions: ['*'] }) },
+    )}
     </StrictMode>,
     { core: en as Record<string, string> },
   );
@@ -183,7 +187,7 @@ async function renderList(entry = '/orders', rowsExpected = true): Promise<Retur
 }
 
 async function openFilters(user: ReturnType<typeof userEvent.setup>): Promise<void> {
-  await user.click(screen.getByRole('button', { name: /^Filters/ }));
+  await user.click(screen.getByRole('button', { name: /^More filters/ }));
 }
 
 async function pickOptions(user: ReturnType<typeof userEvent.setup>, ...labels: string[]): Promise<void> {
@@ -279,14 +283,17 @@ describe('OrdersList — custom-field filters', () => {
     render(
       <StrictMode>
         <TranslationProvider language="pl" initialBundle={{ core: pl as Record<string, string> }}>
-          <MemoryRouter>
-            <OrdersList />
-          </MemoryRouter>
+          {withSession(
+            <MemoryRouter>
+              <OrdersList />
+            </MemoryRouter>,
+            { session: adminSession({ permissions: ['*'] }) },
+          )}
         </TranslationProvider>
       </StrictMode>,
     );
     await screen.findByText('#ORD-1');
-    await user.click(screen.getByRole('button', { name: new RegExp(`^${(pl as Record<string, string>)['orders.filter.toggle']}`) }));
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${(pl as Record<string, string>)['common.listToolbar.moreFilters']}`) }));
     const filterLabel = (await screen.findByRole('button', { name: 'Źródło klienta', expanded: false })).getAttribute('aria-label');
 
     api.get.mockImplementation(async (path: string) =>
@@ -377,8 +384,10 @@ describe('OrdersList — custom-field filters', () => {
       expect(screen.queryByText(/Showing|No results/)).toBeNull();
       refuse = null;
       await user.click(screen.getByRole('button', { name: 'Remove this filter' }));
-      expect(document.activeElement?.getAttribute('tabindex')).toBe('-1');
-      expect(document.activeElement?.getAttribute('aria-busy')).not.toBeNull();
+      // Once the list is read again without it (issue #1500: the results region is the list page's).
+      await waitFor(() => expect(document.activeElement?.getAttribute('tabindex')).toBe('-1'));
+      // The focused region is the results card's content, not a stray element on the page.
+      expect(document.activeElement?.closest('[data-slot="card"]')?.textContent).toContain('#ORD-1');
     });
 
     it('clears the dropped-filters notice on Clear all and on a custom-filter change', async () => {
@@ -391,7 +400,7 @@ describe('OrdersList — custom-field filters', () => {
       await user.selectOptions(screen.getByRole('combobox', { name: 'Saved views' }), WITH_SOURCE.id);
       await user.selectOptions(screen.getByRole('combobox', { name: 'Saved views' }), WITH_RETIRED.id);
       expect(await screen.findByText(/no longer available and were removed/)).toBeInTheDocument();
-      await user.click(screen.getByRole('button', { name: 'Clear all' }));
+      await user.click(screen.getByRole('button', { name: 'Clear all filters' }));
       await waitFor(() => expect(screen.queryByText(/no longer available and were removed/)).toBeNull());
     });
 

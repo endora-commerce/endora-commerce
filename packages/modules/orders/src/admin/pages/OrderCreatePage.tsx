@@ -27,6 +27,7 @@ import {
   Label,
   Separator,
   PageHeader,
+  Textarea,
   Combobox,
   FormField,
   TableCell,
@@ -47,6 +48,7 @@ import {
   parsePositiveInt,
   productDisplayName,
   splitLineInto,
+  StickyFormActions,
   type ProductBrowserItem,
   type ProductBrowserRules,
 } from '@endora-commerce/admin-kit/components';
@@ -537,6 +539,7 @@ function AddressPicker(props: {
             type="button"
             size="sm"
             variant={choice.mode === 'existing' ? 'default' : 'outline'}
+            aria-pressed={choice.mode === 'existing'}
             disabled={props.disabled}
             onClick={(): void => onChange({ mode: 'existing', id: '' })}
           >
@@ -546,6 +549,7 @@ function AddressPicker(props: {
             type="button"
             size="sm"
             variant={choice.mode === 'new' ? 'default' : 'outline'}
+            aria-pressed={choice.mode === 'new'}
             onClick={(): void => onChange({ mode: 'new', fields: { ...EMPTY_INLINE }, save: true })}
           >
             {t('orderCreate.address.mode.new')}
@@ -579,7 +583,9 @@ function AddressPicker(props: {
           emptyMessage={props.emptyMessage}
         />
       ) : (
-        <div className="space-y-3 rounded-md border p-3">
+        // No frame of its own: the fields belong to the address group above
+        // them, inside the Parties card (Common Region, issue #1498).
+        <div className="space-y-3">
           {inlineField('recipientName', t('orderCreate.address.field.recipientName'))}
           {inlineField('street', t('orderCreate.address.field.street'))}
           <div className="grid grid-cols-2 gap-3">
@@ -1091,7 +1097,7 @@ export function OrderCreatePage(): ReactNode {
   );
 
   return (
-    <>
+    <div>
       <PageHeader
         title={t('orderCreate.title')}
         description={t('orderCreate.description')}
@@ -1106,12 +1112,6 @@ export function OrderCreatePage(): ReactNode {
       />
 
       <RouteTabsZone name="order.entry.tabs" props={{}} className="mb-4" />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
 
       <Card className="mb-4">
         <CardHeader>
@@ -1230,7 +1230,7 @@ export function OrderCreatePage(): ReactNode {
 
       {gateHint ? (
         <Card className="mb-4">
-          <CardContent className="flex items-center gap-2 pt-6 text-sm text-muted-foreground">
+          <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
             <Info className="size-4 shrink-0" aria-hidden="true" />
             <p>{gateHint}</p>
           </CardContent>
@@ -1507,6 +1507,7 @@ export function OrderCreatePage(): ReactNode {
       {canSeeCustomFields ? (
         <div className="mb-4">
           <CustomFieldValuesPanel
+            chrome="card"
             entityType="order"
             values={EMPTY_VALUES}
             onChange={setCustomFieldValues}
@@ -1517,21 +1518,41 @@ export function OrderCreatePage(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardContent className="space-y-3 pt-6">
+        <CardContent className="space-y-3">
           <FormField label={t('orderCreate.field.note')}>
-            <textarea
+            <Textarea
               id="customerNote"
-              className="min-h-20 w-full rounded-md border p-2 text-sm"
+              className="min-h-20"
               value={customerNote}
               onChange={(e): void => setCustomerNote(e.target.value)}
             />
           </FormField>
-          <Button disabled={!canSubmit || busy || previewLoading} onClick={(): void => void submit()}>
-            {t('orderCreate.submit')}
-          </Button>
         </CardContent>
       </Card>
-    </>
+
+      {/* Issue #1449 (DS-19) — the form's actions in the kit's sticky bar, the page's last child:
+          Cancel, then Create last, in view over a long list of lines, with a refused create
+          said beside them rather than at the top of the page. */}
+      <StickyFormActions
+        desktop="sticky"
+        error={error}
+        secondary={
+          <Button asChild variant="outline" className="min-h-11 sm:min-h-9">
+            <Link to={openedWith.returnTo ?? '/orders'}>{t('common.action.cancel')}</Link>
+          </Button>
+        }
+        primary={
+          <Button
+            className="min-h-11 sm:min-h-9"
+            disabled={!canSubmit || busy || previewLoading}
+            aria-busy={busy || undefined}
+            onClick={(): void => void submit()}
+          >
+            {t('orderCreate.submit')}
+          </Button>
+        }
+      />
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { OrderReturnContextPort } from '@endora-commerce/contracts';
+import { randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, type OrderReturnContextPort } from '@endora-commerce/contracts';
 import { RETURNS_SETTING_CODES } from '@endora-commerce/mod-returns';
 import {
   setupBackendServer,
@@ -7,13 +8,28 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { expectModuleAbsent, withModuleOff } from '../../helpers/off-state.js';
-import { OrderItem, Product } from '../../helpers/package-entities.js';
+import { OrderItem, Product, ReturnCase, ReturnCaseAttachment } from '../../helpers/package-entities.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { cartWritePortOf } from '../../helpers/orders-neighbour-ports.js';
 import { checkOutBasket, whenOrderCreatedSettled } from '../../helpers/quote-conversion.js';
 import { buyerChannelIds, createMinimumProduct, minimumFixtureRun } from '../../helpers/order-minimum-fixture.js';
 import { systemDefaultSalesChannelId } from '../../helpers/sales-channel-fixtures.js';
 import { makeMember, makeOrganization, releaseMembers, type ReturnsFixtureMember } from './organization-fixtures.js';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
+import { CUSTOMER_COOKIE, anyReasonId, resetReturnGraph, seedReturnableOrder } from './helpers.js';
+import { useTemporaryAssetStore } from '../../helpers/crm-attachment-upload.js';
+import { runWithoutTenantContext } from '../../../src/tenancy/tenant-context.js';
+import {
+  runReturnsMaintenanceJob,
+  type ReturnsMaintenanceJobDeps,
+} from '../../../../packages/modules/returns/src/backend/workers/returns-maintenance-worker.js';
+import { SMALL_PDF, allowOffPlatform, complaintReasonId, file, noOrderBody, upload } from './off-platform-fixtures.js';
+import { allowGuests, fileGuestCase, requestLink, freshEmail, track } from './guest-fixtures.js';
+import {
+  captureReturnsNotificationJobs,
+  processReturnsNotification,
+  type CapturedReturnsJob,
+} from './notification-jobs.js';
 
 /**
  * `returns` off-state — Constitution XVII item 6.
@@ -56,9 +72,14 @@ describe('returns off-state (Constitution XVII)', () => {
   const channel = { 'x-sales-channel': 'default' };
   /** A case id that names nothing: restored, the consent routes answer `404`, which is not absence. */
   const ABSENT_CASE_ID = '00000000-0000-4000-8000-000000000905';
+  /** A tracking token that opens nothing: restored, the tracking routes answer `404`. */
+  const TRACKING_PROBE = { 'x-returns-tracking-token': 'off-state-probe' };
+
+  const jobs: CapturedReturnsJob[] = [];
 
   beforeAll(async () => {
-    h = await setupBackendServer();
+    h = await setupBackendServer({ moduleOverrides: captureReturnsNotificationJobs(jobs) });
+    await resetReturnGraph(h.em());
   });
 
   afterAll(async () => {
@@ -81,6 +102,59 @@ describe('returns off-state (Constitution XVII)', () => {
           payload: { resolution: 'credit', consentGivenAt: '2026-11-08T10:00:00.000Z', note: 'off-state probe' },
         },
         { method: 'DELETE', url: `/api/v1/admin/returns/${ABSENT_CASE_ID}/alternative-consent`, cookies: admin },
+        // `specs/180-off-platform-complaints/` T038 — the writes that produce a
+        // notification job, and the recipients health read, go with the module.
+        {
+          method: 'PATCH',
+          url: '/api/v1/admin/returns/statuses/received',
+          cookies: admin,
+          payload: { notifyCustomerOnEntry: false },
+        },
+        {
+          method: 'POST',
+          url: `/api/v1/admin/returns/${ABSENT_CASE_ID}/comments`,
+          cookies: admin,
+          payload: { body: 'off-state probe', isCustomerVisible: true, notifyCustomer: true },
+        },
+        { url: '/api/v1/admin/returns/notification-health', cookies: admin },
+        // `specs/180-off-platform-complaints/` T097 — phase B's customer routes (the form
+        // configuration, the uploads, the add-a-file route and the file stream), the admin
+        // file stream and the clause administration go with the module, on both axes.
+        { url: '/api/v1/returns/form-config', headers: channel, cookies: CUSTOMER_COOKIE },
+        { method: 'POST', url: '/api/v1/returns/uploads', headers: channel, cookies: CUSTOMER_COOKIE, payload: {} },
+        {
+          method: 'POST',
+          url: `/api/v1/returns/${ABSENT_CASE_ID}/attachments`,
+          headers: channel,
+          cookies: CUSTOMER_COOKIE,
+          payload: {},
+        },
+        { url: `/api/v1/returns/${ABSENT_CASE_ID}/attachments/${ABSENT_CASE_ID}/file`, headers: channel, cookies: CUSTOMER_COOKIE },
+        { url: `/api/v1/admin/returns/${ABSENT_CASE_ID}/attachments/${ABSENT_CASE_ID}/file`, cookies: admin },
+        { url: '/api/v1/admin/returns/clauses', cookies: admin },
+        {
+          method: 'POST',
+          url: '/api/v1/admin/returns/clauses',
+          cookies: admin,
+          payload: { label: {}, text: {} },
+        },
+        { method: 'PATCH', url: `/api/v1/admin/returns/clauses/${ABSENT_CASE_ID}`, cookies: admin, payload: { weight: 1 } },
+        { method: 'DELETE', url: `/api/v1/admin/returns/clauses/${ABSENT_CASE_ID}`, cookies: admin },
+        // `specs/181-guest-complaints/` T076 — every guest route (G1–G10) and the two
+        // guest actions of the admin (A3, A5) go with the module, on both axes.
+        { url: '/api/v1/returns/guest/availability', headers: channel },
+        { method: 'POST', url: '/api/v1/returns/guest/verifications', headers: channel, payload: { email: 'off@example.test' } },
+        { method: 'POST', url: '/api/v1/returns/guest/sessions', headers: channel, payload: { token: 'off-state-probe' } },
+        { method: 'DELETE', url: '/api/v1/returns/guest/sessions/current', headers: channel },
+        { url: '/api/v1/returns/guest/form-config', headers: channel },
+        { method: 'POST', url: '/api/v1/returns/guest/uploads', headers: channel, payload: {} },
+        { method: 'POST', url: '/api/v1/returns/guest/cases', headers: channel, payload: {} },
+        { url: '/api/v1/returns/track', headers: { ...channel, ...TRACKING_PROBE } },
+        { method: 'POST', url: '/api/v1/returns/track/comments', headers: { ...channel, ...TRACKING_PROBE }, payload: { body: 'off' } },
+        { method: 'POST', url: '/api/v1/returns/track/attachments', headers: { ...channel, ...TRACKING_PROBE }, payload: {} },
+        { url: `/api/v1/returns/track/attachments/${ABSENT_CASE_ID}/file`, headers: { ...channel, ...TRACKING_PROBE } },
+        { method: 'POST', url: `/api/v1/admin/returns/${ABSENT_CASE_ID}/guest/tracking-link`, cookies: admin },
+        { method: 'POST', url: `/api/v1/admin/returns/${ABSENT_CASE_ID}/guest/erase`, cookies: admin, payload: { confirm: true } },
       ],
       adminPresence: { cookies: admin },
       settingWrite: {
@@ -90,6 +164,171 @@ describe('returns off-state (Constitution XVII)', () => {
       },
     });
   });
+  /**
+   * `specs/180-off-platform-complaints/` T038 (Principle XVII, research R-2): while
+   * `returns` is off no `returns-notifications` job is produced — the routes that
+   * produce one are absent — and none is consumed: the processor refuses with
+   * `ModuleDisabledError`, so BullMQ keeps the job for when the module is back. Back
+   * on, the same job is processed.
+   */
+  it.each(['deactivated', 'platform-unavailable'] as const)(
+    'produces and consumes no notification job while %s, and processes it once restored',
+    async (axis) => {
+      const { orderId, itemIds } = await seedReturnableOrder(h.em());
+      const reasonId = await anyReasonId(h.em());
+      const filed = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/returns',
+        cookies: CUSTOMER_COOKIE,
+        headers: channel,
+        payload: { orderId, kind: 'complaint', lines: [{ orderItemId: itemIds[0], quantity: 1, reasonId }] },
+      });
+      expect(filed.statusCode, filed.body).toBe(201);
+      const caseId = (filed.json() as { data: { id: string } }).data.id;
+      const job = jobs.find((j) => j.kind === 'case_submitted' && j.returnCaseId === caseId)!;
+      expect(job).toBeTruthy();
+
+      await withModuleOff('returns', axis, async () => {
+        const before = jobs.length;
+        const comment = await h.app.inject({
+          method: 'POST',
+          url: `/api/v1/admin/returns/${caseId}/comments`,
+          cookies: admin,
+          payload: { body: 'while off', isCustomerVisible: true, notifyCustomer: true },
+        });
+        expect(comment.statusCode).not.toBe(201);
+        expect(jobs.length).toBe(before);
+        await expect(processReturnsNotification(h, job)).rejects.toBeInstanceOf(ModuleDisabledError);
+      });
+
+      await expect(processReturnsNotification(h, job)).resolves.toMatchObject({ messages: expect.any(Array) });
+    },
+  );
+
+  /**
+   * `specs/180-off-platform-complaints/` T097 (Principle XVII, research R-15): while
+   * `returns` is off, an anonymisation erases nothing — the subscriber is not there —
+   * and the maintenance clock does nothing, neither the erasure nor the upload sweep.
+   * Restored, one maintenance pass catches both up.
+   */
+  describe('the erasure subscriber and the maintenance clock (180 T097)', () => {
+    let undoStore: () => Promise<void>;
+    let undoOffPlatform: () => Promise<void>;
+    let organizationId: string;
+    let reasonId: string;
+
+    beforeAll(async () => {
+      undoStore = (await useTemporaryAssetStore(h)).undo;
+      undoOffPlatform = await allowOffPlatform(h);
+      organizationId = await makeOrganization(h.em(), '180 off-state erasure');
+      reasonId = await complaintReasonId(h.em());
+    });
+    afterAll(async () => {
+      await undoOffPlatform();
+      await undoStore();
+      releaseMembers();
+    });
+
+    const pdf = { type: 'proof_of_purchase', filename: 'receipt.pdf', mime: 'application/pdf', value: SMALL_PDF };
+    const erasedAt = async (caseId: string): Promise<Date | null> =>
+      (await h.em().fork().findOneOrFail(ReturnCase, { id: caseId }, { filters: false })).personalDataErasedAt ?? null;
+    const uploadExists = async (id: string): Promise<boolean> =>
+      (await h.em().fork().count(ReturnCaseAttachment, { id }, { filters: false })) === 1;
+
+    it.each(['deactivated', 'platform-unavailable'] as const)(
+      'erases and sweeps nothing while %s, and catches up in the first pass once restored',
+      async (axis) => {
+        const member = await makeMember(h.em(), organizationId, 'member', { label: `Off180${axis}` });
+        const cookies = { b2b_session: member.cookie };
+        const filed = await file(h, noOrderBody(reasonId), { cookies, headers: channel });
+        expect(filed.statusCode, filed.body).toBe(201);
+        const caseId = (filed.json() as { data: { id: string } }).data.id;
+        const expired = ((await upload(h, pdf, { cookies })).json() as { data: { uploadId: string } }).data.uploadId;
+        await h.em().fork().nativeUpdate(ReturnCaseAttachment, { id: expired }, { expiresAt: new Date(Date.now() - 1000) });
+        const deps = h.container.resolve('returnsMaintenanceDeps') as ReturnsMaintenanceJobDeps;
+
+        await withModuleOff('returns', axis, async () => {
+          await h.em().getConnection().execute(`update "customer_accounts" set "anonymized_at" = now() where "id" = ?`, [member.id]);
+          h.eventBus.emit(CUSTOMER_ACCOUNT_ANONYMIZED_EVENT, {
+            eventId: randomUUID(),
+            occurredAt: new Date().toISOString(),
+            customerAccountId: member.id,
+            organizationId,
+          } as never);
+          await runWithoutTenantContext(() => runReturnsMaintenanceJob(deps, new Date()));
+          // Give a subscriber that should not exist the time to show itself.
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          expect(await erasedAt(caseId)).toBeNull();
+          expect(await uploadExists(expired)).toBe(true);
+        });
+
+        await runWithoutTenantContext(() => runReturnsMaintenanceJob(deps, new Date()));
+        await vi.waitFor(async () => expect(await erasedAt(caseId)).toBeInstanceOf(Date), { timeout: 5000 });
+        expect(await uploadExists(expired)).toBe(false);
+      },
+    );
+  });
+
+  /**
+   * `specs/181-guest-complaints/` T076 (FR-080; Principle XVII, research R-9, R-12): while
+   * `returns` is off a guest cannot ask for a link — no `guest_verification` job is
+   * produced — a job already queued is not consumed, a tracking link is refused, and the
+   * retention sweep erases nothing. Switched back on, a link from before works again and
+   * the overdue erasure runs at the next sweep.
+   */
+  describe('complaints from guests (181 T076)', () => {
+    let undoStore: () => Promise<void>;
+    let undoGuests: () => Promise<void>;
+    let reasonId: string;
+
+    beforeAll(async () => {
+      undoStore = (await useTemporaryAssetStore(h)).undo;
+      undoGuests = await allowGuests(h);
+      reasonId = await complaintReasonId(h.em());
+    });
+    afterAll(async () => {
+      await undoGuests();
+      await undoStore();
+    });
+
+    const erasedAt = async (caseId: string): Promise<Date | null> =>
+      (await h.em().fork().findOneOrFail(ReturnCase, { id: caseId }, { filters: false })).personalDataErasedAt ?? null;
+
+    it.each(['deactivated', 'platform-unavailable'] as const)(
+      'enqueues, consumes, tracks and erases nothing while %s; a link from before works once restored',
+      async (axis) => {
+        const live = await fileGuestCase(h, reasonId);
+        const due = await fileGuestCase(h, reasonId);
+        await h
+          .em()
+          .getConnection()
+          .execute(`update "return_cases" set "status_code" = 'closed', "closed_at" = now() - interval '200 days' where "id" = ?`, [
+            due.caseId,
+          ]);
+        const queued = jobs.find((j) => j.kind === 'guest_verification' && j.verificationId === live.verificationId)!;
+        expect(queued).toBeTruthy();
+        expect((await track(h, live.trackingToken)).statusCode).toBe(200);
+        const deps = h.container.resolve('returnsMaintenanceDeps') as ReturnsMaintenanceJobDeps;
+
+        await withModuleOff('returns', axis, async () => {
+          const before = jobs.length;
+          const requested = await requestLink(h, { email: freshEmail() });
+          expect(requested.statusCode).toBe(503);
+          expect(jobs.length).toBe(before);
+          await expect(processReturnsNotification(h, queued)).rejects.toBeInstanceOf(ModuleDisabledError);
+          expect((await track(h, live.trackingToken)).statusCode).toBe(503);
+          await runWithoutTenantContext(() => runReturnsMaintenanceJob(deps, new Date()));
+          expect(await erasedAt(due.caseId)).toBeNull();
+        });
+
+        expect((await track(h, live.trackingToken)).statusCode).toBe(200);
+        await runWithoutTenantContext(() => runReturnsMaintenanceJob(deps, new Date()));
+        expect(await erasedAt(due.caseId)).toBeInstanceOf(Date);
+        expect(await erasedAt(live.caseId)).toBeNull();
+      },
+    );
+  });
+
   /**
    * Feature 155, Phase 12 (T092; FR-016a, spec edge case *Module activation*,
    * `contracts/returns-api.md` §4). `orders` records `returnable_at_purchase`

@@ -8,8 +8,10 @@ import type {
   NewsletterCustomField,
   NewsletterTag,
 } from '@endora-commerce/contracts';
-import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { isDraftEqual, useAuth } from '@endora-commerce/admin-kit/lib';
+import { UnsavedChangesHint, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, Input, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import {
   EmailEditorPane,
   EmailSubjectWithVariables,
@@ -20,6 +22,7 @@ import {
 } from '@endora-commerce/page-builder-admin/email';
 import { newsletterVariables } from '../email-variables.js';
 import { newsletterClient } from '../api/newsletter-client.js';
+import { automationTriggerLabels } from '../lib/labels.js';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 
@@ -46,11 +49,38 @@ function fromApiSteps(steps: AutomationStep[]): LocalStep[] {
   });
 }
 
+/** What a save sends, from the builder's fields (issue #1461: what `dirty` compares). */
+interface AutomationDraft {
+  name: string;
+  triggerType: AutomationTriggerType;
+  triggerTagIds: string[];
+  steps: LocalStep[];
+}
+
+const blankDraft: AutomationDraft = {
+  name: '',
+  triggerType: 'all',
+  triggerTagIds: [],
+  steps: [{ type: 'send', subject: '', content: emptyData }],
+};
+
+function draftOf(detail: AutomationDetail | null): AutomationDraft {
+  if (!detail) return blankDraft;
+  return {
+    name: detail.name,
+    triggerType: detail.triggerType,
+    triggerTagIds: detail.triggerTagIds,
+    steps: fromApiSteps(detail.steps),
+  };
+}
+
 export function AutomationBuilder(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
+  const t = useTranslation('newsletter');
+  const tc = useTranslation('core');
   const canWrite = hasPermission('newsletter:write');
 
   const [detail, setDetail] = useState<AutomationDetail | null>(null);
@@ -108,7 +138,7 @@ export function AutomationBuilder(): React.ReactElement {
         ? await newsletterClient.createAutomation(payload)
         : await newsletterClient.updateAutomation(id!, { ...payload, expectedVersion: detail!.version });
       setDetail(saved);
-      setNotice('Saved.');
+      setNotice(t('common.saved'));
       if (isNew) navigate(`/newsletter/automations/${saved.id}`, { replace: true });
       return saved;
     } catch (err) {
@@ -123,16 +153,32 @@ export function AutomationBuilder(): React.ReactElement {
     try {
       const a = await newsletterClient.activateAutomation(saved.id, saved.version);
       setDetail(a);
-      setNotice('Activated.');
+      setNotice(t('automation.activated'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   }
 
+  // Issue #1461 (CONTENT-02) — the fields and every step against the last saved automation.
+  const dirty =
+    (isNew || detail !== null) &&
+    !isDraftEqual({ name, triggerType, triggerTagIds, steps }, draftOf(detail));
+  const unsavedGuard = useUnsavedChangesGuard({
+    dirty,
+    onSave: canWrite ? async () => (await save()) !== null : undefined,
+    onDiscard: () => {
+      const saved = draftOf(detail);
+      setName(saved.name);
+      setTriggerType(saved.triggerType);
+      setTriggerTagIds(saved.triggerTagIds);
+      setSteps(saved.steps);
+    },
+  });
+
   if (!hasPermission('newsletter:read')) {
     return (
       <Alert>
-        <AlertDescription>You do not have permission to view the newsletter.</AlertDescription>
+        <AlertDescription>{t('common.noPermission')}</AlertDescription>
       </Alert>
     );
   }
@@ -142,15 +188,16 @@ export function AutomationBuilder(): React.ReactElement {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={isNew ? 'New automation' : name || 'Automation'}
-        back={{ label: 'Automations', to: '/newsletter/automations' }}
+        title={isNew ? t('automations.new') : name || t('automation.titleFallback')}
+        back={{ label: t('automation.back'), to: '/newsletter/automations' }}
         actions={
           canWrite ? (
             <>
+              <UnsavedChangesHint dirty={dirty} />
               <Button variant="outline" onClick={() => void save()}>
-                Save
+                {tc('common.action.save')}
               </Button>
-              <Button onClick={() => void activate()}>Activate</Button>
+              <Button onClick={() => void activate()}>{t('automations.action.activate')}</Button>
             </>
           ) : null
         }
@@ -161,43 +208,49 @@ export function AutomationBuilder(): React.ReactElement {
         </Alert>
       ) : null}
       {notice ? (
-        <Alert>
+        <Alert live="polite">
           <AlertDescription>{notice}</AlertDescription>
         </Alert>
       ) : null}
 
       <Card>
         <CardHeader>
-          <CardTitle>Trigger</CardTitle>
+          <CardTitle>{t('automation.trigger.title')}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <Input placeholder="Automation name" value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} />
-          <select
-            className="border rounded px-2 py-1 text-sm"
-            value={triggerType}
-            onChange={(e) => setTriggerType(e.target.value as AutomationTriggerType)}
-            disabled={!canWrite}
-          >
-            <option value="all">All subscribers</option>
-            <option value="tag">Tag</option>
-            <option value="tag_list">Tag list</option>
-          </select>
-          {(triggerType === 'tag' || triggerType === 'tag_list') ? (
-            <div className="flex flex-wrap gap-2">
-              {tags.map((t) => (
-                <label key={t.id} className="flex items-center gap-1 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={triggerTagIds.includes(t.id)}
-                    onChange={(e) =>
-                      setTriggerTagIds((prev) => (e.target.checked ? [...prev, t.id] : prev.filter((x) => x !== t.id)))
-                    }
-                    disabled={!canWrite}
-                  />
-                  {t.name}
-                </label>
+        <CardContent className="space-y-4">
+          <FormField label={t('automation.field.name')} className="max-w-md">
+            <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!canWrite} />
+          </FormField>
+          <FormField label={t('automation.field.trigger')} className="max-w-xs">
+            <Select
+              value={triggerType}
+              onChange={(e) => setTriggerType(e.target.value as AutomationTriggerType)}
+              disabled={!canWrite}
+            >
+              {automationTriggerLabels.options(t).map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
               ))}
-            </div>
+            </Select>
+          </FormField>
+          {(triggerType === 'tag' || triggerType === 'tag_list') ? (
+            <FormField label={t('automation.field.triggerTags')} group>
+              <div className="flex flex-wrap gap-3">
+                {tags.map((tag) => (
+                  <label key={tag.id} className="flex items-center gap-1.5 text-sm">
+                    <Checkbox
+                      checked={triggerTagIds.includes(tag.id)}
+                      onChange={(e) =>
+                        setTriggerTagIds((prev) => (e.target.checked ? [...prev, tag.id] : prev.filter((x) => x !== tag.id)))
+                      }
+                      disabled={!canWrite}
+                    />
+                    {tag.name}
+                  </label>
+                ))}
+              </div>
+            </FormField>
           ) : null}
         </CardContent>
       </Card>
@@ -205,39 +258,61 @@ export function AutomationBuilder(): React.ReactElement {
       <EmailVariablesProvider variables={variables}>
         <Card>
           <CardHeader>
-            <CardTitle>Steps</CardTitle>
+            <CardTitle>{t('automation.steps.title')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             {steps.map((step, idx) => (
               <div key={idx} className="rounded border p-3 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">
-                    {idx + 1}. {step.type === 'send' ? 'Send email' : 'Wait'}
+                    {t(step.type === 'send' ? 'automation.step.send' : 'automation.step.wait', { index: idx + 1 })}
                   </span>
                   {canWrite ? (
                     <span className="flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => move(idx, -1)}>
-                        ↑
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={idx === 0}
+                        aria-label={t('automation.step.moveUp', { index: idx + 1 })}
+                        onClick={() => move(idx, -1)}
+                      >
+                        <span aria-hidden="true">↑</span>
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => move(idx, 1)}>
-                        ↓
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={idx === steps.length - 1}
+                        aria-label={t('automation.step.moveDown', { index: idx + 1 })}
+                        onClick={() => move(idx, 1)}
+                      >
+                        <span aria-hidden="true">↓</span>
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setSteps((p) => p.filter((_, i) => i !== idx))}>
-                        ✕
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={t('automation.step.remove', { index: idx + 1 })}
+                        onClick={() => setSteps((p) => p.filter((_, i) => i !== idx))}
+                      >
+                        <span aria-hidden="true">✕</span>
                       </Button>
                     </span>
                   ) : null}
                 </div>
                 {step.type === 'send' ? (
                   <>
-                    <EmailSubjectWithVariables
-                      value={step.subject}
-                      onChange={(subject) =>
-                        setSteps((p) => p.map((s, i) => (i === idx && s.type === 'send' ? { ...s, subject } : s)))
-                      }
-                      disabled={!canWrite}
-                      placeholder="Subject"
-                    />
+                    <FormField label={t('automation.step.subject')}>
+                      {(control) => (
+                        <EmailSubjectWithVariables
+                          id={control.id}
+                          describedBy={control['aria-describedby']}
+                          value={step.subject}
+                          onChange={(subject) =>
+                            setSteps((p) => p.map((s, i) => (i === idx && s.type === 'send' ? { ...s, subject } : s)))
+                          }
+                          disabled={!canWrite}
+                        />
+                      )}
+                    </FormField>
                     <EmailEditorPane
                       editorKey={`automation:${id ?? 'new'}:step:${idx}`}
                       data={step.content}
@@ -265,12 +340,10 @@ export function AutomationBuilder(): React.ReactElement {
                     />
                   </>
                 ) : (
-                  <label className="flex items-center gap-2 text-sm">
-                    Wait
+                  <FormField label={t('automation.step.days')} className="max-w-[10rem]">
                     <Input
                       type="number"
                       min={1}
-                      className="w-24"
                       value={step.days}
                       onChange={(e) =>
                         setSteps((p) =>
@@ -279,8 +352,7 @@ export function AutomationBuilder(): React.ReactElement {
                       }
                       disabled={!canWrite}
                     />
-                    days
-                  </label>
+                  </FormField>
                 )}
               </div>
             ))}
@@ -291,16 +363,17 @@ export function AutomationBuilder(): React.ReactElement {
                   size="sm"
                   onClick={() => setSteps((p) => [...p, { type: 'send', subject: '', content: emptyData }])}
                 >
-                  + Send email
+                  {t('automation.step.addSend')}
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => setSteps((p) => [...p, { type: 'wait', days: 1 }])}>
-                  + Wait
+                  {t('automation.step.addWait')}
                 </Button>
               </div>
             ) : null}
           </CardContent>
         </Card>
       </EmailVariablesProvider>
+      {unsavedGuard.dialog}
     </div>
   );
 }

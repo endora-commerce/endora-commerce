@@ -10,9 +10,27 @@ import type {
   InventoryLandingKpis,
   StockLevelRow,
 } from '@endora-commerce/contracts';
-import { ApiError, apiClient, cn, usePageSizePreference, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { PaginationFooter } from '@endora-commerce/admin-kit/components';
+import { ApiError, apiClient, usePageSizePreference, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { FilterChip, ListToolbar, ListToolbarSearch, PaginationFooter } from '@endora-commerce/admin-kit/components';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { cn } from '@endora-commerce/admin-kit/lib';
 import { productInventoryHref, stockDisplayBandLabels, stockDisplayBandTone } from '../lib/labels.js';
 interface RosterResponse {
   items: StockLevelRow[];
@@ -137,160 +155,135 @@ export function InventoryPage(): ReactNode {
 
   return (
     <div className="b2b-page b2b-page--wide">
-      <div className="b2b-page-head">
-        <div className="b2b-grow">
-          <div className="b2b-page-head__title">{t('inventory.page.title')}</div>
-          <div className="b2b-page-head__sub">
-            {t('inventory.page.subPrefix')}{' '}
-            <code className="b2b-mono">stock_levels</code>{t('inventory.page.subSuffix')}
-          </div>
-        </div>
-        <div className="b2b-page-head__actions">
-          {canWrite ? (
-            <Link
-              to="/inventory/import"
-              className="b2b-btn b2b-btn--default b2b-btn--sm"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-            >
-              <Upload size={13} /> {t('inventory.action.import')}
-            </Link>
-          ) : null}
-        </div>
-      </div>
+      <PageHeader
+        title={t('inventory.page.title')}
+        actions={
+          canWrite ? (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/inventory/import">
+                <Upload aria-hidden="true" /> {t('inventory.action.import')}
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       {error ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(8 80% 85%)',
-          }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <div className="b2b-row" style={{ gap: 16, marginBottom: 16 }}>
+      {/* Issue #1492 (CAT-17): kit cards and Tailwind spacing, one look with the toolbar's card. */}
+      <dl className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label={t('inventory.stat.tracked')} value={(kpis?.totalProductsTracked ?? 0).toLocaleString()} />
         <Stat label={t('inventory.stat.totalOnHand')} value={(kpis?.totalOnHand ?? 0).toLocaleString()} />
         <Stat label={t('inventory.stat.outOfStock')} value={String(kpis?.outOfStockCount ?? 0)} tone="danger" />
         <Stat label={t('inventory.stat.lowStock')} value={String(kpis?.lowStockCount ?? 0)} tone="warn" />
-      </div>
+      </dl>
 
       {kpis && kpis.perWarehouseTotals.length > 0 ? (
-        <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>{t('inventory.perWarehouseTotals')}</h2></div>
-          <div className="b2b-card__body">
-            <div className="b2b-row" style={{ gap: 24, flexWrap: 'wrap' }}>
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>{t('inventory.perWarehouseTotals')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <dl className="flex flex-wrap gap-6">
               {kpis.perWarehouseTotals.map((row) => (
                 <div key={row.warehouseId}>
-                  <div className="b2b-muted" style={{ fontSize: 11, textTransform: 'uppercase' }}>
-                    {row.warehouseCode}
-                  </div>
-                  <div style={{ fontSize: 20, fontWeight: 600 }}>{row.onHand.toLocaleString()}</div>
+                  <dt className="text-xs uppercase text-muted-foreground">{row.warehouseCode}</dt>
+                  <dd className="text-xl font-semibold tabular-nums">{row.onHand.toLocaleString()}</dd>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
+            </dl>
+          </CardContent>
+        </Card>
       ) : null}
 
-      <div className="b2b-card">
-        <div className="b2b-filterbar">
-          <div className="b2b-filterbar__search">
-            <div className="b2b-input-wrap">
-              <Search size={16} className="lead" aria-hidden="true" />
-              <input
-                type="search"
-                className="b2b-field b2b-field--addon"
-                aria-label={t('inventory.search.label')}
-                placeholder={t('inventory.search.placeholder')}
-                value={query}
-                onChange={(e): void => setQuery(e.target.value)}
-              />
-            </div>
-          </div>
-          <Chip
-            icon={<AlertCircle size={12} />}
-            active={statusFilter === 'low'}
-            label={t('inventory.stat.lowStock')}
-            onClick={(): void => setStatusFilter((s) => (s === 'low' ? 'all' : 'low'))}
-          />
-          <Chip
-            icon={<AlertCircle size={12} />}
-            active={statusFilter === 'out'}
-            label={t('inventory.stat.outOfStock')}
-            onClick={(): void => setStatusFilter((s) => (s === 'out' ? 'all' : 'out'))}
-          />
-        </div>
+      <Card className="overflow-hidden">
+        {/* Issue #1440 (DS-06) — the kit toolbar. The two stock chips are exclusive:
+            pressing one releases the other, because the API takes one stock filter. */}
+        <ListToolbar
+          label={t('inventory.toolbar.label')}
+          className="border-b border-border px-3 py-2.5"
+          search={
+            <ListToolbarSearch
+              label={t('inventory.search.label')}
+              placeholder={t('inventory.search.placeholder')}
+              value={query}
+              onValueChange={setQuery}
+            />
+          }
+          filters={
+            <>
+              <FilterChip
+                icon={<AlertCircle size={12} />}
+                pressed={statusFilter === 'low'}
+                onPressedChange={(next): void => setStatusFilter(next ? 'low' : 'all')}
+              >
+                {t('inventory.stat.lowStock')}
+              </FilterChip>
+              <FilterChip
+                icon={<AlertCircle size={12} />}
+                pressed={statusFilter === 'out'}
+                onPressedChange={(next): void => setStatusFilter(next ? 'out' : 'all')}
+              >
+                {t('inventory.stat.outOfStock')}
+              </FilterChip>
+            </>
+          }
+        />
 
-        <div className="b2b-card__body b2b-card__body--flush">
-          {loading ? (
-            <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('inventory.loading')}</div>
-          ) : filtered.length === 0 ? (
-            <div className="b2b-empty">
-              <div className="b2b-empty__icon"><Search size={20} /></div>
-              <div className="b2b-empty__title">{t('inventory.empty')}</div>
-            </div>
-          ) : (
-            <table className="b2b-tbl">
-              <thead>
-                <tr>
-                  <th>{t('inventory.column.product')}</th>
-                  <th>{t('inventory.column.sku')}</th>
-                  <th className="num">{t('inventory.column.cumulativeOnHand')}</th>
-                  <th>{t('inventory.column.perWarehouse')}</th>
-                  <th>{t('inventory.column.displayBand')}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr key={r.productId}>
-                    <td>{r.productName}</td>
-                    <td>
-                      <span className="b2b-mono" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                        {r.productSku}
-                      </span>
-                    </td>
-                    <td className="num b2b-tabular" style={{ fontWeight: 600 }}>
-                      {r.cumulativeOnHand.toLocaleString()}
-                    </td>
-                    <td>
-                      <div className="b2b-row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                        {r.perWarehouse.map((w) => (
-                          <span
-                            key={w.warehouseId}
-                            className="b2b-badge b2b-badge--muted"
-                            title={w.warehouseId}
-                          >
-                            {w.warehouseCode}: {w.onHand.toLocaleString()}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td>
-                      <span className={stockDisplayBandTone(r.displayBand)}>
-                        {stockDisplayBandLabels.label(t, r.displayBand)}
-                      </span>
-                    </td>
-                    <td className="actions">
-                      <Link
-                        to={productInventoryHref(r.productId)}
-                        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-                      >
-                        {t('inventory.action.editStock')}
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+        {loading ? (
+          <p role="status" className="p-8 text-sm text-muted-foreground">
+            {t('inventory.loading')}
+          </p>
+        ) : filtered.length === 0 ? (
+          <EmptyState icon={<Search size={20} />} title={t('inventory.empty')} />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('inventory.column.product')}</TableHead>
+                <TableHead>{t('inventory.column.sku')}</TableHead>
+                <TableHead className="text-right">{t('inventory.column.cumulativeOnHand')}</TableHead>
+                <TableHead>{t('inventory.column.perWarehouse')}</TableHead>
+                <TableHead>{t('inventory.column.displayBand')}</TableHead>
+                <TableHead className="w-[1%]" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((r) => (
+                <TableRow key={r.productId}>
+                  <TableCell>{r.productName}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{r.productSku}</TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {r.cumulativeOnHand.toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-2">
+                      {r.perWarehouse.map((w) => (
+                        <span key={w.warehouseId} className="b2b-badge" title={w.warehouseId}>
+                          {w.warehouseCode}: {w.onHand.toLocaleString()}
+                        </span>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className={stockDisplayBandTone(r.displayBand)}>
+                      {stockDisplayBandLabels.label(t, r.displayBand)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Button asChild variant="ghost" size="sm">
+                      <Link to={productInventoryHref(r.productId)}>{t('inventory.action.editStock')}</Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
 
         <PaginationFooter
           page={page}
@@ -300,11 +293,12 @@ export function InventoryPage(): ReactNode {
           onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
           onNext={(): void => setPage((p) => p + 1)}
         />
-      </div>
+      </Card>
     </div>
   );
 }
 
+/** One KPI: a term and its value inside the strip's `<dl>`. The tone repeats what the label says. */
 function Stat({
   label,
   value,
@@ -314,36 +308,19 @@ function Stat({
   value: string;
   tone?: 'warn' | 'danger';
 }): ReactNode {
-  const color = tone === 'danger' ? 'var(--danger)' : tone === 'warn' ? 'var(--warn)' : 'var(--fg)';
   return (
-    <div className="b2b-card" style={{ flex: 1, padding: 16 }}>
-      <div
-        className="b2b-muted"
-        style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}
+    <Card className="p-(--card-pad)">
+      <dt className="text-xs uppercase tracking-wider text-muted-foreground">{label}</dt>
+      <dd
+        className={cn(
+          'mt-1 text-2xl font-semibold tabular-nums',
+          tone === 'danger' && 'text-destructive',
+          tone === 'warn' && 'text-(--warn-soft-fg)',
+        )}
       >
-        {label}
-      </div>
-      <div style={{ fontSize: 26, fontWeight: 600, marginTop: 4, color }}>{value}</div>
-    </div>
-  );
-}
-
-function Chip(props: {
-  icon: ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      className={cn('b2b-filterchip', props.active && 'is-on')}
-      aria-pressed={props.active}
-      onClick={props.onClick}
-    >
-      {props.icon}
-      <span>{props.label}</span>
-    </button>
+        {value}
+      </dd>
+    </Card>
   );
 }
 

@@ -95,6 +95,12 @@ async function renderList(permissions?: readonly string[]): Promise<void> {
   await screen.findByText('Fleet renewal');
 }
 
+/** Opens the toolbar's *More filters* panel unless it is open (issue #1505: these filters are folded away). */
+async function openMoreFilters(): Promise<void> {
+  const toggle = screen.queryByRole('button', { name: /^(More filters|Więcej filtrów)/ });
+  if (toggle && toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
+}
+
 describe('OpportunitiesList', () => {
   it('lists opportunities with number, title, organization, status and value', async () => {
     await renderList();
@@ -141,6 +147,7 @@ describe('OpportunitiesList', () => {
 
   it('filters by creation date and sorts', async () => {
     await renderList();
+    await openMoreFilters();
     await userEvent.type(screen.getByLabelText(en('opportunity.list.filter.createdFrom')), '2026-10-01');
     await waitFor(() => expect(lastQuery().get('createdFrom')).toBe('2026-10-01'));
     await userEvent.selectOptions(screen.getByLabelText(en('opportunity.list.sort')), 'value:desc');
@@ -156,7 +163,7 @@ describe('OpportunitiesList', () => {
     await renderList();
     await userEvent.selectOptions(screen.getByLabelText(en('opportunity.list.filter.state')), 'lost');
     await waitFor(() => expect(lastQuery().get('state')).toBe('lost'));
-    await userEvent.click(screen.getByRole('button', { name: en('opportunity.list.filter.clear') }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all filters' }));
     await waitFor(() => expect(lastQuery().has('state')).toBe(false));
   });
 
@@ -187,6 +194,10 @@ describe('OpportunitiesList', () => {
     await userEvent.selectOptions(screen.getByLabelText(en('opportunity.list.filter.state')), 'won');
     expect(await screen.findByText(en('opportunity.list.noResults.title'))).toBeInTheDocument();
     expect(screen.queryByText(en('opportunity.list.empty.title'))).toBeNull();
+    // Clearing from the empty state puts focus on the search box, not <body> (WCAG 2.4.3).
+    const block = document.querySelector<HTMLElement>('[data-empty-state="no-results"]')!;
+    await userEvent.click(within(block).getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(en('opportunity.list.filter.search'))));
   });
 
   it('hides "New opportunity" from an operator who may only read', async () => {

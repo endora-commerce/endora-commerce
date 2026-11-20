@@ -149,8 +149,9 @@ describe('AdminRolesPage — the two-factor requirement', () => {
       twoFactorNotice: { code: 'encryption_key_missing', message: 'Not in force: no encryption key.' },
     });
     expect(box.checked).toBe(true);
-    const status = screen.getByRole('status');
-    expect(status.textContent).toContain('roles.twoFactor.notice.encryption_key_missing');
+    // The save bar has a status region of its own (issue #1449); the notice is the one that speaks.
+    const status = screen.getByText('roles.twoFactor.notice.encryption_key_missing').closest('[role="status"]');
+    expect(status).not.toBeNull();
   });
 
   it('shows no notice when the read carries none', async () => {

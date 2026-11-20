@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { installOffsetParentShim } from '../../helpers/layout-shim';
 
 /**
  * Feature 062 (T031) — Admin API-keys page: typed scope catalog, distributor
@@ -23,7 +25,15 @@ import { renderWithI18n } from '../../helpers/render-with-i18n';
  * `@endora-commerce/admin-kit/{lib,components}` instead of on `@/`. `lib` is
  * spread over `vi.importActual` because the screen also takes `formatDateTime`
  * from it, and a bare factory would delete every binding it does not name.
+ *
+ * **The form is its own route since issue #1501** (UX audit SHELL-14): the list
+ * at `/api-keys` draws no form above the rows — *New API key* in its header
+ * links to `/api-keys/new`, the module's second route, which holds the form
+ * and, once the key exists, the one-time token. Revoking is in the row's
+ * overflow menu, confirmed.
  */
+
+installOffsetParentShim();
 
 const getSpy = vi.fn();
 const postSpy = vi.fn();
@@ -101,6 +111,21 @@ vi.mock('@endora-commerce/admin-kit/components', async () => {
 const { contributions } = await import('@endora-commerce/mod-api-keys/admin');
 const ApiKeysPage = (await contributions.routes![0]!.component())
   .default as () => ReactNode;
+const ApiKeyCreatePage = (await contributions.routes![1]!.component())
+  .default as () => ReactNode;
+
+/** The two routes as the admin mounts them, starting at `path`. */
+function renderAt(path: '/api-keys' | '/api-keys/new'): void {
+  renderWithI18n(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/api-keys" element={<ApiKeysPage />} />
+        <Route path="/api-keys/new" element={<ApiKeyCreatePage />} />
+      </Routes>
+    </MemoryRouter>,
+    {},
+  );
+}
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const CHANNEL_ID = '22222222-2222-4222-8222-222222222222';
@@ -153,7 +178,7 @@ beforeEach(() => {
 
 describe('ApiKeysPage — typed scope catalog (T031)', () => {
   it('renders exactly the contract scope enum, without integrations:manage', async () => {
-    renderWithI18n(<ApiKeysPage />, {});
+    renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
     for (const scope of ['catalog:read', 'catalog:write', 'orders:read', 'orders:write']) {
@@ -168,7 +193,7 @@ describe('ApiKeysPage — typed scope catalog (T031)', () => {
 describe('ApiKeysPage — binding validation mirrors (B1–B5)', () => {
   it('B1: an orders scope requires a complete binding before submit', async () => {
     const user = userEvent.setup();
-    renderWithI18n(<ApiKeysPage />, {});
+    renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
     await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'Distributor');
@@ -189,7 +214,7 @@ describe('ApiKeysPage — binding validation mirrors (B1–B5)', () => {
 
   it('B2: catalog:write is refused on a bound key', async () => {
     const user = userEvent.setup();
-    renderWithI18n(<ApiKeysPage />, {});
+    renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
     await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'Bad combo');
@@ -202,7 +227,7 @@ describe('ApiKeysPage — binding validation mirrors (B1–B5)', () => {
 
   it('partial binding (all-or-none) blocks submit', async () => {
     const user = userEvent.setup();
-    renderWithI18n(<ApiKeysPage />, {});
+    renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
     await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'Partial');
@@ -215,7 +240,7 @@ describe('ApiKeysPage — binding validation mirrors (B1–B5)', () => {
 
   it('B5: a past expiry is refused inline', async () => {
     const user = userEvent.setup();
-    renderWithI18n(<ApiKeysPage />, {});
+    renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
     await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'Expired');
@@ -234,7 +259,7 @@ describe('ApiKeysPage — create payload + service-account org filter (B3)', () 
       data: { apiKey: boundKey(), bearerToken: 'sk_live_test_token' },
     });
     const user = userEvent.setup();
-    renderWithI18n(<ApiKeysPage />, {});
+    renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
     // Service-account picker is disabled until an organization is chosen.
@@ -272,8 +297,28 @@ describe('ApiKeysPage — create payload + service-account org filter (B3)', () 
       expiresAt: new Date('2030-06-15T12:00').toISOString(),
     });
 
-    // Token revealed once.
+    // Token revealed once, on the create page, in place of the form.
     expect(await screen.findByDisplayValue('sk_live_test_token')).toBeInTheDocument();
+    expect(screen.queryByLabelText('core.apiKeys.create.nameLabel')).not.toBeInTheDocument();
+
+    // Done goes back to the list; the token is not carried there.
+    await user.click(screen.getByRole('link', { name: 'core.apiKeys.revealed.confirm' }));
+    expect(await screen.findByText('core.apiKeys.page.title')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('sk_live_test_token')).not.toBeInTheDocument();
+  });
+
+  it('keeps the form and what was typed when the server refuses', async () => {
+    const { ApiError } = await import('@endora-commerce/admin-kit/lib');
+    postSpy.mockRejectedValue(new ApiError(403, { error: { code: 'FORBIDDEN', message: 'nope' } }));
+    const user = userEvent.setup();
+    renderAt('/api-keys/new');
+    await screen.findByText('core.apiKeys.create.title');
+    await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'PIM sync');
+    await user.click(screen.getByRole('checkbox', { name: 'catalog:write' }));
+    await user.click(screen.getByRole('button', { name: 'core.apiKeys.create.submit' }));
+    // The mock ApiError carries 'mock' as its message.
+    expect(await screen.findByText('mock')).toBeInTheDocument();
+    expect(screen.getByLabelText('core.apiKeys.create.nameLabel')).toHaveValue('PIM sync');
   });
 
   it('creates a legacy unbound key without binding or expiry fields', async () => {
@@ -281,7 +326,7 @@ describe('ApiKeysPage — create payload + service-account org filter (B3)', () 
       data: { apiKey: unboundKey(), bearerToken: 'sk_live_unbound' },
     });
     const user = userEvent.setup();
-    renderWithI18n(<ApiKeysPage />, {});
+    renderAt('/api-keys/new');
     await screen.findByText('core.apiKeys.create.title');
 
     await user.type(screen.getByLabelText('core.apiKeys.create.nameLabel'), 'PIM sync');
@@ -306,7 +351,7 @@ describe('ApiKeysPage — binding + expiry list columns', () => {
       return Promise.reject(new Error(`unexpected GET ${path}`));
     });
 
-    renderWithI18n(<ApiKeysPage />, {});
+    renderAt('/api-keys');
 
     expect(await screen.findByText('core.apiKeys.column.binding')).toBeInTheDocument();
     expect(screen.getByText('core.apiKeys.column.expires')).toBeInTheDocument();
@@ -314,5 +359,38 @@ describe('ApiKeysPage — binding + expiry list columns', () => {
     expect(await screen.findByText('ACME Sp. z o.o.')).toBeInTheDocument();
     // Unbound row: explicit unbound marker.
     expect(screen.getByText('core.apiKeys.binding.unbound')).toBeInTheDocument();
+  });
+});
+
+describe('ApiKeysPage — the list comes first (issue #1501, SHELL-14)', () => {
+  it('draws no create form, and links its header action to the create route', async () => {
+    renderAt('/api-keys');
+    const create = await screen.findByRole('link', { name: 'core.apiKeys.create.action' });
+    expect(create).toHaveAttribute('href', '/api-keys/new');
+    expect(screen.queryByLabelText('core.apiKeys.create.nameLabel')).not.toBeInTheDocument();
+  });
+
+  it('revokes a key from the row menu only after the confirmation', async () => {
+    getSpy.mockImplementation((path: string) => {
+      if (path === '/api/v1/admin/api-keys') return Promise.resolve({ data: [unboundKey()] });
+      return Promise.reject(new Error(`unexpected GET ${path}`));
+    });
+    deleteSpy.mockResolvedValue(undefined);
+    renderAt('/api-keys');
+    await screen.findByText('PIM sync');
+    expect(screen.queryByRole('button', { name: 'core.apiKeys.action.revoke' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'core.apiKeys.rowActions' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'core.apiKeys.action.revoke' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('core.apiKeys.action.revokeConfirm');
+    expect(deleteSpy).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'core.apiKeys.action.revoke' }));
+    await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith('/api/v1/admin/api-keys/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'));
+  });
+
+  it('offers the first key from the empty state', async () => {
+    renderAt('/api-keys');
+    expect(await screen.findByText('core.apiKeys.empty')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'core.apiKeys.create.action' })).toHaveLength(2);
   });
 });

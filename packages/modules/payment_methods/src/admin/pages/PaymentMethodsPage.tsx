@@ -18,7 +18,7 @@ import {
   type MethodSalesChannelOptions,
   useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   paymentMethodsClient,
@@ -45,7 +45,10 @@ export function PaymentMethodsPage(): ReactNode {
   const [adapters, setAdapters] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // A save is said beside the form's title, in a region mounted before it has
+  // text — not a success banner (issue #1499, DEC-12 a). The form remounts on
+  // save, which is why the region sits in the card header and not in the form.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   // The upsert form is a controlled sub-tree keyed on this target: `null` = a
   // blank "add" form; a row = an "edit" form seeded from that row. Bumping the
   // key remounts the form so it picks up fresh initial values.
@@ -135,14 +138,15 @@ export function PaymentMethodsPage(): ReactNode {
             ? { salesChannelIds: input.salesChannelIds }
             : {}),
         });
-        setInfo(t('legacyMethods.messages.saved', { code: input.code }));
+        showStatus(t('legacyMethods.messages.saved', { code: input.code }));
         resetForm();
         await refresh();
       } catch (err) {
+        clearStatus();
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.save'));
       }
     },
-    [refresh, resetForm, t],
+    [refresh, resetForm, t, clearStatus, showStatus],
   );
 
   const handleDelete = useCallback(
@@ -158,10 +162,11 @@ export function PaymentMethodsPage(): ReactNode {
         if (editing?.id === id) resetForm();
         await refresh();
       } catch (err) {
+        clearStatus();
         setError(err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.delete'));
       }
     },
-    [editing, refresh, resetForm, t, confirm],
+    [editing, refresh, resetForm, t, confirm, clearStatus],
   );
 
   /**
@@ -176,21 +181,22 @@ export function PaymentMethodsPage(): ReactNode {
         await paymentMethodsClient.setStatus(row.id, status);
         await refresh();
       } catch (err) {
+        clearStatus();
         setError(
           err instanceof ApiError ? err.envelope.error.message : t('legacyMethods.errors.save'),
         );
       }
     },
-    [refresh, t],
+    [refresh, t, clearStatus],
   );
 
   const startEdit = useCallback((row: AdminPaymentMethod): void => {
     setError(null);
-    setInfo(null);
+    clearStatus();
     setEditing(row);
     // Bring the form (top of page) into view for a clear edit affordance.
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  }, [clearStatus]);
 
   if (!canRead) {
     return (
@@ -212,11 +218,6 @@ export function PaymentMethodsPage(): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
 
       {integrations.length > 0 ? (
         <Card className="mb-4">
@@ -233,12 +234,13 @@ export function PaymentMethodsPage(): ReactNode {
       ) : null}
 
       <Card className="mb-4">
-        <CardHeader>
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle>
             {editing
               ? t('legacyMethods.editTitle', { code: editing.code })
               : t('legacyMethods.formTitle')}
           </CardTitle>
+          <InlineStatus {...statusProps} />
         </CardHeader>
         <CardContent>
           <UpsertForm
@@ -254,7 +256,7 @@ export function PaymentMethodsPage(): ReactNode {
       </Card>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (

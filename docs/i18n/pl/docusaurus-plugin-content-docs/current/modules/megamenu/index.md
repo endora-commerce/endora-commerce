@@ -112,6 +112,17 @@ API albo administrator odczytujący API storefrontu widzi to, co gość.
 API storefrontu zwraca każdemu odwiedzającemu tylko pozycje jego odbiorców i nic z pozostałych —
 ani etykiety, ani adresu, ani reguły odbiorców.
 
+## Lista w panelu administracyjnym
+
+Ekran **Megamenu** pokazuje wszystkie konfiguracje z liczbą powiązań, informacją, czy konfiguracja jest aktywna (na przykład *5 zakresów*), czy tylko robocza, oraz wersją. Nazwa otwiera edytor.
+
+Administrator z uprawnieniem `megamenu.write` tworzy i usuwa megamenu w tym miejscu:
+
+- **Nowe megamenu** otwiera okno z jednym polem, nazwą. *Utwórz* zapisuje megamenu i otwiera jego edytor; pusta nazwa jest odrzucana przy polu.
+- Menu w wierszu (⋮) ma pozycje **Otwórz** i **Usuń**. **Usuń** prosi o potwierdzenie i usuwa megamenu wraz z drzewem. Megamenu z co najmniej jednym aktywnym powiązaniem jest odrzucane (`409 MEGAMENU_HAS_ACTIVE_BINDINGS`): okno zostaje otwarte i prosi o wyłączenie powiązań w edytorze, a potem o ponowne usunięcie.
+
+Bez `megamenu.write` lista jest tylko do odczytu: bez **Nowego megamenu** i bez menu w wierszu.
+
 ## Zapisy i audyt
 
 Każdy zapis — utworzenie, zmiana i usunięcie menu, zapis drzewa pozycji oraz dodanie, usunięcie,

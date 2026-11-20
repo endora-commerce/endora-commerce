@@ -42,7 +42,8 @@ export function stockDisplayBandTone(band: string): string {
     case 'out_of_stock':
       return 'b2b-badge b2b-badge--danger b2b-badge--dot';
     default:
-      return 'b2b-badge b2b-badge--muted';
+      // The neutral pill: `b2b-badge` unmodified (a `--muted` modifier was never defined).
+      return 'b2b-badge';
   }
 }
 
@@ -50,3 +51,13 @@ export function stockDisplayBandTone(band: string): string {
 export function productInventoryHref(productId: string): string {
   return `/catalog/products/${encodeURIComponent(productId)}?tab=inventory`;
 }
+
+/**
+ * Why the stock import skipped a row (issue #1492). The wizard's error table
+ * printed the raw reason (`product_not_found`); the keys are `core`'s.
+ */
+export const importErrorReasonLabels = defineEnumLabels({
+  product_not_found: 'inventory.import.reason.product_not_found',
+  invalid_quantity: 'inventory.import.reason.invalid_quantity',
+  malformed_row: 'inventory.import.reason.malformed_row',
+});

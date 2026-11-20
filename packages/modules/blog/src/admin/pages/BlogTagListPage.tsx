@@ -1,327 +1,262 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Plus, Tag } from 'lucide-react';
 import type { BlogTagDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { Alert, AlertDescription, Button, EmptyState } from '@endora-commerce/admin-kit/ui';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@endora-commerce/admin-kit/ui';
+  ListPage,
+  ListToolbar,
+  ListToolbarSearch,
+  ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+  useConfirmDialog,
+  useDebouncedValue,
+  useRemovalFocus,
+  useListPagination,
+  type ListPageLoad,
+  type ResponsiveColumn,
+} from '@endora-commerce/admin-kit/components';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { blogClient } from '../api/blog-client.js';
+import { loadErrorMessage } from '../components/list-errors.js';
+import { TagDialog } from '../components/TagDialog.js';
 
-const PER_PAGE = 50;
+/** `GET /api/v1/admin/blog/tags` serves at most 100 tags a page. */
+const MAX_PAGE_SIZE = 100;
 
 function pickName(name: Record<string, string> | undefined | null, fallback: string): string {
   if (!name) return fallback;
   return name['en-US'] ?? Object.values(name)[0] ?? fallback;
 }
 
-interface FormState {
-  name: string;
-  code: string;
-  description: string;
-}
+const rowId = (row: { id: string }): string => row.id;
 
-const blankForm: FormState = { name: '', code: '', description: '' };
+type Notice = { kind: 'done' | 'blocked'; text: string };
 
+/**
+ * The blog tag list — the kit's `ListPage` (issue #1495, UX audit
+ * CONTENT-13): one heading, a search that runs as the operator types, the kit
+ * pager, and a row menu with *Edit* and *Delete*. Create and edit open
+ * `TagDialog` instead of a form card drawn open above the list (issue #1538,
+ * CONTENT-21). A tag still on posts is refused by the server, so the screen
+ * asks for its references first and says which posts hold it instead of
+ * offering a confirmation that can only fail.
+ */
 export function BlogTagListPage(): ReactNode {
   const t = useTranslation('blog');
-  const tc = useTranslation('core');
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('blog.write');
   const { confirm, confirmDialog } = useConfirmDialog();
+  const pager = useListPagination({ scope: 'blog-tags', maxPageSize: MAX_PAGE_SIZE });
+  const { resetPage, syncTotal } = pager;
+  const searchRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<BlogTagDetail[]>([]);
+  const [total, setTotal] = useState(0);
   const [q, setQ] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(blankForm);
-  const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const out = await blogClient.listTags({
-        ...(q ? { q } : {}),
-        page,
-        perPage: PER_PAGE,
-      });
-      setRows(out.data);
-      setTotalPages(out.pagination.totalPages);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [q, page]);
+  const query = useDebouncedValue(q.trim());
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
+  const [reloadKey, setReloadKey] = useState(0);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  // `undefined`: closed; `null`: creating; a tag: editing it.
+  const [dialogTag, setDialogTag] = useState<BlogTagDetail | null | undefined>(undefined);
+  const { page, pageSize } = pager.query;
+  // After a delete, focus goes to the next row, or to "New tag" once the list is empty (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    resetPage();
+  }, [query, resetPage]);
 
-  const startEdit = useCallback((tag: BlogTagDetail) => {
-    setEditingId(tag.id);
-    setForm({
-      name: pickName(tag.name, tag.code),
-      code: tag.code,
-      description: pickName(tag.description, ''),
-    });
-    setInfo(null);
-  }, []);
+  useEffect(() => {
+    let alive = true;
+    setLoad({ kind: 'loading' });
+    blogClient
+      .listTags({ ...(query ? { q: query } : {}), page, perPage: pageSize })
+      .then((out) => {
+        if (!alive) return;
+        setRows(out.data);
+        setTotal(out.pagination.totalItems);
+        syncTotal(out.pagination.totalItems);
+        setLoad({ kind: 'ready' });
+      })
+      .catch((err: unknown) => {
+        if (alive) setLoad({ kind: 'error', ...loadErrorMessage(err) });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [query, page, pageSize, reloadKey, syncTotal]);
 
-  const cancelEdit = useCallback(() => {
-    setEditingId(null);
-    setForm(blankForm);
-  }, []);
+  const filtered = query !== '';
+  const clearFilters = useCallback((): void => {
+    setQ('');
+    resetPage();
+  }, [resetPage]);
 
-  const onSubmit = useCallback(async () => {
-    if (!form.name.trim() || !/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(form.code)) {
-      setError(t('tagList.validation.invalidForm'));
+  const remove = async (tag: BlogTagDetail): Promise<void> => {
+    setNotice(null);
+    let inUse: { count: number; slugs: string } | null = null;
+    try {
+      const probe = await blogClient.getTagInboundReferences(tag.id);
+      if (probe.totalPosts > 0) inUse = { count: probe.totalPosts, slugs: probe.posts.map((p) => p.slug).join(', ') };
+    } catch {
+      // Without the probe the delete is still asked; the server refuses a tag in use.
+    }
+    if (inUse) {
+      setNotice({ kind: 'blocked', text: t('tagList.deleteBlocked', { code: tag.code, ...inUse }) });
       return;
     }
-    setSaving(true);
-    setError(null);
-    setInfo(null);
-    try {
-      if (editingId) {
-        const existing = rows.find((r) => r.id === editingId);
-        if (!existing) throw new Error(t('tagList.validation.missingTag'));
-        await blogClient.patchTag(editingId, {
-          name: { 'en-US': form.name },
-          code: form.code,
-          ...(form.description
-            ? { description: { 'en-US': form.description } }
-            : { description: null }),
-          version: existing.version,
-        });
-        setInfo(t('tagList.messages.updated', { code: form.code }));
-      } else {
-        await blogClient.createTag({
-          name: { 'en-US': form.name },
-          code: form.code,
-          ...(form.description ? { description: { 'en-US': form.description } } : {}),
-        });
-        setInfo(t('tagList.messages.created', { code: form.code }));
-      }
-      cancelEdit();
-      await load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
-    }
-  }, [editingId, form, rows, cancelEdit, load]);
+    const deleted = await confirm({
+      title: t('tagList.deleteTitle'),
+      message: t('tagList.deleteConfirm', { code: tag.code }),
+      confirmLabel: t('listActions.delete'),
+      destructive: true,
+      action: () => blogClient.deleteTag(tag.id, tag.version),
+      describeError: () => t('listActions.deleteFailed'),
+      returnFocusTo: removalFocus.returnFocusTo(tag),
+    });
+    if (!deleted) return;
+    setNotice({ kind: 'done', text: t('tagList.deleted', { code: tag.code }) });
+    // The row goes in place rather than through a reload, so the row focus moved to stays
+    // mounted. A page emptied this way moves back through `syncTotal`, which reads again.
+    setRows((current) => current.filter((row) => row.id !== tag.id));
+    setTotal((current) => current - 1);
+    syncTotal(total - 1);
+  };
 
-  const onDelete = useCallback(
-    async (tag: BlogTagDetail) => {
-      const probe = await blogClient.getTagInboundReferences(tag.id);
-      const slugs = probe.posts.map((p) => p.slug).join(', ');
-      const ok = await confirm({
-        message:
-          probe.totalPosts > 0
-            ? t('tagList.deleteConfirm.inUse', { code: tag.code, count: probe.totalPosts, slugs })
-            : t('tagList.deleteConfirm.default', { code: tag.code }),
-        confirmLabel: tc('common.action.delete'),
-        destructive: true,
-      });
-      if (!ok) return;
-      setSaving(true);
-      setError(null);
-      try {
-        await blogClient.deleteTag(tag.id, tag.version);
-        setInfo(t('tagList.messages.deleted', { code: tag.code }));
-        await load();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSaving(false);
-      }
-    },
-    [load, confirm, t, tc],
+  const newTag = (
+    <Button
+      ref={(element) => {
+        removalFocus.createRef.current = element;
+      }}
+      type="button"
+      className="min-h-11 sm:min-h-9"
+      onClick={() => setDialogTag(null)}
+    >
+      <Plus size={16} aria-hidden="true" />
+      {t('tagList.newTag')}
+    </Button>
   );
+  // With no tag at all the empty state carries the one create action (Von Restorff).
+  const nothingYet = load.kind === 'ready' && total === 0 && !filtered;
+
+  const columns: ResponsiveColumn<BlogTagDetail>[] = [
+    {
+      id: 'name',
+      header: t('columns.name'),
+      primary: true,
+      // A tag has no page of its own: its name opens the edit dialog, like the row's *Edit*.
+      render: (tag) =>
+        canWrite ? (
+          <button
+            ref={removalFocus.targetRef(tag)}
+            type="button"
+            className="text-left font-medium text-primary hover:underline"
+            onClick={() => setDialogTag(tag)}
+          >
+            {pickName(tag.name, tag.code)}
+          </button>
+        ) : (
+          <span className="font-medium">{pickName(tag.name, tag.code)}</span>
+        ),
+      meta: (tag) => <code className="text-xs">{tag.code}</code>,
+    },
+    {
+      id: 'code',
+      header: t('columns.code'),
+      hideOnMobile: true,
+      render: (tag) => <code className="text-xs">{tag.code}</code>,
+    },
+    {
+      id: 'version',
+      header: t('columns.version'),
+      hideOnMobile: true,
+      className: 'text-right',
+      render: (tag) => <span className="text-xs text-muted-foreground">v{tag.version}</span>,
+    },
+  ];
 
   return (
-    <div className="space-y-4">
-      <PageHeader
+    <>
+      <ListPage
         title={t('tagList.title')}
-        description={t('tagList.description')}
-      />
-
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert>
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">
-            {editingId ? t('tagList.editTag') : t('tagList.newTag')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="tag-name">{t('tagList.nameLabel')}</Label>
-              <Input
-                id="tag-name"
-                value={form.name}
-                onChange={(event) => setForm((f) => ({ ...f, name: event.target.value }))}
+        actions={canWrite && !nothingYet ? newTag : null}
+        toolbar={
+          <ListToolbar
+            className="flex-1"
+            label={t('tagList.toolbarLabel')}
+            search={
+              <ListToolbarSearch
+                ref={searchRef}
+                label={t('tagList.searchLabel')}
+                placeholder={t('tagList.searchPlaceholder')}
+                value={q}
+                onValueChange={setQ}
               />
-            </div>
-            <div>
-              <Label htmlFor="tag-code">{t('tagList.codeLabel')}</Label>
-              <Input
-                id="tag-code"
-                value={form.code}
-                onChange={(event) =>
-                  setForm((f) => ({ ...f, code: event.target.value.toLowerCase() }))
-                }
-                className="font-mono"
-                placeholder={t('tagList.codePlaceholder')}
+            }
+          />
+        }
+        count={t('tagList.count', { count: total })}
+        notice={
+          notice ? (
+            <Alert variant={notice.kind === 'blocked' ? 'warning' : 'default'} live="polite">
+              <AlertDescription>{notice.text}</AlertDescription>
+            </Alert>
+          ) : null
+        }
+        load={load}
+        onRetry={() => setReloadKey((key) => key + 1)}
+        pagination={pager.footer(total)}
+      >
+        <ResponsiveTable
+          columns={columns}
+          data={rows}
+          keyExtractor={(tag) => tag.id}
+          emptyState={
+            filtered ? (
+              <EmptyState variant="no-results" onClearFilters={clearFilters} focusAfterClear={searchRef} />
+            ) : (
+              <EmptyState
+                icon={<Tag size={20} />}
+                title={t('tagList.emptyTitle')}
+                description={t('tagList.emptyBody')}
+                action={canWrite ? newTag : null}
               />
-            </div>
-          </div>
-          <div>
-            <Label htmlFor="tag-description">{t('tagList.descriptionLabel')}</Label>
-            <Input
-              id="tag-description"
-              value={form.description}
-              onChange={(event) =>
-                setForm((f) => ({ ...f, description: event.target.value }))
+            )
+          }
+          {...(canWrite
+            ? {
+                renderActions: (tag: BlogTagDetail) => (
+                  <RowActionMenu label={t('listActions.label', { name: pickName(tag.name, tag.code) })}>
+                    <RowActionMenuItem onSelect={() => setDialogTag(tag)}>{t('listActions.edit')}</RowActionMenuItem>
+                    <RowActionMenuSeparator />
+                    <RowActionMenuItem destructive onSelect={() => void remove(tag)}>
+                      {t('listActions.delete')}
+                    </RowActionMenuItem>
+                  </RowActionMenu>
+                ),
               }
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            {editingId ? (
-              <Button type="button" variant="outline" onClick={cancelEdit}>
-                {t('common.cancel')}
-              </Button>
-            ) : null}
-            <Button type="button" disabled={saving} onClick={() => void onSubmit()}>
-              {saving ? t('common.saving') : editingId ? t('tagList.saveTag') : t('tagList.createTag')}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle className="text-base">{t('tagList.cardTitle')}</CardTitle>
-          <div className="flex items-center gap-2">
-            <Input
-              value={q}
-              onChange={(event) => {
-                setQ(event.target.value);
-                setPage(1);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') void load();
-              }}
-              type="search"
-              aria-label={t('tagList.searchLabel')}
-              placeholder={t('tagList.searchPlaceholder')}
-              className="w-64"
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('tagList.empty')}</p>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('columns.name')}</TableHead>
-                    <TableHead>{t('columns.code')}</TableHead>
-                    <TableHead>{t('columns.version')}</TableHead>
-                    <TableHead className="text-right">{t('columns.actions')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((tag) => (
-                    <TableRow key={tag.id}>
-                      <TableCell>{pickName(tag.name, tag.code)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-[10px]">
-                          {tag.code}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        v{tag.version}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => startEdit(tag)}
-                          className="mr-2"
-                        >
-                          {t('common.edit')}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={saving}
-                          onClick={() => void onDelete(tag)}
-                        >
-                          {t('common.delete')}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              {totalPages > 1 ? (
-                <div className="mt-4 flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {t('pagination.page', { page, totalPages })}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={page === 1}
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    >
-                      {t('pagination.previous')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={page >= totalPages}
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    >
-                      {t('pagination.next')}
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-            </>
-          )}
-        </CardContent>
-      </Card>
+            : {})}
+        />
+      </ListPage>
+      {dialogTag !== undefined ? (
+        <TagDialog
+          tag={dialogTag}
+          onClose={() => setDialogTag(undefined)}
+          onSaved={(code) => {
+            setNotice({
+              kind: 'done',
+              text: dialogTag ? t('tagList.updated', { code }) : t('tagList.created', { code }),
+            });
+            setDialogTag(undefined);
+            setReloadKey((key) => key + 1);
+          }}
+        />
+      ) : null}
       {confirmDialog}
-    </div>
+    </>
   );
 }
 

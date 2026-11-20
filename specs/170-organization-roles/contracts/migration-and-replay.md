@@ -245,8 +245,8 @@ exists, is one of its keys.
 | 6 | `orgCarts.reject:P.owner` | 403 `FORBIDDEN` | 422 `CART_APPROVAL_NOT_PENDING` | F1 · PR-3 | as row 5 | WP-04 |
 | 7 | `oneClick.setOrganizationDefaults:P.owner` | 403 `FORBIDDEN` | 200 | F1 · PR-3 | FR-012 is reserved to *Administrator*; same values as seeded, so no later row moves | WP-06 |
 | 8 | `mfa.setPolicy:P.owner` | 403 `FORBIDDEN` | 200 | F1 · PR-3 | FR-011, reserved to *Administrator*; `enforceTotp: false` changes nothing later | WP-03 |
-| 9 | `invitation.createMember:P.owner` | 403 `FORBIDDEN` | 422 `VALIDATION_FAILED` | F1 · PR-3 | the personal-Organization refusal (feature 051), checked before the role is resolved | WP-03 |
-| 10 | `invitation.createAdministrator:P.owner` | 403 `FORBIDDEN` | 422 `VALIDATION_FAILED` | F1 · PR-3 | as row 9 | WP-03 |
+| 9 | `invitation.createMember:P.owner` | 403 `FORBIDDEN` | 422 `ORGANIZATION_PERSONAL/invite` | F1 · PR-3 | the personal-Organization refusal (feature 051), checked before the role is resolved; its own code since #629 (was `VALIDATION_FAILED`) | WP-03 |
+| 10 | `invitation.createAdministrator:P.owner` | 403 `FORBIDDEN` | 422 `ORGANIZATION_PERSONAL/invite` | F1 · PR-3 | as row 9 | WP-03 |
 | 11 | `invitation.revoke:P.owner` | 403 `FORBIDDEN` | 404 `NOT_FOUND` | F1 · PR-3 | the target is A's invitation; the lookup is scoped to P | WP-03 |
 | 12 | `member.remove:P.owner` | 403 `FORBIDDEN` | 409 `CANNOT_REMOVE_LAST_ADMIN` | F1 · PR-3 | the target is P.owner, P's only administrator | WP-03 |
 | 13 | `member.changeRole:P.owner` | 403 `FORBIDDEN` | 200 | F1 · PR-3 | *Administrator* → *Administrator*: no change, nothing audited (FR-065) | WP-03 |

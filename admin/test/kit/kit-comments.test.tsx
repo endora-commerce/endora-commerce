@@ -36,10 +36,12 @@ function core(key: string): string {
 const ME = '00000000-0000-4000-8000-00000000ad01';
 const COLLEAGUE = '00000000-0000-4000-8000-00000000ad02';
 
+const HINT = 'Notes are internal.';
+
 const COPY: CommentThreadCopy = {
   title: 'Notes',
   empty: 'No notes yet.',
-  hint: 'Notes are internal.',
+  hint: HINT,
   composerLabel: 'New note',
   composerPlaceholder: 'Write a note',
   composerSubmit: 'Add note',
@@ -84,13 +86,20 @@ function mount(ui: ReactElement): void {
 }
 
 function thread(
-  props: { kind?: 'note' | 'message'; canWrite?: boolean; keepDeleted?: boolean; copy?: CommentThreadCopy } = {},
+  props: {
+    kind?: 'note' | 'message';
+    canWrite?: boolean;
+    keepDeleted?: boolean;
+    copy?: CommentThreadCopy;
+    chrome?: 'section' | 'card';
+  } = {},
 ): ReactElement {
   return (
     <CommentThread
       kind={props.kind ?? 'note'}
       canWrite={props.canWrite ?? true}
       {...(props.keepDeleted ? { keepDeleted: true } : {})}
+      {...(props.chrome ? { chrome: props.chrome } : {})}
       api={API}
       copy={props.copy ?? COPY}
       referenceKinds={[]}
@@ -112,7 +121,7 @@ describe('CommentThread', () => {
     expect(items[0]).toHaveTextContent('Ada Min');
     expect(items[0]).toHaveTextContent('First call went well.');
     expect(items[1]).toHaveTextContent(core('comments.edited'));
-    expect(screen.getByText(COPY.hint)).toBeInTheDocument();
+    expect(screen.getByText(HINT)).toBeInTheDocument();
   });
 
   it('describes the composer by the helper line the tab gives, and by none when it gives none (#1487)', async () => {
@@ -267,5 +276,58 @@ describe('CommentComposer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Send' }));
     expect(await screen.findByText(core('comments.error.save'))).toBeInTheDocument();
     expect(field).toHaveTextContent('Hello');
+  });
+});
+
+describe('CommentThread — a section, not a card (issue #1437, DS-03)', () => {
+  it('lists its entries as rows divided by a rule, not as a bordered box each, and draws no card', async () => {
+    list.mockResolvedValue([entry(), entry({ id: '00000000-0000-4000-8000-0000000c0002', body: 'Agreed.' })]);
+    mount(thread());
+
+    const thread_ = await screen.findByRole('list', { name: COPY.title });
+    expect(thread_.className.split(/\s+/)).toContain('divide-y');
+    for (const item of within(thread_).getAllByRole('listitem')) {
+      expect(item.className.split(/\s+/)).not.toContain('border');
+      expect(item.className.split(/\s+/)).not.toContain('rounded-md');
+    }
+    expect(thread_.closest('[data-slot=card]')).toBeNull();
+  });
+
+  it('draws its own titled card with `chrome="card"`', async () => {
+    list.mockResolvedValue([entry()]);
+    mount(thread({ chrome: 'card' }));
+
+    const heading = await screen.findByRole('heading', { level: 2, name: COPY.title });
+    expect(heading.closest('[data-slot=card]')).not.toBeNull();
+  });
+});
+
+describe('CommentThread — the hint is off unless the tab gives one (issue #1503, SHELL-22)', () => {
+  it('draws no line above the thread when the copy names no hint', async () => {
+    list.mockResolvedValue([entry()]);
+    const { hint: _hint, ...withoutHint } = COPY;
+    mount(thread({ copy: withoutHint }));
+
+    const items = await screen.findByRole('list', { name: COPY.title });
+    // Above the list there is no hint line; the composer's live region (`role=status`) stays.
+    const root = items.parentElement!;
+    expect(root.querySelector(':scope > p:not([role])')).toBeNull();
+    expect(screen.queryByText(HINT)).toBeNull();
+  });
+});
+
+describe('CommentThread hosts state their hint themselves (issue #1503, SHELL-22)', () => {
+  it('passes the hint explicitly from every core host, since the kit draws none by default', () => {
+    for (const host of [
+      'crm/src/admin/pages/opportunity-detail/tabs/NotesTab.tsx',
+      'crm/src/admin/pages/opportunity-detail/tabs/MessagesTab.tsx',
+      'projects/src/admin/pages/project-detail/tabs/NotesTab.tsx',
+      'projects/src/admin/pages/project-detail/tabs/MessagesTab.tsx',
+      'tasks/src/admin/components/TaskComments.tsx',
+    ]) {
+      const source = readFileSync(resolve(process.cwd(), '../packages/modules', host), 'utf8');
+      expect(source, host).toContain('<CommentThread');
+      expect(source, host).toMatch(/\bhint: t\('comments\./);
+    }
   });
 });

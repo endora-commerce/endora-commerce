@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ClipboardList, Plus, SearchX, X } from 'lucide-react';
+import { ClipboardList, Plus } from 'lucide-react';
 import {
   PROJECT_STAGE_NAME_MAX,
   type CustomFieldFilter,
-  type CustomFieldFilters,
   type CustomFieldListFilterField,
   type ProjectRole,
   type ProjectState,
@@ -18,7 +17,7 @@ import {
   Button,
   Card,
   CardContent,
-  Checkbox,
+  EmptyState,
   Input,
   Label,
   PageHeader,
@@ -26,6 +25,9 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldListFilters,
+  FilterChip,
+  ListToolbar,
+  ListToolbarSearch,
   PaginationFooter,
   ResponsiveTable,
   customFieldDisplayName,
@@ -45,6 +47,7 @@ import {
   NO_FILTERS,
   SORTS,
   STATES,
+  hiddenFilterCount,
   readListAddress,
   writeListAddress,
   type Filters,
@@ -67,35 +70,23 @@ const CUSTOM_FIELD_FILTERS_ENDPOINT = '/api/v1/admin/projects/custom-field-filte
 /** Custom fields — their filters included — are shown only to a reader who may view them. */
 const CUSTOM_FIELDS_READ_PERMISSION = 'custom_fields:read';
 
-interface CustomFieldFilterCellsProps {
-  value: CustomFieldFilters;
-  onChange: (key: string, filter: CustomFieldFilter | null) => void;
-  /** The offered fields, once read — the list names a refused one by its label. */
-  onFields: (fields: CustomFieldListFilterField[]) => void;
-}
+/** The custom fields offered as list filters, as the kit's hook reads them. */
+type OfferedCustomFields = ReturnType<typeof useCustomFieldListFilterFields>;
 
 /**
- * One filter cell per offered custom field, in the list's filter grid. A
- * component of its own so the offered fields are read only where it is
- * mounted — for a reader holding `custom_fields:read`.
+ * Reads the offered custom fields and hands them to the list. Renders
+ * nothing: it is mounted only for a reader holding `custom_fields:read`, so
+ * only they read the fields — and mounted whether or not *More filters* is
+ * open, so a refused filter is named by its label even while the panel,
+ * where its cell lives, is folded away.
  */
-function CustomFieldFilterCells({ value, onChange, onFields }: CustomFieldFilterCellsProps): ReactNode {
-  const { language } = useAppLanguage();
+function CustomFieldFilterSource({ onOffered }: { onOffered: (offered: OfferedCustomFields) => void }): null {
   const offered = useCustomFieldListFilterFields(CUSTOM_FIELD_FILTERS_ENDPOINT);
+  const { fields, status, reload } = offered;
   useEffect(() => {
-    if (offered.status === 'ready') onFields(offered.fields);
-  }, [offered.status, offered.fields, onFields]);
-  return (
-    <CustomFieldListFilters
-      idPrefix="projects"
-      fields={offered.fields}
-      value={value}
-      onChange={onChange}
-      language={language}
-      status={offered.status}
-      onRetry={offered.reload}
-    />
-  );
+    onOffered({ fields, status, reload });
+  }, [fields, status, reload, onOffered]);
+  return null;
 }
 
 /**
@@ -122,6 +113,8 @@ function CustomFieldFilterCells({ value, onChange, onFields }: CustomFieldFilter
  */
 export function ProjectsList(): ReactNode {
   const t = useTranslation('projects');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
   const { hasPermission } = useAuth();
@@ -160,7 +153,8 @@ export function ProjectsList(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   /** The custom-field filter the server refused, until the operator removes it. */
   const [refusedCustomField, setRefusedCustomField] = useState<string | null>(null);
-  const [customFieldFields, setCustomFieldFields] = useState<CustomFieldListFilterField[]>([]);
+  const [offeredCustomFields, setOfferedCustomFields] = useState<OfferedCustomFields | null>(null);
+  const customFieldFields: readonly CustomFieldListFilterField[] = offeredCustomFields?.fields ?? [];
   const sequence = useRef(0);
 
   /**
@@ -417,152 +411,93 @@ export function ProjectsList(): ReactNode {
   );
 
   const emptyState = filtered ? (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <SearchX aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('list.noResults.title')}</div>
-      <div className="b2b-empty__sub">{t('list.noResults.body')}</div>
-      <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={clear}>
-        <X aria-hidden="true" />
-        {t('list.filter.clear')}
-      </Button>
-    </div>
+    <EmptyState
+      variant="no-results"
+      title={t('list.noResults.title')}
+      description={t('list.noResults.body')}
+      onClearFilters={clear}
+      focusAfterClear={searchRef}
+    />
   ) : (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <ClipboardList aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('list.empty.title')}</div>
-      <div className="b2b-empty__sub">{canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}</div>
-      {canWrite ? newProject : null}
-    </div>
+    <EmptyState
+      icon={<ClipboardList size={20} />}
+      title={t('list.empty.title')}
+      description={canWrite ? t('list.empty.body') : t('list.empty.bodyReadOnly')}
+      action={canWrite ? newProject : null}
+    />
   );
 
   return (
     <>
       <PageHeader
         title={t('list.title')}
-        description={t('list.description')}
         // With nothing listed the empty state carries the one action.
         actions={canWrite && (rows.length > 0 || filtered || !loaded) ? newProject : undefined}
       />
 
+      {canFilterCustomFields ? <CustomFieldFilterSource onOffered={setOfferedCustomFields} /> : null}
       <Card className="mb-4">
-        <CardContent className="pt-6">
-          <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <Label htmlFor="projects-search">{t('list.search')}</Label>
-              <Input
+        <CardContent>
+          <ListToolbar
+            label={t('list.filter.toolbar')}
+            search={
+              <ListToolbarSearch
+                ref={searchRef}
                 id="projects-search"
-                type="search"
-                value={search}
-                maxLength={SEARCH_MAX}
+                label={t('list.search')}
                 placeholder={t('list.searchPlaceholder')}
-                onChange={(event): void => setSearch(event.target.value)}
+                maxLength={SEARCH_MAX}
+                value={search}
+                onValueChange={setSearch}
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="projects-state">{t('list.filter.state')}</Label>
-              <Select
-                id="projects-state"
-                value={filters.state}
-                onChange={(event): void => change({ state: event.target.value as ProjectState | '' })}
-              >
-                <option value="">{t('list.filter.stateAll')}</option>
-                {STATES.map((state) => (
-                  <option key={state} value={state}>
-                    {t(`state.${state}`)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="projects-organization">{t('list.filter.organization')}</Label>
-              <OrganizationLookup
-                id="projects-organization"
-                ariaLabel={t('list.filter.organization')}
-                value={filters.organizationId}
-                onChange={(organizationId): void => change({ organizationId })}
-                placeholder={t('list.filter.organizationPlaceholder')}
-              />
-            </div>
-            <div className="flex items-end">
-              <label htmlFor="projects-mine" className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9">
-                <Checkbox
-                  id="projects-mine"
-                  checked={filters.mine}
-                  onChange={(event): void =>
-                    change(event.target.checked ? { mine: true, memberId: null } : { mine: false })
-                  }
-                />
-                {t('list.filter.mine')}
-              </label>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="projects-member">{t('list.filter.member')}</Label>
-              <AdminUserLookup
-                id="projects-member"
-                ariaLabel={t('list.filter.member')}
-                value={filters.memberId}
-                onChange={(memberId): void => change(memberId ? { memberId, mine: false } : { memberId: null })}
-                placeholder={t('list.filter.memberPlaceholder')}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="projects-role">{t('list.filter.role')}</Label>
-              <Select
-                id="projects-role"
-                value={filters.roleId}
-                onChange={(event): void => change({ roleId: event.target.value })}
-              >
-                <option value="">{t('list.filter.roleAll')}</option>
-                {(roles ?? []).map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.archivedAt ? t('overview.archivedRole', { role: role.label }) : role.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="projects-template">{t('list.filter.template')}</Label>
-              <Select
-                id="projects-template"
-                value={filters.templateId}
-                onChange={(event): void => change({ templateId: event.target.value })}
-              >
-                <option value="">{t('list.filter.templateAll')}</option>
-                {(templates ?? []).map((template) => (
-                  <option key={template.id} value={template.id}>
-                    {template.archivedAt ? `${template.name} (${t('templates.list.archived')})` : template.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="projects-stage-name">{t('list.filter.stageName')}</Label>
-              <Input
-                id="projects-stage-name"
-                type="search"
-                value={stageSearch}
-                maxLength={PROJECT_STAGE_NAME_MAX}
-                placeholder={t('list.filter.stageNamePlaceholder')}
-                onChange={(event): void => setStageSearch(event.target.value)}
-              />
-            </div>
-            {canFilterCustomFields ? (
-              <CustomFieldFilterCells
-                value={filters.customFields}
-                onChange={changeCustomField}
-                onFields={setCustomFieldFields}
-              />
-            ) : null}
-          </div>
-          <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="projects-sort">{t('list.sort')}</Label>
+            }
+            filters={
+              <>
+                <Select
+                  id="projects-state"
+                  aria-label={t('list.filter.state')}
+                  className="w-auto"
+                  value={filters.state}
+                  onChange={(event): void => change({ state: event.target.value as ProjectState | '' })}
+                >
+                  <option value="">{t('list.filter.stateAll')}</option>
+                  {STATES.map((state) => (
+                    <option key={state} value={state}>
+                      {t(`state.${state}`)}
+                    </option>
+                  ))}
+                </Select>
+                <div className="w-full sm:w-56">
+                  <OrganizationLookup
+                    id="projects-organization"
+                    ariaLabel={t('list.filter.organization')}
+                    value={filters.organizationId}
+                    onChange={(organizationId): void => change({ organizationId })}
+                    placeholder={t('list.filter.organizationPlaceholder')}
+                  />
+                </div>
+                {/* "My projects" and a member are one filter: choosing one clears the other. */}
+                <FilterChip
+                  pressed={filters.mine}
+                  onPressedChange={(next): void => change(next ? { mine: true, memberId: null } : { mine: false })}
+                >
+                  {t('list.filter.mine')}
+                </FilterChip>
+                <div className="w-full sm:w-56">
+                  <AdminUserLookup
+                    id="projects-member"
+                    ariaLabel={t('list.filter.member')}
+                    value={filters.memberId}
+                    onChange={(memberId): void => change(memberId ? { memberId, mine: false } : { memberId: null })}
+                    placeholder={t('list.filter.memberPlaceholder')}
+                  />
+                </div>
+              </>
+            }
+            actions={
               <Select
                 id="projects-sort"
+                aria-label={t('list.sort')}
                 className="w-auto"
                 value={sort}
                 onChange={(event): void => {
@@ -576,19 +511,75 @@ export function ProjectsList(): ReactNode {
                   </option>
                 ))}
               </Select>
-            </div>
-            {filtered ? (
-              <Button className="min-h-11 sm:min-h-8" variant="ghost" size="sm" onClick={clear}>
-                <X aria-hidden="true" />
-                {t('list.filter.clear')}
-              </Button>
-            ) : null}
-          </div>
+            }
+            moreFilters={
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="projects-role">{t('list.filter.role')}</Label>
+                  <Select
+                    id="projects-role"
+                    value={filters.roleId}
+                    onChange={(event): void => change({ roleId: event.target.value })}
+                  >
+                    <option value="">{t('list.filter.roleAll')}</option>
+                    {(roles ?? []).map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.archivedAt ? t('overview.archivedRole', { role: role.label }) : role.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="projects-template">{t('list.filter.template')}</Label>
+                  <Select
+                    id="projects-template"
+                    value={filters.templateId}
+                    onChange={(event): void => change({ templateId: event.target.value })}
+                  >
+                    <option value="">{t('list.filter.templateAll')}</option>
+                    {(templates ?? []).map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.archivedAt ? `${template.name} (${t('templates.list.archived')})` : template.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="projects-stage-name">{t('list.filter.stageName')}</Label>
+                  <Input
+                    id="projects-stage-name"
+                    type="search"
+                    value={stageSearch}
+                    maxLength={PROJECT_STAGE_NAME_MAX}
+                    placeholder={t('list.filter.stageNamePlaceholder')}
+                    onChange={(event): void => setStageSearch(event.target.value)}
+                  />
+                </div>
+                {canFilterCustomFields && offeredCustomFields ? (
+                  <CustomFieldListFilters
+                    idPrefix="projects"
+                    fields={offeredCustomFields.fields}
+                    value={filters.customFields}
+                    onChange={changeCustomField}
+                    language={language}
+                    status={offeredCustomFields.status}
+                    onRetry={offeredCustomFields.reload}
+                  />
+                ) : null}
+              </>
+            }
+            moreFiltersActiveCount={hiddenFilterCount(
+              { ...filters, stageName: stageSearch },
+              { customFields: canFilterCustomFields },
+            )}
+            filtersActive={filtered}
+            onClearFilters={clear}
+          />
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent className="pt-6" aria-busy={loading}>
+        <CardContent aria-busy={loading}>
           {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
           <p role="status" className="sr-only">
             {loading && loaded ? t('list.loading') : ''}

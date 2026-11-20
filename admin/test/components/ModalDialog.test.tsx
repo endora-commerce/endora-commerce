@@ -174,3 +174,110 @@ describe('ModalDialog (admin-kit)', () => {
     await expectNoAxeViolations(document.body);
   });
 });
+
+/**
+ * Issue #1444 (DS-11) — the one dialog of the admin. It renders into
+ * `document.body`, so a dialog opened from inside a transformed or clipped
+ * subtree (a drawer, the fullscreen Page Builder) is still placed against the
+ * viewport; `layer="overlay"` lifts it above the builder's own floating chrome;
+ * and with two open only the topmost answers Escape.
+ */
+function Stacked(props: { layer?: 'page' | 'overlay' }): ReactElement {
+  const [outer, setOuter] = useState(false);
+  const [inner, setInner] = useState(false);
+  return (
+    <div data-testid="subtree">
+      <button type="button" onClick={(): void => setOuter(true)}>
+        Open outer
+      </button>
+      {outer ? (
+        <ModalDialog title="Outer" onClose={(): void => setOuter(false)} {...(props.layer ? { layer: props.layer } : {})}>
+          <button type="button" onClick={(): void => setInner(true)}>
+            Open inner
+          </button>
+          {inner ? (
+            <ModalDialog title="Inner" onClose={(): void => setInner(false)}>
+              <button type="button">Inner action</button>
+            </ModalDialog>
+          ) : null}
+        </ModalDialog>
+      ) : null}
+    </div>
+  );
+}
+
+describe('ModalDialog — the admin-wide dialog rule (#1444, DS-11)', () => {
+  it('renders into document.body, outside the subtree that opened it', async () => {
+    const user = userEvent.setup();
+    render(
+      <StrictMode>
+        <Stacked />
+      </StrictMode>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Open outer' }));
+    const dialog = screen.getByRole('dialog', { name: 'Outer' });
+    expect(screen.getByTestId('subtree').contains(dialog)).toBe(false);
+    expect(dialog.parentElement?.parentElement).toBe(document.body);
+  });
+
+  it('stacks on the page layer by default and above the fullscreen builder chrome with layer="overlay"', async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(<Stacked />);
+    await user.click(screen.getByRole('button', { name: 'Open outer' }));
+    const pageScrim = screen.getByRole('dialog', { name: 'Outer' }).parentElement as HTMLElement;
+    expect(pageScrim).toHaveAttribute('data-layer', 'page');
+    unmount();
+
+    render(<Stacked layer="overlay" />);
+    await user.click(screen.getByRole('button', { name: 'Open outer' }));
+    const overlayScrim = screen.getByRole('dialog', { name: 'Outer' }).parentElement as HTMLElement;
+    expect(overlayScrim).toHaveAttribute('data-layer', 'overlay');
+    // The builder's floating action bar sits at 9999 (`PageBuilderActionBar`).
+    expect(Number(overlayScrim.style.zIndex)).toBeGreaterThan(9999);
+    // Issue #1493: the rich-text editor's own dialogs (`cms-components`, which
+    // cannot use the kit) sit at 2147483000–2147483001, and the asset library
+    // opens from inside its image dialog.
+    expect(Number(overlayScrim.style.zIndex)).toBeGreaterThan(2147483001);
+  });
+
+  it('answers Escape in the topmost dialog only, and returns focus into the one below', async () => {
+    const user = userEvent.setup();
+    render(
+      <StrictMode>
+        <Stacked />
+      </StrictMode>,
+    );
+    await user.click(screen.getByRole('button', { name: 'Open outer' }));
+    await user.click(screen.getByRole('button', { name: 'Open inner' }));
+    expect(screen.getByRole('button', { name: 'Inner action' })).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Inner' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Outer' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open inner' })).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Open outer' })).toHaveFocus();
+  });
+
+  it('leaves an Escape that a layer inside it already handled', async () => {
+    const onClose = vi.fn();
+    render(
+      <ModalDialog title="With a listbox" onClose={onClose}>
+        <input aria-label="Search" onKeyDown={(event): void => event.preventDefault()} />
+      </ModalDialog>,
+    );
+    fireEvent.keyDown(screen.getByLabelText('Search'), { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('focuses the panel itself when it holds nothing focusable', () => {
+    render(
+      <ModalDialog title="Read only" onClose={(): void => undefined}>
+        <p>Nothing to press here.</p>
+      </ModalDialog>,
+    );
+    expect(screen.getByRole('dialog', { name: 'Read only' })).toHaveFocus();
+  });
+});

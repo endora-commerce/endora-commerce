@@ -1,9 +1,9 @@
-import { Suspense, useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import type { ProjectDetail as ProjectDetailData } from '@endora-commerce/contracts';
-import { cn, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Button, Card, CardContent, PageHeader, RecordTabs } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { projectsApi } from '../api.js';
 import { DeleteProjectDialog } from '../components/DeleteProjectDialog.js';
@@ -56,7 +56,6 @@ export function ProjectDetail(): ReactNode {
   const navigate = useNavigate();
   const isVisible = useSurfaceVisibility();
   const sequence = useRef(0);
-  const tablistRef = useRef<HTMLDivElement>(null);
 
   const tabs = offeredTabs(isVisible);
   const activeTab = tabFromSearch(searchParams, tabs);
@@ -126,31 +125,6 @@ export function ProjectDetail(): ReactNode {
   const tab = tabs.find((candidate) => candidate.id === activeTab) ?? tabs[0];
   const TabComponent = tab?.component;
 
-  /** Arrow keys walk the strip, as the tabs pattern has it; Tab leaves it for the panel. */
-  const onTabKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    const index = tabs.findIndex((candidate) => candidate.id === tab?.id);
-    const last = tabs.length - 1;
-    const next =
-      event.key === 'ArrowRight'
-        ? index === last
-          ? 0
-          : index + 1
-        : event.key === 'ArrowLeft'
-          ? index === 0
-            ? last
-            : index - 1
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? last
-              : -1;
-    const target = tabs[next];
-    if (!target) return;
-    event.preventDefault();
-    selectTab(target.id);
-    tablistRef.current?.querySelector<HTMLButtonElement>(`#project-tab-${target.id}`)?.focus();
-  };
-
   return (
     <>
       <PageHeader
@@ -207,73 +181,42 @@ export function ProjectDetail(): ReactNode {
 
       <div className="space-y-6">
         <Card className="min-w-0">
-          <CardContent className="pt-6">
+          <CardContent>
             <StageBar key={project.id} project={project} onChange={setProject} reload={reload} />
           </CardContent>
         </Card>
 
-        <Card className="min-w-0 overflow-hidden">
-          <div className="b2b-tabs-scroll px-1 pt-1">
-            <div
-              ref={tablistRef}
-              className="b2b-tabs"
-              role="tablist"
-              aria-label={t('tabs.label')}
-              onKeyDown={onTabKeyDown}
-            >
-              {tabs.map((candidate) => {
-                const selected = candidate.id === tab?.id;
-                const count = candidate.count?.(project) ?? 0;
-                const label = t(candidate.labelKey);
-                return (
-                  <button
-                    key={candidate.id}
-                    type="button"
-                    role="tab"
-                    id={`project-tab-${candidate.id}`}
-                    aria-selected={selected}
-                    // A bare number says nothing read aloud: the name says what is
-                    // counted, and still begins with the words on screen.
-                    aria-label={
-                      count > 0 && candidate.countLabelKey ? t(candidate.countLabelKey, { label, count }) : undefined
-                    }
-                    aria-controls="project-tabpanel"
-                    tabIndex={selected ? 0 : -1}
-                    className={cn('b2b-tab', selected && 'is-active')}
-                    onClick={(): void => selectTab(candidate.id)}
-                  >
-                    {label}
-                    {/* Zero draws nothing; a real space, so a copy reads "Messages 2". */}
-                    {count > 0 ? (
-                      <>
-                        {' '}
-                        <span className="b2b-badge tabular-nums">{count}</span>
-                      </>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <CardContent
-            className="pt-6"
-            id="project-tabpanel"
-            role="tabpanel"
-            aria-labelledby={`project-tab-${tab?.id ?? ''}`}
+        <RecordTabs
+          className="min-w-0 overflow-hidden"
+          // A count is read from the Project the page holds; zero draws nothing,
+          // and a counted tab says what it counts ("Messages, unread: 2").
+          items={tabs.map((candidate) => {
+            const label = t(candidate.labelKey);
+            const count = candidate.count?.(project) ?? 0;
+            return {
+              value: candidate.id,
+              label,
+              count,
+              ...(candidate.countLabelKey ? { countLabel: t(candidate.countLabelKey, { label, count }) } : {}),
+            };
+          })}
+          value={tab?.id ?? ''}
+          onValueChange={selectTab}
+          idBase="project"
+          aria-label={t('tabs.label')}
+        >
+          <Suspense
+            fallback={
+              <p role="status" className="text-sm text-muted-foreground">
+                {tCore('common.state.loading')}
+              </p>
+            }
           >
-            <Suspense
-              fallback={
-                <p role="status" className="text-sm text-muted-foreground">
-                  {tCore('common.state.loading')}
-                </p>
-              }
-            >
-              {TabComponent ? (
-                <TabComponent key={project.id} project={project} onChange={setProject} reload={reload} />
-              ) : null}
-            </Suspense>
-          </CardContent>
-        </Card>
+            {TabComponent ? (
+              <TabComponent key={project.id} project={project} onChange={setProject} reload={reload} />
+            ) : null}
+          </Suspense>
+        </RecordTabs>
       </div>
     </>
   );

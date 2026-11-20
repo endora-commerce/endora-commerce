@@ -120,6 +120,7 @@ export default function ImportExportPage(): ReactNode {
       <PageHeader
         title={t('page.title')}
         description={t('page.description')}
+        help={t('page.help')}
       />
       {loadError ? (
         <Alert variant="destructive">
@@ -273,7 +274,7 @@ function EntityCard({
           </Alert>
         ) : null}
         {importMessage ? (
-          <Alert variant={importErrors.length > 0 ? 'warning' : 'success'}>
+          <Alert variant={importErrors.length > 0 ? 'warning' : 'success'} live="polite">
             <AlertDescription>{importMessage}</AlertDescription>
           </Alert>
         ) : null}

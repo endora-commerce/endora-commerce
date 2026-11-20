@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronDown, CircleDollarSign, Plus, SearchX, X } from 'lucide-react';
+import { CircleDollarSign, Plus } from 'lucide-react';
 import {
   opportunityBoardCustomFieldRef,
   type CustomFieldFilters,
-  type CustomFieldListFilterField,
   type OpportunityFieldFilters,
   type OpportunityStatusKind,
   type OpportunitySummary,
@@ -23,13 +22,15 @@ import {
   Button,
   Card,
   CardContent,
-  Label,
+  EmptyState,
   PageHeader,
   Select,
 } from '@endora-commerce/admin-kit/ui';
 import {
   CursorPagination,
   CustomFieldListFilters,
+  ListToolbar,
+  ListToolbarSearch,
   ResponsiveTable,
   customFieldDisplayName,
   customFieldFilterRefusal,
@@ -47,9 +48,12 @@ import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n'
 import { crmApi, MAX_PAGE_LIMIT, type OpportunityListParams, type OpportunitySort } from '../api.js';
 import { AssigneeName } from '../components/AssigneeName.js';
 import {
+  LIST_MORE_FILTERS,
+  LIST_PRIMARY_FILTERS,
   NO_SHARED_FILTERS,
   OpportunityFilterFields,
   hasSharedFilters,
+  hiddenSharedFilterCount,
   sharedFilterParams,
   type SharedOpportunityFilters,
 } from '../components/OpportunityFilterFields.js';
@@ -76,54 +80,6 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 /** The custom fields this list offers as filters (feature 157). */
 const CUSTOM_FIELD_FILTERS_ENDPOINT = '/api/v1/admin/crm/opportunities/custom-field-filters';
-
-/**
- * How many custom-field filters the always-open panel shows before the rest
- * go behind *More filters (n)* (feature 157, owner ruling U1 A). Three, because
- * the built-in filters fill two and a half rows of the four-column grid: three
- * custom cells and the disclosure complete the row after them.
- */
-const VISIBLE_CUSTOM_FILTERS = 3;
-
-/** The filter grid; the *More filters* disclosure controls it. */
-const FILTER_GRID_ID = 'crm-opportunity-filters';
-
-interface CustomFieldDisclosure {
-  /** The fields on screen, in the order they are rendered. */
-  shown: readonly CustomFieldListFilterField[];
-  /** How many fields collapsing hides (collapsed: how many it hides now). */
-  hidden: number;
-  /** The fields beyond the first ones that stay on screen while collapsed. */
-  promoted: readonly string[];
-}
-
-/**
- * Which custom-field filters are on screen. Collapsed: the first
- * {@link VISIBLE_CUSTOM_FILTERS}, plus every later field that is active or
- * pinned — an active filter is never hidden, and a field the operator is
- * clearing does not vanish under them. Expanded: the same fields in the same
- * places, then the rest, so expanding moves nothing already visible; `pinned`
- * is the set taken when the disclosure last opened, so a filter turning active
- * while expanded does not reorder the grid either.
- */
-function customFieldDisclosure(
-  fields: readonly CustomFieldListFilterField[],
-  filters: CustomFieldFilters,
-  pinned: readonly string[],
-  expanded: boolean,
-): CustomFieldDisclosure {
-  const head = fields.slice(0, VISIBLE_CUSTOM_FILTERS);
-  const tail = fields.slice(VISIBLE_CUSTOM_FILTERS);
-  const promoted = tail.filter(
-    (field) => pinned.includes(field.key) || (!expanded && Object.hasOwn(filters, field.key)),
-  );
-  const rest = tail.filter((field) => !promoted.includes(field));
-  return {
-    shown: expanded ? [...head, ...promoted, ...rest] : [...head, ...promoted],
-    hidden: rest.length,
-    promoted: promoted.map((field) => field.key),
-  };
-}
 
 /**
  * The custom-field filters as the list's `fieldFilters`: one `custom:<key>`
@@ -160,7 +116,9 @@ function hasFilters(filters: Filters): boolean {
  *
  * The fields the board has too are one component, `OpportunityFilterFields`;
  * the state and the status are the list's alone, because the board's columns
- * *are* the statuses.
+ * *are* the statuses. They sit on the kit `ListToolbar`: the search, the
+ * state, the status and the assignee always shown, the rest — custom-field
+ * filters included — behind *More filters (n)* (issue #1505, WORK-05).
  *
  * Custom-field filters (feature 157) are the definitions whose list-filter
  * option is on, whatever the board card shows. They live in the address as
@@ -170,6 +128,8 @@ function hasFilters(filters: Filters): boolean {
  */
 export function OpportunitiesList(): ReactNode {
   const t = useTranslation('crm');
+  /** Where focus returns after *Clear filters* in the empty state (WCAG 2.4.3). */
+  const searchRef = useRef<HTMLInputElement>(null);
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
   const { hasPermission } = useAuth();
@@ -192,13 +152,6 @@ export function OpportunitiesList(): ReactNode {
   const [customFilters, setCustomFilters] = useState<CustomFieldFilters>(() =>
     readCustomFieldFilterParams(searchParams),
   );
-  /** Whether *More filters* is open. Not remembered: every visit starts collapsed. */
-  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
-  /**
-   * The later fields kept on screen beside the first ones — those active when
-   * the page opened or when the disclosure was last toggled.
-   */
-  const [pinnedKeys, setPinnedKeys] = useState<readonly string[]>(() => Object.keys(customFilters));
   /** The key of a custom-field filter the server refused, until it is removed. */
   const [refusedKey, setRefusedKey] = useState<string | null>(null);
   const {
@@ -317,25 +270,6 @@ export function OpportunitiesList(): ReactNode {
     setFilters(NO_FILTERS);
     setTrail([]);
     if (Object.keys(customFilters).length > 0) changeCustom(emptyCustomFieldFilters());
-    setPinnedKeys([]);
-  };
-
-  const disclosure = customFieldDisclosure(customFields, customFilters, pinnedKeys, moreFiltersOpen);
-
-  const toggleMoreFilters = (): void => {
-    if (moreFiltersOpen) {
-      // What stays on screen once collapsed: the later fields still active.
-      setPinnedKeys(
-        customFields
-          .slice(VISIBLE_CUSTOM_FILTERS)
-          .filter((field) => Object.hasOwn(customFilters, field.key))
-          .map((field) => field.key),
-      );
-    } else {
-      // The fields already on screen keep their places while expanded.
-      setPinnedKeys(disclosure.promoted);
-    }
-    setMoreFiltersOpen(!moreFiltersOpen);
   };
 
   const removeRefused = (): void => {
@@ -426,54 +360,51 @@ export function OpportunitiesList(): ReactNode {
   );
 
   const emptyState = filtered ? (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <SearchX aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('opportunity.list.noResults.title')}</div>
-      <div className="b2b-empty__sub">{t('opportunity.list.noResults.body')}</div>
-      <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={clear}>
-        <X aria-hidden="true" />
-        {t('opportunity.list.filter.clear')}
-      </Button>
-    </div>
+    <EmptyState
+      variant="no-results"
+      title={t('opportunity.list.noResults.title')}
+      description={t('opportunity.list.noResults.body')}
+      onClearFilters={clear}
+      focusAfterClear={searchRef}
+    />
   ) : (
-    <div className="b2b-empty">
-      <div className="b2b-empty__icon">
-        <CircleDollarSign aria-hidden="true" />
-      </div>
-      <div className="b2b-empty__title">{t('opportunity.list.empty.title')}</div>
-      <div className="b2b-empty__sub">
-        {canWrite ? t('opportunity.list.empty.body') : t('opportunity.list.empty.bodyReadOnly')}
-      </div>
-      {canWrite ? newOpportunity : null}
-    </div>
+    <EmptyState
+      icon={<CircleDollarSign size={20} />}
+      title={t('opportunity.list.empty.title')}
+      description={canWrite ? t('opportunity.list.empty.body') : t('opportunity.list.empty.bodyReadOnly')}
+      action={canWrite ? newOpportunity : null}
+    />
   );
 
   return (
     <>
       <PageHeader
         title={t('opportunity.list.title')}
-        description={t('opportunity.list.description')}
         // With nothing listed the empty state carries the one action; two
         // filled buttons for the same thing would compete.
         actions={canWrite && (rows.length > 0 || filtered || !loaded) ? newOpportunity : undefined}
       />
 
       <Card className="mb-4">
-        <CardContent className="pt-6">
-          <div id={FILTER_GRID_ID} className="grid gap-x-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-            <OpportunityFilterFields
-              idPrefix="crm-opportunity"
-              search={search}
-              onSearchChange={setSearch}
-              filters={filters}
-              onChange={change}
-            >
-              <div className="space-y-1">
-                <Label htmlFor="crm-opportunity-state">{t('opportunity.list.filter.state')}</Label>
+        <CardContent>
+          <ListToolbar
+            label={t('opportunity.filter.toolbar')}
+            search={
+              <ListToolbarSearch
+                ref={searchRef}
+                id="crm-opportunity-search"
+                label={t('opportunity.list.filter.search')}
+                placeholder={t('opportunity.list.filter.searchPlaceholder')}
+                value={search}
+                onValueChange={setSearch}
+              />
+            }
+            filters={
+              <>
                 <Select
                   id="crm-opportunity-state"
+                  aria-label={t('opportunity.list.filter.state')}
+                  className="w-auto"
                   value={filters.state}
                   onChange={(event): void =>
                     change({ state: event.target.value as OpportunityStatusKind | '' })
@@ -486,11 +417,10 @@ export function OpportunitiesList(): ReactNode {
                     </option>
                   ))}
                 </Select>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="crm-opportunity-status">{t('opportunity.list.filter.status')}</Label>
                 <Select
                   id="crm-opportunity-status"
+                  aria-label={t('opportunity.list.filter.status')}
+                  className="w-auto"
                   value={filters.statusCode}
                   onChange={(event): void => change({ statusCode: event.target.value })}
                 >
@@ -501,43 +431,19 @@ export function OpportunitiesList(): ReactNode {
                     </option>
                   ))}
                 </Select>
-              </div>
-            </OpportunityFilterFields>
-            <CustomFieldListFilters
-              idPrefix="crm-opportunity"
-              fields={disclosure.shown}
-              value={customFilters}
-              onChange={(key, filter): void => changeCustom(withCustomFieldFilter(customFilters, key, filter))}
-              language={language}
-              status={customFieldsStatus}
-              onRetry={reloadCustomFields}
-            />
-            {customFieldsStatus === 'ready' && disclosure.hidden > 0 ? (
-              <div className="flex items-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="min-h-11 min-w-11"
-                  aria-expanded={moreFiltersOpen}
-                  aria-controls={FILTER_GRID_ID}
-                  onClick={toggleMoreFilters}
-                >
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={`transition-transform motion-reduce:transition-none${moreFiltersOpen ? ' rotate-180' : ''}`}
-                  />
-                  {moreFiltersOpen
-                    ? t('opportunity.list.filter.fewerCustom')
-                    : t('opportunity.list.filter.moreCustom', { count: disclosure.hidden })}
-                </Button>
-              </div>
-            ) : null}
-          </div>
-          <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="crm-opportunity-sort">{t('opportunity.list.sort')}</Label>
+                <OpportunityFilterFields
+                  idPrefix="crm-opportunity"
+                  filters={filters}
+                  onChange={change}
+                  only={LIST_PRIMARY_FILTERS}
+                  placement="toolbar"
+                />
+              </>
+            }
+            actions={
               <Select
                 id="crm-opportunity-sort"
+                aria-label={t('opportunity.list.sort')}
                 className="w-auto"
                 value={sort}
                 onChange={(event): void => {
@@ -551,19 +457,38 @@ export function OpportunitiesList(): ReactNode {
                   </option>
                 ))}
               </Select>
-            </div>
-            {filtered ? (
-              <Button className="min-h-11 sm:min-h-8" variant="ghost" size="sm" onClick={clear}>
-                <X aria-hidden="true" />
-                {t('opportunity.list.filter.clear')}
-              </Button>
-            ) : null}
-          </div>
+            }
+            moreFilters={
+              <>
+                <OpportunityFilterFields
+                  idPrefix="crm-opportunity"
+                  filters={filters}
+                  onChange={change}
+                  only={LIST_MORE_FILTERS}
+                  placement="panel"
+                />
+                <CustomFieldListFilters
+                  idPrefix="crm-opportunity"
+                  fields={customFields}
+                  value={customFilters}
+                  onChange={(key, filter): void => changeCustom(withCustomFieldFilter(customFilters, key, filter))}
+                  language={language}
+                  status={customFieldsStatus}
+                  onRetry={reloadCustomFields}
+                />
+              </>
+            }
+            moreFiltersActiveCount={
+              hiddenSharedFilterCount(filters, LIST_PRIMARY_FILTERS) + Object.keys(customFilters).length
+            }
+            filtersActive={filtered}
+            onClearFilters={clear}
+          />
         </CardContent>
       </Card>
 
       <Card>
-        <CardContent ref={resultsRef} tabIndex={-1} className="pt-6 focus:outline-none" aria-busy={loading}>
+        <CardContent ref={resultsRef} tabIndex={-1} className="focus:outline-none" aria-busy={loading}>
           {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
           <p role="status" className="sr-only">
             {loading && loaded ? t('opportunity.list.loading') : ''}

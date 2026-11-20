@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { OpportunityDocumentKind, OpportunitySummary } from '@endora-commerce/contracts';
 import { statusBadgeStyle, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Badge, Button, EditorSection, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import { errorMessage, moneyLabel } from '../lib/labels.js';
@@ -47,7 +47,6 @@ export function LinkedOpportunityPanel(props: LinkedOpportunityPanelProps): Reac
   const t = useTranslation('crm');
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('crm:write');
-  const headingId = useId();
   const [state, setState] = useState<State>({ phase: 'loading' });
   const [organizationId, setOrganizationId] = useState<string | null>(null);
 
@@ -85,77 +84,70 @@ export function LinkedOpportunityPanel(props: LinkedOpportunityPanelProps): Reac
   const opportunity = state.phase === 'ready' ? state.opportunity : null;
 
   return (
-    <section aria-labelledby={headingId} className="mt-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h2 id={headingId} className="text-base font-semibold">
-              {t('orderPanel.title')}
-            </h2>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {state.phase === 'loading' ? (
-            <p role="status" className="text-sm text-muted-foreground">
-              {t('orderPanel.loading')}
-            </p>
-          ) : null}
-          {state.phase === 'failed' ? (
-            <p role="alert" className="text-sm text-destructive">
-              {t('orderPanel.error')}
-            </p>
-          ) : null}
-          {opportunity ? (
-            <div className="space-y-3 text-sm">
-              <p>
-                <Link
-                  to={`/crm/opportunities/${opportunity.id}`}
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {opportunity.number}
-                </Link>{' '}
-                <span>{opportunity.title}</span>
-              </p>
-              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
-                <div>
-                  <dt className="text-muted-foreground">{t('orderPanel.field.status')}</dt>
-                  <dd>
-                    <Badge className="font-medium" style={statusBadgeStyle(opportunity.status.color)}>
-                      {opportunity.status.name}
-                    </Badge>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">{t('orderPanel.field.assignee')}</dt>
-                  <dd>
-                    <AssigneeName assignee={opportunity.assignee} />
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground">{t('orderPanel.field.value')}</dt>
-                  <dd className="tabular-nums">{moneyLabel(opportunity.value, opportunity.currency)}</dd>
-                </div>
-              </dl>
+    <EditorSection
+      title={t('orderPanel.title')}
+      className="mt-4"
+      contentClassName="space-y-3"
+    >
+      {state.phase === 'loading' ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t('orderPanel.loading')}
+        </p>
+      ) : null}
+      {state.phase === 'failed' ? (
+        <p role="alert" className="text-sm text-destructive">
+          {t('orderPanel.error')}
+        </p>
+      ) : null}
+      {opportunity ? (
+        <div className="space-y-3 text-sm">
+          <p>
+            <Link
+              to={`/crm/opportunities/${opportunity.id}`}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {opportunity.number}
+            </Link>{' '}
+            <span>{opportunity.title}</span>
+          </p>
+          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3">
+            <div>
+              <dt className="text-muted-foreground">{t('orderPanel.field.status')}</dt>
+              <dd>
+                <Badge className="font-medium" style={statusBadgeStyle(opportunity.status.color)}>
+                  {opportunity.status.name}
+                </Badge>
+              </dd>
             </div>
+            <div>
+              <dt className="text-muted-foreground">{t('orderPanel.field.assignee')}</dt>
+              <dd>
+                <AssigneeName assignee={opportunity.assignee} />
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">{t('orderPanel.field.value')}</dt>
+              <dd className="tabular-nums">{moneyLabel(opportunity.value, opportunity.currency)}</dd>
+            </div>
+          </dl>
+        </div>
+      ) : null}
+      {unlinked ? (
+        <>
+          <p className="text-sm text-muted-foreground">
+            {documentKind === 'order' ? t('orderPanel.none') : t('orderPanel.noneQuoteRequest')}
+          </p>
+          {canWrite && organizationId ? (
+            <LinkActions
+              documentKind={documentKind}
+              documentId={documentId}
+              organizationId={organizationId}
+              onLinked={read}
+            />
           ) : null}
-          {unlinked ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                {documentKind === 'order' ? t('orderPanel.none') : t('orderPanel.noneQuoteRequest')}
-              </p>
-              {canWrite && organizationId ? (
-                <LinkActions
-                  documentKind={documentKind}
-                  documentId={documentId}
-                  organizationId={organizationId}
-                  onLinked={read}
-                />
-              ) : null}
-            </>
-          ) : null}
-        </CardContent>
-      </Card>
-    </section>
+        </>
+      ) : null}
+    </EditorSection>
   );
 }
 

@@ -210,7 +210,7 @@ export function CategoryMappingPage(): ReactNode {
       )}
 
       <Card className="mb-4">
-        <CardContent className="flex flex-col gap-4 pt-6">
+        <CardContent className="flex flex-col gap-4">
           <div className="flex flex-wrap items-end gap-4">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="mapping-provider">{t('mapping.provider')}</Label>

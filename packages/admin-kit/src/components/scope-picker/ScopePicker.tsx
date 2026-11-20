@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { SalesChannelDetail, SalesChannelSummary } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { Badge } from '../../ui/badge.js';
-import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card.js';
+import {
+  EditorSection,
+  type EditorSectionChrome,
+  type EditorSectionHeading,
+} from '../../ui/editor-section.js';
 import { Checkbox } from '../../ui/checkbox.js';
 import { Label } from '../../ui/label.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
@@ -33,6 +37,14 @@ export interface ScopePickerValue {
 export interface ScopePickerProps {
   value: ScopePickerValue;
   onChange: (value: ScopePickerValue) => void;
+  /**
+   * Issue #1503 (UX audit SHELL-22; the DS-03 rule, #1437) — `section` (the default, unless the
+   * mount says otherwise): a section of the card it is placed in. `card` where it stands alone
+   * between the editor's own cards, as on the CMS and blog editors' settings column.
+   */
+  chrome?: EditorSectionChrome;
+  /** The heading level: `h2` by default, `h3` under a titled card or section. */
+  titleAs?: EditorSectionHeading;
 }
 
 /**
@@ -73,7 +85,7 @@ function languagesOfChannels(
   return Array.from(out).sort();
 }
 
-export function ScopePicker({ value, onChange }: ScopePickerProps): ReactNode {
+export function ScopePicker({ value, onChange, chrome, titleAs }: ScopePickerProps): ReactNode {
   const t = useTranslation('core');
   const [channels, setChannels] = useState<SalesChannelSummary[] | null>(null);
   const [detailsByCode, setDetailsByCode] = useState<Record<string, SalesChannelDetail>>({});
@@ -199,60 +211,60 @@ export function ScopePicker({ value, onChange }: ScopePickerProps): ReactNode {
   const hasSelectedChannels = value.salesChannelIds.length > 0;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">{t('scopePicker.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
+    <EditorSection
+      title={t('scopePicker.title')}
+      {...(chrome ? { chrome } : {})}
+      {...(titleAs ? { as: titleAs } : {})}
+      contentClassName="space-y-4"
+    >
+      {error ? (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
-        <div className="grid gap-2">
-          {(channels ?? []).map((channel) => (
-            <label key={channel.id} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                checked={value.salesChannelIds.includes(channel.id)}
-                onChange={(event) => setChannel(channel.id, event.target.checked)}
-              />
-              <span>{channel.name['en-US'] ?? channel.code}</span>
-              <Badge variant="outline" className="font-mono text-[10px]">
-                {channel.code}
-              </Badge>
-            </label>
-          ))}
-        </div>
+      <div className="grid gap-2">
+        {(channels ?? []).map((channel) => (
+          <label key={channel.id} className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={value.salesChannelIds.includes(channel.id)}
+              onChange={(event) => setChannel(channel.id, event.target.checked)}
+            />
+            <span>{channel.name['en-US'] ?? channel.code}</span>
+            <Badge variant="outline" className="font-mono text-[10px]">
+              {channel.code}
+            </Badge>
+          </label>
+        ))}
+      </div>
 
-        <div className="space-y-2">
-          <Label>{t('scopePicker.languages')}</Label>
-          <div className="flex flex-wrap gap-2">
-            {!hasSelectedChannels ? (
-              <p className="text-sm text-muted-foreground">{t('scopePicker.selectChannel')}</p>
-            ) : offeredLanguages === null ? (
-              // Loading is said, not shown as a row of unchecked boxes: an
-              // empty selection would read as "this content has no language".
-              <p className="text-sm text-muted-foreground" role="status">
-                {t('scopePicker.loadingLanguages')}
-              </p>
-            ) : (
-              offeredLanguages.map((language) => (
-                <label
-                  key={language}
-                  className="flex items-center gap-2 rounded border px-3 py-2 text-sm"
-                >
-                  <Checkbox
-                    checked={value.languages.includes(language)}
-                    onChange={(event) => setLanguage(language, event.target.checked)}
-                  />
-                  <span>{language}</span>
-                </label>
-              ))
-            )}
-          </div>
+      <div className="space-y-2">
+        <Label>{t('scopePicker.languages')}</Label>
+        <div className="flex flex-wrap gap-2">
+          {!hasSelectedChannels ? (
+            <p className="text-sm text-muted-foreground">{t('scopePicker.selectChannel')}</p>
+          ) : offeredLanguages === null ? (
+            // Loading is said, not shown as a row of unchecked boxes: an
+            // empty selection would read as "this content has no language".
+            <p className="text-sm text-muted-foreground" role="status">
+              {t('scopePicker.loadingLanguages')}
+            </p>
+          ) : (
+            offeredLanguages.map((language) => (
+              <label
+                key={language}
+                className="flex items-center gap-2 rounded border px-3 py-2 text-sm"
+              >
+                <Checkbox
+                  checked={value.languages.includes(language)}
+                  onChange={(event) => setLanguage(language, event.target.checked)}
+                />
+                <span>{language}</span>
+              </label>
+            ))
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </EditorSection>
   );
 }

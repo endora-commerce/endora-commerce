@@ -91,9 +91,7 @@ const KEYS = [
   'taxes.page.title',
   'taxes.page.description',
   'taxes.noPermission',
-  'taxes.loading',
   'taxes.empty',
-  'taxes.upsert.title',
   'taxes.column.code',
   'taxes.column.name',
   'taxes.column.rate',
@@ -113,6 +111,12 @@ const KEYS = [
   'taxes.field.vatStatuses',
   'taxes.field.isDefault',
   'taxes.option.any',
+  'taxes.action.new',
+  'taxes.action.edit',
+  'taxes.rowActions',
+  'taxes.upsert.createTitle',
+  'taxes.upsert.editTitle',
+  'taxes.deleteConfirm',
 ];
 
 function mount(): Promise<void> {
@@ -173,7 +177,8 @@ describe('the taxes screen is gated on the module’s own codes', () => {
     await mount();
 
     await waitFor(() => expect(screen.getByText('tax_gating_row')).toBeInTheDocument());
-    expect(screen.queryByText('taxes.upsert.title')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'taxes.action.new' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'taxes.rowActions' })).not.toBeInTheDocument();
     expect(screen.queryByText('taxes.action.delete')).not.toBeInTheDocument();
   });
 
@@ -185,8 +190,8 @@ describe('the taxes screen is gated on the module’s own codes', () => {
     await mount();
 
     await waitFor(() => expect(screen.getByText('tax_gating_row')).toBeInTheDocument());
-    expect(screen.getByText('taxes.upsert.title')).toBeInTheDocument();
-    expect(screen.getAllByText('taxes.action.delete').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'taxes.action.new' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'taxes.rowActions' })).toBeInTheDocument();
   });
 
   it('renders no screen when the module itself is not present, whatever the role holds', async () => {

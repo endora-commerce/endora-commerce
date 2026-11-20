@@ -40,6 +40,7 @@ export const BUNDLE = passthroughBundle('core', [
   'rfq.detail.reference.none',
   'rfq.detail.reference.perBaseUnit',
   'rfq.detail.modify.saveRevision',
+  'rfq.detail.modify.notifiesCustomer',
   'rfq.detail.modify.agreedUnitPrice',
   'rfq.detail.approve',
   'rfq.detail.modify.addLine',

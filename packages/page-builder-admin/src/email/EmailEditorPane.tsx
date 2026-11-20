@@ -2,7 +2,7 @@ import '@endora-commerce/cms-components/styles.css';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Puck, type Config, type ComponentConfig, type Data, type PuckAction } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
-import { Eye, Monitor, Smartphone, X } from 'lucide-react';
+import { Eye, Monitor, Smartphone } from 'lucide-react';
 import {
   applyEmailRowLayoutPreset,
   buildSampleVariableContext,
@@ -56,18 +56,14 @@ import {
   createProductSlugsField,
 } from '../chrome/CatalogPickers.js';
 import { PageBuilderColorPaletteProvider } from '../chrome/ColorPaletteProvider.js';
-import {
-  PageBuilderHeaderActions,
-  PageBuilderHeaderShell,
-  PageBuilderTemplateActions,
-} from '../chrome/PageBuilderHeaderActions.js';
+import { PageBuilderHeaderActions } from '../chrome/PageBuilderHeaderActions.js';
 import { PageBuilderOverlayBridge } from '../chrome/PageBuilderOverlayBridge.js';
 import {
   getPageBuilderColorPalette,
   getPageBuilderDescriptor,
 } from '../chrome/cms-page-builder-api.js';
 import { getEmailBranding } from './email-templates-api.js';
-import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
+import { fetchAssetDetail, ModalDialog } from '@endora-commerce/admin-kit/components';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { emailRichTextContentField, emailHtmlFromRichContent } from './EmailRichTextField.js';
@@ -591,7 +587,11 @@ function mergeEmbedSelects(base: Config, blockOptions: EmailEmbedCodeOption[]): 
   return { ...base, components };
 }
 
-function EmailHtmlPreviewModal({
+/**
+ * The rendered e-mail at a desktop or a narrow width. Exported for its test;
+ * its copy is `core`'s, as every string of this shared builder is (issue #1463).
+ */
+export function EmailHtmlPreviewModal({
   open,
   html,
   onClose,
@@ -600,70 +600,60 @@ function EmailHtmlPreviewModal({
   html: string;
   onClose: () => void;
 }): React.ReactElement | null {
+  const t = useTranslation('core');
   const [width, setWidth] = useState<EmailPreviewWidth>(600);
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
 
   if (!open) return null;
 
+  // Issue #1493 (CONTENT-03): the kit's dialog, above the fullscreen builder —
+  // focus trapped, Escape closes it, focus returns to *Preview email*.
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Preview email"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <ModalDialog
+      layer="overlay"
+      title={t('pageBuilder.emailPreview.title')}
+      onClose={onClose}
+      widthClassName="max-w-4xl"
+      footer={
+        <Button type="button" variant="outline" onClick={onClose}>
+          {t('pageBuilder.emailPreview.close')}
+        </Button>
+      }
     >
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border bg-background shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold">Preview email</span>
-            <Button
-              type="button"
-              variant={width === 600 ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setWidth(600)}
-              aria-pressed={width === 600}
-            >
-              <Monitor className="mr-1 h-4 w-4" />
-              Desktop mail (600px)
-            </Button>
-            <Button
-              type="button"
-              variant={width === 320 ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setWidth(320)}
-              aria-pressed={width === 320}
-            >
-              <Smartphone className="mr-1 h-4 w-4" />
-              Narrow (320px)
-            </Button>
-          </div>
-          <Button type="button" variant="ghost" size="sm" onClick={onClose} aria-label="Close preview">
-            <X className="h-4 w-4" />
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant={width === 600 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setWidth(600)}
+            aria-pressed={width === 600}
+          >
+            <Monitor className="mr-1 h-4 w-4" aria-hidden="true" />
+            {t('pageBuilder.emailPreview.desktop')}
+          </Button>
+          <Button
+            type="button"
+            variant={width === 320 ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setWidth(320)}
+            aria-pressed={width === 320}
+          >
+            <Smartphone className="mr-1 h-4 w-4" aria-hidden="true" />
+            {t('pageBuilder.emailPreview.narrow')}
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-muted/30 p-4">
+        <div className="overflow-auto rounded-md bg-muted/30 p-4">
           <iframe
-            title="Email HTML preview"
+            title={t('pageBuilder.emailPreview.frameTitle')}
             sandbox=""
             srcDoc={html}
-            className="mx-auto block h-[min(70vh,640px)] border-0 bg-white shadow-sm"
+            className="mx-auto block h-[min(65vh,640px)] border-0 bg-white shadow-sm"
             style={{ width, maxWidth: '100%', overflow: 'hidden' }}
             scrolling="auto"
           />
         </div>
       </div>
-    </div>
+    </ModalDialog>
   );
 }
 
@@ -820,10 +810,6 @@ export function EmailEditorPane({
       setRowLayoutPickerForId(null);
     },
     [onChange],
-  );
-
-  const hasTemplateActions = Boolean(
-    onSaveAsTemplate || (onListTemplatesForApply && onResolveTemplateLayout),
   );
 
   useEffect(() => {
@@ -1071,55 +1057,40 @@ export function EmailEditorPane({
                       componentId: string;
                       componentType: string;
                     }) => <PageBuilderOverlayBridge {...props} />,
-                    ...(hasTemplateActions
-                      ? {
-                          header: ({ children }: { children?: ReactNode }) => (
-                            <PageBuilderHeaderShell
-                              leading={
-                                <PageBuilderTemplateActions
-                                  currentData={data ?? emptyData}
-                                  {...(onSaveAsTemplate ? { onSaveAsTemplate } : {})}
-                                  {...(onListTemplatesForApply
-                                    ? { onListTemplatesForApply }
-                                    : {})}
-                                  {...(onResolveTemplateLayout
-                                    ? {
-                                        onApplyTemplate: async (templateId: string) => {
-                                          const next = await onResolveTemplateLayout(templateId);
-                                          applyCanvasData(structuredClone(next));
-                                        },
-                                      }
-                                    : {})}
-                                  t={tChrome}
-                                />
-                              }
-                            >
-                              {children}
-                            </PageBuilderHeaderShell>
-                          ),
-                        }
-                      : {}),
                     headerActions: () => (
-                      <div className="cms-pb-header-actions">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPreviewOpen(true)}
-                          title="Preview email"
-                          aria-label="Preview email"
-                        >
-                          <Eye className="h-4 w-4" />
-                          <span className="cms-pb-header-actions__label">Preview email</span>
-                        </Button>
-                        <PageBuilderHeaderActions
-                          fullscreen={fullscreen}
-                          onToggleFullscreen={(): void => setFullscreen((f) => !f)}
-                          currentData={data ?? emptyData}
-                          onClearCanvas={(): void => applyCanvasData(emptyData)}
-                          t={tChrome}
-                        />
-                      </div>
+                      // Issue #1494 (CONTENT-11): one toolbar. Preview is this
+                      // builder's own visible action; templates and Clear canvas
+                      // sit in the shared "More" menu, Fullscreen last.
+                      <PageBuilderHeaderActions
+                        fullscreen={fullscreen}
+                        onToggleFullscreen={(): void => setFullscreen((f) => !f)}
+                        currentData={data ?? emptyData}
+                        onClearCanvas={(): void => applyCanvasData(emptyData)}
+                        {...(onSaveAsTemplate ? { onSaveAsTemplate } : {})}
+                        {...(onListTemplatesForApply ? { onListTemplatesForApply } : {})}
+                        {...(onResolveTemplateLayout
+                          ? {
+                              onApplyTemplate: async (templateId: string): Promise<void> => {
+                                const next = await onResolveTemplateLayout(templateId);
+                                applyCanvasData(structuredClone(next));
+                              },
+                            }
+                          : {})}
+                        extraActions={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPreviewOpen(true)}
+                            title={tChrome('pageBuilder.emailPreview.title')}
+                            aria-label={tChrome('pageBuilder.emailPreview.title')}
+                          >
+                            <Eye className="h-4 w-4" aria-hidden="true" />
+                            <span className="cms-pb-header-actions__label">{tChrome('pageBuilder.emailPreview.title')}</span>
+                          </Button>
+                        }
+                        t={tChrome}
+                      />
                     ),
                   }}
                 />

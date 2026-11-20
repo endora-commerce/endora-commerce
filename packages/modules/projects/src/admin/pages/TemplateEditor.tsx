@@ -436,7 +436,6 @@ export function TemplateEditor(): ReactNode {
     <>
       <PageHeader
         title={isNew ? t('templates.editor.titleNew') : graph.name || t('templates.editor.titleNew')}
-        description={t('templates.editor.intro')}
         back={{ label: t('templates.editor.back'), to: LIST_PATH }}
         titleActions={graph.archivedAt ? <Badge variant="secondary">{t('templates.list.archived')}</Badge> : undefined}
         actions={
@@ -493,8 +492,7 @@ export function TemplateEditor(): ReactNode {
         ) : null}
 
         <Card>
-          <CardContent className="space-y-5 pt-6">
-            <p className="text-xs text-muted-foreground">{t('create.requiredHint')}</p>
+          <CardContent className="space-y-5">
             <div className="space-y-1">
               <Label htmlFor="template-name">
                 {t('templates.editor.name')}
@@ -531,11 +529,8 @@ export function TemplateEditor(): ReactNode {
               </p>
             </div>
             {offeredRoles.length > 0 ? (
-              <fieldset aria-describedby="template-roles-hint">
+              <fieldset>
                 <legend className="text-sm font-medium">{t('templates.editor.roles')}</legend>
-                <p id="template-roles-hint" className="text-xs text-muted-foreground">
-                  {t('templates.editor.rolesHint')}
-                </p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
                   {offeredRoles.map((role) => {
                     const checkboxId = `template-role-${role.id}`;
@@ -563,20 +558,18 @@ export function TemplateEditor(): ReactNode {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
-            <fieldset className="space-y-3" aria-describedby="template-stages-hint">
+          <CardContent>
+            <fieldset className="space-y-3">
               <legend className="text-base font-semibold">
                 {t('templates.editor.stages')}
                 {required}
               </legend>
-              <p id="template-stages-hint" className="text-sm text-muted-foreground">
-                {t('templates.editor.stagesHint')}
-              </p>
-              <ol className="space-y-3">
+              {/* Rows divided by a rule, not a box each (issue #1437, WORK-04). */}
+              <ol className="divide-y divide-border">
                 {graph.stages.map((row, index) => {
                   const position = index + 1;
                   return (
-                    <li key={row.key} className="space-y-3 rounded-md border p-3">
+                    <li key={row.key} className="space-y-3 py-3 first:pt-0 last:pb-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span aria-hidden="true" className="text-sm font-medium tabular-nums text-muted-foreground">
                           {position}.
@@ -662,7 +655,7 @@ export function TemplateEditor(): ReactNode {
         </Card>
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <StageWorkflow
               stages={workflowStages}
               moves={graph.moves}
@@ -678,20 +671,26 @@ export function TemplateEditor(): ReactNode {
           {notice}
         </p>
 
-        <StickyFormActions className="flex justify-end gap-2">
-          <Button
-            className="min-h-11 sm:min-h-9"
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={(): void => void cancel()}
-          >
-            {tCore('common.action.cancel')}
-          </Button>
-          <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy} aria-busy={busy}>
-            {busy ? t('templates.editor.saving') : t('templates.editor.save')}
-          </Button>
-        </StickyFormActions>
+        {/* Issue #1449 (DS-19) — the editor's one Save, in view while the form scrolls. */}
+        <StickyFormActions
+          desktop="sticky"
+          secondary={
+            <Button
+              className="min-h-11 sm:min-h-9"
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={(): void => void cancel()}
+            >
+              {tCore('common.action.cancel')}
+            </Button>
+          }
+          primary={
+            <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy} aria-busy={busy}>
+              {busy ? t('templates.editor.saving') : t('templates.editor.save')}
+            </Button>
+          }
+        />
       </form>
       {confirmDialog}
     </>

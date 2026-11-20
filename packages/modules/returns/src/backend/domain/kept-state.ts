@@ -21,7 +21,7 @@ export const VOID_STATUS_CODES: ReadonlySet<string> = new Set(['rejected', 'canc
 export interface KeptStateCase {
   kind: 'return' | 'complaint';
   /** Written only by the settlement, so `null` means not settled. */
-  resolutionType?: 'refund' | 'credit' | 'replacement' | 'repair' | null;
+  resolutionType?: 'refund' | 'credit' | 'replacement' | 'repair' | 'settled_outside' | null;
   statusCode: string;
 }
 

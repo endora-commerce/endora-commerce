@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
@@ -12,6 +12,9 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * Organization screen embeds the `customer` custom fields: the panel renders,
  * its bag travels as `customFieldValues` in `POST …/members`, and a
  * `422 CUSTOM_FIELD_VALUE_INVALID` is said at the field it names.
+ *
+ * Issue #1516 (SALES-14) — the direct create is the *Create the account now* way of the
+ * *Add member* dialog, so the fields are asked for only once that way is chosen.
  */
 
 const getSpy = vi.fn();
@@ -136,17 +139,34 @@ function renderDetail(permissions: readonly string[] = ['customers:read', 'custo
   );
 }
 
-function fillMember(): void {
-  fireEvent.change(screen.getByLabelText(core('organizations.detail.email'), { selector: '#d-email' }), {
+/** Opens *Add member* on its create way; the custom fields are then asked for. */
+async function openCreate(): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole('button', { name: OWN_EN['members.add']! }));
+  const dialog = await screen.findByRole('dialog', { name: OWN_EN['members.add']! });
+  fireEvent.click(within(dialog).getByRole('radio', { name: OWN_EN['members.add.create']! }));
+  return dialog;
+}
+
+/** A field by its label, the required asterisk (hidden from assistive technology) aside. */
+function labelPattern(text: string): RegExp {
+  return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( \\*)?$`);
+}
+
+function byLabel(container: HTMLElement, text: string): HTMLInputElement {
+  return within(container).getByLabelText(labelPattern(text)) as HTMLInputElement;
+}
+
+function fillMember(dialog: HTMLElement): void {
+  fireEvent.change(byLabel(dialog, core('organizations.detail.email')), {
     target: { value: 'fay@acme.test' },
   });
-  fireEvent.change(screen.getByLabelText(core('organizations.detail.tempPassword')), {
+  fireEvent.change(byLabel(dialog, core('organizations.detail.tempPassword')), {
     target: { value: 'a-long-password-1' },
   });
-  fireEvent.change(screen.getByLabelText(core('organizations.detail.firstName'), { selector: '#d-fn' }), {
+  fireEvent.change(byLabel(dialog, core('organizations.detail.firstName')), {
     target: { value: 'Fay' },
   });
-  fireEvent.change(screen.getByLabelText(core('organizations.detail.lastName'), { selector: '#d-ln' }), {
+  fireEvent.change(byLabel(dialog, core('organizations.detail.lastName')), {
     target: { value: 'Doe' },
   });
 }
@@ -160,10 +180,11 @@ describe('OrganizationDetail — member direct-create custom fields (feature 175
   it('renders the customer custom fields in the direct-create form and sends their bag', async () => {
     postSpy.mockResolvedValue({ data: {} });
     renderDetail();
-    const field = await screen.findByLabelText('Badge number');
-    fillMember();
+    const dialog = await openCreate();
+    const field = await within(dialog).findByLabelText('Badge number');
+    fillMember(dialog);
     fireEvent.change(field, { target: { value: 'B-17' } });
-    fireEvent.click(screen.getByRole('button', { name: core('organizations.detail.createMember') }));
+    fireEvent.click(within(dialog).getByRole('button', { name: core('organizations.detail.createMember') }));
 
     await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
     expect(postSpy.mock.calls[0]?.[0]).toBe(MEMBERS_URL);
@@ -182,10 +203,11 @@ describe('OrganizationDetail — member direct-create custom fields (feature 175
       } as never),
     );
     renderDetail();
-    const field = await screen.findByLabelText('Badge number');
-    fillMember();
+    const dialog = await openCreate();
+    const field = await within(dialog).findByLabelText('Badge number');
+    fillMember(dialog);
     fireEvent.change(field, { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: core('organizations.detail.createMember') }));
+    fireEvent.click(within(dialog).getByRole('button', { name: core('organizations.detail.createMember') }));
 
     await waitFor(() => expect(screen.getByText('Text value is too long.')).toBeTruthy());
     expect(field.parentElement).toContainElement(screen.getByText('Text value is too long.'));
@@ -193,7 +215,8 @@ describe('OrganizationDetail — member direct-create custom fields (feature 175
 
   it('does not ask for the customer definitions without custom_fields:read', async () => {
     renderDetail(['customers:read', 'customers:manage']);
-    await screen.findByText(core('organizations.detail.directAddCard'));
+    const dialog = await openCreate();
+    expect(byLabel(dialog, core('organizations.detail.tempPassword'))).toBeInTheDocument();
     expect(getSpy.mock.calls.map((c) => c[0])).not.toContain(CUSTOMER_DEFINITIONS_URL);
   });
 });

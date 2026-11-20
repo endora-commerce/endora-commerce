@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import { slugify, type CmsBlockDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
+import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
 import { PageBuilderEditor } from '../components/PageBuilderEditor.js';
 import {
   emptyPageBuilderData,
+  hasUnsavedCanvas,
   PageBuilderEditorLayout,
   usePageBuilderEditorSettingsPanel,
 } from '@endora-commerce/page-builder-admin';
@@ -16,8 +18,9 @@ import {
   loadCmsTemplateCanvas,
   saveCanvasAsCmsTemplate,
 } from '../components/cms-template-layout.js';
-import { resolveScopedContentLanguage } from '../components/scope-utils.js';
+import { isSameScope, resolveScopedContentLanguage } from '../components/scope-utils.js';
 import { cmsClient } from '../api/cms-client.js';
+import { useDuplicatedLanding } from '../components/duplicate-record.js';
 
 interface FormState {
   name: string;
@@ -44,6 +47,15 @@ function codeFromName(input: string): string {
   return slugify(input, { maxLength: 180 });
 }
 
+function formFor(block: CmsBlockDetail | null): FormState {
+  if (!block) return blankForm;
+  return { name: block.name, code: block.code, active: block.active, description: block.description ?? '' };
+}
+
+function scopeFor(block: CmsBlockDetail | null): ScopePickerValue {
+  return block ? { salesChannelIds: block.salesChannelIds, languages: block.languages } : { salesChannelIds: [], languages: [] };
+}
+
 function dataFor(block: CmsBlockDetail | null, language: string | null): Data | null {
   if (!block || !language) return null;
   const data = block.content.languages[language];
@@ -58,6 +70,14 @@ export function BlockEditor(): ReactNode {
   const navigate = useNavigate();
   const settingsPanel = usePageBuilderEditorSettingsPanel(isNew);
   const [block, setBlock] = useState<CmsBlockDetail | null>(null);
+  // Issue #1495 (DEC-17) — opened on a fresh copy: the notice, and focus on its name.
+  const nameRef = useRef<HTMLInputElement>(null);
+  const landedOnCopy = useDuplicatedLanding({
+    ready: block !== null,
+    reveal: settingsPanel.reveal,
+    open: settingsPanel.open,
+    nameRef,
+  });
   const [form, setForm] = useState<FormState>(blankForm);
   // For a new block the code auto-derives from the name until the editor types
   // into the code field, at which point it stops auto-syncing.
@@ -73,13 +93,8 @@ export function BlockEditor(): ReactNode {
     if (isNew || !id) return;
     const loaded = await cmsClient.getBlock(id);
     setBlock(loaded);
-    setForm({
-      name: loaded.name,
-      code: loaded.code,
-      active: loaded.active,
-      description: loaded.description ?? '',
-    });
-    setScope({ salesChannelIds: loaded.salesChannelIds, languages: loaded.languages });
+    setForm(formFor(loaded));
+    setScope(scopeFor(loaded));
     setActiveLanguage(loaded.languages[0] ?? null);
   }, [id, isNew]);
 
@@ -122,6 +137,24 @@ export function BlockEditor(): ReactNode {
     }
     return dataFor(block, activeLanguage);
   }, [activeLanguage, block, draftData, languageContentOverrides]);
+
+  // Issue #1461 (CONTENT-02) — the draft against the last saved version.
+  const dirty =
+    !isDraftEqual(form, formFor(block)) ||
+    !isSameScope(scope, scopeFor(block)) ||
+    hasUnsavedCanvas({
+      draft: draftData,
+      activeLanguage,
+      overrides: languageContentOverrides,
+      saved: (language) => (block ? dataFor(block, language) : null),
+    });
+
+  const discard = (): void => {
+    setForm(formFor(block));
+    setScope(scopeFor(block));
+    setDraftData(null);
+    setLanguageContentOverrides({});
+  };
 
   const save = async (): Promise<boolean> => {
     if (scope.salesChannelIds.length === 0) {
@@ -199,16 +232,18 @@ export function BlockEditor(): ReactNode {
   return (
     <PageBuilderEditorLayout
       settingsPanel={settingsPanel}
+      dirty={dirty}
+      onSave={save}
+      onDiscard={discard}
       header={
         <>
           <PageHeader
+            back={{ label: t('common.back'), to: '/cms/blocks' }}
             title={isNew ? t('blockEditor.title.new') : form.name || t('blockEditor.title.edit')}
             description={t('blockEditor.description')}
             actions={
-              <div className="flex gap-2">
-                <Button asChild variant="outline">
-                  <Link to="/cms/blocks">{t('common.back')}</Link>
-                </Button>
+              <div className="flex items-center gap-2">
+                <UnsavedChangesHint dirty={dirty} />
                 <SaveButtonGroup
                   onSave={() => void save()}
                   onSaveAndExit={() => void saveAndExit()}
@@ -225,17 +260,23 @@ export function BlockEditor(): ReactNode {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
+          {landedOnCopy ? (
+            <Alert live="polite">
+              <AlertDescription>{t('duplicate.created')}</AlertDescription>
+            </Alert>
+          ) : null}
         </>
       }
       settings={
         <>
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t('blockEditor.metadata')}</CardTitle>
+              <CardTitle>{t('blockEditor.metadata')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>
                 <Input
+                  ref={nameRef}
                   value={form.name}
                   onChange={(event) => {
                     const name = event.target.value;
@@ -273,7 +314,7 @@ export function BlockEditor(): ReactNode {
               </FormField>
             </CardContent>
           </Card>
-          <ScopePicker value={scope} onChange={setScope} />
+          <ScopePicker value={scope} onChange={setScope} chrome="card" />
         </>
       }
       canvasBar={

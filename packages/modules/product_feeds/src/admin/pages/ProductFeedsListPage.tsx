@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Download, Play, Plus, Rss, Trash2 } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card, CardContent, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -222,28 +222,28 @@ export function ProductFeedsListPage(): ReactNode {
         // and a bounded region is what makes the rows one group in the first
         // place (Law of Common Region).
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             <ResponsiveTable
               columns={columns}
               data={feeds ?? []}
               keyExtractor={(row) => row.id}
               emptyState={
-                <div className="b2b-empty">
-                  <div className="b2b-empty__icon">
-                    <Rss size={20} aria-hidden="true" />
-                  </div>
-                  <div className="b2b-empty__title">{t('feeds.empty.title')}</div>
-                  <div className="b2b-empty__sub">{t('feeds.empty.subtitle')}</div>
-                  <Button
-                    className="mt-2"
-                    onClick={() => { navigate('/product-feeds/new'); }}
-                    disabled={!canWrite}
-                    title={writeTitle}
-                  >
-                    <Plus size={16} aria-hidden="true" />
-                    {t('page.newFeed')}
-                  </Button>
-                </div>
+                <EmptyState
+                  icon={<Rss size={20} />}
+                  title={t('feeds.empty.title')}
+                  description={t('feeds.empty.subtitle')}
+                  action={
+                    <Button
+                      className="min-h-11 sm:min-h-9"
+                      onClick={() => { navigate('/product-feeds/new'); }}
+                      disabled={!canWrite}
+                      title={writeTitle}
+                    >
+                      <Plus size={16} aria-hidden="true" />
+                      {t('page.newFeed')}
+                    </Button>
+                  }
+                />
               }
               renderActions={(row) => (
                 // No `relative` any more: the menu is portalled out of the

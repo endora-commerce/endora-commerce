@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -10,22 +10,29 @@ import {
   FileDown,
   FileText,
   History,
+  Loader2,
   PencilLine,
   Send,
   Split,
   XCircle,
 } from 'lucide-react';
 import type { AdminPrepareCustomerBasketResponse } from '@endora-commerce/contracts';
-import { apiClient, ApiError, cn, formatDateTime, readReturnTo, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from '@endora-commerce/admin-kit/ui';
+import { apiClient, ApiError, cn, formatDateTime, isDraftEqual, readReturnTo, useDetailResource, useModulePresence } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, DetailSkeleton, Input, Label, PageHeader, RecordTabs, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldValuesPanel,
+  DetailHeaderActions,
   LineGroupsEditor,
+  ModalDialog,
   ProductPicker,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
   SplitLineDialog,
+  StickyFormActions,
   canSplitLine,
   splitLineInto,
   useConfirmDialog,
+  useUnsavedChangesGuard,
 } from '@endora-commerce/admin-kit/components';
 import {
   arrangeLineGroups,
@@ -51,6 +58,7 @@ import {
   type ReferenceView,
 } from '../reference-view.js';
 import { RfqHistory } from './RfqHistory.js';
+import { rfqPageNotice } from './rfq-page-notice.js';
 import {
   SectionSummary,
   sectionTotals,
@@ -80,6 +88,9 @@ type RfqStatus =
   | 'Expired';
 
 type RfqTab = 'overview' | 'modify' | 'history';
+
+/** The note that says why Approve, Convert and the PDF wait for the Modify draft (issue #1469). */
+const DRAFT_NOTE_ID = 'rfq-modify-unsaved-note';
 
 interface AdminRfqItem {
   id: string;
@@ -215,67 +226,110 @@ export function RfqDetail(): ReactNode {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const returnTo = readReturnTo(searchParams);
-  const [rfq, setRfq] = useState<AdminRfqDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  /**
+   * Issue #1499 (SALES-17, DEC-12 a) — an action's result is said beside the
+   * control that caused it, in a region mounted empty from the first render:
+   * the header's actions for Approve, Cancel, the basket, the PDFs and the
+   * copied number, and the Modify save bar for a stored revision.
+   */
+  const actionStatus = useInlineStatus();
+  const [modifySaved, setModifySaved] = useState<string | null>(null);
+  const clearModifySaved = useCallback((): void => setModifySaved(null), []);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelOpen, setCancelOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<RfqTab>('overview');
+  const [tab, setTabState] = useState<RfqTab>('overview');
+  /**
+   * Issue #1469 — the Modify card mounts the first time its tab is opened (not
+   * with the page: it asks for the customer's prices on open) and then stays
+   * mounted, hidden, so its draft survives a switch to another tab.
+   */
+  const [modifyOpened, setModifyOpened] = useState(false);
+  const setTab = useCallback((next: RfqTab): void => {
+    setTabState(next);
+    if (next === 'modify') setModifyOpened(true);
+  }, []);
   // Feature 153 — the quote PDF dialog (download or send) and its outcome line.
   const tPdf = useTranslation('quote_requests');
   // Feature 159 — the Overview's section headings and summaries.
   const summaryText = useSectionSummaryText();
   const { isPresent } = useModulePresence();
   const [pdfMode, setPdfMode] = useState<QuoteRequestPdfMode | null>(null);
-  const [pdfNotice, setPdfNotice] = useState<{ kind: 'success' | 'warning'; message: string } | null>(null);
   const [historyNonce, setHistoryNonce] = useState(0);
   // Bumped when the operator takes the "set a new deadline" shortcut out of the
   // lapsed banner, so the Modify tab opens with the deadline field focused
   // rather than at the top of a form the operator then has to scan.
   const [validityFocusNonce, setValidityFocusNonce] = useState(0);
+  /**
+   * Issue #1469 (UX audit SALES-03) — the Modify tab's draft. The card stays
+   * mounted (hidden) across tab switches so the draft survives them; it tells
+   * this screen whether it holds unsaved changes and hands over its save, so a
+   * navigation away asks Save / Discard / Stay and the header's actions that
+   * act on the *stored* revision wait until the draft is saved or discarded.
+   * A new epoch remounts the card from the stored request (after its own save,
+   * or a Discard).
+   */
+  const [modifyDirty, setModifyDirty] = useState(false);
+  const [modifyEpoch, setModifyEpoch] = useState(0);
+  const modifySaveRef = useRef<(() => Promise<boolean>) | null>(null);
 
-  const refresh = useCallback(async (): Promise<void> => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
+  // Issue #1447 (DS-14, SALES-06) — a skeleton on the first load only. Approve,
+  // Cancel, a Modify save and a custom-field save re-read with the request still
+  // on screen and its tab open, marked `aria-busy`.
+  const resource = useDetailResource<AdminRfqDetail>(id ?? '', async () => {
+    if (!id) return null;
     try {
       const res = await apiClient.get<{ data: AdminRfqDetail }>(
         `/api/v1/admin/quote-requests/${id}`,
       );
-      setRfq(res.data);
+      return res.data;
     } catch (err) {
       // An unknown id and an out-of-scope request both answer 404 (feature
       // 146, C1); either is "not found" here, in the operator's language.
-      if (err instanceof ApiError && err.status === 404) setError(t('rfq.detail.notFound'));
-      else setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.error.load'));
-    } finally {
-      setLoading(false);
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
     }
-  }, [id, t]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  });
+  const rfq = resource.data;
+  const reread = resource.refresh;
+  // A re-read clears the previous action's error, as the old full reload did.
+  const refresh = useCallback(async (): Promise<void> => {
+    setError(null);
+    await reread();
+  }, [reread]);
+  const loadError =
+    resource.error === null
+      ? null
+      : resource.error instanceof ApiError
+        ? resource.error.envelope.error.message
+        : t('rfq.detail.error.load');
 
   // Feature 146 (FR-006) — the customer's current price for every line with no
   // stored reference, read by both Overview and Modify.
   const currentPrices = useCurrentPrices(rfq);
 
 
+  // Issue #1497 (SALES-12) — confirmed first: approving locks the agreed prices
+  // and notifies the customer, and it is not undone from this screen.
   const approve = async (): Promise<void> => {
     if (!rfq) return;
+    const ok = await confirm({
+      title: t('rfq.detail.approveConfirm.title', { id: rfq.businessId ?? rfq.id.slice(0, 8) }),
+      message: t('rfq.detail.approveConfirm.message'),
+      confirmLabel: t('rfq.detail.approve'),
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
+    actionStatus.clear();
     try {
       await apiClient.post(
         `/api/v1/admin/quote-requests/${rfq.id}/approve`,
         {},
         { headers: { 'If-Match': `"${rfq.version}"` } },
       );
-      setInfo(t('rfq.detail.info.approved'));
+      actionStatus.show(t('rfq.detail.info.approved'));
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.error.approve'));
@@ -288,7 +342,7 @@ export function RfqDetail(): ReactNode {
     if (!rfq) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
+    actionStatus.clear();
     try {
       const body = cancelReason.trim().length > 0 ? { reason: cancelReason.trim() } : {};
       await apiClient.post(
@@ -296,7 +350,7 @@ export function RfqDetail(): ReactNode {
         body,
         { headers: { 'If-Match': `"${rfq.version}"` } },
       );
-      setInfo(t('rfq.detail.info.canceled'));
+      actionStatus.show(t('rfq.detail.info.canceled'));
       setCancelReason('');
       setCancelOpen(false);
       await refresh();
@@ -323,13 +377,13 @@ export function RfqDetail(): ReactNode {
     if (!ok) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
+    actionStatus.clear();
     try {
       const res = await apiClient.post<{ data: AdminPrepareCustomerBasketResponse }>(
         `/api/v1/admin/quote-requests/${rfq.id}/prepare-customer-basket`,
         {},
       );
-      setInfo(t('rfq.detail.convert.success', { count: res.data.itemCount }));
+      actionStatus.show(t('rfq.detail.convert.success', { count: res.data.itemCount }));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.convert.error'));
     } finally {
@@ -342,18 +396,36 @@ export function RfqDetail(): ReactNode {
     const ref = rfq.businessId ?? rfq.id;
     try {
       await navigator.clipboard.writeText(ref);
-      setInfo(t('rfq.detail.copied', { id: ref }));
+      actionStatus.show(t('rfq.detail.copied', { id: ref }), 'info');
     } catch {
-      setError(t('rfq.detail.copyError'));
+      actionStatus.show(t('rfq.detail.copyError'), 'error');
     }
-  }, [rfq, t]);
+  }, [rfq, t, actionStatus]);
 
-  if (loading) return <p className="text-sm text-muted-foreground">{t('rfq.detail.loading')}</p>;
+  const draftOpen = modifyDirty && rfq !== null && !TERMINAL.includes(rfq.status);
+  const unsavedGuard = useUnsavedChangesGuard({
+    dirty: draftOpen,
+    onSave: async () => (await modifySaveRef.current?.()) ?? false,
+    onDiscard: () => {
+      setModifyDirty(false);
+      setModifyEpoch((n) => n + 1);
+    },
+    message: t('rfq.detail.modify.unsaved.body'),
+  });
+
+  if (resource.initialLoading) return <DetailSkeleton label={t('rfq.detail.loading')} />;
 
   if (!rfq)
     return (
       <Alert variant="destructive">
-        <AlertDescription>{error ?? t('rfq.detail.notFound')}</AlertDescription>
+        <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+          {loadError ?? t('rfq.detail.notFound')}
+          {loadError !== null ? (
+            <Button variant="outline" size="sm" onClick={(): void => void refresh()}>
+              {t('common.action.retry')}
+            </Button>
+          ) : null}
+        </AlertDescription>
       </Alert>
     );
 
@@ -384,79 +456,97 @@ export function RfqDetail(): ReactNode {
     setValidityFocusNonce((n) => n + 1);
   };
 
+  // Issue #1499 (SALES-17) — at most one banner above the tabs, by priority.
+  const pageNotice = rfqPageNotice({
+    error: (error ?? loadError) !== null,
+    validityLapsed,
+    draftOpen,
+    onModifyTab: tab === 'modify',
+  });
+
   // Action buttons live in the PageHeader's top-right slot — mirroring the
-  // Order detail view — rather than in an in-body status row.
+  // Order detail view — rather than in an in-body status row. Issue #1497
+  // (SALES-12): one primary per view (`DetailHeaderActions`). The next step of
+  // the status is the one filled button — Approve on a Pending request, Prepare
+  // the customer's basket on an Approved one — and every other status has none
+  // (Von Restorff). The PDFs and Cancel are the long tail, in "More", Cancel
+  // last and set apart from the rest (Hick; Fitts: distance, not proximity).
   //
-  // Both are disabled past the deadline, because both can now only answer 410:
-  // convert-to-order is refused outright, and approving moves a lapsed request
-  // into `Approved`, which `modify` refuses — so the deadline could never be
-  // moved afterwards and the quote would be unusable by either party. The
-  // banner below carries the reason and the remedy; a disabled button cannot.
-  const headerActions: ReactNode[] = [];
+  // Approve and Prepare basket are disabled past the deadline, because both can
+  // now only answer 410: convert-to-order is refused outright, and approving
+  // moves a lapsed request into `Approved`, which `modify` refuses — so the
+  // deadline could never be moved afterwards and the quote would be unusable by
+  // either party. The banner below carries the reason and the remedy; a
+  // disabled button cannot.
+  //
+  // While the Modify draft is unsaved, Approve, Convert and the PDF would act on
+  // the stored revision, not on what the operator sees: they wait, and say why.
+  const draftBlocked = draftOpen
+    ? { 'aria-describedby': DRAFT_NOTE_ID, title: t('rfq.detail.modify.unsaved.blocked') }
+    : {};
+  const busyMarker = busy ? { 'aria-busy': true } : {};
+  let primaryAction: ReactNode = null;
   if (rfq.status === 'Pending') {
-    headerActions.push(
+    primaryAction = (
       <Button
-        key="approve"
-        variant="outline"
-        size="sm"
-        className="bg-card"
         onClick={(): void => void approve()}
-        disabled={busy || validityLapsed}
+        disabled={busy || validityLapsed || draftOpen}
+        {...busyMarker}
+        {...draftBlocked}
       >
-        <Check />
+        {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <Check aria-hidden="true" />}
         {t('rfq.detail.approve')}
-      </Button>,
+      </Button>
     );
   }
   if (rfq.status === 'Approved') {
-    headerActions.push(
+    primaryAction = (
       <Button
-        key="convert"
-        variant="outline"
-        size="sm"
-        className="bg-card"
         onClick={(): void => void convert()}
-        disabled={busy || validityLapsed}
+        disabled={busy || validityLapsed || draftOpen}
+        {...busyMarker}
+        {...draftBlocked}
       >
-        <FileText />
+        {busy ? <Loader2 aria-hidden="true" className="motion-safe:animate-spin" /> : <FileText aria-hidden="true" />}
         {t('rfq.detail.convert.placeOrder')}
-      </Button>,
+      </Button>
     );
   }
   // Feature 153 — every state of the quote (owner answer Q3); only while the
   // document templates facility is present (FR-060), and the send only while
   // the transactional e-mails are too (FR-099).
-  if (isPresent('document_templates')) {
-    headerActions.push(
-      <Button key="pdf-export" variant="outline" size="sm" className="bg-card" onClick={(): void => setPdfMode('download')} disabled={busy}>
-        <FileDown />
-        {tPdf('pdf.export')}
-      </Button>,
-    );
-    if (isPresent('transactional_emails')) {
-      headerActions.push(
-        <Button key="pdf-send" variant="outline" size="sm" className="bg-card" onClick={(): void => setPdfMode('send')} disabled={busy}>
-          <Send />
+  const pdfPresent = isPresent('document_templates');
+  const pdfSendPresent = pdfPresent && isPresent('transactional_emails');
+  const draftBlockedTitle = draftOpen ? t('rfq.detail.modify.unsaved.blocked') : undefined;
+  const headerActions = (
+    <DetailHeaderActions primary={primaryAction} moreDisabled={busy} status={actionStatus.props}>
+      {pdfPresent ? (
+        <RowActionMenuItem onSelect={(): void => setPdfMode('download')} disabled={draftOpen} title={draftBlockedTitle}>
+          <FileDown aria-hidden="true" />
+          {tPdf('pdf.export')}
+        </RowActionMenuItem>
+      ) : null}
+      {pdfSendPresent ? (
+        <RowActionMenuItem onSelect={(): void => setPdfMode('send')} disabled={draftOpen} title={draftBlockedTitle}>
+          <Send aria-hidden="true" />
           {tPdf('pdf.send')}
-        </Button>,
-      );
-    }
-  }
-  if (!isTerminal) {
-    headerActions.push(
-      <Button
-        key="cancel"
-        variant="outline"
-        size="sm"
-        className="bg-card border-destructive/40 text-destructive hover:bg-destructive/10"
-        onClick={(): void => setCancelOpen(true)}
-        disabled={busy}
-      >
-        <XCircle />
-        {t('rfq.detail.cancelRfq')}
-      </Button>,
-    );
-  }
+        </RowActionMenuItem>
+      ) : null}
+      {!isTerminal && pdfPresent ? <RowActionMenuSeparator /> : null}
+      {!isTerminal ? (
+        <RowActionMenuItem
+          destructive
+          onSelect={(): void => {
+            setError(null);
+            setCancelOpen(true);
+          }}
+        >
+          <XCircle aria-hidden="true" />
+          {t('rfq.detail.cancelRfq')}
+        </RowActionMenuItem>
+      ) : null}
+    </DetailHeaderActions>
+  );
 
   return (
     <>
@@ -497,6 +587,17 @@ export function RfqDetail(): ReactNode {
         }
         description={
           <span>
+            {/* Issue #1499 (SALES-17) — why the request was canceled is part of the
+                record's state, so it leads the meta line rather than standing as an
+                error banner above the tabs. The line is clamped to one row; the
+                `title` carries a long reason in full, and a screen reader reads it all. */}
+            {rfq.cancellationReason ? (
+              <span className="font-medium text-destructive" title={rfq.cancellationReason}>
+                <XCircle aria-hidden="true" className="mr-1 inline size-3.5 align-[-2px]" />
+                {t('rfq.detail.badge.cancelReason', { reason: rfq.cancellationReason })}
+                {' · '}
+              </span>
+            ) : null}
             {t('rfq.detail.meta.created', { date: formatDateTime(rfq.createdAt) })}
             {rfq.submittedAt
               ? ` · ${t('rfq.detail.meta.submitted', { date: formatDateTime(rfq.submittedAt) })}`
@@ -514,22 +615,12 @@ export function RfqDetail(): ReactNode {
                   : ''}
           </span>
         }
-        actions={headerActions.length > 0 ? headerActions : null}
+        actions={headerActions}
       />
 
-      {error ? (
+      {pageNotice === 'error' ? (
         <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
-      {pdfNotice ? (
-        <Alert variant={pdfNotice.kind} className="mb-4">
-          <AlertDescription>{pdfNotice.message}</AlertDescription>
+          <AlertDescription>{error ?? loadError}</AlertDescription>
         </Alert>
       ) : null}
       {pdfMode ? (
@@ -538,24 +629,16 @@ export function RfqDetail(): ReactNode {
           mode={pdfMode}
           onClose={(): void => setPdfMode(null)}
           onDone={(outcome): void => {
-            setPdfNotice(outcome);
+            actionStatus.show(outcome.message, outcome.kind);
             if (pdfMode === 'send') setHistoryNonce((n) => n + 1);
           }}
         />
       ) : null}
 
-      {rfq.cancellationReason ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>
-            {t('rfq.detail.badge.cancelReason', { reason: rfq.cancellationReason })}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
       {/* The lapsed deadline states its own consequence and its own remedy,
           because the two buttons it disables cannot: a disabled control is
           removed from the tab order and announces no reason. */}
-      {validityLapsed && validity.kind === 'lapsed' ? (
+      {pageNotice === 'validity' && validity.kind === 'lapsed' ? (
         <Alert variant="warning" className="mb-4">
           <CalendarX className="size-4" aria-hidden="true" />
           <AlertDescription>
@@ -584,41 +667,54 @@ export function RfqDetail(): ReactNode {
         </Alert>
       ) : null}
 
-      {/* `overflow-hidden` rounds the tab strip's corners, but it also clips the
-          Modify tab's product-picker dropdown. Drop the clip while the Modify
-          tab is active so the dropdown can overlay outside the card. */}
-      <Card className={cn('mb-4', tab !== 'modify' && 'overflow-hidden')}>
-        <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
-          <div className="b2b-tabs-scroll">
-            <div className="b2b-tabs" role="tablist">
-              <TabBtn
-                id="overview"
-                label={t('rfq.detail.tabs.overview')}
-                icon={<ClipboardList size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-              {!isTerminal ? (
-                <TabBtn
-                  id="modify"
-                  label={t('rfq.detail.tabs.modify')}
-                  icon={<PencilLine size={14} />}
-                  active={tab}
-                  onChange={setTab}
-                />
-              ) : null}
-              <TabBtn
-                id="history"
-                label={t('rfq.detail.tabs.history')}
-                icon={<History size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-            </div>
-          </div>
-        </div>
+      {/* What the disabled Approve, basket and PDF entries are described by, whichever
+          banner is on screen — the draft's own is only one candidate for the one place. */}
+      {draftOpen ? (
+        <span id={DRAFT_NOTE_ID} hidden>
+          {t('rfq.detail.modify.unsaved.blocked')}
+        </span>
+      ) : null}
+      {pageNotice === 'draft' ? (
+        <Alert variant="warning" className="mb-4">
+          <PencilLine className="size-4" aria-hidden="true" />
+          <AlertDescription>
+            <p>{t('rfq.detail.modify.unsaved.blocked')}</p>
+            <Button variant="outline" size="sm" className="mt-3 bg-card" onClick={(): void => setTab('modify')}>
+              {t('rfq.detail.modify.unsaved.open')}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
-        <CardContent className="divide-y divide-border pt-6 [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+      {/* Issue #1445 (DS-12) — the kit's record tabs: one tab in the tab order,
+          ←/→/Home/End, every tab controlling the one panel. `overflow-hidden`
+          rounds the strip's corners, but it also clips the Modify tab's
+          product-picker dropdown, so the clip is dropped while Modify is open. */}
+      <RecordTabs
+        className={cn('mb-4', tab !== 'modify' && 'overflow-hidden')}
+        items={[
+          { value: 'overview', label: t('rfq.detail.tabs.overview'), icon: <ClipboardList /> },
+          ...(!isTerminal
+            ? [
+                {
+                  value: 'modify' as const,
+                  label: t('rfq.detail.tabs.modify'),
+                  icon: <PencilLine />,
+                  // Issue #1469 — the tab holds the unsaved draft: a dot, and these words.
+                  unsaved: draftOpen ? t('rfq.detail.tabs.modifyUnsaved') : undefined,
+                },
+              ]
+            : []),
+          { value: 'history', label: t('rfq.detail.tabs.history'), icon: <History /> },
+        ]}
+        value={tab}
+        onValueChange={setTab}
+        idBase="rfq-detail"
+        aria-label={tPdf('detail.tabs.label')}
+        panelProps={resource.busyProps}
+      >
+        {tab !== 'modify' ? (
+        <div className="divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
           {tab === 'overview' ? (
             <>
               <div className="grid gap-6 md:grid-cols-2">
@@ -820,28 +916,45 @@ export function RfqDetail(): ReactNode {
             </>
           ) : null}
 
-          {tab === 'modify' && !isTerminal ? (
-            <ModifyCard
-              rfq={rfq}
-              currentPrices={currentPrices}
-              onSaved={refresh}
-              setError={setError}
-              setInfo={setInfo}
-              focusValidityNonce={validityFocusNonce}
-            />
-          ) : null}
-
           {tab === 'history' ? (
             <Section title={t('rfq.detail.history.title')}>
               <RfqHistory key={historyNonce} quoteRequestId={rfq.id} />
             </Section>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+        ) : null}
+
+        {/* Issue #1469 — mounted while the request can be modified and only
+            hidden on the other tabs, so a tab switch keeps the draft. It sits
+            inside the one panel; hidden, it is not exposed on another tab. */}
+        {!isTerminal && modifyOpened ? (
+          <div hidden={tab !== 'modify'} data-testid="rfq-modify-panel">
+            <ModifyCard
+              key={modifyEpoch}
+              rfq={rfq}
+              currentPrices={currentPrices}
+              onSaved={async (): Promise<void> => {
+                setModifySaved(t('rfq.detail.modify.info.saved'));
+                await refresh();
+                setModifyDirty(false);
+                setModifyEpoch((n) => n + 1);
+              }}
+              setError={setError}
+              savedMessage={modifySaved}
+              onEdited={clearModifySaved}
+              focusValidityNonce={validityFocusNonce}
+              remounted={modifyEpoch > 0}
+              onDirtyChange={setModifyDirty}
+              saveRef={modifySaveRef}
+            />
+          </div>
+        ) : null}
+      </RecordTabs>
 
       {/* Panels other modules add to this screen. The host knows none of them;
-          with nobody contributing this renders nothing at all. */}
-      {id ? <AdminZone name="quote_request.detail.after" props={{ quoteRequestId: id }} /> : null}
+          with nobody contributing this renders nothing at all. At page level each
+          is a card of its own (`chrome="card"`, issue #1437). */}
+      {id ? <AdminZone name="quote_request.detail.after" props={{ quoteRequestId: id }} chrome="card" /> : null}
 
       {cancelOpen ? (
         <CancelDialog
@@ -850,9 +963,11 @@ export function RfqDetail(): ReactNode {
           onConfirm={(): void => void cancel()}
           onClose={(): void => setCancelOpen(false)}
           busy={busy}
+          error={error}
         />
       ) : null}
       {confirmDialog}
+      {unsavedGuard.dialog}
     </>
   );
 }
@@ -860,6 +975,12 @@ export function RfqDetail(): ReactNode {
 /**
  * Cancellation modal — captures the (optional) cancellation reason on an
  * overlay rather than stretching the status row, then confirms the cancel.
+ *
+ * The kit's `ModalDialog` since issue #1474 (SALES-09): named by its title,
+ * the reason labelled and focused, Tab held inside, Escape and *Keep RFQ*
+ * returning focus to *Cancel RFQ*. A click on the scrim does not close it, so
+ * a typed reason is not lost to a stray click, and a refused cancellation is
+ * announced here rather than on the page behind the scrim.
  */
 function CancelDialog(props: {
   reason: string;
@@ -867,41 +988,52 @@ function CancelDialog(props: {
   onConfirm: () => void;
   onClose: () => void;
   busy: boolean;
+  error: string | null;
 }): ReactNode {
   const t = useTranslation('core');
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const errorId = useId();
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      role="dialog"
-      aria-modal="true"
-      onClick={props.onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-lg border bg-card p-5 shadow-lg"
-        onClick={(e): void => e.stopPropagation()}
-      >
-        <h2 className="mb-3 text-base font-semibold">{t('rfq.detail.cancelDialog.title')}</h2>
-        <div className="space-y-2">
-          <Label htmlFor="cancel-reason">{t('rfq.detail.cancelReason')}</Label>
-          <Textarea
-            id="cancel-reason"
-            autoFocus
-            value={props.reason}
-            onChange={(e): void => props.onReasonChange(e.target.value)}
-            placeholder={t('rfq.detail.cancelReasonPlaceholder')}
-            rows={3}
-          />
-        </div>
-        <div className="mt-4 flex justify-end gap-2">
+    <ModalDialog
+      title={t('rfq.detail.cancelDialog.title')}
+      onClose={props.onClose}
+      busy={props.busy}
+      dismissOnScrim={false}
+      initialFocusRef={reasonRef}
+      widthClassName="max-w-md"
+      footer={
+        <>
           <Button variant="outline" onClick={props.onClose} disabled={props.busy}>
             {t('rfq.detail.cancelDialog.dismiss')}
           </Button>
-          <Button variant="destructive" onClick={props.onConfirm} disabled={props.busy}>
-            <XCircle size={14} className="mr-1" /> {t('rfq.detail.cancelDialog.confirm')}
+          <Button variant="destructive" onClick={props.onConfirm} disabled={props.busy} aria-busy={props.busy}>
+            {props.busy ? (
+              <Loader2 size={14} aria-hidden="true" className="mr-1 motion-safe:animate-spin" />
+            ) : (
+              <XCircle size={14} aria-hidden="true" className="mr-1" />
+            )}{' '}
+            {t('rfq.detail.cancelDialog.confirm')}
           </Button>
-        </div>
+        </>
+      }
+    >
+      <div className="space-y-2">
+        <Label htmlFor="cancel-reason">{t('rfq.detail.cancelReason')}</Label>
+        <Textarea
+          ref={reasonRef}
+          id="cancel-reason"
+          value={props.reason}
+          onChange={(e): void => props.onReasonChange(e.target.value)}
+          placeholder={t('rfq.detail.cancelReasonPlaceholder')}
+          rows={3}
+          aria-describedby={errorId}
+        />
+        {/* Mounted before it has text, so a refusal that arrives is announced. */}
+        <p id={errorId} role="alert" className="text-sm text-destructive">
+          {props.error}
+        </p>
       </div>
-    </div>
+    </ModalDialog>
   );
 }
 
@@ -934,27 +1066,6 @@ function MinimumWarningBadge(props: {
       <AlertTriangle className="size-3" aria-hidden="true" />
       <span>{label}</span>
     </Badge>
-  );
-}
-
-function TabBtn(props: {
-  id: RfqTab;
-  label: string;
-  icon: ReactNode;
-  active: RfqTab;
-  onChange: (id: RfqTab) => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={props.active === props.id}
-      className={cn('b2b-tab', props.active === props.id && 'is-active')}
-      onClick={(): void => props.onChange(props.id)}
-    >
-      {props.icon}
-      {props.label}
-    </button>
   );
 }
 
@@ -1020,17 +1131,33 @@ function ModifyCard({
   currentPrices,
   onSaved,
   setError,
-  setInfo,
+  savedMessage = null,
+  onEdited,
   focusValidityNonce,
+  remounted = false,
+  onDirtyChange,
+  saveRef,
 }: {
   rfq: AdminRfqDetail;
   /** The current prices `RfqDetail` asked for the lines with no stored reference. */
   currentPrices: CurrentPrices;
   onSaved: () => Promise<void>;
   setError: (msg: string | null) => void;
-  setInfo: (msg: string | null) => void;
+  /**
+   * Issue #1499 (SALES-17) — the last stored revision's result, said in the save bar beside
+   * Save revision. The card is remounted after its own save, so it is held by the screen.
+   */
+  savedMessage?: string | null;
+  /** The draft differs again: the last save's result no longer describes it. */
+  onEdited?: (() => void) | undefined;
   /** Changes when the operator asked for the deadline field from elsewhere. */
   focusValidityNonce: number;
+  /** Issue #1469 — a fresh copy after a save or a Discard, not the operator opening the tab. */
+  remounted?: boolean;
+  /** Issue #1469 — whether the draft differs from the stored request. */
+  onDirtyChange?: ((dirty: boolean) => void) | undefined;
+  /** Issue #1469 — this card's save, for the leave dialog's *Save and continue*. */
+  saveRef?: { current: (() => Promise<boolean>) | null } | undefined;
 }): ReactNode {
   const t = useTranslation('core');
   const tGroups = useTranslation('quote_requests');
@@ -1039,6 +1166,9 @@ function ModifyCard({
   const summaryText = useSectionSummaryText();
   const format = useRfqNumberFormat();
   const [headerNote, setHeaderNote] = useState(rfq.headerNote ?? '');
+  // Issue #1449 (DS-19) — a refused save is said in the save bar, beside "Save revision",
+  // not in the page-top alert the operator has scrolled away from.
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Feature 159 (research N-33) — the line whose *Split line* dialog is open.
   const [splitting, setSplitting] = useState<string | null>(null);
   // Feature 159 — the grouping draft. A stored group's key is its id (a valid
@@ -1077,6 +1207,12 @@ function ModifyCard({
     }),
   );
   const [busy, setBusy] = useState(false);
+  /**
+   * Issue #1469 — the lines as the card opened, with the customer prices the
+   * card fills in by itself on open applied to them too: a price the operator
+   * did not type is not an unsaved change.
+   */
+  const [baselineLines, setBaselineLines] = useState<ModifyLineDraft[]>(lines);
 
   // Prefill an empty agreed unit price with the price the request's customer
   // would pay on the request's channel (FR-007) — never the operator's own
@@ -1085,9 +1221,13 @@ function ModifyCard({
   // existing agreed price, or one the operator just typed). A failed probe
   // leaves the input empty (L2).
   const prefillAgreed = useCallback(
-    (key: string, line: { productId: string; variantId: string | null; quantity: number }): void => {
+    (
+      key: string,
+      line: { productId: string; variantId: string | null; quantity: number },
+      options: { onOpen?: boolean } = {},
+    ): void => {
       void probeCustomerPrice(rfq, line).then((price) => {
-        setLines((prev) =>
+        const fill = (prev: ModifyLineDraft[]): ModifyLineDraft[] =>
           prev.map((l) =>
             l.key === key && l.productId === line.productId
               ? {
@@ -1098,8 +1238,9 @@ function ModifyCard({
                     : {}),
                 }
               : l,
-          ),
-        );
+          );
+        setLines(fill);
+        if (options.onOpen) setBaselineLines(fill);
       });
     },
     [rfq],
@@ -1111,7 +1252,7 @@ function ModifyCard({
   useEffect(() => {
     rfq.items.forEach((it) => {
       if (it.productId && it.agreedUnitPrice === null && it.desiredUnitPrice === null) {
-        prefillAgreed(it.id, { productId: it.productId, variantId: it.variantId ?? null, quantity: it.quantity });
+        prefillAgreed(it.id, { productId: it.productId, variantId: it.variantId ?? null, quantity: it.quantity }, { onOpen: true });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1120,20 +1261,45 @@ function ModifyCard({
   // Land the caret on the deadline field when the operator arrived here from
   // the lapsed banner: the remedy they asked for is the one control they
   // should not have to hunt for in this form (Fitts's Law).
+  // The card stays mounted across tabs and is remounted after its own save or a
+  // Discard (issue #1469): a request made before such a remount is already served.
+  const openedWithNonce = useRef(remounted ? focusValidityNonce : 0);
   useEffect(() => {
-    if (focusValidityNonce > 0) validityInputRef.current?.focus();
+    if (focusValidityNonce > 0 && focusValidityNonce !== openedWithNonce.current) validityInputRef.current?.focus();
   }, [focusValidityNonce]);
 
-  const save = async (): Promise<void> => {
+  // Issue #1469 — the draft against the stored request. `currentPrice` is what
+  // the screen read, not what the operator wrote, so it is not compared.
+  const initialGroups = useRef(groups);
+  const comparableLines = (list: ModifyLineDraft[]): unknown =>
+    list.map((line) => ({ ...line, currentPrice: undefined }));
+  const dirty =
+    headerNote !== (rfq.headerNote ?? '') ||
+    expiresInDays.trim() !== '' ||
+    !isDraftEqual(groups, initialGroups.current) ||
+    !isDraftEqual(comparableLines(lines), comparableLines(baselineLines));
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    if (dirty) onEdited?.();
+  }, [dirty, onDirtyChange, onEdited]);
+  // The bar's status region is mounted empty and given the saved revision's result one
+  // commit later: this card is remounted after its save, and a live region that arrives
+  // already carrying its text is not reliably announced (WCAG 4.1.3).
+  const [statusReady, setStatusReady] = useState(false);
+  useEffect(() => setStatusReady(true), []);
+  const saveStatus = statusReady && !dirty ? savedMessage : null;
+  useEffect(() => (): void => onDirtyChange?.(false), [onDirtyChange]);
+
+  const save = async (): Promise<boolean> => {
     setBusy(true);
     setError(null);
-    setInfo(null);
+    setSaveError(null);
     try {
       // Feature 159 — a group needs a name; the field says so too.
       if (groups.some((group) => group.name.trim() === '')) {
-        setError(tGroups('lineGroups.nameRequired'));
+        setSaveError(tGroups('lineGroups.nameRequired'));
         setBusy(false);
-        return;
+        return false;
       }
       // The grouping is sent whenever the quote has or had a group, so deleting
       // the last one is saved too; a quote never grouped sends none (FR-033).
@@ -1162,19 +1328,19 @@ function ModifyCard({
           ...(sendGroups ? { groupKey: l.groupKey !== null && known.has(l.groupKey) ? l.groupKey : null } : {}),
         }));
       if (items.length === 0) {
-        setError(t('rfq.detail.modify.error.atLeastOneLine'));
+        setSaveError(t('rfq.detail.modify.error.atLeastOneLine'));
         setBusy(false);
-        return;
+        return false;
       }
       // A deadline the contract would refuse is refused here rather than
       // dropped from the payload: an operator who typed a number and got no
       // deadline would have been told nothing.
       const typedDays = expiresInDays.trim();
       if (isValidityDaysInvalid(typedDays, new Date())) {
-        setError(t('rfq.detail.validity.error.days'));
+        setSaveError(t('rfq.detail.validity.error.days'));
         setBusy(false);
         validityInputRef.current?.focus();
-        return;
+        return false;
       }
       await apiClient.patch(
         `/api/v1/admin/quote-requests/${rfq.id}`,
@@ -1197,14 +1363,18 @@ function ModifyCard({
         },
         { headers: { 'If-Match': `"${rfq.version}"` } },
       );
-      setInfo(t('rfq.detail.modify.info.saved'));
       await onSaved();
+      return true;
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.modify.error.save'));
+      setSaveError(err instanceof ApiError ? err.envelope.error.message : t('rfq.detail.modify.error.save'));
+      return false;
     } finally {
       setBusy(false);
     }
   };
+  useEffect(() => {
+    if (saveRef) saveRef.current = save;
+  });
 
   const updateLine = (key: string, patch: Partial<ModifyLineDraft>): void => {
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
@@ -1553,11 +1723,19 @@ function ModifyCard({
             {t('rfq.detail.modify.addLine')}
           </Button>
         </div>
-        <div>
-          <Button onClick={(): void => void save()} disabled={busy}>
-            {t('rfq.detail.modify.saveRevision')}
-          </Button>
-        </div>
+        {/* Issue #1449 (DS-19) — the one Save stays in view over a long list of lines. */}
+        <StickyFormActions
+          desktop="sticky"
+          dirty={dirty}
+          error={saveError}
+          status={saveStatus}
+          note={t('rfq.detail.modify.notifiesCustomer')}
+          primary={
+            <Button onClick={(): void => void save()} disabled={busy} aria-busy={busy || undefined}>
+              {t('rfq.detail.modify.saveRevision')}
+            </Button>
+          }
+        />
       </div>
     </Section>
   );

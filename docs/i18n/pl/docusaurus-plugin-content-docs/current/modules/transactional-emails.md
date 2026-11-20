@@ -66,8 +66,9 @@ Edytor e-maili transakcyjnych (i newslettera) korzysta ze wspólnego `EmailEdito
 - Obszar roboczy ma stałą szerokość wiadomości (**600px**) i panel Outline, tak jak w CMS. **Preview
   email** otwiera okno z wyrenderowanym HTML i przykładowymi wartościami zmiennych oraz opcjami
   **Desktop mail (600px)** / **Narrow (320px)** (płynny kontener `max-width:600px`, więc wąski
-  podgląd nie wychodzi poza okno). **Save as template** / **Apply template** korzystają z akcji
-  nagłówka CMS, ale działają na szablonach e-maili transakcyjnych (`email_templates`).
+  podgląd nie wychodzi poza okno). **Save as template** / **Apply template** są, tak jak w CMS,
+  w menu **Więcej** na pasku narzędzi, razem z **Wyczyść canvas**, ale działają na szablonach
+  e-maili transakcyjnych (`email_templates`).
 - `EmailLogo` pokazuje logo z oznakowania marki (bez pola na adres URL). `EmailImage` przyjmuje adres
   URL albo zasób z biblioteki mediów, tak jak w CMS. Pola kolorów korzystają ze wspólnej palety
   kolorów CMS. Samo logo ustawia się na ekranie **Branding maili** (poniżej).

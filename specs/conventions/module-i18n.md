@@ -58,6 +58,18 @@ operator configures, such as order statuses, is read from the name the API serve
 sources. The selector works on syntax, not types. A site that is not an enum carries an
 `eslint-disable-next-line` that says why, and a site that is debt names the issue that will fix it.
 
+**A page description is opt-in, one line and at most 80 characters** (issue #1436, UX audit
+2026-11-17, DS-02). `PageHeader`'s `description` is clamped to one line and is written only when
+it says something the screen does not already show — a code, a scope, a count nowhere else on the
+page, a state. It never restates the title (*"Orders" — "View and manage customer orders"*), never
+describes the controls below it (*"Choose the type, the currency and the sales channels"* above a
+form holding exactly those fields), and never speaks the implementation (*"Meilisearch"*,
+*"fan-out"*, a table name, a permission code). Explanation the operator needs once — a precedence
+rule, a consequence of deleting — goes to `help`, a ⓘ beside the title that is read when asked
+for. When a description is cut, its key is deleted from **both** bundles in the same change; a
+key left behind with no reader is copy a translator keeps paying for. The same budget holds for
+`FormField`'s `hint`, which is clamped to one line by the same reasoning; its `help` takes the rest.
+
 **The storefront is in the same run since issue #85**, with its own ledger,
 `STOREFRONT_HARDCODED_STRINGS_BASELINE`, ratcheted the same two ways. Its walk is the `storefront`
 workspace member's `.ts` **and** `.tsx` sources (tests, `test/`, `scripts/` and `public/` excepted),

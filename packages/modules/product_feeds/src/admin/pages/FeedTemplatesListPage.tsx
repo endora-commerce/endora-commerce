@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Plus, Upload } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { LayoutTemplate, Lock, Plus, Upload } from 'lucide-react';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -235,16 +235,17 @@ export function FeedTemplatesListPage(): ReactNode {
         {loading ? (
           <p className="b2b-help">{t('feeds.criteria.counting')}</p>
         ) : mine.length === 0 ? (
-          <div className="b2b-empty">
-            <p className="b2b-empty__title">{t('templates.empty.mine.title')}</p>
-            <p className="b2b-empty__sub">{t('templates.empty.mine.subtitle')}</p>
-          </div>
+          <EmptyState
+            icon={<LayoutTemplate size={20} />}
+            title={t('templates.empty.mine.title')}
+            description={t('templates.empty.mine.subtitle')}
+          />
         ) : (
           // The platform's templates below are already cards; the operator's
           // own were the one surface on this screen sitting on bare page
           // background.
           <Card>
-            <CardContent className="pt-6">
+            <CardContent>
               <ResponsiveTable
                 columns={columns}
                 data={mine}

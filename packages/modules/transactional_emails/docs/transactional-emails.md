@@ -70,7 +70,8 @@ The transactional (and newsletter) editors share `EmailEditorPane`:
   Use **Preview email** for a modal HTML render with sample variable data and
   **Desktop mail (600px)** / **Narrow (320px)** options (fluid `max-width:600px`
   shell so narrow preview does not overflow).
-  **Save as template** / **Apply template** reuse the CMS header actions against
+  **Save as template** / **Apply template** sit in the toolbar's **More** menu,
+  as in the CMS, together with **Clear canvas**, and work against
   transactional email templates (`email_templates`).
 - `EmailLogo` shows the branding logo (no URL field). `EmailImage` supports URL or
   asset library, same as CMS. Color fields use the shared CMS color palette.

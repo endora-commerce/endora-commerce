@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { AdminZoneContribution, AdminZoneProps, SalesChannelDetail } from '@endora-commerce/contracts';
 import { adminSession, modulePresence, renderWithSession } from '../../helpers/render-with-session';
@@ -219,6 +219,33 @@ describe('bundle', () => {
   it('ships the host part label in English and Polish', () => {
     expect(en['channelEditor.save.hostPartLabel']).toBe('Sales channel');
     expect(pl['channelEditor.save.hostPartLabel']).toBeTruthy();
+  });
+});
+
+describe('sales-channel editor — the one Save sits outside every panel it commits (issue #1449, DS-19)', () => {
+  it('draws Save in a sticky bar after the zone, not inside the identity form', async () => {
+    renderPage();
+    await nameField();
+    const zoneInput = await screen.findByLabelText('Probe value');
+    const bar = saveButton().closest<HTMLElement>('[data-slot="sticky-form-actions"]');
+    expect(bar).not.toBeNull();
+    expect(bar).toHaveAttribute('data-desktop', 'sticky');
+    const form = (await nameField()).closest('form')!;
+    // Outside the identity card's form, and after the zone panel it also saves.
+    expect(form).not.toContainElement(bar);
+    expect(zoneInput.compareDocumentPosition(bar!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Still the form's submit: Enter in a field and the button run the same save.
+    expect(saveButton()).toHaveAttribute('type', 'submit');
+    expect((saveButton() as HTMLButtonElement).form).toBe(form);
+  });
+
+  it('says a refused channel save in the bar, beside the Save', async () => {
+    updateSpy.mockRejectedValueOnce(new Error('down'));
+    renderPage();
+    fireEvent.change(await nameField(), { target: { value: 'Serwis B' } });
+    const bar = saveButton().closest<HTMLElement>('[data-slot="sticky-form-actions"]')!;
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(within(bar).getByRole('alert')).toHaveTextContent(en['channelEditor.save.failed']!));
   });
 });
 

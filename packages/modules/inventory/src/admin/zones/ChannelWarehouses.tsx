@@ -1,5 +1,20 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ImmediateBadge, useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  EditorSection,
+  FormField,
+  InlineStatus,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
 import type {
   AdminZoneProps,
   Warehouse,
@@ -168,134 +183,134 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
 
   // The read gate that used to stand here is the zone renderer's now — absent,
   // not disabled and not a 403 panel, decided before this chunk is fetched.
-  if (loading) return <div className="b2b-help">{t('warehouses.channel.loading')}</div>;
+  //
+  // Issue #1503 (UX audit SHELL-22; the DS-03 rule, #1437) — one section that follows its mount:
+  // a section inside a card, its own card under `<AdminZone chrome="card">`. It used to draw a
+  // card for the table, another for the add form and one more for each message, so the routing
+  // read as up to four objects. The add form is its sub-section, the messages an alert and a
+  // status line.
+  // A refresh after an action keeps the table on screen; only the first read has nothing to show.
+  const firstLoad = loading && assignments.length === 0 && warehouses.length === 0;
 
   return (
-    <div className="b2b-col" style={{ gap: 12 }}>
+    <EditorSection
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          {t('warehouses.channel.title')}
+          {canWrite ? (
+            // The kit's "Applies immediately" badge, one look for one meaning on every editor
+            // (feature 174 FR-070, feature 180). The heading's gap spaces it, not its margin.
+            <ImmediateBadge className="ml-0" />
+          ) : null}
+        </span>
+      }
+      aria-busy={loading || undefined}
+    >
       {error ? (
-        <div
-          className="b2b-card"
-          style={{ background: 'var(--danger-soft)', color: 'var(--danger-soft-fg)', padding: 10 }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
-      {info ? (
-        <div
-          className="b2b-card"
-          style={{ background: 'var(--success-soft)', color: 'var(--success-soft-fg)', padding: 10 }}
-        >
-          {info}
-        </div>
-      ) : null}
+      {/* Mounted before it has text, so the confirmation is announced (WCAG 2.2 SC 4.1.3). */}
+      <InlineStatus>{info}</InlineStatus>
 
-      <div className="b2b-card">
-        <div className="b2b-card__head">
-          <h2 className="flex flex-wrap items-center gap-2">
-            {t('warehouses.channel.title')}
-            {canWrite ? (
-              // The kit's "Applies immediately" badge, one look for one meaning on every editor
-              // (feature 174 FR-070, feature 180). The heading's gap spaces it, not its margin.
-              <ImmediateBadge className="ml-0" />
-            ) : null}
-          </h2>
-        </div>
-        <table className="b2b-tbl">
-          <thead>
-            <tr>
-              <th>{t('warehouses.channel.column.warehouse')}</th>
-              <th>{t('warehouses.channel.column.code')}</th>
-              <th>{t('warehouses.channel.column.default')}</th>
-              <th>{t('warehouses.channel.column.sort')}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
+      {firstLoad ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          {t('warehouses.channel.loading')}
+        </p>
+      ) : (
+        // Issue #1492 (CAT-17): the kit's table and controls, one look with the channel editor.
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('warehouses.channel.column.warehouse')}</TableHead>
+              <TableHead>{t('warehouses.channel.column.code')}</TableHead>
+              <TableHead>{t('warehouses.channel.column.default')}</TableHead>
+              <TableHead>{t('warehouses.channel.column.sort')}</TableHead>
+              <TableHead className="w-[1%]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {assignments.length === 0 ? (
-              <tr>
-                <td colSpan={5}>
-                  <span className="b2b-muted">{t('warehouses.channel.empty')}</span>
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={5} className="text-muted-foreground">
+                  {t('warehouses.channel.empty')}
+                </TableCell>
+              </TableRow>
             ) : (
               assignments.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.warehouseName}</td>
-                  <td>
-                    <span className="b2b-mono" style={{ fontSize: 12 }}>{a.warehouseCode}</span>
-                  </td>
-                  <td>
+                <TableRow key={a.id}>
+                  <TableCell>{a.warehouseName}</TableCell>
+                  <TableCell className="font-mono text-xs">{a.warehouseCode}</TableCell>
+                  <TableCell>
                     {a.isDefault ? (
                       <span className="b2b-badge b2b-badge--success">{t('warehouses.channel.defaultBadge')}</span>
                     ) : !canWrite ? (
                       // Read-only: the row is simply not the default. Rendering
                       // the promote button disabled would advertise a
                       // capability; rendering the badge would misstate the row.
-                      <span className="b2b-muted">—</span>
+                      <span className="text-muted-foreground">—</span>
                     ) : (
-                      <button
+                      <Button
                         type="button"
-                        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                        variant="ghost"
+                        size="sm"
                         onClick={(): void => { void handlePromote(a.id); }}
                         disabled={busy === a.id}
                       >
                         {t('warehouses.channel.action.makeDefault')}
-                      </button>
+                      </Button>
                     )}
-                  </td>
-                  <td>{a.sortOrder}</td>
-                  <td className="actions">
+                  </TableCell>
+                  <TableCell className="tabular-nums">{a.sortOrder}</TableCell>
+                  <TableCell className="whitespace-nowrap">
                     {canWrite ? (
-                      <button
+                      <Button
                         type="button"
-                        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                        variant="ghost"
+                        size="sm"
                         onClick={(): void => { void handleUnassign(a.id, a.isDefault); }}
                         disabled={busy === a.id}
                       >
                         {t('warehouses.channel.action.unassign')}
-                      </button>
+                      </Button>
                     ) : null}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      )}
 
-      {canWrite && candidates.length > 0 ? (
-        <div className="b2b-card">
-          <div className="b2b-card__head"><h2>{t('warehouses.channel.addTitle')}</h2></div>
-          <div className="b2b-card__body">
-            <div className="b2b-row" style={{ gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <label className="b2b-label" htmlFor="ch-add-wh">{t('warehouses.channel.field.warehouse')}</label>
-                <select
-                  id="ch-add-wh"
-                  className="b2b-field"
-                  value={pendingWarehouseId}
-                  onChange={(e): void => setPendingWarehouseId(e.target.value)}
-                >
-                  <option value="">{t('warehouses.channel.field.pickOne')}</option>
-                  {candidates.map((w) => (
-                    <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
-                  ))}
-                </select>
-              </div>
-              <button
-                type="button"
-                className="b2b-btn b2b-btn--primary"
-                onClick={(): void => { void handleAssign(); }}
-                disabled={busy === 'assign' || !pendingWarehouseId}
-              >
-                {busy === 'assign' ? t('warehouses.channel.action.adding') : t('warehouses.channel.action.add')}
-              </button>
-            </div>
+      {!firstLoad && canWrite && candidates.length > 0 ? (
+        <EditorSection as="h3" title={t('warehouses.channel.addTitle')}>
+          <div className="flex flex-wrap items-end gap-2">
+            <FormField label={t('warehouses.channel.field.warehouse')} id="ch-add-wh" className="min-w-56 flex-1">
+              <Select value={pendingWarehouseId} onChange={(e): void => setPendingWarehouseId(e.target.value)}>
+                <option value="">{t('warehouses.channel.field.pickOne')}</option>
+                {candidates.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
+                ))}
+              </Select>
+            </FormField>
+            {/* It writes at once, so it is outline: the channel editor's Save stays the page's
+                one filled primary (Von Restorff, DS-07 #1441). */}
+            <Button
+              type="button"
+              variant="outline"
+              className="max-lg:min-h-11"
+              onClick={(): void => { void handleAssign(); }}
+              disabled={busy === 'assign' || !pendingWarehouseId}
+              aria-busy={busy === 'assign' || undefined}
+            >
+              {busy === 'assign' ? t('warehouses.channel.action.adding') : t('warehouses.channel.action.add')}
+            </Button>
           </div>
-        </div>
+        </EditorSection>
       ) : null}
       {confirmDialog}
-    </div>
+    </EditorSection>
   );
 }
 
