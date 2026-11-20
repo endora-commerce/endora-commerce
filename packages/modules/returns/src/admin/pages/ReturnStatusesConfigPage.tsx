@@ -1,18 +1,14 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
-import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { ApiError, useDerivedKey } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, Input, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { StatusTransitionGraph } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient } from '../api/returns-client.js';
+import { returnStatusName } from '../labels.js';
 
 import type { ReturnNotificationHealth, ReturnStatusDto, ReturnTransitionDto } from '@endora-commerce/contracts';
-
-/** Resolve the admin-facing label: default name → English → first → code. */
-function statusLabel(s: Pick<ReturnStatusDto, 'code' | 'name' | 'defaultName'>): string {
-  return s.defaultName || s.name['en'] || Object.values(s.name)[0] || s.code;
-}
 
 /**
  * The statuses whose entry sends a dedicated e-mail of its own, so they never send
@@ -32,6 +28,10 @@ export function ReturnStatusesConfigPage(): ReactNode {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
+  // Issue #1472 — the operator's language first (`returnStatusName`), then the default name.
+  const statusLabel = (s: Pick<ReturnStatusDto, 'code' | 'name' | 'defaultName'>): string => returnStatusName(s, language);
+  // Tesler: the code follows the English name until the operator edits it (DS-22, `useDerivedKey`).
+  const codeField = useDerivedKey({ source: name, value: code, onChange: setCode, separator: '_', maxLength: 64 });
   // `specs/180-off-platform-complaints/` D-7 — where the new-case e-mail goes to nobody.
   const [health, setHealth] = useState<ReturnNotificationHealth | null>(null);
   const [channelNames, setChannelNames] = useState<Record<string, string>>({});
@@ -43,9 +43,9 @@ export function ReturnStatusesConfigPage(): ReactNode {
       setStatuses(graph.statuses);
       setTransitions(graph.transitions);
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setError(err instanceof ApiError ? err.envelope.error.message : tr('admin.loadFailed'));
     }
-  }, []);
+  }, [tr]);
 
   useEffect(() => {
     void refresh();
@@ -86,10 +86,10 @@ export function ReturnStatusesConfigPage(): ReactNode {
         await fn();
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Action failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : tr('admin.actionFailed'));
       }
     },
-    [refresh],
+    [refresh, tr],
   );
 
   // FR-A30 — saved on change, optimistically, and put back with the error when the
@@ -102,7 +102,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
       await returnsClient.updateStatus(statusCode, { notifyCustomerOnEntry: notify });
     } catch (err) {
       setStatuses((prev) => prev.map((s) => (s.code === statusCode ? { ...s, notifyCustomerOnEntry: !notify } : s)));
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Action failed.');
+      setError(err instanceof ApiError ? err.envelope.error.message : tr('admin.actionFailed'));
     } finally {
       setSaving(null);
     }
@@ -125,6 +125,17 @@ export function ReturnStatusesConfigPage(): ReactNode {
       .filter((x) => !(x.fromStatusCode === fromCode && x.toStatusCode === toCode))
       .map((x) => ({ fromStatusCode: x.fromStatusCode, toStatusCode: x.toStatusCode }));
     void run(() => returnsClient.setTransitions(next));
+  };
+
+  const addStatus = (event: FormEvent): void => {
+    event.preventDefault();
+    const sent = codeField.commit();
+    if (!sent || !name.trim()) return;
+    void run(async () => {
+      await returnsClient.createStatus({ code: sent, name: { en: name.trim() }, defaultName: name.trim() });
+      setCode('');
+      setName('');
+    });
   };
 
   const missingChannels = health?.recipientsMissing.salesChannelIds ?? [];
@@ -179,7 +190,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
                 return (
                   <TableRow key={s.code} aria-busy={saving === s.code}>
                     <TableCell className="font-mono text-xs">{s.code}</TableCell>
-                    <TableCell>{s.defaultName}</TableCell>
+                    <TableCell>{statusLabel(s)}</TableCell>
                     <TableCell className="flex gap-1">
                       {s.isInitial && <Badge variant="outline">{tr('statusConfig.flag.initial')}</Badge>}
                       {s.isTerminal && <Badge variant="outline">{tr('statusConfig.flag.terminal')}</Badge>}
@@ -210,8 +221,13 @@ export function ReturnStatusesConfigPage(): ReactNode {
                     <TableCell>{s.inUseCount}</TableCell>
                     <TableCell>
                       {!s.isInitial && !s.isSystem && (
-                        <Button variant="ghost" size="sm" onClick={() => void run(() => returnsClient.deleteStatus(s.code))}>
-                          <Trash2 className="size-4" />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={tr('statusConfig.delete', { status: statusLabel(s) })}
+                          onClick={() => void run(() => returnsClient.deleteStatus(s.code))}
+                        >
+                          <Trash2 className="size-4" aria-hidden="true" />
                         </Button>
                       )}
                     </TableCell>
@@ -222,29 +238,35 @@ export function ReturnStatusesConfigPage(): ReactNode {
           </Table>
           {/* FR-A33 — marking a status sends nothing for the cases already in it. */}
           <p className="text-xs text-muted-foreground">{tr('statusConfig.notifyExistingHint')}</p>
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="code">{tr('statusConfig.newCode')}</Label>
-              <input id="code" className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={code} onChange={(e) => setCode(e.target.value)} placeholder="inspecting" />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{tr('statusConfig.newTitle')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="flex flex-wrap items-start gap-4" onSubmit={addStatus}>
+            <FormField label={tr('statusConfig.newName')} required className="w-64">
+              <Input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+            </FormField>
+            <FormField label={tr('statusConfig.newCode')} hint={tr('statusConfig.codeHint')} required className="w-80">
+              <Input
+                className="font-mono"
+                spellCheck={false}
+                autoComplete="off"
+                maxLength={64}
+                value={code}
+                onChange={codeField.onChange}
+                onBlur={codeField.onBlur}
+              />
+            </FormField>
+            <div className="pt-6">
+              <Button type="submit" size="sm" disabled={!code.trim() || !name.trim()}>
+                {tr('statusConfig.addStatus')}
+              </Button>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="name">{tr('statusConfig.newName')}</Label>
-              <input id="name" className="h-9 rounded-md border border-input bg-background px-3 text-sm" value={name} onChange={(e) => setName(e.target.value)} placeholder="Inspecting" />
-            </div>
-            <Button
-              size="sm"
-              disabled={!code.trim() || !name.trim()}
-              onClick={() =>
-                void run(async () => {
-                  await returnsClient.createStatus({ code: code.trim(), name: { en: name.trim() }, defaultName: name.trim() });
-                  setCode('');
-                  setName('');
-                })
-              }
-            >
-              {tr('statusConfig.addStatus')}
-            </Button>
-          </div>
+          </form>
         </CardContent>
       </Card>
 

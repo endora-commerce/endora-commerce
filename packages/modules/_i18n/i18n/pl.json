@@ -1933,7 +1933,6 @@
   "returns.filter.status": "Status",
   "returns.kind.complaint": "Reklamacja",
   "returns.kind.return": "Zwrot",
-  "returns.methods.description": "Koszt zwrotu 0 oznacza, że za zwrot płaci sklep.",
   "returns.methods.title": "Metody dostawy zwrotnej",
   "returns.nav.csv": "CSV",
   "returns.nav.reasons": "Powody",

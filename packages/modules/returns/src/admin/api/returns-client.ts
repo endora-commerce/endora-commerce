@@ -17,6 +17,8 @@ import type {
   SettlementResult,
 } from '@endora-commerce/contracts';
 
+import type { DeliveryMethodOption } from '../labels.js';
+
 type Wrap<T> = { data: T };
 
 /** A clause as the clauses page sends it (180 admin-api.md §B5). */
@@ -28,6 +30,14 @@ export interface RefundPaymentMethodOption {
   code: string;
   name: Record<string, string>;
 }
+/** A return shipment as the case's shipments endpoint returns it. */
+export interface ReturnShipmentRow {
+  id: string;
+  direction: string;
+  status: string;
+  externalReference: string | null;
+}
+
 const unwrap = <T>(p: Promise<Wrap<T>>): Promise<T> => p.then((r) => r.data);
 
 /** Typed admin client for the returns module (feature 046). */
@@ -96,9 +106,26 @@ export const returnsClient = {
   refundPaymentMethods: (): Promise<RefundPaymentMethodOption[]> =>
     unwrap(apiClient.get<Wrap<RefundPaymentMethodOption[]>>('/api/v1/admin/payment-methods?pageSize=200')),
 
+  /**
+   * The order's business ID, so the case links its order by number rather than
+   * by UUID (issue #1472). The order belongs to `orders`: when that module is off
+   * or the operator may not read orders, the call fails and the link keeps a
+   * generic name, as `refundPaymentMethods` does.
+   */
+  orderBusinessId: (orderId: string): Promise<string> =>
+    unwrap(apiClient.get<Wrap<{ businessId: string }>>(`/api/v1/admin/orders/${orderId}`)).then((o) => o.businessId),
+
+  /**
+   * The delivery methods, so a return delivery method is chosen and shown by
+   * name rather than by UUID (issue #1472). The list belongs to
+   * `delivery_methods`; when it cannot be read the screen falls back to an id field.
+   */
+  shippingMethods: (): Promise<DeliveryMethodOption[]> =>
+    unwrap(apiClient.get<Wrap<DeliveryMethodOption[]>>('/api/v1/admin/delivery-methods')),
+
   // Shipments
-  shipments: (id: string): Promise<Array<{ id: string; direction: string; status: string; externalReference: string | null }>> =>
-    unwrap(apiClient.get<Wrap<Array<{ id: string; direction: string; status: string; externalReference: string | null }>>>(`/api/v1/admin/returns/${id}/shipments`)),
+  shipments: (id: string): Promise<ReturnShipmentRow[]> =>
+    unwrap(apiClient.get<Wrap<ReturnShipmentRow[]>>(`/api/v1/admin/returns/${id}/shipments`)),
   createShipment: (id: string, direction: string, externalReference?: string): Promise<{ id: string }> =>
     unwrap(apiClient.post<Wrap<{ id: string }>>(`/api/v1/admin/returns/${id}/shipments`, { direction, ...(externalReference ? { externalReference } : {}) })),
   receiveShipment: (id: string, shipmentId: string): Promise<{ status: string }> =>
@@ -151,5 +178,7 @@ export const returnsClient = {
     unwrap(apiClient.get<Wrap<ReturnDeliveryMethodDto[]>>('/api/v1/admin/returns/delivery-methods')),
   createDeliveryMethod: (body: { deliveryMethodId: string; returnCost: number; currency: string }): Promise<ReturnDeliveryMethodDto> =>
     unwrap(apiClient.post<Wrap<ReturnDeliveryMethodDto>>('/api/v1/admin/returns/delivery-methods', body)),
+  updateDeliveryMethod: (id: string, patch: { isActive?: boolean }): Promise<ReturnDeliveryMethodDto> =>
+    unwrap(apiClient.patch<Wrap<ReturnDeliveryMethodDto>>(`/api/v1/admin/returns/delivery-methods/${id}`, patch)),
   deleteDeliveryMethod: (id: string): Promise<unknown> => apiClient.delete(`/api/v1/admin/returns/delivery-methods/${id}`),
 };

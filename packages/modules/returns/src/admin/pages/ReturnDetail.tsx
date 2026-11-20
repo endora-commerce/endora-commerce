@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText, Mail, ShieldOff, Store, UserRound } from 'lucide-react';
-import { ApiError, apiBaseUrl, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiBaseUrl, formatDateTime, formatMoney, useAuth } from '@endora-commerce/admin-kit/lib';
 import { ConfirmDialog, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Select, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
-import { returnsClient, type RefundPaymentMethodOption } from '../api/returns-client.js';
+import { returnsClient, type RefundPaymentMethodOption, type ReturnShipmentRow } from '../api/returns-client.js';
+import { returnStatusName } from '../labels.js';
 import { ResolutionRadioGroup } from '../components/ResolutionRadioGroup.js';
 import { RejectReturnDialog } from '../components/RejectReturnDialog.js';
 import { CONSUMER_WITHDRAWAL_PANEL_ID, ConsumerWithdrawalPanel } from './ConsumerWithdrawalPanel.js';
@@ -95,7 +96,11 @@ export function ReturnDetail(): ReactNode {
   const [transitions, setTransitions] = useState<ReturnTransitionDto[]>([]);
   // PO ruling on #945 (Q3): a terminal status of the configured graph closes the consent.
   const [statusIsTerminal, setStatusIsTerminal] = useState(false);
-  const [shipments, setShipments] = useState<Array<{ id: string; direction: string; status: string; externalReference: string | null }>>([]);
+  const [shipments, setShipments] = useState<ReturnShipmentRow[]>([]);
+  // Issue #1472 — transitions are named by their target status, in the operator's language.
+  const [statusNames, setStatusNames] = useState<Record<string, string>>({});
+  // `undefined` while loading or for a case without an order; `null` when the order cannot be read.
+  const [orderNumber, setOrderNumber] = useState<string | null | undefined>(undefined);
   const [prefill, setPrefill] = useState<SettlementPrefill | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -143,6 +148,7 @@ export function ReturnDetail(): ReactNode {
       ]);
       setRc(detail);
       setTransitions(graph.transitions.filter((t) => t.fromStatusCode === detail.statusCode));
+      setStatusNames(Object.fromEntries(graph.statuses.map((s) => [s.code, returnStatusName(s, language)])));
       const terminal = graph.statuses.some((s) => s.code === detail.statusCode && s.isTerminal);
       setStatusIsTerminal(terminal);
       setShipments(ship);
@@ -165,13 +171,31 @@ export function ReturnDetail(): ReactNode {
         setPrefill(null);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load case.');
+      setError(err instanceof ApiError ? err.envelope.error.message : tr('detail.loadFailed'));
     }
-  }, [id]);
+  }, [id, language, tr]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Issue #1472 — the order by its number. Best effort: the order belongs to `orders`.
+  const orderId = rc?.orderId ?? null;
+  useEffect(() => {
+    if (!orderId) return undefined;
+    let live = true;
+    returnsClient
+      .orderBusinessId(orderId)
+      .then((number) => {
+        if (live) setOrderNumber(number || null);
+      })
+      .catch(() => {
+        if (live) setOrderNumber(null);
+      });
+    return (): void => {
+      live = false;
+    };
+  }, [orderId]);
 
   useEffect(() => {
     let live = true;
@@ -197,10 +221,10 @@ export function ReturnDetail(): ReactNode {
         setInfo(ok);
         await refresh();
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Action failed.');
+        setError(err instanceof ApiError ? err.envelope.error.message : t('returns.detail.actionFailed'));
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   if (!rc) {
@@ -284,9 +308,11 @@ export function ReturnDetail(): ReactNode {
               </Badge>
               {tr('detail.noOrder')}
             </span>
-          ) : (
-            `Order ${rc.orderId}`
-          )
+          ) : rc.orderId ? (
+            <Link to={`/orders/${rc.orderId}`} className="underline underline-offset-2">
+              {orderNumber ? tr('detail.order', { number: orderNumber }) : tr('detail.orderUnnamed')}
+            </Link>
+          ) : null
         }
       />
 
@@ -308,23 +334,31 @@ export function ReturnDetail(): ReactNode {
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
           {isNew && (
-            <Button size="sm" onClick={() => void run(() => returnsClient.authorize(id), 'Authorized.')}>
-              Authorize (assign RMA)
+            <Button size="sm" onClick={() => void run(() => returnsClient.authorize(id), tr('detail.authorizedInfo'))}>
+              {tr('detail.authorize')}
             </Button>
           )}
           <Button ref={rejectButtonRef} variant="destructive" size="sm" onClick={() => setRejecting(true)}>
             {tr('reject.action')}
           </Button>
-          {transitions.map((t) => (
-            <Button
-              key={t.toStatusCode}
-              variant="outline"
-              size="sm"
-              onClick={() => void run(() => returnsClient.transition(id, t.toStatusCode), `Moved to ${t.toStatusCode}.`)}
-            >
-              → {t.toStatusCode}
-            </Button>
-          ))}
+          {transitions.map((transition) => {
+            const status = statusNames[transition.toStatusCode] ?? transition.toStatusCode;
+            return (
+              <Button
+                key={transition.toStatusCode}
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  void run(
+                    () => returnsClient.transition(id, transition.toStatusCode),
+                    tr('detail.movedTo', { status }),
+                  )
+                }
+              >
+                {tr('detail.moveTo', { status })}
+              </Button>
+            );
+          })}
           {rc.guest && !rc.personalDataErasedAt && (
             <GuestCaseActions
               rc={rc}
@@ -399,10 +433,10 @@ export function ReturnDetail(): ReactNode {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Default refund</TableHead>
-                <TableHead>Approved</TableHead>
+                <TableHead>{t('returns.detail.col.product')}</TableHead>
+                <TableHead className="text-right">{tr('detail.col.qty')}</TableHead>
+                <TableHead className="text-right">{tr('detail.col.defaultRefund')}</TableHead>
+                <TableHead className="text-right">{t('returns.detail.col.approved')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -413,9 +447,9 @@ export function ReturnDetail(): ReactNode {
                     {it.returnableAtPurchase === false ? notReturnableBadge : null}
                     <LineAttachments rc={rc} itemId={it.id} productName={it.productName} />
                   </TableCell>
-                  <TableCell>{it.quantity}</TableCell>
-                  <TableCell>{it.defaultRefundAmount.toFixed(2)}</TableCell>
-                  <TableCell>{it.approvedRefundAmount.toFixed(2)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{it.quantity}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatMoney(it.defaultRefundAmount, rc.currency)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{formatMoney(it.approvedRefundAmount, rc.currency)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -551,12 +585,14 @@ export function ReturnDetail(): ReactNode {
                       {it.productName}
                       {notReturnableItemIds.has(it.returnCaseItemId) ? notReturnableBadge : null}
                     </TableCell>
-                    <TableCell>{it.defaultRefundAmount.toFixed(2)}</TableCell>
+                    <TableCell className="tabular-nums">{formatMoney(it.defaultRefundAmount, rc.currency)}</TableCell>
                     <TableCell>
-                      <input
+                      <Input
                         type="number"
                         step="0.01"
-                        className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm"
+                        min="0"
+                        aria-label={tr('settlement.approvedFor', { product: it.productName })}
+                        className="h-8 w-28 px-2"
                         value={approved[it.returnCaseItemId] ?? 0}
                         onChange={(e) =>
                           setApproved((prev) => ({ ...prev, [it.returnCaseItemId]: Number(e.target.value) }))
@@ -581,15 +617,15 @@ export function ReturnDetail(): ReactNode {
                   return (
                     <TableRow key={key}>
                       <TableCell>{label}</TableCell>
-                      <TableCell>{charge.cap.toFixed(2)}</TableCell>
+                      <TableCell className="tabular-nums">{formatMoney(charge.cap, rc.currency)}</TableCell>
                       <TableCell>
-                        <input
+                        <Input
                           type="number"
                           step="0.01"
                           min="0"
                           max={charge.cap}
                           aria-label={label}
-                          className="h-8 w-28 rounded-md border border-input bg-background px-2 text-sm"
+                          className="h-8 w-28 px-2"
                           value={approvedCharges[key] ?? charge.approved}
                           onChange={(e) => setApprovedCharges((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
                         />
@@ -755,47 +791,50 @@ export function ReturnDetail(): ReactNode {
       {/* Shipments */}
       <Card>
         <CardHeader>
-          <CardTitle>Return shipments</CardTitle>
+          <CardTitle>{tr('shipments.title')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          {shipments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{tr('shipments.none')}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{tr('shipments.col.direction')}</TableHead>
+                  <TableHead>{tr('shipments.col.status')}</TableHead>
+                  <TableHead>{tr('shipments.col.tracking')}</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {shipments.map((s) => (
+                  <TableRow key={s.id}>
+                    <TableCell>{tr(`shipments.direction.${s.direction}`)}</TableCell>
+                    <TableCell>{tr(`shipments.status.${s.status}`)}</TableCell>
+                    <TableCell>{s.externalReference ?? '—'}</TableCell>
+                    <TableCell className="text-right">
+                      {s.status === 'pending' && s.direction === 'inbound' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void run(() => returnsClient.receiveShipment(id, s.id), tr('shipments.received'))}
+                        >
+                          {tr('shipments.markReceived')}
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => void run(() => returnsClient.createShipment(id, 'inbound'), 'Inbound shipment recorded.')}
+            onClick={() => void run(() => returnsClient.createShipment(id, 'inbound'), tr('shipments.recorded'))}
           >
-            Record inbound shipment
+            {tr('shipments.recordInbound')}
           </Button>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Direction</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Tracking</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {shipments.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell>{s.direction}</TableCell>
-                  {/* eslint-disable-next-line no-restricted-syntax -- raw shipment status, drained by #1472 (SALES-07) */}
-                  <TableCell>{s.status}</TableCell>
-                  <TableCell>{s.externalReference ?? '—'}</TableCell>
-                  <TableCell>
-                    {s.status === 'pending' && s.direction === 'inbound' && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => void run(() => returnsClient.receiveShipment(id, s.id), 'Received.')}
-                      >
-                        Mark received
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         </CardContent>
       </Card>
 
