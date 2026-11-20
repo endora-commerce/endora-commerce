@@ -7,7 +7,20 @@ import {
 } from '@endora-commerce/admin-kit/i18n';
 import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
 import { AssetFieldPicker, ContentLanguageTabs, StickyFormActions } from '@endora-commerce/admin-kit/components';
-import { PageHeader } from '@endora-commerce/admin-kit/ui';
+import {
+  Button,
+  Card,
+  CardContent,
+  EditorSection,
+  FormField,
+  InlineStatus,
+  Input,
+  Label,
+  PageHeader,
+  Select,
+  Textarea,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 
 /**
  * ProfilePage — feature 010 admin polish.
@@ -24,6 +37,12 @@ import { PageHeader } from '@endora-commerce/admin-kit/ui';
  *
  * A password change revokes the account's other sessions and keeps the one it
  * was made from, so the screen stays where it is and says so.
+ *
+ * Issue #1437 (UX audit 2026-11-17, DS-03) — the form is one card whose parts
+ * (identity, author profile, password) are `EditorSection`s, because they are
+ * saved together by one Save; the language preference, saved on its own, is
+ * the one card beside it (Common Region). Kit primitives throughout, so the
+ * screen is held by `one-visual-system.test.ts`.
  */
 export function ProfilePage(): ReactNode {
   const t = useTranslation('core');
@@ -128,146 +147,115 @@ export function ProfilePage(): ReactNode {
       <PageHeader title={t('profile.page.title')} />
 
       <form onSubmit={(e): void => { void handleSubmit(e); }}>
-        <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>{t('profile.identityTitle')}</h2></div>
-          <div className="b2b-card__body">
-            <div className="b2b-grid b2b-grid--cols-2">
-              <div>
-                <label className="b2b-label" htmlFor="me-email">{t('profile.field.email')}</label>
-                <input
-                  id="me-email"
-                  className="b2b-field"
-                  value={me.adminUser.email}
-                  disabled
-                />
-                <div className="b2b-help">{t('profile.emailHelp')}</div>
+        <Card>
+          <CardContent className="space-y-(--section-gap)">
+            <EditorSection title={t('profile.identityTitle')}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FormField label={t('profile.field.email')} hint={t('profile.emailHelp')}>
+                  <Input id="me-email" value={me.adminUser.email} disabled />
+                </FormField>
+                <FormField label={t('profile.field.role')}>
+                  <Input id="me-role" value={me.role?.name ?? '—'} disabled />
+                </FormField>
+                <FormField label={t('profile.field.firstName')}>
+                  <Input
+                    id="me-first"
+                    value={firstName}
+                    onChange={(e): void => setFirstName(e.target.value)}
+                    required
+                    maxLength={120}
+                  />
+                </FormField>
+                <FormField label={t('profile.field.lastName')}>
+                  <Input
+                    id="me-last"
+                    value={lastName}
+                    onChange={(e): void => setLastName(e.target.value)}
+                    required
+                    maxLength={120}
+                  />
+                </FormField>
               </div>
-              <div>
-                <label className="b2b-label" htmlFor="me-role">{t('profile.field.role')}</label>
-                <input
-                  id="me-role"
-                  className="b2b-field"
-                  value={me.role?.name ?? '—'}
-                  disabled
-                />
-              </div>
-              <div>
-                <label className="b2b-label" htmlFor="me-first">{t('profile.field.firstName')}</label>
-                <input
-                  id="me-first"
-                  className="b2b-field"
-                  value={firstName}
-                  onChange={(e): void => setFirstName(e.target.value)}
-                  required
-                  maxLength={120}
-                />
-              </div>
-              <div>
-                <label className="b2b-label" htmlFor="me-last">{t('profile.field.lastName')}</label>
-                <input
-                  id="me-last"
-                  className="b2b-field"
-                  value={lastName}
-                  onChange={(e): void => setLastName(e.target.value)}
-                  required
-                  maxLength={120}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+            </EditorSection>
 
-        <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>{t('profile.authorTitle')}</h2></div>
-          <div className="b2b-card__body">
-            <div className="b2b-help" style={{ marginBottom: 12 }}>{t('profile.authorHelp')}</div>
-            <div style={{ marginBottom: 12 }}>
-              <label className="b2b-label" htmlFor="me-avatar">{t('profile.field.avatar')}</label>
-              <AssetFieldPicker
-                id="me-avatar"
-                value={avatarAssetId ?? ''}
-                // The picker answers '' when the image is cleared: no avatar.
-                onChange={(assetId): void => setAvatarAssetId(assetId === '' ? null : assetId)}
-                acceptMimePrefix="image/"
-                allowUpload
-              />
-            </div>
-            <div style={{ marginBottom: 8 }}>
+            <EditorSection title={t('profile.authorTitle')} description={t('profile.authorHelp')}>
+              <div className="space-y-1.5">
+                <Label htmlFor="me-avatar">{t('profile.field.avatar')}</Label>
+                <AssetFieldPicker
+                  id="me-avatar"
+                  value={avatarAssetId ?? ''}
+                  // The picker answers '' when the image is cleared: no avatar.
+                  onChange={(assetId): void => setAvatarAssetId(assetId === '' ? null : assetId)}
+                  acceptMimePrefix="image/"
+                  allowUpload
+                />
+              </div>
               <ContentLanguageTabs
                 languages={contentLanguages.map((language) => language.code)}
                 activeLanguage={bioLanguage}
                 onChange={setBioLanguage}
               />
-            </div>
-            {bioLanguage !== null ? (
-              <div style={{ marginBottom: 12 }}>
-                <label className="b2b-label" htmlFor="me-bio">
-                  {t('profile.field.bio', {
+              {bioLanguage !== null ? (
+                <FormField
+                  label={t('profile.field.bio', {
                     language: contentLanguages.find((language) => language.code === bioLanguage)?.label ?? bioLanguage,
                   })}
-                </label>
-                <textarea
-                  id="me-bio"
-                  className="b2b-field"
-                  rows={5}
-                  maxLength={2000}
-                  value={bio[bioLanguage] ?? ''}
-                  onChange={(e): void => setBio((current) => ({ ...current, [bioLanguage]: e.target.value }))}
-                />
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>{t('profile.changePassword')}</h2></div>
-          <div className="b2b-card__body">
-            <div style={{ marginBottom: 16 }}>
-              <label className="b2b-label" htmlFor="me-current-pwd">{t('profile.field.currentPassword')}</label>
-              <input
-                id="me-current-pwd"
-                className="b2b-field"
-                type="password"
-                value={currentPassword}
-                onChange={(e): void => {
-                  setCurrentPassword(e.target.value);
-                  setCurrentPasswordError(null);
-                }}
-                maxLength={256}
-                autoComplete="current-password"
-                aria-invalid={currentPasswordError ? true : undefined}
-                aria-describedby={currentPasswordError ? 'me-current-pwd-error' : 'me-current-pwd-help'}
-              />
-              {currentPasswordError ? (
-                <div
-                  id="me-current-pwd-error"
-                  className="b2b-help"
-                  role="alert"
-                  style={{ color: 'var(--danger-soft-fg)' }}
                 >
-                  {currentPasswordError}
-                </div>
-              ) : (
-                <div id="me-current-pwd-help" className="b2b-help">{t('profile.field.currentPasswordHelp')}</div>
-              )}
-            </div>
-            <div>
-              <label className="b2b-label" htmlFor="me-pwd">{t('profile.field.newPassword')}</label>
-              <input
-                id="me-pwd"
-                className="b2b-field"
-                type="password"
-                value={password}
-                onChange={(e): void => setPassword(e.target.value)}
-                minLength={12}
-                maxLength={120}
-                autoComplete="new-password"
-                placeholder={t('profile.field.newPasswordPlaceholder')}
-              />
-              <div className="b2b-help">{t('profile.field.newPasswordHelp')}</div>
-            </div>
-          </div>
-        </div>
+                  <Textarea
+                    id="me-bio"
+                    rows={5}
+                    maxLength={2000}
+                    value={bio[bioLanguage] ?? ''}
+                    onChange={(e): void => setBio((current) => ({ ...current, [bioLanguage]: e.target.value }))}
+                  />
+                </FormField>
+              ) : null}
+            </EditorSection>
+
+            <EditorSection title={t('profile.changePassword')}>
+              {/* Wired by hand rather than through `FormField`: the field names one
+                  description at a time — the refusal, else the help — and the refusal
+                  interrupts (`role="alert"`), because it is why the Save did nothing. */}
+              <div className="space-y-1.5">
+                <Label htmlFor="me-current-pwd">{t('profile.field.currentPassword')}</Label>
+                <Input
+                  id="me-current-pwd"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e): void => {
+                    setCurrentPassword(e.target.value);
+                    setCurrentPasswordError(null);
+                  }}
+                  maxLength={256}
+                  autoComplete="current-password"
+                  aria-invalid={currentPasswordError ? true : undefined}
+                  aria-describedby={currentPasswordError ? 'me-current-pwd-error' : 'me-current-pwd-help'}
+                />
+                {currentPasswordError ? (
+                  <p id="me-current-pwd-error" className="text-xs text-destructive" role="alert">
+                    {currentPasswordError}
+                  </p>
+                ) : (
+                  <p id="me-current-pwd-help" className="text-xs text-muted-foreground">
+                    {t('profile.field.currentPasswordHelp')}
+                  </p>
+                )}
+              </div>
+              <FormField label={t('profile.field.newPassword')} hint={t('profile.field.newPasswordHelp')}>
+                <Input
+                  id="me-pwd"
+                  type="password"
+                  value={password}
+                  onChange={(e): void => setPassword(e.target.value)}
+                  minLength={12}
+                  maxLength={120}
+                  autoComplete="new-password"
+                  placeholder={t('profile.field.newPasswordPlaceholder')}
+                />
+              </FormField>
+            </EditorSection>
+          </CardContent>
+        </Card>
 
         {/* Issue #1449 (DS-19) — the one Save, in view at the end of the form, with what it
             answered said beside it rather than in a banner at the top of the page. */}
@@ -277,14 +265,9 @@ export function ProfilePage(): ReactNode {
           error={error}
           status={info}
           primary={
-            <button
-              type="submit"
-              className="b2b-btn b2b-btn--primary"
-              disabled={submitting}
-              aria-busy={submitting || undefined}
-            >
+            <Button type="submit" disabled={submitting} aria-busy={submitting || undefined}>
               {submitting ? t('profile.saving') : t('profile.saveChanges')}
-            </button>
+            </Button>
           }
         />
       </form>
@@ -308,8 +291,9 @@ function LanguageSection(): ReactNode {
   const { refresh } = useAuth();
   const [pending, setPending] = useState<SupportedAdminLanguage>(language);
   const [submitting, setSubmitting] = useState(false);
-  const [info, setInfo] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // Issue #1437 — what the Save answered, beside it, in a region mounted before it has text
+  // (WCAG 2.2 SC 4.1.3); an icon goes with the colour (SC 1.4.1).
+  const status = useInlineStatus();
 
   useEffect(() => {
     setPending(language);
@@ -318,14 +302,13 @@ function LanguageSection(): ReactNode {
   const handleSave = async (): Promise<void> => {
     if (pending === language) return;
     setSubmitting(true);
-    setError(null);
-    setInfo(null);
+    status.clear();
     const previous = language;
     setLanguage(pending);
     try {
       await setPreferredLanguage(pending);
       await refresh();
-      setInfo(t('profilePage.language.saved'));
+      status.show(t('profilePage.language.saved'));
     } catch (err) {
       setLanguage(previous);
       setPending(previous);
@@ -333,76 +316,49 @@ function LanguageSection(): ReactNode {
         err instanceof ApiError
           ? err.envelope.error.message
           : t('profilePage.language.failed');
-      setError(message);
+      status.show(message, 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="b2b-card" style={{ marginTop: 16 }}>
-      <div className="b2b-card__head">
-        <h2>{t('profilePage.section.language')}</h2>
+    <EditorSection
+      id="profile-language"
+      chrome="card"
+      className="mt-4"
+      title={t('profilePage.section.language')}
+      description={t('profilePage.section.language.help')}
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <Select
+          // Named by the section's heading: a second "Language" label would say it twice.
+          aria-labelledby="profile-language-title"
+          className="max-w-60"
+          value={pending}
+          onChange={(e): void => {
+            setPending(e.target.value as SupportedAdminLanguage);
+            status.clear();
+          }}
+        >
+          <option value="en">{t('profilePage.language.option.en')}</option>
+          <option value="pl">{t('profilePage.language.option.pl')}</option>
+        </Select>
+        <Button
+          type="button"
+          disabled={submitting || pending === language}
+          aria-busy={submitting || undefined}
+          onClick={(): void => {
+            void handleSave();
+          }}
+        >
+          {submitting
+            ? t('common.state.loading')
+            : t('profilePage.language.action.save')}
+        </Button>
+        <InlineStatus {...status.props} />
       </div>
-      <div className="b2b-card__body">
-        <p className="b2b-help" style={{ marginBottom: 12 }}>
-          {t('profilePage.section.language.help')}
-        </p>
-        {error ? (
-          <div
-            className="b2b-card"
-            style={{
-              background: 'var(--danger-soft)',
-              color: 'var(--danger-soft-fg)',
-              padding: 12,
-              marginBottom: 12,
-              border: '1px solid hsl(8 80% 85%)',
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
-        {info ? (
-          <div
-            className="b2b-card"
-            style={{
-              background: 'var(--success-soft)',
-              color: 'var(--success-soft-fg)',
-              padding: 12,
-              marginBottom: 12,
-              border: '1px solid hsl(142 50% 80%)',
-            }}
-          >
-            {info}
-          </div>
-        ) : null}
-        <div className="b2b-row" style={{ gap: 12, alignItems: 'center' }}>
-          <select
-            className="b2b-field"
-            value={pending}
-            onChange={(e): void =>
-              setPending(e.target.value as SupportedAdminLanguage)
-            }
-            style={{ maxWidth: 240 }}
-          >
-            <option value="en">{t('profilePage.language.option.en')}</option>
-            <option value="pl">{t('profilePage.language.option.pl')}</option>
-          </select>
-          <button
-            type="button"
-            className="b2b-btn b2b-btn--primary"
-            disabled={submitting || pending === language}
-            onClick={(): void => {
-              void handleSave();
-            }}
-          >
-            {submitting
-              ? t('common.state.loading')
-              : t('profilePage.language.action.save')}
-          </button>
-        </div>
-      </div>
-    </div>
+    </EditorSection>
   );
 }
 

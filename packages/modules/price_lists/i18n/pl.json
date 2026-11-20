@@ -140,6 +140,7 @@
   "explainer.currency.default": "Waluta kanału",
   "explainer.entry.book": "Wyjaśnij cenę",
   "explainer.entry.organization": "Wyjaśnij cenę dla tej organizacji",
+  "organizationPanel.title": "Ceny",
   "explainer.error.customerRequired": "Wybierz klienta albo zapytaj o gościa.",
   "explainer.error.organizationRequired": "Wybierz organizację albo zapytaj o gościa.",
   "explainer.error.productRequired": "Wybierz produkt w każdej linii.",

@@ -142,8 +142,10 @@ export function SettingRowEditor({
   return (
     <div
       className={cn(
-        'space-y-2 rounded-md border px-4 py-3 transition-colors',
-        isDirty && 'border-amber-300 bg-amber-50/40',
+        // Issue #1437 (DS-03): a row of the group card, divided from the next by the list's rule,
+        // not a bordered box of its own. A changed row keeps its tint and its badge.
+        '-mx-3 space-y-2 rounded-md px-3 py-3 transition-colors',
+        isDirty && 'bg-amber-50/40',
         readOnly && 'bg-muted/40 opacity-70',
       )}
     >

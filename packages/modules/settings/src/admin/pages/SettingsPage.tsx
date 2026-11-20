@@ -560,12 +560,13 @@ export function SettingsPage(): ReactNode {
                         {t('groups.empty')}
                       </p>
                     ) : (
-                      <div className="space-y-3">
+                      // Issue #1437 (DS-03): the group's settings are rows divided by a rule.
+                      <div className="divide-y">
                         {group.settings.map((s) => {
                           const draft = drafts[s.code] ?? baselineDraft(s, channelContext);
                           const conflict = conflicts[s.code];
                           return (
-                            <div key={s.code} className="space-y-2">
+                            <div key={s.code} className="space-y-2 py-1 first:pt-0 last:pb-0">
                               {conflict && (
                                 <ConflictBanner
                                   message={conflict}
