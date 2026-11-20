@@ -36,8 +36,11 @@ wyłączać**, aby nie kolidował z zewnętrzną usługą e-mail marketingu (Mai
   wartość jest pomijana, a żądanie nie jest odrzucane.
 - **Kampania** — jednorazowa wysyłka do odbiorców `all` / ręcznie wybranej grupy `group` / `tag` /
   `tag_list`. Tworzona we wspólnym edytorze e-maili Page Builder (ta sama paleta bloków co e-maile
-  transakcyjne): temat, drzewo treści Puck i zmienne; podgląd na przykładowych danych; wysyłka od
-  razu albo w zaplanowanym terminie. **Wyślij** zapisuje kampanię, a potem prosi o potwierdzenie,
+  transakcyjne): temat, drzewo treści Puck i zmienne; podgląd na przykładowych danych w oknie
+  **Podgląd e-maila** edytora; wysyłka od razu albo w zaplanowanym terminie. Edytor najpierw pyta
+  o ustawienia — nazwę, język, temat i odbiorców — a treść jest pod nimi; ręczną grupę wybiera się,
+  wyszukując aktywnych subskrybentów po adresie e-mail, i widać w niej, kto już do niej należy.
+  **Wyślij** zapisuje kampanię, a potem prosi o potwierdzenie,
   podając temat i liczbę subskrybentów, do których trafi wysyłka (aktywnych i niewykluczonych —
   według tej samej reguły co sama wysyłka); odbiorców, do których nic by nie trafiło, panel
   odrzuca, zanim o cokolwiek zapyta.
