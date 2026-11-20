@@ -33,7 +33,6 @@ const { ApiDescriptionPage } = await import(
 
 const bundle = passthroughBundle('core', [
   'platform.apiDescription.title',
-  'platform.apiDescription.description',
   'platform.apiDescription.reference.title',
   'platform.apiDescription.reference.body',
   'platform.apiDescription.reference.open',

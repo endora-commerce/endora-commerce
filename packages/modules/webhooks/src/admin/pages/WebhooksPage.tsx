@@ -196,7 +196,6 @@ export default function WebhooksPage(): ReactNode {
     <>
       <ListPage
         title={t('webhooks.page.title')}
-        description={t('webhooks.page.description')}
         actions={newWebhookLink('default')}
         load={load}
         onRetry={(): void => void refreshWebhooks()}

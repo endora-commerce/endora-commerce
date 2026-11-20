@@ -204,12 +204,11 @@ function setTierScale<K extends keyof TierScale>(draft: CmsBrandTokens, key: K, 
   else delete draft.tierScale;
 }
 
-function BrandCard(props: { title: string; description?: string; children: ReactNode }): ReactElement {
+function BrandCard(props: { title: string; children: ReactNode }): ReactElement {
   return (
     <Card>
       <CardContent>
         <Section title={props.title}>
-          {props.description ? <p className="text-sm text-muted-foreground">{props.description}</p> : null}
           {props.children}
         </Section>
       </CardContent>
@@ -359,7 +358,6 @@ export function BrandPage(): ReactNode {
     <div className="b2b-page b2b-page--wide space-y-4">
       <PageHeader
         title={t('brand.title')}
-        description={t('brand.description')}
         actions={
           canEdit ? (
             <SaveButtonGroup
@@ -498,7 +496,7 @@ export function BrandPage(): ReactNode {
               </fieldset>
             </BrandCard>
 
-            <BrandCard title={t('brand.section.schemes')} description={t('brand.schemes.hint')}>
+            <BrandCard title={t('brand.section.schemes')}>
               {BRAND_SCHEMES.map((scheme) => (
                 <SchemeFields
                   key={scheme}
@@ -597,7 +595,7 @@ export function BrandPage(): ReactNode {
               </div>
             </BrandCard>
 
-            <BrandCard title={t('brand.section.spacing')} description={t('brand.spacing.hint')}>
+            <BrandCard title={t('brand.section.spacing')}>
               <table className="w-full max-w-xl text-sm">
                 <thead>
                   <tr className="text-left text-muted-foreground">
@@ -663,7 +661,6 @@ export function BrandPage(): ReactNode {
                 ))}
               </div>
               {/* R21H (T351, T352): fluid desktop sizes and scaled buttons. */}
-              <p className="text-sm text-muted-foreground">{t('brand.layout.tierHint')}</p>
               <div className="space-y-2">
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -717,7 +714,6 @@ export function BrandPage(): ReactNode {
               <Card>
                 <CardContent>
                   <Section title={t('brand.preview.title')}>
-                    <p className="text-xs text-muted-foreground">{t('brand.preview.hint')}</p>
                     <BrandPreview tokens={draft} />
                   </Section>
                 </CardContent>

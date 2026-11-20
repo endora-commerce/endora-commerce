@@ -96,7 +96,6 @@ export default function ComparisonsListPage(): ReactNode {
     <>
       <PageHeader
         title={t('list.page.title')}
-        description={t('list.page.description')}
         actions={
           // FR-063 — the comparison PDF's template, for an administrator who may
           // see document templates and only while that module is present.

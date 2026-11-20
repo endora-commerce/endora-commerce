@@ -91,7 +91,6 @@ const BUNDLE = passthroughBundle('core', [
   'home.quickActions.importInventory',
   'home.quickActions.convertQuote',
   'home.stockAlerts.title',
-  'home.stockAlerts.subtitle',
   'home.stockAlerts.empty',
   'home.stockAlerts.seeAll',
   'home.stockAlerts.loading',
