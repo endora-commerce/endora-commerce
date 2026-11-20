@@ -33,6 +33,8 @@
   "productsList.selection.bulkEditHardLimit": "Too many products selected ({total}). A single bulk edit accepts at most {maxBatchSize} products.",
   "productsList.selection.resolving": "Resolving selection…",
   "productsList.selection.resolveFailed": "Could not resolve the full selection. Try again or select fewer products.",
+  "productsList.selection.selectPage": "Select every product on this page",
+  "productsList.selection.selectRow": "Select {name}",
   "productsList.bulkEdit.title": "Bulk edit {count} products",
   "productsList.bulkEdit.section.status": "Status",
   "productsList.bulkEdit.section.visibility": "Visibility",
