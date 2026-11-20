@@ -1,9 +1,18 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Check, Copy } from 'lucide-react';
-import { ApiError, useDetailResource, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, DetailSkeleton, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { PaginationFooter, RuleBuilder, StickyFormActions, type RuleAttributeField, type RuleFieldOptions } from '@endora-commerce/admin-kit/components';
+import { ApiError, isDraftEqual, useDetailResource, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Checkbox, DetailSkeleton, EditorSection, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import {
+  ImmediateBadge,
+  PaginationFooter,
+  RuleBuilder,
+  StickyFormActions,
+  useConfirmDialog,
+  useUnsavedChangesGuard,
+  type RuleAttributeField,
+  type RuleFieldOptions,
+} from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { PromotionAction, PromotionActionType, PromotionRule } from '@endora-commerce/contracts';
 import { promotionsClient, promotionRulesClient, type Coupon } from '../api/promotions-client.js';
@@ -53,31 +62,66 @@ function defaultAction(type: PromotionActionType): PromotionAction {
   }
 }
 
+/** What the form holds — and, once read or saved, what the stored promotion holds. */
+interface PromotionDraft {
+  name: string;
+  description: string;
+  code: string;
+  isActive: boolean;
+  priority: number;
+  stopFurther: boolean;
+  action: PromotionAction;
+  rule: PromotionRule;
+  usageGlobal: string;
+  usagePerOrg: string;
+  usagePerCustomer: string;
+}
+
+const NEW_DRAFT: PromotionDraft = {
+  name: '',
+  description: '',
+  code: '',
+  isActive: true,
+  priority: 0,
+  stopFurther: false,
+  action: defaultAction('percentage_off_cart'),
+  rule: { kind: 'all' },
+  usageGlobal: '',
+  usagePerOrg: '',
+  usagePerCustomer: '',
+};
+
+/**
+ * Whether a rule holds nothing the operator built — "every cart", or groups of
+ * nothing. Copying a saved rule over such a rule loses nothing, so it is not asked.
+ */
+export function isEmptyPromotionRule(rule: PromotionRule): boolean {
+  if (rule.kind === 'all') return true;
+  if (rule.kind === 'group') return rule.children.every(isEmptyPromotionRule);
+  return false;
+}
+
 export const PromotionEditPage = (): ReactNode => {
   const t = useTranslation('core');
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const isNew = !id;
 
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [code, setCode] = useState('');
-  const [isActive, setIsActive] = useState(true);
-  const [priority, setPriority] = useState(0);
-  const [stopFurther, setStopFurther] = useState(false);
-  const [action, setAction] = useState<PromotionAction>(defaultAction('percentage_off_cart'));
-  const [rule, setRule] = useState<PromotionRule>({ kind: 'all' });
+  const [draft, setDraft] = useState<PromotionDraft>(NEW_DRAFT);
+  // Issue #1546 (SALES-23) — the last saved state, so the bar can say when the form differs.
+  const [saved, setSaved] = useState<PromotionDraft>(NEW_DRAFT);
+  const patch = useCallback((change: Partial<PromotionDraft>): void => {
+    setDraft((d) => ({ ...d, ...change }));
+  }, []);
   const [savedRules, setSavedRules] = useState<PromotionRuleRecord[]>([]);
   // Legacy promotions that linked a saved rule by id: resolved into an
   // independent snapshot once `savedRules` has loaded.
   const [pendingRuleId, setPendingRuleId] = useState<string | null>(null);
-  const [usageGlobal, setUsageGlobal] = useState('');
-  const [usagePerOrg, setUsagePerOrg] = useState('');
-  const [usagePerCustomer, setUsagePerCustomer] = useState('');
   const [attributeFields, setAttributeFields] = useState<RuleAttributeField[]>([]);
   const [fieldOptions, setFieldOptions] = useState<RuleFieldOptions>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { confirm, confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     void promotionsClient
@@ -116,75 +160,108 @@ export const PromotionEditPage = (): ReactNode => {
   const resource = useDetailResource(id ?? '', async () => {
     if (!id) return null;
     const p = await promotionsClient.get(id);
-    setName(p.name);
-    setDescription(p.description ?? '');
-    setCode(p.code ?? '');
-    setIsActive(p.isActive);
-    setPriority(p.priority);
-    setStopFurther(p.stopFurther);
-    if (p.action) setAction(p.action);
-    if (p.rule) {
-      setRule(p.rule);
-    } else if (p.ruleId) {
-      setPendingRuleId(p.ruleId);
-    } else {
-      setRule({ kind: 'all' });
-    }
-    setUsageGlobal(p.usageLimitGlobal != null ? String(p.usageLimitGlobal) : '');
-    setUsagePerOrg(p.usageLimitPerOrganization != null ? String(p.usageLimitPerOrganization) : '');
-    setUsagePerCustomer(p.usageLimitPerCustomer != null ? String(p.usageLimitPerCustomer) : '');
+    if (!p.rule && p.ruleId) setPendingRuleId(p.ruleId);
+    const loaded: PromotionDraft = {
+      name: p.name,
+      description: p.description ?? '',
+      code: p.code ?? '',
+      isActive: p.isActive,
+      priority: p.priority,
+      stopFurther: p.stopFurther,
+      action: p.action ?? NEW_DRAFT.action,
+      rule: p.rule ?? { kind: 'all' },
+      usageGlobal: p.usageLimitGlobal != null ? String(p.usageLimitGlobal) : '',
+      usagePerOrg: p.usageLimitPerOrganization != null ? String(p.usageLimitPerOrganization) : '',
+      usagePerCustomer: p.usageLimitPerCustomer != null ? String(p.usageLimitPerCustomer) : '',
+    };
+    setDraft(loaded);
+    setSaved(loaded);
     return p;
   });
 
   // Resolve a legacy linked rule into an independent snapshot once the saved
-  // rule list is available.
+  // rule list is available. It is what the promotion already applies, not an
+  // edit, so the saved state takes it too.
   useEffect(() => {
     if (!pendingRuleId) return;
     const found = savedRules.find((r) => r.id === pendingRuleId);
     if (found) {
-      setRule(cloneRule(found.definition));
+      const resolved = cloneRule(found.definition);
+      setDraft((d) => ({ ...d, rule: resolved }));
+      setSaved((s) => ({ ...s, rule: resolved }));
       setPendingRuleId(null);
     }
   }, [pendingRuleId, savedRules]);
+
+  const dirty = !isDraftEqual(draft, saved);
 
   const intOrNull = (s: string): number | null => {
     const n = Number(s);
     return s.trim() === '' || !Number.isFinite(n) ? null : Math.trunc(n);
   };
 
+  /** Sends the draft; resolves whether it was stored. A refusal is said in the bar. */
+  const persist = useCallback(async (): Promise<boolean> => {
+    setError(null);
+    setSaving(true);
+    try {
+      const payload = {
+        name: draft.name,
+        description: draft.description.trim() === '' ? null : draft.description,
+        isActive: draft.isActive,
+        priority: draft.priority,
+        stopFurther: draft.stopFurther,
+        action: draft.action,
+        rule: draft.rule,
+        code: draft.code.trim() === '' ? null : draft.code,
+        usageLimitGlobal: intOrNull(draft.usageGlobal),
+        usageLimitPerOrganization: intOrNull(draft.usagePerOrg),
+        usageLimitPerCustomer: intOrNull(draft.usagePerCustomer),
+      };
+      if (isNew) await promotionsClient.create(payload);
+      else await promotionsClient.update(id, payload);
+      setSaved(draft);
+      return true;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.envelope.error.message : t('promotions.error.save'));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [draft, isNew, id, t]);
+
+  const guard = useUnsavedChangesGuard({
+    dirty,
+    onSave: persist,
+    onDiscard: () => setDraft(saved),
+  });
+
   const onSubmit = useCallback(
     async (e: FormEvent): Promise<void> => {
       e.preventDefault();
-      setError(null);
-      setSaving(true);
-      try {
-        const payload = {
-          name,
-          description: description.trim() === '' ? null : description,
-          isActive,
-          priority,
-          stopFurther,
-          action,
-          rule,
-          code: code.trim() === '' ? null : code,
-          usageLimitGlobal: intOrNull(usageGlobal),
-          usageLimitPerOrganization: intOrNull(usagePerOrg),
-          usageLimitPerCustomer: intOrNull(usagePerCustomer),
-        };
-        if (isNew) await promotionsClient.create(payload);
-        else await promotionsClient.update(id, payload);
-        navigate('/promotions');
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('promotions.error.save'));
-      } finally {
-        setSaving(false);
-      }
+      if (await persist()) navigate('/promotions');
     },
-    [
-      name, description, isActive, priority, stopFurther, action, rule, code,
-      usageGlobal, usagePerOrg, usagePerCustomer, isNew, id, navigate, t,
-    ],
+    [persist, navigate],
   );
+
+  /**
+   * Copies a saved rule into the promotion. Over a rule the operator built it
+   * asks first, because the copy replaces the whole rule (WCAG 3.3.4).
+   */
+  const copySavedRule = async (ruleId: string): Promise<void> => {
+    const found = savedRules.find((r) => r.id === ruleId);
+    if (!found) return;
+    if (!isEmptyPromotionRule(draft.rule)) {
+      const ok = await confirm({
+        title: t('promotions.edit.ruleCopyTitle'),
+        message: t('promotions.edit.ruleCopyMessage', { name: found.name }),
+        confirmLabel: t('promotions.edit.ruleCopyConfirm'),
+        destructive: true,
+      });
+      if (!ok) return;
+    }
+    patch({ rule: cloneRule(found.definition) });
+  };
 
   if (!isNew && resource.initialLoading) {
     return <DetailSkeleton label={t('promotions.loading')} tabs={false} />;
@@ -209,139 +286,136 @@ export const PromotionEditPage = (): ReactNode => {
       <PageHeader
         title={isNew ? t('promotions.edit.titleNew') : t('promotions.edit.titleEdit')}
       />
+      {/* Issue #1546 (SALES-23) — one card of four sections, all committed by the one Save
+          (Common Region); the Save ends the form and stays in view while it scrolls (Fitts). */}
       <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
         <Card>
-          <CardHeader>
-            <CardTitle>{t('promotions.edit.general')}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="name">{t('promotions.field.name')}</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="code">{t('promotions.field.code')}</Label>
-              <Input id="code" value={code} onChange={(e) => setCode(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1 md:col-span-2">
-              <Label htmlFor="description">{t('promotions.field.description')}</Label>
-              <Input id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="priority">{t('promotions.field.priority')}</Label>
-              <Input
-                id="priority"
-                type="number"
-                value={priority}
-                onChange={(e) => setPriority(Math.trunc(Number(e.target.value) || 0))}
-              />
-            </div>
-            <div className="flex items-center gap-4 pt-6">
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-                {t('promotions.field.active')}
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox checked={stopFurther} onChange={(e) => setStopFurther(e.target.checked)} />
-                {t('promotions.field.stopFurther')}
-              </label>
-            </div>
-          </CardContent>
-        </Card>
+          <CardContent className="space-y-(--section-gap)">
+            <EditorSection title={t('promotions.edit.general')} contentClassName="grid gap-4 md:grid-cols-2">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="name">{t('promotions.field.name')}</Label>
+                <Input id="name" value={draft.name} onChange={(e) => patch({ name: e.target.value })} required />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="code">{t('promotions.field.code')}</Label>
+                <Input id="code" value={draft.code} onChange={(e) => patch({ code: e.target.value })} />
+              </div>
+              <div className="flex flex-col gap-1 md:col-span-2">
+                <Label htmlFor="description">{t('promotions.field.description')}</Label>
+                <Input
+                  id="description"
+                  value={draft.description}
+                  onChange={(e) => patch({ description: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="priority">{t('promotions.field.priority')}</Label>
+                <Input
+                  id="priority"
+                  type="number"
+                  value={draft.priority}
+                  onChange={(e) => patch({ priority: Math.trunc(Number(e.target.value) || 0) })}
+                />
+              </div>
+              <div className="flex items-center gap-4 pt-6">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={draft.isActive} onChange={(e) => patch({ isActive: e.target.checked })} />
+                  {t('promotions.field.active')}
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={draft.stopFurther} onChange={(e) => patch({ stopFurther: e.target.checked })} />
+                  {t('promotions.field.stopFurther')}
+                </label>
+              </div>
+            </EditorSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('promotions.edit.action')}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <Label>{t('promotions.edit.actionType')}</Label>
-              <Select
-                className="w-72"
-                value={action.type}
-                onChange={(e) => setAction(defaultAction(e.target.value as PromotionActionType))}
-              >
-                {ACTION_TYPES.map((tpe) => (
-                  <option key={tpe} value={tpe}>
-                    {t(`action.${tpe}`)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <ActionConfigEditor action={action} onChange={setAction} />
-          </CardContent>
-        </Card>
+            <EditorSection title={t('promotions.edit.action')} contentClassName="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="actionType">{t('promotions.edit.actionType')}</Label>
+                <Select
+                  id="actionType"
+                  className="w-72"
+                  value={draft.action.type}
+                  onChange={(e) => patch({ action: defaultAction(e.target.value as PromotionActionType) })}
+                >
+                  {ACTION_TYPES.map((tpe) => (
+                    <option key={tpe} value={tpe}>
+                      {t(`action.${tpe}`)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <ActionConfigEditor action={draft.action} onChange={(action) => patch({ action })} />
+            </EditorSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('promotions.edit.rule')}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="ruleCopyFrom">{t('promotions.edit.ruleCopyFrom')}</Label>
-              <Select
-                id="ruleCopyFrom"
-                className="w-72"
-                value=""
-                disabled={savedRules.length === 0}
-                onChange={(e) => {
-                  const found = savedRules.find((r) => r.id === e.target.value);
-                  if (found) setRule(cloneRule(found.definition));
+            <EditorSection title={t('promotions.edit.rule')} contentClassName="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="ruleCopyFrom">{t('promotions.edit.ruleCopyFrom')}</Label>
+                <Select
+                  id="ruleCopyFrom"
+                  className="w-72"
+                  value=""
+                  disabled={savedRules.length === 0}
+                  aria-describedby="ruleCopyHint"
+                  onChange={(e) => void copySavedRule(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {savedRules.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </Select>
+                <p id="ruleCopyHint" className="text-xs text-muted-foreground">
+                  {t('promotions.edit.ruleCopyHint')}
+                </p>
+              </div>
+              <RuleBuilder
+                value={draft.rule}
+                onChange={(rule) => patch({ rule })}
+                attributeFields={attributeFields}
+                fieldOptions={fieldOptions}
+                // This screen has option sets too (payment and delivery methods),
+                // so it gets the same value picker — and its copy translated
+                // rather than the component's English fallback.
+                labels={{
+                  valuesPlaceholder: t('ruleBuilder.values.placeholder'),
+                  valuesLabel: t('ruleBuilder.values.label'),
+                  valuesSearchPlaceholder: t('ruleBuilder.values.search'),
                 }}
-              >
-                <option value="">—</option>
-                {savedRules.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-xs text-muted-foreground">{t('promotions.edit.ruleCopyHint')}</p>
-            </div>
-            <RuleBuilder
-              value={rule}
-              onChange={setRule}
-              attributeFields={attributeFields}
-              fieldOptions={fieldOptions}
-              // This screen has option sets too (payment and delivery methods),
-              // so it gets the same value picker — and its copy translated
-              // rather than the component's English fallback.
-              labels={{
-                valuesPlaceholder: t('ruleBuilder.values.placeholder'),
-                valuesLabel: t('ruleBuilder.values.label'),
-                valuesSearchPlaceholder: t('ruleBuilder.values.search'),
-              }}
-            />
-          </CardContent>
-        </Card>
+              />
+            </EditorSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('promotions.edit.limits')}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="ug">{t('limits.global')}</Label>
-              <Input id="ug" type="number" value={usageGlobal} onChange={(e) => setUsageGlobal(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="uo">{t('limits.perOrganization')}</Label>
-              <Input id="uo" type="number" value={usagePerOrg} onChange={(e) => setUsagePerOrg(e.target.value)} />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="uc">{t('limits.perCustomer')}</Label>
-              <Input id="uc" type="number" value={usagePerCustomer} onChange={(e) => setUsagePerCustomer(e.target.value)} />
-            </div>
+            <EditorSection title={t('promotions.edit.limits')} contentClassName="grid gap-4 md:grid-cols-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="ug">{t('limits.global')}</Label>
+                <Input id="ug" type="number" value={draft.usageGlobal} onChange={(e) => patch({ usageGlobal: e.target.value })} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="uo">{t('limits.perOrganization')}</Label>
+                <Input id="uo" type="number" value={draft.usagePerOrg} onChange={(e) => patch({ usagePerOrg: e.target.value })} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="uc">{t('limits.perCustomer')}</Label>
+                <Input
+                  id="uc"
+                  type="number"
+                  value={draft.usagePerCustomer}
+                  onChange={(e) => patch({ usagePerCustomer: e.target.value })}
+                />
+              </div>
+            </EditorSection>
           </CardContent>
         </Card>
 
         {/* Issue #1449 (DS-19) — the one Save ends the form and stays in view while it scrolls;
-            a refused save is said here, beside it. The Coupons card below saves on its own. */}
+            a refused save is said here, beside it. The coupons below write on their own. */}
         <StickyFormActions
           desktop="sticky"
+          dirty={dirty}
           error={error}
           secondary={
-            <Button type="button" variant="outline" onClick={() => { navigate('/promotions'); }}>
+            <Button type="button" variant="outline" onClick={() => guard.confirm(() => void navigate('/promotions'))}>
               {t('promotions.edit.cancel')}
             </Button>
           }
@@ -356,15 +430,16 @@ export const PromotionEditPage = (): ReactNode => {
       {!isNew && id ? (
         <CouponsSection promotionId={id} />
       ) : (
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>{t('promotions.coupons.title')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">{t('promotions.coupons.saveFirst')}</p>
-          </CardContent>
-        </Card>
+        // A promotion that does not exist yet has no coupons to manage: the heading says the
+        // section is there, one line says when it opens, and nothing invites a click.
+        <EditorSection
+          className="mt-4 text-muted-foreground"
+          title={t('promotions.coupons.title')}
+          description={t('promotions.coupons.saveFirst')}
+        />
       )}
+      {confirmDialog}
+      {guard.dialog}
     </>
   );
 };
@@ -476,11 +551,19 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
   };
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle>{t('promotions.coupons.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+    // Issue #1546 (SALES-23) — the coupons write at once, each as its own operation, so the
+    // section stands outside the form and its heading says so: the form's Save does not cover it.
+    <EditorSection
+      chrome="card"
+      className="mt-4"
+      title={
+        <>
+          {t('promotions.coupons.title')}
+          <ImmediateBadge />
+        </>
+      }
+      contentClassName="flex flex-col gap-3"
+    >
         {err ? (
           <Alert variant="destructive">
             <AlertDescription>{err}</AlertDescription>
@@ -553,7 +636,11 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
                     <TableCell>
                       <CouponCodeCell code={c.code} />
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{c.limitScope}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {c.limitScope === 'shared_batch'
+                        ? t('promotions.generator.scopeSharedBatch')
+                        : t('promotions.generator.scopePerCoupon')}
+                    </TableCell>
                     <TableCell>
                       <Badge variant={c.isActive ? 'success' : 'secondary'}>
                         {c.isActive
@@ -578,8 +665,24 @@ function CouponsSection({ promotionId }: { promotionId: string }): ReactNode {
             />
           </>
         )}
-      </CardContent>
-    </Card>
+    </EditorSection>
+  );
+}
+
+/** A labelled field of the action — the label is linked to its control and said in words. */
+function ActionField({
+  label,
+  children,
+}: {
+  label: string;
+  children: (id: string) => ReactNode;
+}): ReactNode {
+  const id = useId();
+  return (
+    <div className="flex flex-col gap-1">
+      <Label htmlFor={id}>{label}</Label>
+      {children(id)}
+    </div>
   );
 }
 
@@ -593,10 +696,9 @@ function NumberField({
   onChange: (n: number) => void;
 }): ReactNode {
   return (
-    <div className="flex flex-col gap-1">
-      <Label>{label}</Label>
-      <Input type="number" value={value} onChange={(e) => onChange(Number(e.target.value) || 0)} />
-    </div>
+    <ActionField label={label}>
+      {(id) => <Input id={id} type="number" value={value} onChange={(e) => onChange(Number(e.target.value) || 0)} />}
+    </ActionField>
   );
 }
 
@@ -609,81 +711,102 @@ function ActionConfigEditor({
 }): ReactNode {
   const t = useTranslation('core');
   const grid = 'grid gap-3 md:grid-cols-3';
+  const percent = t('promotions.actionField.percent');
+  const amount = t('promotions.actionField.amount');
+  const spendStep = t('promotions.actionField.spendStep');
+  const buyUnits = t('promotions.actionField.buyUnits');
   switch (action.type) {
     case 'free_delivery':
       return <p className="text-sm text-muted-foreground">{t('promotions.edit.noConfig')}</p>;
     case 'percentage_off_cart':
       return (
         <div className={grid}>
-          <NumberField label="percent" value={action.percent} onChange={(percent) => onChange({ ...action, percent })} />
+          <NumberField label={percent} value={action.percent} onChange={(v) => onChange({ ...action, percent: v })} />
         </div>
       );
     case 'amount_off_cart':
       return (
         <div className={grid}>
-          <NumberField label="amount" value={action.amount} onChange={(amount) => onChange({ ...action, amount })} />
+          <NumberField label={amount} value={action.amount} onChange={(v) => onChange({ ...action, amount: v })} />
           <CurrencyField value={action.currency} onChange={(currency) => onChange({ ...action, currency })} />
         </div>
       );
     case 'buy_x_get_y_free':
       return (
         <div className={grid}>
-          <NumberField label="buyQuantity" value={action.buyQuantity} onChange={(buyQuantity) => onChange({ ...action, buyQuantity })} />
-          <NumberField label="freeQuantity" value={action.freeQuantity} onChange={(freeQuantity) => onChange({ ...action, freeQuantity })} />
-          <div className="flex flex-col gap-1">
-            <Label>target</Label>
-            <Select value={action.target} onChange={(e) => onChange({ ...action, target: e.target.value as 'cheapest' | 'most_expensive' })}>
-              <option value="cheapest">cheapest</option>
-              <option value="most_expensive">most_expensive</option>
-            </Select>
-          </div>
+          <NumberField
+            label={t('promotions.actionField.buyQuantity')}
+            value={action.buyQuantity}
+            onChange={(buyQuantity) => onChange({ ...action, buyQuantity })}
+          />
+          <NumberField
+            label={t('promotions.actionField.freeQuantity')}
+            value={action.freeQuantity}
+            onChange={(freeQuantity) => onChange({ ...action, freeQuantity })}
+          />
+          <ActionField label={t('promotions.actionField.target')}>
+            {(id) => (
+              <Select
+                id={id}
+                value={action.target}
+                onChange={(e) => onChange({ ...action, target: e.target.value as 'cheapest' | 'most_expensive' })}
+              >
+                <option value="cheapest">{t('promotions.actionTarget.cheapest')}</option>
+                <option value="most_expensive">{t('promotions.actionTarget.most_expensive')}</option>
+              </Select>
+            )}
+          </ActionField>
         </div>
       );
     case 'spend_x_percent_off':
       return (
         <div className={grid}>
-          <NumberField label="spendStep" value={action.spendStep} onChange={(spendStep) => onChange({ ...action, spendStep })} />
-          <NumberField label="percent" value={action.percent} onChange={(percent) => onChange({ ...action, percent })} />
+          <NumberField label={spendStep} value={action.spendStep} onChange={(v) => onChange({ ...action, spendStep: v })} />
+          <NumberField label={percent} value={action.percent} onChange={(v) => onChange({ ...action, percent: v })} />
           <CurrencyField value={action.currency} onChange={(currency) => onChange({ ...action, currency })} />
         </div>
       );
     case 'spend_x_amount_off':
       return (
         <div className={grid}>
-          <NumberField label="spendStep" value={action.spendStep} onChange={(spendStep) => onChange({ ...action, spendStep })} />
-          <NumberField label="amount" value={action.amount} onChange={(amount) => onChange({ ...action, amount })} />
+          <NumberField label={spendStep} value={action.spendStep} onChange={(v) => onChange({ ...action, spendStep: v })} />
+          <NumberField label={amount} value={action.amount} onChange={(v) => onChange({ ...action, amount: v })} />
           <CurrencyField value={action.currency} onChange={(currency) => onChange({ ...action, currency })} />
         </div>
       );
     case 'every_nth_product_percent_off':
       return (
         <div className={grid}>
-          <NumberField label="nth" value={action.nth} onChange={(nth) => onChange({ ...action, nth })} />
-          <NumberField label="percent" value={action.percent} onChange={(percent) => onChange({ ...action, percent })} />
+          <NumberField label={t('promotions.actionField.nth')} value={action.nth} onChange={(nth) => onChange({ ...action, nth })} />
+          <NumberField label={percent} value={action.percent} onChange={(v) => onChange({ ...action, percent: v })} />
         </div>
       );
     case 'buy_x_units_y_free':
       return (
         <div className={grid}>
           <ProductIdField value={action.productId} onChange={(productId) => onChange({ ...action, productId })} />
-          <NumberField label="buyUnits" value={action.buyUnits} onChange={(buyUnits) => onChange({ ...action, buyUnits })} />
-          <NumberField label="freeUnits" value={action.freeUnits} onChange={(freeUnits) => onChange({ ...action, freeUnits })} />
+          <NumberField label={buyUnits} value={action.buyUnits} onChange={(v) => onChange({ ...action, buyUnits: v })} />
+          <NumberField
+            label={t('promotions.actionField.freeUnits')}
+            value={action.freeUnits}
+            onChange={(freeUnits) => onChange({ ...action, freeUnits })}
+          />
         </div>
       );
     case 'buy_x_units_percent_off':
       return (
         <div className={grid}>
           <ProductIdField value={action.productId} onChange={(productId) => onChange({ ...action, productId })} />
-          <NumberField label="buyUnits" value={action.buyUnits} onChange={(buyUnits) => onChange({ ...action, buyUnits })} />
-          <NumberField label="percent" value={action.percent} onChange={(percent) => onChange({ ...action, percent })} />
+          <NumberField label={buyUnits} value={action.buyUnits} onChange={(v) => onChange({ ...action, buyUnits: v })} />
+          <NumberField label={percent} value={action.percent} onChange={(v) => onChange({ ...action, percent: v })} />
         </div>
       );
     case 'buy_x_units_amount_off':
       return (
         <div className={grid}>
           <ProductIdField value={action.productId} onChange={(productId) => onChange({ ...action, productId })} />
-          <NumberField label="buyUnits" value={action.buyUnits} onChange={(buyUnits) => onChange({ ...action, buyUnits })} />
-          <NumberField label="amount" value={action.amount} onChange={(amount) => onChange({ ...action, amount })} />
+          <NumberField label={buyUnits} value={action.buyUnits} onChange={(v) => onChange({ ...action, buyUnits: v })} />
+          <NumberField label={amount} value={action.amount} onChange={(v) => onChange({ ...action, amount: v })} />
           <CurrencyField value={action.currency} onChange={(currency) => onChange({ ...action, currency })} />
         </div>
       );
@@ -691,20 +814,27 @@ function ActionConfigEditor({
 }
 
 function CurrencyField({ value, onChange }: { value: string; onChange: (v: string) => void }): ReactNode {
+  const t = useTranslation('core');
   return (
-    <div className="flex flex-col gap-1">
-      <Label>currency</Label>
-      <Input value={value} maxLength={3} onChange={(e) => onChange(e.target.value.toUpperCase())} />
-    </div>
+    <ActionField label={t('promotions.field.currency')}>
+      {(id) => <Input id={id} value={value} maxLength={3} onChange={(e) => onChange(e.target.value.toUpperCase())} />}
+    </ActionField>
   );
 }
 
 function ProductIdField({ value, onChange }: { value: string; onChange: (v: string) => void }): ReactNode {
+  const t = useTranslation('core');
   return (
-    <div className="flex flex-col gap-1">
-      <Label>productId</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="product UUID" />
-    </div>
+    <ActionField label={t('promotions.actionField.productId')}>
+      {(id) => (
+        <Input
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={t('promotions.actionField.productIdPlaceholder')}
+        />
+      )}
+    </ActionField>
   );
 }
 

@@ -1373,8 +1373,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // stale entry and reports the new one as a regression; both halves fired here
   // and both are the move, not a change to a single string.
   'packages/modules/product_feeds/src/admin/components/FeedDeliveryPanel.tsx': 1,
-  'packages/modules/promotions/src/admin/components/CouponGeneratorForm.tsx': 2,
-  'packages/modules/promotions/src/admin/pages/PromotionEditPage.tsx': 1,
   'packages/modules/promotions/src/admin/pages/PromotionStatsPage.tsx': 2,
   // Feature 091, Phase 4, the plan's batch 8 — five files, 30 findings, the
   // same counts under new keys. `delivery_methods`' list screen and four of
