@@ -28,7 +28,7 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-/** The screens #1492 names, migrated. Repo-relative. */
+/** The screens #1492 names, migrated, then the inventory and pwa modules' remaining screens. Repo-relative. */
 const MIGRATED = [
   'packages/modules/catalog/src/admin/components/ProductInventoryTab.tsx',
   'packages/modules/catalog/src/admin/components/PackagingUnitsEditor.tsx',
@@ -36,6 +36,12 @@ const MIGRATED = [
   'packages/modules/catalog/src/admin/pages/ProductEditor.tsx',
   'packages/modules/inventory/src/admin/pages/InventoryPage.tsx',
   'packages/modules/inventory/src/admin/zones/ChannelWarehouses.tsx',
+  'packages/modules/inventory/src/admin/pages/AvailabilityNotificationsPage.tsx',
+  'packages/modules/inventory/src/admin/pages/LowStockPage.tsx',
+  'packages/modules/inventory/src/admin/pages/StockImportWizard.tsx',
+  'packages/modules/inventory/src/admin/pages/WarehouseEditor.tsx',
+  'packages/modules/inventory/src/admin/pages/WarehousesList.tsx',
+  'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx',
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx',
 ] as const;
 
@@ -43,9 +49,10 @@ const MIGRATED = [
  * The legacy classes a kit primitive or a Tailwind utility replaces: `Button`,
  * `Card`, `Input` / `Select` / `Label` / `FormField`, `Table`, `Checkbox`, and
  * the layout and text helpers (`flex`, `gap-*`, `text-muted-foreground`,
- * `font-mono`, `tabular-nums`).
+ * `font-mono`, `tabular-nums`), the kit `ListToolbar` + `FilterChip` for a
+ * filter bar, and a Tailwind `grid` for a form grid.
  */
-const LEGACY = /\bb2b-(?:btn|card|field|input|input-wrap|label|help|row|col|grow|tbl|table|mono|muted|tabular|cbx|bulkbar|thumb|scrim|drawer)(?:--[a-z0-9-]+|__[a-z0-9-]+)?\b/g;
+const LEGACY = /\bb2b-(?:btn|card|field|input|input-wrap|label|help|row|col|grow|tbl|table|mono|muted|tabular|cbx|bulkbar|thumb|scrim|drawer|filterbar|filterchip|grid)(?:--[a-z0-9-]+|__[a-z0-9-]+)?\b/g;
 
 /** Screens that keep one named exception, with why. Two-way: a stale entry fails. */
 const EXCEPTIONS: Record<string, { pattern: RegExp; count: number; reason: string }[]> = {

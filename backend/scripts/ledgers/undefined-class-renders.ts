@@ -46,10 +46,6 @@ export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
   // -- a variant that does not exist ------------------------------------
   'packages/admin-kit/src/components/PaginationFooter.tsx::b2b-field--sm':
     'renders as an unmodified `b2b-field`; the design system defines no `--sm` size',
-  'packages/modules/inventory/src/admin/pages/AvailabilityNotificationsPage.tsx::b2b-badge--muted':
-    'renders as an unmodified `b2b-badge`; the neutral variant is `b2b-badge--neutral`',
-  'packages/modules/inventory/src/admin/pages/WarehousesList.tsx::b2b-badge--muted':
-    'the same missing variant',
   'packages/modules/product_feeds/src/admin/components/FeedLinkCard.tsx::b2b-btn--outline':
     'renders as an unmodified `b2b-btn`; the design system defines `--primary`, `--ghost` and `--danger`',
   'packages/modules/product_feeds/src/admin/pages/FeedRunDetailPage.tsx::b2b-btn--outline':
@@ -60,10 +56,6 @@ export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
     'no `b2b-input` block exists; the kit publishes `ui/input`',
   'packages/admin-shell/src/modules/profile/ProfilePage.tsx::b2b-grid':
     'no `b2b-grid` block exists; the tree lays out with Tailwind utilities',
-  'packages/modules/inventory/src/admin/pages/WarehouseEditor.tsx::b2b-grid':
-    'the same missing block',
-  'packages/modules/inventory/src/admin/pages/WarehouseEditor.tsx::b2b-grid--cols-3':
-    'a modifier of the same missing block',
   'packages/modules/product_feeds/src/admin/components/FeedLinkCard.tsx::b2b-code':
     'no `b2b-code` block exists; the deleted shim had an unprefixed `.code` and nothing replaced it',
   'packages/modules/product_feeds/src/admin/components/RunIssueGroups.tsx::b2b-code':

@@ -1003,18 +1003,8 @@ body,
 }
 .b2b-btn--ghost:hover { background: var(--surface-sunken); color: var(--fg); }
 
-.b2b-btn--danger {
-  background: var(--surface);
-  border-color: var(--border-strong);
-  color: var(--danger);
-  box-shadow: var(--sh-1);
-}
-.b2b-btn--danger:hover { background: var(--danger-soft); border-color: var(--danger); }
-
 .b2b-btn--sm { height: 28px; padding: 0 10px; font-size: 12px; border-radius: var(--r-xs); }
 .b2b-btn--lg { height: 40px; padding: 0 18px; font-size: 14px; }
-.b2b-btn--icon { width: var(--field-h); padding: 0; }
-.b2b-btn--sm.b2b-btn--icon { width: 28px; }
 
 /* ============================================================
    Field / Input
@@ -1042,7 +1032,6 @@ textarea.b2b-field {
   box-shadow: 0 0 0 3px var(--ring-color);
 }
 .b2b-field::placeholder { color: var(--fg-subtle); }
-.b2b-field--mono { font-family: var(--ff-mono); font-size: 12px; }
 .b2b-field--addon { padding-left: 32px; }
 
 .b2b-input-wrap { position: relative; }
@@ -1222,9 +1211,6 @@ textarea.b2b-field {
 .b2b-tbl tbody tr { transition: background .08s; }
 .b2b-tbl tbody tr:hover { background: var(--surface-muted); }
 .b2b-tbl tbody tr:last-child td { border-bottom: none; }
-.b2b-tbl tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.b2b-tbl thead th.num { text-align: right; }
-.b2b-tbl tbody td.actions { width: 1%; white-space: nowrap; }
 
 /* Empty state */
 .b2b-empty {
@@ -1541,10 +1527,8 @@ textarea.b2b-field {
    ============================================================ */
 .b2b-row { display: flex; align-items: center; gap: 12px; }
 .b2b-col { display: flex; flex-direction: column; gap: 8px; }
-.b2b-grow { flex: 1; }
 .b2b-muted { color: var(--fg-muted); }
 .b2b-mono { font-family: var(--ff-mono); }
-.b2b-tabular { font-variant-numeric: tabular-nums; }
 
 .b2b-thumb {
   border-radius: var(--r-sm);
