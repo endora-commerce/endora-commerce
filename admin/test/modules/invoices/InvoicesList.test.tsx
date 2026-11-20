@@ -150,10 +150,10 @@ describe('InvoicesList (issue #1664)', () => {
   it('tells "no invoices yet" apart from "nothing matches", and the second clears the filters', async () => {
     answerPages({});
     render();
-    expect(await screen.findByText(inv['list.emptyTitle']!)).toBeInTheDocument();
+    expect(await screen.findByText(core['invoices.emptyState.title']!)).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText(core['invoices.fields.kind']!), 'wz');
-    expect(await screen.findByText(inv['list.emptyFiltered']!)).toBeInTheDocument();
-    const results = screen.getByText(inv['list.emptyFiltered']!).closest<HTMLElement>('[data-slot="card"]')!;
+    expect(await screen.findByText(core['invoices.empty']!)).toBeInTheDocument();
+    const results = screen.getByText(core['invoices.empty']!).closest<HTMLElement>('[data-slot="card"]')!;
     await userEvent.click(within(results).getByRole('button', { name: core['common.emptyState.clearFilters']! }));
     await waitFor(() => expect(listCalls().at(-1)!.get('filter[kind]')).toBeNull());
   });
@@ -204,6 +204,6 @@ describe('InvoicesList (issue #1664)', () => {
       pl,
       { language: 'pl' },
     );
-    expect(await screen.findByText(pl.invoices!['list.emptyTitle']!)).toBeInTheDocument();
+    expect(await screen.findByText(pl.core!['invoices.emptyState.title']!)).toBeInTheDocument();
   });
 });

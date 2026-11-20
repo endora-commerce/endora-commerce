@@ -13,6 +13,8 @@
   "list.filter.createdAfter": "Utworzone po",
   "list.filter.createdBefore": "Utworzone przed",
   "list.empty": "Żadne porównanie nie pasuje do filtrów.",
+  "list.emptyState.title": "Nie ma jeszcze porównań",
+  "list.emptyState.body": "Porównania pojawiają się tutaj, gdy klienci utworzą je w sklepie.",
   "list.column.owner": "Właściciel",
   "list.column.salesChannel": "Kanał sprzedaży",
   "list.column.mode": "Tryb",

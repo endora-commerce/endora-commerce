@@ -264,7 +264,7 @@ export function InvoicesList(): ReactNode {
           search={
             <ListToolbarSearch
               ref={searchRef}
-              label={ti('list.search.label')}
+              label={t('invoices.fields.orderNumber')}
               placeholder={t('invoices.filters.orderNumberPlaceholder')}
               value={orderNumber}
               onValueChange={change(setOrderNumber)}
@@ -372,16 +372,22 @@ export function InvoicesList(): ReactNode {
         data={rows}
         keyExtractor={(i) => i.id}
         columns={columns}
+        // "No invoices yet" and "these filters match nothing" are two situations (#1448,
+        // DS-15). Invoices are issued from orders, so the no-data state offers no create action.
         emptyState={
           resultsFiltered ? (
             <EmptyState
               variant="no-results"
-              title={ti('list.emptyFiltered')}
+              title={t('invoices.empty')}
               onClearFilters={clearAllFilters}
               focusAfterClear={searchRef}
             />
           ) : (
-            <EmptyState icon={<FileText size={20} />} title={ti('list.emptyTitle')} description={ti('list.empty')} />
+            <EmptyState
+              icon={<FileText size={20} />}
+              title={t('invoices.emptyState.title')}
+              description={t('invoices.emptyState.body')}
+            />
           )
         }
         // The number is the way in; the menu holds the document's own actions.

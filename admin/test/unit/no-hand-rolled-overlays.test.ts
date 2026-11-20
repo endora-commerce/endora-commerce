@@ -11,8 +11,11 @@
  * own. `useConfirmDialog` / `ConfirmDialog` are the yes/no form of it.
  *
  * The population is every non-test `.ts` / `.tsx` source of the admin SPA, the
- * shell, the kit, the page-builder chrome, and every module's `src/admin/` and
- * `src/admin-ui/`.
+ * shell, the kit, the page-builder chrome, every module's `src/admin/` and
+ * `src/admin-ui/`, and `@endora-commerce/cms-components` (issue #1652). The
+ * last ships to the storefront and so cannot use the kit: its one dialog is its
+ * own `CmsModalDialog`, which keeps the same contract, and its Tailwind classes
+ * carry the `cmsc:` prefix, which the scan reads through.
  *
  * `LEDGER` is a two-way ledger, per file and shape: an unlisted finding fails,
  * and so does an entry whose count no longer matches the file — so a migration
@@ -89,10 +92,21 @@ const LEDGER: Record<string, { shapes: Partial<Record<OverlayShape, number>>; re
     reason: ACTION_BAR,
   },
   'packages/page-builder-admin/src/email/EmailEditorPane.tsx': { shapes: { 'fixed-inset': 1 }, reason: FULLSCREEN },
+  // The storefront-safe primitive (#1652): the panel scrim and the full-screen scrim are two literals.
+  'packages/cms-components/src/components/CmsModalDialog.tsx': {
+    shapes: { 'fixed-inset': 2, 'create-portal': 1, 'role-dialog': 1 },
+    reason: 'the one modal dialog of cms-components, which cannot depend on the admin kit',
+  },
 };
 
 function roots(): string[] {
-  const fixed = ['admin/src', 'packages/admin-shell/src', 'packages/admin-kit/src', 'packages/page-builder-admin/src'];
+  const fixed = [
+    'admin/src',
+    'packages/admin-shell/src',
+    'packages/admin-kit/src',
+    'packages/page-builder-admin/src',
+    'packages/cms-components/src',
+  ];
   const modules = readdirSync(path.join(repoRoot, 'packages/modules')).flatMap((id) =>
     [`packages/modules/${id}/src/admin`, `packages/modules/${id}/src/admin-ui`].filter((dir) =>
       existsSync(path.join(repoRoot, dir)),
@@ -114,8 +128,11 @@ function walk(dir: string): string[] {
   return out;
 }
 
+/** The `cmsc:` prefix of `@endora-commerce/cms-components`' Tailwind classes. */
+const CLASS_PREFIX = /^cmsc:/;
+
 function hasFixedInset(text: string): boolean {
-  const tokens = text.split(/\s+/);
+  const tokens = text.split(/\s+/).map((token) => token.replace(CLASS_PREFIX, ''));
   return tokens.includes('fixed') && tokens.includes('inset-0');
 }
 
@@ -186,10 +203,11 @@ function sameCounts(a: Partial<Record<OverlayShape, number>>, b: Partial<Record<
   return [...keys].every((key) => (a[key] ?? 0) === (b[key] ?? 0));
 }
 
-describe('no hand-rolled overlays in the admin (#1444, DS-11)', () => {
+describe('no hand-rolled overlays in the admin (#1444, DS-11) or cms-components (#1652)', () => {
   it('recognises the shapes it is meant to refuse', () => {
     const shapes = (source: string): OverlayShape[] => overlayFindings('a.tsx', source).map((f) => f.shape);
     expect(shapes(`<div className="fixed inset-0 z-50 bg-black/40" />`)).toEqual(['fixed-inset']);
+    expect(shapes(`<div className="cmsc:fixed cmsc:inset-0 cmsc:z-[2147483001]" />`)).toEqual(['fixed-inset']);
     expect(shapes('<div className={`fixed inset-0 ${open ? "z-50" : ""}`} />')).toEqual(['fixed-inset']);
     expect(shapes(`cn('space-y-3', full && 'fixed inset-0 z-50')`)).toEqual(['fixed-inset']);
     expect(shapes(`const S = { position: 'fixed', inset: 0 };`)).toEqual(['position-fixed']);
@@ -200,6 +218,7 @@ describe('no hand-rolled overlays in the admin (#1444, DS-11)', () => {
   it('leaves what is not an overlay alone', () => {
     const shapes = (source: string): OverlayShape[] => overlayFindings('a.tsx', source).map((f) => f.shape);
     expect(shapes(`<div className="fixed inset-x-0 bottom-0 z-40" />`)).toEqual([]);
+    expect(shapes(`<div className="cmsc:fixed cmsc:inset-x-0 cmsc:bottom-0" />`)).toEqual([]);
     expect(shapes(`<div className="sticky top-0" role="region" />`)).toEqual([]);
     expect(shapes(`<button aria-haspopup="dialog" />`)).toEqual([]);
     expect(shapes(`const width = { mode: 'fixed' };`)).toEqual([]);

@@ -1,4 +1,4 @@
-import { useId, useMemo, type ReactNode } from 'react';
+import { useId, useMemo, type ReactNode, type RefObject } from 'react';
 import { Columns3 } from 'lucide-react';
 import { ReorderAnnouncer, type ReorderLabels, useReorderList } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -34,6 +34,10 @@ export interface TemplateFieldListProps {
   onDuplicate: (fieldId: string) => void;
   /** Free-text filter. While it is non-empty, reordering is off (§3.5). */
   search: string;
+  /** Empties `search` — the no-results empty state's *Clear filters* (#1448). */
+  onClearSearch: () => void;
+  /** The search box, where focus returns after *Clear filters* (WCAG 2.2 SC 2.4.3). */
+  searchRef?: RefObject<HTMLInputElement | null>;
   preview: TemplatePreview | null;
   previewLoading?: boolean;
   problems: Record<string, FieldProblem[]>;
@@ -52,6 +56,8 @@ export function TemplateFieldList(props: TemplateFieldListProps): ReactNode {
     onSelect,
     onChange,
     search,
+    onClearSearch,
+    searchRef,
     preview,
     previewLoading = false,
     problems,
@@ -122,9 +128,12 @@ export function TemplateFieldList(props: TemplateFieldListProps): ReactNode {
       {fields.length === 0 ? (
         <EmptyState icon={<Columns3 size={20} />} title={t('builder.empty.title')} description={t('builder.empty.subtitle')} />
       ) : visible.length === 0 ? (
-        <div className="b2b-empty">
-          <p className="b2b-empty__sub">{t('builder.empty.filtered')}</p>
-        </div>
+        <EmptyState
+          variant="no-results"
+          title={t('builder.empty.filtered')}
+          onClearFilters={onClearSearch}
+          {...(searchRef ? { focusAfterClear: searchRef } : {})}
+        />
       ) : (
         <ul role="list" aria-label={t('builder.list.ariaLabel')} className="rounded-md border border-border">
           {visible.map((field) => {

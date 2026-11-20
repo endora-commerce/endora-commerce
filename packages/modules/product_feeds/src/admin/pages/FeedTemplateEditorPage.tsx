@@ -84,6 +84,7 @@ export function FeedTemplateEditorPage(): ReactNode {
   const [catalogue, setCatalogue] = useState<FeedFieldSourceCatalogue | null>(null);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
   /**
    * The import flow lands here with the needs-attention filter already on
    * (ux-design §2.9, step 3): the fields it could not bind are the operator's
@@ -564,7 +565,9 @@ export function FeedTemplateEditorPage(): ReactNode {
             <span className="b2b-input-wrap ml-auto">
               <Search size={14} className="lead" aria-hidden="true" />
               <Input
+                ref={searchRef}
                 className="h-8"
+                aria-label={t('builder.search')}
                 placeholder={t('builder.search')}
                 value={search}
                 onChange={(event): void => setSearch(event.target.value)}
@@ -593,6 +596,8 @@ export function FeedTemplateEditorPage(): ReactNode {
             onRemove={removeField}
             onDuplicate={duplicateField}
             search={search}
+            onClearSearch={(): void => setSearch('')}
+            searchRef={searchRef}
             preview={preview}
             previewLoading={previewLoading}
             problems={problemMap}

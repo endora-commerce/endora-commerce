@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Scale } from 'lucide-react';
 import { scopeNoticeOf, type ComparisonAdminListItem, type ScopeNoticeCode } from '@endora-commerce/contracts';
 import { ApiError, useAuth, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -11,6 +11,7 @@ import {
   Button,
   Card,
   CardContent,
+  EmptyState,
   Input,
   Label,
   PageHeader,
@@ -49,6 +50,15 @@ export default function ComparisonsListPage(): ReactNode {
   const [ownerType, setOwnerType] = useState<'' | 'customer' | 'anonymous'>('');
   const [createdAfter, setCreatedAfter] = useState('');
   const [createdBefore, setCreatedBefore] = useState('');
+  const filtered = Boolean(salesChannelId || ownerType || createdAfter || createdBefore);
+  // Where focus returns after the empty state's "Clear filters" (WCAG 2.2 SC 2.4.3).
+  const firstFilterRef = useRef<HTMLSelectElement>(null);
+  const clearFilters = (): void => {
+    setSalesChannelId('');
+    setOwnerType('');
+    setCreatedAfter('');
+    setCreatedBefore('');
+  };
 
   const refresh = useCallback(
     async (cursor?: string): Promise<void> => {
@@ -118,6 +128,7 @@ export default function ComparisonsListPage(): ReactNode {
             <div className="space-y-2">
               <Label htmlFor="owner-type">{t('list.filter.owner')}</Label>
               <Select
+                ref={firstFilterRef}
                 id="owner-type"
                 value={ownerType}
                 onChange={(e): void =>
@@ -156,10 +167,25 @@ export default function ComparisonsListPage(): ReactNode {
           {loading && rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
           ) : rows.length === 0 ? (
+            // The server's scope notice says why first (feature 087);
+            // otherwise "none generated yet" and "none match these filters"
+            // are two situations (#1448, DS-15). Comparisons are made on the
+            // storefront, so the no-data state offers no action.
             scopeNotice ? (
               <ScopeNotice notice={scopeNotice} />
+            ) : filtered ? (
+              <EmptyState
+                variant="no-results"
+                title={t('list.empty')}
+                onClearFilters={clearFilters}
+                focusAfterClear={firstFilterRef}
+              />
             ) : (
-              <p className="text-sm text-muted-foreground">{t('list.empty')}</p>
+              <EmptyState
+                icon={<Scale size={20} />}
+                title={t('list.emptyState.title')}
+                description={t('list.emptyState.body')}
+              />
             )
           ) : (
             <>
