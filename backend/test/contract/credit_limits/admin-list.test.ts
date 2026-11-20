@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { creditLimitListResponseSchema, creditLimitViewSchema } from '@endora-commerce/contracts';
 import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+import { Organization } from '../../helpers/package-entities.js';
 
 /**
  * T218 — `GET /api/v1/admin/credit-limits` lists every granted credit
@@ -79,10 +80,21 @@ describe('GET /api/v1/admin/credit-limits', () => {
 
   it('pages the list newest first, with the total across every page (issue #1664)', async () => {
     const cookies = { b2b_session: 'stub-admin-session' };
-    for (const suffix of ['b1', 'b2', 'b3']) {
+    const em = h.em();
+    const orgs = ['A', 'B', 'C'].map((label, i) =>
+      em.create(Organization, {
+        name: `1664 ${label} Org`,
+        taxId: `PL1664${i}${Date.now().toString().slice(-6)}`,
+        status: 'active' as const,
+        vatStatus: 'vat_payer' as const,
+        registeredAddress: { street: 'ul. Testowa 1', city: 'Warszawa', postalCode: '00-100', country: 'PL' },
+      }),
+    );
+    await em.persistAndFlush(orgs);
+    for (const org of orgs) {
       const grant = await h.app.inject({
         method: 'POST',
-        url: `/api/v1/admin/organizations/00000000-0000-4000-8000-0000000000${suffix}/credit-limit`,
+        url: `/api/v1/admin/organizations/${org.id}/credit-limit`,
         cookies,
         payload: { grantedAmount: 1000, currency: 'PLN' },
       });
@@ -101,7 +113,7 @@ describe('GET /api/v1/admin/credit-limits', () => {
     expect((whole.json() as { meta: unknown }).meta).toEqual({ page: 1, pageSize: total, total });
     expect(disagreements(strictList, whole.json())).toEqual([]);
     // Newest first: the last grant leads.
-    expect(all[0]).toBe('00000000-0000-4000-8000-0000000000b3');
+    expect(all[0]).toBe(orgs[2]!.id);
 
     const first = await h.app.inject({ method: 'GET', url: '/api/v1/admin/credit-limits?page=1&pageSize=2', cookies });
     expect(first.statusCode).toBe(200);

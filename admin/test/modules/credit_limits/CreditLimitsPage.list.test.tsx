@@ -45,10 +45,16 @@ vi.mock('@endora-commerce/admin-kit/components', async () => {
   );
   return {
     ...actual,
-    OrganizationPicker: ({ onChange, id }: { onChange: (v: string | null) => void; id?: string }) => (
-      <button id={id} type="button" onClick={() => onChange(NEW_ORG)}>
+    OrganizationPicker: ({ onChange }: { onChange: (v: string | null) => void }) => (
+      <button type="button" onClick={() => onChange(NEW_ORG)}>
         pick organization
       </button>
+    ),
+    // The currency dictionary is another module's read; one currency is enough here.
+    CurrencyPicker: (props: Record<string, unknown>) => (
+      <select {...props}>
+        <option value="PLN">PLN</option>
+      </select>
     ),
   };
 });
@@ -58,6 +64,8 @@ const { CreditLimitsPage } = await import('../../../../packages/modules/credit_l
 const BUNDLE = { ...shippedCoreBundle('en'), ...shippedModuleBundle('credit_limits', 'en') };
 const core = BUNDLE.core!;
 const cl = BUNDLE.credit_limits!;
+
+const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const fill = (template: string, values: Record<string, string | number>): string =>
   Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, String(value)), template);
@@ -178,7 +186,7 @@ describe('CreditLimitsPage (issue #1664)', () => {
       'href',
       '/orders/00000000-0000-4000-8000-0000000000c1',
     );
-    const amount = within(dialog).getByLabelText(fill(core['creditLimits.field.newGranted']!, { currency: 'PLN' }));
+    const amount = within(dialog).getByRole('spinbutton', { name: new RegExp(escape(fill(core['creditLimits.field.newGranted']!, { currency: 'PLN' }))) });
     await userEvent.clear(amount);
     await userEvent.type(amount, '2000');
     await userEvent.click(within(dialog).getByRole('button', { name: core['creditLimits.action.saveAdjust']! }));
@@ -211,12 +219,12 @@ describe('CreditLimitsPage (issue #1664)', () => {
     api.post.mockResolvedValue({ data: limit(99) });
     render();
     const header = screen.getByRole('heading', { level: 1, name: core['creditLimits.page.title']! }).closest('header')!;
-    await userEvent.click(within(header).getByRole('button', { name: cl['list.grant']! }));
+    await userEvent.click(await within(header).findByRole('button', { name: cl['list.grant']! }));
     const dialog = await screen.findByRole('dialog', { name: cl['list.grant']! });
     expect(within(dialog).queryByRole('button', { name: core['creditLimits.action.grant']! })).toBeNull();
     await userEvent.click(within(dialog).getByRole('button', { name: 'pick organization' }));
     expect(await within(dialog).findByText(core['creditLimits.grant.notGrantedYet']!)).toBeInTheDocument();
-    const amount = within(dialog).getByLabelText(core['creditLimits.field.grantedAmount']!);
+    const amount = within(dialog).getByRole('spinbutton', { name: new RegExp(escape(core['creditLimits.field.grantedAmount']!)) });
     await userEvent.clear(amount);
     await userEvent.type(amount, '7500');
     await userEvent.click(within(dialog).getByRole('button', { name: core['creditLimits.action.grant']! }));
@@ -238,11 +246,11 @@ describe('CreditLimitsPage (issue #1664)', () => {
     render();
     await screen.findByText('Fresh Org');
     const header = screen.getByRole('heading', { level: 1 }).closest('header')!;
-    await userEvent.click(within(header).getByRole('button', { name: cl['list.grant']! }));
+    await userEvent.click(await within(header).findByRole('button', { name: cl['list.grant']! }));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'pick organization' }));
     expect(
-      await within(dialog).findByLabelText(fill(core['creditLimits.field.newGranted']!, { currency: 'PLN' })),
+      await within(dialog).findByRole('spinbutton', { name: new RegExp(escape(fill(core['creditLimits.field.newGranted']!, { currency: 'PLN' }))) }),
     ).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: core['creditLimits.action.saveAdjust']! })).toBeInTheDocument();
   });

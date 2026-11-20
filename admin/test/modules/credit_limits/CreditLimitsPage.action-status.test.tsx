@@ -133,6 +133,7 @@ beforeEach(() => {
 describe('CreditLimitsPage — the result beside the list, not a banner (#1499)', () => {
   it('says the grant in a region mounted before it, which outlives the dialog', async () => {
     mount();
+    await screen.findByText('credit_limits.list.emptyTitle');
     const region = resultRegion();
     expect(region.textContent).toBe('');
     const dialog = await grantFor('pick-acme');

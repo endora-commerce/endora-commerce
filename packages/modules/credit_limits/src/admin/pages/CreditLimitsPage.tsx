@@ -162,7 +162,9 @@ export function CreditLimitsPage(): ReactNode {
       <ListPage
         title={t('creditLimits.page.title')}
         // While the list is empty, the empty state's Grant is the view's one primary (kit README).
-        actions={load.kind === 'ready' && total === 0 ? null : grantButton}
+        // `total` is the last answer's, so the header does not flash Grant before the first one
+        // arrives, nor drop it while a further page loads; a load error keeps it reachable.
+        actions={total === 0 && load.kind !== 'error' ? null : grantButton}
         load={load}
         onRetry={(): void => void refresh()}
         count={tc('list.count', { count: total })}
