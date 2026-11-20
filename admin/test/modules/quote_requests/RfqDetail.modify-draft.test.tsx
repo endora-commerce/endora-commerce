@@ -77,7 +77,7 @@ describe('RfqDetail — the Modify draft (issue #1469)', () => {
     renderRfqDetail(RfqDetail, 'en', DRAFT_BUNDLE);
     await userEvent.click(await screen.findByRole('tab', { name: /rfq\.detail\.tabs\.modify/ }));
     await screen.findByRole('spinbutton', { name: 'rfq.detail.modify.agreedUnitPrice' });
-    expect(screen.queryByTestId('rfq-modify-unsaved-dot')).toBeNull();
+    expect(screen.queryByTestId('tab-unsaved-dot')).toBeNull();
     expect(screen.queryByText('rfq.detail.modify.unsaved.blocked')).toBeNull();
     expect((screen.getByRole('button', { name: /rfq\.detail\.approve/ }) as HTMLButtonElement).disabled).toBe(false);
   });
@@ -92,7 +92,7 @@ describe('RfqDetail — the Modify draft (issue #1469)', () => {
 
   it('marks the Modify tab, in words as well as with a dot', async () => {
     await openModifyAndEdit();
-    expect(screen.getByTestId('rfq-modify-unsaved-dot')).toBeTruthy();
+    expect(screen.getByTestId('tab-unsaved-dot')).toBeTruthy();
     expect(tab(/rfq\.detail\.tabs\.modify/).textContent).toContain('rfq.detail.tabs.modifyUnsaved');
   });
 

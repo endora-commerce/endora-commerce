@@ -11,8 +11,8 @@ import {
   RotateCcw,
   Truck,
 } from 'lucide-react';
-import { ApiError, apiBaseUrl, apiClient, cn, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useDetailResource, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, FormField, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { ApiError, apiBaseUrl, apiClient, formatDateTime, formatMoney, issueInvoiceNotice, readReturnTo, statusBadgeStyle, useAuth, useDetailResource, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, DetailSkeleton, FormField, PageHeader, RecordTabs, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Section, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { CustomFieldValuesPanel, DetailHeaderActions, RowActionMenuItem, StatusChangeControl, resolveCustomFieldLabel } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -605,45 +605,28 @@ export function OrderDetail(): ReactNode {
 
       <OrderPendingEffectsNotice pendingEffects={order.pendingEffects} />
 
-      <Card className="mb-4 overflow-hidden" {...resource.busyProps}>
-        <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
-          <div className="b2b-tabs-scroll">
-            <div className="b2b-tabs" role="tablist">
-              <TabBtn
-                id="overview"
-                label={t('orderDetail.tabs.overview')}
-                icon={<ClipboardList size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-              {paymentContributions.length > 0 ? (
-                <TabBtn
-                  id="payment"
-                  label={t('orderDetail.tabs.payment')}
-                  icon={<CreditCard size={14} />}
-                  active={tab}
-                  onChange={setTab}
-                />
-              ) : null}
-              <TabBtn
-                id="delivery"
-                label={t('orderDetail.tabs.delivery')}
-                icon={<Truck size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-              <TabBtn
-                id="comments"
-                label={t('orderDetail.tabs.comments')}
-                icon={<MessageSquare size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-            </div>
-          </div>
-        </div>
-
-        <CardContent className="divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+      {/* Issue #1445 (DS-12) — the kit's record tabs: one tab in the tab order,
+          ←/→/Home/End, every tab controlling the one panel. Payment is a tab
+          only while something fills it (Z15), so it is left out, not disabled. */}
+      <RecordTabs
+        className="mb-4 overflow-hidden"
+        items={[
+          { value: 'overview', label: t('orderDetail.tabs.overview'), icon: <ClipboardList /> },
+          ...(paymentContributions.length > 0
+            ? [{ value: 'payment' as const, label: t('orderDetail.tabs.payment'), icon: <CreditCard /> }]
+            : []),
+          { value: 'delivery', label: t('orderDetail.tabs.delivery'), icon: <Truck /> },
+          { value: 'comments', label: t('orderDetail.tabs.comments'), icon: <MessageSquare /> },
+        ]}
+        value={tab}
+        onValueChange={setTab}
+        idBase="order-detail"
+        aria-label={tOrders('detail.tabs.label')}
+        panelProps={{
+          ...resource.busyProps,
+          className: 'divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0',
+        }}
+      >
           {tab === 'overview' ? (
             <>
               <Section title={t('orderDetail.sections.status')}>
@@ -1000,8 +983,7 @@ export function OrderDetail(): ReactNode {
               </div>
             </Section>
           ) : null}
-        </CardContent>
-      </Card>
+      </RecordTabs>
 
       {/* The panels other modules add to an order, below the tab panels so they
           are there whichever tab is open. No chrome around the zone: at page
@@ -1010,27 +992,6 @@ export function OrderDetail(): ReactNode {
           exactly the one above. */}
       <AdminZone name="order.detail.after" props={{ orderId: id }} chrome="card" />
     </>
-  );
-}
-
-function TabBtn(props: {
-  id: OrderTab;
-  label: string;
-  icon: ReactNode;
-  active: OrderTab;
-  onChange: (id: OrderTab) => void;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={props.active === props.id}
-      className={cn('b2b-tab', props.active === props.id && 'is-active')}
-      onClick={(): void => props.onChange(props.id)}
-    >
-      {props.icon}
-      {props.label}
-    </button>
   );
 }
 
