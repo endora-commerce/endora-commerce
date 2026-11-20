@@ -618,7 +618,9 @@ export function OrderDetail(): ReactNode {
             ? [{ value: 'payment' as const, label: t('orderDetail.tabs.payment'), icon: <CreditCard /> }]
             : []),
           { value: 'delivery', label: t('orderDetail.tabs.delivery'), icon: <Truck /> },
-          { value: 'comments', label: t('orderDetail.tabs.comments'), icon: <MessageSquare /> },
+          // Issue #1545 (SALES-21) — the tab says how much it holds, so an order
+          // with a conversation is told apart from one without before opening it.
+          { value: 'comments', label: t('orderDetail.tabs.comments'), icon: <MessageSquare />, count: comments.length },
         ]}
         value={tab}
         onValueChange={setTab}
@@ -631,161 +633,9 @@ export function OrderDetail(): ReactNode {
       >
           {tab === 'overview' ? (
             <>
-              <Section title={t('orderDetail.sections.status')}>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <StatusChangeControl
-                    label={t('orderDetail.fields.orderStatus')}
-                    dialogTitle={t('orderDetail.statusChange.orderTitle')}
-                    current={order.status}
-                    currentLabel={statusName(graph, order.status, language)}
-                    badgeStyle={statusBadgeStyle(statusColor(graph, order.status))}
-                    options={orderStatusTargets(graph, order.status).map((code) => ({
-                      value: code,
-                      label: statusName(graph, code, language),
-                    }))}
-                    onConfirm={handleStatus}
-                    consequence={(): string => t('orderDetail.statusChange.orderConsequence')}
-                    errorMessage={(err): string =>
-                      err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.statusChange')
-                    }
-                    disabledReason={canWrite ? undefined : t('orderDetail.statusChange.noPermission')}
-                  />
-                  <StatusChangeControl
-                    label={t('orderDetail.fields.paymentStatus')}
-                    dialogTitle={t('orderDetail.statusChange.paymentTitle')}
-                    current={order.paymentStatus}
-                    currentLabel={t(paymentStatusLabelKey(order.paymentStatus))}
-                    options={paymentStatusTargets(order.paymentStatus).map((code) => ({
-                      value: code,
-                      label: t(paymentStatusLabelKey(code)),
-                    }))}
-                    onConfirm={handlePaymentStatus}
-                    consequence={(to): string => t(paymentStatusConsequenceKey(to))}
-                    errorMessage={(err): string =>
-                      err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.paymentChange')
-                    }
-                    disabledReason={canWrite ? undefined : t('orderDetail.statusChange.noPermission')}
-                  />
-                </div>
-              </Section>
-
-              <OrderExternalReferences references={order.externalReferences} />
-
-              <div className="grid gap-6 md:grid-cols-2">
-                <Section title={t('orderDetail.sections.organization')}>
-                  {order.organization ? (
-                    <div className="space-y-1 text-sm">
-                      <p className="font-medium">{order.organization.name}</p>
-                      {order.organization.legalName &&
-                      order.organization.legalName !== order.organization.name ? (
-                        <p className="text-muted-foreground">{order.organization.legalName}</p>
-                      ) : null}
-                      {order.organization.isPersonal ? (
-                        <p className="text-muted-foreground">{t('orderDetail.org.individualCustomer')}</p>
-                      ) : order.organization.taxId ? (
-                        <p className="text-muted-foreground">
-                          {t('orderDetail.org.taxId')}: <strong>{order.organization.taxId}</strong>
-                        </p>
-                      ) : null}
-                      <p className="text-muted-foreground">
-                        {t('orderDetail.org.vat')}:{' '}
-                        {t(`orderDetail.vatStatus.${order.organization.vatStatus}`)}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{t('orderDetail.org.unavailable')}</p>
-                  )}
-                </Section>
-                <Section title={t('orderDetail.sections.customer')}>
-                  {order.customer ? (
-                    <div className="space-y-1 text-sm">
-                      <p className="font-medium">
-                        {`${order.customer.firstName} ${order.customer.lastName}`.trim() ||
-                          order.customer.email}
-                      </p>
-                      <p className="text-muted-foreground">
-                        <a className="underline underline-offset-2" href={`mailto:${order.customer.email}`}>
-                          {order.customer.email}
-                        </a>
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{t('orderDetail.customer.unavailable')}</p>
-                  )}
-                </Section>
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-2">
-                <Section title={t('orderDetail.sections.delivery')}>
-                  <div className="space-y-2 text-sm">
-                    <p>
-                      {order.deliveryAddress.recipientName ? (
-                        <>
-                          <strong>{order.deliveryAddress.recipientName}</strong>
-                          <br />
-                        </>
-                      ) : null}
-                      {order.deliveryAddress.street}
-                      <br />
-                      {order.deliveryAddress.postalCode} {order.deliveryAddress.city}
-                      <br />
-                      {order.deliveryAddress.country}
-                    </p>
-                    <p className="text-muted-foreground">
-                      {t('orderDetail.deliveryVia')} <strong>{methodName(order.deliveryMethod, language)}</strong>
-                    </p>
-                  </div>
-                </Section>
-                <Section title={t('orderDetail.sections.billing')}>
-                  <div className="space-y-2 text-sm">
-                    <p>
-                      {order.billingAddress.companyName ? (
-                        <>
-                          <strong>{order.billingAddress.companyName}</strong>
-                          <br />
-                        </>
-                      ) : null}
-                      {order.billingAddress.taxId ? (
-                        <>
-                          {t('orderDetail.taxId')}: {order.billingAddress.taxId}
-                          <br />
-                        </>
-                      ) : null}
-                      {order.billingAddress.recipientName ? (
-                        <>
-                          {order.billingAddress.recipientName}
-                          <br />
-                        </>
-                      ) : null}
-                      {order.billingAddress.street}
-                      <br />
-                      {order.billingAddress.postalCode} {order.billingAddress.city}
-                      <br />
-                      {order.billingAddress.country}
-                    </p>
-                    <p className="text-muted-foreground">
-                      {t('orderDetail.paidBy')} <strong>{methodName(order.paymentMethod, language)}</strong>
-                    </p>
-                    {/* `specs/182-related-payers/` FR-073 — the payer, as order data. */}
-                    {order.payer ? (
-                      <p>
-                        <span>{tOrders('orderDetail.payer')}:</span>{' '}
-                        <Link to={`/organizations/${order.payer.organizationId}`} className="font-medium underline underline-offset-2">
-                          {order.payer.name}
-                        </Link>{' '}
-                        <span className="text-muted-foreground">{tOrders(`orderDetail.payerTerms.${order.payer.terms}`)}</span>
-                      </p>
-                    ) : null}
-                  </div>
-                </Section>
-              </div>
-
-              {order.customerNote ? (
-                <Section title={t('orderDetail.sections.buyerNote')}>
-                  <p className="text-sm">{order.customerNote}</p>
-                </Section>
-              ) : null}
-
+              {/* Issue #1545 (SALES-21) — the items and totals are what an order is
+                  opened for, so they come first (Serial Position); the buyer's note
+                  about them follows, then who and where, then the status controls. */}
               <Section title={t('orderDetail.sections.items')}>
                 <Table>
                   <TableHeader>
@@ -899,6 +749,180 @@ export function OrderDetail(): ReactNode {
                   </tfoot>
                 </Table>
               </Section>
+
+              {order.customerNote ? (
+                <Section title={t('orderDetail.sections.buyerNote')}>
+                  <p className="text-sm">{order.customerNote}</p>
+                </Section>
+              ) : null}
+
+              {/* Issue #1545 (SALES-21) — who and where as one region: one section,
+                  one two-column description list, instead of four cards of two
+                  lines each (Common Region). */}
+              <Section title={tOrders('detail.sections.parties')}>
+                <dl className="grid gap-x-6 gap-y-5 text-sm md:grid-cols-2">
+                  <div className="space-y-1">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t('orderDetail.sections.organization')}
+                    </dt>
+                    <dd className="space-y-1">
+                      {order.organization ? (
+                        <>
+                          <p className="font-medium">{order.organization.name}</p>
+                          {order.organization.legalName &&
+                          order.organization.legalName !== order.organization.name ? (
+                            <p className="text-muted-foreground">{order.organization.legalName}</p>
+                          ) : null}
+                          {order.organization.isPersonal ? (
+                            <p className="text-muted-foreground">{t('orderDetail.org.individualCustomer')}</p>
+                          ) : order.organization.taxId ? (
+                            <p className="text-muted-foreground">
+                              {t('orderDetail.org.taxId')}: <strong>{order.organization.taxId}</strong>
+                            </p>
+                          ) : null}
+                          <p className="text-muted-foreground">
+                            {t('orderDetail.org.vat')}:{' '}
+                            {t(`orderDetail.vatStatus.${order.organization.vatStatus}`)}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-muted-foreground">{t('orderDetail.org.unavailable')}</p>
+                      )}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t('orderDetail.sections.customer')}
+                    </dt>
+                    <dd className="space-y-1">
+                      {order.customer ? (
+                        <>
+                          <p className="font-medium">
+                            {`${order.customer.firstName} ${order.customer.lastName}`.trim() ||
+                              order.customer.email}
+                          </p>
+                          <p className="text-muted-foreground">
+                            <a className="underline underline-offset-2" href={`mailto:${order.customer.email}`}>
+                              {order.customer.email}
+                            </a>
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-muted-foreground">{t('orderDetail.customer.unavailable')}</p>
+                      )}
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t('orderDetail.sections.delivery')}
+                    </dt>
+                    <dd className="space-y-2">
+                      <p>
+                        {order.deliveryAddress.recipientName ? (
+                          <>
+                            <strong>{order.deliveryAddress.recipientName}</strong>
+                            <br />
+                          </>
+                        ) : null}
+                        {order.deliveryAddress.street}
+                        <br />
+                        {order.deliveryAddress.postalCode} {order.deliveryAddress.city}
+                        <br />
+                        {order.deliveryAddress.country}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {t('orderDetail.deliveryVia')} <strong>{methodName(order.deliveryMethod, language)}</strong>
+                      </p>
+                    </dd>
+                  </div>
+                  <div className="space-y-1">
+                    <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t('orderDetail.sections.billing')}
+                    </dt>
+                    <dd className="space-y-2">
+                      <p>
+                        {order.billingAddress.companyName ? (
+                          <>
+                            <strong>{order.billingAddress.companyName}</strong>
+                            <br />
+                          </>
+                        ) : null}
+                        {order.billingAddress.taxId ? (
+                          <>
+                            {t('orderDetail.taxId')}: {order.billingAddress.taxId}
+                            <br />
+                          </>
+                        ) : null}
+                        {order.billingAddress.recipientName ? (
+                          <>
+                            {order.billingAddress.recipientName}
+                            <br />
+                          </>
+                        ) : null}
+                        {order.billingAddress.street}
+                        <br />
+                        {order.billingAddress.postalCode} {order.billingAddress.city}
+                        <br />
+                        {order.billingAddress.country}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {t('orderDetail.paidBy')} <strong>{methodName(order.paymentMethod, language)}</strong>
+                      </p>
+                      {/* `specs/182-related-payers/` FR-073 — the payer, as order data. */}
+                      {order.payer ? (
+                        <p>
+                          <span>{tOrders('orderDetail.payer')}:</span>{' '}
+                          <Link to={`/organizations/${order.payer.organizationId}`} className="font-medium underline underline-offset-2">
+                            {order.payer.name}
+                          </Link>{' '}
+                          <span className="text-muted-foreground">{tOrders(`orderDetail.payerTerms.${order.payer.terms}`)}</span>
+                        </p>
+                      ) : null}
+                    </dd>
+                  </div>
+                </dl>
+              </Section>
+
+              <Section title={t('orderDetail.sections.status')}>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <StatusChangeControl
+                    label={t('orderDetail.fields.orderStatus')}
+                    dialogTitle={t('orderDetail.statusChange.orderTitle')}
+                    current={order.status}
+                    currentLabel={statusName(graph, order.status, language)}
+                    badgeStyle={statusBadgeStyle(statusColor(graph, order.status))}
+                    options={orderStatusTargets(graph, order.status).map((code) => ({
+                      value: code,
+                      label: statusName(graph, code, language),
+                    }))}
+                    onConfirm={handleStatus}
+                    consequence={(): string => t('orderDetail.statusChange.orderConsequence')}
+                    errorMessage={(err): string =>
+                      err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.statusChange')
+                    }
+                    disabledReason={canWrite ? undefined : t('orderDetail.statusChange.noPermission')}
+                  />
+                  <StatusChangeControl
+                    label={t('orderDetail.fields.paymentStatus')}
+                    dialogTitle={t('orderDetail.statusChange.paymentTitle')}
+                    current={order.paymentStatus}
+                    currentLabel={t(paymentStatusLabelKey(order.paymentStatus))}
+                    options={paymentStatusTargets(order.paymentStatus).map((code) => ({
+                      value: code,
+                      label: t(paymentStatusLabelKey(code)),
+                    }))}
+                    onConfirm={handlePaymentStatus}
+                    consequence={(to): string => t(paymentStatusConsequenceKey(to))}
+                    errorMessage={(err): string =>
+                      err instanceof ApiError ? err.envelope.error.message : t('orderDetail.errors.paymentChange')
+                    }
+                    disabledReason={canWrite ? undefined : t('orderDetail.statusChange.noPermission')}
+                  />
+                </div>
+              </Section>
+
+              <OrderExternalReferences references={order.externalReferences} />
+
               {/* Feature 055 — operator-defined custom fields for this order. */}
               <CustomFieldValuesPanel
                 entityType="order"

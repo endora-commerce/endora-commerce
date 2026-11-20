@@ -191,6 +191,7 @@
   "list.rowMenu.printInvoice": "Drukuj fakturę",
   "list.rowMenu.organization": "Otwórz organizację",
   "detail.tabs.label": "Sekcje zamówienia",
+  "detail.sections.parties": "Klient i adresy",
   "orderDetail.payer": "Płatnik",
   "orderDetail.payerTerms.buyer": "na warunkach kupującego",
   "orderDetail.payerTerms.payer": "na warunkach płatnika",

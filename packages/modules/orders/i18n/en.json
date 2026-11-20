@@ -189,6 +189,7 @@
   "list.rowMenu.printInvoice": "Print invoice",
   "list.rowMenu.organization": "Open organization",
   "detail.tabs.label": "Order sections",
+  "detail.sections.parties": "Customer and addresses",
   "orderDetail.payer": "Payer",
   "orderDetail.payerTerms.buyer": "on the buyer's terms",
   "orderDetail.payerTerms.payer": "on the payer's terms",

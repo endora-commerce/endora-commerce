@@ -1383,7 +1383,7 @@
   "orderDetail.tabs.comments": "Komentarze",
   "orderDetail.tabs.delivery": "Dostawa",
   "orderDetail.tabs.overview": "Przegląd",
-  "orderDetail.tabs.payment": "Płatność",
+  "orderDetail.tabs.payment": "Płatności i faktury",
   "orderDetail.taxId": "NIP",
   "orderDetail.title": "Zamówienie #{id}",
   "orderDetail.totals.delivery": "Dostawa",
