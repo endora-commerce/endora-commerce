@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   ERROR_CODES,
   adjustCreditLimitRequestSchema,
+  adminCreditLimitListQuerySchema,
   grantCreditLimitRequestSchema,
   moneySum,
   type CreditLimitListResponse,
@@ -175,8 +176,16 @@ export async function registerCreditLimitsRoutes(
   app.get(
     '/api/v1/admin/credit-limits',
     { preHandler: requireAdmin('credit_limits:manage') },
-    async (): Promise<CreditLimitListResponse> => {
-      const rows = await creditLimitService.listAll();
+    async (request): Promise<CreditLimitListResponse> => {
+      // Issue #1664 — an offset page for the list screen's pager; a caller that
+      // names no `pageSize` keeps the whole list, as before. Names, reservations
+      // and order numbers are read for this page's limits only.
+      const query = adminCreditLimitListQuerySchema.parse(request.query ?? {});
+      const { rows, total } = await creditLimitService.listPage(
+        query.pageSize === undefined
+          ? { offset: 0 }
+          : { offset: (query.page - 1) * query.pageSize, limit: query.pageSize },
+      );
       const names = await loadOrgNames(rows.map((l) => l.organizationId));
       const reservationsByLimit = await Promise.all(
         rows.map((l) => creditLimitService.listActiveReservations(l.id)),
@@ -186,7 +195,13 @@ export async function registerCreditLimitsRoutes(
         const reservations = reservationsByLimit[i] ?? [];
         return serializeView(l, reservations, names.get(l.organizationId) ?? null, reservations, orderNumbers);
       });
-      return { data };
+      return {
+        data,
+        meta:
+          query.pageSize === undefined
+            ? { page: 1, pageSize: Math.max(total, 1), total }
+            : { page: query.page, pageSize: query.pageSize, total },
+      };
     },
   );
 

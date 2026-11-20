@@ -1,18 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { CreditLimitView } from '@endora-commerce/contracts';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
+import { installOffsetParentShim } from '../../helpers/layout-shim';
 
 /**
  * Issue #1499 (UX audit SALES-17, owner decision DEC-12 a) — a granted or an
- * adjusted credit limit is said beside the organization's panel, in a polite
- * region mounted before it has text, not as a success banner at the top of the
- * page. The region sits outside the panel, because granting swaps the grant
- * form for the adjust form: a region inside it would be created already
- * carrying its message, which screen readers do not reliably announce.
+ * adjusted credit limit is said beside the list, in a polite region mounted
+ * before it has text, not as a success banner at the top of the page. Since
+ * issue #1664 the grant and adjust forms are a dialog that closes on success,
+ * so the region is the list's notice, outside the dialog: a region inside it
+ * would unmount with it before anything was read. Opening the dialog again,
+ * for any organization, clears the previous result; a refused request is said
+ * inside the dialog and leaves the region empty.
  */
+installOffsetParentShim();
 
 const ORG = '00000000-0000-4000-8000-0000000000aa';
 const OTHER = '00000000-0000-4000-8000-0000000000bb';
@@ -41,10 +47,13 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     apiClient: {
       ...actual.apiClient,
       get: async (url: string) => {
-        if (url === '/api/v1/admin/credit-limits') return { data: state.granted ? [VIEW] : [] };
+        if (url.startsWith('/api/v1/admin/credit-limits')) {
+          const data = state.granted ? [VIEW] : [];
+          return { data, meta: { page: 1, pageSize: 20, total: data.length } };
+        }
         if (url.endsWith('/credit-limit')) {
           if (state.granted && url.includes(ORG)) return { data: VIEW };
-          throw new actual.ApiError(404, { error: { code: 'CREDIT_LIMIT_NOT_GRANTED', message: 'none' } });
+          throw new actual.ApiError(404, { error: { code: 'CREDIT_LIMIT_NOT_GRANTED', message: 'none' } } as never);
         }
         if (url === `/api/v1/admin/organizations/${ORG}`) return { data: { name: 'Acme' } };
         if (url === `/api/v1/admin/organizations/${OTHER}`) return { data: { name: 'Other' } };
@@ -82,15 +91,37 @@ const { CreditLimitsPage } = await import(
 
 function mount(): void {
   renderWithI18n(
-    <MemoryRouter>
-      <CreditLimitsPage />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter>
+        <CreditLimitsPage />
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
   );
 }
 
-async function lookUp(pick: string): Promise<void> {
-  fireEvent.click(await screen.findByRole('button', { name: pick }));
-  fireEvent.click(screen.getByRole('button', { name: 'core.creditLimits.action.lookup' }));
+/** The result region: the polite status that is not the list's count. */
+function resultRegion(): HTMLElement {
+  const regions = screen.getAllByRole('status').filter((r) => r.getAttribute('aria-atomic') === 'true');
+  expect(regions).toHaveLength(1);
+  return regions[0]!;
+}
+
+async function grantFor(pick: string): Promise<HTMLElement> {
+  // Header while the list holds rows, the empty state's button otherwise — one of them at a time.
+  await userEvent.click(await screen.findByRole('button', { name: 'credit_limits.list.grant' }));
+  const dialog = await screen.findByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('button', { name: pick }));
+  return dialog;
+}
+
+async function adjustFromRow(): Promise<HTMLElement> {
+  fireEvent.pointerDown(await screen.findByRole('button', { name: 'credit_limits.list.rowMenu.label' }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  await userEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'credit_limits.list.adjust' }));
+  return screen.findByRole('dialog');
 }
 
 beforeEach(() => {
@@ -99,13 +130,14 @@ beforeEach(() => {
   patch.mockReset();
 });
 
-describe('CreditLimitsPage — the result beside the panel, not a banner (#1499)', () => {
-  it('says the grant in a region that outlives the switch to the adjust form', async () => {
+describe('CreditLimitsPage — the result beside the list, not a banner (#1499)', () => {
+  it('says the grant in a region mounted before it, which outlives the dialog', async () => {
     mount();
-    await lookUp('pick-acme');
-    const grant = await screen.findByRole('button', { name: 'core.creditLimits.action.grant' });
-    const region = screen.getByRole('status');
+    await screen.findByText('credit_limits.list.emptyTitle');
+    const region = resultRegion();
     expect(region.textContent).toBe('');
+    const dialog = await grantFor('pick-acme');
+    const grant = await within(dialog).findByRole('button', { name: 'core.creditLimits.action.grant' });
 
     post.mockImplementation(async () => {
       state.granted = true;
@@ -113,44 +145,42 @@ describe('CreditLimitsPage — the result beside the panel, not a banner (#1499)
     });
     fireEvent.click(grant);
 
-    await screen.findByRole('button', { name: 'core.creditLimits.action.saveAdjust' });
     await waitFor(() => expect(region).toHaveTextContent('core.creditLimits.success.grant'));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(region.isConnected).toBe(true);
     expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
   });
 
-  it('says the adjustment beside the panel and clears it when another organization is looked up', async () => {
+  it('says the adjustment beside the list and clears it when another organization is opened', async () => {
     state.granted = true;
     mount();
-    fireEvent.click(await screen.findByRole('button', { name: 'core.creditLimits.action.open' }));
-    const save = await screen.findByRole('button', { name: 'core.creditLimits.action.saveAdjust' });
-    const region = screen.getByRole('status');
+    const region = resultRegion();
+    const dialog = await adjustFromRow();
     patch.mockResolvedValue({ data: VIEW });
-
-    fireEvent.click(save);
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'core.creditLimits.action.saveAdjust' }));
 
     await waitFor(() => expect(region).toHaveTextContent('core.creditLimits.success.adjust'));
     expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
 
-    await lookUp('pick-other');
-    await screen.findByRole('button', { name: 'core.creditLimits.action.grant' });
-    expect(screen.getByRole('status').textContent).toBe('');
+    const next = await grantFor('pick-other');
+    await within(next).findByRole('button', { name: 'core.creditLimits.action.grant' });
+    expect(region.textContent).toBe('');
   });
 
-  it('an error is the page banner and clears the previous result', async () => {
+  it('a refused request is said in the dialog and leaves the region empty', async () => {
     state.granted = true;
     mount();
-    fireEvent.click(await screen.findByRole('button', { name: 'core.creditLimits.action.open' }));
-    const save = await screen.findByRole('button', { name: 'core.creditLimits.action.saveAdjust' });
-    const region = screen.getByRole('status');
+    const region = resultRegion();
+    let dialog = await adjustFromRow();
     patch.mockResolvedValueOnce({ data: VIEW });
-    fireEvent.click(save);
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'core.creditLimits.action.saveAdjust' }));
     await waitFor(() => expect(region).toHaveTextContent('core.creditLimits.success.adjust'));
 
+    dialog = await adjustFromRow();
     patch.mockRejectedValueOnce(new ApiError(422, { error: { code: 'OVER', message: 'Over allocation' } } as never));
-    fireEvent.click(screen.getByRole('button', { name: 'core.creditLimits.action.saveAdjust' }));
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'core.creditLimits.action.saveAdjust' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Over allocation');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Over allocation');
     expect(region.textContent).toBe('');
   });
 });

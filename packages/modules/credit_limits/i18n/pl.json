@@ -7,5 +7,15 @@
   "actions.openCreditLimits.label": "Limity kredytowe",
   "actions.openCreditLimits.description": "Limity kredytowe i salda klientów",
   "actions.openCreditLimits.keywords": "limity kredytowe, saldo",
-  "settingGroups.credit_limits.name": "Limity kredytowe"
+  "settingGroups.credit_limits.name": "Limity kredytowe",
+  "list.count": "Limity kredytowe: {count}",
+  "list.grant": "Przyznaj limit kredytowy",
+  "list.emptyTitle": "Nie ma jeszcze limitów kredytowych",
+  "list.empty": "Limit kredytowy pozwala organizacji zamawiać z płatnością odroczoną do przyznanej kwoty.",
+  "list.rowMenu.label": "Akcje: {name}",
+  "list.adjust": "Koryguj limit",
+  "list.openOrganization": "Otwórz organizację",
+  "dialog.organization": "Organizacja",
+  "dialog.pickOrganization": "Jeśli ma już limit, możesz go tu skorygować.",
+  "dialog.checking": "Sprawdzanie limitu kredytowego organizacji…"
 }
