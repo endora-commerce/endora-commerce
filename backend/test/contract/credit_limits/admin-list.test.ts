@@ -77,6 +77,45 @@ describe('GET /api/v1/admin/credit-limits', () => {
     expect(disagreements(strictView, (adjusted.json() as { data: unknown }).data)).toEqual([]);
   });
 
+  it('pages the list newest first, with the total across every page (issue #1664)', async () => {
+    const cookies = { b2b_session: 'stub-admin-session' };
+    for (const suffix of ['b1', 'b2', 'b3']) {
+      const grant = await h.app.inject({
+        method: 'POST',
+        url: `/api/v1/admin/organizations/00000000-0000-4000-8000-0000000000${suffix}/credit-limit`,
+        cookies,
+        payload: { grantedAmount: 1000, currency: 'PLN' },
+      });
+      expect(grant.statusCode, grant.body).toBe(201);
+    }
+    const ids = (body: unknown): string[] =>
+      (body as { data: Array<{ organizationId: string }> }).data.map((d) => d.organizationId);
+    const strictList = deepStrict(creditLimitListResponseSchema);
+
+    // A caller naming no page size keeps the whole list, as the endpoint answered before.
+    const whole = await h.app.inject({ method: 'GET', url: '/api/v1/admin/credit-limits', cookies });
+    expect(whole.statusCode).toBe(200);
+    const all = ids(whole.json());
+    const total = all.length;
+    expect(total).toBeGreaterThanOrEqual(4);
+    expect((whole.json() as { meta: unknown }).meta).toEqual({ page: 1, pageSize: total, total });
+    expect(disagreements(strictList, whole.json())).toEqual([]);
+    // Newest first: the last grant leads.
+    expect(all[0]).toBe('00000000-0000-4000-8000-0000000000b3');
+
+    const first = await h.app.inject({ method: 'GET', url: '/api/v1/admin/credit-limits?page=1&pageSize=2', cookies });
+    expect(first.statusCode).toBe(200);
+    expect((first.json() as { meta: unknown }).meta).toEqual({ page: 1, pageSize: 2, total });
+    expect(disagreements(strictList, first.json())).toEqual([]);
+    const second = await h.app.inject({ method: 'GET', url: '/api/v1/admin/credit-limits?page=2&pageSize=2', cookies });
+    expect((second.json() as { meta: unknown }).meta).toEqual({ page: 2, pageSize: 2, total });
+    // The pages are the whole list's order cut in two — no row repeated, none skipped.
+    expect([...ids(first.json()), ...ids(second.json())]).toEqual(all.slice(0, 4));
+
+    const tooLarge = await h.app.inject({ method: 'GET', url: '/api/v1/admin/credit-limits?pageSize=500', cookies });
+    expect(tooLarge.statusCode).toBe(400);
+  });
+
   it('rejects anonymous callers', async () => {
     const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/credit-limits' });
     expect(res.statusCode).toBe(401);

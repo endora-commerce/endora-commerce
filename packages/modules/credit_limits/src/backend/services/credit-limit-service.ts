@@ -107,9 +107,22 @@ export class CreditLimitService {
     );
   }
 
-  async listAll(): Promise<CreditLimit[]> {
-    const em = this.emFactory();
-    return em.find(CreditLimit, {}, { orderBy: { createdAt: 'desc' } });
+  /**
+   * One page of credit limits, newest grant first, and the total across every
+   * page (issue #1664). `id` breaks a `createdAt` tie, or a page boundary could
+   * repeat a row and skip another. No `limit` reads the whole list.
+   */
+  async listPage(page: { offset: number; limit?: number }): Promise<{ rows: CreditLimit[]; total: number }> {
+    const [rows, total] = await this.emFactory().findAndCount(
+      CreditLimit,
+      {},
+      {
+        orderBy: { createdAt: 'desc', id: 'asc' },
+        offset: page.offset,
+        ...(page.limit === undefined ? {} : { limit: page.limit }),
+      },
+    );
+    return { rows, total };
   }
 
   async listActiveReservations(creditLimitId: string): Promise<CreditLimitReservation[]> {

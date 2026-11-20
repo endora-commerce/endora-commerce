@@ -16,7 +16,7 @@ Wszystkie trasy administracyjne wymagają uprawnienia `credit_limits:manage`.
 | Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
 | `GET /api/v1/me/credit-limit` | klient | Podgląd przyznanego limitu i kwoty obecnie zarezerwowanej (404 `CREDIT_LIMIT_NOT_GRANTED`, gdy limitu nie ma) |
-| `GET /api/v1/admin/credit-limits` | administrator | Zestawienie wszystkich przyznanych limitów z aktywnymi rezerwacjami |
+| `GET /api/v1/admin/credit-limits?page=&pageSize=` | administrator | Jedna strona przyznanych limitów z aktywnymi rezerwacjami, od najnowszego przyznania, z `meta: { page, pageSize, total }`; bez `pageSize` całe zestawienie (issue #1664) |
 | `GET /api/v1/admin/organizations/:id/credit-limit` | administrator | Limit jednej organizacji z rezerwacjami |
 | `POST /api/v1/admin/organizations/:id/credit-limit` | administrator | Przyznanie początkowego limitu |
 | `PATCH /api/v1/admin/organizations/:id/credit-limit` | administrator | Korekta kwoty (odrzuca kwotę niższą niż aktywne rezerwacje, chyba że ustawiono `allowOverAllocation`) |
