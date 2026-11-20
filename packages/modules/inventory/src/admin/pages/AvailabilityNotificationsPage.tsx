@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   EmptyState,
+  InlineStatus,
   PageHeader,
   Table,
   TableBody,
@@ -143,15 +144,10 @@ export function AvailabilityNotificationsPage(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <PageHeader title={t('inventory.availability.title')} description={t('inventory.availability.description')} />
 
-      {/* Issue #1492 (CAT-17): kit Alerts, not cards painted with inline colours. The result
-          region is mounted before it has text, so the cancellation is announced (WCAG 4.1.3). */}
-      <div role="status" className="empty:hidden">
-        {info ? (
-          <Alert variant="success" live="off" className="mb-4">
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
-      </div>
+      {/* Issue #1492 (CAT-17): no cards painted with inline colours. A cancellation is the kit
+          InlineStatus (#1499), mounted before it has text so it is announced (WCAG 4.1.3); it sits
+          above the list because the cancelled row leaves the default "Queued" view. */}
+      <InlineStatus className="mb-4 empty:mb-0">{info}</InlineStatus>
       {error ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
