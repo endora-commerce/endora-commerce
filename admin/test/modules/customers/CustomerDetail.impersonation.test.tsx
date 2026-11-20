@@ -43,8 +43,8 @@ vi.mock('../../../../packages/modules/customers/src/admin/panels/HistoryPanels',
   CartsPanel: () => null,
 }));
 vi.mock('../../../../packages/modules/customers/src/admin/panels/ManagementPanels', () => ({
-  OrganizationAssignmentPanel: () => null,
-  CustomerGroupPanel: () => null,
+  OrganizationAssignmentField: () => null,
+  CustomerGroupField: () => null,
   AddressesPanel: () => null,
 }));
 const { CustomerDetail } = await import(
@@ -58,6 +58,13 @@ const CUSTOMERS_EN = JSON.parse(
   readFileSync(resolve(process.cwd(), '../packages/modules/customers/i18n/en.json'), 'utf8'),
 ) as Record<string, string>;
 const bundle = { core: CORE_EN, customers: CUSTOMERS_EN };
+
+/** Issue #1517 — the account actions are entries of the header's "More" menu. */
+async function chooseAction(name: string): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: CORE_EN['common.action.more'] as string }));
+  const menu = await screen.findByRole('menu');
+  await userEvent.click(within(menu).getByRole('menuitem', { name }));
+}
 const T = (key: string): string => CUSTOMERS_EN[key] as string;
 
 const CUSTOMER_ID = '00000000-0000-4000-8000-000000001328';
@@ -123,7 +130,7 @@ function renderDetail(): void {
 }
 
 async function openDialog(): Promise<HTMLElement> {
-  await userEvent.click(await screen.findByRole('button', { name: T('detail.action.impersonate') }));
+  await chooseAction(T('detail.action.impersonate'));
   return screen.findByRole('dialog');
 }
 
@@ -167,7 +174,7 @@ describe('CustomerDetail — impersonation (#1328)', () => {
     expect(link.getAttribute('href')).toMatch(/\/account$/);
     expect(link.getAttribute('target')).toBe('_blank');
     expect(link.getAttribute('rel')).toContain('noopener');
-    // The button that opened the dialog is disabled now, so focus lands on the next step.
+    // The entry that opened the dialog is disabled now, so focus lands on the next step.
     await waitFor(() => expect(document.activeElement).toBe(link));
   });
 
@@ -190,8 +197,9 @@ describe('CustomerDetail — impersonation (#1328)', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: T('detail.impersonate.confirm') }));
     await screen.findByTestId('impersonation-status');
 
-    const again = screen.getByRole('button', { name: T('detail.action.impersonate') }) as HTMLButtonElement;
-    expect(again.disabled).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: CORE_EN['common.action.more'] as string }));
+    const again = within(await screen.findByRole('menu')).getByRole('menuitem', { name: T('detail.action.impersonate') });
+    expect(again).toHaveAttribute('aria-disabled', 'true');
     await userEvent.click(again);
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(startCalls()).toHaveLength(1);
@@ -224,8 +232,12 @@ describe('CustomerDetail — impersonation (#1328)', () => {
 
     await waitFor(() => expect(postSpy).toHaveBeenCalledWith(END_PATH, {}));
     expect((await screen.findByTestId('impersonation-status')).textContent).toContain(T('detail.impersonate.ended'));
-    const again = screen.getByRole('button', { name: T('detail.action.impersonate') }) as HTMLButtonElement;
-    expect(again.disabled).toBe(false);
-    await waitFor(() => expect(document.activeElement).toBe(again));
+    // Issue #1517 — Impersonate is an entry of "More": focus goes back to that menu, where the
+    // next start is, and the entry is live again.
+    const more = screen.getByRole('button', { name: CORE_EN['common.action.more'] as string });
+    await waitFor(() => expect(document.activeElement).toBe(more));
+    await userEvent.click(more);
+    const again = within(await screen.findByRole('menu')).getByRole('menuitem', { name: T('detail.action.impersonate') });
+    expect(again).not.toHaveAttribute('aria-disabled');
   });
 });

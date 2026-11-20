@@ -92,7 +92,8 @@ switched off by a special case.
   their own personal organization rather than leaving them without one.
   Direct customer-group assignment (overrides the Organization's group when
   resolving pricing and promotions).
-- Read-only orders, quote-requests, and (current + abandoned) carts panels.
+- Read-only orders, quote requests, and (current + abandoned) carts, on the screen's
+  **Activity** tab.
 - An "online customers" view backed by recent session activity.
 
 **One Save on the customer screen.** The customer screen (`/customers/:id`) has one Save in its
@@ -113,12 +114,19 @@ own any more. Save reads "Save 2 changes" once there is something to save.
   unsaved changes asks first.
 
 Save is shown to an operator with `customers:manage`, or one who may change one of the panels.
-The **Actions** (block / unblock, password reset, two-factor reset, impersonate, delete /
-restore), the **Organization** assignment and the **Customer group** are not part of the Save: they
-apply the moment you use them, and each section carries an **Applies immediately** badge.
-Block, two-factor reset and delete ask for confirmation first, naming the customer and what the
-action does; a refusal is shown in the confirmation. Delete is in its own section at the end of
-the page, away from the other actions.
+**Two tabs.** The screen is one card with two tabs. **Profile** holds the account information
+with the **Organization** and **Customer group** fields, the addresses, the panels other modules
+add, and the custom fields; **Activity** holds the orders, quote requests and carts. A link can
+open Activity directly (`/customers/:id?tab=activity`). While something on Profile is unsaved, its
+tab says so, and switching to Activity keeps the change.
+
+The account actions — block, password reset, two-factor reset, impersonate and delete — are in the
+header's **More** menu, with Delete last and set apart. A blocked customer shows **Unblock** beside
+it, and a deleted one shows **Restore** instead of the menu. These actions, the Organization and
+the Customer group are not part of the Save: they apply the moment you use them — the account
+section carries an **Applies immediately** badge — and the result of an action is said beside the
+header's buttons. Block, two-factor reset and delete ask for confirmation first, naming the
+customer and what the action does; a refusal is shown in the confirmation.
 
 ## Deletion & anonymization
 
@@ -221,7 +229,7 @@ It is retired for everyone, in two releases:
     `customer_address.erased`;
   - a row the address book refuses — for example a country that is no longer
     active — stays, marked with the reason (`customer_address.merge_refused`).
-    Only the operator sees it, on the customer's *Addresses* card.
+    Only the operator sees it, in the customer's *Addresses* section.
 - **Release 2.** The table and the remaining code are removed. The upgrade
   refuses while any row is left.
 

@@ -81,7 +81,8 @@ zamiast być wyłączane jako przypadek szczególny.
 - Przypisanie do organizacji i odłączenie od organizacji, które przenosi klienta do jego własnej
   organizacji osobistej, zamiast zostawiać go bez organizacji. Bezpośrednie przypisanie grupy
   klientów (zastępuje grupę organizacji przy wyznaczaniu cen i promocji).
-- Panele zamówień, zapytań ofertowych i koszyków (bieżących i porzuconych), tylko do odczytu.
+- Zamówienia, zapytania ofertowe i koszyki (bieżące i porzucone), tylko do odczytu, na karcie
+  **Aktywność** ekranu klienta.
 - Widok „klienci online” oparty na ostatniej aktywności sesji.
 
 **Jeden przycisk Zapisz na ekranie klienta.** Ekran klienta (`/customers/:id`) ma jeden przycisk
@@ -103,13 +104,21 @@ zmiany”.
 - Opuszczenie strony — link w inne miejsce panelu albo zamknięcie lub odświeżenie karty przeglądarki
   — z niezapisanymi zmianami wymaga potwierdzenia.
 
-Zapisz widzi operator z `customers:manage` albo taki, który może zmienić któryś z paneli. **Akcje**
-(blokada / odblokowanie, reset hasła, reset weryfikacji dwuetapowej, logowanie jako klient,
-usunięcie / przywrócenie), przypisanie do **organizacji** i **Grupa klientów** nie są częścią zapisu:
-działają w chwili użycia, a każda z tych sekcji ma etykietę **Działa od razu**.
+Zapisz widzi operator z `customers:manage` albo taki, który może zmienić któryś z paneli.
+
+**Dwie zakładki.** Ekran to jedna karta z dwiema zakładkami. **Profil** zawiera informacje o koncie z
+polami **Organizacja** i **Grupa klientów**, adresy, panele dodawane przez inne moduły i pola
+niestandardowe; **Aktywność** zawiera zamówienia, zapytania ofertowe i koszyki. Link może otworzyć
+od razu Aktywność (`/customers/:id?tab=activity`). Gdy coś na Profilu czeka na zapis, zakładka to
+pokazuje, a przejście do Aktywności zachowuje zmianę.
+
+Akcje konta — blokada, reset hasła, reset weryfikacji dwuetapowej, logowanie jako klient i
+usunięcie — są w menu **Więcej** w nagłówku, a usunięcie jest ostatnie i oddzielone. Przy
+zablokowanym kliencie obok menu jest **Odblokuj**, a przy usuniętym zamiast menu jest **Przywróć**.
+Te akcje, Organizacja i Grupa klientów nie są częścią zapisu: działają w chwili użycia — sekcja
+konta ma etykietę **Działa od razu** — a wynik akcji jest podawany obok przycisków nagłówka.
 Blokada, reset weryfikacji dwuetapowej i usunięcie najpierw proszą o potwierdzenie, podając klienta
-i skutek akcji; odmowa jest pokazywana w oknie potwierdzenia. Usuwanie ma osobną sekcję na końcu
-strony, z dala od pozostałych akcji.
+i skutek akcji; odmowa jest pokazywana w oknie potwierdzenia.
 
 ## Usuwanie i anonimizacja
 
@@ -201,7 +210,7 @@ wszystkich, w dwóch wydaniach:
     zanonimizowana, albo konta, którego organizacji nie da się znaleźć) jest **usuwany**: czyszczony, miękko usuwany i audytowany jako `customer_address.erased`;
   - wiersz, którego książka adresowa nie przyjmuje — na przykład z krajem, który nie jest już
     aktywny — zostaje, oznaczony powodem (`customer_address.merge_refused`). Widzi go tylko
-    operator, na karcie *Adresy* klienta.
+    operator, w sekcji *Adresy* klienta.
 - **Wydanie 2.** Tabela i pozostały kod są usuwane. Aktualizacja odmawia, dopóki zostaje choćby
   jeden wiersz.
 
