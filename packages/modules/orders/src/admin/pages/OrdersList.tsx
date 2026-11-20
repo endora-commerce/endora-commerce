@@ -738,7 +738,6 @@ export function OrdersList(): ReactNode {
     <>
       <ListPage
         title={t('orders.page.title')}
-        description={t('orders.page.description')}
         actions={
           <>
             {/* Not offered while a custom-field filter stands refused: the

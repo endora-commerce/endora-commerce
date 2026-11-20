@@ -898,7 +898,7 @@ page one. Every list is now the same page:
 | Toolbar | A plain row of labelled filters and the search, **not a card**; the result count at its end in a live region | A card around the toolbar reads as a second region (Common Region); the count is announced as it changes (WCAG 4.1.3) |
 | Results | One `ResponsiveTable` in one card; the record's name in the primary column **is the link** to it | No *Open* button repeating the name in every row (signal-to-noise) |
 | Row actions | `RowActionMenu`; destructive items last, after a `RowActionMenuSeparator`, and each confirmed through `useConfirmDialog` (`action` + `describeError`, so the request runs inside the dialog) | Destructive actions get distance, not a button in every row (Fitts) |
-| Pager | `PaginationFooter` under the table, fed by `useListPagination` | Every row reachable without a search |
+| Pager | `PaginationFooter` under the table, fed by `useListPagination` — or `useCursorPagination` for a cursor-paged endpoint with no total | Every row reachable without a search |
 | States | Loading (a skeleton, `aria-busy`, *Loading…* through the count's live region), an error with the server's message or the kit's, and *Retry*; *no records yet* distinct from *no record matches — Clear filters* | A list that fails or comes back empty still says what to do next |
 
 ```tsx
@@ -947,6 +947,36 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   being typed. A row gets a `RowActionMenu` only when it can do something besides open, and it links
   to another module's screen only when its module depends on that one. Orders, Quote Requests,
   Returns, Customers, Organizations and Carts follow this.
+
+### Cursor-paged lists — `useCursorPagination`
+
+Issue #1664. An endpoint that pages by an opaque cursor (`{ cursor, hasMore, limit }`, the
+invoices list since #1120) answers no total, so `useListPagination` would have to be fed an
+invented one. `useCursorPagination` is its counterpart, and `ListPage` draws the same
+`PaginationFooter` for it, in cursor mode — the same place, the same buttons, the same rows-per-page
+dropdown as every other list:
+
+```tsx
+const pager = useCursorPagination({ scope: 'invoices', maxPageSize: 200 });
+// request: { ...filters, cursor: pager.query.cursor, limit: pager.query.limit }
+// on success: pager.syncPage(res.pagination, res.data.length); on a filter change: pager.resetPage()
+<ListPage … pagination={pager.footer(rows.length)}>…</ListPage>
+```
+
+- **What it shows.** *Showing 21–40 of more than 40* while the server says a next page exists,
+  *Showing 41–45* on the last one, and *Page N* — never *of Z* or *Page N of M*, which the server
+  cannot answer.
+- **Previous walks back the cursors already followed**, so it works over a forward-only endpoint.
+  *Next* spends the next cursor in the same update, so a second press before the page answers
+  cannot skip one.
+- **`syncPage`** keeps the next cursor, and steps back one page when a later page comes back
+  empty (its rows were deleted after the previous page said more existed).
+- The remembered page size is the same per-`scope` preference as `useListPagination`, fitted to
+  `maxPageSize` the same way; a size change goes back to the first page.
+- `ListPage`'s **`tabs`** slot holds section tabs (`RouteTabs`) between the header and the
+  toolbar, for a list that is one of a module's sections — Invoices beside its templates.
+- `CursorPagination` (record history) stays for cursor lists that are not a `ListPage`. Pinned in
+  `admin/test/kit/kit-list-page.test.tsx`; the first adopter is `InvoicesList`.
 
 ### Search as you type — `useDebouncedValue`
 

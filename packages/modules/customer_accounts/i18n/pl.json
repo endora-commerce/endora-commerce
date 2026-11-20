@@ -8,7 +8,7 @@
   "actions.openCustomerGroups.label": "Grupy klientów",
   "actions.openCustomerGroups.description": "Zarządzaj grupami segmentacji przypisywanymi klientom i organizacjom",
   "groups.page.title": "Grupy klientów",
-  "groups.page.description": "Grupa klientów to segment przypisywany klientowi lub organizacji. Reguły cenowe, promocje i odbiorcy powiadomień push celują w te grupy; grupa przypisana bezpośrednio klientowi ma pierwszeństwo przed grupą odziedziczoną z organizacji.",
+  "groups.page.description": "Grupa przypisana klientowi ma pierwszeństwo przed grupą organizacji.",
   "groups.error.load": "Nie udało się wczytać grup klientów.",
   "groups.error.save": "Nie udało się zapisać grupy klientów.",
   "groups.error.delete": "Nie udało się usunąć grupy klientów.",

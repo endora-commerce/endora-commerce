@@ -38,7 +38,7 @@ export const PromotionStatsPage = (): ReactNode => {
 
   return (
     <>
-      <PageHeader title={t('promotionStats.title')} description={t('promotionStats.description')} />
+      <PageHeader title={t('promotionStats.title')} />
       <div className="mb-4 grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>

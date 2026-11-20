@@ -120,7 +120,6 @@ const bundle = {
     // `admin_users`' and `audit_logs`' screens are in. Only the sidebar entry's
     // label moved into the package.
     'legacyMethods.payment.title',
-    'legacyMethods.payment.description',
     'legacyMethods.payment.empty',
   ]),
   ...passthroughBundle('payment_methods', ['nav.paymentMethods.label']),

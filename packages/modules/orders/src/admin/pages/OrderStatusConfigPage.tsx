@@ -203,7 +203,6 @@ export function OrderStatusConfigPage(): ReactNode {
     <>
       <PageHeader
         title={t('orderStatusConfig.title')}
-        description={t('orderStatusConfig.description')}
         actions={
           <Button asChild variant="outline">
             <Link to="/orders">

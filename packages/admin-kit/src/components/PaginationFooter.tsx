@@ -4,6 +4,8 @@ import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '../lib/page-size-options
 import { useTranslation } from '../i18n/useTranslation.js';
 
 export interface PaginationFooterProps<S extends number = PageSizeOption> {
+  /** A list that knows its total; the default. */
+  mode?: 'total';
   /** Zero-based page index. */
   page: number;
   /** Currently chosen page size; one of `pageSizes`. */
@@ -25,16 +27,65 @@ export interface PaginationFooterProps<S extends number = PageSizeOption> {
 }
 
 /**
+ * The footer of a list whose endpoint pages by an opaque cursor and answers no
+ * total (issue #1664) — `useCursorPagination(...).footer(rowCount)`. There is
+ * no "of Z" and no "Page N of M": the server cannot answer either. While a next
+ * page exists the range says "of more than N", which is what the server does
+ * know.
+ */
+export interface CursorPaginationFooterProps<S extends number = PageSizeOption> {
+  mode: 'cursor';
+  /** Zero-based page index. */
+  page: number;
+  /** Currently chosen page size; one of `pageSizes`. Every page before this one held this many rows. */
+  pageSize: S;
+  /** How many rows the page on screen holds. */
+  rowCount: number;
+  /** Whether the page on screen answered a cursor for the next one. */
+  hasNext: boolean;
+  onPageSizeChange: (next: S) => void;
+  onPrev: () => void;
+  onNext: () => void;
+  pageSizes?: readonly S[];
+}
+
+/**
  * Pagination footer used by the admin list pages — renders a
  * "Showing X–Y of Z" summary, a rows-per-page dropdown wired to
  * `usePageSizePreference`, and Prev/Next buttons. Disabled-state on
  * the buttons reflects page bounds; the empty-list case still renders
  * (so the footer doesn't disappear and "wiggle" the layout).
  */
-export function PaginationFooter<S extends number = PageSizeOption>(props: PaginationFooterProps<S>): ReactNode {
+export function PaginationFooter<S extends number = PageSizeOption>(
+  props: PaginationFooterProps<S> | CursorPaginationFooterProps<S>,
+): ReactNode {
+  const t = useTranslation('core');
+  if (props.mode === 'cursor') {
+    const { page, pageSize, rowCount, hasNext } = props;
+    const start = rowCount === 0 ? 0 : page * pageSize + 1;
+    const end = page * pageSize + rowCount;
+    return (
+      <PagerFrame
+        sizes={props.pageSizes ?? (PAGE_SIZE_OPTIONS as readonly number[] as readonly S[])}
+        pageSize={pageSize}
+        onPageSizeChange={props.onPageSizeChange}
+        summary={
+          rowCount === 0
+            ? t('common.pagination.noResults')
+            : hasNext
+              ? t('common.pagination.showingRangeMore', { start, end })
+              : t('common.pagination.showingRangeOpen', { start, end })
+        }
+        position={t('cursorPagination.page', { page: page + 1 })}
+        onPrev={props.onPrev}
+        onNext={props.onNext}
+        isFirst={page === 0}
+        isLast={!hasNext}
+      />
+    );
+  }
   const { page, pageSize, total, onPageSizeChange, onPrev, onNext } = props;
   const sizes: readonly S[] = props.pageSizes ?? (PAGE_SIZE_OPTIONS as readonly number[] as readonly S[]);
-  const t = useTranslation('core');
   const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
   const safePage = Math.min(Math.max(0, page), Math.max(0, totalPages - 1));
   const start = total === 0 ? 0 : safePage * pageSize + 1;
@@ -43,12 +94,46 @@ export function PaginationFooter<S extends number = PageSizeOption>(props: Pagin
   const isLast = safePage >= totalPages - 1;
 
   return (
+    <PagerFrame
+      sizes={sizes}
+      pageSize={pageSize}
+      onPageSizeChange={onPageSizeChange}
+      summary={
+        total === 0 ? t('common.pagination.noResults') : t('common.pagination.showingRange', { start, end, total })
+      }
+      position={t('common.pagination.pageXofY', {
+        page: totalPages === 0 ? 0 : safePage + 1,
+        total: totalPages,
+      })}
+      onPrev={onPrev}
+      onNext={onNext}
+      isFirst={isFirst}
+      isLast={isLast}
+    />
+  );
+}
+
+interface PagerFrameProps<S extends number> {
+  sizes: readonly S[];
+  pageSize: S;
+  onPageSizeChange: (next: S) => void;
+  summary: ReactNode;
+  position: ReactNode;
+  onPrev: () => void;
+  onNext: () => void;
+  isFirst: boolean;
+  isLast: boolean;
+}
+
+/** The footer's one layout, shared by both modes so a cursor-paged list looks like every other. */
+function PagerFrame<S extends number>(props: PagerFrameProps<S>): ReactNode {
+  const { sizes, pageSize, onPageSizeChange, summary, position, onPrev, onNext, isFirst, isLast } = props;
+  const t = useTranslation('core');
+  return (
     <div className="b2b-card__foot">
       <div className="b2b-row" style={{ gap: 12, alignItems: 'center' }}>
         <div className="b2b-muted" style={{ fontSize: 12 }}>
-          {total === 0
-            ? t('common.pagination.noResults')
-            : t('common.pagination.showingRange', { start, end, total })}
+          {summary}
         </div>
         <label
           className="b2b-row"
@@ -76,10 +161,7 @@ export function PaginationFooter<S extends number = PageSizeOption>(props: Pagin
       </div>
       <div className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
         <span className="b2b-muted" style={{ fontSize: 12 }}>
-          {t('common.pagination.pageXofY', {
-            page: totalPages === 0 ? 0 : safePage + 1,
-            total: totalPages,
-          })}
+          {position}
         </span>
         <button
           type="button"

@@ -5,7 +5,6 @@
   "actions.openQuickOrder.label": "Quick order on behalf",
   "actions.openQuickOrder.description": "Import a CSV or Excel file and build a cart or quote request for a customer",
   "onBehalf.page.title": "Quick order on behalf",
-  "onBehalf.page.description": "Import a CSV / Excel file and build a cart or quote request for a customer.",
   "onBehalf.customer.title": "Customer",
   "onBehalf.customer.account": "Customer account",
   "onBehalf.customer.accountPlaceholder": "Search customers by name or email…",
