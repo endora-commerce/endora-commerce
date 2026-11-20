@@ -286,5 +286,13 @@
   "detail.guest.eraseConfirm": "The guest's contact data, return address and files will be deleted for good. This cannot be undone. The tracking link will stop working and no further e-mail about this case will be sent to the guest. Products, comments and the resolution stay.",
   "detail.guest.eraseConfirmAction": "Erase permanently",
   "detail.guest.erasedInfo": "The guest's personal data was erased.",
-  "detail.guest.actionFailed": "The action failed. Try again."
+  "detail.guest.actionFailed": "The action failed. Try again.",
+  "list.toolbar.label": "Filter returns and complaints",
+  "list.count": "Cases: {count}",
+  "list.emptyTitle": "No returns or complaints yet",
+  "list.empty": "A case appears here once a customer files a return or a complaint.",
+  "list.emptyFiltered": "No case matches these filters.",
+  "list.settingsMenu.label": "Settings",
+  "list.rowMenu.label": "Actions for case {number}",
+  "list.rowMenu.order": "Open order"
 }

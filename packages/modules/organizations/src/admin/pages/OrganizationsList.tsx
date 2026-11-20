@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, Plus, SearchX } from 'lucide-react';
+import { Building2, Plus } from 'lucide-react';
 import type { AdminOrganization, AdminOrganizationListResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Button, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Button, EmptyState, Select } from '@endora-commerce/admin-kit/ui';
 import {
   ListPage,
+  ListToolbar,
+  ListToolbarSearch,
   OrganizationStatusBadge,
   ResponsiveTable,
   RowActionMenu,
@@ -69,6 +71,7 @@ export function OrganizationsList(): ReactNode {
   const [status, setStatus] = useState<StatusFilter>('');
   const [q, setQ] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
   const path = organizationsListPath({ status, q, ...pager.query });
 
   useEffect(() => {
@@ -139,38 +142,42 @@ export function OrganizationsList(): ReactNode {
       onRetry={() => setReloadKey((key) => key + 1)}
       count={own('list.count', { count: total })}
       toolbar={
-        <>
-          <div className="min-w-56 flex-1 space-y-1">
-            <Label htmlFor="oq">{t('organizations.field.search')}</Label>
-            <Input
-              id="oq"
-              type="search"
+        // The kit toolbar (issue #1500, SALES-24): a `search` landmark.
+        <ListToolbar
+          className="min-w-0 flex-1"
+          label={own('list.toolbar.label')}
+          search={
+            <ListToolbarSearch
+              ref={searchRef}
+              label={t('organizations.field.search')}
               value={q}
-              onChange={(e): void => {
-                setQ(e.target.value);
+              onValueChange={(next): void => {
+                setQ(next);
                 resetPage();
               }}
             />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="ostatus">{t('organizations.field.status')}</Label>
+          }
+          filters={
             <Select
-              id="ostatus"
+              aria-label={t('organizations.field.status')}
+              className="w-auto"
               value={status}
               onChange={(e): void => {
                 setStatus(e.target.value as StatusFilter);
                 resetPage();
               }}
             >
-              <option value="">{t('organizations.filter.all')}</option>
+              <option value="">{own('list.filter.allStatuses')}</option>
               {STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {own(`status.${s}`)}
                 </option>
               ))}
             </Select>
-          </div>
-        </>
+          }
+          filtersActive={filtered}
+          onClearFilters={clearFilters}
+        />
       }
       pagination={pager.footer(total)}
     >
@@ -178,23 +185,21 @@ export function OrganizationsList(): ReactNode {
         data={rows}
         keyExtractor={(o) => o.id}
         emptyState={
-          <div className="flex flex-col items-center gap-3 py-10 text-center">
-            {filtered ? (
-              <SearchX size={32} aria-hidden="true" className="text-muted-foreground" />
-            ) : (
-              <Building2 size={32} aria-hidden="true" className="text-muted-foreground" />
-            )}
-            <p className="text-sm text-muted-foreground">
-              {filtered ? own('list.emptyFiltered') : own('list.empty')}
-            </p>
-            {filtered ? (
-              <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
-                {own('list.clearFilters')}
-              </Button>
-            ) : (
-              create
-            )}
-          </div>
+          filtered ? (
+            <EmptyState
+              variant="no-results"
+              title={own('list.emptyFiltered')}
+              onClearFilters={clearFilters}
+              focusAfterClear={searchRef}
+            />
+          ) : (
+            <EmptyState
+              icon={<Building2 size={20} />}
+              title={own('list.emptyTitle')}
+              description={own('list.empty')}
+              action={create}
+            />
+          )
         }
         columns={[
           {

@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { SearchX, ShoppingCart } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 import type { AdminCartSummary, AdminCartsListResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
-import { Badge, Button, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Badge, EmptyState, Select } from '@endora-commerce/admin-kit/ui';
 import {
   ListPage,
+  ListToolbar,
   ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
   useListPagination,
   type ListPageLoad,
 } from '@endora-commerce/admin-kit/components';
@@ -94,6 +97,7 @@ export default function CartsList(): ReactNode {
   }, [path, reloadKey, syncTotal]);
 
   const filtered = statusFilter !== '' || approvalFilter !== '';
+  const ownerName = (c: AdminCartSummary): string => c.ownerDisplayName ?? t('carts.owner.anonymous');
   const clearFilters = useCallback((): void => {
     setStatusFilter('');
     setApprovalFilter('');
@@ -108,44 +112,50 @@ export default function CartsList(): ReactNode {
       onRetry={() => setReloadKey((key) => key + 1)}
       count={t('carts.count', { count: total })}
       toolbar={
-        <>
-          <div className="space-y-1">
-            <Label htmlFor="cstatus">{t('carts.column.status')}</Label>
-            <Select
-              id="cstatus"
-              value={statusFilter}
-              onChange={(e): void => {
-                setStatusFilter(e.target.value as StatusFilter);
-                resetPage();
-              }}
-            >
-              <option value="">{t('carts.filter.all')}</option>
-              {cartStatusLabels.options(t).map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="capproval">{t('carts.column.approval')}</Label>
-            <Select
-              id="capproval"
-              value={approvalFilter}
-              onChange={(e): void => {
-                setApprovalFilter(e.target.value as ApprovalFilter);
-                resetPage();
-              }}
-            >
-              <option value="">{t('carts.filter.all')}</option>
-              {cartApprovalStatusLabels.options(t).map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </>
+        // The kit toolbar (issue #1500, SALES-24): a `search` landmark. The
+        // carts endpoint takes no search, so the two filters are the row.
+        <ListToolbar
+          className="min-w-0 flex-1"
+          label={t('carts.toolbar.label')}
+          filters={
+            <>
+              <Select
+                aria-label={t('carts.column.status')}
+                className="w-auto"
+                value={statusFilter}
+                onChange={(e): void => {
+                  setStatusFilter(e.target.value as StatusFilter);
+                  resetPage();
+                }}
+              >
+                <option value="">{t('carts.filter.allStatuses')}</option>
+                {cartStatusLabels.options(t).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                aria-label={t('carts.column.approval')}
+                className="w-auto"
+                value={approvalFilter}
+                onChange={(e): void => {
+                  setApprovalFilter(e.target.value as ApprovalFilter);
+                  resetPage();
+                }}
+              >
+                <option value="">{t('carts.filter.allApprovals')}</option>
+                {cartApprovalStatusLabels.options(t).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            </>
+          }
+          filtersActive={filtered}
+          onClearFilters={clearFilters}
+        />
       }
       pagination={pager.footer(total)}
     >
@@ -153,19 +163,22 @@ export default function CartsList(): ReactNode {
         data={rows}
         keyExtractor={(c) => c.id}
         emptyState={
-          <div className="flex flex-col items-center gap-3 py-10 text-center">
-            {filtered ? (
-              <SearchX size={32} aria-hidden="true" className="text-muted-foreground" />
-            ) : (
-              <ShoppingCart size={32} aria-hidden="true" className="text-muted-foreground" />
-            )}
-            <p className="text-sm text-muted-foreground">{filtered ? t('carts.emptyFiltered') : t('carts.empty')}</p>
-            {filtered ? (
-              <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
-                {t('carts.clearFilters')}
-              </Button>
-            ) : null}
-          </div>
+          filtered ? (
+            <EmptyState variant="no-results" title={t('carts.emptyFiltered')} onClearFilters={clearFilters} />
+          ) : (
+            <EmptyState icon={<ShoppingCart size={20} />} title={t('carts.emptyTitle')} description={t('carts.empty')} />
+          )
+        }
+        renderActions={(c) =>
+          // Only where the row has somewhere to go besides itself: the owner
+          // already opens the cart.
+          c.organizationId ? (
+            <RowActionMenu label={t('carts.rowMenu.label', { name: ownerName(c) })}>
+              <RowActionMenuItem asChild>
+                <Link to={`/organizations/${c.organizationId}`}>{t('carts.rowMenu.organization')}</Link>
+              </RowActionMenuItem>
+            </RowActionMenu>
+          ) : null
         }
         columns={[
           {
@@ -178,7 +191,7 @@ export default function CartsList(): ReactNode {
             primary: true,
             render: (c) => (
               <Link to={`/carts/${c.id}`} className="font-medium text-primary hover:underline">
-                {c.ownerDisplayName ?? t('carts.owner.anonymous')}
+                {ownerName(c)}
               </Link>
             ),
             meta: (c) => formatDateTime(c.lastActivityAt),

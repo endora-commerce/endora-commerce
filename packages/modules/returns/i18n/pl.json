@@ -286,5 +286,13 @@
   "detail.guest.eraseConfirm": "Dane kontaktowe gościa, adres zwrotu i pliki zostaną trwale usunięte. Tej operacji nie można cofnąć. Link do śledzenia przestanie działać, a gość nie otrzyma już żadnego e-maila w tej sprawie. Produkty, komentarze i rozstrzygnięcie pozostaną.",
   "detail.guest.eraseConfirmAction": "Usuń trwale",
   "detail.guest.erasedInfo": "Dane osobowe gościa zostały usunięte.",
-  "detail.guest.actionFailed": "Nie udało się wykonać działania. Spróbuj ponownie."
+  "detail.guest.actionFailed": "Nie udało się wykonać działania. Spróbuj ponownie.",
+  "list.toolbar.label": "Filtruj zwroty i reklamacje",
+  "list.count": "Sprawy: {count}",
+  "list.emptyTitle": "Nie ma jeszcze zwrotów ani reklamacji",
+  "list.empty": "Sprawa pojawi się tutaj, gdy klient zgłosi zwrot albo reklamację.",
+  "list.emptyFiltered": "Żadna sprawa nie pasuje do tych filtrów.",
+  "list.settingsMenu.label": "Ustawienia",
+  "list.rowMenu.label": "Akcje sprawy {number}",
+  "list.rowMenu.order": "Otwórz zamówienie"
 }

@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { SearchX, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
 import type { AdminCustomerListItem, AdminCustomerListResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, EmptyState, Select } from '@endora-commerce/admin-kit/ui';
 import {
   ListPage,
+  ListToolbar,
+  ListToolbarSearch,
   OrganizationPicker,
   ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
   useConfirmDialog,
   useListPagination,
   type ListPageLoad,
@@ -42,6 +46,11 @@ export function customersListPath(filters: {
   return `/api/v1/admin/customers?${params.toString()}`;
 }
 
+/** What the operator reads a customer as: the name, else the e-mail. */
+function customerName(c: AdminCustomerListItem): string {
+  return `${c.firstName} ${c.lastName}`.trim() || c.email;
+}
+
 /**
  * The Customers list — the kit's `ListPage` pattern (issue #1439, DS-05): a
  * toolbar row of filters, one results table, the pager (issue #1473: the API
@@ -61,6 +70,7 @@ export function CustomersList(): ReactNode {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
   const path = customersListPath({ status, q, organizationId, ...pager.query });
 
   useEffect(() => {
@@ -131,59 +141,66 @@ export function CustomersList(): ReactNode {
         onRetry={() => setReloadKey((key) => key + 1)}
         count={t('list.count', { count: total })}
         toolbar={
-          <>
-            <div className="min-w-56 flex-1 space-y-1">
-              <Label htmlFor="cq">{t('list.field.search')}</Label>
-              <Input
-                id="cq"
-                type="search"
+          // The kit toolbar (issue #1500, SALES-24): a `search` landmark, the
+          // search first, then the two filters, each named by its label.
+          <ListToolbar
+            className="min-w-0 flex-1"
+            label={t('list.toolbar.label')}
+            search={
+              <ListToolbarSearch
+                ref={searchRef}
+                label={t('list.field.search')}
                 value={q}
-                onChange={(e): void => {
-                  setQ(e.target.value);
+                onValueChange={(next): void => {
+                  setQ(next);
                   resetPage();
                 }}
               />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="cstatus">{t('list.field.status')}</Label>
-              <Select
-                id="cstatus"
-                value={status}
-                onChange={(e): void => {
-                  setStatus(e.target.value as StatusFilter);
-                  resetPage();
-                }}
-              >
-                <option value="">{t('list.filter.all')}</option>
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`status.${s}`)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            {/* The searchable picker, not a <select> of the first 50
-                organizations, past which an organization was unfilterable. */}
-            <div className="w-64 space-y-1">
-              <Label htmlFor="corg">{t('list.field.organization')}</Label>
-              <OrganizationPicker
-                id="corg"
-                value={organizationId}
-                ariaLabel={t('list.field.organization')}
-                placeholder={t('list.filter.allOrgs')}
-                onChange={(next): void => {
-                  setOrganizationId(next);
-                  setResetMsg(null);
-                  resetPage();
-                }}
-              />
-            </div>
-            {organizationId && hasPermission('mfa:reset') ? (
-              <Button type="button" variant="outline" onClick={(): void => void resetOrgMfa()}>
-                {t('list.action.resetOrgMfa')}
-              </Button>
-            ) : null}
-          </>
+            }
+            filters={
+              <>
+                <Select
+                  aria-label={t('list.field.status')}
+                  className="w-auto"
+                  value={status}
+                  onChange={(e): void => {
+                    setStatus(e.target.value as StatusFilter);
+                    resetPage();
+                  }}
+                >
+                  <option value="">{t('list.filter.allStatuses')}</option>
+                  {STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {t(`status.${s}`)}
+                    </option>
+                  ))}
+                </Select>
+                {/* The searchable picker, not a <select> of the first 50
+                    organizations, past which an organization was unfilterable. */}
+                <div className="w-64">
+                  <OrganizationPicker
+                    value={organizationId}
+                    ariaLabel={t('list.field.organization')}
+                    placeholder={t('list.filter.allOrgs')}
+                    onChange={(next): void => {
+                      setOrganizationId(next);
+                      setResetMsg(null);
+                      resetPage();
+                    }}
+                  />
+                </div>
+              </>
+            }
+            actions={
+              organizationId && hasPermission('mfa:reset') ? (
+                <Button type="button" variant="outline" onClick={(): void => void resetOrgMfa()}>
+                  {t('list.action.resetOrgMfa')}
+                </Button>
+              ) : null
+            }
+            filtersActive={filtered}
+            onClearFilters={clearFilters}
+          />
         }
         notice={
           resetMsg ? (
@@ -198,19 +215,27 @@ export function CustomersList(): ReactNode {
           data={rows}
           keyExtractor={(c) => c.id}
           emptyState={
-            <div className="flex flex-col items-center gap-3 py-10 text-center">
-              {filtered ? (
-                <SearchX size={32} aria-hidden="true" className="text-muted-foreground" />
-              ) : (
-                <Users size={32} aria-hidden="true" className="text-muted-foreground" />
-              )}
-              <p className="text-sm text-muted-foreground">{filtered ? t('list.emptyFiltered') : t('list.empty')}</p>
-              {filtered ? (
-                <Button type="button" variant="outline" size="sm" onClick={clearFilters}>
-                  {t('list.clearFilters')}
-                </Button>
-              ) : null}
-            </div>
+            filtered ? (
+              <EmptyState
+                variant="no-results"
+                title={t('list.emptyFiltered')}
+                onClearFilters={clearFilters}
+                focusAfterClear={searchRef}
+              />
+            ) : (
+              <EmptyState icon={<Users size={20} />} title={t('list.emptyTitle')} description={t('list.empty')} />
+            )
+          }
+          renderActions={(c) =>
+            // Only where the row has somewhere to go besides itself: the name
+            // already opens the customer.
+            c.organizationId ? (
+              <RowActionMenu label={t('list.rowMenu.label', { name: customerName(c) })}>
+                <RowActionMenuItem asChild>
+                  <Link to={`/organizations/${c.organizationId}`}>{t('list.rowMenu.organization')}</Link>
+                </RowActionMenuItem>
+              </RowActionMenu>
+            ) : null
           }
           columns={[
             {
@@ -221,7 +246,7 @@ export function CustomersList(): ReactNode {
               // separate "Open" button in each row only repeated it.
               render: (c) => (
                 <Link to={`/customers/${c.id}`} className="font-medium text-primary hover:underline">
-                  {`${c.firstName} ${c.lastName}`.trim() || c.email}
+                  {customerName(c)}
                 </Link>
               ),
               meta: (c) => <span className="font-mono text-xs text-muted-foreground">{c.email}</span>,
