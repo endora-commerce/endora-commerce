@@ -3,7 +3,7 @@ import { Lock, Plus, Trash2 } from 'lucide-react';
 import { FORMS_LIMITS, type FormDefinition, type FormDetail } from '@endora-commerce/contracts';
 import { SalesChannelPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, Label, Separator, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, Label, Textarea } from '@endora-commerce/admin-kit/ui';
 import { formsApi } from '../api.js';
 import { errorMessage } from '../lib/errors.js';
 import { PanelSection } from './PanelSection.js';
@@ -26,7 +26,7 @@ import { TranslatableText } from './TranslatableText.js';
  * than the default only they are editable — the recipients and the switches are locked there — and
  * an empty one shows the default language's as its placeholder.
  *
- * Principle IX: admin-kit's `Card`, `Section`, `Textarea`, `Checkbox` and `SalesChannelPicker` —
+ * Principle IX: admin-kit's `Card`, `EditorSection` (through `PanelSection`, issue #1437), `Textarea`, `Checkbox` and `SalesChannelPicker` —
  * one address per line in a labelled text area is the plainest control that holds ten addresses and
  * is operable with the keyboard alone; no new primitive.
  */
@@ -208,56 +208,62 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
                 <h3 className="text-sm font-medium">{t('notifications.recipients.channels')}</h3>
                 <p className="text-xs text-muted-foreground">{t('notifications.recipients.channelsHint')}</p>
               </div>
-              {rows.map((row, index) => {
-                const error = errors?.rows[row.key];
-                const errorId = `${id}-${row.key}-error`;
-                return (
-                  <fieldset
-                    key={row.key}
-                    aria-label={t('notifications.recipients.channelRow', { number: index + 1 })}
-                    className="space-y-2 rounded-md border border-border bg-muted/30 p-3"
-                  >
-                    <div className="space-y-1">
-                      <Label htmlFor={`${id}-${row.key}-channel`}>{t('notifications.recipients.channel')}</Label>
-                      <SalesChannelPicker
-                        id={`${id}-${row.key}-channel`}
-                        value={row.channelId}
-                        disabled={disabled}
-                        ariaLabel={t('notifications.recipients.channel')}
-                        onChange={(channelId) => updateRow(row.key, { channelId })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor={`${id}-${row.key}-list`}>{t('notifications.recipients.channelList')}</Label>
-                      <Textarea
-                        id={`${id}-${row.key}-list`}
-                        rows={3}
-                        value={row.text}
-                        disabled={disabled}
-                        aria-invalid={error ? true : undefined}
-                        aria-describedby={error ? errorId : undefined}
-                        onChange={(event) => updateRow(row.key, { text: event.target.value })}
-                      />
-                    </div>
-                    {error ? (
-                      <p id={errorId} className="text-sm text-destructive">
-                        {errorText(error)}
-                      </p>
-                    ) : null}
-                    {disabled ? null : (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setRows((current) => current.filter((candidate) => candidate.key !== row.key))}
+              {rows.length > 0 ? (
+                // One row per channel, divided by a rule: a bordered box per row inside the card
+                // read as a separate object (issue #1437, DS-03).
+                <div className="divide-y divide-border">
+                  {rows.map((row, index) => {
+                    const error = errors?.rows[row.key];
+                    const errorId = `${id}-${row.key}-error`;
+                    return (
+                      <fieldset
+                        key={row.key}
+                        aria-label={t('notifications.recipients.channelRow', { number: index + 1 })}
+                        className="space-y-2 py-3"
                       >
-                        <Trash2 size={14} aria-hidden="true" />
-                        {t('notifications.recipients.removeChannel')}
-                      </Button>
-                    )}
-                  </fieldset>
-                );
-              })}
+                        <div className="space-y-1">
+                          <Label htmlFor={`${id}-${row.key}-channel`}>{t('notifications.recipients.channel')}</Label>
+                          <SalesChannelPicker
+                            id={`${id}-${row.key}-channel`}
+                            value={row.channelId}
+                            disabled={disabled}
+                            ariaLabel={t('notifications.recipients.channel')}
+                            onChange={(channelId) => updateRow(row.key, { channelId })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor={`${id}-${row.key}-list`}>{t('notifications.recipients.channelList')}</Label>
+                          <Textarea
+                            id={`${id}-${row.key}-list`}
+                            rows={3}
+                            value={row.text}
+                            disabled={disabled}
+                            aria-invalid={error ? true : undefined}
+                            aria-describedby={error ? errorId : undefined}
+                            onChange={(event) => updateRow(row.key, { text: event.target.value })}
+                          />
+                        </div>
+                        {error ? (
+                          <p id={errorId} className="text-sm text-destructive">
+                            {errorText(error)}
+                          </p>
+                        ) : null}
+                        {disabled ? null : (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setRows((current) => current.filter((candidate) => candidate.key !== row.key))}
+                          >
+                            <Trash2 size={14} aria-hidden="true" />
+                            {t('notifications.recipients.removeChannel')}
+                          </Button>
+                        )}
+                      </fieldset>
+                    );
+                  })}
+                </div>
+              ) : null}
               {tooManyRows ? (
                 <p className="text-sm text-destructive">
                   {t('notifications.recipients.error.tooManyChannels', { max: FORMS_LIMITS.channelOverrides })}
@@ -294,8 +300,6 @@ export function NotificationsPanel(props: NotificationsPanelProps): ReactNode {
             </div>
           </div>
         </PanelSection>
-
-        <Separator />
 
         <PanelSection
           titleId={`${id}-confirmation`}

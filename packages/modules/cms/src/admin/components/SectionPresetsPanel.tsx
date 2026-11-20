@@ -95,7 +95,9 @@ export function SectionPresetsPanel(): ReactElement | null {
       role="group"
       aria-labelledby={headingId}
       aria-describedby={hintId}
-      className="mx-1 mb-2 rounded-md border bg-muted/30 p-2"
+      // No box around the list (issue #1437, DS-03): the preset buttons are bordered like the
+      // drawer's own block items, and one rule sets the presets off from the blocks below.
+      className="mx-1 mb-2 border-b pb-2"
     >
       <h3 id={headingId} className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {t('presets.panel.title')}

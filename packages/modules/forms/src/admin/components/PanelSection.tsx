@@ -1,11 +1,15 @@
 import type { ReactNode } from 'react';
-import { Section } from '@endora-commerce/admin-kit/ui';
+import { EditorSection } from '@endora-commerce/admin-kit/ui';
 
 /**
- * admin-kit's `Section` as a **named region**: the plain titled block a card body is made of (the
- * product editor's pattern — one card per tab panel, plain sections inside, no nested cards), with
- * its heading naming it for assistive technology and, when given, a description under the heading.
- * `titleId` lets a control inside be labelled by the same heading (a radio group).
+ * admin-kit's `EditorSection` with the ids this module's panels name: the titled block a card body
+ * is made of (the product editor's pattern — one card per tab panel, sections inside, no nested
+ * cards), named by its heading for assistive technology and described by its description when given.
+ * Sibling sections divide themselves with the section's own rule, so a panel puts no `Separator`
+ * between them (issue #1437, DS-03).
+ *
+ * `titleId` is the section's base id: the heading is `${titleId}-title` — what a control inside is
+ * labelled by (a radio group) — and the description `${titleId}-description`.
  */
 export interface PanelSectionProps {
   readonly titleId: string;
@@ -18,15 +22,14 @@ export interface PanelSectionProps {
 
 export function PanelSection({ titleId, title, description, action, className, children }: PanelSectionProps): ReactNode {
   return (
-    <div role="region" aria-labelledby={titleId} className={className}>
-      <Section title={<span id={titleId}>{title}</span>} action={action}>
-        {description !== undefined ? (
-          <p id={`${titleId}-description`} className="text-sm text-muted-foreground">
-            {description}
-          </p>
-        ) : null}
-        {children}
-      </Section>
-    </div>
+    <EditorSection
+      id={titleId}
+      title={title}
+      {...(description !== undefined ? { description } : {})}
+      {...(action !== undefined ? { action } : {})}
+      {...(className !== undefined ? { className } : {})}
+    >
+      {children}
+    </EditorSection>
   );
 }

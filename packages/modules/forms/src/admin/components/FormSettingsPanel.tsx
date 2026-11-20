@@ -5,7 +5,7 @@ import { CmsPagePicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import { Lock } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, Input, Label, Separator } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, Input, Label } from '@endora-commerce/admin-kit/ui';
 import { formsApi } from '../api.js';
 import { errorMessage } from '../lib/errors.js';
 import { PanelSection } from './PanelSection.js';
@@ -38,7 +38,7 @@ import { TranslatableText } from './TranslatableText.js';
  * The texts here are the builder's content language's (User Story 7): in another language than the
  * default only they are editable, every other setting is locked there (the default language's), so
  * one structure serves every language; an empty text shows the default one as its placeholder.
- * Principle IX: admin-kit's `Card`, `Section`, `Input`, `Textarea`, `Checkbox`, `Alert`, `Button`
+ * Principle IX: admin-kit's `Card`, `EditorSection` (through `PanelSection`, issue #1437), `Input`, `Textarea`, `Checkbox`, `Alert`, `Button`
  * and `CmsPagePicker`; the confirmation choice is native radios in a labelled group, the precedent
  * of other modules.
  */
@@ -159,7 +159,7 @@ export function FormSettingsPanel(props: FormSettingsPanelProps): ReactNode {
           <div className="max-w-2xl space-y-4">
             <div
               role="radiogroup"
-              aria-labelledby={`${id}-confirmation`}
+              aria-labelledby={`${id}-confirmation-title`}
               aria-describedby={`${id}-confirmation-description`}
               className="flex flex-wrap gap-2"
             >
@@ -248,8 +248,6 @@ export function FormSettingsPanel(props: FormSettingsPanelProps): ReactNode {
           </div>
         </PanelSection>
 
-        <Separator />
-
         <PanelSection titleId={`${id}-restrictions`} title={t('settings.restrictions.title')} description={t('settings.restrictions.description')}>
           <div className="max-w-2xl space-y-5">
             <div className="grid gap-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
@@ -337,8 +335,6 @@ export function FormSettingsPanel(props: FormSettingsPanelProps): ReactNode {
           </div>
         </PanelSection>
 
-        <Separator />
-
         <PanelSection titleId={`${id}-spam`} title={t('settings.spam.title')} description={t('settings.spam.description')}>
           <div className="max-w-2xl space-y-3">
             <div className="flex min-h-9 items-center gap-2">
@@ -366,8 +362,6 @@ export function FormSettingsPanel(props: FormSettingsPanelProps): ReactNode {
             ) : null}
           </div>
         </PanelSection>
-
-        <Separator />
 
         <RetentionSettings form={form} disabled={disabled} onSaved={props.onSaved} />
       </CardContent>

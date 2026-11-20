@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   CardContent,
+  EditorSection,
   FormField,
   Input,
   PageHeader,
@@ -189,52 +190,58 @@ export default function AdminSecuritySettings(): ReactNode {
           {status === null ? (
             <p className="text-sm text-muted-foreground">{t('security.loading')}</p>
           ) : status.totpActive ? (
+            // Two sections in the one card (issue #1437, DS-03): the routine recovery codes first and
+            // switching the factor off last, away from it (Fitts), each form named by its heading.
             <div className="space-y-6">
               <p className="text-sm">
                 {t('security.status.enabled', { count: status.recoveryCodesRemaining })}
               </p>
-              {status.canDisable ? (
-                <form className="space-y-2" onSubmit={disable}>
+              <EditorSection title={t('security.recoveryCodes.sectionTitle')}>
+                <form className="space-y-2" onSubmit={regenerate}>
                   <FormField
-                    label={t('security.disable.label')}
+                    label={t('security.regenerate.label')}
                     hint={t('security.code.hint')}
-                    error={errorFor('disable')}
+                    error={errorFor('regenerate')}
                     required
                   >
                     <Input
                       {...CODE_INPUT}
-                      value={disableCode}
-                      onChange={(e): void => setDisableCode(e.target.value)}
+                      value={regenerateCode}
+                      onChange={(e): void => setRegenerateCode(e.target.value)}
                     />
                   </FormField>
-                  <Button type="submit" variant="destructive" disabled={busy}>
-                    {t('security.disable.submit')}
+                  <Button type="submit" variant="outline" disabled={busy}>
+                    {t('security.regenerate.submit')}
                   </Button>
                 </form>
-              ) : (
-                <Alert data-testid="mfa-disable-blocked">
-                  <ShieldCheck className="size-4" />
-                  <AlertTitle>{t('security.disableBlocked.title')}</AlertTitle>
-                  <AlertDescription>{t('security.disableBlocked.body')}</AlertDescription>
-                </Alert>
-              )}
-              <form className="space-y-2" onSubmit={regenerate}>
-                <FormField
-                  label={t('security.regenerate.label')}
-                  hint={t('security.code.hint')}
-                  error={errorFor('regenerate')}
-                  required
-                >
-                  <Input
-                    {...CODE_INPUT}
-                    value={regenerateCode}
-                    onChange={(e): void => setRegenerateCode(e.target.value)}
-                  />
-                </FormField>
-                <Button type="submit" variant="outline" disabled={busy}>
-                  {t('security.regenerate.submit')}
-                </Button>
-              </form>
+              </EditorSection>
+              <EditorSection title={t('security.disable.sectionTitle')}>
+                {status.canDisable ? (
+                  <form className="space-y-2" onSubmit={disable}>
+                    <FormField
+                      label={t('security.disable.label')}
+                      hint={t('security.code.hint')}
+                      error={errorFor('disable')}
+                      required
+                    >
+                      <Input
+                        {...CODE_INPUT}
+                        value={disableCode}
+                        onChange={(e): void => setDisableCode(e.target.value)}
+                      />
+                    </FormField>
+                    <Button type="submit" variant="destructive" disabled={busy}>
+                      {t('security.disable.submit')}
+                    </Button>
+                  </form>
+                ) : (
+                  <Alert data-testid="mfa-disable-blocked">
+                    <ShieldCheck className="size-4" />
+                    <AlertTitle>{t('security.disableBlocked.title')}</AlertTitle>
+                    <AlertDescription>{t('security.disableBlocked.body')}</AlertDescription>
+                  </Alert>
+                )}
+              </EditorSection>
             </div>
           ) : setup ? (
             <form className="space-y-3" onSubmit={confirm}>

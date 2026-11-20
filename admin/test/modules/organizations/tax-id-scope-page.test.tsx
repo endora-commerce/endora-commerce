@@ -185,3 +185,24 @@ describe('Tax-ID scope page', () => {
     expect(Object.keys(EN).filter((k) => k.startsWith('taxIdScope.')).length).toBeGreaterThan(10);
   });
 });
+
+/**
+ * Issue #1437 (UX audit 2026-11-17, DS-03) — a frame inside a card is a defect
+ * unless it is a field. The two scope options are bordered, so they must read
+ * as the one control they are: the whole box is the radio's label (Fitts), the
+ * chosen one is drawn as chosen, and keyboard focus rings the box.
+ */
+describe('TaxIdScopePage — the scope options are choice fields, not frames (DS-03)', () => {
+  beforeEach(() => answer(STATUS));
+
+  it('wraps each radio in its bordered label, drawn as chosen when checked and ringed on keyboard focus', async () => {
+    render();
+    await screen.findByRole('radio', { name: new RegExp(EN['taxIdScope.scope.global.label']!) });
+    for (const key of ['taxIdScope.scope.global.label', 'taxIdScope.scope.perTreeRoot.label']) {
+      const label = radio(key).closest('label')!;
+      expect(label.className).toMatch(/(^|\s)border(\s|$)/);
+      expect(label.className).toContain('has-[:checked]:border-primary');
+      expect(label.className).toContain('has-[:focus-visible]:ring-2');
+    }
+  });
+});

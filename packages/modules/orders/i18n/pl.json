@@ -22,6 +22,7 @@
   "list.savedViews.private": "Prywatny",
   "statusConfig.title": "Konfiguracja statusów zamówienia",
   "statusConfig.addStatus": "Dodaj status",
+  "statusConfig.newStatus.title": "Nowy status",
   "statusConfig.terminal": "Status kończący",
   "statusConfig.initial": "Status początkowy",
   "statusConfig.deleteInUse": "Nie można usunąć statusu używanego przez zamówienia",

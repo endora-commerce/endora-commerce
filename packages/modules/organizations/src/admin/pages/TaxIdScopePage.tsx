@@ -193,10 +193,12 @@ export function TaxIdScopePage(): ReactNode {
             <CardContent className="space-y-4">
               <fieldset className="space-y-3">
                 <legend className="text-sm font-medium">{t('taxIdScope.legend')}</legend>
+                {/* Each option is a choice field, not a frame (issue #1437, DS-03): the whole box is the
+                    radio's label (Fitts), the chosen one is drawn as chosen and keyboard focus rings it. */}
                 {SCOPES.map((option) => (
                   <label
                     key={option.value}
-                    className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border p-3"
+                    className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
                   >
                     <input
                       type="radio"

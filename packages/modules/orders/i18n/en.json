@@ -22,6 +22,7 @@
   "list.savedViews.private": "Private",
   "statusConfig.title": "Order status configuration",
   "statusConfig.addStatus": "Add status",
+  "statusConfig.newStatus.title": "New status",
   "statusConfig.terminal": "Terminal status",
   "statusConfig.initial": "Initial status",
   "statusConfig.deleteInUse": "Cannot delete a status that orders currently use",

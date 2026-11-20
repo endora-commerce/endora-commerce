@@ -450,44 +450,47 @@ export function FieldInspector(props: FieldInspectorProps): ReactNode {
             {field.type === 'address' ? (
               <fieldset className="space-y-3">
                 <legend className="text-sm font-medium">{t('inspector.parts')}</legend>
-                {FORM_ADDRESS_PARTS.map((part: FormAddressPart) => {
-                  const settings = field.parts[part];
-                  const partName = t(`inspector.part.${part}`);
-                  const fixed = part === 'street' || part === 'city';
-                  return (
-                    <div key={part} className="space-y-1 rounded-md border border-border p-2">
-                      <div className="flex flex-wrap items-center gap-x-4">
-                        {checkbox(
-                          `part-${part}`,
-                          t('inspector.partEnabled', { part: partName }),
-                          settings.enabled,
-                          (enabled) => update({ ...field, parts: { ...field.parts, [part]: { enabled, required: enabled && settings.required } } }),
-                          fixed,
-                        )}
-                        {checkbox(
-                          `part-${part}-required`,
-                          t('inspector.partRequired', { part: partName }),
-                          settings.required,
-                          (required) => update({ ...field, parts: { ...field.parts, [part]: { ...settings, required } } }),
-                          !settings.enabled,
-                        )}
+                {/* One row per part, divided by a rule — not a bordered box each inside the card (issue #1437, DS-03). */}
+                <div data-address-parts="" className="divide-y divide-border">
+                  {FORM_ADDRESS_PARTS.map((part: FormAddressPart) => {
+                    const settings = field.parts[part];
+                    const partName = t(`inspector.part.${part}`);
+                    const fixed = part === 'street' || part === 'city';
+                    return (
+                      <div key={part} className="space-y-1 py-2">
+                        <div className="flex flex-wrap items-center gap-x-4">
+                          {checkbox(
+                            `part-${part}`,
+                            t('inspector.partEnabled', { part: partName }),
+                            settings.enabled,
+                            (enabled) => update({ ...field, parts: { ...field.parts, [part]: { enabled, required: enabled && settings.required } } }),
+                            fixed,
+                          )}
+                          {checkbox(
+                            `part-${part}-required`,
+                            t('inspector.partRequired', { part: partName }),
+                            settings.required,
+                            (required) => update({ ...field, parts: { ...field.parts, [part]: { ...settings, required } } }),
+                            !settings.enabled,
+                          )}
+                        </div>
+                        {settings.enabled ? (
+                          <TranslatableText
+                            id={id(`part-${part}-label`)}
+                            label={t('inspector.partLabel', { part: partName })}
+                            definition={definition}
+                            language={language}
+                            defaultLanguage={defaultLanguage}
+                            textId={`fields.${field.id}.parts.${part}.label`}
+                            placeholder={partName}
+                            disabled={disabled}
+                            onChange={onChange}
+                          />
+                        ) : null}
                       </div>
-                      {settings.enabled ? (
-                        <TranslatableText
-                          id={id(`part-${part}-label`)}
-                          label={t('inspector.partLabel', { part: partName })}
-                          definition={definition}
-                          language={language}
-                          defaultLanguage={defaultLanguage}
-                          textId={`fields.${field.id}.parts.${part}.label`}
-                          placeholder={partName}
-                          disabled={disabled}
-                          onChange={onChange}
-                        />
-                      ) : null}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </fieldset>
             ) : null}
 

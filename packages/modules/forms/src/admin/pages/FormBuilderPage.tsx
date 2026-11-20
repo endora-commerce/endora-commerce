@@ -23,6 +23,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  EmptyState,
   Input,
   Label,
   PageHeader,
@@ -581,14 +582,12 @@ export function FormBuilderPage(): ReactNode {
               </CardHeader>
               <CardContent className="p-4 pt-0">
                 {versions === null ? null : versions.length === 0 ? (
-                  <div className="flex flex-col items-center gap-2 rounded-md border border-dashed border-border p-8 text-center">
-                    <History size={24} aria-hidden="true" className="text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">{t('versions.empty')}</p>
-                  </div>
+                  <EmptyState icon={<History size={20} />} title={t('versions.empty')} />
                 ) : (
-                  <ul className="divide-y divide-border rounded-md border border-border">
+                  // Rows divided by a rule inside the card, with no frame around the list (issue #1437, DS-03).
+                  <ul className="divide-y divide-border">
                     {versions.map((version) => (
-                      <li key={version.number} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                      <li key={version.number} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
                         <span className="inline-flex items-center gap-2 font-medium">
                           {t('versions.item', { number: version.number })}
                           {version.number === form.publishedVersionNumber ? (

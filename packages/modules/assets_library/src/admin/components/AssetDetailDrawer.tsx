@@ -8,7 +8,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { ExternalLink, Trash2 } from 'lucide-react';
 import { validateAssetPermalink } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, EditorSection, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { AssetUploader, ModalDialog, StatusChangeControl } from '@endora-commerce/admin-kit/components';
@@ -120,7 +120,6 @@ function AssetDetailDrawerBody({
   const permalinkId = useId();
   const permalinkHelpId = useId();
   const permalinkErrorId = useId();
-  const previousTitleId = useId();
   const mimeTypeId = useId();
   const mimeTypeHelpId = useId();
   const [mimeTypeDraft, setMimeTypeDraft] = useState<string | null>(null);
@@ -459,202 +458,206 @@ function AssetDetailDrawerBody({
           </Alert>
         ) : null}
 
-        {/* Shareable link — the stable URL, never the versioned embed one (FR-021). */}
-        <div className="space-y-1">
-          <Label htmlFor={shareId}>{t('detail.shareUrl.label')}</Label>
-          <div className="flex items-center gap-2">
-            <Input id={shareId} value={shareUrl} readOnly className="font-mono text-xs" />
-            <Button type="button" size="sm" variant="outline" onClick={(): void => void copyShareUrl()}>
-              {t('detail.shareUrl.copy')}
-            </Button>
-          </div>
-          <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
-            {copyStatus === 'copied'
-              ? t('detail.shareUrl.copied')
-              : copyStatus === 'failed'
-                ? t('detail.shareUrl.copyFailed')
-                : ''}
-          </p>
-          {detail.visibility === 'private' ? (
-            <p className="text-xs text-muted-foreground">{t('detail.shareUrl.privateNotice')}</p>
-          ) : null}
-        </div>
-
-        {/* Permalink (FR-014 – FR-019, owner ruling P5). */}
-        <div className="space-y-1">
-          <Label htmlFor={permalinkId}>{t('detail.permalink.label')}</Label>
-          {/* Read-only rather than disabled while a request runs, so focus can
-              come back here when a permalink dialog closes. */}
-          <Input
-            ref={permalinkInput}
-            id={permalinkId}
-            value={permalinkDraft}
-            readOnly={!canWrite || busy}
-            aria-invalid={invalidReason !== null}
-            aria-describedby={invalidReason !== null ? `${permalinkHelpId} ${permalinkErrorId}` : permalinkHelpId}
-            onChange={(e): void => setPermalinkDraft(e.target.value)}
-          />
-          <p id={permalinkHelpId} className="text-xs text-muted-foreground">
-            {t('detail.permalink.help')}
-          </p>
-          <div aria-live="polite">
-            {invalidReason !== null ? (
-              <p id={permalinkErrorId} className="text-xs text-destructive">
-                {t(`detail.permalink.invalid.${invalidReason}`)}
-              </p>
+        {/* Titled sections inside the one card, each divided from the last by its own rule
+            (issue #1437, DS-03): h3 under the card's h2. */}
+        <EditorSection as="h3" title={t('detail.section.links')}>
+          {/* Shareable link — the stable URL, never the versioned embed one (FR-021). */}
+          <div className="space-y-1">
+            <Label htmlFor={shareId}>{t('detail.shareUrl.label')}</Label>
+            <div className="flex items-center gap-2">
+              <Input id={shareId} value={shareUrl} readOnly className="font-mono text-xs" />
+              <Button type="button" size="sm" variant="outline" onClick={(): void => void copyShareUrl()}>
+                {t('detail.shareUrl.copy')}
+              </Button>
+            </div>
+            <p role="status" aria-live="polite" className="text-xs text-muted-foreground">
+              {copyStatus === 'copied'
+                ? t('detail.shareUrl.copied')
+                : copyStatus === 'failed'
+                  ? t('detail.shareUrl.copyFailed')
+                  : ''}
+            </p>
+            {detail.visibility === 'private' ? (
+              <p className="text-xs text-muted-foreground">{t('detail.shareUrl.privateNotice')}</p>
             ) : null}
           </div>
-          {canWrite ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                disabled={busy || !permalinkChanged || invalidReason !== null}
-                onClick={onSavePermalink}
-              >
-                {t('detail.permalink.save')}
-              </Button>
-              {currentPermalink !== '' ? (
+
+          {/* Permalink (FR-014 – FR-019, owner ruling P5). */}
+          <div className="space-y-1">
+            <Label htmlFor={permalinkId}>{t('detail.permalink.label')}</Label>
+            {/* Read-only rather than disabled while a request runs, so focus can
+                come back here when a permalink dialog closes. */}
+            <Input
+              ref={permalinkInput}
+              id={permalinkId}
+              value={permalinkDraft}
+              readOnly={!canWrite || busy}
+              aria-invalid={invalidReason !== null}
+              aria-describedby={invalidReason !== null ? `${permalinkHelpId} ${permalinkErrorId}` : permalinkHelpId}
+              onChange={(e): void => setPermalinkDraft(e.target.value)}
+            />
+            <p id={permalinkHelpId} className="text-xs text-muted-foreground">
+              {t('detail.permalink.help')}
+            </p>
+            <div aria-live="polite">
+              {invalidReason !== null ? (
+                <p id={permalinkErrorId} className="text-xs text-destructive">
+                  {t(`detail.permalink.invalid.${invalidReason}`)}
+                </p>
+              ) : null}
+            </div>
+            {canWrite ? (
+              <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={(): void => setPermalinkConfirm('remove')}
+                  disabled={busy || !permalinkChanged || invalidReason !== null}
+                  onClick={onSavePermalink}
                 >
-                  {t('detail.permalink.remove')}
+                  {t('detail.permalink.save')}
+                </Button>
+                {currentPermalink !== '' ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={(): void => setPermalinkConfirm('remove')}
+                  >
+                    {t('detail.permalink.remove')}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </EditorSection>
+
+        <EditorSection as="h3" title={t('detail.section.details')}>
+          <Field label={t('detail.filename')} value={detail.filename} onSave={(v): Promise<void> => save({ filename: v })} disabled={busy} saveLabel={t('common.save')} />
+          <Field
+            label={t('detail.label')}
+            value={detail.label ?? ''}
+            placeholder={t('common.optional')}
+            onSave={(v): Promise<void> => save({ label: v.length === 0 ? null : v })}
+            disabled={busy}
+            saveLabel={t('common.save')}
+          />
+          <div className="space-y-1">
+            <Label htmlFor={mimeTypeId}>{t('detail.mimeType')}</Label>
+            <div className="flex items-center gap-2">
+              <Select
+                id={mimeTypeId}
+                value={mimeTypeValue}
+                aria-describedby={mimeTypeHelpId}
+                onChange={(e): void => setMimeTypeDraft(e.target.value)}
+                disabled={!canWrite || busy}
+              >
+                {/* Preserve an existing value that falls outside the curated list
+                    so the current MIME type is shown and not silently lost. */}
+                {MIME_TYPE_OPTIONS.includes(detail.mimeType as (typeof MIME_TYPE_OPTIONS)[number]) ? null : (
+                  <option value={detail.mimeType}>{detail.mimeType}</option>
+                )}
+                {MIME_TYPE_OPTIONS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </Select>
+              {canWrite && mimeTypeDirty ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={busy}
+                  onClick={(): void => void save({ mimeType: mimeTypeValue })}
+                >
+                  {t('detail.mimeTypeSave')}
                 </Button>
               ) : null}
             </div>
-          ) : null}
-        </div>
-
-        <Field label={t('detail.filename')} value={detail.filename} onSave={(v): Promise<void> => save({ filename: v })} disabled={busy} saveLabel={t('common.save')} />
-        <Field
-          label={t('detail.label')}
-          value={detail.label ?? ''}
-          placeholder={t('common.optional')}
-          onSave={(v): Promise<void> => save({ label: v.length === 0 ? null : v })}
-          disabled={busy}
-          saveLabel={t('common.save')}
-        />
-        <div className="space-y-1">
-          <Label htmlFor={mimeTypeId}>{t('detail.mimeType')}</Label>
-          <div className="flex items-center gap-2">
-            <Select
-              id={mimeTypeId}
-              value={mimeTypeValue}
-              aria-describedby={mimeTypeHelpId}
-              onChange={(e): void => setMimeTypeDraft(e.target.value)}
-              disabled={!canWrite || busy}
-            >
-              {/* Preserve an existing value that falls outside the curated list
-                  so the current MIME type is shown and not silently lost. */}
-              {MIME_TYPE_OPTIONS.includes(detail.mimeType as (typeof MIME_TYPE_OPTIONS)[number]) ? null : (
-                <option value={detail.mimeType}>{detail.mimeType}</option>
-              )}
-              {MIME_TYPE_OPTIONS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </Select>
-            {canWrite && mimeTypeDirty ? (
-              <Button
-                type="button"
-                size="sm"
-                disabled={busy}
-                onClick={(): void => void save({ mimeType: mimeTypeValue })}
-              >
-                {t('detail.mimeTypeSave')}
-              </Button>
-            ) : null}
+            <p id={mimeTypeHelpId} className="text-xs text-muted-foreground">
+              {t('detail.mimeTypeHelp')}
+            </p>
           </div>
-          <p id={mimeTypeHelpId} className="text-xs text-muted-foreground">
-            {t('detail.mimeTypeHelp')}
-          </p>
-        </div>
 
-        {/* Visibility decides who may open the file, so a change is confirmed
-            with what it does rather than written on `change` (issue #1575). */}
-        <StatusChangeControl
-          label={t('detail.visibility')}
-          dialogTitle={t('detail.visibilityChangeTitle')}
-          current={detail.visibility}
-          currentLabel={assetVisibilityLabels.label(t, detail.visibility)}
-          options={assetVisibilityLabels.options(t)}
-          onConfirm={saveVisibility}
-          consequence={(to): ReactNode => (
-            <>
-              {t(to === 'private' ? 'detail.visibilityConsequence.private' : 'detail.visibilityConsequence.public')}
-              {to === 'private' && detail.references.length > 0
-                ? ` ${t('detail.visibilityConsequence.referenced', { count: detail.references.length })}`
-                : null}
-            </>
-          )}
-          errorMessage={(e): ReactNode => sentenceOf(refusalOf(e))}
-          {...(canWrite ? {} : { disabledReason: t('detail.visibilityNoPermission') })}
-        />
+          {/* Visibility decides who may open the file, so a change is confirmed
+              with what it does rather than written on `change` (issue #1575). */}
+          <StatusChangeControl
+            label={t('detail.visibility')}
+            dialogTitle={t('detail.visibilityChangeTitle')}
+            current={detail.visibility}
+            currentLabel={assetVisibilityLabels.label(t, detail.visibility)}
+            options={assetVisibilityLabels.options(t)}
+            onConfirm={saveVisibility}
+            consequence={(to): ReactNode => (
+              <>
+                {t(to === 'private' ? 'detail.visibilityConsequence.private' : 'detail.visibilityConsequence.public')}
+                {to === 'private' && detail.references.length > 0
+                  ? ` ${t('detail.visibilityConsequence.referenced', { count: detail.references.length })}`
+                  : null}
+              </>
+            )}
+            errorMessage={(e): ReactNode => sentenceOf(refusalOf(e))}
+            {...(canWrite ? {} : { disabledReason: t('detail.visibilityNoPermission') })}
+          />
 
-        <div className="text-xs text-muted-foreground">
-          {t('detail.storage')}: {detail.storageBackend} · {t('detail.size')}: {detail.sizeBytes} {t('detail.bytes')}
-        </div>
+          <div className="text-xs text-muted-foreground">
+            {t('detail.storage')}: {detail.storageBackend} · {t('detail.size')}: {detail.sizeBytes} {t('detail.bytes')}
+          </div>
+        </EditorSection>
 
         {/* Replace file — same id, same links, new file (FR-001). A legacy row or
             one with no storage key cannot be replaced in place (owner ruling S3). */}
-        {canWrite && detail.replaceable === false ? (
-          <p className="border-t pt-3 text-xs text-muted-foreground">{t('detail.replace.unavailable')}</p>
-        ) : null}
-        {canWrite && detail.replaceable !== false ? (
-          <div className="border-t pt-3">
-            <AssetUploader
-              upload={stageReplace}
-              {...kindProps}
-              triggerLabel={t('detail.replace.trigger')}
-              onUploaded={(): void => undefined}
-            />
-          </div>
-        ) : null}
-
-        {/* Previous version (FR-022, FR-023). */}
-        {previous ? (
-          <section aria-labelledby={previousTitleId} className="space-y-2 border-t pt-3">
-            <h3 id={previousTitleId} className="text-sm font-medium">
-              {t('detail.previous.title')}
-            </h3>
-            <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs">
-              <dt className="text-muted-foreground">{t('detail.filename')}</dt>
-              <dd>{previous.filename}</dd>
-              <dt className="text-muted-foreground">{t('detail.mimeType')}</dt>
-              <dd>{previous.mimeType}</dd>
-              <dt className="text-muted-foreground">{t('detail.size')}</dt>
-              <dd>
-                {previous.sizeBytes} {t('detail.bytes')}
-              </dd>
-              <dt className="text-muted-foreground">{t('detail.previous.replacedAt')}</dt>
-              <dd>{formatDateTime(previous.replacedAt)}</dd>
-              <dt className="text-muted-foreground">{t('detail.previous.replacedBy')}</dt>
-              <dd>{previous.replacedBy?.displayName ?? t('detail.previous.unknownActor')}</dd>
-              <dt className="text-muted-foreground">{t('detail.previous.restorableUntil')}</dt>
-              <dd>{formatDateTime(previous.restorableUntil)}</dd>
-            </dl>
-            {canWrite ? (
-              <Button
-                ref={restoreButton}
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={busy}
-                onClick={(): void => setRestoreConfirm(true)}
-              >
-                {t('detail.previous.restore')}
-              </Button>
+        {canWrite || previous ? (
+          <EditorSection as="h3" title={t('detail.section.file')}>
+            {canWrite && detail.replaceable === false ? (
+              <p className="text-xs text-muted-foreground">{t('detail.replace.unavailable')}</p>
             ) : null}
-          </section>
+            {canWrite && detail.replaceable !== false ? (
+              <AssetUploader
+                upload={stageReplace}
+                {...kindProps}
+                triggerLabel={t('detail.replace.trigger')}
+                onUploaded={(): void => undefined}
+              />
+            ) : null}
+
+            {/* Previous version (FR-022, FR-023). */}
+            {previous ? (
+              <EditorSection as="h4" title={t('detail.previous.title')} className="space-y-2">
+                <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs">
+                  <dt className="text-muted-foreground">{t('detail.filename')}</dt>
+                  <dd>{previous.filename}</dd>
+                  <dt className="text-muted-foreground">{t('detail.mimeType')}</dt>
+                  <dd>{previous.mimeType}</dd>
+                  <dt className="text-muted-foreground">{t('detail.size')}</dt>
+                  <dd>
+                    {previous.sizeBytes} {t('detail.bytes')}
+                  </dd>
+                  <dt className="text-muted-foreground">{t('detail.previous.replacedAt')}</dt>
+                  <dd>{formatDateTime(previous.replacedAt)}</dd>
+                  <dt className="text-muted-foreground">{t('detail.previous.replacedBy')}</dt>
+                  <dd>{previous.replacedBy?.displayName ?? t('detail.previous.unknownActor')}</dd>
+                  <dt className="text-muted-foreground">{t('detail.previous.restorableUntil')}</dt>
+                  <dd>{formatDateTime(previous.restorableUntil)}</dd>
+                </dl>
+                {canWrite ? (
+                  <Button
+                    ref={restoreButton}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busy}
+                    onClick={(): void => setRestoreConfirm(true)}
+                  >
+                    {t('detail.previous.restore')}
+                  </Button>
+                ) : null}
+              </EditorSection>
+            ) : null}
+          </EditorSection>
         ) : null}
 
-        <div className="border-t pt-3">
-          <p className="mb-1 text-sm font-medium">{t('detail.referencedBy')}</p>
+        <EditorSection as="h3" title={t('detail.referencedBy')}>
           {detail.references.length === 0 ? (
             <p className="text-xs text-muted-foreground">{t('detail.notReferenced')}</p>
           ) : (
@@ -668,9 +671,9 @@ function AssetDetailDrawerBody({
               ))}
             </ul>
           )}
-        </div>
+        </EditorSection>
 
-        <div className="border-t pt-3">
+        <div className="border-t pt-(--section-gap)">
           <Button
             type="button"
             variant="destructive"

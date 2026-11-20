@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { DictionaryLanguagesPageResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, EditorSection, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { StatusTransitionGraph, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ORDER_STATUS_DEFAULT_COLOR } from '@endora-commerce/contracts';
@@ -250,9 +250,9 @@ export function OrderStatusConfigPage(): ReactNode {
                             <Label htmlFor={`dn-${s.code}`}>
                               {t('orderStatusConfig.field.defaultName')}
                             </Label>
-                            <input
+                            <Input
                               id={`dn-${s.code}`}
-                              className="h-8 w-full rounded-md border px-2 text-sm"
+                              className="h-8 px-2"
                               value={editDefaultName}
                               onChange={(e): void => setEditDefaultName(e.target.value)}
                             />
@@ -260,9 +260,9 @@ export function OrderStatusConfigPage(): ReactNode {
                           {languages.map((lang) => (
                             <div key={lang.code} className="space-y-1">
                               <Label htmlFor={`n-${s.code}-${lang.code}`}>{lang.label}</Label>
-                              <input
+                              <Input
                                 id={`n-${s.code}-${lang.code}`}
-                                className="h-8 w-full rounded-md border px-2 text-sm"
+                                className="h-8 px-2"
                                 value={editNames[lang.code] ?? ''}
                                 placeholder={s.defaultName}
                                 onChange={(e): void =>
@@ -330,61 +330,68 @@ export function OrderStatusConfigPage(): ReactNode {
             </TableBody>
           </Table>
 
-          <div className="mt-4 flex flex-wrap items-end gap-3 border-t pt-4">
-            <div className="space-y-1">
-              <Label htmlFor="newCode">{t('orderStatusConfig.col.code')}</Label>
-              <input
-                id="newCode"
-                className="h-9 rounded-md border px-3 text-sm"
-                value={newCode}
-                onChange={(e): void => setNewCode(e.target.value)}
-                placeholder="awaiting_stock"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="newDefaultName">{t('orderStatusConfig.field.defaultName')}</Label>
-              <input
-                id="newDefaultName"
-                className="h-9 rounded-md border px-3 text-sm"
-                value={newDefaultName}
-                onChange={(e): void => setNewDefaultName(e.target.value)}
-              />
-            </div>
-            {languages.map((lang) => (
-              <div key={lang.code} className="space-y-1">
-                <Label htmlFor={`newName-${lang.code}`}>{lang.label}</Label>
-                <input
-                  id={`newName-${lang.code}`}
-                  className="h-9 rounded-md border px-3 text-sm"
-                  value={newNames[lang.code] ?? ''}
-                  onChange={(e): void =>
-                    setNewNames((prev) => ({ ...prev, [lang.code]: e.target.value }))
-                  }
+          {/* The add form is a titled section of the statuses card, set off from the table by one
+              rule (issue #1437, DS-03), on the kit's fields. */}
+          <EditorSection
+            as="h3"
+            title={tOrders('statusConfig.newStatus.title')}
+            className="mt-4 border-t pt-(--section-gap)"
+          >
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="newCode">{t('orderStatusConfig.col.code')}</Label>
+                <Input
+                  id="newCode"
+                  className="w-auto"
+                  value={newCode}
+                  onChange={(e): void => setNewCode(e.target.value)}
+                  placeholder="awaiting_stock"
                 />
               </div>
-            ))}
-            <div className="space-y-1">
-              <Label>{t('orderStatusConfig.field.color')}</Label>
-              <StatusColorPicker
-                value={newColor}
-                onChange={setNewColor}
-                label={t('orderStatusConfig.field.color')}
-                customLabel={t('orderStatusConfig.color.custom')}
-              />
+              <div className="space-y-1">
+                <Label htmlFor="newDefaultName">{t('orderStatusConfig.field.defaultName')}</Label>
+                <Input
+                  id="newDefaultName"
+                  className="w-auto"
+                  value={newDefaultName}
+                  onChange={(e): void => setNewDefaultName(e.target.value)}
+                />
+              </div>
+              {languages.map((lang) => (
+                <div key={lang.code} className="space-y-1">
+                  <Label htmlFor={`newName-${lang.code}`}>{lang.label}</Label>
+                  <Input
+                    id={`newName-${lang.code}`}
+                    className="w-auto"
+                    value={newNames[lang.code] ?? ''}
+                    onChange={(e): void =>
+                      setNewNames((prev) => ({ ...prev, [lang.code]: e.target.value }))
+                    }
+                  />
+                </div>
+              ))}
+              <div className="space-y-1">
+                <Label>{t('orderStatusConfig.field.color')}</Label>
+                <StatusColorPicker
+                  value={newColor}
+                  onChange={setNewColor}
+                  label={t('orderStatusConfig.field.color')}
+                  customLabel={t('orderStatusConfig.color.custom')}
+                />
+              </div>
+              <label className="flex min-h-9 items-center gap-2 text-sm">
+                <Checkbox
+                  checked={newTerminal}
+                  onChange={(e): void => setNewTerminal(e.target.checked)}
+                />
+                {t('orderStatusConfig.flag.terminal')}
+              </label>
+              <Button onClick={addStatus} disabled={!newCode.trim()}>
+                <Plus />
+                {t('orderStatusConfig.addStatus')}
+              </Button>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={newTerminal}
-                onChange={(e): void => setNewTerminal(e.target.checked)}
-              />
-              {t('orderStatusConfig.flag.terminal')}
-            </label>
-            <Button onClick={addStatus} disabled={!newCode.trim()}>
-              <Plus />
-              {t('orderStatusConfig.addStatus')}
-            </Button>
-          </div>
+          </EditorSection>
         </CardContent>
       </Card>
 
