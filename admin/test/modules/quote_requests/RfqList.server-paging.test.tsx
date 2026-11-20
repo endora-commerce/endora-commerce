@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import en from '../../../../packages/modules/_i18n/i18n/en.json';
 
@@ -24,7 +25,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   return {
     ...actual,
     useAuth: () => ({ me: { role: { code: 'platform_admin' } } }),
-    usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }),
     apiClient: {
       get: (...args: unknown[]) => api.get(...args),
       post: (...args: unknown[]) => api.post(...args),
@@ -99,9 +99,13 @@ const lastRequest = (): URLSearchParams => listRequests().at(-1)!;
 async function renderList(): Promise<ReturnType<typeof userEvent.setup>> {
   const user = userEvent.setup();
   renderWithI18n(
-    <MemoryRouter>
-      <RfqList />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter>
+        <RfqList />
+      </MemoryRouter>,
+      // The kit pager reads the admin's remembered page size, inside the session (issue #1500).
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
     { core: en as Record<string, string> },
   );
   await screen.findByText('#RFQ-1');
@@ -147,7 +151,7 @@ describe('RfqList — the server reads the page (issue #317)', () => {
   it('sends the search once typing settles', async () => {
     const user = await renderList();
     const before = listRequests().length;
-    await user.type(screen.getByRole('textbox', { name: 'Search' }), '  RFQ-4 ');
+    await user.type(screen.getByRole('searchbox', { name: 'Search' }), '  RFQ-4 ');
     await waitFor(() => expect(lastRequest().get('q')).toBe('RFQ-4'));
     // One request for the settled search, not one per keystroke.
     expect(listRequests().length).toBe(before + 1);

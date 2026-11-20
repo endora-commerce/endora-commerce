@@ -42,9 +42,9 @@
   "actions.newOrganization.description": "Create a customer organization and choose its sales channels",
   "list.newOrganization": "New organization",
   "list.count": "Organizations: {count}",
-  "list.empty": "No organizations yet. They appear here when a company registers or you create one.",
+  "list.empty": "They appear here when a company registers or you create one.",
   "list.emptyFiltered": "No organization matches these filters.",
-  "list.clearFilters": "Clear filters",
+  "list.filter.allStatuses": "All statuses",
   "salesChannels.title": "Sales channels",
   "salesChannels.description": "Members of this organization can sign in and shop only in these stores.",
   "salesChannels.atLeastOne": "An organization must be assigned at least one sales channel.",
@@ -352,5 +352,7 @@
   "members.error.emailInvalid": "Enter an e-mail address such as name@company.com.",
   "members.error.firstNameRequired": "Enter the first name.",
   "members.error.lastNameRequired": "Enter the last name.",
-  "members.error.passwordShort": "Use at least 12 characters."
+  "members.error.passwordShort": "Use at least 12 characters.",
+  "list.toolbar.label": "Filter organizations",
+  "list.emptyTitle": "No organizations yet"
 }

@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { SavedListView } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import { shippedModuleBundle } from '../../helpers/core-bundle';
 import { developerIdLabels } from '../../helpers/developer-ids';
@@ -40,7 +41,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   );
   return {
     ...actual,
-    usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }),
     apiClient: {
       get: (...args: unknown[]) => api.get(...args),
       post: (...args: unknown[]) => api.post(...args),
@@ -150,9 +150,13 @@ async function renderList(): Promise<ReturnType<typeof userEvent.setup>> {
   const user = userEvent.setup();
   renderWithI18n(
     <StrictMode>
+      {withSession(
       <MemoryRouter>
-        <ReturnsList />
-      </MemoryRouter>
+          <ReturnsList />
+        </MemoryRouter>,
+      // The kit pager reads the admin's remembered page size, inside the session (issue #1500).
+      { session: adminSession({ permissions: ['*'] }) },
+    )}
     </StrictMode>,
     { core: en as Record<string, string>, ...shippedModuleBundle('returns', 'en') },
   );
@@ -179,7 +183,7 @@ function kindSelect(): HTMLSelectElement {
  * whole contact e-mail (`q`), not an RMA-number field.
  */
 function rmaInput(): HTMLInputElement {
-  return screen.getByRole('textbox', { name: 'Search returns and complaints' }) as HTMLInputElement;
+  return screen.getByRole('searchbox', { name: 'Search returns and complaints' }) as HTMLInputElement;
 }
 
 /** Opens a `MultiSelect` by its trigger's name and returns its option panel. */

@@ -82,13 +82,13 @@ describe.each(['en', 'pl'] as const)('Carts list labels (%s) — issue #1368', (
 
     const status = screen.getByLabelText(own['carts.column.status']!);
     expect(within(status).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      own['carts.filter.all'],
+      own['carts.filter.allStatuses'],
       ...STATUSES.map((s) => own[`carts.status.${s}`]),
     ]);
 
     const approval = screen.getByLabelText(own['carts.column.approval']!);
     expect(within(approval).getAllByRole('option').map((o) => o.textContent)).toEqual([
-      own['carts.filter.all'],
+      own['carts.filter.allApprovals'],
       ...APPROVAL_STATUSES.map((s) => own[`carts.approvalStatus.${s}`]),
     ]);
   });

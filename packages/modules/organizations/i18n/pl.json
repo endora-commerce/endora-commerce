@@ -42,9 +42,9 @@
   "actions.newOrganization.description": "Utwórz organizację klienta i wybierz jej kanały sprzedaży",
   "list.newOrganization": "Nowa organizacja",
   "list.count": "Organizacje: {count}",
-  "list.empty": "Nie ma jeszcze organizacji. Pojawią się tutaj, gdy firma się zarejestruje albo gdy ją utworzysz.",
+  "list.empty": "Pojawią się tutaj, gdy firma się zarejestruje albo gdy ją utworzysz.",
   "list.emptyFiltered": "Żadna organizacja nie pasuje do tych filtrów.",
-  "list.clearFilters": "Wyczyść filtry",
+  "list.filter.allStatuses": "Wszystkie statusy",
   "salesChannels.title": "Kanały sprzedaży",
   "salesChannels.description": "Członkowie tej organizacji mogą logować się i kupować tylko w tych sklepach.",
   "salesChannels.atLeastOne": "Organizacja musi mieć przypisany co najmniej jeden kanał sprzedaży.",
@@ -352,5 +352,7 @@
   "members.error.emailInvalid": "Podaj adres e-mail, np. imie@firma.pl.",
   "members.error.firstNameRequired": "Podaj imię.",
   "members.error.lastNameRequired": "Podaj nazwisko.",
-  "members.error.passwordShort": "Użyj co najmniej 12 znaków."
+  "members.error.passwordShort": "Użyj co najmniej 12 znaków.",
+  "list.toolbar.label": "Filtruj organizacje",
+  "list.emptyTitle": "Nie ma jeszcze organizacji"
 }

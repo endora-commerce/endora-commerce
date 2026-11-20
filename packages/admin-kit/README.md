@@ -939,6 +939,14 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   list's role column is the first; the five SHELL-14 lists (Users, API keys, Webhooks, Taxes,
   Setting groups) are the pattern's next adopters, API keys and Webhooks with their create form on
   a `/new` route because it ends on a one-time secret.
+- **The sales lists** (issue #1500, SALES-24) compose the two. `toolbar` takes a
+  `<ListToolbar className="min-w-0 flex-1" …>`, so the toolbar keeps its `search` landmark and the
+  result count still ends the row. A bulk bar is the results card's header row, so it goes in
+  `notice`, not in a card of its own. The empty state follows the rows on screen: choose
+  `no-results` from the filters the request carried (the debounced search), not from the text still
+  being typed. A row gets a `RowActionMenu` only when it can do something besides open, and it links
+  to another module's screen only when its module depends on that one. Orders, Quote Requests,
+  Returns, Customers, Organizations and Carts follow this.
 
 ### Search as you type — `useDebouncedValue`
 

@@ -199,5 +199,11 @@
   "customerNotifications.canceled.title": "Zapytanie ofertowe {number} zostało anulowane",
   "customerPush.title": "Aktualizacja zapytania ofertowego",
   "negotiation.partLabel": "Negocjacja cen",
+  "list.toolbar.label": "Filtruj zapytania ofertowe",
+  "list.count": "Zapytania ofertowe: {count}",
+  "list.emptyTitle": "Nie ma jeszcze zapytań ofertowych",
+  "list.empty": "Zapytanie ofertowe pojawi się tutaj, gdy klient je wyśle albo gdy je utworzysz.",
+  "list.rowMenu.label": "Akcje zapytania ofertowego {number}",
+  "list.rowMenu.organization": "Otwórz organizację",
   "detail.tabs.label": "Sekcje zapytania ofertowego"
 }

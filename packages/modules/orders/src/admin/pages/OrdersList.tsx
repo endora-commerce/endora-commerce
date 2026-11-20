@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Columns3, Download, ListChecks, Printer } from 'lucide-react';
-import { ApiError, apiBaseUrl, apiClient, formatDateTime, formatMoney, statusBadgeStyle, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, MultiSelect } from '@endora-commerce/admin-kit/ui';
+import { Columns3, Download, ListChecks, Plus, Printer, ShoppingBag } from 'lucide-react';
+import { ApiError, apiBaseUrl, apiClient, formatDateTime, formatMoney, statusBadgeStyle, useAuth } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, EmptyState, Input, Label, Select, MultiSelect } from '@endora-commerce/admin-kit/ui';
 import type { MultiSelectOption } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldListFilters,
@@ -10,20 +10,23 @@ import {
   customFieldFilterChips,
   customFieldFilterRefusal,
   emptyCustomFieldFilters,
+  ListPage,
   ListToolbar,
   ListToolbarSearch,
   pruneRemovedOptions,
   readCustomFieldFilterParams,
   ResponsiveTable,
-  PaginationFooter,
+  RowActionMenu,
+  RowActionMenuItem,
   SavedViewsControl,
   sanitizeCustomFieldFilters,
   toCustomFieldFiltersParam,
   useCustomFieldListFilterFields,
+  useListPagination,
   withCustomFieldFilter,
   writeCustomFieldFilterParams,
 } from '@endora-commerce/admin-kit/components';
-import type { AppliedFilter, ResponsiveColumn, SavedViewState } from '@endora-commerce/admin-kit/components';
+import type { AppliedFilter, ListPageLoad, ResponsiveColumn, SavedViewState } from '@endora-commerce/admin-kit/components';
 import type { CustomFieldFilters } from '@endora-commerce/contracts';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { DISPLAYABLE_PAYMENT_STATUSES, paymentStatusLabelKey } from '../lib/paymentStatus.js';
@@ -136,6 +139,9 @@ const EMPTY_TEXT = { q: '', orgName: '', customerName: '', totalMin: '', totalMa
 /** The list's sort before anything is chosen, and what a view saved without one loads. */
 const DEFAULT_SORT = 'placedAt:desc';
 
+/** `GET /api/v1/admin/orders` serves at most 200 rows a page. */
+const MAX_PAGE_SIZE = 200;
+
 /** The endpoint naming the Order custom fields this list offers as filters (feature 157). */
 const CUSTOM_FIELD_FILTERS_ENDPOINT = '/api/v1/admin/orders/custom-field-filters';
 
@@ -156,7 +162,12 @@ export function OrdersList(): ReactNode {
   const t = useTranslation('core');
   const tOrders = useTranslation('orders');
   const { language } = useTranslationContext();
-  const { pageSize, setPageSize } = usePageSizePreference('orders');
+  // Issue #1500 — the kit pager, fitted to what the endpoint serves.
+  const pager = useListPagination({ scope: 'orders', maxPageSize: MAX_PAGE_SIZE });
+  const { resetPage, syncTotal } = pager;
+  // `/orders/new` opens on `orders:write`; a read-only operator is not offered it.
+  const { hasPermission } = useAuth();
+  const canCreate = hasPermission('orders:write');
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [rows, setRows] = useState<AdminOrderRow[]>([]);
@@ -167,7 +178,6 @@ export function OrdersList(): ReactNode {
   const [channels, setChannels] = useState<MethodOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<MethodOption[]>([]);
   const [deliveryMethods, setDeliveryMethods] = useState<MethodOption[]>([]);
-  const [page, setPage] = useState(0);
 
   // Filters.
   const [statusCodes, setStatusCodes] = useState<string[]>(() => searchParams.getAll('status'));
@@ -194,6 +204,8 @@ export function OrdersList(): ReactNode {
   const [droppedCustomFields, setDroppedCustomFields] = useState<string[]>([]);
   /** The results region, focused once a refused filter is removed. */
   const resultsRef = useRef<HTMLDivElement | null>(null);
+  /** Set when a refused filter is removed: focus the results once they are back. */
+  const focusResultsOnLoad = useRef(false);
   /** Numbers each list request, so a slower, older answer cannot land last. */
   const requestSequence = useRef(0);
 
@@ -204,18 +216,24 @@ export function OrdersList(): ReactNode {
    */
   const changeCustomFieldFilters = useCallback((next: CustomFieldFilters): void => {
     setCustomFieldFilters(next);
-    setPage(0);
+    resetPage();
     setDroppedCustomFields([]);
-  }, []);
+  }, [resetPage]);
 
   const [sort, setSort] = useState(DEFAULT_SORT);
   /** Prefix of the folded filters' ids, so each label names its control. */
   const filterId = useId();
   const [visibleColumnIds, setVisibleColumnIds] = useState<ColumnId[]>(DEFAULT_VISIBLE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkOpen, setBulkOpen] = useState(false);
+  /** The orders the status dialog is open for: the selection, or the one row its menu was opened on. */
+  const [statusDialogIds, setStatusDialogIds] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Why the list could not be read — the list's own state, beside which *Retry* is offered. */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  /** An action on the list that failed (printing, saved views) — a notice above the results. */
   const [error, setError] = useState<string | null>(null);
+  /** The search box, where focus goes once *Clear filters* empties the list's filters. */
+  const searchRef = useRef<HTMLInputElement>(null);
   const [info, setInfo] = useState<string | null>(null);
 
   // Debounce the free-text / numeric filters.
@@ -248,8 +266,8 @@ export function OrdersList(): ReactNode {
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
-    params.set('page', String(page + 1));
-    params.set('pageSize', String(Math.min(pageSize, 200)));
+    params.set('page', String(pager.query.page));
+    params.set('pageSize', String(pager.query.pageSize));
     params.set('sort', sort);
     for (const s of statusCodes) params.append('status', s);
     for (const s of paymentStatuses) params.append('paymentStatus', s);
@@ -269,8 +287,8 @@ export function OrdersList(): ReactNode {
     return params.toString();
   }, [
     customFieldFilters,
-    page,
-    pageSize,
+    pager.query.page,
+    pager.query.pageSize,
     sort,
     statusCodes,
     paymentStatuses,
@@ -285,13 +303,14 @@ export function OrdersList(): ReactNode {
   const refresh = useCallback(async (): Promise<void> => {
     const current = ++requestSequence.current;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     setRefusedCustomField(null);
     try {
       const res = await apiClient.get<ListResponse>(`/api/v1/admin/orders?${queryString}`);
       if (current !== requestSequence.current) return;
       setRows(res.data);
       setTotal(res.pagination.total);
+      syncTotal(res.pagination.total);
       setCounts(res.counts ?? {});
       setPaymentStatusCounts(res.paymentStatusCounts ?? {});
       setSelected(new Set());
@@ -304,12 +323,12 @@ export function OrdersList(): ReactNode {
         setTotal(0);
         setRefusedCustomField(refused);
       } else {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('orders.error.load'));
+        setLoadError(err instanceof ApiError ? err.envelope.error.message : t('orders.error.load'));
       }
     } finally {
       if (current === requestSequence.current) setLoading(false);
     }
-  }, [queryString, t]);
+  }, [queryString, syncTotal, t]);
 
   // Once the offered fields are known, options removed since a link was made
   // are dropped from it; an unknown key stays, for the server to refuse.
@@ -336,10 +355,18 @@ export function OrdersList(): ReactNode {
     void refresh();
   }, [refresh]);
 
-  // Reset to the first page whenever a filter narrows the result set.
   useEffect(() => {
-    setPage(0);
+    if (loading || !focusResultsOnLoad.current) return;
+    focusResultsOnLoad.current = false;
+    resultsRef.current?.focus();
+  }, [loading]);
+
+  // Reset to the first page whenever a filter narrows the result set (the
+  // kit pager goes back to the first page on a page-size change itself).
+  useEffect(() => {
+    resetPage();
   }, [
+    resetPage,
     statusCodes,
     paymentStatuses,
     salesChannelIds,
@@ -350,7 +377,6 @@ export function OrdersList(): ReactNode {
     debouncedText,
     customFieldFilters,
     sort,
-    pageSize,
   ]);
 
   const statusLabel = useCallback(
@@ -376,13 +402,14 @@ export function OrdersList(): ReactNode {
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const toggleAll = (): void => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
 
-  const printInvoices = async (): Promise<void> => {
+  const printInvoices = async (orderIds: string[]): Promise<void> => {
+    setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/v1/admin/orders/bulk/print-invoices`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ orderIds: [...selected] }),
+        body: JSON.stringify({ orderIds }),
       });
       if (!res.ok) throw new Error('print failed');
       const blob = await res.blob();
@@ -397,7 +424,7 @@ export function OrdersList(): ReactNode {
     // FR-011: a loaded view starts on the first page. Set here, in the same
     // batch as the filters, so the list is never requested with the old page;
     // the reset effect below runs only after the first request has gone out.
-    setPage(0);
+    resetPage();
     setSelected(new Set());
     setStatusCodes(asStringArray(f['status']));
     setPaymentStatuses(asStringArray(f['paymentStatus']));
@@ -556,6 +583,11 @@ export function OrdersList(): ReactNode {
     })),
   ];
 
+  // The search narrows the list as much as a filter does, so *Clear all
+  // filters* and the empty state's *Clear filters* empty it too.
+  const filtersActive = filterChips.length > 0 || textFilters.q.trim() !== '';
+  /** Whether the rows on screen were read through a filter — what the empty state tells apart. */
+  const resultsFiltered = filterChips.length > 0 || debouncedText.q.trim() !== '';
   const clearAllFilters = (): void => {
     setStatusCodes([]);
     setPaymentStatuses([]);
@@ -572,8 +604,10 @@ export function OrdersList(): ReactNode {
     if (refusedCustomField === null) return;
     changeCustomFieldFilters(withCustomFieldFilter(customFieldFilters, refusedCustomField, null));
     setRefusedCustomField(null);
-    // Focus follows the operator to what they are waiting for: the results.
-    resultsRef.current?.focus();
+    // Focus follows the operator to what they are waiting for: the results,
+    // once they are read again — the list page draws its skeleton meanwhile,
+    // and the region it would have focused now is gone with it.
+    focusResultsOnLoad.current = true;
   };
 
   // Build the visible columns in canonical order.
@@ -682,58 +716,58 @@ export function OrdersList(): ReactNode {
     ...COLUMN_IDS.filter((id) => visibleSet.has(id)).map((id) => columnDefs[id]),
   ];
 
+  const load: ListPageLoad = loading
+    ? { kind: 'loading' }
+    : loadError !== null
+      ? { kind: 'error', message: loadError }
+      : { kind: 'ready' };
+
+  const create = canCreate ? (
+    <Button asChild>
+      <Link to="/orders/new">
+        <Plus aria-hidden="true" />
+        {tOrders('actions.newOrder.label')}
+      </Link>
+    </Button>
+  ) : null;
+
+  // The kit list page (issue #1500, SALES-24): one header with the one primary
+  // action, the toolbar as a plain row, and one results card holding the bulk
+  // bar, the table and the pager — the three cards this screen drew are one.
   return (
     <>
-      <PageHeader
+      <ListPage
         title={t('orders.page.title')}
         description={t('orders.page.description')}
         actions={
-          // Not offered while a custom-field filter stands refused: the export
-          // would be refused for the same reason.
-          refusedCustomField === null ? (
-            <Button asChild variant="outline">
-              <a href={`${API_BASE}/api/v1/admin/orders/export?${queryString}`}>
-                <Download />
-                {t('orders.action.exportCsv')}
-              </a>
-            </Button>
-          ) : null
+          <>
+            {/* Not offered while a custom-field filter stands refused: the
+                export would be refused for the same reason. */}
+            {refusedCustomField === null ? (
+              <Button asChild variant="outline">
+                <a href={`${API_BASE}/api/v1/admin/orders/export?${queryString}`}>
+                  <Download aria-hidden="true" />
+                  {t('orders.action.exportCsv')}
+                </a>
+              </Button>
+            ) : null}
+            {create}
+          </>
         }
-      />
-
-      {droppedCustomFields.length > 0 ? (
-        <Alert variant="warning" className="mb-4">
-          <AlertDescription>
-            {t('customFieldFilters.notice.dropped', {
-              fields: droppedCustomFields
-                .map((key) => customFieldDisplayName(customFieldFields.fields, key, language))
-                .join(', '),
-            })}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card className="mb-4">
-        <CardContent>
-          {/* The kit's list toolbar (issue #1440, DS-06), extracted from this one:
-              search + the two most-used filters + sort always shown, the list's
-              own controls to the right, the long tail behind *More filters (n)*,
-              and every applied filter as a removable chip. */}
+        load={load}
+        onRetry={(): void => void refresh()}
+        count={tOrders('list.count', { count: total })}
+        toolbar={
+          // The kit's list toolbar (issue #1440, DS-06), extracted from this
+          // one: search + the two most-used filters + sort always shown, the
+          // list's own controls to the right, the long tail behind *More
+          // filters (n)*, and every applied filter as a removable chip.
           <ListToolbar
+            className="min-w-0 flex-1"
             label={t('orders.toolbar.label')}
             search={
               <ListToolbarSearch
+                ref={searchRef}
                 label={t('orders.field.search')}
                 placeholder={t('orders.search.placeholder')}
                 value={textFilters.q}
@@ -901,36 +935,61 @@ export function OrdersList(): ReactNode {
               </>
             }
             appliedFilters={filterChips}
+            filtersActive={filtersActive}
             onClearFilters={clearAllFilters}
           />
-        </CardContent>
-      </Card>
-
-      {selected.size > 0 ? (
-        <Card className="mb-4">
-          <CardContent className="flex flex-wrap items-center gap-3">
-            <span className="text-sm text-muted-foreground">
-              {t('orders.bulk.selected', { count: selected.size })}
-            </span>
-            <Button size="sm" onClick={(): void => setBulkOpen(true)}>
-              <ListChecks />
-              {t('orders.bulk.changeStatus')}
-            </Button>
-            <Button size="sm" variant="outline" onClick={(): void => void printInvoices()}>
-              <Printer />
-              {t('orders.bulk.printInvoices')}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardContent ref={resultsRef} tabIndex={-1} className="focus:outline-none" aria-busy={loading}>
-          {/* Mounted before it has text, so a reload is announced (WCAG 4.1.3). */}
-          <p role="status" className="sr-only">
-            {loading ? t('orders.loading') : ''}
-          </p>
+        }
+        notice={
+          error || info || droppedCustomFields.length > 0 || selected.size > 0 ? (
+            <>
+              {droppedCustomFields.length > 0 ? (
+                <Alert variant="warning">
+                  <AlertDescription>
+                    {t('customFieldFilters.notice.dropped', {
+                      fields: droppedCustomFields
+                        .map((key) => customFieldDisplayName(customFieldFields.fields, key, language))
+                        .join(', '),
+                    })}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {error ? (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              ) : null}
+              {info ? (
+                <Alert variant="success">
+                  <AlertDescription>{info}</AlertDescription>
+                </Alert>
+              ) : null}
+              {/* The bulk bar is the results card's header row, not a card
+                  between the toolbar and the table (issue #1500). */}
+              {selected.size > 0 ? (
+                <div className="flex flex-wrap items-center gap-3 border-b pb-3">
+                  <span className="text-sm text-muted-foreground">
+                    {t('orders.bulk.selected', { count: selected.size })}
+                  </span>
+                  {/* Outline, as *Print invoices*: *New order* stays the page's one
+                      filled primary while rows are selected (Von Restorff). */}
+                  <Button size="sm" variant="outline" onClick={(): void => setStatusDialogIds([...selected])}>
+                    <ListChecks aria-hidden="true" />
+                    {t('orders.bulk.changeStatus')}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={(): void => void printInvoices([...selected])}>
+                    <Printer aria-hidden="true" />
+                    {t('orders.bulk.printInvoices')}
+                  </Button>
+                </div>
+              ) : null}
+            </>
+          ) : null
+        }
+        pagination={refusedCustomField === null ? pager.footer(total) : null}
+      >
+        <div ref={resultsRef} tabIndex={-1} className="focus:outline-none">
           {refusedCustomField !== null ? (
+            // The refusal stands in for the results: nothing listed, nothing to page.
             <Alert variant="destructive">
               <AlertDescription className="flex flex-wrap items-center gap-3">
                 <span>
@@ -949,45 +1008,57 @@ export function OrdersList(): ReactNode {
                 </Button>
               </AlertDescription>
             </Alert>
-          ) : loading ? (
-            <p className="text-sm text-muted-foreground">{t('orders.loading')}</p>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('orders.empty')}</p>
           ) : (
             <ResponsiveTable
               data={rows}
               keyExtractor={(o) => o.id}
               columns={tableColumns}
+              emptyState={
+                resultsFiltered ? (
+                  <EmptyState
+                    variant="no-results"
+                    title={tOrders('list.emptyFiltered')}
+                    onClearFilters={clearAllFilters}
+                    focusAfterClear={searchRef}
+                  />
+                ) : (
+                  <EmptyState
+                    icon={<ShoppingBag size={20} />}
+                    title={tOrders('list.emptyTitle')}
+                    description={tOrders('list.empty')}
+                    action={create}
+                  />
+                )
+              }
+              // The order number is the way in; the menu holds what a row can
+              // do besides being opened.
               renderActions={(o) => (
-                <Button asChild variant="outline" size="sm" className="min-h-11">
-                  <Link to={`/orders/${o.id}`}>
-                    {t('orders.open')}
-                    <ArrowRight />
-                  </Link>
-                </Button>
+                <RowActionMenu label={tOrders('list.rowMenu.label', { number: o.businessId })}>
+                  <RowActionMenuItem onSelect={(): void => setStatusDialogIds([o.id])}>
+                    <ListChecks aria-hidden="true" />
+                    {tOrders('list.rowMenu.changeStatus')}
+                  </RowActionMenuItem>
+                  <RowActionMenuItem onSelect={(): void => void printInvoices([o.id])}>
+                    <Printer aria-hidden="true" />
+                    {tOrders('list.rowMenu.printInvoice')}
+                  </RowActionMenuItem>
+                  <RowActionMenuItem asChild>
+                    <Link to={`/organizations/${o.organizationId}`}>{tOrders('list.rowMenu.organization')}</Link>
+                  </RowActionMenuItem>
+                </RowActionMenu>
               )}
             />
           )}
-          {refusedCustomField === null ? (
-            <PaginationFooter
-              page={page}
-              pageSize={pageSize}
-              total={total}
-              onPageSizeChange={setPageSize}
-              onPrev={(): void => setPage((p) => Math.max(0, p - 1))}
-              onNext={(): void => setPage((p) => p + 1)}
-            />
-          ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </ListPage>
 
       <OrdersBulkStatusDialog
-        open={bulkOpen}
-        orderIds={[...selected]}
+        open={statusDialogIds !== null}
+        orderIds={statusDialogIds ?? []}
         statuses={statuses}
-        onClose={(): void => setBulkOpen(false)}
+        onClose={(): void => setStatusDialogIds(null)}
         onDone={(summary): void => {
-          setBulkOpen(false);
+          setStatusDialogIds(null);
           setInfo(t('orders.bulk.result', { changed: summary.changed, skipped: summary.skipped }));
           void refresh();
         }}

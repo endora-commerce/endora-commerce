@@ -182,5 +182,13 @@
   "organizationPermissions.orders.view_organization.label": "Wyświetlanie zamówień organizacji",
   "organizationPermissions.orders.view_organization.description": "Przeglądanie wszystkich zamówień złożonych w organizacji i działanie na zamówieniu współpracownika: ponawianie go, tworzenie z niego zapytania ofertowego, zgłaszanie do niego zwrotu lub reklamacji i pobieranie jego dokumentów.",
   "settingGroups.orders.name": "Zamówienia",
+  "list.count": "Zamówienia: {count}",
+  "list.emptyTitle": "Nie ma jeszcze zamówień",
+  "list.empty": "Zamówienie pojawi się tutaj, gdy klient je złoży albo gdy je utworzysz.",
+  "list.emptyFiltered": "Żadne zamówienie nie pasuje do tych filtrów.",
+  "list.rowMenu.label": "Akcje zamówienia {number}",
+  "list.rowMenu.changeStatus": "Zmień status…",
+  "list.rowMenu.printInvoice": "Drukuj fakturę",
+  "list.rowMenu.organization": "Otwórz organizację",
   "detail.tabs.label": "Sekcje zamówienia"
 }

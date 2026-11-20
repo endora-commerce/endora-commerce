@@ -133,7 +133,7 @@ describe('Customers list — paging (#1473)', () => {
     expect(listCalls().at(-1)).toBe('/api/v1/admin/customers?q=z&page=1&pageSize=20');
     expect(screen.queryByText(own['list.empty']!)).toBeNull();
 
-    await userEvent.click(screen.getByRole('button', { name: own['list.clearFilters']! }));
+    await userEvent.click(screen.getByRole('button', { name: core['common.emptyState.clearFilters']! }));
     await screen.findByRole('link', { name: 'Buyer 1' });
     expect(screen.getByRole('searchbox', { name: own['list.field.search']! })).toHaveValue('');
   });
@@ -142,7 +142,7 @@ describe('Customers list — paging (#1473)', () => {
     answer(0);
     renderList();
     await screen.findByText(own['list.empty']!);
-    expect(screen.queryByRole('button', { name: own['list.clearFilters']! })).toBeNull();
+    expect(screen.queryByRole('button', { name: core['common.emptyState.clearFilters']! })).toBeNull();
   });
 
   it('shows the server message and a retry when the list cannot be loaded', async () => {
