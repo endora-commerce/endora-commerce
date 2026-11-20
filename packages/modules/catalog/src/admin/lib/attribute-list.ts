@@ -4,6 +4,7 @@
  * which translation key names a value type. Kept out of the page so it is
  * testable without rendering.
  */
+import { foldDiacritics } from '@endora-commerce/contracts';
 
 /** DB-level value types (feature 002, 061, 172). */
 export const VALUE_TYPES = ['string', 'number', 'boolean', 'enum', 'select', 'multiselect', 'price', 'page_builder'] as const;
@@ -48,15 +49,12 @@ export interface AttributeListFilter {
   valueType: ValueType | '';
 }
 
-/** Lower case, no diacritics — `ł` included, which Unicode does not decompose (Postel). */
+/**
+ * Lower case, no diacritics, trimmed (Postel): the repository's one fold,
+ * which also maps `ł` — a letter NFD leaves standing.
+ */
 export function foldForSearch(text: string): string {
-  return text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/ł/g, 'l')
-    .replace(/Ł/g, 'L')
-    .toLowerCase()
-    .trim();
+  return foldDiacritics(text).trim();
 }
 
 /** Does the attribute pass the list's search (key and every label) and type filter? */
