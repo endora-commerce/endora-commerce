@@ -5,9 +5,9 @@ import type {
   InvoiceDetail as InvoiceDetailData,
   SendInvoiceEmailResult,
 } from '@endora-commerce/contracts';
-import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoiceEmailMessage, useAuth, useDetailResource } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
-import { DetailHeaderActions } from '@endora-commerce/admin-kit/components';
+import { apiBaseUrl, apiClient, ApiError, cn, formatDateTime, formatMoney, sendInvoiceEmailMessage, useAuth, useDetailResource } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, PageHeader, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { DetailHeaderActions, RowActionMenuItem } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 
@@ -121,6 +121,8 @@ export function InvoiceDetail(): ReactNode {
   const money = (n: number): string => formatMoney(n, invoice.currency);
   // The unit net price carries up to four places (owner ruling of 2026-10-25).
   const unitMoney = (n: number): string => formatMoney(n, invoice.currency, undefined, { unitPrice: true });
+  // A pending invoice's next step is its PDF (the banner below asks for it).
+  const regenerateIsPrimary = canWrite && invoice.status === 'pending';
 
   return (
     <>
@@ -135,49 +137,42 @@ export function InvoiceDetail(): ReactNode {
           </>
         }
         actions={
+          // Issue #1547 (DS-07, the point #1683 left open) — one primary per
+          // view: the invoice's next step is filled, the rest are in "More".
+          // A ready invoice is there to be downloaded; a pending one needs its
+          // PDF regenerated first (the "not ready" banner says so).
           <DetailHeaderActions
             status={actionStatus}
-            secondary={
-              <>
-                {invoice.status === 'ready' ? (
-                  <Button asChild variant="outline" size="sm" className="bg-card">
-                    <a
-                      href={`${baseUrl}/api/v1/admin/invoices/${invoice.id}/pdf`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <FileDown />
-                      {t('invoiceDetail.action.downloadPdf')}
-                    </a>
-                  </Button>
-                ) : null}
-                {canWrite ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-card"
-                      disabled={busy}
-                      onClick={(): void => void regenerate()}
-                    >
-                      <RefreshCw />
-                      {t('invoiceDetail.action.regeneratePdf')}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="bg-card"
-                      disabled={busy}
-                      onClick={(): void => void resendEmail()}
-                    >
-                      <Mail />
-                      {t('invoiceDetail.action.resendEmail')}
-                    </Button>
-                  </>
-                ) : null}
-              </>
+            moreBusy={busy}
+            primary={
+              invoice.status === 'ready' ? (
+                <Button asChild>
+                  <a href={`${baseUrl}/api/v1/admin/invoices/${invoice.id}/pdf`} target="_blank" rel="noreferrer">
+                    <FileDown aria-hidden="true" />
+                    {t('invoiceDetail.action.downloadPdf')}
+                  </a>
+                </Button>
+              ) : regenerateIsPrimary ? (
+                <Button disabled={busy} aria-busy={busy} onClick={(): void => void regenerate()}>
+                  <RefreshCw aria-hidden="true" />
+                  {t('invoiceDetail.action.regeneratePdf')}
+                </Button>
+              ) : null
             }
-          />
+          >
+            {canWrite && !regenerateIsPrimary ? (
+              <RowActionMenuItem onSelect={(): void => void regenerate()}>
+                <RefreshCw aria-hidden="true" />
+                {t('invoiceDetail.action.regeneratePdf')}
+              </RowActionMenuItem>
+            ) : null}
+            {canWrite ? (
+              <RowActionMenuItem onSelect={(): void => void resendEmail()}>
+                <Mail aria-hidden="true" />
+                {t('invoiceDetail.action.resendEmail')}
+              </RowActionMenuItem>
+            ) : null}
+          </DetailHeaderActions>
         }
       />
 
@@ -193,195 +188,155 @@ export function InvoiceDetail(): ReactNode {
         </Alert>
       ) : null}
 
+      {/*
+        Issue #1547 (UX audit SALES-25) — one document, one card (Common
+        Region): the parties and details under section headings, then the
+        lines, with the VAT summary and the totals as the table's footer, as
+        the order detail does.
+      */}
       <div {...resource.busyProps}>
-      <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader>
-            <CardTitle>{t('invoiceDetail.section.details')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-sm">
-            <Row label={t('invoiceDetail.field.kind')} value={t(`invoices.kind.${invoice.kind}`)} />
-            <Row label={t('invoiceDetail.field.issuedAt')} value={formatDateTime(invoice.issuedAt)} />
-            <Row label={t('invoiceDetail.field.saleDate')} value={invoice.saleDate ?? '—'} />
-            <Row label={t('invoiceDetail.field.paymentDueDate')} value={invoice.paymentDueDate ?? '—'} />
-            <Row label={t('invoiceDetail.field.paymentMethod')} value={invoice.paymentMethod ?? '—'} />
-            {/*
-              The invoice's KSeF number is this module's own statutory data,
-              whichever path recorded it (`specs/134-paid-module-extraction/`
-              T137, D22 §3(a)); the KSeF module's zone below may show it again.
-            */}
-            {invoice.ksefReferenceNumber ? (
-              <Row
-                label={t('invoiceDetail.field.ksefNumber')}
-                value={<span className="font-mono text-xs">{invoice.ksefReferenceNumber}</span>}
-              />
-            ) : null}
-            <Row
-              label={t('invoiceDetail.field.order')}
-              value={
-                invoice.orderId ? (
-                  <Link to={`/orders/${invoice.orderId}`} className="font-mono text-xs underline underline-offset-2">
-                    {invoice.orderBusinessId ?? invoice.orderId.slice(0, 8)}
-                  </Link>
-                ) : (
-                  '—'
-                )
-              }
-            />
-          </CardContent>
-        </Card>
+          <CardContent className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-3">
+              <Section title={t('invoiceDetail.section.details')}>
+                <dl className="space-y-1 text-sm">
+                  <Row label={t('invoiceDetail.field.kind')} value={t(`invoices.kind.${invoice.kind}`)} />
+                  <Row label={t('invoiceDetail.field.issuedAt')} value={formatDateTime(invoice.issuedAt)} />
+                  <Row label={t('invoiceDetail.field.saleDate')} value={invoice.saleDate ?? '—'} />
+                  <Row label={t('invoiceDetail.field.paymentDueDate')} value={invoice.paymentDueDate ?? '—'} />
+                  <Row label={t('invoiceDetail.field.paymentMethod')} value={invoice.paymentMethod ?? '—'} />
+                  {/*
+                    The invoice's KSeF number is this module's own statutory data,
+                    whichever path recorded it (`specs/134-paid-module-extraction/`
+                    T137, D22 §3(a)); the KSeF module's zone below may show it again.
+                  */}
+                  {invoice.ksefReferenceNumber ? (
+                    <Row
+                      label={t('invoiceDetail.field.ksefNumber')}
+                      value={<span className="font-mono text-xs">{invoice.ksefReferenceNumber}</span>}
+                    />
+                  ) : null}
+                  <Row
+                    label={t('invoiceDetail.field.order')}
+                    value={
+                      invoice.orderId ? (
+                        <Link to={`/orders/${invoice.orderId}`} className="font-mono text-xs underline underline-offset-2">
+                          {invoice.orderBusinessId ?? invoice.orderId.slice(0, 8)}
+                        </Link>
+                      ) : (
+                        '—'
+                      )
+                    }
+                  />
+                </dl>
+              </Section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('invoiceDetail.section.seller')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-0.5 text-sm">
-            <p className="font-medium">{invoice.seller.legalName}</p>
-            <p>{invoice.seller.addressLine1}</p>
-            {invoice.seller.addressLine2 ? <p>{invoice.seller.addressLine2}</p> : null}
-            <p>
-              {invoice.seller.postalCode} {invoice.seller.city}
-            </p>
-            {invoice.seller.taxId ? (
-              <p className="text-muted-foreground">
-                {t('invoiceDetail.field.taxId')}: {invoice.seller.taxId}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
+              <Section title={t('invoiceDetail.section.seller')}>
+                <Party
+                  name={invoice.seller.legalName}
+                  addressLine1={invoice.seller.addressLine1}
+                  addressLine2={invoice.seller.addressLine2}
+                  postalCode={invoice.seller.postalCode}
+                  city={invoice.seller.city}
+                  taxId={invoice.seller.taxId}
+                  taxIdLabel={t('invoiceDetail.field.taxId')}
+                />
+              </Section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('invoiceDetail.section.buyer')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-0.5 text-sm">
-            <p className="font-medium">{invoice.buyer.name}</p>
-            <p>{invoice.buyer.addressLine1}</p>
-            {invoice.buyer.addressLine2 ? <p>{invoice.buyer.addressLine2}</p> : null}
-            <p>
-              {invoice.buyer.postalCode} {invoice.buyer.city}
-            </p>
-            {invoice.buyer.taxId ? (
-              <p className="text-muted-foreground">
-                {t('invoiceDetail.field.taxId')}: {invoice.buyer.taxId}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      </div>
+              <Section title={t('invoiceDetail.section.buyer')}>
+                <Party
+                  name={invoice.buyer.name}
+                  addressLine1={invoice.buyer.addressLine1}
+                  addressLine2={invoice.buyer.addressLine2}
+                  postalCode={invoice.buyer.postalCode}
+                  city={invoice.buyer.city}
+                  taxId={invoice.buyer.taxId}
+                  taxIdLabel={t('invoiceDetail.field.taxId')}
+                />
+              </Section>
+            </div>
 
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>{t('invoiceDetail.section.lines')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('invoiceDetail.col.no')}</TableHead>
-                <TableHead>{t('invoiceDetail.col.name')}</TableHead>
-                <TableHead>{t('invoiceDetail.col.unit')}</TableHead>
-                <TableHead className="text-right">{t('invoiceDetail.col.qty')}</TableHead>
-                <TableHead className="text-right">{t('invoiceDetail.col.unitNet')}</TableHead>
-                <TableHead className="text-right">{t('invoiceDetail.col.taxRate')}</TableHead>
-                <TableHead className="text-right">{t('invoiceDetail.col.net')}</TableHead>
-                <TableHead className="text-right">{t('invoiceDetail.col.gross')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoice.lines.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
-                    {t('common.state.empty')}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                invoice.lines.map((l) => (
-                  <TableRow key={l.ordinal}>
-                    <TableCell>{l.ordinal}</TableCell>
-                    <TableCell>{l.name}</TableCell>
-                    <TableCell>{l.unit}</TableCell>
-                    <TableCell className="text-right tabular-nums">{l.quantity}</TableCell>
-                    <TableCell className="text-right tabular-nums">{unitMoney(l.unitNetPrice)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{Math.round(l.taxRate * 100)}%</TableCell>
-                    <TableCell className="text-right tabular-nums">{money(l.netValue)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{money(l.grossValue)}</TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('invoiceDetail.section.vatSummary')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-right">{t('invoiceDetail.col.taxRate')}</TableHead>
-                  <TableHead className="text-right">{t('invoiceDetail.col.net')}</TableHead>
-                  <TableHead className="text-right">{t('invoiceDetail.totals.tax')}</TableHead>
-                  <TableHead className="text-right">{t('invoiceDetail.col.gross')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoice.vatSummary.length === 0 ? (
+            <Section title={t('invoiceDetail.section.lines')}>
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                      {t('common.state.empty')}
-                    </TableCell>
+                    <TableHead>{t('invoiceDetail.col.no')}</TableHead>
+                    <TableHead>{t('invoiceDetail.col.name')}</TableHead>
+                    <TableHead>{t('invoiceDetail.col.unit')}</TableHead>
+                    <TableHead className="text-right">{t('invoiceDetail.col.qty')}</TableHead>
+                    <TableHead className="text-right">{t('invoiceDetail.col.unitNet')}</TableHead>
+                    <TableHead className="text-right">{t('invoiceDetail.col.taxRate')}</TableHead>
+                    <TableHead className="text-right">{t('invoiceDetail.col.net')}</TableHead>
+                    <TableHead className="text-right">{t('invoiceDetail.col.gross')}</TableHead>
                   </TableRow>
-                ) : (
-                  invoice.vatSummary.map((v) => (
-                    <TableRow key={v.taxRate}>
-                      <TableCell className="text-right tabular-nums">{Math.round(v.taxRate * 100)}%</TableCell>
-                      <TableCell className="text-right tabular-nums">{money(v.netTotal)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{money(v.vatAmount)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{money(v.grossTotal)}</TableCell>
+                </TableHeader>
+                <TableBody>
+                  {invoice.lines.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={LINE_COLUMNS} className="text-center text-muted-foreground">
+                        {t('common.state.empty')}
+                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    invoice.lines.map((l) => (
+                      <TableRow key={l.ordinal}>
+                        <TableCell>{l.ordinal}</TableCell>
+                        <TableCell>{l.name}</TableCell>
+                        <TableCell>{l.unit}</TableCell>
+                        <TableCell className="text-right tabular-nums">{l.quantity}</TableCell>
+                        <TableCell className="text-right tabular-nums">{unitMoney(l.unitNetPrice)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{percent(l.taxRate)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{money(l.netValue)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{money(l.grossValue)}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+                {/*
+                  The VAT summary per rate, its net and gross under the lines'
+                  Net and Gross columns, then the document totals in the last
+                  column — the order detail's footer (Jakob, Common Region).
+                */}
+                <tfoot className="border-t [&_td]:p-2 [&_th]:p-2">
+                  {invoice.vatSummary.map((v) => (
+                    <tr key={v.taxRate} className="text-muted-foreground">
+                      <th scope="row" colSpan={LINE_COLUMNS - 2} className="text-right font-medium">
+                        {t('invoiceDetail.vatRow', { rate: percent(v.taxRate), amount: money(v.vatAmount) })}
+                      </th>
+                      <td className="text-right tabular-nums">{money(v.netTotal)}</td>
+                      <td className="text-right tabular-nums">{money(v.grossTotal)}</td>
+                    </tr>
+                  ))}
+                  <TotalRow label={t('invoiceDetail.totals.net')} value={money(invoice.netTotal)} first />
+                  <TotalRow label={t('invoiceDetail.totals.tax')} value={money(invoice.taxTotal)} />
+                  <TotalRow label={t('invoiceDetail.totals.gross')} value={money(invoice.grossTotal)} strong />
+                  <TotalRow label={t('invoiceDetail.totals.paid')} value={money(invoice.paidTotal)} />
+                  <TotalRow label={t('invoiceDetail.totals.due')} value={money(invoice.amountDue)} strong />
+                  {invoice.overpayment > 0 ? (
+                    <TotalRow label={t('invoiceDetail.totals.overpayment')} value={money(invoice.overpayment)} />
+                  ) : null}
+                </tfoot>
+              </Table>
+            </Section>
           </CardContent>
         </Card>
+        {/*
+          The place another module may add to, below the document (feature 091,
+          FR-007). It used to be `<InvoiceKsefPanel …>` imported from
+          `@/modules/ksef/components/` — the single key in
+          `backend/scripts/ledgers/cross-module-imports/invoices.ts`, whose
+          recorded retiring condition is exactly this: the host publishes the
+          place and the owner contributes into it, so neither module names the
+          other.
 
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('invoiceDetail.section.totals')}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1 text-sm">
-              <Row label={t('invoiceDetail.totals.net')} value={money(invoice.netTotal)} />
-              <Row label={t('invoiceDetail.totals.tax')} value={money(invoice.taxTotal)} />
-              <Row label={t('invoiceDetail.totals.gross')} value={<strong>{money(invoice.grossTotal)}</strong>} />
-              <Row label={t('invoiceDetail.totals.paid')} value={money(invoice.paidTotal)} />
-              <Row label={t('invoiceDetail.totals.due')} value={money(invoice.amountDue)} />
-              {invoice.overpayment > 0 ? (
-                <Row label={t('invoiceDetail.totals.overpayment')} value={money(invoice.overpayment)} />
-              ) : null}
-            </CardContent>
-          </Card>
-          {/*
-            The place another module may add to, below the totals (feature 091,
-            FR-007). It used to be `<InvoiceKsefPanel …>` imported from
-            `@/modules/ksef/components/` — the single key in
-            `backend/scripts/ledgers/cross-module-imports/invoices.ts`, whose
-            recorded retiring condition is exactly this: the host publishes the
-            place and the owner contributes into it, so neither module names the
-            other.
-
-            `<AdminZone>` and not `useAdminZone`: there is no chrome of this
-            screen's to suppress when nothing contributes — the stack simply
-            ends — which is the case the renderer alone covers. The presence
-            axes, the permission and the ordering are all the renderer's, so
-            nothing here asks whether `ksef` is switched on.
-          */}
+          `<AdminZone>` and not `useAdminZone`: there is no chrome of this
+          screen's to suppress when nothing contributes — the stack simply
+          ends — which is the case the renderer alone covers. The presence
+          axes, the permission and the ordering are all the renderer's, so
+          nothing here asks whether `ksef` is switched on. A contribution
+          brings its own card, so the stack keeps a gap above it.
+        */}
+        <div className="mt-4 space-y-4 empty:hidden">
           <AdminZone
             name="invoice.detail.after"
             props={{
@@ -392,17 +347,78 @@ export function InvoiceDetail(): ReactNode {
           />
         </div>
       </div>
-      </div>
     </>
   );
 }
 
+/** The lines table's column count; the footer's labels span all but the last two. */
+const LINE_COLUMNS = 8;
+
+/** A tax rate stored as a fraction (`0.23`), shown as a whole percentage. */
+function percent(rate: number): string {
+  return `${Math.round(rate * 100)}%`;
+}
+
+/** One term of the details description list. */
 function Row({ label, value }: { label: string; value: ReactNode }): ReactNode {
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right">{value}</span>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right">{value}</dd>
     </div>
+  );
+}
+
+/** A seller or buyer block: the name, the address and the tax ID, as the invoice prints it. */
+function Party(props: {
+  name: string;
+  addressLine1: string;
+  addressLine2: string | null | undefined;
+  postalCode: string;
+  city: string;
+  taxId: string | null | undefined;
+  taxIdLabel: string;
+}): ReactNode {
+  return (
+    <address className="space-y-0.5 text-sm not-italic">
+      <p className="font-medium">{props.name}</p>
+      <p>{props.addressLine1}</p>
+      {props.addressLine2 ? <p>{props.addressLine2}</p> : null}
+      <p>
+        {props.postalCode} {props.city}
+      </p>
+      {props.taxId ? (
+        <p className="text-muted-foreground">
+          {props.taxIdLabel}: {props.taxId}
+        </p>
+      ) : null}
+    </address>
+  );
+}
+
+/** A document total in the lines table's footer: the label across the row, the amount in the last column. */
+function TotalRow({
+  label,
+  value,
+  strong = false,
+  first = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  first?: boolean;
+}): ReactNode {
+  return (
+    <tr className={cn(first && 'border-t')}>
+      <th
+        scope="row"
+        colSpan={LINE_COLUMNS - 1}
+        className={cn('text-right', strong ? 'font-semibold' : 'font-medium text-muted-foreground')}
+      >
+        {label}
+      </th>
+      <td className={cn('text-right tabular-nums', strong && 'font-semibold')}>{value}</td>
+    </tr>
   );
 }
 
