@@ -10,7 +10,20 @@ import type { CreateWarehouseRequest, Warehouse } from '@endora-commerce/contrac
 import { Trash2 } from 'lucide-react';
 import { ApiError, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { PageHeader } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  FormField,
+  Input,
+  PageHeader,
+  Textarea,
+} from '@endora-commerce/admin-kit/ui';
 import { CountryPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { warehousesClient } from '../api/warehouses-client.js';
 
@@ -197,7 +210,15 @@ export function WarehouseEditor(): ReactNode {
     }
   };
 
-  if (loading) return <div className="b2b-page">{t('warehouses.loading')}</div>;
+  if (loading) {
+    return (
+      <div className="b2b-page">
+        <p role="status" className="text-sm text-muted-foreground">
+          {t('warehouses.loading')}
+        </p>
+      </div>
+    );
+  }
 
   const isDefault = loaded?.code === 'default';
   const canDelete = canWrite && !isNew && !isDefault;
@@ -214,7 +235,7 @@ export function WarehouseEditor(): ReactNode {
         description={
           !isNew && loaded ? (
             <>
-              <code className="b2b-mono">{loaded.code}</code>
+              <code className="font-mono">{loaded.code}</code>
               {isDefault ? t('warehouses.editor.systemDefaultSuffix') : ''}
               {' · '}
               {t('warehouses.editor.channelDefaultsSuffix', {
@@ -225,54 +246,47 @@ export function WarehouseEditor(): ReactNode {
         }
         actions={
           canDelete ? (
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--danger"
-              onClick={(): void => void handleDelete()}
-              disabled={submitting}
-            >
-              <Trash2 size={13} aria-hidden="true" /> {t('warehouses.action.delete')}
-            </button>
+            // Outline, not filled red: Save is the one filled button, and the confirm
+            // dialog is where the destructive styling belongs (Von Restorff).
+            <Button type="button" variant="outline" onClick={(): void => void handleDelete()} disabled={submitting}>
+              <Trash2 aria-hidden="true" /> {t('warehouses.action.delete')}
+            </Button>
           ) : null
         }
       />
 
+      {/* Issue #1492 (CAT-17): a failure is a kit Alert (role="alert"), not a card painted red. */}
       {error ? (
-        <div
-          className="b2b-card"
-          style={{
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            padding: 12,
-            marginBottom: 16,
-            border: '1px solid hsl(8 80% 85%)',
-          }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <form onSubmit={(e): void => { void handleSubmit(e); }}>
-        <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>{t('warehouses.editor.identityTitle')}</h2></div>
-          <div className="b2b-card__body">
-            <div className="b2b-grid b2b-grid--cols-2">
-              <div>
-                <label className="b2b-label" htmlFor="wh-name">{t('warehouses.editor.field.name')}</label>
-                <input
-                  id="wh-name"
-                  className="b2b-field"
+      {/* Every field is a kit FormField, so each label is tied to its input and each hint
+          describes it (WCAG 1.3.1, 4.1.2) — the address and contact labels pointed at nothing. */}
+      <form
+        className="space-y-4"
+        onSubmit={(e): void => {
+          void handleSubmit(e);
+        }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('warehouses.editor.identityTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label={t('warehouses.editor.field.name')} required>
+                <Input
                   value={form.name}
                   onChange={(e): void => update({ name: e.target.value })}
                   required
                   maxLength={160}
                 />
-              </div>
-              <div>
-                <label className="b2b-label" htmlFor="wh-code">{t('warehouses.editor.field.code')}</label>
-                <input
-                  id="wh-code"
-                  className="b2b-field b2b-field--mono"
+              </FormField>
+              <FormField label={t('warehouses.editor.field.code')} hint={t('warehouses.editor.field.codeHelp')} required>
+                <Input
+                  className="font-mono"
                   value={form.code}
                   onChange={(e): void => update({ code: e.target.value })}
                   required
@@ -280,121 +294,120 @@ export function WarehouseEditor(): ReactNode {
                   maxLength={64}
                   disabled={!isNew}
                 />
-                <div className="b2b-help">{t('warehouses.editor.field.codeHelp')}</div>
-              </div>
+              </FormField>
             </div>
-            <div style={{ marginTop: 12 }}>
-              <label className="b2b-label" htmlFor="wh-desc">{t('warehouses.editor.field.description')}</label>
-              <textarea
-                id="wh-desc"
-                className="b2b-field"
+            <FormField label={t('warehouses.editor.field.description')}>
+              <Textarea
                 rows={3}
                 value={form.description}
                 onChange={(e): void => update({ description: e.target.value })}
                 maxLength={2000}
               />
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <label className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(e): void => update({ active: e.target.checked })}
-                />
-                {t('warehouses.editor.field.active')}
-              </label>
-            </div>
-          </div>
-        </div>
+            </FormField>
+            {/* The whole row is the label, so it is all target (Fitts's Law). */}
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={form.active} onChange={(e): void => update({ active: e.target.checked })} />
+              {t('warehouses.editor.field.active')}
+            </label>
+          </CardContent>
+        </Card>
 
-        <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>{t('warehouses.editor.addressTitle')}</h2></div>
-          <div className="b2b-card__body">
-            <div className="b2b-grid b2b-grid--cols-2">
-              <div>
-                <label className="b2b-label">{t('warehouses.editor.field.street')}</label>
-                <input className="b2b-field" value={form.street} onChange={(e): void => update({ street: e.target.value })} />
-              </div>
-              <div>
-                <label className="b2b-label">{t('warehouses.editor.field.city')}</label>
-                <input className="b2b-field" value={form.city} onChange={(e): void => update({ city: e.target.value })} />
-              </div>
-              <div>
-                <label className="b2b-label">{t('warehouses.editor.field.postalCode')}</label>
-                <input className="b2b-field" value={form.postalCode} onChange={(e): void => update({ postalCode: e.target.value })} />
-              </div>
-              <div>
-                <label className="b2b-label">{t('warehouses.editor.field.countryCode')}</label>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('warehouses.editor.addressTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label={t('warehouses.editor.field.street')}>
+                <Input value={form.street} onChange={(e): void => update({ street: e.target.value })} />
+              </FormField>
+              <FormField label={t('warehouses.editor.field.city')}>
+                <Input value={form.city} onChange={(e): void => update({ city: e.target.value })} />
+              </FormField>
+              <FormField label={t('warehouses.editor.field.postalCode')}>
+                <Input value={form.postalCode} onChange={(e): void => update({ postalCode: e.target.value })} />
+              </FormField>
+              <FormField label={t('warehouses.editor.field.countryCode')}>
                 <CountryPicker
-                  className="b2b-field"
                   value={form.countryCode}
                   onChange={(e): void => update({ countryCode: e.target.value })}
                   includeBlank
                   blankLabel={t('warehouses.editor.field.countryNone')}
                 />
-              </div>
+              </FormField>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head"><h2>{t('warehouses.editor.contactTitle')}</h2></div>
-          <div className="b2b-card__body">
-            <div className="b2b-grid b2b-grid--cols-3">
-              <div>
-                <label className="b2b-label">{t('warehouses.editor.field.contactName')}</label>
-                <input className="b2b-field" value={form.contactName} onChange={(e): void => update({ contactName: e.target.value })} />
-              </div>
-              <div>
-                <label className="b2b-label">{t('warehouses.editor.field.contactEmail')}</label>
-                <input className="b2b-field" type="email" value={form.contactEmail} onChange={(e): void => update({ contactEmail: e.target.value })} />
-              </div>
-              <div>
-                <label className="b2b-label">{t('warehouses.editor.field.contactPhone')}</label>
-                <input className="b2b-field" value={form.contactPhone} onChange={(e): void => update({ contactPhone: e.target.value })} />
-              </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('warehouses.editor.contactTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <FormField label={t('warehouses.editor.field.contactName')}>
+                <Input value={form.contactName} onChange={(e): void => update({ contactName: e.target.value })} />
+              </FormField>
+              <FormField label={t('warehouses.editor.field.contactEmail')}>
+                <Input
+                  type="email"
+                  value={form.contactEmail}
+                  onChange={(e): void => update({ contactEmail: e.target.value })}
+                />
+              </FormField>
+              <FormField label={t('warehouses.editor.field.contactPhone')}>
+                <Input
+                  type="tel"
+                  value={form.contactPhone}
+                  onChange={(e): void => update({ contactPhone: e.target.value })}
+                />
+              </FormField>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="b2b-card" style={{ marginBottom: 16 }}>
-          <div className="b2b-card__head">
-            <h2>{t('warehouses.editor.lowStockTitle')}</h2>
-          </div>
-          <div className="b2b-card__body">
-            <div style={{ maxWidth: 260 }}>
-              <label className="b2b-label" htmlFor="wh-low-stock">
-                {t('warehouses.editor.field.defaultLowStockThreshold')}
-              </label>
-              <input
-                id="wh-low-stock"
-                className="b2b-field"
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('warehouses.editor.lowStockTitle')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FormField
+              label={t('warehouses.editor.field.defaultLowStockThreshold')}
+              description={t('warehouses.editor.field.defaultLowStockThresholdHelp')}
+              className="max-w-xs"
+            >
+              <Input
                 type="number"
                 min="0"
+                inputMode="numeric"
                 value={form.defaultLowStockThreshold}
                 placeholder={t('warehouses.editor.field.defaultLowStockThresholdPlaceholder')}
                 onChange={(e): void => update({ defaultLowStockThreshold: e.target.value })}
               />
-              <div className="b2b-help">
-                {t('warehouses.editor.field.defaultLowStockThresholdHelp')}
-              </div>
-            </div>
-          </div>
-        </div>
+            </FormField>
+          </CardContent>
+        </Card>
 
-        <div className="b2b-row" style={{ gap: 8, justifyContent: 'flex-end' }}>
-          <button
+        {/* Save is the page's one filled button and comes last (Von Restorff, Jakob). */}
+        <div className="flex justify-end gap-2">
+          <Button
             type="button"
-            className="b2b-btn b2b-btn--ghost"
-            onClick={(): void => { void navigate('/warehouses'); }}
+            variant="ghost"
+            onClick={(): void => {
+              void navigate('/warehouses');
+            }}
             disabled={submitting}
           >
             {t('warehouses.action.cancel')}
-          </button>
+          </Button>
           {canWrite ? (
-            <button type="submit" className="b2b-btn b2b-btn--primary" disabled={submitting}>
-              {submitting ? t('warehouses.action.saving') : isNew ? t('warehouses.action.create') : t('warehouses.action.saveChanges')}
-            </button>
+            <Button type="submit" disabled={submitting} aria-busy={submitting || undefined}>
+              {submitting
+                ? t('warehouses.action.saving')
+                : isNew
+                  ? t('warehouses.action.create')
+                  : t('warehouses.action.saveChanges')}
+            </Button>
           ) : null}
         </div>
       </form>

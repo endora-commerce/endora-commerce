@@ -6,8 +6,6 @@ import {
   Trash2,
   ArrowDown,
   ArrowUp,
-  CheckSquare,
-  Square,
   Search,
 } from 'lucide-react';
 import type {
@@ -16,11 +14,15 @@ import type {
   PushAudienceCriterionType,
   PushAudienceGroupNode,
 } from '@endora-commerce/contracts';
-import { apiClient, ApiError, normalize } from '@endora-commerce/admin-kit/lib';
+import { apiClient, ApiError, cn, normalize } from '@endora-commerce/admin-kit/lib';
+import { Button, Checkbox, Input, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { criterionTypeLabels, groupOperatorLabels } from '../lib/labels.js';
 
 const DEPTH_CAP = 5;
+
+/** A compact 32 px icon button, grown to 44 px below desktop where the pointer is a finger (Fitts's Law). */
+const ICON_BUTTON = 'size-8 max-lg:size-11';
 
 interface PickerOption {
   value: string;
@@ -80,8 +82,8 @@ export function PushAudienceRuleBuilder(props: {
   }, []);
 
   return (
-    <div className="b2b-col" style={{ gap: 12 }}>
-      <div className="b2b-help">{t('audience.help')}</div>
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-muted-foreground">{t('audience.help')}</p>
 
       <RuleNodeView
         node={value}
@@ -92,9 +94,7 @@ export function PushAudienceRuleBuilder(props: {
         onReplace={(next): void => onChange(next ?? { kind: 'all' })}
       />
 
-      <div className="b2b-help" style={{ marginTop: 4 }}>
-        {t('audience.limits', { max: DEPTH_CAP })}
-      </div>
+      <p className="mt-1 text-xs text-muted-foreground">{t('audience.limits', { max: DEPTH_CAP })}</p>
     </div>
   );
 }
@@ -112,23 +112,19 @@ function RuleNodeView(props: {
 
   if (node.kind === 'all') {
     return (
-      <div
-        className="b2b-card"
-        style={{ padding: 12, border: '1px dashed var(--border-color)', background: 'var(--surface-muted)' }}
-      >
-        <div className="b2b-row" style={{ alignItems: 'center', gap: 8 }}>
-          <div className="b2b-grow" style={{ fontSize: 13 }}>
-            {t('audience.empty')}
-          </div>
-          <button
-            type="button"
-            className="b2b-btn b2b-btn--default b2b-btn--sm"
-            disabled={disabled}
-            onClick={(): void => onReplace({ kind: 'group', op: 'AND', children: [emptyCriterion()] })}
-          >
-            <Plus size={12} aria-hidden="true" /> {t('audience.addCriterion')}
-          </button>
-        </div>
+      // A dashed frame: the rule is empty, not missing. *Add criterion* is outline because it
+      // applies at once and the screen's Save is its one primary (Von Restorff).
+      <div className="flex items-center gap-2 rounded-md border border-dashed bg-muted p-3">
+        <p className="flex-1 text-sm">{t('audience.empty')}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={(): void => onReplace({ kind: 'group', op: 'AND', children: [emptyCriterion()] })}
+        >
+          <Plus aria-hidden="true" /> {t('audience.addCriterion')}
+        </Button>
       </div>
     );
   }
@@ -206,101 +202,90 @@ function GroupView(props: {
   const subgroupBlocked = depth + 1 >= DEPTH_CAP;
 
   return (
-    <div
-      className="b2b-card"
-      style={{
-        padding: 0,
-        border: '1px solid var(--border-color)',
-        background: depth === 0 ? 'var(--surface-color)' : 'var(--surface-muted)',
-      }}
-    >
-      <div
-        className="b2b-row"
-        style={{
-          padding: '8px 10px',
-          alignItems: 'center',
-          gap: 8,
-          borderBottom: collapsed ? 'none' : '1px solid var(--border-color)',
-        }}
-      >
-        <button
+    <div className={cn('rounded-md border', depth === 0 ? 'bg-card' : 'bg-muted')}>
+      <div className={cn('flex items-center gap-2 px-2.5 py-2', !collapsed && 'border-b')}>
+        <Button
           type="button"
-          className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
+          variant="ghost"
+          size="icon"
+          className={ICON_BUTTON}
           onClick={(): void => setCollapsed((v) => !v)}
           aria-expanded={!collapsed}
           aria-label={collapsed ? t('audience.expand') : t('audience.collapse')}
         >
-          {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-        </button>
-        <div className="b2b-row" style={{ gap: 4 }} role="group" aria-label={t('audience.operator')}>
+          {collapsed ? <ChevronRight aria-hidden="true" /> : <ChevronDown aria-hidden="true" />}
+        </Button>
+        {/* A two-way switch: the one applied is filled and announced (aria-pressed), the
+            other is outline — theme tokens, never a hard-coded white. */}
+        <div className="flex gap-1" role="group" aria-label={t('audience.operator')}>
           {groupOperatorLabels.values.map((op) => (
-            <button
+            <Button
               key={op}
               type="button"
-              className="b2b-btn b2b-btn--sm"
+              size="sm"
+              variant={node.op === op ? 'default' : 'outline'}
               disabled={disabled}
               onClick={(): void => onChange({ ...node, op })}
               aria-pressed={node.op === op}
-              style={{
-                background: node.op === op ? 'var(--primary-color)' : 'var(--surface-color)',
-                color: node.op === op ? '#fff' : 'var(--fg-default)',
-                border: `1px solid ${node.op === op ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                fontWeight: node.op === op ? 600 : 400,
-              }}
             >
               {groupOperatorLabels.label(t, op)}
-            </button>
+            </Button>
           ))}
         </div>
-        <div className="b2b-grow b2b-help">
+        <p className="flex-1 text-xs text-muted-foreground">
           {t(`audience.groupSummary.${new Intl.PluralRules(language).select(node.children.length)}`, {
             count: node.children.length,
             depth: depth + 1,
             max: DEPTH_CAP,
           })}
-        </div>
+        </p>
         {depth > 0 ? (
-          <button
+          <Button
             type="button"
-            className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
+            variant="ghost"
+            size="icon"
+            className={cn(ICON_BUTTON, 'text-destructive hover:text-destructive')}
             disabled={disabled}
             onClick={(): void => onChange(null)}
             title={t('audience.removeGroup')}
             aria-label={t('audience.removeGroup')}
-            style={{ color: 'hsl(8 80% 50%)' }}
           >
-            <Trash2 size={13} />
-          </button>
+            <Trash2 aria-hidden="true" />
+          </Button>
         ) : null}
       </div>
 
       {!collapsed ? (
-        <div style={{ padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="flex flex-col gap-2 p-2.5">
           {node.children.map((child, idx) => (
-            <div key={idx} className="b2b-row" style={{ alignItems: 'flex-start', gap: 6 }}>
-              <div className="b2b-col" style={{ gap: 2 }}>
-                <button
+            <div key={idx} className="flex items-start gap-1.5">
+              <div className="flex flex-col gap-0.5">
+                <Button
                   type="button"
-                  className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
+                  variant="ghost"
+                  size="icon"
+                  className={ICON_BUTTON}
                   disabled={disabled || idx === 0}
                   onClick={(): void => moveChild(idx, -1)}
                   title={t('audience.moveUp')}
                   aria-label={t('audience.moveUp')}
                 >
-                  <ArrowUp size={12} />
-                </button>
-                <button
+                  <ArrowUp aria-hidden="true" />
+                </Button>
+                <Button
                   type="button"
-                  className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
+                  variant="ghost"
+                  size="icon"
+                  className={ICON_BUTTON}
                   disabled={disabled || idx === node.children.length - 1}
                   onClick={(): void => moveChild(idx, 1)}
                   title={t('audience.moveDown')}
                   aria-label={t('audience.moveDown')}
                 >
-                  <ArrowDown size={12} />
-                </button>
+                  <ArrowDown aria-hidden="true" />
+                </Button>
               </div>
-              <div className="b2b-grow">
+              <div className="min-w-0 flex-1">
                 <RuleNodeView
                   node={child}
                   depth={depth + 1}
@@ -312,24 +297,20 @@ function GroupView(props: {
               </div>
             </div>
           ))}
-          <div className="b2b-row" style={{ gap: 6, marginTop: 4 }}>
-            <button
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={addCriterion}>
+              <Plus aria-hidden="true" /> {t('audience.addCriterion')}
+            </Button>
+            <Button
               type="button"
-              className="b2b-btn b2b-btn--default b2b-btn--sm"
-              disabled={disabled}
-              onClick={addCriterion}
-            >
-              <Plus size={12} aria-hidden="true" /> {t('audience.addCriterion')}
-            </button>
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--default b2b-btn--sm"
+              variant="outline"
+              size="sm"
               disabled={disabled || subgroupBlocked}
               title={subgroupBlocked ? t('audience.depthReached', { max: DEPTH_CAP }) : undefined}
               onClick={addGroup}
             >
-              <Plus size={12} aria-hidden="true" /> {t('audience.addGroup')}
-            </button>
+              <Plus aria-hidden="true" /> {t('audience.addGroup')}
+            </Button>
           </div>
         </div>
       ) : null}
@@ -366,14 +347,10 @@ function CriterionView(props: {
   }, [cache.options]);
 
   return (
-    <div
-      className="b2b-card"
-      style={{ padding: 8, border: '1px solid var(--border-color)', background: 'var(--surface-color)' }}
-    >
-      <div className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
-        <select
-          className="b2b-field"
-          style={{ width: 150 }}
+    <div className="rounded-md border bg-card p-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          className="w-40"
           value={node.type}
           disabled={disabled}
           aria-label={t('audience.criterionType')}
@@ -384,12 +361,13 @@ function CriterionView(props: {
               {option.label}
             </option>
           ))}
-        </select>
-        <span className="b2b-help">{t('audience.valueIn')}</span>
-        <button
+        </Select>
+        <span className="text-xs text-muted-foreground">{t('audience.valueIn')}</span>
+        <Button
           type="button"
-          className="b2b-btn b2b-btn--default b2b-btn--sm b2b-grow"
-          style={{ justifyContent: 'flex-start', textAlign: 'left' }}
+          variant="outline"
+          size="sm"
+          className="min-w-0 flex-1 justify-start text-left"
           disabled={disabled}
           aria-expanded={open}
           onClick={(): void => {
@@ -398,9 +376,9 @@ function CriterionView(props: {
           }}
         >
           {node.values.length === 0 ? (
-            <span className="b2b-help">{t('audience.pickValues')}</span>
+            <span className="text-muted-foreground">{t('audience.pickValues')}</span>
           ) : (
-            <span style={{ fontSize: 12 }}>
+            <span className="truncate">
               {node.values
                 .slice(0, 3)
                 .map((v) => labelMap.get(v) ?? v)
@@ -408,18 +386,19 @@ function CriterionView(props: {
               {node.values.length > 3 ? <> {t('audience.more', { count: node.values.length - 3 })}</> : null}
             </span>
           )}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
+          variant="ghost"
+          size="icon"
+          className={cn(ICON_BUTTON, 'text-destructive hover:text-destructive')}
           disabled={disabled}
           onClick={onDelete}
           title={t('audience.removeCriterion')}
           aria-label={t('audience.removeCriterion')}
-          style={{ color: 'hsl(8 80% 50%)' }}
         >
-          <Trash2 size={13} />
-        </button>
+          <Trash2 aria-hidden="true" />
+        </Button>
       </div>
 
       {open ? (
@@ -467,67 +446,56 @@ function ValuePicker(props: {
   };
 
   return (
-    <div
-      style={{
-        marginTop: 8,
-        padding: 8,
-        border: '1px solid var(--border-color)',
-        borderRadius: 6,
-        background: 'var(--surface-muted)',
-      }}
-    >
-      <div className="b2b-input-wrap" style={{ marginBottom: 6 }}>
-        <Search size={13} className="lead" />
-        <input
+    <div className="mt-2 rounded-md border bg-muted p-2">
+      <div className="relative mb-1.5">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
           autoFocus
-          className="b2b-field b2b-field--addon"
           type="search"
+          className="pl-8"
           aria-label={t('audience.search')}
           placeholder={t('audience.search')}
           value={search}
           onChange={(e): void => setSearch(e.target.value)}
         />
       </div>
+      {/* Mounted before it has text, so "Loading…" and the result are announced (WCAG 4.1.3). */}
+      <div role="status" className="empty:hidden">
+        {!cache.error && cache.loading ? (
+          <p className="text-xs text-muted-foreground">{t('audience.loading')}</p>
+        ) : null}
+      </div>
       {cache.error ? (
-        <div className="b2b-help" style={{ color: 'hsl(8 80% 40%)' }}>
+        <p role="alert" className="text-xs text-destructive">
           {cache.error}
-        </div>
-      ) : cache.loading ? (
-        <div className="b2b-help">{t('audience.loading')}</div>
-      ) : filtered.length === 0 ? (
-        <div className="b2b-help">{t('audience.noOptions')}</div>
+        </p>
+      ) : cache.loading ? null : filtered.length === 0 ? (
+        <p className="text-xs text-muted-foreground">{t('audience.noOptions')}</p>
       ) : (
-        <ul style={{ margin: 0, padding: 0, listStyle: 'none', maxHeight: 220, overflow: 'auto' }}>
-          {filtered.slice(0, 200).map((opt) => {
-            const isOn = draft.has(opt.value);
-            return (
-              <li
-                key={opt.value}
-                onClick={(): void => toggle(opt.value)}
-                style={{
-                  padding: '4px 6px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 12,
-                }}
-              >
-                {isOn ? <CheckSquare size={13} /> : <Square size={13} />}
+        // Each option is a labelled kit checkbox: reachable by Tab, toggled by Space, and the
+        // whole row is its target (WCAG 2.1.1; Fitts's Law). They were `<li onClick>`s.
+        <ul className="m-0 max-h-56 list-none overflow-auto p-0">
+          {filtered.slice(0, 200).map((opt) => (
+            <li key={opt.value}>
+              <label className="flex cursor-pointer items-center gap-1.5 rounded-sm px-1.5 py-1 text-xs hover:bg-accent">
+                <Checkbox checked={draft.has(opt.value)} onChange={(): void => toggle(opt.value)} />
                 <span>{opt.label}</span>
-                {opt.hint ? <span className="b2b-help">· {opt.hint}</span> : null}
-              </li>
-            );
-          })}
+                {opt.hint ? <span className="text-muted-foreground">· {opt.hint}</span> : null}
+              </label>
+            </li>
+          ))}
         </ul>
       )}
-      <div className="b2b-row" style={{ marginTop: 8, gap: 6, justifyContent: 'flex-end' }}>
-        <button type="button" className="b2b-btn b2b-btn--ghost b2b-btn--sm" onClick={props.onClose}>
+      <div className="mt-2 flex justify-end gap-1.5">
+        <Button type="button" variant="ghost" size="sm" onClick={props.onClose}>
           {tc('common.action.cancel')}
-        </button>
-        <button type="button" className="b2b-btn b2b-btn--primary b2b-btn--sm" onClick={apply}>
+        </Button>
+        <Button type="button" size="sm" onClick={apply}>
           {t('audience.apply', { count: draft.size })}
-        </button>
+        </Button>
       </div>
     </div>
   );
