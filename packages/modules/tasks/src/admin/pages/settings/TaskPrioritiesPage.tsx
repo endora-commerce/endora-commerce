@@ -9,8 +9,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   PageHeader,
   Table,
   TableBody,
@@ -96,10 +94,22 @@ export function TaskPrioritiesPage(): ReactNode {
     setPriorities(await tasksApi.deletePriority(pendingDelete.code, replacement));
   };
 
+  const openCreate = (): void => setDialog({ kind: 'create' });
+
+  // The one place for Add (issue #1562, WORK-13): the header's filled button,
+  // hidden while the list is empty, where the empty state's Add stands alone.
   const header = (
     <PageHeader
       title={t('priorities.title')}
       back={{ label: t('settings.back'), to: TASK_WORKFLOW_PATH }}
+      actions={
+        priorities !== null && priorities.length > 0 ? (
+          <Button className="min-h-11 sm:min-h-9" onClick={openCreate}>
+            <Plus aria-hidden="true" />
+            {t('priorities.add')}
+          </Button>
+        ) : undefined
+      }
     />
   );
 
@@ -132,17 +142,6 @@ export function TaskPrioritiesPage(): ReactNode {
       {header}
 
       <Card className="mb-4">
-        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1.5">
-            <CardTitle>{t('priorities.list.title')}</CardTitle>
-          </div>
-          {ordered.length > 0 ? (
-            <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
-              <Plus aria-hidden="true" />
-              {t('priorities.add')}
-            </Button>
-          ) : null}
-        </CardHeader>
         <CardContent className="space-y-4">
           {reorder.notice ? (
             <Alert variant={reorder.notice.kind === 'stale' ? 'warning' : 'destructive'} live="assertive">
@@ -155,7 +154,7 @@ export function TaskPrioritiesPage(): ReactNode {
               title={t('priorities.empty.title')}
               body={t('priorities.empty.body')}
               actionLabel={t('priorities.add')}
-              onAction={(): void => setDialog({ kind: 'create' })}
+              onAction={openCreate}
             />
           ) : (
             <Table aria-label={t('priorities.title')}>
@@ -193,7 +192,7 @@ export function TaskPrioritiesPage(): ReactNode {
                             onMove={(delta): void => reorder.move(priority.code, delta)}
                           />
                           <Button
-                            className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
+                            className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
                             variant="ghost"
                             size="sm"
                             aria-label={t('priorities.editLabel', { name })}
@@ -202,7 +201,7 @@ export function TaskPrioritiesPage(): ReactNode {
                             <Pencil aria-hidden="true" />
                           </Button>
                           <Button
-                            className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
+                            className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
                             variant="ghost"
                             size="sm"
                             aria-label={t('priorities.deleteLabel', { name })}

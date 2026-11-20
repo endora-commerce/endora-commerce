@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, ThumbsDown, UsersRound } from 'lucide-react';
 import {
   LANGUAGE_FALLBACK,
   PROJECT_DICTIONARY_NAME_MAX,
@@ -7,7 +7,7 @@ import {
   type ProjectRole,
   type SupportedLanguage,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Checkbox, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, Checkbox, EmptyState, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
 import {
   ModalDialog,
   ResponsiveTable,
@@ -37,6 +37,12 @@ const PREFIX: Record<ProjectDictionaryKind, 'roles' | 'lossReasons'> = {
 const DESCRIPTION: Record<ProjectDictionaryKind, 'roles.description' | null> = {
   roles: 'roles.description',
   'loss-reasons': null,
+};
+
+/** The decorative icon of each dictionary's empty state. */
+const EMPTY_ICON: Record<ProjectDictionaryKind, ReactNode> = {
+  roles: <UsersRound size={20} />,
+  'loss-reasons': <ThumbsDown size={20} />,
 };
 
 /** The fallback language first: its name is the row's default name, so it is the one required. */
@@ -143,12 +149,16 @@ export function DictionaryScreen({ kind }: DictionaryScreenProps): ReactNode {
     </Button>
   );
 
+  // While the dictionary is empty the empty state's Add is the view's one
+  // primary, so the header's goes away (Von Restorff, issue #1562).
+  const empty = loaded && rows.length === 0;
+
   return (
     <>
       <PageHeader
         title={t(`${prefix}.title`)}
         description={DESCRIPTION[kind] ? t(DESCRIPTION[kind]) : undefined}
-        actions={add}
+        actions={empty ? undefined : add}
       />
 
       <Card>
@@ -210,7 +220,7 @@ export function DictionaryScreen({ kind }: DictionaryScreenProps): ReactNode {
                   </RowActionMenuItem>
                 </RowActionMenu>
               )}
-              emptyState={<p className="px-4 py-10 text-center text-sm text-muted-foreground">{t('dictionary.empty')}</p>}
+              emptyState={<EmptyState icon={EMPTY_ICON[kind]} title={t(`${prefix}.empty.title`)} action={add} />}
             />
           )}
         </CardContent>

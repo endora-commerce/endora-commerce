@@ -41,6 +41,8 @@
   "audit.error.invalidate": "Cache invalidation failed.",
   "action.edit": "Edit",
   "action.delete": "Delete",
+  "action.deleteDefault": "The default entry cannot be deleted.",
+  "action.rowMenu": "Actions for {code}",
   "action.setDefault": "Set default",
   "countries.title": "Countries",
   "countries.searchPlaceholder": "Search code, label, region",

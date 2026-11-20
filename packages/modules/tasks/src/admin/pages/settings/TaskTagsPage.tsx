@@ -9,8 +9,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   PageHeader,
   Table,
   TableBody,
@@ -77,10 +75,23 @@ export function TaskTagsPage(): ReactNode {
     await load();
   };
 
+  const openCreate = (): void => setDialog({ kind: 'create' });
+
+  // The one place for Add (issue #1562, WORK-13): the header's filled button,
+  // as on the CRM and Projects dictionaries — hidden while the list is empty,
+  // where the empty state's own Add is the view's one primary (Von Restorff).
   const header = (
     <PageHeader
       title={t('tags.title')}
       back={{ label: t('settings.back'), to: TASK_WORKFLOW_PATH }}
+      actions={
+        tags !== null && tags.length > 0 ? (
+          <Button className="min-h-11 sm:min-h-9" onClick={openCreate}>
+            <Plus aria-hidden="true" />
+            {t('tags.add')}
+          </Button>
+        ) : undefined
+      }
     />
   );
 
@@ -111,17 +122,6 @@ export function TaskTagsPage(): ReactNode {
       {header}
 
       <Card className="mb-4">
-        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1.5">
-            <CardTitle>{t('tags.list.title')}</CardTitle>
-          </div>
-          {tags.length > 0 ? (
-            <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
-              <Plus aria-hidden="true" />
-              {t('tags.add')}
-            </Button>
-          ) : null}
-        </CardHeader>
         <CardContent>
           {tags.length === 0 ? (
             <SettingsEmptyState
@@ -129,7 +129,7 @@ export function TaskTagsPage(): ReactNode {
               title={t('tags.empty.title')}
               body={t('tags.empty.body')}
               actionLabel={t('tags.add')}
-              onAction={(): void => setDialog({ kind: 'create' })}
+              onAction={openCreate}
             />
           ) : (
             <Table aria-label={t('tags.title')}>
@@ -154,7 +154,7 @@ export function TaskTagsPage(): ReactNode {
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button
-                          className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
+                          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
                           variant="ghost"
                           size="sm"
                           aria-label={t('tags.editLabel', { name: tag.name })}
@@ -163,7 +163,7 @@ export function TaskTagsPage(): ReactNode {
                           <Pencil aria-hidden="true" />
                         </Button>
                         <Button
-                          className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
+                          className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
                           variant="ghost"
                           size="sm"
                           aria-label={t('tags.deleteLabel', { name: tag.name })}

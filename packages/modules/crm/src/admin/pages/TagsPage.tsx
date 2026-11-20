@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Tags, Trash2 } from 'lucide-react';
 import type { OpportunityTag } from '@endora-commerce/contracts';
 import { statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
 import {
@@ -10,6 +10,7 @@ import {
   Card,
   CardContent,
   ColorPicker,
+  EmptyState,
   Input,
   Label,
   PageHeader,
@@ -97,7 +98,10 @@ export function TagsPage(): ReactNode {
 
   return (
     <>
-      <PageHeader title={t('tags.title')} actions={addButton} />
+      {/* The one place for Add (issue #1562, WORK-13): the header — except while
+          the list is empty, when the empty state's Add is the view's one
+          primary (Von Restorff). */}
+      <PageHeader title={t('tags.title')} actions={tags !== null && tags.length > 0 ? addButton : undefined} />
 
       {/* Mounted before it has text, so the announcement is reliable. */}
       <p role="status" className="sr-only">
@@ -124,10 +128,12 @@ export function TagsPage(): ReactNode {
               </p>
             ) : null
           ) : tags.length === 0 ? (
-            <div className="space-y-3 py-6 text-center">
-              <p className="text-sm text-muted-foreground">{t('tags.empty')}</p>
-              {addButton}
-            </div>
+            <EmptyState
+              icon={<Tags size={20} />}
+              title={t('tags.empty')}
+              description={t('tags.emptyBody')}
+              action={addButton}
+            />
           ) : (
             <Table aria-label={t('tags.title')} aria-busy={loading}>
               <TableHeader>
@@ -162,7 +168,7 @@ export function TagsPage(): ReactNode {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="min-h-11 min-w-11 sm:min-h-9 sm:min-w-9"
+                          className="min-h-11 min-w-11 text-destructive hover:text-destructive sm:min-h-9 sm:min-w-9"
                           aria-label={t('tags.delete', { name: tag.name })}
                           onClick={(): void => {
                             setDeleteError(null);
