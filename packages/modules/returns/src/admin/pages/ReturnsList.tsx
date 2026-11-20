@@ -8,7 +8,7 @@ import {
   formatMoney,
   statusBadgeStyle,
 } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, EmptyState, Select, MultiSelect, type MultiSelectOption } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, EmptyState, InlineStatus, Select, MultiSelect, useInlineStatus, type MultiSelectOption } from '@endora-commerce/admin-kit/ui';
 import {
   ListPage,
   ListToolbar,
@@ -69,7 +69,10 @@ export function ReturnsList(): ReactNode {
   const [loadError, setLoadError] = useState<string | null>(null);
   /** An action on the list that failed (bulk authorize, saved views) — a notice above the results. */
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — the bulk result is said beside
+  // the header's actions, in a region mounted before it has text: the bulk bar
+  // that held the button goes away with the selection. Not a success banner.
+  const { props: bulkStatus, show: showBulkStatus, clear: clearBulkStatus } = useInlineStatus();
 
   // Filters.
   const [statusCodes, setStatusCodes] = useState<string[]>([]);
@@ -162,16 +165,20 @@ export function ReturnsList(): ReactNode {
 
   const bulkAuthorize = useCallback(async (): Promise<void> => {
     setError(null);
-    setInfo(null);
+    clearBulkStatus();
     try {
       const res = await returnsClient.bulkTransition([...selected], 'authorized');
-      setInfo(t('returns.bulk.result', { authorized: res.moved.length, skipped: res.skipped.length }));
+      // Some cases left as they were is a partial result, not a success.
+      showBulkStatus(
+        t('returns.bulk.result', { authorized: res.moved.length, skipped: res.skipped.length }),
+        res.skipped.length > 0 ? 'warning' : 'success',
+      );
       setSelected(new Set());
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('returns.error.bulk'));
     }
-  }, [selected, refresh, t]);
+  }, [selected, refresh, t, showBulkStatus, clearBulkStatus]);
 
   // Status filter options carry the live per-status counts from the list payload.
   const statusOptions: MultiSelectOption[] = statuses.map((s) => ({
@@ -395,6 +402,7 @@ export function ReturnsList(): ReactNode {
       description={t('returns.description')}
       actions={
         <>
+          <InlineStatus {...bulkStatus} className="max-w-sm" />
           <Button asChild variant="outline">
             {/* `apiBaseUrl` and not `import.meta.env`: this file compiles
                 under the package's own `tsconfig.ui.json`, which carries no
@@ -499,16 +507,11 @@ export function ReturnsList(): ReactNode {
         />
       }
       notice={
-        error || info || selected.size > 0 ? (
+        error || selected.size > 0 ? (
           <>
             {error ? (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
-            {info ? (
-              <Alert variant="success">
-                <AlertDescription>{info}</AlertDescription>
               </Alert>
             ) : null}
             {/* The bulk bar is the results card's header row (issue #1500). */}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNod
 import { Link, useSearchParams } from 'react-router-dom';
 import { Columns3, Download, ListChecks, Plus, Printer, ShoppingBag } from 'lucide-react';
 import { ApiError, apiBaseUrl, apiClient, formatDateTime, formatMoney, statusBadgeStyle, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, EmptyState, Input, Label, Select, MultiSelect } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, EmptyState, InlineStatus, Input, Label, Select, MultiSelect, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import type { MultiSelectOption } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldListFilters,
@@ -234,7 +234,11 @@ export function OrdersList(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   /** The search box, where focus goes once *Clear filters* empties the list's filters. */
   const searchRef = useRef<HTMLInputElement>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — a bulk status change's result
+  // is said beside the header's actions, in a region mounted before it has
+  // text: the dialog that ran it is gone, and the bulk bar goes with the
+  // selection, so the header is what is still on screen. Not a success banner.
+  const { props: bulkStatus, show: showBulkStatus, clear: clearBulkStatus } = useInlineStatus();
 
   // Debounce the free-text / numeric filters.
   useEffect(() => {
@@ -401,6 +405,12 @@ export function OrdersList(): ReactNode {
     });
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const toggleAll = (): void => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
+
+  /** A new status change starts: the previous change's result no longer applies. */
+  const openStatusDialog = (orderIds: string[]): void => {
+    clearBulkStatus();
+    setStatusDialogIds(orderIds);
+  };
 
   const printInvoices = async (orderIds: string[]): Promise<void> => {
     setError(null);
@@ -741,6 +751,7 @@ export function OrdersList(): ReactNode {
         description={t('orders.page.description')}
         actions={
           <>
+            <InlineStatus {...bulkStatus} className="max-w-sm" />
             {/* Not offered while a custom-field filter stands refused: the
                 export would be refused for the same reason. */}
             {refusedCustomField === null ? (
@@ -940,7 +951,7 @@ export function OrdersList(): ReactNode {
           />
         }
         notice={
-          error || info || droppedCustomFields.length > 0 || selected.size > 0 ? (
+          error || droppedCustomFields.length > 0 || selected.size > 0 ? (
             <>
               {droppedCustomFields.length > 0 ? (
                 <Alert variant="warning">
@@ -958,11 +969,6 @@ export function OrdersList(): ReactNode {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               ) : null}
-              {info ? (
-                <Alert variant="success">
-                  <AlertDescription>{info}</AlertDescription>
-                </Alert>
-              ) : null}
               {/* The bulk bar is the results card's header row, not a card
                   between the toolbar and the table (issue #1500). */}
               {selected.size > 0 ? (
@@ -972,7 +978,7 @@ export function OrdersList(): ReactNode {
                   </span>
                   {/* Outline, as *Print invoices*: *New order* stays the page's one
                       filled primary while rows are selected (Von Restorff). */}
-                  <Button size="sm" variant="outline" onClick={(): void => setStatusDialogIds([...selected])}>
+                  <Button size="sm" variant="outline" onClick={(): void => openStatusDialog([...selected])}>
                     <ListChecks aria-hidden="true" />
                     {t('orders.bulk.changeStatus')}
                   </Button>
@@ -1034,7 +1040,7 @@ export function OrdersList(): ReactNode {
               // do besides being opened.
               renderActions={(o) => (
                 <RowActionMenu label={tOrders('list.rowMenu.label', { number: o.businessId })}>
-                  <RowActionMenuItem onSelect={(): void => setStatusDialogIds([o.id])}>
+                  <RowActionMenuItem onSelect={(): void => openStatusDialog([o.id])}>
                     <ListChecks aria-hidden="true" />
                     {tOrders('list.rowMenu.changeStatus')}
                   </RowActionMenuItem>
@@ -1059,7 +1065,11 @@ export function OrdersList(): ReactNode {
         onClose={(): void => setStatusDialogIds(null)}
         onDone={(summary): void => {
           setStatusDialogIds(null);
-          setInfo(t('orders.bulk.result', { changed: summary.changed, skipped: summary.skipped }));
+          // Some orders left as they were is a partial result, not a success.
+          showBulkStatus(
+            t('orders.bulk.result', { changed: summary.changed, skipped: summary.skipped }),
+            summary.skipped > 0 ? 'warning' : 'success',
+          );
           void refresh();
         }}
       />

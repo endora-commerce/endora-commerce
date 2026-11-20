@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import type { AdminCustomerListItem, AdminCustomerListResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, EmptyState, Select } from '@endora-commerce/admin-kit/ui';
+import { Badge, Button, EmptyState, InlineStatus, Select, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
   ListPage,
   ListToolbar,
@@ -68,7 +68,9 @@ export function CustomersList(): ReactNode {
   const [status, setStatus] = useState<StatusFilter>('');
   const [q, setQ] = useState('');
   const [organizationId, setOrganizationId] = useState<string | null>(null);
-  const [resetMsg, setResetMsg] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — the 2FA reset's outcome is said
+  // beside its button, in a region mounted with it, not as a success banner.
+  const { props: resetStatus, show: showResetStatus, clear: clearResetStatus } = useInlineStatus();
   const [reloadKey, setReloadKey] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const path = customersListPath({ status, q, organizationId, ...pager.query });
@@ -101,16 +103,16 @@ export function CustomersList(): ReactNode {
     setStatus('');
     setQ('');
     setOrganizationId(null);
-    setResetMsg(null);
+    clearResetStatus();
     resetPage();
-  }, [resetPage]);
+  }, [resetPage, clearResetStatus]);
 
   // Feature 042 US6 — reset 2FA for every account in the selected organization.
   // It signs every account there out of its second factor at once, so it is
   // asked first, and the request runs inside the dialog.
   const resetOrgMfa = async (): Promise<void> => {
     if (!organizationId) return;
-    setResetMsg(null);
+    clearResetStatus();
     let outcome: { requested: number; affected: number } | null = null;
     const ok = await confirm({
       title: t('list.action.resetOrgMfa'),
@@ -128,7 +130,11 @@ export function CustomersList(): ReactNode {
     });
     const done = outcome as { requested: number; affected: number } | null;
     if (ok && done) {
-      setResetMsg(t('list.action.resetOrgMfaResult', { affected: done.affected, requested: done.requested }));
+      // Accounts left out (no second factor, or out of reach) is a partial result.
+      showResetStatus(
+        t('list.action.resetOrgMfaResult', { affected: done.affected, requested: done.requested }),
+        done.affected < done.requested ? 'warning' : 'success',
+      );
     }
   };
 
@@ -184,7 +190,7 @@ export function CustomersList(): ReactNode {
                     placeholder={t('list.filter.allOrgs')}
                     onChange={(next): void => {
                       setOrganizationId(next);
-                      setResetMsg(null);
+                      clearResetStatus();
                       resetPage();
                     }}
                   />
@@ -193,21 +199,17 @@ export function CustomersList(): ReactNode {
             }
             actions={
               organizationId && hasPermission('mfa:reset') ? (
-                <Button type="button" variant="outline" onClick={(): void => void resetOrgMfa()}>
-                  {t('list.action.resetOrgMfa')}
-                </Button>
+                <>
+                  <InlineStatus {...resetStatus} className="max-w-sm" />
+                  <Button type="button" variant="outline" onClick={(): void => void resetOrgMfa()}>
+                    {t('list.action.resetOrgMfa')}
+                  </Button>
+                </>
               ) : null
             }
             filtersActive={filtered}
             onClearFilters={clearFilters}
           />
-        }
-        notice={
-          resetMsg ? (
-            <Alert variant="success">
-              <AlertDescription>{resetMsg}</AlertDescription>
-            </Alert>
-          ) : null
         }
         pagination={pager.footer(total)}
       >
