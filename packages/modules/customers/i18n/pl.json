@@ -1,4 +1,5 @@
 {
+  "module.name": "Klienci",
   "nav.customers.label": "Klienci",
   "nav.customersOnline.label": "Klienci online",
   "actions.openCustomers.label": "Klienci",

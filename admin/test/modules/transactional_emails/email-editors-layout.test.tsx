@@ -140,7 +140,7 @@ beforeEach(() => {
   vi.spyOn(apiClient, 'get').mockImplementation((path: string) => {
     if (path.startsWith('/api/v1/admin/sales-channels')) {
       return Promise.resolve({
-        items: [{ id: 'channel-1', code: 'web' }],
+        items: [{ id: 'channel-1', code: 'web', name: { 'en-US': 'Web shop', 'pl-PL': 'Sklep internetowy' } }],
         page: 1,
         pageSize: 100,
         total: 1,
@@ -212,7 +212,25 @@ describe('EmailEditor in the shared editor shell', () => {
     const scope = screen.getByLabelText(copy('editor.scope')) as HTMLSelectElement;
     await waitFor(() => expect(scope.options.length).toBe(2));
     expect(scope.options[0]?.textContent).toBe(copy('scope.global'));
-    expect(scope.options[1]?.textContent).toBe('web');
+    // By the channel's name, not its code (#1536, CONTENT-19).
+    expect(scope.options[1]?.textContent).toBe('Web shop');
+  });
+
+  it('says where the content comes from in words, not as the API code (#1536)', async () => {
+    await open();
+    expect(screen.getByText(copy('source.default'))).toBeInTheDocument();
+    expect(screen.queryByText('default')).toBeNull();
+  });
+
+  it('says the save is running while it runs (#1536)', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    put.mockReturnValue(new Promise((resolve) => { finish = resolve; }) as never);
+    await open();
+
+    fireEvent.click(screen.getByRole('button', { name: copy('editor.save') }));
+    expect(await screen.findByRole('button', { name: copy('editor.saving') })).toBeInTheDocument();
+    finish({ data: { ...detail.effective } });
+    await waitFor(() => expect(screen.getByRole('button', { name: copy('editor.save') })).toBeInTheDocument());
   });
 
   it('saves the subject and the canvas in the request it always sent', async () => {
@@ -309,7 +327,10 @@ describe('the e-mail editor copy ships in both languages', () => {
     'editor.reset',
     'editor.resetConfirm',
     'editor.resetDone',
-    'editor.source',
+    'editor.saving',
+    'source.default',
+    'source.global',
+    'source.channel',
     'editor.noPermission',
     'editor.blockContent',
     'editor.templateContent',
