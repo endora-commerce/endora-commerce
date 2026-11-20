@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -101,8 +104,13 @@ const CHANNELS = {
   data: [channel(CHANNEL_A, 'default', 'Default shop'), channel(CHANNEL_B, 'b2b-eu', 'B2B Europe')],
 };
 
+const here = dirname(fileURLToPath(import.meta.url));
+const realBundle = (path: string): Record<string, string> =>
+  JSON.parse(readFileSync(join(here, '../../../../packages/modules', path), 'utf8')) as Record<string, string>;
+
 const BUNDLE = {
   core: {
+    ...realBundle('_i18n/i18n/en.json'),
     'methodSalesChannels.all': 'All channels',
     'methodSalesChannels.column': 'Sales channels',
     'methodSalesChannels.count': '{count} selected',
@@ -120,7 +128,7 @@ const BUNDLE = {
     'legacyMethods.fields.code': 'Code',
     'legacyMethods.messages.saved': 'Method “{code}” saved.',
   },
-  delivery_methods: { 'methods.fields.adapter': 'Adapter' },
+  delivery_methods: realBundle('delivery_methods/i18n/en.json'),
 };
 
 async function mount(): Promise<void> {
@@ -159,8 +167,16 @@ function channelsHelp(): HTMLElement {
 function save(): void {
   // `submit` rather than a click on Save: the form's other required fields are
   // not this file's subject, and jsdom does not run constraint validation on a
-  // dispatched submit.
-  fireEvent.submit(screen.getByRole('button', { name: 'Save' }).closest('form')!);
+  // dispatched submit. The form is the dialog's (issue #1543).
+  fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+}
+
+/** Opens a row's edit dialog from its menu (issue #1543). */
+async function edit(user: ReturnType<typeof userEvent.setup>, code: string): Promise<void> {
+  await user.click(
+    within(screen.getByText(code).closest('tr')!).getByRole('button', { name: `Actions for ${code}` }),
+  );
+  await user.click(await screen.findByRole('menuitem', { name: 'Edit' }));
 }
 
 beforeEach(() => {
@@ -185,9 +201,7 @@ describe('delivery-methods screen — sales channels', () => {
     await mount();
     const user = userEvent.setup();
 
-    await user.click(
-      within(screen.getByText('restricted_a').closest('tr')!).getByRole('button', { name: 'Edit' }),
-    );
+    await edit(user, 'restricted_a');
     // The form opens on the method's current assignment.
     await waitFor(() =>
       expect(channelsHelp()).toHaveTextContent('Offered only in: Default shop.'),
@@ -206,9 +220,7 @@ describe('delivery-methods screen — sales channels', () => {
     await mount();
     const user = userEvent.setup();
 
-    await user.click(
-      within(screen.getByText('restricted_a').closest('tr')!).getByRole('button', { name: 'Edit' }),
-    );
+    await edit(user, 'restricted_a');
     await waitFor(() =>
       expect(channelsHelp()).toHaveTextContent('Offered only in: Default shop.'),
     );
@@ -225,6 +237,7 @@ describe('delivery-methods screen — sales channels', () => {
     await mount();
     const user = userEvent.setup();
 
+    await user.click(screen.getByRole('button', { name: 'New method' }));
     await waitFor(() =>
       expect(channelsHelp()).toHaveTextContent('Offered in every sales channel.'),
     );
@@ -247,9 +260,7 @@ describe('delivery-methods screen — sales channels', () => {
     await mount();
     const user = userEvent.setup();
 
-    await user.click(
-      within(screen.getByText('restricted_a').closest('tr')!).getByRole('button', { name: 'Edit' }),
-    );
+    await edit(user, 'restricted_a');
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'The sales channels could not be loaded.',
     );
@@ -262,24 +273,23 @@ describe('delivery-methods screen — sales channels', () => {
 
 /**
  * Issue #1499 (UX audit SALES-17, owner decision DEC-12 a) — a saved method was
- * a success banner at the top of the page. It is said in the form card's
- * header now, in a region mounted before it has text (the form itself remounts
- * on save, so a region inside it would arrive already carrying its message).
+ * a success banner at the top of the page. Since the form moved into a dialog
+ * (issue #1543) it is said beside the header's *New method*, where the dialog
+ * returns focus, in a region mounted before it has text.
  */
-describe('delivery-methods screen — the save result beside the form (SALES-17)', () => {
-  it('says the saved method in the form card header, with no success banner', async () => {
+describe('delivery-methods screen — the save result beside the header action (SALES-17)', () => {
+  it('says the saved method beside "New method", with no success banner', async () => {
     await mount();
     const user = userEvent.setup();
-    const form = screen.getByRole('button', { name: 'Save' }).closest('form')!;
-    const region = form.closest('[data-slot="card"]')!.querySelector('[data-slot="card-header"] [role="status"]')!;
+    const newMethod = screen.getByRole('button', { name: 'New method' });
+    const region = newMethod.parentElement!.querySelector('[role="status"]')!;
     expect(region).not.toBeNull();
     expect(region.textContent).toBe('');
 
-    await user.click(
-      within(screen.getByText('restricted_a').closest('tr')!).getByRole('button', { name: 'Edit' }),
-    );
+    await edit(user, 'restricted_a');
     save();
     await waitFor(() => expect(region).toHaveTextContent('Method “restricted_a” saved.'));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
   });
 });
