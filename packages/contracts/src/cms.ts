@@ -243,6 +243,22 @@ export const createCmsTemplateRequestSchema = z.object({
 });
 export type CreateCmsTemplateRequest = z.infer<typeof createCmsTemplateRequestSchema>;
 
+/**
+ * Issue #1495 (UX audit CONTENT-13, DEC-17) — the body of
+ * `POST /api/v1/admin/cms/{pages|blocks|templates}/:id/duplicate`, one schema
+ * for the three record kinds. The body is optional: a bodiless POST is `{}`.
+ *
+ * `name` is the copy's name; absent, the server names it `"<source> (copy)"`.
+ * The admin always sends it, in the operator's language. A slug or code is not
+ * accepted — the copy's is always derived (`-copy`, `-copy-2`, …), so this
+ * endpoint cannot be used as a second create path with other validation. The
+ * answer is `201` with the kind's existing detail schema, the create envelope.
+ */
+export const duplicateCmsRecordRequestSchema = z
+  .object({ name: z.string().trim().min(1).max(200).optional() })
+  .strict();
+export type DuplicateCmsRecordRequest = z.infer<typeof duplicateCmsRecordRequestSchema>;
+
 export const patchCmsTemplateRequestSchema = createCmsTemplateRequestSchema
   .partial()
   .extend({ version: z.number().int().optional() })

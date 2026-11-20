@@ -6,6 +6,7 @@ import {
   createCmsHookRequestSchema,
   createCmsPageRequestSchema,
   createCmsTemplateRequestSchema,
+  duplicateCmsRecordRequestSchema,
   cmsHookAttachmentRequestSchema,
   cmsPageBuilderTranslateRequestSchema,
   patchCmsBlockRequestSchema,
@@ -222,6 +223,17 @@ export async function registerCmsAdminRoutes(
     async (request) => ({ data: await deps.pageService.unarchive(request.params.id) }),
   );
 
+  // Issue #1495 (DEC-17) — a draft copy under a derived slug; 201 with the create envelope.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/pages/:id/duplicate',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      const body = duplicateCmsRecordRequestSchema.parse(request.body ?? {});
+      const copy = await deps.pageService.duplicate(request.params.id, body);
+      return reply.code(201).send({ data: copy });
+    },
+  );
+
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/cms/pages/:id',
     { preHandler: requireWrite },
@@ -284,6 +296,17 @@ export async function registerCmsAdminRoutes(
     },
   );
 
+  // Issue #1495 (DEC-17) — a draft copy under a derived code; 201 with the create envelope.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/blocks/:id/duplicate',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      const body = duplicateCmsRecordRequestSchema.parse(request.body ?? {});
+      const copy = await deps.blockService.duplicate(request.params.id, body);
+      return reply.code(201).send({ data: copy });
+    },
+  );
+
   app.get('/api/v1/admin/cms/templates', { preHandler: requireRead }, async (request) => {
     const query = (request.query ?? {}) as Record<string, string | undefined>;
     return deps.templateService.list({
@@ -334,6 +357,17 @@ export async function registerCmsAdminRoutes(
     async (request, reply) => {
       await deps.templateService.delete(request.params.id);
       return reply.code(204).send();
+    },
+  );
+
+  // Issue #1495 (DEC-17) — a draft copy under a derived code; 201 with the create envelope.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/cms/templates/:id/duplicate',
+    { preHandler: requireWrite },
+    async (request, reply) => {
+      const body = duplicateCmsRecordRequestSchema.parse(request.body ?? {});
+      const copy = await deps.templateService.duplicate(request.params.id, body);
+      return reply.code(201).send({ data: copy });
     },
   );
 

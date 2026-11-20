@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import { slugify, type CmsBlockDetail } from '@endora-commerce/contracts';
@@ -20,6 +20,7 @@ import {
 } from '../components/cms-template-layout.js';
 import { isSameScope, resolveScopedContentLanguage } from '../components/scope-utils.js';
 import { cmsClient } from '../api/cms-client.js';
+import { useDuplicatedLanding } from '../components/duplicate-record.js';
 
 interface FormState {
   name: string;
@@ -69,6 +70,14 @@ export function BlockEditor(): ReactNode {
   const navigate = useNavigate();
   const settingsPanel = usePageBuilderEditorSettingsPanel(isNew);
   const [block, setBlock] = useState<CmsBlockDetail | null>(null);
+  // Issue #1495 (DEC-17) — opened on a fresh copy: the notice, and focus on its name.
+  const nameRef = useRef<HTMLInputElement>(null);
+  const landedOnCopy = useDuplicatedLanding({
+    ready: block !== null,
+    reveal: settingsPanel.reveal,
+    open: settingsPanel.open,
+    nameRef,
+  });
   const [form, setForm] = useState<FormState>(blankForm);
   // For a new block the code auto-derives from the name until the editor types
   // into the code field, at which point it stops auto-syncing.
@@ -251,6 +260,11 @@ export function BlockEditor(): ReactNode {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
+          {landedOnCopy ? (
+            <Alert live="polite">
+              <AlertDescription>{t('duplicate.created')}</AlertDescription>
+            </Alert>
+          ) : null}
         </>
       }
       settings={
@@ -262,6 +276,7 @@ export function BlockEditor(): ReactNode {
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>
                 <Input
+                  ref={nameRef}
                   value={form.name}
                   onChange={(event) => {
                     const name = event.target.value;

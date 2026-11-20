@@ -49,6 +49,7 @@ The **CMS pages**, **CMS blocks**, **CMS templates** and **CMS hooks** screens l
 An administrator with `cms.write` gets a menu (⋮) at the end of each row:
 
 - **Open** opens the record's editor.
+- **Duplicate** (pages, blocks and templates) makes a copy at once and opens it in the editor, with the cursor in its name. See *Duplicating a page, block or template* below.
 - **Delete** asks for confirmation first. The dialog names the record and warns that deleting cannot be undone. A deleted page disappears from the storefront at once. A deleted hook's blocks stay, but no longer appear in that place.
 
 When the delete is refused, the dialog stays open, says why and tells you what to do:
@@ -62,6 +63,40 @@ When the delete is refused, the dialog stays open, says why and tells you what t
 On the page list the menu also holds **Archive**, or **Unarchive** for an archived page, before **Delete**. Neither asks for confirmation, as in the page editor: archiving takes the page off the storefront and can be undone. **Unarchive** makes the page a draft, so it comes back to the storefront only when you publish it again. The row's status badge changes in place, the result is shown next to **New page**, and focus stays on the row's menu. When the list is filtered by a status the page no longer has, the page leaves the list and focus moves to the next row. If the change does not go through, the list says so and the page keeps its status.
 
 Without `cms.write` the lists are read-only: no row menu and no **New** button. A list with no records shows what it is for and, for an administrator who may create one, the **New** button.
+
+### Duplicating a page, block or template
+
+**Duplicate** asks nothing: the copy is named and addressed for you, and you can rename or delete it like any other record. While the copy is being made the item is unavailable, so a second click does not make a second copy.
+
+The copy is named after the original with *(copy)* added, in your admin language. Its slug or code is the original's with `-copy` added, or `-copy-2`, `-copy-3` and so on when that is taken by any record of the same kind in any sales channel. A page's language slugs get the same ending as its slug, so `about` and `o-nas` become `about-copy` and `o-nas-copy`. A copy of a copy adds the ending again: `about-copy-copy`.
+
+| | Page | Block | Template |
+| --- | --- | --- | --- |
+| Content in every language | copied | copied | copied |
+| Languages, description, sales channels | copied | copied | copied |
+| Search metadata (meta title, description, keywords) and names per language | copied | — | — |
+| Parent page (the copy sits beside the original), breadcrumb settings, sharing image | copied | — | — |
+| Active | copied | copied | — |
+| Status | always **Draft** | — | — |
+| Version and history | starts at version 1, with one audit entry `cms_page.duplicate` | starts at version 1, `cms_block.duplicate` | starts at version 1, `cms_template.duplicate` |
+
+What is never copied:
+
+- the publication state: a copy of a published page is a draft, so it is not on the storefront until you publish it;
+- a block's places in hooks: a copy would otherwise appear next to the original at once;
+- child pages, and the pages, blocks and menus that link to or embed the original: they keep pointing at the original;
+- the search settings the SEO module keeps for the page.
+
+Blocks, templates and images used inside the content are shared with the original, not copied.
+
+When the copy cannot be made, the list stays and says why:
+
+| Refusal | Why | What to do |
+| --- | --- | --- |
+| `409 CMS_SLUG_RESERVED` | The copy's address would start with a segment the storefront already serves. | Change the original's slug, then duplicate it again. |
+| `409 CMS_SLUG_CONFLICT` | Another page is already served at the copy's address. | Change the original's slug, then duplicate it again. |
+| `409 CMS_CODE_CONFLICT` | Every ending up to `-copy-1000` is taken. | Delete or rename the existing copies. |
+| `400 CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE` | The original's languages no longer fit its sales channels. | Fix the original's languages or channels. |
 
 ## Page Builder authoring
 
@@ -1393,9 +1428,10 @@ page render.
 | PATCH   | `/pages/:id`                                        | Edit metadata, including `parentPageId`, `parentPathInUrl`, `breadcrumbsVisible`, `breadcrumbsScheme`, `breadcrumbsOverlay`, `shareImageAssetId` and `translations` (the per-language name, slug and description, replaced whole); honours `If-Match` via `version`. A cyclic or too-deep parent answers `422 CMS_PAGE_PARENT_CYCLE`; an address another page has answers `409 CMS_SLUG_CONFLICT`. |
 | PUT     | `/pages/:id/content/:language`                      | Save the Page Builder tree per language. A duplicate or reserved anchor answers `422 CMS_DUPLICATE_ANCHOR` / `CMS_RESERVED_ANCHOR`. |
 | POST    | `/pages/:id/{publish,archive,unarchive}`            | Lifecycle transitions.                          |
+| POST    | `/pages/:id/duplicate`                              | Copy a Page as a `draft` at version 1 under the slug `<slug>-copy` (`-copy-2`, …), every language slug with the same ending. Body `{ name? }` (`duplicateCmsRecordRequestSchema`); the name defaults to `"<name> (copy)"`. Answers `201` with the Page detail. Gated `cms.write`; audited as `cms_page.duplicate` against the copy. |
 | DELETE  | `/pages/:id`                                        | Hard delete (channels are cascade-unbound).     |
-| Same    | `/blocks/*`                                         | Same shape; per-channel-unique `code`; reference-protected on delete. |
-| Same    | `/templates/*`                                      | Same shape minus `active` flag.                 |
+| Same    | `/blocks/*`                                         | Same shape; per-channel-unique `code`; reference-protected on delete. `POST /blocks/:id/duplicate` copies under `<code>-copy`, without hook attachments (`cms_block.duplicate`). |
+| Same    | `/templates/*`                                      | Same shape minus `active` flag; `POST /templates/:id/duplicate` copies under `<code>-copy` (`cms_template.duplicate`). |
 | GET     | `/hooks`, `/hooks/:id`                              | List + detail with attachment count.            |
 | POST    | `/hooks`                                            | Create an admin (non-system) Hook.              |
 | PATCH   | `/hooks/:id`                                        | Edit name / active / scope; `code` is immutable.|

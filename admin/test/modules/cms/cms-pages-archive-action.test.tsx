@@ -21,6 +21,7 @@ const client = vi.hoisted(() => ({
   deletePage: vi.fn(),
   archivePage: vi.fn(),
   unarchivePage: vi.fn(),
+  duplicatePage: vi.fn(),
 }));
 vi.mock('../../../../packages/modules/cms/src/admin/api/cms-client', () => ({ cmsClient: client }));
 
@@ -101,11 +102,16 @@ describe('CMS pages list — archive copy', () => {
 });
 
 describe('CMS pages list — Archive and Unarchive', () => {
-  it('offers Archive for a live page, between Open and Delete', async () => {
+  it('offers Archive for a live page, after Open and Duplicate and before Delete', async () => {
     mount();
     await openRowMenu('About');
     const items = (await screen.findAllByRole('menuitem')).map((item) => item.textContent);
-    expect(items).toEqual([en['listActions.open'], en['pagesList.archive'], en['listActions.delete']]);
+    expect(items).toEqual([
+      en['listActions.open'],
+      en['listActions.duplicate'],
+      en['pagesList.archive'],
+      en['listActions.delete'],
+    ]);
   });
 
   it('offers Unarchive, not Archive, for an archived page', async () => {

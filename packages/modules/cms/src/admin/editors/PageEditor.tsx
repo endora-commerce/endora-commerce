@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import {
@@ -38,6 +38,7 @@ import {
 } from '../components/cms-template-layout.js';
 import { isSameScope, resolveScopedContentLanguage } from '../components/scope-utils.js';
 import { cmsClient } from '../api/cms-client.js';
+import { useDuplicatedLanding } from '../components/duplicate-record.js';
 
 /** One language's own name, slug and description (R24) — an empty field inherits the page's. */
 interface LanguageFields {
@@ -251,6 +252,14 @@ export function PageEditor(): ReactNode {
   const navigate = useNavigate();
   const settingsPanel = usePageBuilderEditorSettingsPanel(isNew);
   const [page, setPage] = useState<CmsPageDetail | null>(null);
+  // Issue #1495 (DEC-17) — opened on a fresh copy: the notice, and focus on its name.
+  const nameRef = useRef<HTMLInputElement>(null);
+  const landedOnCopy = useDuplicatedLanding({
+    ready: page !== null,
+    reveal: settingsPanel.reveal,
+    open: settingsPanel.open,
+    nameRef,
+  });
   const [form, setForm] = useState<FormState>(blankForm);
   const [scope, setScope] = useState<ScopePickerValue>({ salesChannelIds: [], languages: [] });
   const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
@@ -672,6 +681,11 @@ export function PageEditor(): ReactNode {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
+          {landedOnCopy ? (
+            <Alert live="polite">
+              <AlertDescription>{t('duplicate.createdDraft')}</AlertDescription>
+            </Alert>
+          ) : null}
         </>
       }
       settings={
@@ -683,6 +697,7 @@ export function PageEditor(): ReactNode {
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>
                 <Input
+                  ref={nameRef}
                   value={form.name}
                   onChange={(event) => {
                     const name = event.target.value;

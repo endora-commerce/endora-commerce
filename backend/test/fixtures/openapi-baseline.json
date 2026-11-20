@@ -1775,6 +1775,15 @@
         }
       }
     },
+    "/api/v1/admin/cms/blocks/{id}/duplicate": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/cms/brand-tokens": {
       "get": {
         "responses": {
@@ -1964,6 +1973,15 @@
         }
       }
     },
+    "/api/v1/admin/cms/pages/{id}/duplicate": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/cms/pages/{id}/publish": {
       "post": {
         "responses": {
@@ -2023,6 +2041,15 @@
     },
     "/api/v1/admin/cms/templates/{id}/content/{language}": {
       "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/cms/templates/{id}/duplicate": {
+      "post": {
         "responses": {
           "200": {
             "description": "OK"
