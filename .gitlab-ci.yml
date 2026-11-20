@@ -622,6 +622,12 @@ quality:
     # No ledger, deliberately: an entry could only license a single-language
     # module, which is the thing the ruling forbids.
     - pnpm --filter backend run check:bundle-pairing
+    # Issue #1451 (UX audit 2026-11-17, DS-23) — copy read in passing has a length
+    # budget: a page description, a subtitle, a field hint at most 80 characters,
+    # a help popover at most 280, a setting description at most 120, in the English
+    # bundle. A ratchet over the copy that stood when it landed (DEC-01: the rule
+    # now, the check after the first text pass); the ledger only shrinks.
+    - pnpm --filter backend run check:text-budget
     # `specs/117-instance-bring-up/` FR-003 — every environment value a running
     # Endora reads is declared, and every declared input is read. Both
     # directions, and the second is the one nothing else would ever notice: the
