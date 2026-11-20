@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, CheckCircle2, Upload } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EditorSection, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { FileDropzone } from '@endora-commerce/admin-kit/components';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -180,100 +180,99 @@ export function FeedTemplateImportPage(): ReactNode {
           onFile={ingest}
         />
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('import.summary.title')}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <p className="text-sm">
-              <strong>{summary.name}</strong>
-              {' · '}
-              {summary.outputFormat.toUpperCase()}
-              {' · '}
-              {summary.itemGranularity
-                ? t(`builder.granularity.${summary.itemGranularity}`)
-                : ''}
-              {' · '}
-              {t('templates.fields', { count: summary.fieldCount })}
-            </p>
+        // The page's one card, a region named by its heading (DS-03, #1437).
+        <EditorSection chrome="card" title={t('import.summary.title')} contentClassName="flex flex-col gap-4">
+          <p className="text-sm">
+            <strong>{summary.name}</strong>
+            {' · '}
+            {summary.outputFormat.toUpperCase()}
+            {' · '}
+            {summary.itemGranularity
+              ? t(`builder.granularity.${summary.itemGranularity}`)
+              : ''}
+            {' · '}
+            {t('templates.fields', { count: summary.fieldCount })}
+          </p>
 
-            {/* The "check what will happen" block. The exact resolvable /
-                unresolvable split is the server's answer, so this states what
-                the file asks for and what the consequence of a miss is. */}
-            <div className="flex flex-col gap-1 text-sm">
-              <span className="flex items-center gap-2">
-                <CheckCircle2 size={14} aria-hidden="true" />
-                {t('import.check.resolved', {
-                  count: summary.fieldCount - summary.keyedBindings.length,
-                })}
-              </span>
-              {summary.keyedBindings.length > 0 ? (
-                <>
-                  <span className="flex items-center gap-2">
-                    <AlertTriangle size={14} aria-hidden="true" />
-                    {t('import.check.mayBeUnresolved', { count: summary.keyedBindings.length })}
-                  </span>
-                  <ul className="ml-6 list-disc text-muted-foreground">
-                    {summary.keyedBindings.map((binding) => (
-                      <li key={`${binding.outputName}:${binding.sourceKey}`}>
-                        {binding.outputName} → <code>{binding.sourceKey}</code>
-                      </li>
-                    ))}
-                  </ul>
-                  <span className="text-muted-foreground">{t('import.check.unresolvedNote')}</span>
-                </>
-              ) : null}
-            </div>
-
-            {collision !== null ? (
-              <fieldset className="flex flex-col gap-2 rounded-md border border-border p-3">
-                <legend className="px-1 text-sm font-medium">
-                  {t('import.collision.title', { name: collision.name })}
-                </legend>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="onNameConflict"
-                    value="create_copy"
-                    checked={resolution === 'create_copy'}
-                    onChange={(): void => setResolution('create_copy')}
-                  />
-                  {t('import.collision.keepBoth', { name: `${collision.name} (imported)` })}
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="onNameConflict"
-                    value="replace"
-                    checked={resolution === 'replace'}
-                    onChange={(): void => setResolution('replace')}
-                  />
-                  {t('import.collision.replace')}
-                </label>
-                {resolution === 'replace' ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t('import.collision.replaceConsequence')}
-                  </p>
-                ) : null}
-              </fieldset>
+          {/* The "check what will happen" block. The exact resolvable /
+              unresolvable split is the server's answer, so this states what
+              the file asks for and what the consequence of a miss is. */}
+          <div className="flex flex-col gap-1 text-sm">
+            <span className="flex items-center gap-2">
+              <CheckCircle2 size={14} aria-hidden="true" />
+              {t('import.check.resolved', {
+                count: summary.fieldCount - summary.keyedBindings.length,
+              })}
+            </span>
+            {summary.keyedBindings.length > 0 ? (
+              <>
+                <span className="flex items-center gap-2">
+                  <AlertTriangle size={14} aria-hidden="true" />
+                  {t('import.check.mayBeUnresolved', { count: summary.keyedBindings.length })}
+                </span>
+                <ul className="ml-6 list-disc text-muted-foreground">
+                  {summary.keyedBindings.map((binding) => (
+                    <li key={`${binding.outputName}:${binding.sourceKey}`}>
+                      {binding.outputName} → <code>{binding.sourceKey}</code>
+                    </li>
+                  ))}
+                </ul>
+                <span className="text-muted-foreground">{t('import.check.unresolvedNote')}</span>
+              </>
             ) : null}
+          </div>
 
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" onClick={reset} disabled={busy}>
-                {t('import.action.another')}
-              </Button>
-              <Button
-                type="button"
-                disabled={!canWrite || busy}
-                title={!canWrite ? t('permission.needWrite') : undefined}
-                onClick={(): void => submit(collision === null ? undefined : resolution)}
-              >
-                <Upload size={14} aria-hidden="true" />
-                {busy ? t('import.action.importing') : t('import.action.import')}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+          {collision !== null ? (
+            // A group of the card set off by a rule, not a box inside it (DS-03): the
+            // legend names the radio group, as a heading would a section.
+            <fieldset className="flex flex-col gap-2 border-t border-border pt-4">
+              <legend className="sr-only">{t('import.collision.title', { name: collision.name })}</legend>
+              <p aria-hidden="true" className="text-sm font-semibold">
+                {t('import.collision.title', { name: collision.name })}
+              </p>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="onNameConflict"
+                  value="create_copy"
+                  checked={resolution === 'create_copy'}
+                  onChange={(): void => setResolution('create_copy')}
+                />
+                {t('import.collision.keepBoth', { name: `${collision.name} (imported)` })}
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="onNameConflict"
+                  value="replace"
+                  checked={resolution === 'replace'}
+                  onChange={(): void => setResolution('replace')}
+                />
+                {t('import.collision.replace')}
+              </label>
+              {resolution === 'replace' ? (
+                <p className="text-xs text-muted-foreground">
+                  {t('import.collision.replaceConsequence')}
+                </p>
+              ) : null}
+            </fieldset>
+          ) : null}
+
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button type="button" variant="outline" onClick={reset} disabled={busy}>
+              {t('import.action.another')}
+            </Button>
+            <Button
+              type="button"
+              disabled={!canWrite || busy}
+              title={!canWrite ? t('permission.needWrite') : undefined}
+              onClick={(): void => submit(collision === null ? undefined : resolution)}
+            >
+              <Upload size={14} aria-hidden="true" />
+              {busy ? t('import.action.importing') : t('import.action.import')}
+            </Button>
+          </div>
+        </EditorSection>
       )}
     </div>
   );

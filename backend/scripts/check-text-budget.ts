@@ -271,7 +271,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'product_feeds:builder.outputFormat.hint': 108,
   'product_feeds:checks.reason.transport.hint': 140,
   'product_feeds:delivery.empty.subtitle': 121,
-  'product_feeds:delivery.subtitle': 92,
   'product_feeds:feeds.empty.subtitle': 90,
   'product_feeds:feeds.settings.priceBook.hint': 98,
   'product_feeds:templates.startingPoint.hint': 103,

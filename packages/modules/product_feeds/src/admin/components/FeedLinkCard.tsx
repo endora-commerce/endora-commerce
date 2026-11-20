@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Copy, RefreshCw, ShieldOff } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EditorSection } from '@endora-commerce/admin-kit/ui';
 import { DownloadAction } from './DownloadAction.js';
 // Lifted to its own file so token rotation and taxonomy promotion share one
 // dialog rather than growing a second (ux-design §2.12).
@@ -88,89 +88,87 @@ export function FeedLinkCard(props: FeedLinkCardProps): ReactNode {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          {published && !revoked ? t('feeds.link.ready.title') : t('feeds.table.status')}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {!published && (
-          // Deliberately no URL here.
-          <p className="text-sm text-muted-foreground">{t('feeds.link.notPublished')}</p>
-        )}
+    // The overview tab's one card, a region named by its heading (DS-03, #1437).
+    <EditorSection
+      chrome="card"
+      title={published && !revoked ? t('feeds.link.ready.title') : t('feeds.table.status')}
+      contentClassName="flex flex-col gap-3"
+    >
+      {!published && (
+        // Deliberately no URL here.
+        <p className="text-sm text-muted-foreground">{t('feeds.link.notPublished')}</p>
+      )}
 
-        {published && revoked && (
-          <Alert>
-            <AlertDescription>{t('feeds.link.revoke.body')}</AlertDescription>
-          </Alert>
-        )}
+      {published && revoked && (
+        <Alert>
+          <AlertDescription>{t('feeds.link.revoke.body')}</AlertDescription>
+        </Alert>
+      )}
 
-        {published && !revoked && (
-          <>
-            <p className="text-sm text-muted-foreground">{t('feeds.link.ready.body')}</p>
-            {/* The link is stored encrypted at rest, so it can be shown again
-                rather than once. `issuedToken` still wins when present: it is
-                the freshest value on the navigation that just created or
-                rotated the token, before the feed has been re-fetched. */}
-            {readableUrl !== null ? (
-              <div className="flex items-center gap-2">
-                <code className="flex-1 truncate rounded border px-2 py-1.5 text-xs">
-                  {readableUrl}
-                </code>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  aria-label={t('feeds.link.copy')}
-                  onClick={() => void copy(readableUrl)}
-                >
-                  <Copy size={14} aria-hidden="true" />
-                  {copied ? t('feeds.link.copied') : t('feeds.link.copy')}
-                </Button>
-              </div>
-            ) : (
-              // Issued before the token became recoverable, or no encryption key
-              // on this deployment. Showing a masked form is the honest answer;
-              // offering to copy it would send the operator to paste a 404.
-              <p className="text-sm text-muted-foreground">
-                <code>…{feed.token.prefix ?? ''}…</code>{' '}
-                {t('feeds.link.masked')}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">{t('feeds.link.public')}</p>
-          </>
-        )}
+      {published && !revoked && (
+        <>
+          <p className="text-sm text-muted-foreground">{t('feeds.link.ready.body')}</p>
+          {/* The link is stored encrypted at rest, so it can be shown again
+              rather than once. `issuedToken` still wins when present: it is
+              the freshest value on the navigation that just created or
+              rotated the token, before the feed has been re-fetched. */}
+          {readableUrl !== null ? (
+            <div className="flex items-center gap-2">
+              <code className="flex-1 truncate rounded border px-2 py-1.5 text-xs">
+                {readableUrl}
+              </code>
+              <Button
+                size="sm"
+                variant="outline"
+                aria-label={t('feeds.link.copy')}
+                onClick={() => void copy(readableUrl)}
+              >
+                <Copy size={14} aria-hidden="true" />
+                {copied ? t('feeds.link.copied') : t('feeds.link.copy')}
+              </Button>
+            </div>
+          ) : (
+            // Issued before the token became recoverable, or no encryption key
+            // on this deployment. Showing a masked form is the honest answer;
+            // offering to copy it would send the operator to paste a 404.
+            <p className="text-sm text-muted-foreground">
+              <code>…{feed.token.prefix ?? ''}…</code>{' '}
+              {t('feeds.link.masked')}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">{t('feeds.link.public')}</p>
+        </>
+      )}
 
-        <div className="flex flex-wrap gap-2 pt-1">
-          <DownloadAction
-            href={productFeedsClient.artefactUrl(feed.id)}
-            label={t('feeds.action.download')}
-            enabled={canWrite && published}
-            title={writeTitle}
-            size="sm"
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setPending('rotate')}
-            disabled={!canWrite || busy}
-            title={writeTitle}
-          >
-            <RefreshCw size={14} aria-hidden="true" />
-            {t('feeds.link.rotate')}
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setPending('revoke')}
-            disabled={!canWrite || busy || revoked}
-            title={writeTitle}
-          >
-            <ShieldOff size={14} aria-hidden="true" />
-            {t('feeds.link.revoke')}
-          </Button>
-        </div>
-      </CardContent>
+      <div className="flex flex-wrap gap-2 pt-1">
+        <DownloadAction
+          href={productFeedsClient.artefactUrl(feed.id)}
+          label={t('feeds.action.download')}
+          enabled={canWrite && published}
+          title={writeTitle}
+          size="sm"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setPending('rotate')}
+          disabled={!canWrite || busy}
+          title={writeTitle}
+        >
+          <RefreshCw size={14} aria-hidden="true" />
+          {t('feeds.link.rotate')}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => setPending('revoke')}
+          disabled={!canWrite || busy || revoked}
+          title={writeTitle}
+        >
+          <ShieldOff size={14} aria-hidden="true" />
+          {t('feeds.link.revoke')}
+        </Button>
+      </div>
 
       {pending !== null ? (
         <ConsequenceDialog
@@ -189,6 +187,6 @@ export function FeedLinkCard(props: FeedLinkCardProps): ReactNode {
           onConfirm={(): void => void (pending === 'rotate' ? rotate() : revoke())}
         />
       ) : null}
-    </Card>
+    </EditorSection>
   );
 }

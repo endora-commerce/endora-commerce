@@ -1,7 +1,16 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { AlertTriangle, ArrowRight, GripVertical, Info, MoreVertical } from 'lucide-react';
-import { Button } from '@endora-commerce/admin-kit/ui';
-import { TouchReorderButtons } from '@endora-commerce/admin-kit/components';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Input,
+  Label,
+} from '@endora-commerce/admin-kit/ui';
+import { ModalDialog, TouchReorderButtons } from '@endora-commerce/admin-kit/components';
 import type { ReorderHandleProps, ReorderItemProps } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { TemplatePreviewField } from '../api.js';
@@ -73,7 +82,7 @@ export function TemplateFieldRow(props: TemplateFieldRowProps): ReactNode {
     disabledTitle,
   } = props;
   const t = useTranslation('product_feeds');
-  const [menuOpen, setMenuOpen] = useState(false);
+  const moveToId = useId();
   const [moveToOpen, setMoveToOpen] = useState(false);
   const [moveToValue, setMoveToValue] = useState(String(index + 1));
 
@@ -158,85 +167,81 @@ export function TemplateFieldRow(props: TemplateFieldRowProps): ReactNode {
           disableDown={index === total - 1}
           disabled={reorderDisabled}
         />
-        <span className="relative">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            tabIndex={-1}
-            disabled={disabled}
-            title={disabled ? disabledTitle : undefined}
-            aria-label={t('builder.field.menu', { name: field.outputName })}
-            aria-expanded={menuOpen}
-            onClick={(): void => setMenuOpen((open) => !open)}
+        {/* The kit's menu (DS-03, #1437): keyboard-operable and not clipped by the list,
+            instead of a hand-drawn floating box. The trigger stays out of the tab order —
+            the list keeps its one tab stop — and stays reachable by pointer and touch. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              tabIndex={-1}
+              disabled={disabled}
+              title={disabled ? disabledTitle : undefined}
+              aria-label={t('builder.field.menu', { name: field.outputName })}
+            >
+              <MoreVertical size={16} aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={props.onDuplicate}>{t('builder.field.duplicate')}</DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={reorderDisabled}
+              onSelect={(): void => {
+                setMoveToValue(String(index + 1));
+                setMoveToOpen(true);
+              }}
+            >
+              {t('builder.field.moveTo')}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem destructive onSelect={props.onRemove}>
+              {t('builder.field.remove')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {moveToOpen ? (
+          /* The answer for a 60-field template: dragging across a scrolling
+             viewport is not one, and neither is thirty arrow presses. */
+          <ModalDialog
+            title={t('builder.field.moveTo')}
+            onClose={(): void => setMoveToOpen(false)}
+            footer={
+              <>
+                <Button type="button" variant="ghost" onClick={(): void => setMoveToOpen(false)}>
+                  {t('builder.field.moveToCancel')}
+                </Button>
+                <Button type="submit" form={`${moveToId}-form`}>
+                  {t('builder.field.moveToApply')}
+                </Button>
+              </>
+            }
           >
-            <MoreVertical size={16} aria-hidden="true" />
-          </Button>
-          {menuOpen ? (
-            <span className="absolute right-0 top-full z-20 mt-1 flex w-52 flex-col rounded-md border border-border bg-background p-1 shadow-md">
-              <button
-                type="button"
-                className="rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-                onClick={(): void => {
-                  setMenuOpen(false);
-                  props.onDuplicate();
-                }}
-              >
-                {t('builder.field.duplicate')}
-              </button>
-              <button
-                type="button"
-                className="rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-                disabled={reorderDisabled}
-                onClick={(): void => {
-                  setMenuOpen(false);
-                  setMoveToOpen(true);
-                }}
-              >
-                {t('builder.field.moveTo')}
-              </button>
-              <span className="my-1 border-t border-border" />
-              <button
-                type="button"
-                className="rounded px-2 py-1.5 text-left text-sm text-destructive hover:bg-accent"
-                onClick={(): void => {
-                  setMenuOpen(false);
-                  props.onRemove();
-                }}
-              >
-                {t('builder.field.remove')}
-              </button>
-            </span>
-          ) : null}
-          {moveToOpen ? (
-            /* The answer for a 60-field template: dragging across a scrolling
-               viewport is not one, and neither is thirty arrow presses. */
-            <span className="absolute right-0 top-full z-20 mt-1 flex w-56 flex-col gap-2 rounded-md border border-border bg-background p-2 shadow-md">
-              <label className="text-xs text-muted-foreground">
-                {t('builder.field.moveToLabel', { total })}
-                <input
-                  type="number"
-                  min={1}
-                  max={total}
-                  value={moveToValue}
-                  onChange={(event): void => setMoveToValue(event.target.value)}
-                  className="mt-1 h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm"
-                />
-              </label>
-              <Button
-                type="button"
-                size="sm"
-                onClick={(): void => {
-                  const parsed = Number.parseInt(moveToValue, 10);
-                  setMoveToOpen(false);
-                  if (Number.isFinite(parsed)) props.onMoveTo(parsed - 1);
-                }}
-              >
-                {t('builder.field.moveToApply')}
-              </Button>
-            </span>
-          ) : null}
-        </span>
+            <form
+              id={`${moveToId}-form`}
+              className="flex flex-col gap-1.5"
+              onSubmit={(event): void => {
+                event.preventDefault();
+                const parsed = Number.parseInt(moveToValue, 10);
+                setMoveToOpen(false);
+                if (Number.isFinite(parsed)) props.onMoveTo(Math.min(Math.max(parsed, 1), total) - 1);
+              }}
+            >
+              <Label htmlFor={`${moveToId}-input`}>{t('builder.field.moveToLabel', { total })}</Label>
+              <Input
+                id={`${moveToId}-input`}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={total}
+                className="w-24"
+                value={moveToValue}
+                onChange={(event): void => setMoveToValue(event.target.value)}
+              />
+            </form>
+          </ModalDialog>
+        ) : null}
       </span>
     </li>
   );

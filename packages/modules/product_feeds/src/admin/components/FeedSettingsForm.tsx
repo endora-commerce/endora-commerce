@@ -1,6 +1,16 @@
 import { useState, type ReactNode } from 'react';
 import type { ProductSelectionRule } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, EditorSection, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  EditorSection,
+  Input,
+  Label,
+  Select,
+} from '@endora-commerce/admin-kit/ui';
+import { StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { productFeedsClient, type ProductFeedDto } from '../api.js';
@@ -9,12 +19,15 @@ import { FeedPriceBookField } from './FeedPriceBookField.js';
 import { SchedulePresetField, type FeedScheduleValue } from './SchedulePresetField.js';
 
 /**
- * Feed settings — ux-design §2.2, five regions.
+ * Feed settings — ux-design §2.2.
  *
- * All five regions are real: the criteria panel arrived with US2 and the
- * schedule presets with US3. They are five `EditorSection`s of the tab's one
- * card, not five cards (issue #1503, UX audit SHELL-22; the DS-03 rule, #1437:
- * one card per editor tab, sections inside it).
+ * Four `EditorSection`s of the tab's one card, not separate cards (issue
+ * #1503, UX audit SHELL-22; the DS-03 rule, #1437: one card per editor tab,
+ * sections inside it). The fifth region, a "danger zone", held nothing but the
+ * on/off switch, which is reversible and not dangerous; it moved into the
+ * first section, beside the name (issue #1530, CAT-20). The save's refusal and
+ * its result are in the `StickyFormActions` bar with the button, the status
+ * region mounted before it has anything to say (WCAG 4.1.3).
  *
  * The price region is the one with a real cross-field rule: gross prices need a
  * tax country, because a feed has no buyer to infer one from (FR-044). It also
@@ -45,7 +58,7 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
   );
   const [schedule, setSchedule] = useState<FeedScheduleValue | null>(feed.schedule);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const grossWithoutCountry = presentation === 'gross' && taxCountry.trim() === '';
@@ -53,6 +66,7 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
   const save = async (): Promise<void> => {
     setBusy(true);
     setError(null);
+    setSavedMessage(null);
     try {
       const result = await productFeedsClient.update(feed.id, {
         name: name.trim(),
@@ -64,8 +78,7 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
         schedule,
       });
       onSaved(result.data);
-      setSaved(true);
-      window.setTimeout(() => setSaved(false), 2_000);
+      setSavedMessage(t('feeds.settings.saved'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -75,12 +88,6 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
 
   return (
     <div className="flex flex-col gap-4">
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
       <Card>
         <CardContent className="space-y-(--section-gap)">
           <EditorSection title={t('feeds.settings.binding')} contentClassName="flex flex-col gap-4">
@@ -94,6 +101,15 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
                 title={writeTitle}
               />
             </div>
+            <label className="flex min-h-11 items-center gap-2 text-sm sm:min-h-0">
+              <Checkbox
+                checked={enabled}
+                onChange={(e) => setEnabled(e.target.checked)}
+                disabled={!canWrite}
+                title={writeTitle}
+              />
+              {t('feeds.settings.enabled')}
+            </label>
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-muted-foreground">{t('feeds.create.channel')}</dt>
@@ -114,7 +130,6 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
             </dl>
           </EditorSection>
 
-
           <EditorSection title={t('feeds.settings.prices')} contentClassName="flex flex-col gap-4">
             <FeedPriceBookField
               feedId={feed.id}
@@ -125,7 +140,7 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
               disabledTitle={writeTitle}
             />
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="feed-price-presentation">{t('feeds.settings.prices')}</Label>
+              <Label htmlFor="feed-price-presentation">{t('feeds.settings.presentation')}</Label>
               <Select
                 id="feed-price-presentation"
                 value={presentation}
@@ -133,26 +148,33 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
                 disabled={!canWrite}
                 title={writeTitle}
               >
-                <option value="net">net</option>
-                <option value="gross">gross</option>
+                <option value="net">{t('feeds.settings.presentation.net')}</option>
+                <option value="gross">{t('feeds.settings.presentation.gross')}</option>
               </Select>
             </div>
             {presentation === 'gross' && (
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="feed-tax-country">taxCountry</Label>
+                <Label htmlFor="feed-tax-country">{t('feeds.settings.taxCountry')}</Label>
                 <Input
                   id="feed-tax-country"
                   value={taxCountry}
+                  className="w-20 uppercase"
                   maxLength={2}
+                  autoComplete="off"
                   onChange={(e) => setTaxCountry(e.target.value)}
                   aria-invalid={grossWithoutCountry}
+                  aria-describedby={grossWithoutCountry ? 'feed-tax-country-error' : undefined}
                   disabled={!canWrite}
                   title={writeTitle}
                 />
+                {grossWithoutCountry && (
+                  <p id="feed-tax-country-error" className="text-xs text-destructive">
+                    {t('feeds.settings.taxCountry.required')}
+                  </p>
+                )}
               </div>
             )}
           </EditorSection>
-
 
           <EditorSection title={t('feeds.settings.criteria')}>
             <FeedCriteriaPanel
@@ -164,7 +186,6 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
             />
           </EditorSection>
 
-
           <EditorSection title={t('feeds.settings.schedule')}>
             <SchedulePresetField
               value={schedule}
@@ -175,37 +196,24 @@ export function FeedSettingsForm(props: FeedSettingsFormProps): ReactNode {
               disabledTitle={writeTitle}
             />
           </EditorSection>
-
-
-          <EditorSection title={t('feeds.settings.danger')}>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={(e) => setEnabled(e.target.checked)}
-                disabled={!canWrite}
-                title={writeTitle}
-              />
-              {t('feeds.settings.enabled')}
-            </label>
-          </EditorSection>
         </CardContent>
       </Card>
 
-      <div className="flex items-center gap-3">
-        <Button
-          onClick={() => void save()}
-          disabled={!canWrite || busy || grossWithoutCountry}
-          title={writeTitle}
-        >
-          {t('feeds.settings.save')}
-        </Button>
-        {saved && (
-          <span className="text-sm text-emerald-600" role="status">
-            {t('feeds.settings.saved')}
-          </span>
-        )}
-      </div>
+      {/* The refusal and the result sit in the bar with the button that caused them (Doherty). */}
+      <StickyFormActions
+        error={error}
+        status={savedMessage}
+        primary={
+          <Button
+            onClick={() => void save()}
+            disabled={!canWrite || busy || grossWithoutCountry}
+            aria-busy={busy}
+            title={writeTitle}
+          >
+            {t('feeds.settings.save')}
+          </Button>
+        }
+      />
     </div>
   );
 }
