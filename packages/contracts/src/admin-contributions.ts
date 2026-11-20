@@ -584,14 +584,15 @@ export const AdminZoneNameSchema = z.enum([
    */
   'settings.setting.after',
   /**
-   * The stack of panels a Task's detail screen ends with.
+   * The panels other modules add about a Task, last in its sidebar.
    *
-   * Mounted **once** per Task, below the host's own cards, on
-   * `order.detail.after`'s terms and for its reasons: every contribution
-   * renders its own card, the host puts no chrome around the zone, and an
-   * empty zone renders nothing at all, so the screen is identical to one
-   * without the member. Props: {@link TaskDetailZoneProps}, the Task's id and
-   * nothing else (Z3).
+   * Mounted **once** per Task, as the last section of the screen's sidebar
+   * card (issue #1524, UX audit 2026-11-17 WORK-02): every contribution is a
+   * **section** of that card — an `EditorSection` takes the zone's
+   * `chrome="section"` — never a card in a card, and it has a sidebar's
+   * width. An empty zone renders nothing at all, so the screen is identical
+   * to one without the member. Props: {@link TaskDetailZoneProps}, the Task's
+   * id and nothing else (Z3).
    *
    * The first contributor is `projects`' Project panel
    * (`specs/163-projects-and-tasks/contracts/admin-surfaces.md` §3); `tasks`
@@ -825,7 +826,7 @@ export interface OpportunityDetailZoneProps {
 }
 
 /**
- * A zone mounted once per Task, at the end of its detail screen.
+ * A zone mounted once per Task, last in its detail screen's sidebar.
  *
  * The Task's own id and nothing else: a contribution reads what it shows
  * through routes of its own, and the host hands over none of its data.

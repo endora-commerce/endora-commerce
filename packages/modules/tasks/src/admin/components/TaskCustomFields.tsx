@@ -55,9 +55,10 @@ export function TaskCustomFields(props: {
   };
 
   return (
-    // A cell of the Task detail's grid of cards, not inside one: a card of its own (issue #1437).
+    // A part of the Details section of the Task's main card (issue #1524, WORK-04): no card in a card.
     <CustomFieldValuesPanel
-      chrome="card"
+      chrome="section"
+      titleAs="h3"
       entityType="task"
       values={task.customFieldValues}
       {...(canChange ? { save } : {})}

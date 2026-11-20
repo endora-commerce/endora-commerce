@@ -136,30 +136,35 @@ jednego z jego etapów. Rozpoczęte z panelu *Zadania* rekordu jest z tym
 rekordem powiązane, a *Wstecz* wraca do tego rekordu; rozpoczęte przyciskiem
 *Dodaj podzadanie* zadania jest jego podzadaniem.
 
-**Ekran zadania** pokazuje jego numer i tytuł, status — z propozycją tylko tych
-przejść, na które pozwala przebieg — oraz *Szkic* albo *Prywatne*, gdy
-zadanie nim jest. Szkic pokazuje swojemu autorowi *Opublikuj*; autor
-zadania bez rekordu może włączać i wyłączać *Prywatne*. Dalej:
+**Ekran zadania** jest ułożony jak ekran szansy sprzedaży. Nagłówek pokazuje
+numer zadania, jego tytuł, status oraz *Szkic* albo *Prywatne*, gdy zadanie
+nim jest. Szkic pokazuje swojemu autorowi *Opublikuj*; autor zadania bez
+rekordu może włączać i wyłączać *Prywatne*. Poniżej są trzy karty:
 
-- **Szczegóły** — opis z odwołaniami jako odnośnikami; osoby przypisane, termin
-  z godziną, data rozpoczęcia, priorytet i etykiety, zmieniane przyciskiem
-  *Edytuj* i zapisywane razem; *Przypisz do mnie*; kto i kiedy utworzył
-  zadanie oraz kiedy zostało zakończone. *Usuń zadanie*, u góry ekranu i z dala
+- **Szczegóły** — *Przenieś do…* obok *Edytuj*, z propozycją tylko tych
+  przejść, na które pozwala przebieg; opis z odwołaniami jako odnośnikami;
+  osoby przypisane, termin z godziną, data rozpoczęcia, priorytet i etykiety,
+  zmieniane przyciskiem *Edytuj* i zapisywane razem; *Przypisz do mnie*; kto
+  i kiedy utworzył zadanie oraz kiedy zostało zakończone; a także **pola
+  niestandardowe** zadania. *Usuń zadanie*, u góry ekranu i z dala
   od *Edytuj*, pyta przed usunięciem i podaje, ile zadanie ma podzadań: stają się one zadaniami głównymi, nie są
   usuwane. Przycisk nie jest dostępny dla zadania rekordu, którego nie możesz
   zmieniać — projektu, którego nie możesz edytować — a ekran wyjaśnia dlaczego.
 - **Podzadania** — ile jest zrobionych z ilu, każde ze statusem, osobami
   przypisanymi i terminem; *Dodaj podzadanie* i *Ustaw jako podzadanie…*.
   Podzadanie wskazuje swoje zadanie nadrzędne, z przyciskiem *Odłącz od
-  zadania nadrzędnego*.
-- **Komentarze**, **Załączniki** i **Historia**.
-- Obok: **Przypomnienia**, **Należy do** — rekord, do którego należy zadanie,
+  zadania nadrzędnego*. Szczegóły i podzadania dzielą główną kartę.
+- Obok niej jedna karta: **Należy do** — rekord, do którego należy zadanie,
   tak jak nazywa go jego moduł, z *Umieść w rekordzie*, *Przenieś* i *Usuń
   z rekordu*, które najpierw pyta: poza rekordem zadanie widzi każdy, kto może
-  przeglądać zadania — **Powiązane rekordy**, **Powiązane zadania** i **pola
-  niestandardowe** zadania.
+  przeglądać zadania — **Powiązane rekordy**, **Przypomnienia** i **Powiązane
+  zadania**.
+- Pod szczegółami zakładki: **Komentarze** i **Załączniki**, każda z liczbą,
+  oraz **Historia**. Adres zapamiętuje otwartą zakładkę, więc odnośnik może
+  otworzyć historię.
 
-Inne moduły mogą dodawać panele na końcu ekranu zadania. Bez uprawnienia do
+Inne moduły mogą dodawać sekcje na końcu karty obok szczegółów — na przykład
+projekt, w którym jest zadanie. Bez uprawnienia do
 zmieniania zadań ekran jest tylko do odczytu.
 
 **Na innych rekordach.** Ekrany **szansy sprzedażowej**, **zamówienia**

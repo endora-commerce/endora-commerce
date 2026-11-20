@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
 import { setMobileViewport } from '../../setup';
@@ -14,10 +14,11 @@ import {
 import { markup } from '../../helpers/react-ids';
 
 /**
- * `task.detail.after` — the stack of panels a Task's screen ends with
+ * `task.detail.after` — the panels other modules add about a Task
  * (`specs/163-projects-and-tasks/contracts/admin-surfaces.md` §3, task T067).
  *
- * The host mounts the zone once, below its own cards, hands it the Task's id
+ * The host mounts the zone once, as the last section of its sidebar card
+ * (issue #1524), hands it the Task's id
  * and knows nothing of who fills it. **With nobody contributing — no module, a
  * module that is switched off, or a person without the contribution's
  * permission — the rendered screen is the one without the zone, byte for
@@ -74,8 +75,7 @@ async function renderDetail(options: {
     contributions: options.registry,
   });
   await screen.findByRole('heading', { name: /Order the racking/ });
-  // The history and the comments load last; wait for both so two renders compare.
-  await screen.findByText(en('history.empty'));
+  // The comments tab loads last; wait for it so two renders compare.
   await screen.findByText(en('comments.empty'));
   return container;
 }
@@ -93,7 +93,7 @@ beforeEach(() => {
 });
 
 describe('TaskDetail — the task.detail.after zone', () => {
-  it('renders a contribution with the Task id, at the end of the screen', async () => {
+  it('renders a contribution with the Task id, last in the sidebar card', async () => {
     const container = await renderDetail({
       registry: REGISTRY,
       permissions: ['tasks:read', 'probe:read'],
@@ -101,9 +101,13 @@ describe('TaskDetail — the task.detail.after zone', () => {
     });
     const probe = await screen.findByTestId('after-probe');
     expect(probe).toHaveTextContent(`panel for ${TASK_ID}`);
-    const history = screen.getByRole('heading', { name: /History/ });
-    expect(history.compareDocumentPosition(probe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(container.lastElementChild?.contains(probe)).toBe(true);
+    const sidebar = screen.getByRole('complementary', { name: en('detail.sidebar') });
+    expect(sidebar).toContainElement(probe);
+    const related = within(sidebar).getByRole('region', { name: en('detail.related') });
+    expect(related.compareDocumentPosition(probe) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // A section of that card: no card of its own around it.
+    expect(probe.closest('[data-slot="card"]')).toBe(sidebar.querySelector('[data-slot="card"]'));
+    expect(container.contains(probe)).toBe(true);
   });
 
   it('is identical to the screen with nobody contributing when the contributor is switched off', async () => {

@@ -1,4 +1,4 @@
-import { useId, useMemo, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import type { TaskComment } from '@endora-commerce/contracts';
 import { CommentThread, type CommentThreadApi, type RecordComment } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -29,6 +29,9 @@ function asRecordComment(comment: TaskComment, formerAuthor: string): RecordComm
  * on someone else's private Task, which is read only (`canComment`). A comment
  * is its author's: the thread offers *Edit* and *Delete* on the reader's own
  * only, and the server says so too. A deleted comment keeps its place, marked.
+ *
+ * It is the *Comments* tab of the Task's screen (issue #1524): the tab names
+ * the panel, so the thread draws no heading of its own.
  */
 export function TaskComments(props: {
   taskId: string;
@@ -40,7 +43,6 @@ export function TaskComments(props: {
   const t = useTranslation('tasks');
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
-  const headingId = useId();
   const { kinds, lookups } = useTaskReferences(taskId);
   const formerAuthor = tCore('history.actor.deleted');
 
@@ -56,10 +58,7 @@ export function TaskComments(props: {
   );
 
   return (
-    <section aria-labelledby={headingId} className="space-y-3">
-      <h2 id={headingId} className="text-base font-semibold">
-        {t('detail.comments')}
-      </h2>
+    <div className="space-y-3">
       <CommentThread
         kind="note"
         keepDeleted
@@ -81,6 +80,6 @@ export function TaskComments(props: {
           deleteBody: t('comments.delete.body'),
         }}
       />
-    </section>
+    </div>
   );
 }
