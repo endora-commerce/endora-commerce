@@ -1,7 +1,13 @@
 /**
- * `settings`' admin surface — three routes and three sidebar entries, declared
- * by the module that owns them (feature 091, Phase 4, batch 10;
+ * `settings`' admin surface — three routes and one sidebar entry, declared by
+ * the module that owns them (feature 091, Phase 4, batch 10;
  * `specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md`).
+ *
+ * **One row, three tabs** since issue #1550 (UX audit SHELL-10): Settings,
+ * Groups and Cache & search index are one place with three views, so the
+ * sidebar carries `/settings` alone and `SettingsSectionTabs` switches between
+ * them. The two other screens stay one ⌘K away through `open-setting-groups`
+ * and `clear-cache` (Principle XVI), which is why their rows could go.
  *
  * **Three routes, not four, and the fourth is the point of this batch's
  * pairing.** `check:admin-registrations` attributed `/settings/pwa` here
@@ -87,41 +93,24 @@ export const contributions: AdminContributions = {
       // `packages/modules/settings/i18n/`. These were `appShell.nav.settings`,
       // `appShell.nav.settingGroups` and `appShell.nav.cache` in the shared
       // `_i18n` bundle, three of the four shared files a module author had to
-      // edit.
+      // edit; the latter two rows are tabs now (issue #1550).
       labelKey: 'nav.settings.label',
       // The glyphs `AppShell.tsx` rendered by hand, both already on
       // `KnownIconNameSchema` — this module's `open-settings` action names
       // `Settings` too.
       icon: 'Settings',
       section: 'system',
-      // The hand-written positions in *System* times a hundred, which is batch
-      // four's convention: `/settings`, `/settings/groups` and
-      // `/settings/cache` were the tenth, eleventh and twelfth rows, between
+      // The hand-written position in *System* times a hundred, which is batch
+      // four's convention: `/settings` was the tenth row, between
       // `/credentials` (900, this batch) and `/settings/pwa` (1400, batch six).
+      // `/settings/groups` (1100) and `/settings/cache` (1200) had rows of
+      // their own until issue #1550 folded them into this one's tab strip.
       // *System* still holds host-declared entries (`/platform/modules`,
       // `/catalog/bulk-operations`), so `composeNav` appends every registry row
       // after both whatever the weight says; what the weight can still do is
       // keep the converted rows in the order the operator already had.
       weight: 1000,
       requiredPermission: READ_PERMISSION,
-    },
-    {
-      to: `${ROUTE_PATH}/groups`,
-      labelKey: 'nav.settingGroups.label',
-      icon: 'Settings',
-      section: 'system',
-      weight: 1100,
-      requiredPermission: READ_PERMISSION,
-    },
-    {
-      to: `${ROUTE_PATH}/cache`,
-      labelKey: 'nav.cache.label',
-      icon: 'Eraser',
-      section: 'system',
-      weight: 1200,
-      // The write code, which is what the hand-written row carried and what the
-      // route above enforces: this screen is destructive from the first click.
-      requiredPermission: WRITE_PERMISSION,
     },
   ],
 };

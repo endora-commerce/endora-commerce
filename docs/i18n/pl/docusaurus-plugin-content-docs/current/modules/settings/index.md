@@ -221,7 +221,12 @@ Równoczesne zmiany są wykrywane przez `expectedVersion` (znacznik czasu ISO). 
 ustawienie, odkąd je otworzyłeś, zapis zwraca `409 VERSION_CONFLICT`, a komunikat prosi o odświeżenie
 i ponowienie próby — nic nie jest po cichu nadpisywane.
 
-Grupami ustawień zarządzasz w `Admin → Operations → Setting groups`. Grupa `general` jest chroniona
+Ekran ustawień ma trzy karty pod jedną pozycją *Ustawienia* w sekcji *System* paska bocznego:
+**Ustawienia**, **Grupy** oraz **Cache i indeks wyszukiwania** (ta ostatnia tylko dla
+administratorów z uprawnieniem `settings:write`). Każdą kartę otworzysz też bezpośrednio z palety
+poleceń (⌘K / CTRL+K): *Otwórz ustawienia platformy*, *Grupy ustawień* i *Wyczyść cache*.
+
+Grupami ustawień zarządzasz na karcie **Grupy**. Grupa `general` jest chroniona
 przez system i platforma odmawia jej usunięcia. Usunięcie dowolnej innej grupy przenosi jej
 ustawienia do `general` i zachowuje wartości ustawione dla kanałów.
 
@@ -294,7 +299,8 @@ wartości, a nie od ostatniego odczytu, więc nawet ustawienie odczytywane przy 
 się przedawnia.
 
 To okno wyznacza górną granicę czasu, przez jaki pominięte unieważnienie może być widoczne. Dlatego
-też strona „clear cache” dla operatora jest narzędziem diagnostycznym, a nie naprawczym: czyści obie
+też akcja *Wyczyść cache* dla operatora (na karcie **Cache i indeks wyszukiwania**, obok
+*Przebuduj indeks wyszukiwarki* i *Przeładuj tłumaczenia*) jest narzędziem diagnostycznym, a nie naprawczym: czyści obie
 warstwy w procesie, który ją obsługuje, oraz wspólne wpisy dla wszystkich, a każdy inny proces
 uzgadnia się w tym samym oknie 30 s.
 

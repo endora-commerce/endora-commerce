@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Boxes, LayoutDashboard, ShoppingCart } from 'lucide-react';
 import {
   pinDestination,
+  pinMatchesExactly,
   reorderVisiblePins,
   resolvePinnedEntries,
   unpinDestination,
@@ -76,12 +77,14 @@ describe('visibleDestinations', () => {
     expect(strict.has('/secret')).toBe(false);
   });
 
-  it('copies the `end` flag the original row computes', () => {
+  it('matches a pinned row the way its original row matches (#1550)', () => {
     const map = visibleDestinations(SECTIONS, () => true);
-    // `/` is always exact; `/orders` has a nested sibling in its section.
-    expect(map.get('/')!.end).toBe(true);
-    expect(map.get('/orders')!.end).toBe(true);
-    expect(map.get('/returns')!.end).toBe(false);
+    // `/` is always exact; `/orders` is exact only while its nested sibling
+    // `/orders/drafts` is the screen open, and lights up on an order's detail.
+    expect(pinMatchesExactly(map.get('/')!, '/orders')).toBe(true);
+    expect(pinMatchesExactly(map.get('/orders')!, '/orders/drafts')).toBe(true);
+    expect(pinMatchesExactly(map.get('/orders')!, '/orders/123')).toBe(false);
+    expect(pinMatchesExactly(map.get('/returns')!, '/returns/7')).toBe(false);
   });
 });
 
@@ -91,7 +94,7 @@ describe('resolvePinnedEntries', () => {
     const resolved = resolvePinnedEntries(pins, SECTIONS, hide());
     expect(resolved.map((pin) => pin.destination)).toEqual(['/returns', '/orders']);
     expect(resolved[0]!.sectionKey).toBe('sales');
-    expect(resolved[1]!.end).toBe(true);
+    expect(pinMatchesExactly(resolved[1]!, '/orders/drafts')).toBe(true);
     expect(resolved[1]!.item.icon).toBe(ShoppingCart);
   });
 

@@ -435,7 +435,9 @@ export const manifest = defineModuleManifest({
       icon: 'Eraser',
       targetRoute: '/settings/cache',
       requiredPermission: 'settings:write',
-      keywords: ['cache', 'clear', 'flush', 'purge'],
+      // The screen also rebuilds the search index and reloads translations
+      // (issue #1550), so the palette finds it by those words too.
+      keywords: ['cache', 'clear', 'flush', 'purge', 'reindex', 'search index', 'translations'],
       keywordsKey: 'actions.clearCache.keywords',
       weight: 252,
     },

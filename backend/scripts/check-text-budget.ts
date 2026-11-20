@@ -290,7 +290,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'seo:settingLabels.seo.enabled.description': 428,
   'seo:settingLabels.seo.llms_txt_additional.description': 475,
   'seo:settingLabels.seo.robots_txt_custom.description': 595,
-  'settings:quoteRequestsTab.expiry.help': 508,
   'shipments:settingLabels.shipments.enabled.description': 360,
 };
 

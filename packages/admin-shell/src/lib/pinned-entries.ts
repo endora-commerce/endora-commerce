@@ -1,4 +1,5 @@
 import type { NavItem, NavSection } from '../components/sidebar/nav-types.js';
+import { navItemMatchesExactly } from '../components/sidebar/nav-match.js';
 
 /**
  * Feature 164 — pinned sidebar entries, as pure functions
@@ -17,8 +18,11 @@ export interface VisibleDestination {
   item: NavItem;
   /** The section it comes from, for the accessible "from …" description. */
   sectionKey: string;
-  /** The `end` flag the original row passes to its `NavLink`. */
-  end: boolean;
+  /**
+   * Every destination of the original row's section — what its `NavLink`'s
+   * `end` is computed from, against the current path (`pinMatchesExactly`).
+   */
+  sectionTargets: readonly string[];
 }
 
 export interface ResolvedPin extends VisibleDestination {
@@ -26,13 +30,14 @@ export interface ResolvedPin extends VisibleDestination {
 }
 
 /**
- * Exact-match a row when another entry of its section nests under its path —
- * otherwise `/inventory` lights up beside `/inventory/low-stock`. The home
- * route is always exact. The rule `AppShell`'s section rows apply.
+ * The `end` flag for a pinned row, at `pathname`: the rule `AppShell`'s section
+ * rows apply (`navItemMatchesExactly`), over the original row's section, so a
+ * pin lights up exactly when the row it copies does. It is computed per path
+ * since issue #1550 — exact only while a more specific sibling is the open
+ * screen — where it used to be a flag fixed when the map was built.
  */
-export function navItemEnd(item: NavItem, section: NavSection): boolean {
-  if (item.to === '/') return true;
-  return section.items.some((other) => other !== item && other.to.startsWith(`${item.to}/`));
+export function pinMatchesExactly(destination: VisibleDestination, pathname: string): boolean {
+  return navItemMatchesExactly(destination.item.to, destination.sectionTargets, pathname);
 }
 
 /** Every visible destination, the first visible entry per `to`, in section order. */
@@ -44,7 +49,11 @@ export function visibleDestinations(
   for (const section of sections) {
     for (const item of section.items) {
       if (map.has(item.to) || !isVisible(item)) continue;
-      map.set(item.to, { item, sectionKey: section.key, end: navItemEnd(item, section) });
+      map.set(item.to, {
+        item,
+        sectionKey: section.key,
+        sectionTargets: section.items.map((other) => other.to),
+      });
     }
   }
   return map;

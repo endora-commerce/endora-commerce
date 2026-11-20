@@ -29,6 +29,7 @@ import {
   parseValue,
   type SettingDraft,
 } from '../components/SettingRowEditor.js';
+import { SettingsSectionTabs } from '../components/SettingsSectionTabs.js';
 /**
  * List sales channels (feature 091, P6).
  *
@@ -442,9 +443,8 @@ export function SettingsPage(): ReactNode {
 
   return (
     <>
-      <PageHeader
-        title={t('page.title')}
-      />
+      <PageHeader title={t('page.title')} />
+      <SettingsSectionTabs className="mb-4" />
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
