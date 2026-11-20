@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { MegamenuSummary } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 import { megamenuClient } from '../api/megamenu-client.js';
 
 export function MegamenuListPage(): ReactNode {
   const t = useTranslation('megamenu');
+  const { language } = useTranslationContext();
   const navigate = useNavigate();
   const [rows, setRows] = useState<MegamenuSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,7 +103,7 @@ export function MegamenuListPage(): ReactNode {
                     </TableCell>
                     <TableCell>
                       {row.activeIn > 0 ? (
-                        <Badge>{t('list.activeScopes', { count: row.activeIn })}</Badge>
+                        <Badge>{t(`list.activeScopes.${new Intl.PluralRules(language).select(row.activeIn)}`, { count: new Intl.NumberFormat(language).format(row.activeIn) })}</Badge>
                       ) : (
                         <Badge variant="outline">{t('state.staged')}</Badge>
                       )}
