@@ -62,3 +62,23 @@ export function cartStateLabel(t: EnumTranslate, state: string | null | undefine
     ? cartApprovalStatusLabels.label(t, state)
     : cartStatusLabels.label(t, state);
 }
+
+/**
+ * Who rejected a cart, in words (issue #1548). The cart stores the rejecting
+ * actor as `<role>:<id>` (`admin:<adminUserId>` from the admin route,
+ * `org_admin:<customerAccountId>` from the organization's approver); the
+ * screen names the role and leaves the id out. `null` for anything else, so a
+ * value of an unknown shape is never printed raw.
+ */
+const REJECTED_BY_ROLE: Readonly<Record<string, string>> = {
+  admin: 'platform_admin',
+  org_admin: 'org_admin',
+};
+
+export function cartRejectedByLabel(t: EnumTranslate, actor: string | null | undefined): string | null {
+  if (!actor) return null;
+  const separator = actor.indexOf(':');
+  if (separator <= 0) return null;
+  const actorType = REJECTED_BY_ROLE[actor.slice(0, separator)];
+  return actorType === undefined ? null : cartAuditActorLabels.label(t, actorType);
+}

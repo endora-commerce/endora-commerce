@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useParams } from 'react-router-dom';
+import { Loader2, XCircle } from 'lucide-react';
 import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
@@ -8,7 +9,7 @@ import {
   Button,
   Card,
   CardContent,
-  Input,
+  FormField,
   Label,
   PageHeader,
   Table,
@@ -17,12 +18,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Textarea,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
+import { DetailHeaderActions, ModalDialog, RowActionMenuItem } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   cartApprovalStatusLabels,
   cartAuditActionLabels,
   cartAuditActorLabels,
+  cartRejectedByLabel,
   cartStateLabel,
   cartStatusLabels,
 } from '../lib/labels.js';
@@ -30,13 +35,18 @@ import {
 /**
  * CartDetail (feature 027 US6).
  *
- * Read-only cart detail + audit feed + emergency Reject action. The
- * Reject button opens an inline form for the required reason; submit
- * disables until the reason is non-empty.
+ * Read-only cart detail + audit feed + emergency Reject action.
  *
- * Browser-verification note: needs eyes for layout + reject-form
- * interaction; the data flow is plain fetch + post.
+ * Issue #1548 (UX audit 2026-11-17, SALES-26): *Reject* is an entry of the
+ * header's "More" menu (`DetailHeaderActions`) — a destructive action sits in a
+ * menu, away from the content, and is confirmed — and it opens a `ModalDialog`
+ * holding the required reason. It used to be a card of its own toggling an
+ * inline form between the lines and the history. The result is said by the
+ * header's `InlineStatus`; a refusal stays inside the dialog.
  */
+
+/** The longest reason the admin route accepts (`adminRejectCartSchema`). */
+const REJECT_REASON_MAX_LENGTH = 2000;
 
 interface AdminCartLine {
   id: string;
@@ -83,7 +93,7 @@ interface AuditRow {
   reason: string | null;
 }
 
-type DetailError = { text: string } | { key: 'carts.detail.loadFailed' | 'carts.detail.rejectFailed' };
+type DetailError = { text: string } | { key: 'carts.detail.loadFailed' };
 
 export default function CartDetail(): ReactNode {
   const { id } = useParams<{ id: string }>();
@@ -92,13 +102,30 @@ export default function CartDetail(): ReactNode {
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<DetailError | null>(null);
-  const [showReject, setShowReject] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [rejecting, setRejecting] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const actionStatus = useInlineStatus();
+  // Where focus goes once the cart is rejected: the "More" menu that opened the
+  // dialog leaves with the cart's last action, so focus lands on the reason now
+  // recorded in the summary instead of falling to `body` (WCAG 2.4.3). Only on
+  // success — on Cancel focus returns to "More", even on a cart that already
+  // carries an approver's rejection reason. The dialog reads its
+  // `finalFocusRef` as it unmounts, in the commit that renders the rejected
+  // cart, so the getter resolves the reason's element only then.
+  const rejectionRef = useRef<HTMLDivElement>(null);
+  const rejectSucceededRef = useRef(false);
+  const afterRejectFocusRef = useMemo<RefObject<HTMLElement | null>>(
+    () => ({
+      get current(): HTMLElement | null {
+        return rejectSucceededRef.current ? rejectionRef.current : null;
+      },
+    }),
+    [],
+  );
 
-  const load = useCallback(async (): Promise<void> => {
+  /** `initial` replaces the screen with the loading line; a refresh after an action keeps it in place. */
+  const load = useCallback(async (mode: 'initial' | 'refresh' = 'initial'): Promise<void> => {
     if (!id) return;
-    setLoading(true);
+    if (mode === 'initial') setLoading(true);
     setError(null);
     try {
       const [detail, auditRes] = await Promise.all([
@@ -118,21 +145,23 @@ export default function CartDetail(): ReactNode {
     void load();
   }, [load]);
 
-  const handleReject = useCallback(async (): Promise<void> => {
-    if (!id || rejectReason.trim().length === 0) return;
-    setRejecting(true);
-    setError(null);
-    try {
-      await apiClient.post(`/api/v1/admin/carts/${id}/reject`, { reason: rejectReason.trim() });
-      setShowReject(false);
-      setRejectReason('');
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? { text: err.envelope.error.message } : { key: 'carts.detail.rejectFailed' });
-    } finally {
-      setRejecting(false);
-    }
-  }, [id, rejectReason, load]);
+  /**
+   * Posts the rejection and refreshes the screen with the dialog still open
+   * (busy), so the dialog closes onto the rejected cart and can hand focus to
+   * the recorded reason. Throws when the server refuses, for the dialog to say.
+   */
+  const reject = useCallback(
+    async (reason: string): Promise<void> => {
+      if (!id) return;
+      actionStatus.clear();
+      await apiClient.post(`/api/v1/admin/carts/${id}/reject`, { reason });
+      await load('refresh');
+      rejectSucceededRef.current = true;
+      setRejectOpen(false);
+      actionStatus.show(t('carts.reject.done'));
+    },
+    [id, load, actionStatus, t],
+  );
 
   // The server's message when it sent one, the catalogue's otherwise — resolved
   // here, at render, so the screen follows a language switch.
@@ -146,6 +175,7 @@ export default function CartDetail(): ReactNode {
   }
 
   const isTerminal = cart.status === 'completed' || cart.status === 'rejected';
+  const rejectedBy = cartRejectedByLabel(t, cart.rejectedByActor);
 
   return (
     <>
@@ -155,6 +185,23 @@ export default function CartDetail(): ReactNode {
         description={[cart.ownerDisplayName ?? t('carts.owner.anonymous'), cart.organizationDisplayName]
           .filter((part): part is string => part !== null)
           .join(' · ')}
+        actions={
+          // Issue #1548 — no primary: the screen is read-only, and its one action is destructive.
+          <DetailHeaderActions status={actionStatus.props}>
+            {!isTerminal ? (
+              <RowActionMenuItem
+                destructive
+                onSelect={(): void => {
+                  rejectSucceededRef.current = false;
+                  setRejectOpen(true);
+                }}
+              >
+                <XCircle aria-hidden="true" />
+                {t('carts.reject.open')}
+              </RowActionMenuItem>
+            ) : null}
+          </DetailHeaderActions>
+        }
       />
 
       {error ? (
@@ -179,9 +226,17 @@ export default function CartDetail(): ReactNode {
               <div><Label>{t('carts.column.convertedToQr')}</Label><span className="font-mono text-xs">{cart.convertedToQuoteRequestId.slice(0, 8)}</span></div>
             ) : null}
             {cart.rejectedReason ? (
-              <div className="col-span-2 md:col-span-4">
+              <div
+                ref={rejectionRef}
+                tabIndex={-1}
+                data-testid="cart-rejection"
+                className="col-span-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring md:col-span-4"
+              >
                 <Label>{t('carts.column.rejectedReason')}</Label>
-                <p className="text-sm">{cart.rejectedReason} <span className="text-muted-foreground text-xs">— {cart.rejectedByActor}</span></p>
+                <p className="text-sm">
+                  {cart.rejectedReason}
+                  {rejectedBy ? <span className="text-muted-foreground text-xs"> — {rejectedBy}</span> : null}
+                </p>
               </div>
             ) : null}
           </div>
@@ -236,51 +291,6 @@ export default function CartDetail(): ReactNode {
         </CardContent>
       </Card>
 
-      {!isTerminal ? (
-        <Card className="mb-4">
-          <CardContent>
-            {showReject ? (
-              <div className="space-y-2">
-                <Label htmlFor="reason">{t('carts.reject.reasonLabel')}</Label>
-                <Input
-                  id="reason"
-                  value={rejectReason}
-                  onChange={(e): void => setRejectReason(e.target.value)}
-                  placeholder={t('carts.reject.reasonPlaceholder')}
-                  disabled={rejecting}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    onClick={(): void => {
-                      void handleReject();
-                    }}
-                    disabled={rejecting || rejectReason.trim().length === 0}
-                  >
-                    {rejecting
-                      ? t('carts.reject.submitting')
-                      : t('carts.reject.confirm')}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={(): void => {
-                      setShowReject(false);
-                      setRejectReason('');
-                    }}
-                    disabled={rejecting}
-                  >
-                    {t('carts.reject.cancel')}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button variant="destructive" onClick={(): void => setShowReject(true)}>
-                {t('carts.reject.open')}
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
-
       <Card>
         <CardContent>
           <h2 className="font-semibold mb-2">{t('carts.detail.audit')}</h2>
@@ -317,6 +327,110 @@ export default function CartDetail(): ReactNode {
           )}
         </CardContent>
       </Card>
+
+      {rejectOpen ? (
+        <RejectCartDialog
+          onReject={reject}
+          onClose={(): void => setRejectOpen(false)}
+          finalFocusRef={afterRejectFocusRef}
+        />
+      ) : null}
     </>
+  );
+}
+
+/**
+ * The reason for a rejection, asked in the kit's dialog (issue #1548). The
+ * reason is required — the buyer reads it — so an empty one is refused on
+ * submit with an error linked to the field rather than by a disabled button
+ * that does not say why. The scrim does not close it, so a stray click keeps a
+ * typed reason; a refusal from the server is announced inside the dialog.
+ */
+function RejectCartDialog(props: {
+  onReject: (reason: string) => Promise<void>;
+  onClose: () => void;
+  finalFocusRef: RefObject<HTMLElement | null>;
+}): ReactNode {
+  const t = useTranslation('carts');
+  const [reason, setReason] = useState('');
+  const [missing, setMissing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+
+  const submit = async (): Promise<void> => {
+    const trimmed = reason.trim();
+    if (trimmed.length === 0) {
+      setMissing(true);
+      reasonRef.current?.focus();
+      return;
+    }
+    setBusy(true);
+    setFailure(null);
+    try {
+      await props.onReject(trimmed);
+    } catch (err) {
+      setFailure(err instanceof ApiError ? err.envelope.error.message : t('carts.detail.rejectFailed'));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalDialog
+      title={t('carts.reject.title')}
+      onClose={props.onClose}
+      busy={busy}
+      dismissOnScrim={false}
+      initialFocusRef={reasonRef}
+      finalFocusRef={props.finalFocusRef}
+      widthClassName="max-w-md"
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={props.onClose} disabled={busy}>
+            {t('carts.reject.cancel')}
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={(): void => void submit()}
+            disabled={busy}
+            aria-busy={busy}
+          >
+            {busy ? (
+              <Loader2 aria-hidden="true" className="motion-safe:animate-spin" />
+            ) : (
+              <XCircle aria-hidden="true" />
+            )}
+            {t('carts.reject.confirm')}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3 text-sm">
+        <p className="text-muted-foreground">{t('carts.reject.message')}</p>
+        <FormField
+          label={t('carts.reject.reasonLabel')}
+          required
+          error={missing ? t('carts.reject.reasonRequired') : undefined}
+        >
+          <Textarea
+            ref={reasonRef}
+            value={reason}
+            onChange={(e): void => {
+              setReason(e.target.value);
+              if (missing && e.target.value.trim().length > 0) setMissing(false);
+            }}
+            placeholder={t('carts.reject.reasonPlaceholder')}
+            maxLength={REJECT_REASON_MAX_LENGTH}
+            rows={3}
+            disabled={busy}
+          />
+        </FormField>
+        {/* Mounted before it has text, so a refusal that arrives is announced. */}
+        <p role="alert" className="text-destructive">
+          {failure}
+        </p>
+      </div>
+    </ModalDialog>
   );
 }

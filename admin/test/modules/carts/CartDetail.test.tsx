@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
@@ -9,9 +8,9 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  * Feature 027 US6 — CartDetail interaction test.
  *
  * Drives the React component through jsdom. Mocks `apiClient.get` /
- * `.post` so the page never hits the network. Verifies the reject
- * flow's required-reason gating + the success path that hides the
- * reject form and re-fetches the detail.
+ * `.post` so the page never hits the network. The reject flow itself —
+ * the header menu entry and its dialog (issue #1548) — is
+ * `CartDetail.reject-dialog.test.tsx`.
  */
 
 const getSpy = vi.fn();
@@ -192,46 +191,6 @@ describe('CartDetail', () => {
     expect(screen.queryByText('carts.detail.grossTotal')).toBeNull();
   });
 
-  it('reject button is disabled until a reason is typed; clicking submits', async () => {
-    getSpy
-      .mockResolvedValueOnce({ data: activeCartFixture() })
-      .mockResolvedValueOnce({ data: [] });
-    postSpy.mockResolvedValue({ data: { id: '00000000-0000-4000-8000-0000000000c1' } });
-
-    renderDetail();
-    await waitFor(() => {
-      expect(screen.getByText('Sample')).toBeInTheDocument();
-    });
-
-    const u = userEvent.setup();
-    await u.click(screen.getByText('carts.reject.open'));
-    const reasonInput = screen.getByLabelText('carts.reject.reasonLabel');
-    const submitButton = screen.getByText('carts.reject.confirm');
-    expect((submitButton as HTMLButtonElement).disabled).toBe(true);
-
-    await u.type(reasonInput, 'Out of budget');
-    expect((submitButton as HTMLButtonElement).disabled).toBe(false);
-
-    // Stub the post-reject re-fetch: detail + audit endpoints must stay distinct.
-    getSpy.mockImplementation((url: string) => {
-      if (typeof url === 'string' && url.endsWith('/audit')) {
-        return Promise.resolve({ data: [] });
-      }
-      return Promise.resolve({
-        data: { ...(activeCartFixture() as object), status: 'rejected' },
-      });
-    });
-
-    await u.click(submitButton);
-
-    await waitFor(() => {
-      expect(postSpy).toHaveBeenCalledWith(
-        '/api/v1/admin/carts/00000000-0000-4000-8000-0000000000c1/reject',
-        { reason: 'Out of budget' },
-      );
-    });
-  });
-
   it('hides the reject button on a terminal cart', async () => {
     const terminal = { ...(activeCartFixture() as Record<string, unknown>), status: 'completed' };
     getSpy.mockResolvedValueOnce({ data: terminal }).mockResolvedValueOnce({ data: [] });
@@ -241,5 +200,7 @@ describe('CartDetail', () => {
       expect(screen.getByText('Sample')).toBeInTheDocument();
     });
     expect(screen.queryByText('carts.reject.open')).toBeNull();
+    // Issue #1548 — the only entry of the header's "More" menu is off, so there is no menu.
+    expect(screen.queryByRole('button', { name: 'common.action.more' })).toBeNull();
   });
 });
