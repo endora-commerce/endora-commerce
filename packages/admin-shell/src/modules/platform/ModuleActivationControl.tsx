@@ -1,8 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
-import { Power, PowerOff } from 'lucide-react';
 import type { ModulePresence } from '@endora-commerce/contracts';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { Button } from '@endora-commerce/admin-kit/ui';
+import { Switch } from '@endora-commerce/admin-kit/ui';
 import { ApiError, setModuleActivation, useModulePresence } from '@endora-commerce/admin-kit/lib';
 
 /**
@@ -127,25 +126,29 @@ export function ModuleActivationControl({
     }
   }, [activated, confirm, moduleId, moduleName, onError, refresh, t]);
 
+  // Issue #1520 (SHELL-12): a `Switch`, not a filled "Switch on" button per
+  // switched-off row — the screen used to carry as many primaries as it had
+  // modules off (Von Restorff). The switch takes effect at once, so it is busy
+  // while the write is in flight and cannot be pressed twice (Doherty); turning
+  // a module off still asks first. The visible word beside it says the state in
+  // text, so it is never carried by the track's colour alone (SC 1.4.1).
   return (
     <>
-    <Button
-      type="button"
-      variant={activated ? 'outline' : 'default'}
-      size="sm"
-      disabled={pending}
-      onClick={() => void toggle()}
-    >
-      {activated ? (
-        <PowerOff className="mr-1 size-3.5" />
-      ) : (
-        <Power className="mr-1 size-3.5" />
-      )}
-      {activated
-        ? t('platform.modules.action.disable')
-        : t('platform.modules.action.enable')}
-    </Button>
-    {confirmDialog}
+      <span className="inline-flex items-center gap-2">
+        <Switch
+          checked={activated}
+          busy={pending}
+          onCheckedChange={() => void toggle()}
+          aria-label={t('platform.modules.activation.switchLabel', { name: moduleName })}
+          data-testid={`module-activation-${moduleId}`}
+        />
+        <span className="text-sm">
+          {activated
+            ? t('platform.modules.activation.on')
+            : t('platform.modules.activation.off')}
+        </span>
+      </span>
+      {confirmDialog}
     </>
   );
 }
