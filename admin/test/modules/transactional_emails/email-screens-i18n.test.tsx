@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { EmailBlockSummary, EmailTemplateSummary, TransactionalEmailSummary } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
@@ -87,10 +87,32 @@ describe.each(['en', 'pl'] as const)('transactional e-mail screens in %s (#1463)
     expect(within(row).getByText(key('list.customized.yes'))).toBeInTheDocument();
   });
 
-  it('the e-mail list says so when nothing matches', async () => {
+  // Issue #1448 (DS-15): "no e-mails" and "no e-mail matches the search" are
+  // two different empty states, and only the second offers Clear filters.
+  it('the e-mail list says so when there are no e-mails at all', async () => {
     emails = [];
     render(<EmailsList />);
-    expect(await screen.findByText(key('list.empty'))).toBeInTheDocument();
+    expect(await screen.findByText(key('list.emptyState.title'))).toBeInTheDocument();
+    expect(screen.getByText(key('list.emptyState.body'))).toBeInTheDocument();
+    expect(screen.queryByText(key('list.emptyFiltered'))).toBeNull();
+    expect(screen.queryByRole('button', { name: core['common.emptyState.clearFilters']! })).toBeNull();
+  });
+
+  it('the e-mail list tells a search that matches nothing apart, and clears it', async () => {
+    render(<EmailsList />);
+    await screen.findByRole('link', { name: 'Order confirmation' });
+    const search = screen.getByRole('searchbox', { name: key('list.searchLabel') });
+    fireEvent.change(search, { target: { value: 'zzzz' } });
+    expect(await screen.findByText(key('list.emptyFiltered'))).toBeInTheDocument();
+    expect(screen.queryByText(key('list.emptyState.title'))).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: core['common.emptyState.clearFilters']! }));
+    expect(await screen.findByRole('link', { name: 'Order confirmation' })).toBeInTheDocument();
+    expect((search as HTMLInputElement).value).toBe('');
+  });
+
+  it('the e-mail list shows no empty state before the list has arrived', () => {
+    render(<EmailsList />);
+    expect(document.querySelector('[data-empty-state]')).toBeNull();
   });
 
   it('e-mail blocks label the create form and name each block’s scope', async () => {

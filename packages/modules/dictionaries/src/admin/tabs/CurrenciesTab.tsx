@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { Plus, Star, Trash2 } from 'lucide-react';
+import { Coins, Plus, Star, Trash2 } from 'lucide-react';
 import type {
   CreateDictionaryCurrencyRequest,
   DictionaryCurrency,
@@ -18,7 +18,7 @@ import type {
   UpdateDictionaryCurrencyRequest,
 } from '@endora-commerce/contracts';
 import { normalize } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, InlineStatus, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, EmptyState, FormField, InlineStatus, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { dictionaryClient } from '../api/client.js';
 import { EntryStatusBadges } from '../components/EntryStatusBadges.js';
@@ -64,6 +64,8 @@ export function CurrenciesTab(): ReactNode {
   // polite region, not as a success banner (issue #1499, DEC-12 a).
   const actionStatus = useInlineStatus();
   const searchId = useId();
+  // Where focus returns after the empty state's "Clear filters" (WCAG 2.2 SC 2.4.3).
+  const searchRef = useRef<HTMLInputElement>(null);
   // Read through a ref so `load` keeps one identity while the bundle arrives.
   const tRef = useRef(t);
   tRef.current = t;
@@ -218,6 +220,7 @@ export function CurrenciesTab(): ReactNode {
               {t('currencies.searchLabel')}
             </Label>
             <Input
+              ref={searchRef}
               id={searchId}
               type="search"
               className="min-w-56 md:w-72"
@@ -240,6 +243,26 @@ export function CurrenciesTab(): ReactNode {
           ) : null}
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('currencies.loading')}</p>
+          ) : filtered.length === 0 ? (
+            // "The dictionary holds none" and "the filters hide them all" are
+            // two situations with two next steps (#1448, DS-15). The header
+            // already carries the one create action.
+            search.trim() !== '' ? (
+              <EmptyState
+                variant="no-results"
+                title={t('currencies.empty')}
+                onClearFilters={() => {
+                  setSearch('');
+                }}
+                focusAfterClear={searchRef}
+              />
+            ) : (
+              <EmptyState
+                icon={<Coins size={20} />}
+                title={t('currencies.emptyState.title')}
+                description={t('currencies.emptyState.body')}
+              />
+            )
           ) : (
             <Table>
               <TableHeader>

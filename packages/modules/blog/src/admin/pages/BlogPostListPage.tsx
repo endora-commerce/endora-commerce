@@ -2,7 +2,15 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom';
 import { Newspaper, Plus } from 'lucide-react';
 import type { BlogPostStatus, BlogPostSummary } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, EmptyState, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  EmptyState,
+  InlineStatus,
+  Select,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import {
   ListPage,
   ListToolbar,
@@ -45,6 +53,15 @@ function pickPrimaryName(name: Record<string, string> | undefined | null, fallba
  * badges, and a row menu that opens a post or deletes it through the
  * confirmation and `DELETE /api/v1/admin/blog/posts/:id`, naming the version
  * the row was read at.
+ *
+ * Archive / Unarchive sit between them, at the row's version too. Archiving is
+ * reversible and the post editor does it without asking, so the menu does too:
+ * the badge and version change in place, the result is said beside "New post"
+ * (DEC-12 a) and focus stays on the row's menu trigger; a row the status filter
+ * no longer matches leaves the list, and focus moves to its neighbour. The
+ * module has no `/unarchive`: Unarchive is `/unpublish`, which returns the post
+ * to a draft — as the CMS page list's Unarchive does — rather than putting it
+ * back on the storefront unreviewed.
  */
 export function BlogPostListPage(): ReactNode {
   const t = useTranslation('blog');
@@ -68,6 +85,9 @@ export function BlogPostListPage(): ReactNode {
   const { page, pageSize } = pager.query;
   // After a delete, focus goes to the next row, or to "New post" once the list is empty (WCAG 2.4.3).
   const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
+  // The result of Archive / Unarchive, in a region mounted before it has text (SC 4.1.3).
+  const archiveStatus = useInlineStatus();
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
   // A new search goes back to the first page.
   useEffect(() => {
@@ -116,12 +136,44 @@ export function BlogPostListPage(): ReactNode {
       returnFocusTo: removalFocus.returnFocusTo(post),
     });
     if (!deleted) return;
+    archiveStatus.clear();
     setNotice(t('postList.deleted', { name }));
     // The row goes in place rather than through a reload, so the row focus moved to stays
     // mounted. A page emptied this way moves back through `syncTotal`, which reads again.
     setRows((current) => current.filter((row) => row.id !== post.id));
     setTotal((current) => current - 1);
     syncTotal(total - 1);
+  };
+
+  const toggleArchive = async (post: BlogPostSummary): Promise<void> => {
+    const archiving = post.status !== 'archived';
+    const name = pickPrimaryName(post.name, post.slug);
+    setNotice(null);
+    archiveStatus.clear();
+    setArchivingId(post.id);
+    try {
+      const updated = archiving
+        ? await blogClient.archivePost(post.id, post.version)
+        : await blogClient.unpublishPost(post.id, post.version);
+      if (status !== '' && updated.status !== status) {
+        // The row leaves the filtered page; its menu goes with it, so focus moves first.
+        removalFocus.returnFocusTo(post)()?.focus();
+        setRows((current) => current.filter((row) => row.id !== post.id));
+        setTotal((current) => current - 1);
+        syncTotal(total - 1);
+      } else {
+        setRows((current) =>
+          current.map((row) =>
+            row.id === post.id ? { ...row, status: updated.status, version: updated.version } : row,
+          ),
+        );
+      }
+      archiveStatus.show(t(archiving ? 'postList.archived' : 'postList.unarchived', { name }));
+    } catch {
+      archiveStatus.show(t(archiving ? 'postList.archiveFailed' : 'postList.unarchiveFailed', { name }), 'error');
+    } finally {
+      setArchivingId(null);
+    }
   };
 
   const createLink = (
@@ -182,7 +234,14 @@ export function BlogPostListPage(): ReactNode {
     <>
       <ListPage
         title={t('postList.title')}
-        actions={canWrite && !nothingYet ? createLink : null}
+        actions={
+          canWrite ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <InlineStatus {...archiveStatus.props} />
+              {nothingYet ? null : createLink}
+            </div>
+          ) : null
+        }
         toolbar={
           <ListToolbar
             className="flex-1"
@@ -252,6 +311,9 @@ export function BlogPostListPage(): ReactNode {
                   <RowActionMenu label={t('listActions.label', { name: pickPrimaryName(post.name, post.slug) })}>
                     <RowActionMenuItem asChild>
                       <Link to={`/blog/posts/${post.id}`}>{t('listActions.open')}</Link>
+                    </RowActionMenuItem>
+                    <RowActionMenuItem disabled={archivingId !== null} onSelect={() => void toggleArchive(post)}>
+                      {t(post.status === 'archived' ? 'postList.unarchive' : 'postList.archive')}
                     </RowActionMenuItem>
                     <RowActionMenuSeparator />
                     <RowActionMenuItem destructive onSelect={() => void remove(post)}>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
@@ -131,6 +131,7 @@ afterEach(() => {
 describe.each(['en', 'pl'] as const)('newsletter screens in %s (#1463)', (language) => {
   const own = shippedModuleBundle('newsletter', language).newsletter as Record<string, string>;
   const bundle = { ...shippedModuleBundle('newsletter', language), ...shippedCoreBundle(language) };
+  const core = shippedCoreBundle(language).core as Record<string, string>;
   const key = (k: string): string => {
     const value = own[k];
     if (!value) throw new Error(`newsletter/i18n/${language}.json carries no "${k}"`);
@@ -212,6 +213,30 @@ describe.each(['en', 'pl'] as const)('newsletter screens in %s (#1463)', (langua
     expect(screen.getByRole('searchbox', { name: key('subscribers.search') })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: key('subscribers.tagFilter') })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: key('subscribers.export') })).toBeInTheDocument();
+  });
+
+  // Issue #1448 (DS-15): "no subscribers yet" and "no subscriber matches these
+  // filters" are two empty states; only the second offers Clear filters.
+  it('the subscriber list says nobody has subscribed yet on an unfiltered empty list', async () => {
+    vi.mocked(newsletterClient.listSubscribers).mockResolvedValue({ items: [], total: 0, scopeNotice: null } as never);
+    mount('/newsletter/subscribers', '/newsletter/subscribers', <SubscribersPage />);
+    expect(await screen.findByText(key('subscribers.emptyState.title'))).toBeInTheDocument();
+    expect(screen.getByText(key('subscribers.emptyState.body'))).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: core['common.emptyState.clearFilters']! })).toBeNull();
+  });
+
+  it('the subscriber list tells filters that match nobody apart, and clears them', async () => {
+    mount('/newsletter/subscribers', '/newsletter/subscribers', <SubscribersPage />);
+    await screen.findByText('ann@example.test');
+    vi.mocked(newsletterClient.listSubscribers).mockResolvedValue({ items: [], total: 0, scopeNotice: null } as never);
+    const search = screen.getByRole('searchbox', { name: key('subscribers.search') }) as HTMLInputElement;
+    fireEvent.change(search, { target: { value: 'zzzz' } });
+    expect(await screen.findByText(key('subscribers.empty'))).toBeInTheDocument();
+    expect(screen.queryByText(key('subscribers.emptyState.title'))).toBeNull();
+    vi.mocked(newsletterClient.listSubscribers).mockResolvedValue({ items: [SUBSCRIBER], total: 1, scopeNotice: null } as never);
+    fireEvent.click(screen.getByRole('button', { name: core['common.emptyState.clearFilters']! }));
+    expect(await screen.findByText('ann@example.test')).toBeInTheDocument();
+    expect(search.value).toBe('');
   });
 
   it('tags and custom fields label every input and name each field type', async () => {

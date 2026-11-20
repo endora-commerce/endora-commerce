@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { ScrollText } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import {
@@ -7,6 +8,7 @@ import {
   Button,
   Card,
   CardContent,
+  EmptyState,
   Input,
   Label,
   PageHeader,
@@ -104,6 +106,14 @@ export default function AuditLogViewer(): ReactNode {
   const [actor, setActor] = useState('');
   const [impersonated, setImpersonated] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Where focus returns after "Clear filters" (WCAG 2.2 SC 2.4.3): the first filter.
+  const firstFilterRef = useRef<HTMLInputElement>(null);
+  const filtered = Boolean(actor || action || objectType || objectId || impersonated);
+  const clearFilters = (): void => {
+    setActor('');
+    setUrlFilters({ action: '', objectType: '', objectId: '' });
+    setImpersonated('');
+  };
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -155,6 +165,7 @@ export default function AuditLogViewer(): ReactNode {
               <div className="space-y-2">
                 <Label htmlFor="f-action">{t('auditLog.filter.action')}</Label>
                 <Input
+                  ref={firstFilterRef}
                   id="f-action"
                   placeholder="product.update"
                   value={action}
@@ -201,11 +212,7 @@ export default function AuditLogViewer(): ReactNode {
               <Button
                 type="button"
                 variant="outline"
-                onClick={(): void => {
-                  setActor('');
-                  setUrlFilters({ action: '', objectType: '', objectId: '' });
-                  setImpersonated('');
-                }}
+                onClick={clearFilters}
               >
                 {t('auditLog.filter.clear')}
               </Button>
@@ -219,7 +226,23 @@ export default function AuditLogViewer(): ReactNode {
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('auditLog.empty')}</p>
+            // "Nothing recorded yet" and "these filters match nothing" are two
+            // situations with two next steps (#1448, DS-15). The log is
+            // append-only, so the no-data state offers no action.
+            filtered ? (
+              <EmptyState
+                variant="no-results"
+                title={t('auditLog.empty')}
+                onClearFilters={clearFilters}
+                focusAfterClear={firstFilterRef}
+              />
+            ) : (
+              <EmptyState
+                icon={<ScrollText size={20} />}
+                title={t('auditLog.emptyState.title')}
+                description={t('auditLog.emptyState.body')}
+              />
+            )
           ) : (
             <Table>
               <TableHeader>

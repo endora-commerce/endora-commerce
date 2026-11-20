@@ -43,6 +43,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `echarts` ^6 — *optional*
 - `fastify` ^5.11.0
 - `ioredis` ^5
+- `lucide-react` ^1 — *optional*
 - `nodemailer` ^10
 - `react` ^19 — *optional*
 - `react-router-dom` ^7 — *optional*

@@ -8,7 +8,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { Plus, Star, Trash2 } from 'lucide-react';
+import { Languages, Plus, Star, Trash2 } from 'lucide-react';
 import { PaginationFooter, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   Country,
@@ -17,7 +17,7 @@ import type {
   UpdateDictionaryLanguageRequest,
 } from '@endora-commerce/contracts';
 import { normalize, type PageSizeOption } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, InlineStatus, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, EmptyState, FormField, InlineStatus, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { dictionaryClient } from '../api/client.js';
 import { EntryStatusBadges } from '../components/EntryStatusBadges.js';
@@ -78,6 +78,8 @@ export function LanguagesTab(): ReactNode {
   // polite region, not as a success banner (issue #1499, DEC-12 a).
   const actionStatus = useInlineStatus();
   const searchId = useId();
+  // Where focus returns after the empty state's "Clear filters" (WCAG 2.2 SC 2.4.3).
+  const searchRef = useRef<HTMLInputElement>(null);
   // Read through a ref so `load` keeps one identity while the bundle arrives.
   const tRef = useRef(t);
   tRef.current = t;
@@ -320,6 +322,7 @@ export function LanguagesTab(): ReactNode {
               {t('languages.searchLabel')}
             </Label>
             <Input
+              ref={searchRef}
               id={searchId}
               type="search"
               className="min-w-56 md:w-72"
@@ -353,6 +356,27 @@ export function LanguagesTab(): ReactNode {
           ) : null}
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('languages.loading')}</p>
+          ) : filtered.length === 0 ? (
+            // "The dictionary holds none" and "the filters hide them all" are
+            // two situations with two next steps (#1448, DS-15). The header
+            // already carries the one create action.
+            search.trim() !== '' || status !== 'all' ? (
+              <EmptyState
+                variant="no-results"
+                title={t('languages.empty')}
+                onClearFilters={() => {
+                  setSearch('');
+                  setStatus('all');
+                }}
+                focusAfterClear={searchRef}
+              />
+            ) : (
+              <EmptyState
+                icon={<Languages size={20} />}
+                title={t('languages.emptyState.title')}
+                description={t('languages.emptyState.body')}
+              />
+            )
           ) : (
             <Table>
               <TableHeader>
@@ -369,13 +393,6 @@ export function LanguagesTab(): ReactNode {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-sm text-muted-foreground">
-                      {t('languages.empty')}
-                    </TableCell>
-                  </TableRow>
-                ) : null}
                 {visible.map((row) => (
                   <TableRow key={row.code}>
                     <TableCell className="font-mono text-xs">{row.code}</TableCell>
@@ -443,7 +460,7 @@ export function LanguagesTab(): ReactNode {
               </TableBody>
             </Table>
           )}
-          {loading ? null : (
+          {loading || filtered.length === 0 ? null : (
             <PaginationFooter
               page={currentPage}
               pageSize={pageSize}
