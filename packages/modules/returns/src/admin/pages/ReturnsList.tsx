@@ -392,7 +392,6 @@ export function ReturnsList(): ReactNode {
   return (
     <ListPage
       title={t('returns.title')}
-      description={t('returns.description')}
       actions={
         <>
           <Button asChild variant="outline">

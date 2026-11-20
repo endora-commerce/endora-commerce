@@ -136,7 +136,6 @@ export function CustomersList(): ReactNode {
     <>
       <ListPage
         title={t('list.title')}
-        description={t('list.description')}
         load={load}
         onRetry={() => setReloadKey((key) => key + 1)}
         count={t('list.count', { count: total })}

@@ -107,7 +107,6 @@ export default function CartsList(): ReactNode {
   return (
     <ListPage
       title={t('carts.page.title')}
-      description={t('carts.page.description')}
       load={load}
       onRetry={() => setReloadKey((key) => key + 1)}
       count={t('carts.count', { count: total })}

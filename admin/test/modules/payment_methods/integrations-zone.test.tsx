@@ -65,11 +65,9 @@ const GATEWAY_ENTRIES = [
 
 const bundle = passthroughBundle('core', [
   'legacyMethods.payment.title',
-  'legacyMethods.payment.description',
   'legacyMethods.payment.empty',
   'legacyMethods.payment.noPermission',
   'legacyMethods.integrations.title',
-  'legacyMethods.integrations.description',
   'legacyMethods.formTitle',
   'legacyMethods.columns.code',
   'legacyMethods.columns.name',

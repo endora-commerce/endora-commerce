@@ -151,7 +151,6 @@
   "actions.openCarts.description": "Przeglądaj koszyki klientów i ich status akceptacji",
   "actions.openCarts.keywords": "koszyk, koszyki, porzucone",
   "carts.page.title": "Koszyki",
-  "carts.page.description": "Przeglądaj koszyki klientów i ich status akceptacji.",
   "carts.column.owner": "Właściciel",
   "carts.column.org": "Organizacja",
   "carts.column.status": "Status",

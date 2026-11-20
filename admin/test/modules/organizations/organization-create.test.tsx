@@ -137,6 +137,16 @@ describe('OrganizationCreate', () => {
     await expectNoAxeViolations(container);
   });
 
+  // #1436 (DS-02): no page description; what follows the create is said beside its Save.
+  it('says beside Save that members are invited afterwards, with no page description', async () => {
+    renderCreate();
+    await waitFor(() => screen.getByRole('checkbox', { name: /Retail/ }));
+    const header = screen.getByRole('heading', { level: 1, name: en['create.title']! }).closest('header')!;
+    expect(header.querySelector('p')).toBeNull();
+    const hint = screen.getByText(en['create.hint.inviteMembers']!);
+    expect(hint.parentElement).toContainElement(screen.getByRole('button', { name: en['create.submit']! }));
+  });
+
   it('creates the Organization with the chosen channels and opens it', async () => {
     postSpy.mockResolvedValue({ data: { id: CREATED } });
     renderCreate();

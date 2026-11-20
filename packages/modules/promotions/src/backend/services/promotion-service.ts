@@ -225,6 +225,24 @@ export class PromotionService {
     return this.emFactory().find(Promotion, {}, { orderBy: { name: 'asc' } });
   }
 
+  /**
+   * One page of promotions by name, and the total across every page (issue
+   * #1664). `id` breaks a name tie, or a page boundary could repeat a row and
+   * skip another. No `limit` reads the whole list.
+   */
+  async listPage(page: { offset: number; limit?: number }): Promise<{ rows: Promotion[]; total: number }> {
+    const [rows, total] = await this.emFactory().findAndCount(
+      Promotion,
+      {},
+      {
+        orderBy: { name: 'asc', id: 'asc' },
+        offset: page.offset,
+        ...(page.limit === undefined ? {} : { limit: page.limit }),
+      },
+    );
+    return { rows, total };
+  }
+
   async getById(id: string): Promise<Promotion> {
     if (!isUuidShape(id)) throw new HttpError(404, ERROR_CODES.NOT_FOUND, `Promotion ${id} not found.`);
     const row = await this.emFactory().findOne(Promotion, { id });

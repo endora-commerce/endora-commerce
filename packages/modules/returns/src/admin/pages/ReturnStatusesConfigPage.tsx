@@ -139,7 +139,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <PageHeader title={t('returns.statuses.title')} description={t('returns.statuses.description')} />
+      <PageHeader title={t('returns.statuses.title')} />
       {recipientsAlert && (
         <Alert variant="warning">
           <AlertDescription>

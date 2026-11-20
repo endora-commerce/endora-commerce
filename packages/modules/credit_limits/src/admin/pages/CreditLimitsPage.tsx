@@ -161,7 +161,6 @@ export function CreditLimitsPage(): ReactNode {
     <>
       <ListPage
         title={t('creditLimits.page.title')}
-        description={t('creditLimits.page.description')}
         // While the list is empty, the empty state's Grant is the view's one primary (kit README).
         actions={load.kind === 'ready' && total === 0 ? null : grantButton}
         load={load}

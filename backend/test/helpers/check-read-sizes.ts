@@ -7756,6 +7756,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // that read nothing.
     sources: ['manifest-index', 'shipped-languages'],
   },
+  'backend/scripts/check-text-budget.ts': {
+    prefix: '[text-budget]',
+    run: { kind: 'tsx', path: 'scripts/check-text-budget.ts', args: [] },
+    // Issue #1451: English bundles opened, one per module declaring
+    // `i18n.bundlesDir`. Measured on a fresh worktree of `origin/master`, 2026-11-20.
+    files: 65,
+    // Budgeted keys judged — the five families' keys across those bundles.
+    sites: 196,
+    sources: ['manifest-index', 'en-bundles'],
+  },
   'backend/scripts/check-module-docs.ts': {
     prefix: '[module-docs]',
     run: { kind: 'tsx', path: 'scripts/check-module-docs.ts', args: [] },

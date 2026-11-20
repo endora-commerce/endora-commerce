@@ -114,7 +114,6 @@ export function QuickOrderOnBehalfPage(): ReactNode {
     <div className="space-y-6">
       <PageHeader
         title={t('onBehalf.page.title')}
-        description={t('onBehalf.page.description')}
       />
 
       <RouteTabsZone name="order.entry.tabs" props={{}} className="mb-4" />

@@ -1100,7 +1100,6 @@ export function OrderCreatePage(): ReactNode {
     <div>
       <PageHeader
         title={t('orderCreate.title')}
-        description={t('orderCreate.description')}
         actions={
           <Button asChild variant="outline">
             <Link to={openedWith.returnTo ?? '/orders'}>

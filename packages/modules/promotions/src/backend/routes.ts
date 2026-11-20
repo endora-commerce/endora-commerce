@@ -37,7 +37,7 @@ export interface PromotionRuleTargetPorts {
   paymentMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
   deliveryMethods?: () => Promise<Array<{ id: string; code: string; name: string }>>;
 }
-import { promotionStatsGroupBySchema } from '@endora-commerce/contracts';
+import { adminPromotionListQuerySchema, promotionStatsGroupBySchema } from '@endora-commerce/contracts';
 import type { Promotion } from './entities/promotion.entity.js';
 import type { PromotionCoupon } from './entities/promotion-coupon.entity.js';
 import type { PromotionRuleEntity } from './entities/promotion-rule.entity.js';
@@ -110,9 +110,22 @@ export async function registerPromotionRoutes(
   const writeGate = requireAdmin(PROMOTION_PERMISSIONS.WRITE);
   const deleteGate = requireAdmin(PROMOTION_PERMISSIONS.DELETE);
 
-  app.get('/api/v1/admin/promotions', { preHandler: readGate }, async (): Promise<PromotionListResponse> => {
-    const rows = await promotionService.list();
-    return { data: rows.map(serialize) };
+  app.get('/api/v1/admin/promotions', { preHandler: readGate }, async (request): Promise<PromotionListResponse> => {
+    // Issue #1664 — an offset page for the list screen's pager; a caller that
+    // names no `pageSize` keeps the whole list, as before.
+    const query = adminPromotionListQuerySchema.parse(request.query ?? {});
+    const { rows, total } = await promotionService.listPage(
+      query.pageSize === undefined
+        ? { offset: 0 }
+        : { offset: (query.page - 1) * query.pageSize, limit: query.pageSize },
+    );
+    return {
+      data: rows.map(serialize),
+      meta:
+        query.pageSize === undefined
+          ? { page: 1, pageSize: Math.max(total, 1), total }
+          : { page: query.page, pageSize: query.pageSize, total },
+    };
   });
 
   app.get<{ Params: { id: string } }>(

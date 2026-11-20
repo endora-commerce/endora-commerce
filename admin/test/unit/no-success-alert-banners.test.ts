@@ -46,7 +46,6 @@ const LEDGER: Record<string, { count: number; reason: string }> = {
   'packages/modules/organizations/src/admin/panels/HierarchyPanel.tsx': { count: 1, reason: OPEN },
   'packages/modules/organizations/src/admin/panels/ModerationActionsPanel.tsx': { count: 1, reason: OPEN },
   'packages/modules/organizations/src/admin/panels/VatValidationPanel.tsx': { count: 1, reason: OPEN },
-  'packages/modules/promotions/src/admin/pages/PromotionsPage.tsx': { count: 1, reason: OPEN },
   'packages/modules/returns/src/admin/pages/ReturnsList.tsx': { count: 1, reason: `${OPEN}, in #1663` },
 };
 
