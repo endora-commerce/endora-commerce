@@ -408,7 +408,7 @@ describe('BrandPage', () => {
     await waitFor(() => expect(region).toHaveTextContent(copy('brand.saved')));
     expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
 
-    setColor(copy('brand.colors.primary'), '#0f766e');
+    fireEvent.change(screen.getByLabelText(copy('brand.layout.containerMaxPx')), { target: { value: '1320' } });
     expect(region.textContent).toBe('');
   });
 
