@@ -138,7 +138,6 @@ const bundle = {
     'legacyMethods.delivery.empty',
     'legacyMethods.delivery.noPermission',
     'legacyMethods.integrations.title',
-    'legacyMethods.integrations.shippingDescription',
     'legacyMethods.formTitle',
     'legacyMethods.columns.code',
     'legacyMethods.columns.name',

@@ -51,7 +51,6 @@ export function ChangeTaxIdPage(): ReactNode {
     <>
       <PageHeader
         title={t('changeTaxId.page.title')}
-        description={t('changeTaxId.page.description')}
         actions={
           <Button asChild variant="outline">
             <Link to="/organizations">{t('taxIdScope.back')}</Link>

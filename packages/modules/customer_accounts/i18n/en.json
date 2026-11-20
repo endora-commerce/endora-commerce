@@ -8,7 +8,7 @@
   "actions.openCustomerGroups.label": "Customer groups",
   "actions.openCustomerGroups.description": "Manage the segmentation groups customers and organizations are assigned to",
   "groups.page.title": "Customer groups",
-  "groups.page.description": "A customer group is a segment you assign to a customer or to an organization. Pricing rules, promotions and push audiences target these groups; a customer's own group wins over the one inherited from their organization.",
+  "groups.page.description": "A customer's own group overrides their organization's.",
   "groups.error.load": "Failed to load customer groups.",
   "groups.error.save": "Failed to save the customer group.",
   "groups.error.delete": "Failed to delete the customer group.",

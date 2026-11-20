@@ -644,7 +644,6 @@ export function RfqCreatePage(): ReactNode {
     <div className="mx-auto max-w-3xl">
       <PageHeader
         title={t('rfqCreate.title')}
-        description={t('rfqCreate.description')}
         back={
           // Opened from elsewhere: the way back leads there, and says only "Back".
           openedWith.returnTo

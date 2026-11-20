@@ -53,7 +53,6 @@ const CartsList = (await contributions.routes![0]!.component())
 
 const BUNDLE = passthroughBundle('carts', [
   'carts.page.title',
-  'carts.page.description',
   'carts.column.status',
   'carts.column.approval',
   'carts.column.lastActivity',
