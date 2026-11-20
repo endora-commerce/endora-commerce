@@ -240,7 +240,6 @@ export function BlockEditor(): ReactNode {
           <PageHeader
             back={{ label: t('common.back'), to: '/cms/blocks' }}
             title={isNew ? t('blockEditor.title.new') : form.name || t('blockEditor.title.edit')}
-            description={t('blockEditor.description')}
             actions={
               <div className="flex items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />

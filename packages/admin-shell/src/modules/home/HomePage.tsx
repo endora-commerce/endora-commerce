@@ -441,7 +441,6 @@ function StockAlertsCard(): ReactNode {
       <div className="b2b-card__head">
         <div>
           <div className="b2b-card__title">{t('home.stockAlerts.title')}</div>
-          <div className="b2b-card__sub">{t('home.stockAlerts.subtitle')}</div>
         </div>
         <Link to="/inventory/low-stock" className="b2b-btn b2b-btn--ghost b2b-btn--sm">
           {t('home.stockAlerts.seeAll')}

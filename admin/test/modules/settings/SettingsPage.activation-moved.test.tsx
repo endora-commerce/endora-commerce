@@ -75,7 +75,6 @@ const { SettingsPage } = await import(
 
 const bundle = passthroughBundle('settings', [
   'page.title',
-  'page.description',
   'search.placeholder',
   'search.shortcut',
   'search.noResults',

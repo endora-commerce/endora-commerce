@@ -143,7 +143,6 @@ export default function AuditLogViewer(): ReactNode {
     <>
       <PageHeader
         title={t('auditLog.page.title')}
-        description={t('auditLog.page.description')}
       />
 
       {error ? (

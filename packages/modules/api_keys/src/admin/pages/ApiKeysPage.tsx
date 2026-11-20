@@ -115,7 +115,6 @@ export default function ApiKeysPage(): ReactNode {
     <>
       <ListPage
         title={t('apiKeys.page.title')}
-        description={t('apiKeys.page.description')}
         actions={newKeyLink('default')}
         load={load}
         onRetry={(): void => void refresh()}

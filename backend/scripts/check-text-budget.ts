@@ -240,8 +240,6 @@ export function checkTextBudget(input: {
  */
 export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   // Measured with `--print-baseline` on `origin/master` 2026-11-20 (issue #1451).
-  '_i18n:adminUsers.resetPassword.hint': 120,
-  '_i18n:apiKeys.page.description': 93,
   '_i18n:fulfilment.hint': 119,
   '_i18n:pageBuilder.fieldText.editorName.hint': 81,
   '_i18n:platform.commandHooks.outbox.hint': 94,
@@ -257,7 +255,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'catalog:productsList.bulkEdit.archive.hint': 123,
   'catalog:productsList.bulkEdit.restore.hint': 112,
   'catalog:settingLabels.catalog.scope_completeness_gate.description': 141,
-  'cms:brand.schemes.hint': 92,
   'cms:presets.panel.hint': 94,
   'cms:settingLabels.cms.contact_form_recipients.description': 240,
   'cms:settingLabels.cms.page_builder.translation.enabled.description': 254,
@@ -265,12 +262,9 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'cms:settingLabels.cms.page_builder.translation.max_source_characters.description': 359,
   'customer_notifications:settingLabels.customer_notifications.enabled.description': 299,
   'customers:detail.dangerZone.hint': 89,
-  'document_templates:page.description': 169,
   'forms:notifications.recipients.hint': 94,
   'forms:palette.hint': 82,
   'inventory:settingLabels.inventory.low_stock_alert_recipient_email.description': 168,
-  'linkedin_ads:mappings.subtitle': 88,
-  'meta_ads:customEvents.subtitle': 161,
   'newsletter:settingLabels.newsletter.tracking.clicks_enabled.description': 281,
   'newsletter:settingLabels.newsletter.tracking.opens_enabled.description': 261,
   'organizations:settingLabels.organizations.registration.gus_credentials.description': 272,
@@ -296,9 +290,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'seo:settingLabels.seo.enabled.description': 428,
   'seo:settingLabels.seo.llms_txt_additional.description': 475,
   'seo:settingLabels.seo.robots_txt_custom.description': 595,
-  'settings:cache.page.description': 121,
-  'settings:groups.page.description': 108,
-  'settings:page.description': 158,
   'settings:quoteRequestsTab.expiry.help': 508,
   'shipments:settingLabels.shipments.enabled.description': 360,
 };

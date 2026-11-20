@@ -171,7 +171,6 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
     <div>
       <PageHeader
         title={t('page.title')}
-        description={t('page.subtitle')}
         actions={
           <Button
             onClick={() => {

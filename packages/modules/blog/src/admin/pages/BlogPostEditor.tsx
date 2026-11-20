@@ -506,11 +506,7 @@ export function BlogPostEditor(): ReactNode {
           <PageHeader
             back={{ label: t('postEditor.backToList'), to: '/blog/posts' }}
             title={isNew ? t('postEditor.title.new') : form.name || t('postEditor.title.edit')}
-            description={
-              isNew
-                ? t('postEditor.description.new')
-                : t('postEditor.description.edit')
-            }
+            description={isNew ? t('postEditor.description.new') : undefined}
             actions={
               <div className="flex flex-wrap items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />

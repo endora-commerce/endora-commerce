@@ -130,7 +130,7 @@ export function CachePage(): ReactNode {
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('cache.page.title')} description={t('cache.page.description')} />
+      <PageHeader title={t('cache.page.title')} />
 
       {error ? (
         <Alert variant="destructive">

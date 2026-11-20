@@ -194,7 +194,6 @@ export function MegamenuEditor(): ReactNode {
       <PageHeader
         back={{ label: t('common.back'), to: '/megamenu' }}
         title={menu.name || t('editor.fallbackTitle')}
-        description={t('editor.description')}
       />
       {error ? (
         <Alert variant="destructive">
