@@ -160,6 +160,29 @@ describe('the canvas toolbar (#1494)', () => {
     expect(more).toHaveFocus();
   });
 
+  it('asks through the kit confirmation on the overlay layer, clears on confirm and gives focus back to "More"', async () => {
+    const user = userEvent.setup();
+    const clear = vi.fn();
+    renderWithI18n(toolbar({ onClearCanvas: clear }), EN);
+    const more = screen.getByRole('button', { name: en('common.action.more') });
+    await user.click(more);
+    await user.click(await screen.findByRole('menuitem', { name: new RegExp(en('pageBuilder.clearCanvas.button')) }));
+    const dialog = await screen.findByRole('dialog', { name: en('pageBuilder.clearCanvas.title') });
+    // Above Puck's 9999 action bar, not the page layer's z-50.
+    const layer = dialog.closest<HTMLElement>('[data-layer]');
+    expect(layer).toHaveAttribute('data-layer', 'overlay');
+    expect(layer).not.toHaveClass('z-50');
+    expect(Number(layer?.style.zIndex)).toBeGreaterThan(9999);
+    expect(dialog).toHaveAccessibleDescription(en('pageBuilder.clearCanvas.description'));
+    await waitFor(() =>
+      expect(within(dialog).getByRole('button', { name: en('pageBuilder.clearCanvas.cancel') })).toHaveFocus(),
+    );
+    await user.click(within(dialog).getByRole('button', { name: en('pageBuilder.clearCanvas.confirm') }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(clear).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(more).toHaveFocus());
+  });
+
   it('reports a result in the one status region at the start of the group', async () => {
     const user = userEvent.setup();
     const apply = vi.fn(async () => undefined);

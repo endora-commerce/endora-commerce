@@ -180,3 +180,24 @@ describe('the inventory list', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(en['inventory.error.load'] as string);
   });
 });
+
+/**
+ * Issue #1492 (UX audit CAT-17): the KPI tiles were `b2b-card`s with hand-written
+ * font sizes beside kit Alerts, and their label and number were two unrelated
+ * `<div>`s. They are kit cards now, and each reads as a term and its value.
+ */
+describe('the inventory KPIs (#1492)', () => {
+  it('reads each KPI as a label and its value', async () => {
+    const en = await mount();
+    const term = screen.getByText(en['inventory.stat.totalOnHand'] as string);
+    expect(term.tagName).toBe('DT');
+    expect(term.nextElementSibling?.tagName).toBe('DD');
+    expect(term.nextElementSibling).toHaveTextContent('25');
+  });
+
+  it('draws each KPI as a kit card', async () => {
+    const en = await mount();
+    const term = screen.getByText(en['inventory.stat.tracked'] as string);
+    expect(term.closest('[data-slot="card"]')).not.toBeNull();
+  });
+});

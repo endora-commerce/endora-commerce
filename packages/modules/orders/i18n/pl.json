@@ -189,5 +189,6 @@
   "list.rowMenu.label": "Akcje zamówienia {number}",
   "list.rowMenu.changeStatus": "Zmień status…",
   "list.rowMenu.printInvoice": "Drukuj fakturę",
-  "list.rowMenu.organization": "Otwórz organizację"
+  "list.rowMenu.organization": "Otwórz organizację",
+  "detail.tabs.label": "Sekcje zamówienia"
 }

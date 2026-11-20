@@ -200,6 +200,23 @@ describe('AdminUsersPage — the list comes first (SHELL-14)', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): the reset is said beside the
+  // header's "New user", in a region mounted before it has text, not as a
+  // success banner above the rows.
+  it('says a reset password beside "New user", with no success banner', async () => {
+    mount();
+    await screen.findByText('anna@example.test');
+    const newUser = screen.getByRole('button', { name: 'adminUsers.create.action' });
+    const region = Array.from(newUser.parentElement!.children).find((el) => el.getAttribute('role') === 'status');
+    expect(region?.textContent).toBe('');
+    await rowAction('adminUsers.resetPassword.action');
+    const dialog = await screen.findByRole('dialog', { name: 'adminUsers.resetPassword.title' });
+    await userEvent.type(within(dialog).getByLabelText('adminUsers.field.password'), 'another-long-pass');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'adminUsers.resetPassword.submit' }));
+    await waitFor(() => expect(region).toHaveTextContent('adminUsers.resetPassword.done'));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
+
   it('toggles the status from the row menu', async () => {
     mount();
     await screen.findByText('anna@example.test');

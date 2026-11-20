@@ -54,6 +54,12 @@ export interface TabItem<V extends string = string> {
   countLabel?: string;
   /** A disabled tab is skipped by the arrow keys and cannot be selected. */
   disabled?: boolean;
+  /**
+   * The tab's section holds unsaved changes (an RFQ's Modify draft): a dot
+   * after the label, and these words ("unsaved changes") added to the
+   * accessible name, so the colour is never the one carrier (SC 1.4.1).
+   */
+  unsaved?: string | undefined;
 }
 
 export interface TabsProps<V extends string = string> {
@@ -131,6 +137,11 @@ function warnNestedTabs(idBase: string): void {
   );
 }
 
+/** A counted tab's name, with the unsaved words after it when the section holds a draft. */
+function countedName(name: string, unsaved: string | undefined): string {
+  return unsaved ? `${name} (${unsaved})` : name;
+}
+
 export function Tabs<V extends string>(props: TabsProps<V>): ReactNode {
   const { items, value, onValueChange, idBase, className } = props;
   const t = useTranslation('core');
@@ -177,7 +188,7 @@ export function Tabs<V extends string>(props: TabsProps<V>): ReactNode {
               // A bare number says nothing read aloud: the name says what is counted.
               aria-label={
                 count > 0
-                  ? (item.countLabel ?? t('common.tabs.counted', { label: item.label, count }))
+                  ? countedName(item.countLabel ?? t('common.tabs.counted', { label: item.label, count }), item.unsaved)
                   : undefined
               }
               tabIndex={selected ? 0 : -1}
@@ -199,6 +210,18 @@ export function Tabs<V extends string>(props: TabsProps<V>): ReactNode {
                   {/* A real space, so a copy of the strip reads "Links 2" and not "Links2". */}
                   {' '}
                   <span className="b2b-badge tabular-nums">{count}</span>
+                </>
+              ) : null}
+              {item.unsaved ? (
+                <>
+                  {/* A real space, as for the count: the name reads "Modify (unsaved changes)". */}
+                  {' '}
+                  <span
+                    aria-hidden="true"
+                    className="ml-1 size-2 shrink-0 rounded-full bg-amber-500"
+                    data-testid="tab-unsaved-dot"
+                  />
+                  <span className="sr-only">{`(${item.unsaved})`}</span>
                 </>
               ) : null}
             </button>

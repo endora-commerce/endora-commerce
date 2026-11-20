@@ -19,6 +19,7 @@ import {
   CardHeader,
   CardTitle,
   EmptyState,
+  InlineStatus,
   Select,
   Table,
   TableBody,
@@ -26,6 +27,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import {
   ListPage,
@@ -56,7 +58,9 @@ export default function WebhooksPage(): ReactNode {
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
   const [filter, setFilter] = useState<'all' | 'failed' | 'dead_lettered'>('all');
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // A replay is said in the deliveries card's toolbar, in a region mounted
+  // before it has text — not a success banner (issue #1499, DEC-12 a).
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   // Feature 062 — best-effort id → name lookup for the org-scope column.
   const [orgNames, setOrgNames] = useState<Map<string, string>>(new Map());
   const tWebhooks = useTranslation('webhooks');
@@ -131,7 +135,7 @@ export default function WebhooksPage(): ReactNode {
   const handleToggleStatus = useCallback(
     async (w: Webhook): Promise<void> => {
       setError(null);
-      setInfo(null);
+      clearStatus();
       const next = w.status === 'active' ? 'paused' : 'active';
       try {
         await apiClient.patch<{ data: Webhook }>(`/api/v1/admin/webhooks/${w.id}`, { status: next });
@@ -140,13 +144,13 @@ export default function WebhooksPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.update'));
       }
     },
-    [refreshWebhooks, t],
+    [refreshWebhooks, t, clearStatus],
   );
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
       setError(null);
-      setInfo(null);
+      clearStatus();
       // The request runs inside the dialog, so a refusal is read where the operator is looking.
       const ok = await confirm({
         message: t('webhooks.action.deleteConfirm'),
@@ -157,22 +161,24 @@ export default function WebhooksPage(): ReactNode {
       });
       if (ok) await refreshWebhooks();
     },
-    [refreshWebhooks, t, confirm],
+    [refreshWebhooks, t, confirm, clearStatus],
   );
 
   const handleReplay = useCallback(
     async (deliveryId: string): Promise<void> => {
+      setError(null);
+      clearStatus();
       try {
         await apiClient.post<{ data: WebhookDelivery }>(
           `/api/v1/admin/webhooks/deliveries/${deliveryId}/replay`,
         );
-        setInfo(t('webhooks.delivery.replayQueued'));
+        showStatus(t('webhooks.delivery.replayQueued'));
         await refreshDeliveries();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.replay'));
       }
     },
-    [refreshDeliveries, t],
+    [refreshDeliveries, t, clearStatus, showStatus],
   );
 
   const webhookNameById = new Map(webhooks.map((w) => [w.id, w.name]));
@@ -198,10 +204,6 @@ export default function WebhooksPage(): ReactNode {
           error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : info ? (
-            <Alert variant="success">
-              <AlertDescription>{info}</AlertDescription>
             </Alert>
           ) : null
         }
@@ -291,6 +293,7 @@ export default function WebhooksPage(): ReactNode {
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>{t('webhooks.deliveries.title')}</CardTitle>
           <div className="flex items-center gap-2">
+            <InlineStatus {...statusProps} className="mr-1" />
             <Select
               className="w-auto"
               value={filter}

@@ -18,7 +18,7 @@ import type {
   UpdateDictionaryCurrencyRequest,
 } from '@endora-commerce/contracts';
 import { normalize } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, InlineStatus, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { dictionaryClient } from '../api/client.js';
 import { EntryStatusBadges } from '../components/EntryStatusBadges.js';
@@ -60,7 +60,9 @@ export function CurrenciesTab(): ReactNode {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // An action's result is said beside the list's toolbar, in an always-mounted
+  // polite region, not as a success banner (issue #1499, DEC-12 a).
+  const actionStatus = useInlineStatus();
   const searchId = useId();
   // Read through a ref so `load` keeps one identity while the bundle arrives.
   const tRef = useRef(t);
@@ -104,6 +106,7 @@ export function CurrenciesTab(): ReactNode {
   }, [rows, search]);
 
   const openCreate = (): void => {
+    actionStatus.clear();
     setCreating(true);
     setSelected(null);
     setForm({ ...emptyCurrency, sortOrder: nextSortOrder(rows) });
@@ -138,7 +141,7 @@ export function CurrenciesTab(): ReactNode {
           sortOrder: form.sortOrder,
         };
         await dictionaryClient.createCurrency(input);
-        setInfo(t('currency.created', { code: input.code }));
+        actionStatus.show(t('currency.created', { code: input.code }));
       } else if (selected) {
         const input: UpdateDictionaryCurrencyRequest = {
           label: form.label.trim(),
@@ -149,12 +152,13 @@ export function CurrenciesTab(): ReactNode {
           sortOrder: form.sortOrder,
         };
         await dictionaryClient.updateCurrency(selected.code, input);
-        setInfo(t('currency.saved', { code: selected.code }));
+        actionStatus.show(t('currency.saved', { code: selected.code }));
       }
       await load();
       setCreating(false);
       setSelected(null);
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.save')));
     } finally {
       setSaving(false);
@@ -164,9 +168,10 @@ export function CurrenciesTab(): ReactNode {
   const setDefault = async (code: string): Promise<void> => {
     try {
       await dictionaryClient.setDefaultCurrency(code);
-      setInfo(t('currency.madeDefault', { code }));
+      actionStatus.show(t('currency.madeDefault', { code }));
       await load();
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.setDefault')));
     }
   };
@@ -180,9 +185,10 @@ export function CurrenciesTab(): ReactNode {
     if (!ok) return;
     try {
       await dictionaryClient.deleteCurrency(code);
-      setInfo(t('currency.deleted', { code }));
+      actionStatus.show(t('currency.deleted', { code }));
       await load();
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.delete')));
     }
   };
@@ -197,6 +203,7 @@ export function CurrenciesTab(): ReactNode {
       await dictionaryClient.updateCurrency(other.code, { sortOrder: row.sortOrder });
       await load();
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.reorder')));
     }
   };
@@ -218,6 +225,7 @@ export function CurrenciesTab(): ReactNode {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <InlineStatus {...actionStatus.props} className="self-center" />
             <Button type="button" onClick={openCreate}>
               <Plus />
               {t('currencies.addCurrency')}
@@ -228,11 +236,6 @@ export function CurrenciesTab(): ReactNode {
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-          {info ? (
-            <Alert variant="success">
-              <AlertDescription>{info}</AlertDescription>
             </Alert>
           ) : null}
           {loading ? (
@@ -277,7 +280,15 @@ export function CurrenciesTab(): ReactNode {
                           first={index === 0}
                           last={index === filtered.length - 1}
                         />
-                        <Button type="button" variant="outline" size="sm" onClick={() => openEdit(row)}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            actionStatus.clear();
+                            openEdit(row);
+                          }}
+                        >
                           {t('action.edit')}
                         </Button>
                         <Button

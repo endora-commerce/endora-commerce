@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { INERT_SAVE_SESSION } from '@endora-commerce/admin-kit/lib';
@@ -224,6 +224,17 @@ describe('the warehouse panel follows its mount (issue #1503, SHELL-22; DS-03 #1
     expect(cards).toHaveLength(1);
     expect(cards[0]!.textContent).toContain('warehouses.channel.addTitle');
     expect(container.querySelector('.b2b-card')).toBeNull();
+  });
+
+  // Issue #1492 (CAT-17): kit controls, and "Add" writes at once, so it is an outline button —
+  // the channel editor's own Save stays the page's one filled primary (Von Restorff, DS-07).
+  it('draws its controls with the kit, and Add as an outline button', async () => {
+    const container = renderZone({ permissions: ['inventory:read', 'inventory:write'] });
+    const add = await screen.findByRole('button', { name: 'warehouses.channel.action.add' });
+    expect(add).toHaveClass('border-input');
+    expect(add).not.toHaveClass('bg-primary');
+    expect(screen.getByRole('combobox', { name: 'warehouses.channel.field.warehouse' })).toBeInTheDocument();
+    expect(container.querySelector('[class*="b2b-btn"], [class*="b2b-field"], .b2b-tbl')).toBeNull();
   });
 
   it('says a load failure in an alert, not in a card', async () => {

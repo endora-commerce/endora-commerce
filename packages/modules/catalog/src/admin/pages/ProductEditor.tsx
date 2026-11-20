@@ -1227,7 +1227,7 @@ function ScopedProductEditor({
           description={
             data ? (
               <>
-                <span className="b2b-mono">{data.product.sku}</span> · <span>{t(`productEditor.type.${data.product.type}`)}</span>
+                <span className="font-mono">{data.product.sku}</span> · <span>{t(`productEditor.type.${data.product.type}`)}</span>
               </>
             ) : undefined
           }
@@ -1237,14 +1237,16 @@ function ScopedProductEditor({
               {/* The whole-product actions (FR-084, §11): one menu, captioned; each applies at once. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button
+                  {/* Issue #1492 (CAT-17): the kit button, one look with the tabs' Save below it. */}
+                  <Button
                     type="button"
-                    className="b2b-btn b2b-btn--default max-lg:min-h-11"
+                    variant="outline"
+                    className="max-lg:min-h-11"
                     aria-describedby="product-whole-caption"
                     disabled={!data}
                   >
-                    {t('productEditor.wholeProduct.menu')} <ChevronDown size={14} aria-hidden="true" />
-                  </button>
+                    {t('productEditor.wholeProduct.menu')} <ChevronDown aria-hidden="true" />
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" aria-labelledby="product-whole-caption" onCloseAutoFocus={afterProductMenuClosed}>
                   <p aria-hidden="true" className="m-0 px-2 py-1.5 text-xs text-muted-foreground">

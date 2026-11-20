@@ -117,4 +117,22 @@ describe('AdminRolesPage — the one Save in the sticky bar', () => {
       ),
     );
   });
+
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): a deletion closes the editor, so it
+  // is said beside the header's "New role" in a region mounted before it has
+  // text, and not as a success banner above the role list.
+  it('says a deleted role beside "New role", with no success banner', async () => {
+    await openRole();
+    vi.mocked(apiClient.delete).mockResolvedValue(undefined as never);
+    const newRole = screen.getByRole('button', { name: core['adminRoles.newRole']! });
+    const region = Array.from(newRole.parentElement!.children).find((el) => el.getAttribute('role') === 'status');
+    expect(region?.textContent).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: core['adminRoles.delete']! }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: core['common.action.delete']! }));
+    await waitFor(() =>
+      expect(region).toHaveTextContent(core['adminRoles.info.deleted']!.replace('{code}', 'accounting')),
+    );
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
 });

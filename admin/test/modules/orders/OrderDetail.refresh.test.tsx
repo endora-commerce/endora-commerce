@@ -126,7 +126,8 @@ describe('OrderDetail — first load and refresh (SALES-06)', () => {
     reads[0]!({ data: ORDER });
 
     const button = await changeButton();
-    const card = button.closest('[class*="overflow-hidden"]') as HTMLElement;
+    // The selected section is what re-reads (#1445: the kit's `RecordTabs`).
+    const card = button.closest('[role="tabpanel"]') as HTMLElement;
     expect(card).not.toHaveAttribute('aria-busy');
 
     await userEvent.click(button);

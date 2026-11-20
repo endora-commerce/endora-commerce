@@ -118,6 +118,7 @@ const BUNDLE = {
     'common.action.edit': 'Edit',
     'common.action.save': 'Save',
     'legacyMethods.fields.code': 'Code',
+    'legacyMethods.messages.saved': 'Method “{code}” saved.',
   },
   delivery_methods: { 'methods.fields.adapter': 'Adapter' },
 };
@@ -256,5 +257,29 @@ describe('delivery-methods screen — sales channels', () => {
 
     await waitFor(() => expect(upsert).toHaveBeenCalled());
     expect('salesChannelIds' in savedBody()).toBe(false);
+  });
+});
+
+/**
+ * Issue #1499 (UX audit SALES-17, owner decision DEC-12 a) — a saved method was
+ * a success banner at the top of the page. It is said in the form card's
+ * header now, in a region mounted before it has text (the form itself remounts
+ * on save, so a region inside it would arrive already carrying its message).
+ */
+describe('delivery-methods screen — the save result beside the form (SALES-17)', () => {
+  it('says the saved method in the form card header, with no success banner', async () => {
+    await mount();
+    const user = userEvent.setup();
+    const form = screen.getByRole('button', { name: 'Save' }).closest('form')!;
+    const region = form.closest('[data-slot="card"]')!.querySelector('[data-slot="card-header"] [role="status"]')!;
+    expect(region).not.toBeNull();
+    expect(region.textContent).toBe('');
+
+    await user.click(
+      within(screen.getByText('restricted_a').closest('tr')!).getByRole('button', { name: 'Edit' }),
+    );
+    save();
+    await waitFor(() => expect(region).toHaveTextContent('Method “restricted_a” saved.'));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
   });
 });

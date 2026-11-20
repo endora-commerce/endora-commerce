@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import type { AdminPrepareCustomerBasketResponse } from '@endora-commerce/contracts';
 import { apiClient, ApiError, cn, formatDateTime, isDraftEqual, readReturnTo, useDetailResource, useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, DetailSkeleton, Input, Label, PageHeader, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, DetailSkeleton, Input, Label, PageHeader, RecordTabs, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
   CustomFieldValuesPanel,
   DetailHeaderActions,
@@ -686,43 +686,35 @@ export function RfqDetail(): ReactNode {
         </Alert>
       ) : null}
 
-      {/* `overflow-hidden` rounds the tab strip's corners, but it also clips the
-          Modify tab's product-picker dropdown. Drop the clip while the Modify
-          tab is active so the dropdown can overlay outside the card. */}
-      <Card className={cn('mb-4', tab !== 'modify' && 'overflow-hidden')} {...resource.busyProps}>
-        <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>
-          <div className="b2b-tabs-scroll">
-            <div className="b2b-tabs" role="tablist">
-              <TabBtn
-                id="overview"
-                label={t('rfq.detail.tabs.overview')}
-                icon={<ClipboardList size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-              {!isTerminal ? (
-                <TabBtn
-                  id="modify"
-                  label={t('rfq.detail.tabs.modify')}
-                  icon={<PencilLine size={14} />}
-                  active={tab}
-                  onChange={setTab}
-                  unsaved={draftOpen ? t('rfq.detail.tabs.modifyUnsaved') : undefined}
-                />
-              ) : null}
-              <TabBtn
-                id="history"
-                label={t('rfq.detail.tabs.history')}
-                icon={<History size={14} />}
-                active={tab}
-                onChange={setTab}
-              />
-            </div>
-          </div>
-        </div>
-
+      {/* Issue #1445 (DS-12) — the kit's record tabs: one tab in the tab order,
+          ←/→/Home/End, every tab controlling the one panel. `overflow-hidden`
+          rounds the strip's corners, but it also clips the Modify tab's
+          product-picker dropdown, so the clip is dropped while Modify is open. */}
+      <RecordTabs
+        className={cn('mb-4', tab !== 'modify' && 'overflow-hidden')}
+        items={[
+          { value: 'overview', label: t('rfq.detail.tabs.overview'), icon: <ClipboardList /> },
+          ...(!isTerminal
+            ? [
+                {
+                  value: 'modify' as const,
+                  label: t('rfq.detail.tabs.modify'),
+                  icon: <PencilLine />,
+                  // Issue #1469 — the tab holds the unsaved draft: a dot, and these words.
+                  unsaved: draftOpen ? t('rfq.detail.tabs.modifyUnsaved') : undefined,
+                },
+              ]
+            : []),
+          { value: 'history', label: t('rfq.detail.tabs.history'), icon: <History /> },
+        ]}
+        value={tab}
+        onValueChange={setTab}
+        idBase="rfq-detail"
+        aria-label={tPdf('detail.tabs.label')}
+        panelProps={resource.busyProps}
+      >
         {tab !== 'modify' ? (
-        <CardContent className="divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
+        <div className="divide-y divide-border [&>*]:py-6 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
           {tab === 'overview' ? (
             <>
               <div className="grid gap-6 md:grid-cols-2">
@@ -929,13 +921,14 @@ export function RfqDetail(): ReactNode {
               <RfqHistory key={historyNonce} quoteRequestId={rfq.id} />
             </Section>
           ) : null}
-        </CardContent>
+        </div>
         ) : null}
 
         {/* Issue #1469 — mounted while the request can be modified and only
-            hidden on the other tabs, so a tab switch keeps the draft. */}
+            hidden on the other tabs, so a tab switch keeps the draft. It sits
+            inside the one panel; hidden, it is not exposed on another tab. */}
         {!isTerminal && modifyOpened ? (
-          <CardContent hidden={tab !== 'modify'} data-testid="rfq-modify-panel">
+          <div hidden={tab !== 'modify'} data-testid="rfq-modify-panel">
             <ModifyCard
               key={modifyEpoch}
               rfq={rfq}
@@ -954,9 +947,9 @@ export function RfqDetail(): ReactNode {
               onDirtyChange={setModifyDirty}
               saveRef={modifySaveRef}
             />
-          </CardContent>
+          </div>
         ) : null}
-      </Card>
+      </RecordTabs>
 
       {/* Panels other modules add to this screen. The host knows none of them;
           with nobody contributing this renders nothing at all. At page level each
@@ -1073,35 +1066,6 @@ function MinimumWarningBadge(props: {
       <AlertTriangle className="size-3" aria-hidden="true" />
       <span>{label}</span>
     </Badge>
-  );
-}
-
-function TabBtn(props: {
-  id: RfqTab;
-  label: string;
-  icon: ReactNode;
-  active: RfqTab;
-  onChange: (id: RfqTab) => void;
-  /** Issue #1469 — the tab holds unsaved changes: a dot, and these words for a screen reader. */
-  unsaved?: string | undefined;
-}): ReactNode {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={props.active === props.id}
-      className={cn('b2b-tab', props.active === props.id && 'is-active')}
-      onClick={(): void => props.onChange(props.id)}
-    >
-      {props.icon}
-      {props.label}
-      {props.unsaved ? (
-        <>
-          <span aria-hidden="true" className="ml-1 size-2 rounded-full bg-amber-500" data-testid="rfq-modify-unsaved-dot" />
-          <span className="sr-only">{` (${props.unsaved})`}</span>
-        </>
-      ) : null}
-    </button>
   );
 }
 

@@ -202,5 +202,6 @@
   "list.emptyTitle": "No quote requests yet",
   "list.empty": "A quote request appears here once a customer sends it or you create one.",
   "list.rowMenu.label": "Actions for quote request {number}",
-  "list.rowMenu.organization": "Open organization"
+  "list.rowMenu.organization": "Open organization",
+  "detail.tabs.label": "Quote request sections"
 }

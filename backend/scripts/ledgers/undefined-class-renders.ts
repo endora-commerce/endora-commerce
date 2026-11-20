@@ -48,8 +48,6 @@ export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
     'renders as an unmodified `b2b-field`; the design system defines no `--sm` size',
   'packages/modules/inventory/src/admin/pages/AvailabilityNotificationsPage.tsx::b2b-badge--muted':
     'renders as an unmodified `b2b-badge`; the neutral variant is `b2b-badge--neutral`',
-  'packages/modules/inventory/src/admin/pages/InventoryPage.tsx::b2b-badge--muted':
-    'the same missing variant',
   'packages/modules/inventory/src/admin/pages/WarehousesList.tsx::b2b-badge--muted':
     'the same missing variant',
   'packages/modules/product_feeds/src/admin/components/FeedLinkCard.tsx::b2b-btn--outline':
@@ -58,10 +56,8 @@ export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
     'the same missing variant',
 
   // -- a block that was never in the vocabulary --------------------------
-  'packages/modules/catalog/src/admin/components/PackagingUnitsEditor.tsx::b2b-input':
-    'no `b2b-input` block exists; the kit publishes `ui/input`',
   'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx::b2b-input':
-    'the same missing block, in the host application',
+    'no `b2b-input` block exists; the kit publishes `ui/input`',
   'packages/admin-shell/src/modules/profile/ProfilePage.tsx::b2b-grid':
     'no `b2b-grid` block exists; the tree lays out with Tailwind utilities',
   'packages/modules/inventory/src/admin/pages/WarehouseEditor.tsx::b2b-grid':

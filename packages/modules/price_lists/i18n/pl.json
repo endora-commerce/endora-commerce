@@ -587,5 +587,8 @@
   "settingLabels.pricing.unauthenticated_display_mode.options.gross_only": "Tylko brutto",
   "settingLabels.pricing.unauthenticated_display_mode.options.net_only": "Tylko netto",
   "settingLabels.pricing.unauthenticated_display_mode.options.both": "Netto i brutto",
-  "settingLabels.pricing.unauthenticated_display_mode.options.none": "Ukryj ceny"
+  "settingLabels.pricing.unauthenticated_display_mode.options.none": "Ukryj ceny",
+  "settings.displayModes.removeFor": "Usuń nadpisanie dla: {name}",
+  "settings.displayModes.scopeTabs": "Zakres nadpisań",
+  "settings.displayModes.toolbar": "Filtruj nadpisania"
 }

@@ -204,5 +204,6 @@
   "list.emptyTitle": "Nie ma jeszcze zapytań ofertowych",
   "list.empty": "Zapytanie ofertowe pojawi się tutaj, gdy klient je wyśle albo gdy je utworzysz.",
   "list.rowMenu.label": "Akcje zapytania ofertowego {number}",
-  "list.rowMenu.organization": "Otwórz organizację"
+  "list.rowMenu.organization": "Otwórz organizację",
+  "detail.tabs.label": "Sekcje zapytania ofertowego"
 }

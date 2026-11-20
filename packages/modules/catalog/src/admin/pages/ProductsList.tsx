@@ -25,7 +25,7 @@ import {
   type ListFilterSnapshot,
   type ProductListTab,
 } from '../lib/resolve-product-selection.js';
-import { ApiError, apiClient, cn, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, useAuth, usePageSizePreference } from '@endora-commerce/admin-kit/lib';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import {
   ListToolbar,
@@ -35,7 +35,25 @@ import {
   adminLanguageToLocale,
   useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, PageHeader, Select, TabPanel, Tabs, type TabItem } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  Checkbox,
+  EmptyState,
+  PageHeader,
+  Select,
+  TabPanel,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tabs,
+  type TabItem,
+} from '@endora-commerce/admin-kit/ui';
 import type { SavedViewState } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
@@ -465,13 +483,9 @@ export function ProductsList(): ReactNode {
                 its own presence and permission, so the list names no other module. */}
             <AdminZone name="product.list.actions" props={{}} />
             {canWrite ? (
-              <button
-                type="button"
-                className="b2b-btn b2b-btn--primary"
-                onClick={(): void => { navigate('/catalog/products/new'); }}
-              >
-                <Plus size={14} /> {t('productsList.action.newProduct')}
-              </button>
+              <Button type="button" onClick={(): void => { navigate('/catalog/products/new'); }}>
+                <Plus aria-hidden="true" /> {t('productsList.action.newProduct')}
+              </Button>
             ) : null}
           </>
         }
@@ -483,8 +497,10 @@ export function ProductsList(): ReactNode {
         </Alert>
       ) : null}
 
-      <div className="b2b-card">
-        <div style={{ padding: '4px 12px 0', overflow: 'hidden' }}>
+      {/* Issue #1492 (CAT-17): the kit card, buttons, table and checkboxes, so the list and the
+          product editor it opens draw one radius, one button and one heading scale. */}
+      <Card className="overflow-hidden">
+        <div className="overflow-hidden px-3 pt-1">
           <Tabs
             items={STATUS_TABS.map((id): TabItem<StatusFilter> => ({
               value: id,
@@ -542,47 +558,29 @@ export function ProductsList(): ReactNode {
           <div role="status">
             {legacyDraftView ? (
               <div
-                className="b2b-help"
                 data-testid="saved-view-draft-note"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '6px 12px',
-                  borderBottom: '1px solid var(--border, #e5e7eb)',
-                }}
+                className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground"
               >
-                <span style={{ flex: 1 }}>{t('productsList.savedView.draftRemoved')}</span>
-                <button
-                  type="button"
-                  className="b2b-btn b2b-btn--ghost b2b-btn--sm"
-                  onClick={(): void => setLegacyDraftView(false)}
-                >
+                <span className="flex-1">{t('productsList.savedView.draftRemoved')}</span>
+                <Button type="button" variant="ghost" size="sm" onClick={(): void => setLegacyDraftView(false)}>
                   {t('productsList.savedView.dismiss')}
-                </button>
+                </Button>
               </div>
             ) : null}
           </div>
 
           {showSelectAllBanner ? (
-            <div
-              style={{
-                padding: '8px 12px',
-                fontSize: 13,
-                background: 'var(--bg-subtle, #f6f6f7)',
-                borderBottom: '1px solid var(--border, #e5e7eb)',
-              }}
-            >
+            <div className="border-b border-border bg-muted px-3 py-2 text-sm">
               {t('productsList.selection.allPageSelected', { pageCount: filtered.length })}{' '}
-              <button
+              <Button
                 type="button"
+                variant="link"
                 data-testid="select-all-matching"
-                className="b2b-btn b2b-btn--ghost"
-                style={{ display: 'inline', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
+                className="h-auto p-0"
                 onClick={selectCollectionMode}
               >
                 {t('productsList.selection.selectAllMatching', { total })}
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -593,68 +591,76 @@ export function ProductsList(): ReactNode {
           ) : null}
 
           {selectedCount > 0 ? (
-            <div className="b2b-bulkbar">
-              <input
-                type="checkbox"
-                className="b2b-cbx"
+            <div className="mx-3 my-2 flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted px-3 py-2 text-sm">
+              <Checkbox
+                aria-label={t('productsList.selection.selectPage')}
                 checked={allVisibleSelected}
                 ref={(el): void => {
                   if (el) el.indeterminate = someVisibleSelected;
                 }}
                 onChange={toggleAll}
               />
-              <span className="count" data-testid="selection-summary">
+              <span className="font-medium" data-testid="selection-summary">
                 {t('productsList.selection.selected', { count: selectedCount })}{' '}
                 {selection.mode === 'collection'
                   ? t('productsList.selection.scopeCollection')
                   : t('productsList.selection.scopePage')}
               </span>
-              <div className="actions">
+              <div className="ml-auto flex flex-wrap gap-1.5">
                 {/* On the Archived tab the one thing a selection is for is bringing it
                     back, so Restore leads as the primary and Bulk edit steps down (Von
                     Restorff), and Delete stays last (owner P-4 → B). */}
                 {restoreFromBar ? (
-                  <button
+                  <Button
                     type="button"
-                    className="b2b-btn b2b-btn--primary"
+                    size="sm"
                     disabled={resolvingSelection}
                     onClick={(): void => {
                       void openBulkEdit('confirmArchive');
                     }}
                   >
-                    <ArchiveRestore size={13} aria-hidden="true" /> {t('productsList.bulk.restore')}
-                  </button>
+                    <ArchiveRestore aria-hidden="true" /> {t('productsList.bulk.restore')}
+                  </Button>
                 ) : null}
-                <button
+                <Button
                   type="button"
-                  className={restoreFromBar ? 'b2b-btn' : 'b2b-btn b2b-btn--primary'}
+                  size="sm"
+                  variant={restoreFromBar ? 'outline' : 'default'}
                   disabled={resolvingSelection}
+                  aria-busy={resolvingSelection || undefined}
                   onClick={(): void => {
                     void openBulkEdit();
                   }}
                 >
-                  <PenSquare size={13} />{' '}
+                  <PenSquare aria-hidden="true" />{' '}
                   {resolvingSelection
                     ? t('productsList.selection.resolving')
                     : t('productsList.bulk.edit')}
-                </button>
-                <button
+                </Button>
+                {/* Outline, in the destructive colour: it asks first, and a filled red button
+                    would compete with the primary (Von Restorff). */}
+                <Button
                   type="button"
-                  className="b2b-btn b2b-btn--danger"
+                  size="sm"
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
                   disabled={deleting || resolvingSelection}
+                  aria-busy={deleting || undefined}
                   onClick={(): void => void handleBulkDelete()}
                 >
-                  <Trash2 size={13} /> {deleting ? '…' : t('productsList.bulk.delete')}
-                </button>
+                  <Trash2 aria-hidden="true" /> {deleting ? '…' : t('productsList.bulk.delete')}
+                </Button>
               </div>
-              <button
+              <Button
                 type="button"
-                className="b2b-btn b2b-btn--ghost b2b-btn--icon b2b-btn--sm"
+                variant="ghost"
+                size="icon"
+                className="size-8 max-lg:size-11"
                 aria-label={t('productsList.selection.clear')}
                 onClick={clearSelection}
               >
-                <X size={14} aria-hidden="true" />
-              </button>
+                <X aria-hidden="true" />
+              </Button>
             </div>
           ) : null}
 
@@ -693,151 +699,120 @@ export function ProductsList(): ReactNode {
             />
           ) : null}
 
-          <div className="b2b-card__body b2b-card__body--flush">
-            {loading ? (
-              <div style={{ padding: 32, color: 'var(--fg-muted)', fontSize: 13 }}>{t('productsList.loading')}</div>
-            ) : filtered.length === 0 ? (
-              <div className="b2b-empty">
-                <div className="b2b-empty__icon">
-                  <Package size={20} />
-                </div>
-                <div className="b2b-empty__title">
-                  {archivedEmpty ? t('productsList.empty.archivedTitle') : t('productsList.empty.title')}
-                </div>
-                {/*
+          {loading ? (
+            <p role="status" className="p-8 text-sm text-muted-foreground">
+              {t('productsList.loading')}
+            </p>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={<Package size={20} />}
+              title={archivedEmpty ? t('productsList.empty.archivedTitle') : t('productsList.empty.title')}
+              description={
+                /*
                   The empty state's sentence is *"Try clearing filters, or use
                   + New product to create one."* — half advice, half affordance.
                   A read-only operator gets the advice and not the affordance:
                   the sentence degrades to its own key rather than losing the
                   button out of the middle of it, which would read as
                   *"Try clearing filters, or use  to create one."*
-                */}
-                <div className="b2b-empty__sub">
-                  {archivedEmpty ? (
-                    t('productsList.empty.archivedSub')
-                  ) : canWrite ? (
-                    <>
-                      {t('productsList.empty.prefix')}{' '}
-                      <button
-                        type="button"
-                        className="b2b-btn b2b-btn--ghost"
-                        onClick={(): void => { navigate('/catalog/products/new'); }}
-                        style={{ display: 'inline-flex', height: 'auto', padding: 0, color: 'var(--primary-color)' }}
-                      >
-                        {t('productsList.empty.button')}
-                      </button>{' '}
-                      {t('productsList.empty.suffix')}
-                    </>
-                  ) : (
-                    t('productsList.empty.readOnly')
-                  )}
-                </div>
-                {searchArchivedHint ? (
-                  <button
-                    type="button"
-                    className="b2b-btn b2b-btn--ghost"
-                    style={{ marginTop: 8, color: 'var(--primary-color)' }}
-                    onClick={(): void => chooseTab('archived')}
-                  >
-                    {t('productsList.empty.searchArchived')}
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <div className="b2b-table-scroll">
-              <table className="b2b-tbl">
-                <thead>
-                  <tr>
-                    <th className="col-cb">
-                      <input
-                        type="checkbox"
-                        className="b2b-cbx"
-                        checked={allVisibleSelected}
-                        ref={(el): void => {
-                          if (el) el.indeterminate = someVisibleSelected;
-                        }}
-                        onChange={toggleAll}
-                      />
-                    </th>
-                    <th>{t('productsList.column.product')}</th>
-                    <th>{t('productsList.column.sku')}</th>
-                    <th>{t('productsList.column.status')}</th>
-                    <th>{t('productsList.column.type')}</th>
-                    <th>{t('productsList.column.visibility')}</th>
-                    <th>{t('productsList.column.updated')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r) => (
-                    <tr
-                      key={r.id}
-                      className={cn('is-clickable', isRowSelected(r.id) && 'is-selected')}
-                      onClick={(): void => { navigate(`/catalog/products/${r.id}`); }}
+                */
+                archivedEmpty ? (
+                  t('productsList.empty.archivedSub')
+                ) : canWrite ? (
+                  <>
+                    {t('productsList.empty.prefix')}{' '}
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="h-auto p-0"
+                      onClick={(): void => { navigate('/catalog/products/new'); }}
                     >
-                      <td className="col-cb" onClick={(e): void => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="b2b-cbx"
-                          checked={isRowSelected(r.id)}
-                          onChange={(): void => toggleOne(r.id)}
-                        />
-                      </td>
-                      <td>
-                        <div className="b2b-row" style={{ gap: 12 }}>
-                          <div
-                            className="b2b-thumb"
-                            style={{
-                              width: 36,
-                              height: 36,
-                              background: hashColor(r.id),
-                            }}
-                          />
-                          <div style={{ minWidth: 0 }}>
-                            <div
-                              style={{
-                                fontWeight: 500,
-                                color: 'var(--fg)',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                maxWidth: 360,
-                              }}
-                            >
-                              {r.name}
-                            </div>
-                          </div>
+                      {t('productsList.empty.button')}
+                    </Button>{' '}
+                    {t('productsList.empty.suffix')}
+                  </>
+                ) : (
+                  t('productsList.empty.readOnly')
+                )
+              }
+              action={
+                searchArchivedHint ? (
+                  <Button type="button" variant="outline" size="sm" onClick={(): void => chooseTab('archived')}>
+                    {t('productsList.empty.searchArchived')}
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8 pl-3.5">
+                    <Checkbox
+                      aria-label={t('productsList.selection.selectPage')}
+                      checked={allVisibleSelected}
+                      ref={(el): void => {
+                        if (el) el.indeterminate = someVisibleSelected;
+                      }}
+                      onChange={toggleAll}
+                    />
+                  </TableHead>
+                  <TableHead>{t('productsList.column.product')}</TableHead>
+                  <TableHead>{t('productsList.column.sku')}</TableHead>
+                  <TableHead>{t('productsList.column.status')}</TableHead>
+                  <TableHead>{t('productsList.column.type')}</TableHead>
+                  <TableHead>{t('productsList.column.visibility')}</TableHead>
+                  <TableHead>{t('productsList.column.updated')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((r) => (
+                  <TableRow
+                    key={r.id}
+                    data-state={isRowSelected(r.id) ? 'selected' : undefined}
+                    className="cursor-pointer"
+                    onClick={(): void => { navigate(`/catalog/products/${r.id}`); }}
+                  >
+                    <TableCell className="pl-3.5" onClick={(e): void => e.stopPropagation()}>
+                      <Checkbox
+                        aria-label={t('productsList.selection.selectRow', { name: r.name })}
+                        checked={isRowSelected(r.id)}
+                        onChange={(): void => toggleOne(r.id)}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        {/* A placeholder until the gallery's base image is listed: decorative, so
+                            one neutral tile rather than a colour per id that means nothing. */}
+                        <div
+                          aria-hidden="true"
+                          className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"
+                        >
+                          <Package size={16} />
                         </div>
-                      </td>
-                      <td>
-                        <span className="b2b-mono" style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                          {r.sku}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="b2b-row" style={{ gap: 4, flexWrap: 'wrap' }}>
-                          <ProductStatusPill status={r.status} archived={Boolean(r.archivedAt)} />
-                          {/* On the Archived tab every row is archived; the tab already says so. */}
-                          {r.archivedAt && statusFilter !== 'archived' ? <ArchivedPill /> : null}
-                        </span>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: 12 }}>{t(`productEditor.type.${r.type}`)}</span>
-                      </td>
-                      <td>
-                        <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>
-                          {t(`productEditor.visibility.${r.visibility}`)}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="b2b-muted" style={{ fontSize: 12 }}>{relTime(r.updatedAt, t, language)}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            )}
-          </div>
+                        <div className="min-w-0 max-w-90 truncate font-medium">{r.name}</div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">{r.sku}</TableCell>
+                    <TableCell>
+                      <span className="flex flex-wrap gap-1">
+                        <ProductStatusPill status={r.status} archived={Boolean(r.archivedAt)} />
+                        {/* On the Archived tab every row is archived; the tab already says so. */}
+                        {r.archivedAt && statusFilter !== 'archived' ? <ArchivedPill /> : null}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs">{t(`productEditor.type.${r.type}`)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {t(`productEditor.visibility.${r.visibility}`)}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {relTime(r.updatedAt, t, language)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
 
           <PaginationFooter
             page={page}
@@ -848,28 +823,10 @@ export function ProductsList(): ReactNode {
             onNext={(): void => setPage((p) => p + 1)}
           />
         </TabPanel>
-      </div>
+      </Card>
       {confirmDialog}
     </div>
   );
-}
-
-/* Light fingerprint of an id → a stable Shopify-ish swatch for the
- * thumbnail placeholder. The real product page will swap this for the
- * gallery's base image. */
-function hashColor(id: string): string {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash << 5) - hash + id.charCodeAt(i);
-  const palette = [
-    'linear-gradient(135deg, #94a3b8cc, #475569cc)',
-    'linear-gradient(135deg, #a3a8b1cc, #5b6a78cc)',
-    'linear-gradient(135deg, #b39ddbcc, #6750a4cc)',
-    'linear-gradient(135deg, #fcd34dcc, #b54708cc)',
-    'linear-gradient(135deg, #6ee7b7cc, #008060cc)',
-    'linear-gradient(135deg, #ffafa3cc, #d72c0dcc)',
-  ];
-  const idx = Math.abs(hash) % palette.length;
-  return palette[idx]!;
 }
 
 /** The Updated cell, in the admin's language (issue #501: it was English in every language). */

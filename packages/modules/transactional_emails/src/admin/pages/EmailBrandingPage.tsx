@@ -11,6 +11,7 @@ import {
   CardContent,
   ColorPicker,
   FormField,
+  InlineStatus,
   PageHeader,
   Select,
 } from '@endora-commerce/admin-kit/ui';
@@ -152,28 +153,23 @@ export function EmailBrandingPage(): ReactNode {
         description={t('branding.description')}
         actions={
           canWrite ? (
-            <Button
-              type="button"
-              onClick={() => void save()}
-              disabled={!dirty || saving}
-              aria-busy={saving || undefined}
-            >
-              {saving ? tc('common.state.saving') : tc('common.action.save')}
-            </Button>
+            // "Saved" is said beside Save, in a region mounted before it has text
+            // (issue #1499, DEC-12 a; WCAG 2.2 SC 4.1.3).
+            <div className="flex items-center gap-3">
+              <InlineStatus>{saved ? t('branding.saved') : null}</InlineStatus>
+              <Button
+                type="button"
+                onClick={() => void save()}
+                disabled={!dirty || saving}
+                aria-busy={saving || undefined}
+              >
+                {saving ? tc('common.state.saving') : tc('common.action.save')}
+              </Button>
+            </div>
           ) : null
         }
       />
 
-      {/* Mounted before it has text, so the confirmation is announced (SC 4.1.3). The
-          visible banner beside it stays silent, so the confirmation is announced once. */}
-      <div role="status" aria-live="polite" className="sr-only">
-        {saved ? t('branding.saved') : ''}
-      </div>
-      {saved ? (
-        <Alert variant="success" live="off">
-          <AlertDescription>{t('branding.saved')}</AlertDescription>
-        </Alert>
-      ) : null}
       {saveError ? (
         <Alert variant="destructive">
           <AlertDescription>{saveError}</AlertDescription>

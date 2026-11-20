@@ -420,6 +420,12 @@ what the message is:
   some recipients, issued without its e-mail (#1499). `visuallyHidden` announces without showing — for a control whose visible
   state already changed (a badge, a reordered row). An `InlineStatus` is always polite; an error
   that has to interrupt is an `Alert`.
+
+  Where it goes when the button is not still on screen (#1499): after a dialog opened from a list
+  page's header or a row menu, put it beside the header's primary action, where focus returns; when
+  a form remounts on save (a `key` bump), put it in the form card's header, outside the remounted
+  part, so it is not created already carrying its text. `admin/test/unit/no-success-alert-banners.test.ts`
+  lists the screens that still show a success `Alert`.
 - **A banner** — a page-level error, a warning about the record, a static notice — is an
   **`Alert`**. Its role follows its variant: `destructive` is `role="alert"` (interrupts),
   `success` is `role="status"` (polite), `default` and `warning` have **no live role**, because
@@ -538,6 +544,9 @@ whose tabs are routes. Both draw `.b2b-tabs` / `.b2b-tab`, so an operator cannot
 - **Counts** (`RecordTabs`): `count` draws a badge after the label; zero draws nothing. The
   accessible name says what is counted — `common.tabs.counted`, "Notes, items: 3", or the
   item's own `countLabel` ("Messages, unread: 2"), which must start with the label (SC 2.5.3).
+- **Unsaved changes**: `unsaved: t('…unsaved')` on an item draws a dot after the label and adds
+  the words to the accessible name ("Modify (unsaved changes)"), so the colour is never the one
+  carrier (SC 1.4.1). Leave it `undefined` while the section's draft is clean.
 - `icon` is decorative (`aria-hidden`). The panel is focusable (`tabIndex` 0) unless the screen
   passes `-1` because it only focuses the panel programmatically.
 - **No tabs inside tabs.** A second level inside a panel hides content two clicks deep and gives
@@ -642,6 +651,7 @@ Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
   `ImmediateBadge`. A row's removal is a `ghost size="icon"` `Trash2` button in the destructive
   tone (`text-destructive`), asking before it deletes anything; the product editor's tabs follow
   it (#1489).
+- **A 32 px icon-only trigger keeps a 44 × 44 hit area on touch**: `RowActionMenu`'s ⋮ and `LineGroupsEditor`'s heading buttons grow it with a transparent `pointer-coarse:before:` pseudo-element, not a bigger box (Fitts, #1567).
 - **Destructive actions sit in a menu and are confirmed.** A `RowActionMenuItem destructive` whose
   `onSelect` opens `useConfirmDialog` — never a red button beside the primary (Fitts: distance, not
   proximity).
@@ -846,6 +856,9 @@ what a hand-drawn scrim leaves out:
   opens above the dialog) or `overlay` (`MODAL_OVERLAY_Z_INDEX`, above the fullscreen Page Builder,
   its 9999 floating action bar and the rich-text editor's own dialogs), for a dialog opened from
   inside the builder — every Page Builder, e-mail builder and translate dialog uses it (#1493).
+  `ConfirmDialog` takes the same `layer` prop, and `useConfirmDialog({ layer: 'overlay' })` opens
+  every question the screen asks on that layer. The Page Builder's *Clear canvas* question uses it.
+  The default is `page`.
 
 ```tsx
 <ModalDialog title={t('x.dialog.title')} onClose={close} busy={busy} footer={<>{cancel}{apply}</>}>
@@ -934,6 +947,46 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   being typed. A row gets a `RowActionMenu` only when it can do something besides open, and it links
   to another module's screen only when its module depends on that one. Orders, Quote Requests,
   Returns, Customers, Organizations and Carts follow this.
+
+### Search as you type — `useDebouncedValue`
+
+Issue #1495 (UX audit CONTENT-13). A list's search runs while the operator types, never only on
+Enter or behind a *Search* button (Doherty). One request goes out per pause, not one per keystroke.
+The box shows what was typed, and the request reads the debounced value:
+
+```tsx
+const [q, setQ] = useState('');
+const query = useDebouncedValue(q.trim());        // SEARCH_DEBOUNCE_MS = 300 by default
+useEffect(() => { /* load with `query` */ }, [query]);
+<ListToolbarSearch label={t('list.search')} value={q} onValueChange={setQ} />
+```
+
+- The first render returns the value at once, so the list loads without waiting. Each later change
+  restarts the wait.
+- Decide "nothing matches" from `query`, the value that produced the rows, not from `q`.
+- Pinned in `admin/test/kit/kit-use-debounced-value.test.tsx`. Used by the CMS page list and the
+  blog post and tag lists.
+
+### Focus after a row is deleted — `useRemovalFocus`
+
+Issue #1495 (UX audit CONTENT-13, WCAG 2.4.3). A row's *Delete* is opened from the row's own
+menu, and the menu goes with the row, so focus would otherwise fall to `<body>`.
+`useRemovalFocus(rows, idOf, ready)` gives `useConfirmDialog` a `returnFocusTo` that points at
+the next row, else the previous one. When no row is left, it focuses the list's create action
+once the list has rendered empty:
+
+```tsx
+const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready'); // rowId: stable, module-level
+<Link ref={removalFocus.targetRef(row)} to={`/x/${row.id}`}>{row.name}</Link>
+<Link ref={(el) => { removalFocus.createRef.current = el; }} to="/x/new">…</Link>
+await confirm({ …, action, describeError, returnFocusTo: removalFocus.returnFocusTo(row) });
+```
+
+- Remove the deleted row from the rows **in place** rather than reloading the list. A reload
+  unmounts every row behind the skeleton, including the one that just took focus.
+- The create action is the empty state's own *New …* by the time it is focused, because the
+  header's goes away with the last row. Pass the same `createRef` to whichever is drawn.
+- Used by the CMS, blog and megamenu lists, and pinned in their tests.
 
 ## Board cards — `BoardCardFieldsEditor`
 

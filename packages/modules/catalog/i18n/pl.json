@@ -33,6 +33,8 @@
   "productsList.selection.bulkEditHardLimit": "Zbyt duży wybór ({total}). Pojedyncza edycja masowa przyjmuje maksymalnie {maxBatchSize} produktów.",
   "productsList.selection.resolving": "Rozwiązywanie zaznaczenia…",
   "productsList.selection.resolveFailed": "Nie udało się ustalić pełnego zaznaczenia. Spróbuj ponownie lub wybierz mniej produktów.",
+  "productsList.selection.selectPage": "Zaznacz wszystkie produkty na tej stronie",
+  "productsList.selection.selectRow": "Zaznacz: {name}",
   "productsList.bulkEdit.title": "Edycja masowa {count} produktów",
   "productsList.bulkEdit.section.status": "Status",
   "productsList.bulkEdit.section.visibility": "Widoczność",

@@ -166,6 +166,26 @@ zobaczyć, ani gdy katalog jest niedostępny. Starsze pole `relatedProducts` (`B
 jest przestarzałe: żadna konfiguracja go nie wypełniała i zostanie usunięte w jednym z kolejnych
 wydań minor.
 
+## Listy w panelu administracyjnym
+
+Ekrany **Wpisy bloga**, **Tagi bloga** i **Kategorie bloga** mają układ list panelu administracyjnego. Listy wpisów i tagów są stronicowane po stronie serwera i mają wyszukiwarkę działającą w trakcie pisania; lista wpisów ma też filtr statusu. Każdy status jest pokazany jako etykieta z nazwą.
+
+Administrator z uprawnieniem `blog.write` ma na końcu każdego wiersza menu (⋮).
+
+**Wpisy: Otwórz i Usuń.** **Usuń** prosi o potwierdzenie i wysyła wersję odczytaną przez listę. Usunięty wpis znika ze sklepu i z każdego wpisu, który wskazuje go jako powiązany (odłączenie przy usunięciu, powyżej). Jeśli usunięcie się nie powiedzie, najczęściej dlatego, że ktoś zmienił wpis po odczytaniu listy, okno zostaje otwarte i prosi o odświeżenie listy i ponowną próbę.
+
+**Tagi: Edytuj i Usuń.** **Nowy tag** w nagłówku i **Edytuj** w wierszu otwierają to samo okno z trzema polami: nazwa, kod i opis. Podczas tworzenia tagu kod podąża za nazwą (`Poradniki` → `poradniki`), dopóki nie wpiszesz własnego. Każdy problem jest pokazany przy swoim polu:
+
+- pusta nazwa: *Podaj nazwę*;
+- kod, który nie składa się z małych liter, cyfr i łączników (do 64, zaczyna się i kończy literą lub cyfrą);
+- kod używany już przez inny tag (`409 BLOG_TAG_CODE_TAKEN`): *Inny tag używa już tego kodu*.
+
+Przed usunięciem tagu lista sprawdza, które wpisy wciąż go mają. Jeśli takie są, potwierdzenie nie jest proponowane: lista podaje te wpisy, a tag trzeba najpierw z nich usunąć (w przeciwnym razie serwer odmawia z `409 BLOG_TAG_IN_USE`). Tag nieprzypisany do żadnego wpisu jest usuwany po potwierdzeniu.
+
+**Kategorie** zachowują drzewo z własnymi przyciskami wiersza: przesuwanie, dodawanie podkategorii i usuwanie. Zasianej kategorii `Default` nie można usunąć, o czym ekran mówi pod tytułem.
+
+Bez `blog.write` listy są tylko do odczytu: bez menu w wierszu i bez przycisku **Nowy**.
+
 ## Ustawienia
 
 | Kod                  | Typ    | Wartość domyślna | Uwagi                                                |

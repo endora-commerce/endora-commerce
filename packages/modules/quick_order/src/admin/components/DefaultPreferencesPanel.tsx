@@ -13,8 +13,10 @@ import {
   AlertDescription,
   Button,
   EditorSection,
+  InlineStatus,
   Label,
   Select,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -175,12 +177,14 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Standalone Save's result, beside that Save in a region mounted before it has
+  // text — not a success banner (issue #1499, DEC-12 a).
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
 
   const loadAll = useCallback(async (): Promise<void> => {
     setLoading(true);
     setError(null);
-    setInfo(null);
+    clearStatus();
     try {
       const addressesReq =
         scope === 'customer'
@@ -223,7 +227,7 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
     } finally {
       setLoading(false);
     }
-  }, [scope, scopeId, t]);
+  }, [scope, scopeId, t, clearStatus]);
 
   useEffect((): void => {
     void loadAll();
@@ -262,6 +266,7 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
       participant.setDraft((previous) => ({ ...previous, [field]: value }));
       return;
     }
+    clearStatus();
     setLocal((previous) => (previous === null ? previous : { ...previous, [field]: value }));
   };
   const shownError = inSession ? (participant.error ?? participant.issues?.message ?? error) : error;
@@ -270,16 +275,16 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
     if (busy || local === null) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearStatus();
     try {
       await writePreference(upsertOf(scope, scopeId, local));
-      setInfo(t('defaultPreferences.saved'));
+      showStatus(t('defaultPreferences.saved'));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('defaultPreferences.saveError'));
     } finally {
       setBusy(false);
     }
-  }, [busy, scope, scopeId, local, t]);
+  }, [busy, scope, scopeId, local, t, clearStatus, showStatus]);
 
   const emptyLabel = scope === 'customer' ? t('defaultPreferences.inherit') : t('defaultPreferences.none');
   const billingAddresses = addresses.filter((a) => a.kind === 'billing');
@@ -292,11 +297,6 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
       {shownError ? (
         <Alert variant="destructive">
           <AlertDescription>{shownError}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info && !inSession ? (
-        <Alert variant="success">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -343,8 +343,9 @@ export function DefaultPreferencesPanel(props: DefaultPreferencesPanelProps): Re
             />
           </div>
           {inSession ? null : (
-            <div className="flex justify-end">
-              <Button onClick={(): void => void save()} disabled={busy}>
+            <div className="flex items-center justify-end gap-3">
+              <InlineStatus {...statusProps} />
+              <Button onClick={(): void => void save()} disabled={busy} aria-busy={busy || undefined}>
                 {t('defaultPreferences.save')}
               </Button>
             </div>

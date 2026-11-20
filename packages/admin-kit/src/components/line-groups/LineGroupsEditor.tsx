@@ -5,7 +5,7 @@ import { Button } from '../../ui/button.js';
 import { Input } from '../../ui/input.js';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../ui/table.js';
 import { cn } from '../../lib/utils.js';
-import { RowActionMenu, RowActionMenuItem } from '../RowActionMenu.js';
+import { COARSE_POINTER_ICON_HIT_AREA, RowActionMenu, RowActionMenuItem } from '../RowActionMenu.js';
 import { ReorderAnnouncer } from '../reorder/ReorderAnnouncer.js';
 import { useGroupedReorder, type GroupedReorderLabels } from '../reorder/useGroupedReorder.js';
 
@@ -336,7 +336,7 @@ export function LineGroupsEditor<TLine extends LineGroupsEditorLine>(
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className={cn('h-8 w-8', COARSE_POINTER_ICON_HIT_AREA)}
           aria-label={labels.moveGroupUp({ name: displayName })}
           disabled={disabled || groupIndex === 0}
           onClick={(): void => reorder.moveSectionBy(section.modelKey, -1)}
@@ -347,7 +347,7 @@ export function LineGroupsEditor<TLine extends LineGroupsEditorLine>(
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className={cn('h-8 w-8', COARSE_POINTER_ICON_HIT_AREA)}
           aria-label={labels.moveGroupDown({ name: displayName })}
           disabled={disabled || groupIndex === groupCount - 1}
           onClick={(): void => reorder.moveSectionBy(section.modelKey, 1)}
@@ -358,7 +358,7 @@ export function LineGroupsEditor<TLine extends LineGroupsEditorLine>(
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-destructive"
+          className={cn('h-8 w-8 text-destructive', COARSE_POINTER_ICON_HIT_AREA)}
           aria-label={labels.deleteGroup({ name: displayName })}
           disabled={disabled}
           onClick={(): void => deleteGroup(section.key!)}

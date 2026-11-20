@@ -129,7 +129,8 @@ describe('template dialogs (#1493, from the More menu since #1494)', () => {
     const dialog = screen.getByRole('dialog', { name: en('pageBuilder.saveAsTemplate.title') });
     await user.type(within(dialog).getByLabelText(en('common.field.name')), 'Landing');
     await user.click(within(dialog).getByRole('button', { name: en('pageBuilder.saveAsTemplate.confirm') }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(en('pageBuilder.saveAsTemplate.missingScope'));
+    // The alert region is mounted empty (CONTENT-03), so wait on its text, not its presence (#1665).
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent(en('pageBuilder.saveAsTemplate.missingScope')));
 
     await user.click(within(dialog).getByRole('button', { name: en('pageBuilder.saveAsTemplate.confirm') }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -178,7 +179,8 @@ describe('template dialogs (#1493, from the More menu since #1494)', () => {
     );
     await chooseFromMore(user, 'pageBuilder.applyTemplate.button');
     const dialog = screen.getByRole('dialog', { name: en('pageBuilder.applyTemplate.title') });
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Templates unavailable');
+    // The alert region is mounted empty (CONTENT-03), so wait on its text, not its presence (#1665).
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('Templates unavailable'));
   });
 });
 

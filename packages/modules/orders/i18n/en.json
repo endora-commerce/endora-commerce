@@ -187,5 +187,6 @@
   "list.rowMenu.label": "Actions for order {number}",
   "list.rowMenu.changeStatus": "Change status…",
   "list.rowMenu.printInvoice": "Print invoice",
-  "list.rowMenu.organization": "Open organization"
+  "list.rowMenu.organization": "Open organization",
+  "detail.tabs.label": "Order sections"
 }

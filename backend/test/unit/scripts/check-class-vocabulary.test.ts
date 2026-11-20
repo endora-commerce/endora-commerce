@@ -159,8 +159,8 @@ describe('the namespace bound', () => {
 
   it('reads a BEM separator as a vocabulary name and a scale index as a utility', () => {
     // The one collision this rule declares: the page builder owns `pb-*` and
-    // Tailwind spells padding-bottom `pb-4`; `col-cb` is defined here and
-    // `col-span-10` is Tailwind's.
+    // Tailwind spells padding-bottom `pb-4`; a defined `col-cb` (removed in
+    // #1492) and Tailwind's `col-span-10` were the other such pair.
     expect(isVocabularyName('b2b-grid--cols-3')).toBe(true);
     expect(isVocabularyName('cms-page-builder__canvas')).toBe(true);
     expect(isVocabularyName('b2b-chip')).toBe(true);

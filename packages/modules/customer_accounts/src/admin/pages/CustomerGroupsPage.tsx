@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { Pencil, Trash2 } from 'lucide-react';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   customerGroupsClient,
@@ -26,7 +26,11 @@ export function CustomerGroupsPage(): ReactNode {
   const [rows, setRows] = useState<AdminCustomerGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // A save is said beside the form's title, a deletion — whose row has already
+  // gone — to the screen reader only; never as a success banner (issue #1499,
+  // DEC-12 a). Both regions are mounted before they have text (SC 4.1.3).
+  const saveStatus = useInlineStatus();
+  const deleteStatus = useInlineStatus();
   // `null` = the blank "new group" form; a row = an edit seeded from it. The
   // nonce remounts the blank form after a save so it does not keep stale input.
   const [editing, setEditing] = useState<AdminCustomerGroup | null>(null);
@@ -56,20 +60,22 @@ export function CustomerGroupsPage(): ReactNode {
   const handleSubmit = useCallback(
     async (value: GroupFormValue): Promise<void> => {
       setError(null);
+      saveStatus.clear();
+      deleteStatus.clear();
       try {
         await customerGroupsClient.upsert(value.code, {
           code: value.code,
           name: value.name,
           description: value.description.trim() === '' ? null : value.description,
         });
-        setInfo(t('groups.message.saved', { code: value.code }));
+        saveStatus.show(t('groups.message.saved', { code: value.code }));
         resetForm();
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('groups.error.save'));
       }
     },
-    [refresh, resetForm, t],
+    [refresh, resetForm, t, saveStatus, deleteStatus],
   );
 
   const handleDelete = useCallback(
@@ -81,24 +87,27 @@ export function CustomerGroupsPage(): ReactNode {
       });
       if (!ok) return;
       setError(null);
+      saveStatus.clear();
+      deleteStatus.clear();
       try {
         await customerGroupsClient.remove(row.id);
         if (editing?.id === row.id) resetForm();
-        setInfo(t('groups.message.deleted'));
+        deleteStatus.show(t('groups.message.deleted'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('groups.error.delete'));
       }
     },
-    [editing, refresh, resetForm, t, confirm],
+    [editing, refresh, resetForm, t, confirm, saveStatus, deleteStatus],
   );
 
   const startEdit = useCallback((row: AdminCustomerGroup): void => {
     setError(null);
-    setInfo(null);
+    saveStatus.clear();
+    deleteStatus.clear();
     setEditing(row);
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+  }, [saveStatus, deleteStatus]);
 
   return (
     <>
@@ -109,20 +118,16 @@ export function CustomerGroupsPage(): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
 
       {canWrite ? (
         <Card className="mb-4">
-          <CardHeader>
+          <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 space-y-0">
             <CardTitle>
               {editing
                 ? t('groups.form.editTitle', { code: editing.code })
                 : t('groups.form.newTitle')}
             </CardTitle>
+            <InlineStatus {...saveStatus.props} />
           </CardHeader>
           <CardContent>
             <GroupForm
@@ -137,6 +142,7 @@ export function CustomerGroupsPage(): ReactNode {
 
       <Card>
         <CardContent>
+          {canWrite ? <InlineStatus {...deleteStatus.props} visuallyHidden /> : null}
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('groups.loading')}</p>
           ) : rows.length === 0 ? (
