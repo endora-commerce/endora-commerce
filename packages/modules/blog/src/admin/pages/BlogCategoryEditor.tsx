@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type { BlogCategoryDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup } from '@endora-commerce/admin-kit/ui';
@@ -355,6 +355,7 @@ export function BlogCategoryEditor(): ReactNode {
       header={
         <>
           <PageHeader
+            back={{ label: t('categoryEditor.backToTree'), to: '/blog/categories' }}
             title={
               isNew ? t('categoryEditor.title.new') : form.name || t('categoryEditor.title.edit')
             }
@@ -368,9 +369,6 @@ export function BlogCategoryEditor(): ReactNode {
             actions={
               <div className="flex flex-wrap items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />
-                <Button asChild variant="outline">
-                  <Link to="/blog/categories">{t('categoryEditor.backToTree')}</Link>
-                </Button>
                 {isNew ? (
                   <Button type="button" disabled={saving} onClick={() => void create()}>
                     {saving ? t('common.saving') : t('common.create')}

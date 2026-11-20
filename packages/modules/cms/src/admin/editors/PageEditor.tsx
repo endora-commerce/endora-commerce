@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import {
   CMS_PAGE_PATH_MAX_LEVELS,
@@ -635,14 +635,12 @@ export function PageEditor(): ReactNode {
       header={
         <>
           <PageHeader
+            back={{ label: t('common.back'), to: '/cms/pages' }}
             title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
             description={t('pageEditor.description')}
             actions={
               <div className="flex items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />
-                <Button asChild variant="outline">
-                  <Link to="/cms/pages">{t('common.back')}</Link>
-                </Button>
                 {!isNew && page?.status !== 'published' ? (
                   <Button type="button" variant="outline" onClick={() => void lifecycle('publish')}>
                     {t('common.publish')}

@@ -48,12 +48,8 @@ export {
 export type { ActionBarTarget } from './chrome/action-bar-target.js';
 export { QuickTooltip, wrapQuickTooltip } from './chrome/QuickTooltip.js';
 export { PageBuilderOverlayBridge } from './chrome/PageBuilderOverlayBridge.js';
-export {
-  PageBuilderHeaderActions,
-  PageBuilderHeaderShell,
-  PageBuilderTemplateActions,
-} from './chrome/PageBuilderHeaderActions.js';
-export type { ApplyTemplateOption } from './chrome/PageBuilderHeaderActions.js';
+export { PageBuilderHeaderActions } from './chrome/PageBuilderHeaderActions.js';
+export type { ApplyTemplateOption, PageBuilderHeaderActionsProps } from './chrome/PageBuilderHeaderActions.js';
 export {
   createFileAssetField,
   createImageAssetField,

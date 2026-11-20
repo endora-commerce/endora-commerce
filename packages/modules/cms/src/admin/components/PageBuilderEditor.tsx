@@ -69,8 +69,6 @@ import {
   createButtonSpecField,
   createLinkField,
   PageBuilderHeaderActions,
-  PageBuilderHeaderShell,
-  PageBuilderTemplateActions,
   emptyPageBuilderData,
   isEmptyPageBuilderData,
   PageBuilderOverlayBridge,
@@ -676,8 +674,7 @@ export function PageBuilderEditor({
   // Section titles, block labels and field labels are module-relative and are
   // resolved in the declaring module's scope (`buildPageBuilderEditorConfig`).
   const { t: translateInScope } = useTranslationContext();
-  // The shared page-builder chrome (`PageBuilderHeaderShell`,
-  // `PageBuilderTemplateActions`, `PageBuilderHeaderActions`) owns no module
+  // The shared page-builder chrome (`PageBuilderHeaderActions`) owns no module
   // knowledge and reads `core`; this screen's own strings stay `cms`' (feature
   // 091 P5a, R-1).
   const tChrome = useTranslation('core');
@@ -1116,35 +1113,6 @@ export function PageBuilderEditor({
           </PageBuilderDrawer>
         );
       },
-      header: ({ children }: { children: ReactNode; actions: ReactNode }): ReactElement => {
-        const state = headerActionsStateRef.current;
-        const hasTemplates = Boolean(state.onSaveAsTemplate || state.onApplyTemplate);
-        return (
-          <PageBuilderHeaderShell
-            leading={
-              hasTemplates ? (
-                <PageBuilderTemplateActions
-                  currentData={state.editorData}
-                  {...(state.onSaveAsTemplate ? { onSaveAsTemplate: state.onSaveAsTemplate } : {})}
-                  {...(state.onListTemplatesForApply
-                    ? { onListTemplatesForApply: state.onListTemplatesForApply }
-                    : {})}
-                  {...(state.onApplyTemplate
-                    ? {
-                        onApplyTemplate: async (templateId: string): Promise<void> => {
-                          await state.onApplyTemplate?.(templateId);
-                        },
-                      }
-                    : {})}
-                  t={state.tChrome}
-                />
-              ) : null
-            }
-          >
-            {children}
-          </PageBuilderHeaderShell>
-        );
-      },
       headerActions: (): ReactElement => {
         const state = headerActionsStateRef.current;
         const extras = translateExtrasRef.current;
@@ -1174,6 +1142,9 @@ export function PageBuilderEditor({
             currentData={state.editorData}
             {...(state.onCopyFromLanguage ? { onCopyFromLanguage: state.onCopyFromLanguage } : {})}
             {...(state.onClearCanvas ? { onClearCanvas: state.onClearCanvas } : {})}
+            {...(state.onSaveAsTemplate ? { onSaveAsTemplate: state.onSaveAsTemplate } : {})}
+            {...(state.onListTemplatesForApply ? { onListTemplatesForApply: state.onListTemplatesForApply } : {})}
+            {...(state.onApplyTemplate ? { onApplyTemplate: state.onApplyTemplate } : {})}
             t={state.tChrome}
           />
         );
@@ -1215,8 +1186,9 @@ export function PageBuilderEditor({
       >
         {/* The surrounding editor's own Save actions persist content, so Puck's
             built-in "Publish" header button is redundant — replace the
-            header-actions slot with the Fullscreen toggle so it sits in the
-            toolbar alongside Puck's left/right panel-visibility buttons. The
+            header-actions slot with the one canvas toolbar (Translate, a
+            "More" menu, Fullscreen — issue #1494) beside Puck's left/right
+            panel-visibility buttons. The
             CmsRenderProvider feeds resolved block/template previews to the
             InsertBlock / InsertTemplate embeds so they render their content on
             the canvas. */}

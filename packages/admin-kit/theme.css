@@ -914,26 +914,7 @@ body,
 .cms-page-builder [data-pb-drawer-filtering] [class*="ComponentList-content"] {
   display: block !important;
 }
-.cms-page-builder .cms-pb-header-shell,
-.email-builder-pane .cms-pb-header-shell {
-  display: contents;
-}
-/* Left column: sidebar toggles + template actions, flush start. */
-.cms-page-builder .cms-pb-header-left,
-.email-builder-pane .cms-pb-header-left {
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: nowrap;
-  min-width: 0;
-}
-.cms-page-builder .cms-pb-header-leading,
-.email-builder-pane .cms-pb-header-leading {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  /* Puck's left toggle column sets a muted `color` — reset so our buttons match. */
-  color: hsl(var(--foreground));
-}
+/* The one canvas toolbar (issue #1494): module actions, "More", Fullscreen. */
 .cms-page-builder .cms-pb-header-actions,
 .email-builder-pane .cms-pb-header-actions {
   display: flex;
@@ -970,15 +951,6 @@ body,
   .email-builder-pane [class*="PuckHeader-tools"] .cms-pb-header-actions__label {
     display: inline;
   }
-}
-/* Left template actions keep their labels. */
-.cms-page-builder .cms-pb-header-leading .cms-pb-header-actions__label,
-.email-builder-pane .cms-pb-header-leading .cms-pb-header-actions__label {
-  display: inline;
-}
-/* Email header: Preview sits beside Clear/Fullscreen from PageBuilderHeaderActions. */
-.email-builder-pane [class*="PuckHeader-tools"] > .cms-pb-header-actions > .cms-pb-header-actions {
-  display: contents;
 }
 @media (max-width: 1023px) {
   .cms-content-editor__builder .cms-page-builder {

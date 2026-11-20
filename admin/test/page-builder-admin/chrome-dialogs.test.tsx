@@ -42,7 +42,7 @@ vi.mock('@endora-commerce/admin-kit/components', async () => {
   };
 });
 
-const { PageBuilderHeaderActions, PageBuilderTemplateActions } = await import('../../../packages/page-builder-admin/src/chrome/PageBuilderHeaderActions');
+const { PageBuilderHeaderActions } = await import('../../../packages/page-builder-admin/src/chrome/PageBuilderHeaderActions');
 const { ColorPaletteModal } = await import('../../../packages/page-builder-admin/src/chrome/ColorPaletteModal');
 const { AssetModalFieldControl } = await import('../../../packages/page-builder-admin/src/chrome/AssetPickers');
 const { createProductSlugsField, createCategorySlugsField } = await import('../../../packages/page-builder-admin/src/chrome/CatalogPickers');
@@ -82,18 +82,35 @@ function Opener({ label, children }: { label: string; children: (close: () => vo
   );
 }
 
+/**
+ * Issue #1494 (CONTENT-11) — the canvas toolbar's dialogs open from its "More"
+ * menu; focus comes back to "More" when they close.
+ */
+function moreButton(): HTMLElement {
+  return screen.getByRole('button', { name: en('common.action.more') });
+}
+async function chooseFromMore(user: ReturnType<typeof userEvent.setup>, key: string): Promise<void> {
+  await user.click(moreButton());
+  await user.click(await screen.findByRole('menuitem', { name: en(key) }));
+}
+
+/** The canvas toolbar with only template entries — what `PageBuilderTemplateActions` was. */
+function TemplateToolbar(props: Record<string, unknown>): ReactElement {
+  return <PageBuilderHeaderActions fullscreen={false} onToggleFullscreen={vi.fn()} currentData={CANVAS} t={t} {...props} />;
+}
+
 afterEach(() => {
   cleanup();
   get.mockReset();
 });
 
-describe('PageBuilderTemplateActions dialogs (#1493)', () => {
+describe('template dialogs (#1493, from the More menu since #1494)', () => {
   it('save as template: overlay dialog, trapped, Escape, focus back to the button', async () => {
     const user = userEvent.setup();
-    renderCore(<PageBuilderTemplateActions currentData={CANVAS} onSaveAsTemplate={vi.fn()} t={t} />);
-    const opener = screen.getByRole('button', { name: en('pageBuilder.saveAsTemplate.button') });
+    renderCore(<TemplateToolbar onSaveAsTemplate={vi.fn()} t={t} />);
+    const opener = moreButton();
     await expectBuilderDialogContract(user, {
-      open: () => user.click(opener),
+      open: () => chooseFromMore(user, 'pageBuilder.saveAsTemplate.button'),
       name: en('pageBuilder.saveAsTemplate.title'),
       returnTo: () => opener,
       whenOpen: (dialog) => {
@@ -106,9 +123,9 @@ describe('PageBuilderTemplateActions dialogs (#1493)', () => {
   it('save as template: the result is visible next to the button, a failure stays in the dialog', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockRejectedValueOnce(new Error('MISSING_SCOPE')).mockResolvedValueOnce(undefined);
-    renderCore(<PageBuilderTemplateActions currentData={CANVAS} onSaveAsTemplate={onSave} t={t} />);
-    const opener = screen.getByRole('button', { name: en('pageBuilder.saveAsTemplate.button') });
-    await user.click(opener);
+    renderCore(<TemplateToolbar onSaveAsTemplate={onSave} t={t} />);
+    const opener = moreButton();
+    await chooseFromMore(user, 'pageBuilder.saveAsTemplate.button');
     const dialog = screen.getByRole('dialog', { name: en('pageBuilder.saveAsTemplate.title') });
     await user.type(within(dialog).getByLabelText(en('common.field.name')), 'Landing');
     await user.click(within(dialog).getByRole('button', { name: en('pageBuilder.saveAsTemplate.confirm') }));
@@ -127,11 +144,11 @@ describe('PageBuilderTemplateActions dialogs (#1493)', () => {
     const list = vi.fn(async () => [{ id: 'tpl-1', label: 'Landing' }]);
     const apply = vi.fn(async () => undefined);
     renderCore(
-      <PageBuilderTemplateActions currentData={CANVAS} onListTemplatesForApply={list} onApplyTemplate={apply} t={t} />,
+      <TemplateToolbar onListTemplatesForApply={list} onApplyTemplate={apply} t={t} />,
     );
-    const opener = screen.getByRole('button', { name: en('pageBuilder.applyTemplate.button') });
+    const opener = moreButton();
     await expectBuilderDialogContract(user, {
-      open: () => user.click(opener),
+      open: () => chooseFromMore(user, 'pageBuilder.applyTemplate.button'),
       name: en('pageBuilder.applyTemplate.title'),
       returnTo: () => opener,
       whenOpen: async (dialog) => {
@@ -139,7 +156,7 @@ describe('PageBuilderTemplateActions dialogs (#1493)', () => {
       },
     });
 
-    await user.click(opener);
+    await chooseFromMore(user, 'pageBuilder.applyTemplate.button');
     const dialog = screen.getByRole('dialog', { name: en('pageBuilder.applyTemplate.title') });
     await waitFor(() => expect(within(dialog).getByRole('button', { name: en('pageBuilder.applyTemplate.confirm') })).toBeEnabled());
     await user.click(within(dialog).getByRole('button', { name: en('pageBuilder.applyTemplate.confirm') }));
@@ -153,14 +170,13 @@ describe('PageBuilderTemplateActions dialogs (#1493)', () => {
   it('apply template: a failed list is shown inside the dialog', async () => {
     const user = userEvent.setup();
     renderCore(
-      <PageBuilderTemplateActions
-        currentData={CANVAS}
+      <TemplateToolbar
         onListTemplatesForApply={vi.fn(async () => Promise.reject(new Error('Templates unavailable')))}
         onApplyTemplate={vi.fn()}
         t={t}
       />,
     );
-    await user.click(screen.getByRole('button', { name: en('pageBuilder.applyTemplate.button') }));
+    await chooseFromMore(user, 'pageBuilder.applyTemplate.button');
     const dialog = screen.getByRole('dialog', { name: en('pageBuilder.applyTemplate.title') });
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Templates unavailable');
   });
@@ -184,9 +200,9 @@ describe('PageBuilderHeaderActions dialogs (#1493)', () => {
   it('copy from language: overlay dialog, trapped, Escape, focus back to the button', async () => {
     const user = userEvent.setup();
     renderCore(header());
-    const opener = screen.getByRole('button', { name: en('pageBuilder.copyLanguage.button') });
+    const opener = moreButton();
     await expectBuilderDialogContract(user, {
-      open: () => user.click(opener),
+      open: () => chooseFromMore(user, 'pageBuilder.copyLanguage.button'),
       name: en('pageBuilder.copyLanguage.title'),
       returnTo: () => opener,
     });
@@ -196,7 +212,7 @@ describe('PageBuilderHeaderActions dialogs (#1493)', () => {
     const user = userEvent.setup();
     const copy = vi.fn(async () => undefined);
     renderCore(header({ onCopyFromLanguage: copy }));
-    await user.click(screen.getByRole('button', { name: en('pageBuilder.copyLanguage.button') }));
+    await chooseFromMore(user, 'pageBuilder.copyLanguage.button');
     const dialog = screen.getByRole('dialog', { name: en('pageBuilder.copyLanguage.title') });
     await user.click(within(dialog).getByRole('button', { name: en('pageBuilder.copyLanguage.confirm') }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -210,9 +226,9 @@ describe('PageBuilderHeaderActions dialogs (#1493)', () => {
     const user = userEvent.setup();
     const clear = vi.fn();
     renderCore(header({ onClearCanvas: clear }));
-    const opener = screen.getByRole('button', { name: en('pageBuilder.clearCanvas.button') });
+    const opener = moreButton();
     await expectBuilderDialogContract(user, {
-      open: () => user.click(opener),
+      open: () => chooseFromMore(user, 'pageBuilder.clearCanvas.button'),
       name: en('pageBuilder.clearCanvas.title'),
       returnTo: () => opener,
       whenOpen: (dialog) => {

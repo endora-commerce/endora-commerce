@@ -6,18 +6,16 @@ import { render, screen } from '@testing-library/react';
 import type { ReactElement, ReactNode } from 'react';
 import { TranslationProvider } from '@endora-commerce/admin-kit/i18n';
 import type { Bundle } from '@endora-commerce/admin-kit/i18n';
-import {
-  ColorPaletteModal,
-  PageBuilderHeaderActions,
-  PageBuilderTemplateActions,
-} from '@endora-commerce/page-builder-admin';
+import userEvent from '@testing-library/user-event';
+import { ColorPaletteModal, PageBuilderHeaderActions } from '@endora-commerce/page-builder-admin';
 
 /**
  * Feature 091 P5a — the shared page-builder chrome renders out of `core`, not
  * out of `cms`' bundle.
  *
- * `PageBuilderHeaderActions.tsx` holds three components that `cms`, `invoices`
- * and the e-mail builder all render, and it takes its `t` as a **prop**, so
+ * `PageBuilderHeaderActions.tsx` holds the canvas toolbar that `cms`,
+ * `document_templates` and the e-mail builder all render (three components
+ * until issue #1494 merged them into one), and it takes its `t` as a **prop**, so
  * whose namespace it reads is the caller's decision. Two of the three callers
  * were supplying `useTranslation('cms')` over copy that names `cms` nowhere —
  * which R-1 (`admin-kit-surface.md`, 2026-08-31) rules is module knowledge: the
@@ -64,7 +62,7 @@ const PALETTE_MODAL_SOURCE = join(
   'packages/page-builder-admin/src/chrome/ColorPaletteModal.tsx',
 );
 
-/** The three files that render a component out of `PageBuilderHeaderActions.tsx`. */
+/** The three files that render the component out of `PageBuilderHeaderActions.tsx`. */
 const CALLERS = [
   // Feature 091, Phase 4 batch 16 — re-keyed, not dropped, for the reason the
   // entry below already gives one line down: `cms` took its admin surface into
@@ -83,11 +81,9 @@ const CALLERS = [
   'packages/page-builder-admin/src/email/EmailEditorPane.tsx',
 ];
 
-const CHROME_COMPONENTS = new Set([
-  'PageBuilderHeaderActions',
-  'PageBuilderTemplateActions',
-  'PageBuilderHeaderShell',
-]);
+// Issue #1494 (CONTENT-11) folded `PageBuilderTemplateActions` and
+// `PageBuilderHeaderShell` into the one canvas toolbar.
+const CHROME_COMPONENTS = new Set(['PageBuilderHeaderActions']);
 
 function parse(file: string): ts.SourceFile {
   return ts.createSourceFile(
@@ -277,61 +273,37 @@ describe('P5a — the shared page-builder chrome reads `core`', () => {
     }
   });
 
-  it('renders `PageBuilderHeaderActions` from the shipped bundle, in both languages', () => {
-    const en = renderInCore(
+  it('renders `PageBuilderHeaderActions` from the shipped bundle, in both languages', async () => {
+    const user = userEvent.setup();
+    const toolbar = (fullscreen: boolean, dict: Record<string, string>): ReactElement => (
       <PageBuilderHeaderActions
-        fullscreen={false}
+        fullscreen={fullscreen}
         onToggleFullscreen={(): void => {}}
         currentData={null}
         onClearCanvas={(): void => {}}
-        t={(key) => CORE_EN[key] ?? `core.${key}`}
-      />,
-      'en',
+        onSaveAsTemplate={(): void => {}}
+        t={(key) => dict[key] ?? `core.${key}`}
+      />
     );
-    expect(screen.getAllByRole('button', { name: 'Clear canvas' }).length).toBeGreaterThan(0);
+    const en = renderInCore(toolbar(false, CORE_EN), 'en');
     expect(screen.getAllByRole('button', { name: 'Fullscreen' }).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'More' }));
+    const enMenu = await screen.findByRole('menu');
+    expect(enMenu).toHaveTextContent('Save as template');
+    expect(enMenu).toHaveTextContent('Clear canvas');
     expectNoRawKeys(en.container);
+    expectNoRawKeys(enMenu);
+    await user.keyboard('{Escape}');
     en.unmount();
 
-    const pl = renderInCore(
-      <PageBuilderHeaderActions
-        fullscreen
-        onToggleFullscreen={(): void => {}}
-        currentData={null}
-        onClearCanvas={(): void => {}}
-        t={(key) => CORE_PL[key] ?? `core.${key}`}
-      />,
-      'pl',
-    );
-    expect(screen.getAllByRole('button', { name: 'Wyczyść canvas' }).length).toBeGreaterThan(0);
+    const pl = renderInCore(toolbar(true, CORE_PL), 'pl');
     expect(screen.getAllByRole('button', { name: 'Zamknij pełny ekran' }).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole('button', { name: 'Więcej' }));
+    const plMenu = await screen.findByRole('menu');
+    expect(plMenu).toHaveTextContent('Zapisz jako szablon');
+    expect(plMenu).toHaveTextContent('Wyczyść canvas');
     expectNoRawKeys(pl.container);
-    pl.unmount();
-  });
-
-  it('renders `PageBuilderTemplateActions` from the shipped bundle, in both languages', () => {
-    const en = renderInCore(
-      <PageBuilderTemplateActions
-        currentData={null}
-        onSaveAsTemplate={(): void => {}}
-        t={(key) => CORE_EN[key] ?? `core.${key}`}
-      />,
-      'en',
-    );
-    expect(screen.getAllByRole('button', { name: 'Save as template' }).length).toBeGreaterThan(0);
-    expectNoRawKeys(en.container);
-    en.unmount();
-
-    const pl = renderInCore(
-      <PageBuilderTemplateActions
-        currentData={null}
-        onSaveAsTemplate={(): void => {}}
-        t={(key) => CORE_PL[key] ?? `core.${key}`}
-      />,
-      'pl',
-    );
-    expect(screen.getAllByRole('button', { name: 'Zapisz jako szablon' }).length).toBeGreaterThan(0);
-    expectNoRawKeys(pl.container);
+    expectNoRawKeys(plMenu);
     pl.unmount();
   });
 });
