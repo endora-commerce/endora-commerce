@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { AdminZoneProps } from '@endora-commerce/contracts';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { Card, CardContent } from '@endora-commerce/admin-kit/ui';
+import { EditorSection, useEditorSectionChrome } from '@endora-commerce/admin-kit/ui';
 import { DisplayModeOverrideRow } from '../components/DisplayModeOverrideRow.js';
 
 /**
@@ -16,14 +16,14 @@ import { DisplayModeOverrideRow } from '../components/DisplayModeOverrideRow.js'
  * module's* constant, because the host mounting an organization detail is the
  * only thing that could have said `'organization'`.
  *
- * **The card is the contribution's and not the host's**, which is the one
- * layout decision this wrapper makes. The zone is a stack of panels and the
- * other three contributors each render a `Card`; a bare row between them would
- * read as a rendering failure. The host cannot wrap the zone in one card
- * instead, because that would nest four cards inside a fifth. What went with
- * the host's card is its heading — `organizations.detail.pricingCard` — for
- * `DisplayModeOverrideRow`'s own reason: a host cannot title a contributor it
- * does not know, and the row already labels its control.
+ * **The frame is the mount's, not the contribution's** (issue #1437, DS-03).
+ * The panel is an `EditorSection` titled `organizationPanel.title`, so it
+ * follows the mount: the organization detail mounts this zone at page level
+ * with `chrome="card"`, which makes it one titled card between the host's own;
+ * a host that mounts the zone inside a card gets a section of that card instead
+ * of a card in a card. It used to be a header-less `Card` in both places. The
+ * heading names the panel and the row still labels its control, because a host
+ * cannot title a contributor it does not know.
  *
  * **No `match`, and it is a decision rather than an omission.** `match` narrows
  * the mounts of one place (Z13); this place has one host and one mount, so
@@ -37,15 +37,16 @@ export function OrganizationDisplayMode({
   organizationId,
   saveSession,
 }: OrganizationDisplayModeProps): ReactNode {
+  const t = useTranslation('price_lists');
+  // A card keeps the gap its sibling panels in this zone keep; a section is spaced by its host.
+  const carded = useEditorSectionChrome() === 'card';
   return (
-    <Card className="mb-4">
-      <CardContent>
-        {/* Feature 180, WP-7 — the organization detail's Save writes the mode (FR-060). */}
-        <DisplayModeOverrideRow scope="organization" targetId={organizationId} saveSession={saveSession} />
-        {/* Feature 161 (FR-024): what this organization pays, and why. */}
-        <ExplainLink organizationId={organizationId} />
-      </CardContent>
-    </Card>
+    <EditorSection title={t('organizationPanel.title')} className={carded ? 'mb-4' : undefined}>
+      {/* Feature 180, WP-7 — the organization detail's Save writes the mode (FR-060). */}
+      <DisplayModeOverrideRow scope="organization" targetId={organizationId} saveSession={saveSession} />
+      {/* Feature 161 (FR-024): what this organization pays, and why. */}
+      <ExplainLink organizationId={organizationId} />
+    </EditorSection>
   );
 }
 
@@ -54,7 +55,7 @@ function ExplainLink({ organizationId }: { readonly organizationId: string }): R
   return (
     <Link
       to={`/price-lists/explain?${new URLSearchParams({ organizationId }).toString()}`}
-      className="mt-2 inline-block text-sm underline underline-offset-2"
+      className="inline-block text-sm underline underline-offset-2"
     >
       {t('explainer.entry.organization')}
     </Link>

@@ -805,26 +805,29 @@ export function ReturnDetail(): ReactNode {
           <CardTitle>{tr('comments.title')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="space-y-2">
-            {rc.comments.map((c) => (
-              <div key={c.id} className="rounded-md border p-2 text-sm">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{tr(`comments.author.${c.authorKind}`)}</span>
-                  <span>{formatDateTime(c.createdAt)}</span>
-                  {!c.isCustomerVisible && <Badge variant="outline">{tr('comments.internalBadge')}</Badge>}
-                  {/* "requested", not "sent": delivery is asynchronous and may fail (FR-A50). */}
-                  {c.notifyCustomer === true && (
-                    <span className="inline-flex items-center gap-1">
-                      <Mail className="size-3" aria-hidden="true" />
-                      {tr('comments.emailRequested')}
-                    </span>
-                  )}
-                </div>
-                <div className="whitespace-pre-line">{c.body}</div>
-              </div>
-            ))}
-            {rc.comments.length === 0 && <p className="text-sm text-muted-foreground">{tr('comments.none')}</p>}
-          </div>
+          {/* Issue #1437 (DS-03): rows divided by a rule, not a bordered box per comment. */}
+          {rc.comments.length > 0 && (
+            <ul className="divide-y">
+              {rc.comments.map((c) => (
+                <li key={c.id} className="space-y-1 py-2 text-sm first:pt-0">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{tr(`comments.author.${c.authorKind}`)}</span>
+                    <span>{formatDateTime(c.createdAt)}</span>
+                    {!c.isCustomerVisible && <Badge variant="outline">{tr('comments.internalBadge')}</Badge>}
+                    {/* "requested", not "sent": delivery is asynchronous and may fail (FR-A50). */}
+                    {c.notifyCustomer === true && (
+                      <span className="inline-flex items-center gap-1">
+                        <Mail className="size-3" aria-hidden="true" />
+                        {tr('comments.emailRequested')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="whitespace-pre-line">{c.body}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {rc.comments.length === 0 && <p className="text-sm text-muted-foreground">{tr('comments.none')}</p>}
           <div className="space-y-1">
             <Label htmlFor={commentBoxId}>{tr('comments.newComment')}</Label>
             <Textarea
@@ -1167,22 +1170,25 @@ function AcceptedClausesCard({ rc }: { rc: ReturnCaseDetail }): ReactNode {
             {tr('clauses.acceptedAt', { at: formatDateTime(rc.clausesAcceptedAt), language })}
           </p>
         )}
-        {rc.acceptedClauses.map((c) => (
-          <details key={`${c.clauseId}@${c.revision}`} className="rounded-md border p-2">
-            <summary className="cursor-pointer">
-              {tr('clauses.revisionOf', { label: c.label, revision: c.revision })}{' '}
-              <Badge variant="outline">{tr(`clauses.mode.${c.mode}`)}</Badge>
-            </summary>
-            <div className="mt-2 max-h-64 overflow-y-auto whitespace-pre-line" tabIndex={0}>
-              {c.text}
-            </div>
-            {c.linkUrl && (
-              <a className="underline underline-offset-2" href={c.linkUrl} target="_blank" rel="noopener noreferrer">
-                {tr('clauses.fullTerms')}
-              </a>
-            )}
-          </details>
-        ))}
+        {/* Issue #1437 (DS-03): one disclosure row per clause, divided by a rule, not a box each. */}
+        <div className="divide-y">
+          {rc.acceptedClauses.map((c) => (
+            <details key={`${c.clauseId}@${c.revision}`} className="py-2">
+              <summary className="cursor-pointer">
+                {tr('clauses.revisionOf', { label: c.label, revision: c.revision })}{' '}
+                <Badge variant="outline">{tr(`clauses.mode.${c.mode}`)}</Badge>
+              </summary>
+              <div className="mt-2 max-h-64 overflow-y-auto whitespace-pre-line" tabIndex={0}>
+                {c.text}
+              </div>
+              {c.linkUrl && (
+                <a className="underline underline-offset-2" href={c.linkUrl} target="_blank" rel="noopener noreferrer">
+                  {tr('clauses.fullTerms')}
+                </a>
+              )}
+            </details>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );
