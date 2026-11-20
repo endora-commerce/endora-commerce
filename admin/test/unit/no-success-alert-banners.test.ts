@@ -30,13 +30,6 @@ const OPEN = 'migrates under #1499 (SALES-17)';
 
 /** What is still a success banner, and where it goes. Keyed by repo-relative file. */
 const LEDGER: Record<string, { count: number; reason: string }> = {
-  'packages/modules/catalog/src/admin/pages/AttachmentTypesPage.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/AttributesManager.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/BulkOperationDetailPage.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/CategoryContentPage.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/ProductContentPage.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/ProductEditor.tsx': { count: 1, reason: `${OPEN}, with CAT-09` },
   'packages/modules/cms/src/admin/pages/BrandPage.tsx': { count: 2, reason: OPEN },
   'packages/modules/credit_limits/src/admin/pages/CreditLimitsPage.tsx': { count: 1, reason: OPEN },
   'packages/modules/crm/src/admin/components/CreateFromOpportunity.tsx': { count: 1, reason: OPEN },

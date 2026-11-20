@@ -9,7 +9,7 @@ import {
   type BulkOperationUndoResponse,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Card, CardContent, CardHeader, CardTitle, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { lookupProductLabels, type ProductLabel } from '../lib/product-labels.js';
 import { bulkOperationLogText } from '../lib/bulk-operation-log-text.js';
@@ -74,7 +74,14 @@ export function BulkOperationDetailPage(): ReactNode {
   const [elementFilter, setElementFilter] = useState<ElementFilter>('all');
   const [productInfo, setProductInfo] = useState<Record<string, ProductInfo>>({});
   const [undoing, setUndoing] = useState(false);
-  const [undoResult, setUndoResult] = useState<BulkOperationUndoResponse['data'] | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — the undo's result is said in the
+  // summary card's header where Undo was (the button is gone once the edit is
+  // undone), in a region mounted before it has text, not as a banner above the
+  // page. `undoneHere` keeps the record's own "already undone" note from
+  // repeating it.
+  const undoStatus = useInlineStatus();
+  const { show: showUndoStatus, clear: clearUndoStatus } = undoStatus;
+  const [undoneHere, setUndoneHere] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -162,20 +169,28 @@ export function BulkOperationDetailPage(): ReactNode {
     if (!ok) return;
     setUndoing(true);
     setError(null);
-    setUndoResult(null);
+    clearUndoStatus();
     try {
       const res = await apiClient.post<BulkOperationUndoResponse>(
         `/api/v1/admin/catalog/bulk-operations/${op.id}/undo`,
         {},
       );
-      setUndoResult(res.data);
+      setUndoneHere(true);
+      showUndoStatus(
+        t('bulkOperations.undo.result', {
+          reverted: res.data.reverted,
+          conflicts: res.data.conflicts.length,
+        }),
+        // Some products changed since the edit and were left as they are: a partial result.
+        res.data.conflicts.length > 0 ? 'warning' : 'success',
+      );
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('bulkOperations.undo.error'));
     } finally {
       setUndoing(false);
     }
-  }, [op, refresh, t, confirm]);
+  }, [op, refresh, t, confirm, clearUndoStatus, showUndoStatus]);
 
   const back = { label: t('bulkOperations.detail.back'), to: '/catalog/bulk-operations' };
 
@@ -226,36 +241,26 @@ export function BulkOperationDetailPage(): ReactNode {
         </Alert>
       ) : null}
 
-      {undoResult ? (
-        <Alert variant={undoResult.conflicts.length > 0 ? 'warning' : 'success'} live="polite" className="mb-4">
-          <AlertDescription>
-            {t('bulkOperations.undo.result', {
-              reverted: undoResult.reverted,
-              conflicts: undoResult.conflicts.length,
-            })}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {op.undoStatus === 'reverted' && !undoResult ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{t('bulkOperations.undo.alreadyReverted')}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <Card className="mb-4">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
           <CardTitle>{t('bulkOperations.detail.summary')}</CardTitle>
-          {canUndo ? (
-            <button
-              type="button"
-              className="b2b-btn b2b-btn--sm b2b-btn--primary"
-              disabled={undoing}
-              onClick={(): void => void handleUndo()}
-            >
-              {undoing ? t('bulkOperations.undo.running') : t('bulkOperations.undo.action')}
-            </button>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <InlineStatus {...undoStatus.props} />
+            {/* The record's state, not this visit's action: a plain note where Undo would be. */}
+            {op.undoStatus === 'reverted' && !undoneHere ? (
+              <p className="text-sm text-muted-foreground">{t('bulkOperations.undo.alreadyReverted')}</p>
+            ) : null}
+            {canUndo ? (
+              <button
+                type="button"
+                className="b2b-btn b2b-btn--sm b2b-btn--primary"
+                disabled={undoing}
+                onClick={(): void => void handleUndo()}
+              >
+                {undoing ? t('bulkOperations.undo.running') : t('bulkOperations.undo.action')}
+              </button>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">

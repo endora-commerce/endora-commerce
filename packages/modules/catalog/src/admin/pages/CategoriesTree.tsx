@@ -13,7 +13,7 @@ import {
   type SaveOutcome,
   type SavePart,
 } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, InlineStatus, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { AssetPicker, CustomFieldValuesPanel, ModalDialog, SaveSessionSummary, adminLanguageToLocale, customFieldErrorsOf, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type { CategoryTreePickerCategory } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
@@ -147,7 +147,11 @@ function CategoriesTreeScreen({
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — a create, save, (de)activation
+  // or delete is said in the page header, in a region mounted before it has
+  // text, not as a success banner above the tree: the form or the row that did
+  // it is gone (or changed) by then, and the header stays.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [createUnderId, setCreateUnderId] = useState<string | null>(null);
   const { hasPermission } = useAuth();
   const canSeeCustomFields = hasPermission('custom_fields:read');
@@ -207,6 +211,8 @@ function CategoriesTreeScreen({
       customFieldValues?: Record<string, unknown>;
     }): Promise<void> => {
       setCustomFieldErrors({});
+      clearStatus();
+      setError(null);
       try {
         const name: Record<string, string> = {};
         if (input.nameEn) name['en-US'] = input.nameEn;
@@ -219,7 +225,7 @@ function CategoriesTreeScreen({
             ? { customFieldValues: input.customFieldValues }
             : {}),
         });
-        setInfo(t('categories.success.create'));
+        showStatus(t('categories.success.create'));
         setCreateUnderId(null);
         await refresh();
       } catch (err) {
@@ -227,7 +233,7 @@ function CategoriesTreeScreen({
         setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.create'));
       }
     },
-    [refresh, t],
+    [refresh, t, showStatus, clearStatus],
   );
 
   /**
@@ -285,9 +291,9 @@ function CategoriesTreeScreen({
       setDraftState({ id: editing, draft: { ...draft, ...patch } });
       // The last save's summary belongs to it: an edit clears it (FR-016).
       sessionRef.current.clearOutcome();
-      setInfo(null);
+      clearStatus();
     },
-    [editing, draft],
+    [editing, draft, clearStatus],
   );
 
   const openEditor = useCallback(
@@ -306,7 +312,14 @@ function CategoriesTreeScreen({
       setGuard({ target: id });
       return;
     }
+    clearStatus();
     openEditor(id);
+  };
+
+  /** Opening a create form starts a new action: the last result no longer applies. */
+  const startCreate = (parentId: string): void => {
+    clearStatus();
+    setCreateUnderId(parentId);
   };
 
   /** Cancel is *Discard* without a dialog, as it has always been for the form's own fields. */
@@ -351,11 +364,11 @@ function CategoriesTreeScreen({
     if (host === null && sessionRef.current.dirtyCount === 0) return false;
     setSaving(true);
     setError(null);
-    setInfo(null);
+    clearStatus();
     try {
       const outcome = await sessionRef.current.run(host);
       if (outcome.result !== 'saved') return false;
-      setInfo(t('categories.success.save'));
+      showStatus(t('categories.success.save'));
       openEditor(null);
       return true;
     } finally {
@@ -375,20 +388,20 @@ function CategoriesTreeScreen({
   // whole branch from the storefront; the admin tree keeps showing it.
   const handleToggleActive = useCallback(
     async (id: string, next: boolean): Promise<void> => {
+      clearStatus();
+      setError(null);
       try {
         await apiClient.patch<{ data: AdminCategory }>(
           `/api/v1/admin/catalog/categories/${id}`,
           { isActive: next },
         );
-        setInfo(
-          next ? t('categories.success.activated') : t('categories.success.deactivated'),
-        );
+        showStatus(next ? t('categories.success.activated') : t('categories.success.deactivated'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.update'));
       }
     },
-    [refresh, t],
+    [refresh, t, showStatus, clearStatus],
   );
 
   const handleDelete = useCallback(
@@ -399,15 +412,17 @@ function CategoriesTreeScreen({
         destructive: true,
       });
       if (!ok) return;
+      clearStatus();
+      setError(null);
       try {
         await apiClient.delete<void>(`/api/v1/admin/catalog/categories/${cat.id}`);
-        setInfo(t('categories.success.delete'));
+        showStatus(t('categories.success.delete'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('categories.error.delete'));
       }
     },
-    [refresh, t, tc, confirm],
+    [refresh, t, tc, confirm, showStatus, clearStatus],
   );
 
   return (
@@ -415,21 +430,19 @@ function CategoriesTreeScreen({
       <PageHeader
         title={t('categories.page.title')}
         actions={
-          <Button type="button" onClick={(): void => setCreateUnderId('__root__')}>
-            <Plus />
-            {t('categories.action.newRoot')}
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <InlineStatus {...statusProps} />
+            <Button type="button" onClick={(): void => startCreate('__root__')}>
+              <Plus />
+              {t('categories.action.newRoot')}
+            </Button>
+          </div>
         }
       />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -567,7 +580,7 @@ function CategoriesTreeScreen({
                               variant="outline"
                               size="sm"
                               type="button"
-                              onClick={(): void => setCreateUnderId(c.id)}
+                              onClick={(): void => startCreate(c.id)}
                             >
                               <Plus />
                               {t('categories.action.newChild')}

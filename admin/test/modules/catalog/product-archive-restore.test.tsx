@@ -223,7 +223,10 @@ describe('ProductEditor — Archive (FR-019)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 
     expect(await screen.findByTestId('product-archived-notice')).toHaveTextContent(tr('productEditor.archived.title'));
-    expect(screen.getByText(tr('productEditor.archive.done'))).toBeInTheDocument();
+    // Issue #1499 (CAT-09): said beside the Product menu, in its polite region — not a banner.
+    await waitFor(() => expect(screen.getByTestId('product-whole-status')).toHaveTextContent(tr('productEditor.archive.done')));
+    expect(screen.getByTestId('product-whole-status')).toHaveAttribute('role', 'status');
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
     expect(screen.getByRole('button', { name: tr('productEditor.action.restore') })).toBeInTheDocument();
     await expectNoArchiveInMenu(user);
     // The status is kept, drawn as a neutral outline beside the one coloured
@@ -300,7 +303,10 @@ describe('ProductEditor — an archived product and Restore (FR-019, O-5)', () =
       expect(postSpy).toHaveBeenCalledWith(`/api/v1/admin/catalog/products/${PRODUCT_ID}/restore`, {}),
     );
     await waitFor(() => expect(screen.queryByTestId('product-archived-notice')).toBeNull());
-    expect(screen.getByText(tr('productEditor.restore.done'))).toBeInTheDocument();
+    // Issue #1499 (CAT-09): said beside the Product menu, in its polite region — not a banner.
+    await waitFor(() => expect(screen.getByTestId('product-whole-status')).toHaveTextContent(tr('productEditor.restore.done')));
+    expect(screen.getByTestId('product-whole-status')).toHaveAttribute('role', 'status');
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
     await openProductMenu(user);
     expect(screen.getByRole('menuitem', { name: tr('productEditor.action.archive') })).toBeInTheDocument();
   });
