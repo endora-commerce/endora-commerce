@@ -359,5 +359,11 @@
   "methods.added": "Dodano metodę.",
   "statusConfig.codeHint": "Tworzony z nazwy; nie można go później zmienić.",
   "statusConfig.delete": "Usuń status: {status}",
-  "statusConfig.newTitle": "Nowy status"
+  "statusConfig.newTitle": "Nowy status",
+  "reasons.deleteConfirm.title": "Usunąć ten powód?",
+  "reasons.deleteConfirm.message": "„{label}” nie będzie już dostępny w formularzu zwrotu.",
+  "methods.deleteConfirm.title": "Usunąć tę metodę dostawy zwrotnej?",
+  "methods.deleteConfirm.message": "Klienci nie będą mogli wybrać „{method}” przy zwrocie.",
+  "statusConfig.deleteConfirm.title": "Usunąć ten status?",
+  "statusConfig.deleteConfirm.message": "„{status}” zostanie usunięty z przebiegu zwrotów."
 }

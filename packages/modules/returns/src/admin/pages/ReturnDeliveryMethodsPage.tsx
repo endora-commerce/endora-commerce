@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Trash2, Truck } from 'lucide-react';
 import { ApiError, formatMoney } from '@endora-commerce/admin-kit/lib';
+import { useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
@@ -30,6 +31,9 @@ import { deliveryMethodName, localizedText, type DeliveryMethodOption } from '..
 
 import type { ReturnDeliveryMethodDto } from '@endora-commerce/contracts';
 
+/** Stable, module-level: `useRemovalFocus` keys its targets by it. */
+const rowId = (r: ReturnDeliveryMethodDto): string => r.id;
+
 /** Allowed return delivery methods + cost (feature 046, US6; translated and named in #1472). */
 export function ReturnDeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');
@@ -47,6 +51,9 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
   const [currency, setCurrency] = useState('PLN');
   const [busyId, setBusyId] = useState<string | null>(null);
   const status = useInlineStatus();
+  const { confirm, confirmDialog } = useConfirmDialog();
+  // After a confirmed delete, focus goes to the next row's Delete, else the method field (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(rows ?? [], rowId, rows !== null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -95,6 +102,24 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
   const nameOf = (r: ReturnDeliveryMethodDto): string | null => deliveryMethodName(r.deliveryMethodId, methods, language);
   const configured = new Set((rows ?? []).map((r) => r.deliveryMethodId));
   const choices = (methods ?? []).filter((m) => !configured.has(m.id));
+
+  const remove = (r: ReturnDeliveryMethodDto, shown: string): void => {
+    void confirm({
+      title: tr('methods.deleteConfirm.title'),
+      message: tr('methods.deleteConfirm.message', { method: shown }),
+      confirmLabel: t('common.action.delete'),
+      destructive: true,
+      action: async () => {
+        await returnsClient.deleteDeliveryMethod(r.id);
+        setRows((prev) => prev?.filter((x) => x.id !== r.id) ?? prev);
+      },
+      describeError: (err: unknown) => (err instanceof ApiError ? err.envelope.error.message : tr('admin.actionFailed')),
+      returnFocusTo: removalFocus.returnFocusTo(r),
+    });
+  };
+  const setCreateTarget = (element: HTMLElement | null): void => {
+    removalFocus.createRef.current = element;
+  };
 
   const add = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -168,8 +193,9 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
                           <Button
                             variant="ghost"
                             size="sm"
+                            ref={removalFocus.targetRef(r)}
                             aria-label={tr('methods.delete', { method: shown })}
-                            onClick={() => void run(() => returnsClient.deleteDeliveryMethod(r.id))}
+                            onClick={() => remove(r, shown)}
                           >
                             <Trash2 className="size-4" aria-hidden="true" />
                           </Button>
@@ -193,6 +219,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
             {methods === null ? (
               <FormField label={tr('methods.field.methodId')} hint={tr('methods.field.methodIdHint')} required className="w-96">
                 <Input
+                  ref={setCreateTarget}
                   className="font-mono"
                   spellCheck={false}
                   autoComplete="off"
@@ -206,6 +233,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
             ) : (
               <FormField label={tr('methods.field.method')} required className="w-72">
                 <Select
+                  ref={setCreateTarget}
                   value={deliveryMethodId}
                   onChange={(e) => {
                     setDeliveryMethodId(e.target.value);
@@ -249,6 +277,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
           </form>
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

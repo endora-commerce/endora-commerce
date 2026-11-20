@@ -167,7 +167,22 @@ describe('ReturnDetail in Polish (#1472)', () => {
     api.post.mockResolvedValueOnce({ data: CASE });
     await userEvent.click(button);
     expect(api.post).toHaveBeenCalledWith('/api/v1/admin/returns/r1/transition', { to: 'received' });
-    expect(await screen.findByText('Przeniesiono do: Odebrany.')).toBeTruthy();
+    // The result is an InlineStatus beside the actions (#1499), not a page banner.
+    const result = await screen.findByText('Przeniesiono do: Odebrany.');
+    expect(result.closest('[role="status"]')).not.toBeNull();
+    expect(result.closest('[data-slot="alert"]')).toBeNull();
+    expect(result.closest('[data-actions-card]')).toBe(button.closest('[data-actions-card]'));
+  });
+
+  it('reports a shipment result beside the shipments card, not as a banner', async () => {
+    mount();
+    const record = await screen.findByRole('button', { name: 'Zarejestruj przesyłkę przychodzącą' });
+    api.post.mockResolvedValueOnce({ data: { id: 's2' } });
+    await userEvent.click(record);
+    const result = await screen.findByText('Zarejestrowano przesyłkę przychodzącą.');
+    expect(result.closest('[role="status"]')).not.toBeNull();
+    expect(result.closest('[data-slot="alert"]')).toBeNull();
+    expect(result.closest('[data-shipments-card]')).toBe(record.closest('[data-shipments-card]'));
   });
 
   it('links the order by its business ID, and still links it when the number cannot be read', async () => {
@@ -218,7 +233,8 @@ describe('ReturnDetail in Polish (#1472)', () => {
     const authorize = await screen.findByRole('button', { name: 'Autoryzuj i nadaj numer RMA' });
     api.post.mockResolvedValueOnce({ data: { rmaNumber: 'RMA-7', statusCode: 'authorized' } });
     await userEvent.click(authorize);
-    expect(await screen.findByText('Autoryzowano i nadano numer RMA.')).toBeTruthy();
+    const result = await screen.findByText('Autoryzowano i nadano numer RMA.');
+    expect(result.closest('[data-slot="alert"]')).toBeNull();
     expect(screen.getByText('Brak zarejestrowanych przesyłek.')).toBeTruthy();
   });
 });
@@ -250,15 +266,38 @@ describe('ReturnReasonsPage in Polish (#1472)', () => {
     expectNoEnglish();
   });
 
-  it('toggles a reason with a named switch and deletes it with a named button', async () => {
+  it('toggles a reason with a named switch', async () => {
     mount();
     const toggle = await screen.findByRole('switch', { name: 'Aktywny: Uszkodzony' });
     expect(toggle.getAttribute('aria-checked')).toBe('true');
     await userEvent.click(toggle);
     expect(api.patch).toHaveBeenCalledWith('/api/v1/admin/returns/reasons/r1', { isActive: false });
 
+  });
+
+  it('asks before deleting a reason, deletes inside the dialog and moves focus to the next row', async () => {
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Usuń: Uszkodzony' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Usunąć ten powód?' });
+    expect(api.delete).not.toHaveBeenCalled();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Anuluj' }));
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(screen.getByText('Uszkodzony')).toBeTruthy();
+
     await userEvent.click(screen.getByRole('button', { name: 'Usuń: Uszkodzony' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Usuń' }));
     expect(api.delete).toHaveBeenCalledWith('/api/v1/admin/returns/reasons/r1');
+    await waitFor(() => expect(screen.queryByText('Uszkodzony')).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Usuń: Changed my mind' })));
+  });
+
+  it('moves focus to the new-reason field when the last reason is deleted', async () => {
+    mount([REASONS[0]]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Usuń: Uszkodzony' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Usuń' }));
+    expect(await screen.findByText('Brak powodów zwrotu')).toBeTruthy();
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(/^Etykieta \(po angielsku\)/)));
   });
 
   it('adds a reason through labelled kit fields', async () => {
@@ -348,6 +387,18 @@ describe('ReturnDeliveryMethodsPage in Polish (#1472)', () => {
     expect(api.patch).toHaveBeenCalledWith('/api/v1/admin/returns/delivery-methods/m1', { isActive: false });
   });
 
+  it('asks before deleting a return delivery method and moves focus to the next row', async () => {
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: 'Usuń: Kurier' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Usunąć tę metodę dostawy zwrotnej?' });
+    expect(api.delete).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Usuń' }));
+    expect(api.delete).toHaveBeenCalledWith('/api/v1/admin/returns/delivery-methods/m1');
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Usuń: Nieznana metoda dostawy' })),
+    );
+  });
+
   it('falls back to an ID field when the delivery methods cannot be read', async () => {
     mount(() => Promise.reject(new Error('403')));
     expect(await screen.findByLabelText(/^ID metody dostawy/)).toBeTruthy();
@@ -392,7 +443,7 @@ describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
     });
   });
 
-  it('names the delete button after the status', async () => {
+  it('names the delete button after the status and asks before deleting it', async () => {
     api.get.mockImplementation((path: string) => {
       if (path === '/api/v1/admin/returns/statuses')
         return Promise.resolve({ data: { ...GRAPH, statuses: [...GRAPH.statuses, status('inspecting', 'W ocenie', { isSystem: false })] } });
@@ -405,6 +456,13 @@ describe('ReturnStatusesConfigPage in Polish (#1472)', () => {
       BUNDLE,
       { language: 'pl' },
     );
-    expect(await screen.findByRole('button', { name: 'Usuń status: W ocenie' })).toBeTruthy();
+    await userEvent.click(await screen.findByRole('button', { name: 'Usuń status: W ocenie' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Usunąć ten status?' });
+    expect(api.delete).not.toHaveBeenCalled();
+    api.delete.mockResolvedValueOnce({ data: GRAPH });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Usuń' }));
+    expect(api.delete).toHaveBeenCalledWith('/api/v1/admin/returns/statuses/inspecting');
+    // The last deletable status is gone: focus goes to the new-status form.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText(/^Nazwa \(po angielsku\)/)));
   });
 });

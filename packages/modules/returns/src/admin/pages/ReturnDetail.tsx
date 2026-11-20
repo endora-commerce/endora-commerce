@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileText, Mail, ShieldOff, Store, UserRound } from 'lucide-react';
 import { ApiError, apiBaseUrl, formatDateTime, formatMoney, useAuth } from '@endora-commerce/admin-kit/lib';
 import { ConfirmDialog, RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Select, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, InlineStatus, Input, Label, Select, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea, useInlineStatus, type InlineStatusState } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient, type RefundPaymentMethodOption, type ReturnShipmentRow } from '../api/returns-client.js';
 import { returnStatusName } from '../labels.js';
@@ -107,7 +107,12 @@ export function ReturnDetail(): ReactNode {
   // The case could not be loaded and the API said nothing: the message is the screen's own,
   // translated at render so `refresh` does not depend on the bundle.
   const [loadFailed, setLoadFailed] = useState(false);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1472 (README rule from #1499): an action's result is an InlineStatus beside the
+  // control that produced it; errors stay a banner. The settlement card and the reject dialog
+  // go away with their result, so theirs is said beside the case's actions.
+  const actionsStatus = useInlineStatus();
+  const shipmentsStatus = useInlineStatus();
+  const commentsStatus = useInlineStatus();
   // Issue #311 — the rejection reason is asked for in a dialog, not `window.prompt()`.
   const [rejecting, setRejecting] = useState(false);
   const rejectButtonRef = useRef<HTMLButtonElement>(null);
@@ -219,13 +224,13 @@ export function ReturnDetail(): ReactNode {
   }, []);
 
   const run = useCallback(
-    async (fn: () => Promise<unknown>, ok: string): Promise<void> => {
+    async (fn: () => Promise<unknown>, ok: string, status: InlineStatusState): Promise<void> => {
       setError(null);
-      setInfo(null);
+      status.clear();
       try {
         await fn();
-        setInfo(ok);
         await refresh();
+        status.show(ok);
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('returns.detail.actionFailed'));
       }
@@ -327,20 +332,14 @@ export function ReturnDetail(): ReactNode {
           <AlertDescription>{error ?? tr('detail.loadFailed')}</AlertDescription>
         </Alert>
       )}
-      {info && (
-        <Alert live="polite">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      )}
-
       {/* Actions */}
-      <Card>
+      <Card data-actions-card="">
         <CardHeader>
           <CardTitle>{tr('detail.actions')}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
           {isNew && (
-            <Button size="sm" onClick={() => void run(() => returnsClient.authorize(id), tr('detail.authorizedInfo'))}>
+            <Button size="sm" onClick={() => void run(() => returnsClient.authorize(id), tr('detail.authorizedInfo'), actionsStatus)}>
               {tr('detail.authorize')}
             </Button>
           )}
@@ -359,6 +358,7 @@ export function ReturnDetail(): ReactNode {
                   void run(
                     () => returnsClient.transition(id, transition.toStatusCode),
                     tr('detail.movedTo', { status }),
+                    actionsStatus,
                   )
                 }
               >
@@ -372,10 +372,11 @@ export function ReturnDetail(): ReactNode {
               onDone={async (message) => {
                 setError(null);
                 await refresh();
-                setInfo(message);
+                actionsStatus.show(message);
               }}
             />
           )}
+          <InlineStatus {...actionsStatus.props} />
         </CardContent>
       </Card>
 
@@ -387,8 +388,8 @@ export function ReturnDetail(): ReactNode {
             await returnsClient.reject(id, reason);
             setRejecting(false);
             setError(null);
-            setInfo(tr('reject.rejectedInfo'));
             await refresh();
+            actionsStatus.show(tr('reject.rejectedInfo'));
           }}
         />
       )}
@@ -397,10 +398,7 @@ export function ReturnDetail(): ReactNode {
         <ConsumerWithdrawalPanel
           closed={statusIsTerminal}
           rc={rc}
-          onChanged={async (message) => {
-            await refresh();
-            setInfo(message);
-          }}
+          onChanged={refresh}
         />
       )}
 
@@ -661,7 +659,7 @@ export function ReturnDetail(): ReactNode {
               onClick={() =>
                 void (async () => {
                   setError(null);
-                  setInfo(null);
+                  actionsStatus.clear();
                   if (rc.offPlatform) {
                     // 180 FR-B33a — the button stays enabled and says why on click.
                     if (resolution === 'settled_outside' && !resolutionNote.trim()) {
@@ -675,9 +673,9 @@ export function ReturnDetail(): ReactNode {
                         lines: [],
                         ...(resolution === 'settled_outside' ? { resolutionNote: resolutionNote.trim() } : {}),
                       });
-                      setInfo(t('returns.detail.settlement.done'));
                       setResolutionNote('');
                       await refresh();
+                      actionsStatus.show(t('returns.detail.settlement.done'));
                     } catch (err) {
                       setError(err instanceof ApiError ? err.envelope.error.message : t('returns.detail.actionFailed'));
                     }
@@ -706,9 +704,9 @@ export function ReturnDetail(): ReactNode {
                         settled.refund.failureReason ?? t('returns.detail.settlement.gatewayRejected'),
                       );
                     } else {
-                      setInfo(t('returns.detail.settlement.done'));
                     }
                     await refresh();
+                    if (settled.refund?.settlementState !== 'failed') actionsStatus.show(t('returns.detail.settlement.done'));
                   } catch (err) {
                     setError(
                       err instanceof ApiError
@@ -796,7 +794,7 @@ export function ReturnDetail(): ReactNode {
       )}
 
       {/* Shipments */}
-      <Card>
+      <Card data-shipments-card="">
         <CardHeader>
           <CardTitle>{tr('shipments.title')}</CardTitle>
         </CardHeader>
@@ -824,7 +822,7 @@ export function ReturnDetail(): ReactNode {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => void run(() => returnsClient.receiveShipment(id, s.id), tr('shipments.received'))}
+                          onClick={() => void run(() => returnsClient.receiveShipment(id, s.id), tr('shipments.received'), shipmentsStatus)}
                         >
                           {tr('shipments.markReceived')}
                         </Button>
@@ -835,13 +833,16 @@ export function ReturnDetail(): ReactNode {
               </TableBody>
             </Table>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void run(() => returnsClient.createShipment(id, 'inbound'), tr('shipments.recorded'))}
-          >
-            {tr('shipments.recordInbound')}
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void run(() => returnsClient.createShipment(id, 'inbound'), tr('shipments.recorded'), shipmentsStatus)}
+            >
+              {tr('shipments.recordInbound')}
+            </Button>
+            <InlineStatus {...shipmentsStatus.props} />
+          </div>
         </CardContent>
       </Card>
 
@@ -924,11 +925,13 @@ export function ReturnDetail(): ReactNode {
                     setCommentNotify(false);
                   },
                   notify ? tr('comments.addedNotify') : tr('comments.added'),
+                  commentsStatus,
                 );
               }}
             >
               {tr('comments.add')}
             </Button>
+            <InlineStatus {...commentsStatus.props} />
           </div>
         </CardContent>
       </Card>

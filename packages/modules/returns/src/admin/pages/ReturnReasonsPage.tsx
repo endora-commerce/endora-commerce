@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ListChecks, Trash2 } from 'lucide-react';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
+import { useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
@@ -32,6 +33,9 @@ import type { ReturnReasonDto } from '@endora-commerce/contracts';
 
 const APPLIES_TO = ['both', 'return', 'complaint'] as const;
 
+/** Stable, module-level: `useRemovalFocus` keys its targets by it. */
+const reasonId = (r: ReturnReasonDto): string => r.id;
+
 /** Managed return/complaint reasons (feature 046, US7; translated in #1472). */
 export function ReturnReasonsPage(): ReactNode {
   const t = useTranslation('core');
@@ -45,6 +49,9 @@ export function ReturnReasonsPage(): ReactNode {
   const [weight, setWeight] = useState(100);
   const [busyId, setBusyId] = useState<string | null>(null);
   const status = useInlineStatus();
+  const { confirm, confirmDialog } = useConfirmDialog();
+  // After a confirmed delete, focus goes to the next row's Delete, else the new-reason field (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(rows ?? [], reasonId, rows !== null);
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -76,6 +83,26 @@ export function ReturnReasonsPage(): ReactNode {
   );
 
   const nameOf = (r: ReturnReasonDto): string => localizedText(r.label, language, '—');
+
+  const describeError = (err: unknown): string =>
+    err instanceof ApiError ? err.envelope.error.message : tr('admin.actionFailed');
+
+  // The request runs inside the confirmation, so a refusal is shown in the dialog;
+  // the row is removed in place so the neighbour that takes focus stays mounted.
+  const remove = (r: ReturnReasonDto): void => {
+    void confirm({
+      title: tr('reasons.deleteConfirm.title'),
+      message: tr('reasons.deleteConfirm.message', { label: nameOf(r) }),
+      confirmLabel: t('common.action.delete'),
+      destructive: true,
+      action: async () => {
+        await returnsClient.deleteReason(r.id);
+        setRows((prev) => prev?.filter((x) => x.id !== r.id) ?? prev);
+      },
+      describeError,
+      returnFocusTo: removalFocus.returnFocusTo(r),
+    });
+  };
 
   const add = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
@@ -139,8 +166,9 @@ export function ReturnReasonsPage(): ReactNode {
                         <Button
                           variant="ghost"
                           size="sm"
+                          ref={removalFocus.targetRef(r)}
                           aria-label={tr('reasons.delete', { label: nameOf(r) })}
-                          onClick={() => void run(() => returnsClient.deleteReason(r.id))}
+                          onClick={() => remove(r)}
                         >
                           <Trash2 className="size-4" aria-hidden="true" />
                         </Button>
@@ -162,6 +190,9 @@ export function ReturnReasonsPage(): ReactNode {
           <form className="flex flex-wrap items-start gap-4" onSubmit={(e) => void add(e)}>
             <FormField label={tr('reasons.field.label')} required className="w-72">
               <Input
+                ref={(element: HTMLInputElement | null) => {
+                  removalFocus.createRef.current = element;
+                }}
                 value={label}
                 maxLength={200}
                 onChange={(e) => {
@@ -197,6 +228,7 @@ export function ReturnReasonsPage(): ReactNode {
           </form>
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

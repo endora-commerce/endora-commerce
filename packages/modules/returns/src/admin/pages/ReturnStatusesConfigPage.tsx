@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { ApiError, useDerivedKey } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, Input, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
-import { StatusTransitionGraph } from '@endora-commerce/admin-kit/components';
+import { StatusTransitionGraph, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient } from '../api/returns-client.js';
 import { returnStatusName } from '../labels.js';
@@ -17,6 +17,9 @@ import type { ReturnNotificationHealth, ReturnStatusDto, ReturnTransitionDto } f
  */
 const DEDICATED_EMAIL_STATUSES: ReadonlySet<string> = new Set(['authorized', 'rejected']);
 
+/** Stable, module-level: `useRemovalFocus` keys its targets by it. */
+const statusCode = (s: { code: string }): string => s.code;
+
 /** Configurable return/complaint workflow (feature 046, US3). */
 export function ReturnStatusesConfigPage(): ReactNode {
   const t = useTranslation('core');
@@ -28,9 +31,14 @@ export function ReturnStatusesConfigPage(): ReactNode {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [saving, setSaving] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
   // Issue #1472 — the operator's language first (`returnStatusName`), then the default name.
   const statusLabel = (s: Pick<ReturnStatusDto, 'code' | 'name' | 'defaultName'>): string => returnStatusName(s, language);
   // Tesler: the code follows the English name until the operator edits it (DS-22, `useDerivedKey`).
+  const { confirm, confirmDialog } = useConfirmDialog();
+  // Only these rows carry a Delete; focus after one goes to the next of them, else the new-status form.
+  const deletable = statuses.filter((s) => !s.isInitial && !s.isSystem);
+  const removalFocus = useRemovalFocus(deletable, statusCode, loaded);
   const codeField = useDerivedKey({ source: name, value: code, onChange: setCode, separator: '_', maxLength: 64 });
   // `specs/180-off-platform-complaints/` D-7 — where the new-case e-mail goes to nobody.
   const [health, setHealth] = useState<ReturnNotificationHealth | null>(null);
@@ -42,6 +50,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
       const graph = await returnsClient.statuses();
       setStatuses(graph.statuses);
       setTransitions(graph.transitions);
+      setLoaded(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : tr('admin.loadFailed'));
     }
@@ -125,6 +134,23 @@ export function ReturnStatusesConfigPage(): ReactNode {
       .filter((x) => !(x.fromStatusCode === fromCode && x.toStatusCode === toCode))
       .map((x) => ({ fromStatusCode: x.fromStatusCode, toStatusCode: x.toStatusCode }));
     void run(() => returnsClient.setTransitions(next));
+  };
+
+  const removeStatus = (s: ReturnStatusDto & { inUseCount: number }): void => {
+    void confirm({
+      title: tr('statusConfig.deleteConfirm.title'),
+      message: tr('statusConfig.deleteConfirm.message', { status: statusLabel(s) }),
+      confirmLabel: t('common.action.delete'),
+      destructive: true,
+      // The endpoint answers with the whole graph: taken as is, the other rows stay mounted.
+      action: async () => {
+        const graph = await returnsClient.deleteStatus(s.code);
+        setStatuses(graph.statuses);
+        setTransitions(graph.transitions);
+      },
+      describeError: (err: unknown) => (err instanceof ApiError ? err.envelope.error.message : tr('admin.actionFailed')),
+      returnFocusTo: removalFocus.returnFocusTo(s),
+    });
   };
 
   const addStatus = (event: FormEvent): void => {
@@ -224,8 +250,9 @@ export function ReturnStatusesConfigPage(): ReactNode {
                         <Button
                           variant="ghost"
                           size="sm"
+                          ref={removalFocus.targetRef(s)}
                           aria-label={tr('statusConfig.delete', { status: statusLabel(s) })}
-                          onClick={() => void run(() => returnsClient.deleteStatus(s.code))}
+                          onClick={() => removeStatus(s)}
                         >
                           <Trash2 className="size-4" aria-hidden="true" />
                         </Button>
@@ -248,7 +275,14 @@ export function ReturnStatusesConfigPage(): ReactNode {
         <CardContent>
           <form className="flex flex-wrap items-start gap-4" onSubmit={addStatus}>
             <FormField label={tr('statusConfig.newName')} required className="w-64">
-              <Input value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+              <Input
+                ref={(element: HTMLInputElement | null) => {
+                  removalFocus.createRef.current = element;
+                }}
+                value={name}
+                maxLength={120}
+                onChange={(e) => setName(e.target.value)}
+              />
             </FormField>
             <FormField label={tr('statusConfig.newCode')} hint={tr('statusConfig.codeHint')} required className="w-80">
               <Input
@@ -284,6 +318,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
           />
         </CardContent>
       </Card>
+      {confirmDialog}
     </div>
   );
 }

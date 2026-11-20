@@ -359,5 +359,11 @@
   "methods.added": "Method added.",
   "statusConfig.codeHint": "Taken from the name; it cannot be changed later.",
   "statusConfig.delete": "Delete status: {status}",
-  "statusConfig.newTitle": "New status"
+  "statusConfig.newTitle": "New status",
+  "reasons.deleteConfirm.title": "Delete this reason?",
+  "reasons.deleteConfirm.message": "“{label}” will no longer be offered on the return form.",
+  "methods.deleteConfirm.title": "Delete this return delivery method?",
+  "methods.deleteConfirm.message": "Customers will no longer be able to choose “{method}” for a return.",
+  "statusConfig.deleteConfirm.title": "Delete this status?",
+  "statusConfig.deleteConfirm.message": "“{status}” will be removed from the return workflow."
 }
