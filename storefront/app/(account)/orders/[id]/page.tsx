@@ -26,6 +26,7 @@ import { formatMoney } from '../../../../lib/i18n/money';
 import { tForLocale } from '../../../../lib/i18n/messages';
 import { resolvePaymentReturnNotice } from '../../../../lib/orders/payment-return-notice';
 import { OrderItemRows } from '../../../../components/orders/OrderItemRows';
+import { OrderPayerLine } from '../../../../components/account/PaidOrders';
 import { PurchaseTracker } from '../../../../components/analytics/EcommerceTrackers';
 import { purchaseTrackingPayload } from '../../../../lib/analytics/purchase-eligibility';
 import type { Metadata } from 'next';
@@ -200,6 +201,9 @@ export default async function OrderConfirmationPage({
       ) : null}
 
       {paymentNotice ? <p className="b2b-auth__hint">{t(paymentNotice)}</p> : null}
+
+      {/* `specs/182-related-payers/` FR-073 — who is billed, when it is not the buyer. */}
+      <OrderPayerLine payer={order.payer} locale={locale} />
 
       {order.nextAction?.kind === 'awaiting_transfer' ? (
         <p>{t('account.order.bankTransfer')}</p>

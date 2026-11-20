@@ -1383,7 +1383,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // the new one as a regression. Both halves of all five fired in one run,
   // which is what the ratchet is for: a re-key is visible as a re-key rather
   // than as a debt that quietly moved house.
-  'packages/modules/delivery_methods/src/admin/pages/DeliveryMethodsPage.tsx': 6,
   'packages/modules/returns/src/admin/pages/ReturnDeliveryMethodsPage.tsx': 11,
   'packages/modules/returns/src/admin/pages/ReturnDetail.tsx': 14,
   'packages/modules/returns/src/admin/pages/ReturnReasonsPage.tsx': 14,
@@ -1463,7 +1462,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/cms/src/admin/components/SectionBlockFields.tsx': 6,
   'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx': 2,
   'packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx': 1,
-  'packages/modules/payment_methods/src/admin/pages/PaymentMethodsPage.tsx': 1,
   'packages/modules/quick_order/src/admin/pages/QuickOrderOnBehalfPage.tsx': 1,
   'packages/modules/settings/src/admin/components/ConflictBanner.tsx': 2,
   'packages/modules/settings/src/admin/pages/SettingsPage.tsx': 6,

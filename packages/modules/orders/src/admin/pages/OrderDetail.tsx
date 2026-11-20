@@ -91,6 +91,8 @@ interface OrderDetail {
   customFieldValues?: Record<string, unknown>;
   deliveryAddress: OrderAddress;
   billingAddress: OrderAddress;
+  /** `specs/182-related-payers/` — who pays for and is invoiced for the order, when not the buyer. */
+  payer?: { organizationId: string; name: string; taxId: string; terms: 'buyer' | 'payer' } | null;
   /**
    * The method as the buyer saw it at placement. `name` is the snapshot's
    * string; an older shape carried a per-language map, read by `methodName`.
@@ -764,6 +766,16 @@ export function OrderDetail(): ReactNode {
                     <p className="text-muted-foreground">
                       {t('orderDetail.paidBy')} <strong>{methodName(order.paymentMethod, language)}</strong>
                     </p>
+                    {/* `specs/182-related-payers/` FR-073 — the payer, as order data. */}
+                    {order.payer ? (
+                      <p>
+                        <span>{tOrders('orderDetail.payer')}:</span>{' '}
+                        <Link to={`/organizations/${order.payer.organizationId}`} className="font-medium underline underline-offset-2">
+                          {order.payer.name}
+                        </Link>{' '}
+                        <span className="text-muted-foreground">{tOrders(`orderDetail.payerTerms.${order.payer.terms}`)}</span>
+                      </p>
+                    ) : null}
                   </div>
                 </Section>
               </div>

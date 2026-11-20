@@ -1,0 +1,19 @@
+{
+  // Type-check configuration — the two-config split every package under
+  // `packages/` uses (feature 080, T042 / R11); see
+  // `packages/modules/admin_feedback/tsconfig.json` for the full rationale.
+  // `noEmit`: with `tsconfig.base.json`'s `paths` active an emit would land
+  // beside another package's source. The emitting configuration is
+  // `tsconfig.build.json`.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*"],
+  // The admin layer is its own program (`tsconfig.ui.json`): React and the DOM
+  // lib must not reach a file that runs in Node. Co-located backend tests stay in
+  // this program on purpose — a test excluded here is a test no `tsc` reads (#81).
+  "exclude": ["src/admin/**/*"]
+}

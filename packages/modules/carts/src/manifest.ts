@@ -139,6 +139,20 @@ export const manifest = defineModuleManifest({
         'ordering claim the foreign key contradicts is dropped.',
     },
   ],
+  nonBindingDependencies: [
+    {
+      moduleId: 'related_payers',
+      name: 'relatedPayerPolicyPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'no payer can be chosen on the cart, and a cart bought for a payer returns to the buyer\'s own prices on its next read',
+      reason:
+        '`specs/182-related-payers/` FR-110 — *Buying for* asks the policy before it records a payer and on ' +
+        'every read of a payer\'s-terms cart. The routes and the pricing-subject resolver ask ' +
+        '`effectiveState.isPresent` before resolving the port; absent, `PUT /api/v1/cart/buying-for` naming ' +
+        'a payer answers 404 and the cart read resets the context with `capability_unavailable` (FR-116).',
+    },
+  ],
   /**
    * The first three error codes this module owns — feature 090 Phase 3
    * (`specs/090-module-owned-error-codes/contracts/error-code-declaration.md`

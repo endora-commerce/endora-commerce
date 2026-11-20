@@ -20,7 +20,11 @@ import {
   type PromotionApplication,
   type PromotionApplyPort,
   type StartPaymentResult,
+  type AddressRecord,
+  type RelatedPayerPolicyPort,
+  type UsablePayer,
   isUuidShape,
+  type CartRecord,
 } from '@endora-commerce/contracts';
 import { LockMode } from '@mikro-orm/core';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
@@ -38,7 +42,7 @@ import {
 
 import type { AuditPort, PlatformLogger } from '@endora-commerce/platform/kernel';
 import { actorFromContext } from '@endora-commerce/platform/commands';
-import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { getTenantContext, withSystemScope } from '@endora-commerce/platform/tenancy';
 import { NoSystemDefaultChannel } from '@endora-commerce/platform/kernel';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { Order } from '../entities/order.entity.js';
@@ -317,6 +321,14 @@ export interface OrderServiceNeighbourPorts {
    * port instead of reading as "no restriction".
    */
   readonly organizationRestriction: OrganizationRestrictionPort;
+  /**
+   * `specs/182-related-payers/` — `related_payers`' policy port, read only for a
+   * placement or preview that names a payer. `refuses-without` in the manifest: with
+   * the owner off the call answers `503 MODULE_DISABLED` and such an order is not
+   * placed; every other order never reaches it. Optional for a hand-built rig that
+   * places no order with a payer; absent, a payer is refused the same way.
+   */
+  readonly relatedPayerPolicy?: RelatedPayerPolicyPort;
   readonly customerAccountRead: CustomerAccountReadPort;
   readonly addressRead: AddressReadPort;
   readonly catalogProductRead: CatalogProductReadPort;
@@ -475,10 +487,30 @@ function cartApprovalRequired(cart: { id: string; approvalStatus: CartApprovalSt
  * before) and its name is the person's, so the order is billed to the person. An absent key, not an empty string, is
  * what every renderer (invoice, PDF, e-mail, admin) reads as "no company".
  */
+/** `specs/182-related-payers/` — a payer vouched for by the policy port. */
+interface VouchedPayer {
+  readonly usable: UsablePayer;
+  readonly organization: OrganizationRecord;
+  /** `null` only for a preview that named no billing address. */
+  readonly billing: AddressRecord | null;
+}
+
 export function billingCompanyData(
   org: Pick<OrganizationRecord, 'isPersonal' | 'legalName' | 'name' | 'taxId'>,
   req: Pick<PlaceOrderRequest, 'billingCompanyName' | 'billingTaxId'>,
+  /**
+   * `specs/182-related-payers/` (FR-061, FR-067) — the payer of the order, when one is
+   * named: its company name and tax id are the billing snapshot's, read-only. The
+   * override is never consulted (the request schema refuses the pair, FR-062).
+   */
+  payer?: { readonly name: string; readonly taxId: string } | null,
 ): { companyName?: string; taxId?: string } {
+  if (payer) {
+    return {
+      ...(payer.name ? { companyName: payer.name } : {}),
+      ...(payer.taxId ? { taxId: payer.taxId } : {}),
+    };
+  }
   const companyName =
     req.billingCompanyName?.trim() || (org.isPersonal ? '' : org.legalName || org.name);
   const taxId = req.billingTaxId?.trim() || organizationCompanyTaxId(org);
@@ -1358,12 +1390,122 @@ export class OrderService {
    * so the storefront can display the exact amount (e.g. for the inline Stripe
    * Payment Element) without re-deriving pricing on the client.
    */
+  /**
+   * `specs/182-related-payers/` (FR-060, FR-063, FR-068) — the payer a placement or
+   * preview names, vouched for by `relatedPayerPolicyPort` (on the placement's own
+   * transaction when given), with its allowed billing address and its record. The
+   * payer's address is read through the port, under its system scope: under the
+   * buyer's ambient context `addressRead` would answer it as absent (research R-5).
+   */
+  /**
+   * `specs/182-related-payers/` FR-112 — who promotions are evaluated (and their use recorded)
+   * for: the payer and its customer group on the payer's commercial terms, with no customer
+   * account's own group (A-18); otherwise the buyer and its effective group.
+   */
+  async #promotionBuyer(
+    ctx: CustomerContext,
+    org: OrganizationRecord | null,
+    payer: VouchedPayer | null,
+  ): Promise<{ organizationId: string; customerGroupId: string | null }> {
+    if (payer && payer.usable.commercialTerms === 'payer') {
+      return { organizationId: payer.usable.payerOrganizationId, customerGroupId: payer.organization.customerGroupId ?? null };
+    }
+    return { organizationId: ctx.organizationId, customerGroupId: await this.resolveCustomerGroupId(ctx.customerAccountId, org) };
+  }
+
+  async #vouchPayer(
+    ctx: CustomerContext,
+    payerOrganizationId: string,
+    billingAddressId: string | undefined,
+    salesChannelId: string,
+    cart: Pick<CartRecord, 'buyingForOrganizationId' | 'buyingForTerms'> | null,
+    tx?: EntityManager,
+  ): Promise<VouchedPayer> {
+    const policy = this.neighbours.relatedPayerPolicy;
+    if (!policy) {
+      throw new HttpError(503, ERROR_CODES.MODULE_DISABLED, 'Related payers are not available.', {
+        module: 'related_payers',
+      });
+    }
+    const subject = {
+      buyerOrganizationId: ctx.organizationId,
+      customerAccountId: ctx.customerAccountId,
+      salesChannelId,
+    };
+    const usable = await policy.assertUsable(subject, payerOrganizationId, {
+      ...(tx ? { tx } : {}),
+      ...(billingAddressId ? { billingAddressId } : {}),
+    });
+    // FR-060, FR-110 — a link on the payer's terms is chosen on the cart, which reprices for
+    // the payer first; placement re-checks that the cart is still in that context (FR-116).
+    if (
+      usable.commercialTerms === 'payer' &&
+      !(cart?.buyingForTerms === 'payer' && cart.buyingForOrganizationId === payerOrganizationId)
+    ) {
+      throw new HttpError(422, ERROR_CODES.RELATED_PAYER_NOT_USABLE, 'This payer cannot be used for this order right now.', {
+        reason: 'payer_terms_need_cart',
+      });
+    }
+    // FR-116 — a cart priced on the payer's terms whose link has since turned to the buyer's:
+    // its prices are no longer vouched for. Refused before anything is written; the next cart
+    // read reprices it for the buyer and says why.
+    if (
+      cart?.buyingForTerms === 'payer' &&
+      cart.buyingForOrganizationId === payerOrganizationId &&
+      usable.commercialTerms !== 'payer'
+    ) {
+      throw new HttpError(422, ERROR_CODES.RELATED_PAYER_NOT_USABLE, 'This payer cannot be used for this order right now.', {
+        reason: 'payer_terms_changed',
+      });
+    }
+    const organization = await this.neighbours.organizationDetails.findById(payerOrganizationId);
+    if (!organization) {
+      throw new HttpError(422, ERROR_CODES.RELATED_PAYER_NOT_USABLE, 'This payer cannot be used for this order right now.', {
+        reason: 'payer_missing',
+      });
+    }
+    let billing: AddressRecord | null = null;
+    if (billingAddressId) {
+      const addresses = await policy.payerBillingAddresses(subject, payerOrganizationId);
+      billing = addresses.find((a) => a.id === billingAddressId) ?? null;
+      if (!billing) {
+        throw new HttpError(403, ERROR_CODES.ADDRESS_NOT_OWNED, 'Address does not belong to the caller organization.');
+      }
+    }
+    return { usable, organization, billing };
+  }
+
+  /**
+   * The payment method checked against the **payer's** allow-list, the delivery method
+   * against the buyer's (FR-066, RP-9). The payer's rows are `@OrgScoped`: read under the
+   * buyer's context they come back empty, which the gate reads as "unrestricted" — so
+   * the read runs under a system scope with the payer id from the validated link.
+   */
+  async #assertMethodsAllowedForPayer(
+    ctx: CustomerContext,
+    payer: VouchedPayer,
+    choice: { deliveryMethodId: string; paymentMethodId: string },
+  ): Promise<void> {
+    await this.assertMethodsAllowedForOrganization({
+      organizationId: ctx.organizationId,
+      deliveryMethodId: choice.deliveryMethodId,
+    });
+    await withSystemScope('orders: payment methods of the related payer', () =>
+      this.assertMethodsAllowedForOrganization({
+        organizationId: payer.usable.payerOrganizationId,
+        paymentMethodId: choice.paymentMethodId,
+      }),
+    );
+  }
+
   async previewTotal(
     ctx: CustomerContext,
     req: {
       deliveryMethodId: string;
       paymentMethodId: string;
       billingAddressId?: string | undefined;
+      /** `specs/182-related-payers/` FR-064 — preview as placement with this payer. */
+      payerOrganizationId?: string | undefined;
       /**
        * The channel the previewed order would be placed on. The storefront
        * route passes the request's resolved channel; when it is given, the
@@ -1438,13 +1580,22 @@ export class OrderService {
     if (!cart || items.length === 0) {
       throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
     }
+    // `specs/182-related-payers/` — the payer, vouched for as placement will (FR-064).
+    const payer = req.payerOrganizationId
+      ? await this.#vouchPayer(ctx, req.payerOrganizationId, req.billingAddressId, basketChannelId, cart)
+      : null;
+    assertCartContextNamed(cart, req.payerOrganizationId);
     // The same refusal the placement gives, so a checkout is never shown totals
-    // for a method its Organization may not use.
-    await this.assertMethodsAllowedForOrganization({
-      organizationId: ctx.organizationId,
-      deliveryMethodId: req.deliveryMethodId,
-      paymentMethodId: req.paymentMethodId,
-    });
+    // for a method its Organization — or its payer — may not use.
+    if (payer) {
+      await this.#assertMethodsAllowedForPayer(ctx, payer, req);
+    } else {
+      await this.assertMethodsAllowedForOrganization({
+        organizationId: ctx.organizationId,
+        deliveryMethodId: req.deliveryMethodId,
+        paymentMethodId: req.paymentMethodId,
+      });
+    }
     const deliveryMethod = await this.activeDeliveryMethod(req.deliveryMethodId);
     if (!deliveryMethod) throw deliveryMethodNotActive(req.deliveryMethodId);
     const paymentMethod = await this.activePaymentMethod(req.paymentMethodId);
@@ -1507,8 +1658,11 @@ export class OrderService {
 
     // Tax country: prefer the selected billing address (matches placeOrder),
     // else the organization's registered country.
-    let taxCountry: string | null = org?.registeredAddress?.country ?? null;
-    if (req.billingAddressId) {
+    let taxCountry: string | null = (payer?.organization ?? org)?.registeredAddress?.country ?? null;
+    if (payer) {
+      // FR-064 — the payer's chosen billing address, read through the policy port.
+      if (payer.billing) taxCountry = payer.billing.country;
+    } else if (req.billingAddressId) {
       const billing = await this.neighbours.addressRead.findById(
         ctx.organizationId,
         req.billingAddressId,
@@ -1520,15 +1674,16 @@ export class OrderService {
     const totals = await this.computeMonetaryTotals({
       items,
       productById,
-      vatStatus: org?.vatStatus ?? 'vat_payer',
+      // FR-064 — tax from the payer's VAT status when one is named.
+      vatStatus: (payer?.organization ?? org)?.vatStatus ?? 'vat_payer',
       taxCountry,
       deliveryCost: deliveryMethod.cost,
       paymentSurcharge: paymentMethod.additionalPrice ?? '0',
       currency: deliveryMethod.currency,
       appliedPromotionCode: cart.appliedPromotionCode ?? null,
       salesChannelId: cart.salesChannelId ?? null,
-      organizationId: ctx.organizationId,
-      customerGroupId: await this.resolveCustomerGroupId(ctx.customerAccountId, org),
+      // FR-112 — on the payer's terms, promotions are evaluated for the payer.
+      ...(await this.#promotionBuyer(ctx, org, payer)),
     });
 
     return {
@@ -2068,14 +2223,24 @@ export class OrderService {
         }
       }
 
-      const [delivery, billing] = await Promise.all([
+      // `specs/182-related-payers/` — a named payer is vouched for inside this
+      // transaction (FR-068: nothing is reserved or written before), and its billing
+      // address comes from the payer, through the policy port (FR-063).
+      const payer = req.payerOrganizationId
+        ? await this.#vouchPayer(ctx, req.payerOrganizationId, req.billingAddressId, orderChannel.id, cart, tx)
+        : null;
+      assertCartContextNamed(cart, req.payerOrganizationId);
+      const [delivery, ownBilling] = await Promise.all([
         this.neighbours.addressRead.findById(ctx.organizationId, req.deliveryAddressId, {
           liveOnly: true,
         }),
-        this.neighbours.addressRead.findById(ctx.organizationId, req.billingAddressId, {
-          liveOnly: true,
-        }),
+        payer
+          ? Promise.resolve(null)
+          : this.neighbours.addressRead.findById(ctx.organizationId, req.billingAddressId, {
+              liveOnly: true,
+            }),
       ]);
+      const billing = payer ? payer.billing : ownBilling;
       if (!delivery || !billing) {
         throw new HttpError(403, ERROR_CODES.ADDRESS_NOT_OWNED, 'Address does not belong to the caller organization.');
       }
@@ -2086,11 +2251,16 @@ export class OrderService {
       // `ctx` — the one the caller resolved, never one a request named. Before
       // anything is written: the basket has only been read so far. No caller
       // is exempt — an administrator placing on a customer's behalf included.
-      await this.assertMethodsAllowedForOrganization({
-        organizationId: ctx.organizationId,
-        deliveryMethodId: req.deliveryMethodId,
-        paymentMethodId: req.paymentMethodId,
-      });
+      // With a payer, the payment method is the payer's to allow (FR-066).
+      if (payer) {
+        await this.#assertMethodsAllowedForPayer(ctx, payer, req);
+      } else {
+        await this.assertMethodsAllowedForOrganization({
+          organizationId: ctx.organizationId,
+          deliveryMethodId: req.deliveryMethodId,
+          paymentMethodId: req.paymentMethodId,
+        });
+      }
 
       const deliveryMethod = await this.activeDeliveryMethod(req.deliveryMethodId);
       if (!deliveryMethod) throw deliveryMethodNotActive(req.deliveryMethodId);
@@ -2322,7 +2492,9 @@ export class OrderService {
 
       // Resolved once and used twice: the promotion engine's audience filter
       // inside the totals below, and the redemption row `finalizeUsage` writes.
-      const customerGroupId = await this.resolveCustomerGroupId(ctx.customerAccountId, org);
+      // FR-112 — on the payer's terms, the payer and its group (`specs/182-related-payers/`).
+      const promotionBuyer = await this.#promotionBuyer(ctx, org, payer);
+      const customerGroupId = promotionBuyer.customerGroupId;
 
       // All monetary math (subtotal, per-product VAT, delivery, surcharge,
       // promotion discount) runs through one shared computation so the storefront
@@ -2337,14 +2509,15 @@ export class OrderService {
       } = await this.computeMonetaryTotals({
         items,
         productById,
-        vatStatus: org.vatStatus ?? 'vat_payer',
+        // FR-064 — with a payer, its VAT status and its billing address's country.
+        vatStatus: (payer?.organization ?? org).vatStatus ?? 'vat_payer',
         taxCountry: billing.country ?? delivery.country ?? null,
         deliveryCost: deliveryMethod.cost,
         paymentSurcharge: paymentMethod.additionalPrice ?? '0',
         currency: deliveryMethod.currency,
         appliedPromotionCode: cart.appliedPromotionCode ?? null,
         salesChannelId: cart.salesChannelId ?? null,
-        organizationId: ctx.organizationId,
+        organizationId: promotionBuyer.organizationId,
         customerGroupId,
       });
 
@@ -2410,8 +2583,34 @@ export class OrderService {
           // Default the billing company + tax-id from the Organization; the
           // buyer may override either at checkout for this order only. A
           // personal Organization contributes no default (issue #759).
-          ...billingCompanyData(org, req),
+          ...billingCompanyData(
+            org,
+            req,
+            payer ? { name: payer.usable.payerName, taxId: payer.usable.payerTaxId } : null,
+          ),
         },
+        // `specs/182-related-payers/` (FR-067) — the payer, as order data.
+        ...(payer
+          ? {
+              payerOrganizationId: payer.usable.payerOrganizationId,
+              payerLinkId: payer.usable.linkId,
+              payerTerms: payer.usable.commercialTerms,
+              payerSnapshot: {
+                organizationId: payer.usable.payerOrganizationId,
+                name: payer.usable.payerName,
+                taxId: payer.usable.payerTaxId,
+                vatStatus: payer.organization.vatStatus,
+                billingAddress: {
+                  recipientName: billing.recipientName,
+                  street: billing.street,
+                  city: billing.city,
+                  postalCode: billing.postalCode,
+                  country: billing.country,
+                  phone: billing.phone ?? null,
+                },
+              },
+            }
+          : {}),
         ...(req.deliveryPoint
           ? {
               deliveryPointSnapshot: {
@@ -2511,7 +2710,7 @@ export class OrderService {
           orderId: order.id,
           currency,
           ctx: {
-            organizationId: ctx.organizationId,
+            organizationId: promotionBuyer.organizationId,
             customerAccountId: ctx.customerAccountId,
             customerGroupId,
             salesChannelId: channel.id,
@@ -2735,13 +2934,17 @@ export class OrderService {
             'Credit-limit driver is not wired into the order service.',
           );
         }
-        const result = await this.creditLimit.reserve({
-          organizationId: ctx.organizationId,
-          orderId: order.id,
-          amount: total,
-          currency,
-          tx,
-        });
+        // `specs/182-related-payers/` FR-065 — with a payer, the payer's credit (under
+        // the inheritance rule), read under a system scope with the payer id from the
+        // validated link: under the buyer's context the payer's grant reads as absent.
+        const creditLimit = this.creditLimit;
+        const reserveFor = (organizationId: string) =>
+          creditLimit.reserve({ organizationId, orderId: order.id, amount: total, currency, tx });
+        const result = payer
+          ? await withSystemScope('orders: credit of the related payer', () =>
+              reserveFor(payer.usable.payerOrganizationId),
+            )
+          : await reserveFor(ctx.organizationId);
         if (!result.ok) {
           if (result.code === 'LIMIT_INSUFFICIENT') {
             throw new HttpError(
@@ -3194,4 +3397,20 @@ function paymentMethodNotActive(paymentMethodId: string): HttpError {
     'Payment method is not active.',
     { paymentMethodId },
   );
+}
+
+/**
+ * `specs/182-related-payers/` FR-117, FR-060 — a cart on a payer's commercial terms is priced
+ * for that payer, so it can be placed only naming that payer: the checkout shows it fixed, and a
+ * request naming another payer, or none, is refused before anything is written.
+ */
+function assertCartContextNamed(
+  cart: Pick<CartRecord, 'buyingForOrganizationId' | 'buyingForTerms'> | null,
+  payerOrganizationId: string | undefined | null,
+): void {
+  if (cart?.buyingForTerms !== 'payer' || !cart.buyingForOrganizationId) return;
+  if (payerOrganizationId === cart.buyingForOrganizationId) return;
+  throw new HttpError(422, ERROR_CODES.RELATED_PAYER_NOT_USABLE, 'This payer cannot be used for this order right now.', {
+    reason: 'cart_bought_for_payer',
+  });
 }

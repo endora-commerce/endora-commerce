@@ -171,7 +171,7 @@ export function TemplateFieldInspector(props: TemplateFieldInspectorProps): Reac
             patch({ fallbackValue: event.target.value === '' ? null : event.target.value })
           }
         />
-        <p id={`${errorId}-fallback-help`} className="b2b-help">
+        <p id={`${errorId}-fallback-help`} className="m-0 text-xs text-muted-foreground">
           {t('builder.help.fallback')}
         </p>
         {fallbackProblem ? (

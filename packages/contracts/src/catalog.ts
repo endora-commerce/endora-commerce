@@ -2350,6 +2350,17 @@ export interface ProductAudience {
    * for every other caller.
    */
   readonly customerAccountId?: string | null;
+  /**
+   * `specs/182-related-payers/` (research R-4) — the Organization prices are
+   * resolved for, when it is not {@link organizationId}: a buyer whose cart is in
+   * a payer's-terms context sees the payer's prices. Absent or `null` means
+   * `organizationId`.
+   *
+   * **Not a visibility input**: `isProductVisibleTo` never reads it, so what the
+   * buyer may see stays the buyer's. Filled only by the platform's
+   * `pricedAudienceOf`, never from anything the client sends.
+   */
+  readonly pricingOrganizationId?: string | null;
 }
 
 /**

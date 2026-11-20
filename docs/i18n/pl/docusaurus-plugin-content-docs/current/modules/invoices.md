@@ -175,6 +175,14 @@ zapłacono więcej niż kwota brutto, do zapłaty jest 0, a faktura podaje róż
 (`overpayment` w API, wiersz *Nadpłata* na ekranie panelu i na PDF — etykieta jest ustawieniem
 bloku podsumowania i tam można ten wiersz ukryć).
 
+## Zamówienia opłacane przez płatnika powiązanego {#orders-paid-by-a-related-payer}
+
+Zamówienie złożone z płatnikiem powiązanym (moduł *Related payers*) ma migawkę danych rozliczeniowych
+płatnika, więc faktura jest wystawiana na płatnika. Rejestr faktur zapisuje ją przy płatniku —
+`payerOrganizationId ?? organizationId` — a zasięg listy faktur w panelu i jej filtr
+*Organizacja na fakturze* używają tego samego wyrażenia, więc taka faktura widnieje przy płatniku, a
+nie przy kupującym. Płatnik pobiera ją przez swój widok zamówienia tylko do odczytu.
+
 ## Encje
 
 `Invoice` (numer, `kind ∈ {invoice, proforma, correction, wz}`, `status ∈ {pending, ready, cancelled}`,

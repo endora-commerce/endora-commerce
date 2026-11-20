@@ -53,8 +53,10 @@ export function createSuggestionPricingEnricher(deps: {
     // Feature 053 / FR-002: the channel is resolved once upstream and handed in.
     const channel = ctx.resolvedChannel;
 
+    // `specs/182-related-payers/` FR-115 — the payer on its terms, else the viewer.
+    const payer = ctx.pricingOrganizationId && ctx.organizationId ? ctx.pricingOrganizationId : null;
     const organization = ctx.organizationId
-      ? await organizations.findById(ctx.organizationId)
+      ? await organizations.findById(payer ?? ctx.organizationId)
       : null;
 
     const products = await catalogProducts.findByIds(items.map((i) => i.id));
@@ -66,7 +68,11 @@ export function createSuggestionPricingEnricher(deps: {
         products,
         context: {
           organization: organization ? { id: organization.id, customerGroupId: organization.customerGroupId } : null,
-          ...(organization && ctx.customerAccountId ? { customerAccountId: ctx.customerAccountId } : {}),
+          ...(payer
+            ? { displayModeOrganization: { id: ctx.organizationId! } }
+            : organization && ctx.customerAccountId
+              ? { customerAccountId: ctx.customerAccountId }
+              : {}),
           salesChannel: channel,
           // Feature 160 — the request's currency, as the result cards are priced.
           ...(ctx.currencyCode ? { currencyCode: ctx.currencyCode } : {}),

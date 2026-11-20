@@ -13,6 +13,11 @@ export interface InvoiceListFilters {
   issuedTo: string;
   totalMin: string;
   totalMax: string;
+  /**
+   * The Organization the invoices bill — a paid order's payer (`specs/182-related-payers/`
+   * FR-080, RP-17 e) — or `null`.
+   */
+  organizationId: string | null;
 }
 
 export const NO_INVOICE_FILTERS: InvoiceListFilters = {
@@ -23,6 +28,7 @@ export const NO_INVOICE_FILTERS: InvoiceListFilters = {
   issuedTo: '',
   totalMin: '',
   totalMax: '',
+  organizationId: null,
 };
 
 /**
@@ -40,6 +46,7 @@ export function invoiceListPath(filters: InvoiceListFilters, cursor?: string | n
   if (filters.issuedTo) params.set('filter[issuedTo]', `${filters.issuedTo}T23:59:59.999Z`);
   if (filters.totalMin.trim()) params.set('filter[totalMin]', filters.totalMin.trim());
   if (filters.totalMax.trim()) params.set('filter[totalMax]', filters.totalMax.trim());
+  if (filters.organizationId) params.set('filter[organizationId]', filters.organizationId);
   if (cursor) params.set('cursor', cursor);
   if (limit !== undefined) params.set('limit', String(limit));
   const query = params.toString();

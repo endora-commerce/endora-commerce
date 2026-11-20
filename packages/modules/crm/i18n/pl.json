@@ -1,4 +1,5 @@
 {
+  "module.name": "CRM",
   "nav.opportunities.label": "Szanse sprzedażowe",
   "nav.board.label": "Tablica",
   "nav.calendar.label": "Kalendarz",
@@ -355,9 +356,10 @@
   "assignment.filter.person": "Osoba",
   "tags.title": "Etykiety",
   "tags.add": "Dodaj etykietę",
-  "tags.empty": "Nie ma jeszcze żadnych etykiet. Dodaj pierwszą, aby zacząć oznaczać szanse.",
+  "tags.empty": "Nie ma jeszcze etykiet",
+  "tags.emptyBody": "Dodaj pierwszą, aby zacząć oznaczać szanse.",
   "tags.col.tag": "Etykieta",
-  "tags.col.usage": "Szanse",
+  "tags.col.usage": "Szanse (widoczne dla Ciebie)",
   "tags.col.actions": "Akcje",
   "tags.edit": "Edytuj etykietę {name}",
   "tags.delete": "Usuń etykietę {name}",

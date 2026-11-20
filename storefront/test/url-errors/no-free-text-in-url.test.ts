@@ -99,6 +99,9 @@ const SAFE: Record<string, { kind: Kind; why: string }> = {
   rfqSkipped: { kind: 'number', why: 'a line count' },
   members: { kind: 'number', why: 'a member count' },
   invitations: { kind: 'number', why: 'an invitation count' },
+  // `specs/182-related-payers/` FR-113 — what a *Buying for* switch changed, read only as `^\d{1,4}$`.
+  buyingForRepriced: { kind: 'number', why: 'a line count' },
+  buyingForUnpriced: { kind: 'number', why: 'a line count' },
   couponShortfall: {
     kind: 'number',
     why: 'a decimal amount, written and read only through `lib/url-typed-values.ts` (#791)',

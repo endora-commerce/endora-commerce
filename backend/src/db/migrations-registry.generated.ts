@@ -85,6 +85,7 @@ import { Migration20261021T165244CartsCartItemsPriceSource } from '@endora-comme
 import { Migration20261025T031727CartsUnitPriceFourPlaces } from '@endora-commerce/mod-carts/migrations';
 import { Migration20261102T121950CartsCartItemQuoteRequest } from '@endora-commerce/mod-carts/migrations';
 import { Migration20261102T122014CartsCartStatusWorking } from '@endora-commerce/mod-carts/migrations';
+import { Migration20261119T090000CartsBuyingFor } from '@endora-commerce/mod-carts/migrations';
 
 // ── catalog ─────────────────────────────────────────────────────────────────
 import { Migration20260429T064146CatalogAttributeSetsInit } from '@endora-commerce/mod-catalog/migrations';
@@ -324,6 +325,7 @@ import { Migration20261025T031732OrdersUnitPriceFourPlaces } from '@endora-comme
 import { Migration20261108T000543OrdersCompletedAt } from '@endora-commerce/mod-orders/migrations';
 import { Migration20261108T073238OrdersChargeLines } from '@endora-commerce/mod-orders/migrations';
 import { Migration20261110T143322OrdersOrderExternalReferences } from '@endora-commerce/mod-orders/migrations';
+import { Migration20261118T162646OrdersPayerOnOrder } from '@endora-commerce/mod-orders/migrations';
 
 // ── organizations ───────────────────────────────────────────────────────────
 import { Migration20260424T205317OrganizationsInit } from '@endora-commerce/mod-organizations/migrations';
@@ -431,6 +433,9 @@ import { Migration20261025T031736QuoteRequestsUnitPriceFourPlaces } from '@endor
 import { Migration20261113T081826QuoteRequestsNotificationsRedesign } from '@endora-commerce/mod-quote-requests/migrations';
 import { Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders } from '@endora-commerce/mod-quote-requests/migrations';
 
+// ── related_payers ──────────────────────────────────────────────────────────
+import { Migration20261118T144820RelatedPayersLinksAndRequests } from '@endora-commerce/mod-related-payers/migrations';
+
 // ── returns ─────────────────────────────────────────────────────────────────
 import { Migration20260625T144227ReturnsInit } from '@endora-commerce/mod-returns/migrations';
 import { Migration20260817T203206ReturnsRefundCorrectiveInvoiceOutcome } from '@endora-commerce/mod-returns/migrations';
@@ -536,6 +541,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('carts', Migration20261025T031727CartsUnitPriceFourPlaces),
   migration('carts', Migration20261102T121950CartsCartItemQuoteRequest),
   migration('carts', Migration20261102T122014CartsCartStatusWorking),
+  migration('carts', Migration20261119T090000CartsBuyingFor),
 
   // ── catalog ─────────────────────────────────────────────────────────────────
   migration('catalog', Migration20260429T064146CatalogAttributeSetsInit),
@@ -775,6 +781,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('orders', Migration20261108T000543OrdersCompletedAt),
   migration('orders', Migration20261108T073238OrdersChargeLines),
   migration('orders', Migration20261110T143322OrdersOrderExternalReferences),
+  migration('orders', Migration20261118T162646OrdersPayerOnOrder),
 
   // ── organizations ───────────────────────────────────────────────────────────
   migration('organizations', Migration20260424T205317OrganizationsInit),
@@ -881,6 +888,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('quote_requests', Migration20261025T031736QuoteRequestsUnitPriceFourPlaces),
   migration('quote_requests', Migration20261113T081826QuoteRequestsNotificationsRedesign),
   migration('quote_requests', Migration20261117T120057QuoteRequestsRenumberResubmittedPlaceholders),
+
+  // ── related_payers ──────────────────────────────────────────────────────────
+  migration('related_payers', Migration20261118T144820RelatedPayersLinksAndRequests),
 
   // ── returns ─────────────────────────────────────────────────────────────────
   migration('returns', Migration20260625T144227ReturnsInit),

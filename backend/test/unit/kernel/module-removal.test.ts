@@ -3,6 +3,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MODULES } from '../../../src/composition.generated.js';
+import { generatedListCommandHooks } from '../../helpers/generated-list-command-hooks.js';
 import { EventBus } from '@endora-commerce/platform/events';
 import { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
 import { composeModules } from '@endora-commerce/platform/composition';
@@ -1017,9 +1018,17 @@ describe('T055 — the remaining module set still composes', () => {
       blogStorefrontDeps: undefined,
       emFactory: () => undefined,
     });
+    const hooks = generatedListCommandHooks();
     return composeModules(
       MODULES.filter((entry) => entry.id !== removed),
-      { container, eventBus: new EventBus(), log, interceptorRegistry: newInterceptorRegistry() },
+      {
+        container,
+        eventBus: new EventBus(),
+        log,
+        interceptorRegistry: newInterceptorRegistry(),
+        commandHookRegistry: hooks.registry,
+        commandHooks: hooks.data,
+      },
     );
   }
 
@@ -1033,9 +1042,17 @@ describe('T055 — the remaining module set still composes', () => {
   it('resolving the removed module\'s registration fails naming the name', () => {
     const container = createRootContainer();
     registerValues(container, { redis: undefined });
+    const hooks = generatedListCommandHooks();
     composeModules(
       MODULES.filter((entry) => entry.id !== SUBJECT),
-      { container, eventBus: new EventBus(), log, interceptorRegistry: newInterceptorRegistry() },
+      {
+        container,
+        eventBus: new EventBus(),
+        log,
+        interceptorRegistry: newInterceptorRegistry(),
+        commandHookRegistry: hooks.registry,
+        commandHooks: hooks.data,
+      },
     );
     // Not `undefined` reaching business logic — the property `composition.ts`
     // could not offer, where a missing option-object key is simply absent.

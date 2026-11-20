@@ -52,7 +52,9 @@ const CORE_KEYS = [
   'legacyMethods.fields.status',
   'legacyMethods.status.active',
   'legacyMethods.status.inactive',
-  'legacyMethods.formTitle',
+  'legacyMethods.action.new',
+  'legacyMethods.delivery.newTitle',
+  'legacyMethods.rowActions',
   'legacyMethods.messages.saved',
   'legacyMethods.errors.save',
   'common.state.loading',
@@ -172,6 +174,17 @@ async function mount(): Promise<void> {
   );
 }
 
+/** Opens the create dialog — from the header, or the empty state while there is no method. */
+async function openNew(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(await screen.findByRole('button', { name: 'legacyMethods.action.new' }));
+}
+
+/** Opens a row's edit dialog from its menu (issue #1543). */
+async function openEdit(user: ReturnType<typeof userEvent.setup>, code: string): Promise<void> {
+  await user.click(within(rowOf(code)).getByRole('button', { name: 'legacyMethods.rowActions' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'common.action.edit' }));
+}
+
 function adapterSelect(): HTMLSelectElement {
   return screen.getByLabelText('Adapter') as HTMLSelectElement;
 }
@@ -192,12 +205,12 @@ describe('the delivery-method adapter is chosen on the screen', () => {
     list.mockReset().mockResolvedValue([row({}), ORPHAN, CARRIER_OFF]);
     adapters.mockReset().mockResolvedValue(REGISTERED);
     upsert.mockReset().mockResolvedValue(row({}));
-    // jsdom implements no scrolling; the edit handler asks for one.
-    window.scrollTo = vi.fn();
   });
 
   it('offers the registered adapters, labelled where this module has a label and by key otherwise', async () => {
+    const user = userEvent.setup();
     await mount();
+    await openNew(user);
     await waitFor(() => expect(adapterSelect()).not.toBeDisabled());
 
     expect(optionTexts()).toEqual([
@@ -214,6 +227,7 @@ describe('the delivery-method adapter is chosen on the screen', () => {
   it('does not create a method until an adapter is chosen, then sends the chosen one', async () => {
     const user = userEvent.setup();
     await mount();
+    await openNew(user);
     await waitFor(() => expect(adapterSelect()).not.toBeDisabled());
 
     await user.type(screen.getByLabelText('legacyMethods.fields.code'), 'express');
@@ -258,7 +272,7 @@ describe('the delivery-method adapter is chosen on the screen', () => {
     await mount();
     await waitFor(() => expect(screen.getByText('own_courier')).toBeInTheDocument());
 
-    await user.click(within(rowOf('test')).getByRole('button', { name: 'common.action.edit' }));
+    await openEdit(user, 'test');
 
     // Opening the row rebinds nothing: the adapter it has is still the value.
     expect(adapterSelect().value).toBe('test');
@@ -274,7 +288,7 @@ describe('the delivery-method adapter is chosen on the screen', () => {
     await mount();
     await waitFor(() => expect(screen.getByText('own_courier')).toBeInTheDocument());
 
-    await user.click(within(rowOf('test')).getByRole('button', { name: 'common.action.edit' }));
+    await openEdit(user, 'test');
     await user.selectOptions(adapterSelect(), 'manual_courier');
     expect(adapterSelect()).not.toHaveAttribute('aria-invalid');
     await user.click(screen.getByRole('button', { name: 'common.action.save' }));
@@ -285,9 +299,11 @@ describe('the delivery-method adapter is chosen on the screen', () => {
   });
 
   it('says so when the instance has no adapter at all', async () => {
+    const user = userEvent.setup();
     adapters.mockResolvedValue([]);
     list.mockResolvedValue([]);
     await mount();
+    await openNew(user);
 
     await waitFor(() =>
       expect(adapterSelect()).toHaveAccessibleDescription(
@@ -301,6 +317,7 @@ describe('the delivery-method adapter is chosen on the screen', () => {
     const user = userEvent.setup();
     adapters.mockRejectedValueOnce(new Error('503'));
     await mount();
+    await openNew(user);
 
     await waitFor(() =>
       expect(screen.getByText('The list of adapters could not be loaded.')).toBeInTheDocument(),
@@ -322,9 +339,7 @@ describe('the delivery-method adapter is chosen on the screen', () => {
     await mount();
     await waitFor(() => expect(screen.getByText('own_courier')).toBeInTheDocument());
 
-    await user.click(
-      within(rowOf('own_courier')).getByRole('button', { name: 'common.action.edit' }),
-    );
+    await openEdit(user, 'own_courier');
 
     expect(adapterSelect().value).toBe('manual_courier');
     expect(optionTexts()).toContain('Own courier (manual)');

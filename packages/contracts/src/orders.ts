@@ -31,6 +31,7 @@ import {
 import { twoDecimalAmount } from './money-input.js';
 import { lineQuantitySchema, REQUEST_LINE_ITEMS_MAX } from './line-bounds.js';
 import { vatSummaryRowSchema } from './invoices.js';
+import { payerCommercialTermsSchema } from './related-payers.js';
 
 /**
  * Orders module contracts — Source of truth per Principle V.
@@ -241,6 +242,21 @@ const orderChargeNetFields = {
   vatRows: z.array(vatSummaryRowSchema).optional(),
 };
 
+/**
+ * `specs/182-related-payers/` (FR-067, research R-2) — the Organization that pays
+ * for and is invoiced for an order, when it is not the buyer. The order's
+ * `organizationId` stays the buyer's; its `billingAddress` is the payer's.
+ * `terms` records whose commercial terms priced it (FR-117). Owned by `orders`
+ * as order data, so it reads the same with `related_payers` switched off.
+ */
+export const orderPayerSchema = z.object({
+  organizationId: uuidSchema,
+  name: z.string(),
+  taxId: z.string(),
+  terms: payerCommercialTermsSchema,
+});
+export type OrderPayer = z.infer<typeof orderPayerSchema>;
+
 export const orderSchema = z.object({
   id: uuidSchema,
   /**
@@ -370,6 +386,12 @@ export const orderSchema = z.object({
    * operator's concern and changes nothing a buyer can do.
    */
   pendingEffects: z.array(orderPendingEffectSchema).optional(),
+  /**
+   * `specs/182-related-payers/` — the payer, or `null` when the buyer pays. On the
+   * buyer-facing and admin order reads. Additive: a reply without the key parses
+   * as `null`.
+   */
+  payer: orderPayerSchema.nullable().default(null),
 });
 export type Order = z.infer<typeof orderSchema>;
 
@@ -449,6 +471,14 @@ export type OrderCommittedWritePartialResponse = z.infer<
 
 // --- Requests --------------------------------------------------------------
 
+/**
+ * `specs/182-related-payers/` FR-062 — a placement naming a payer together with a
+ * non-empty billing company name or tax-ID override: the issue's message and the
+ * `details.code` of the route's 422 `VALIDATION_FAILED`. With a payer the billing
+ * company and tax ID are the payer's, read-only (FR-061).
+ */
+export const PAYER_BILLING_OVERRIDE_CONFLICT = 'payer_billing_override_conflict';
+
 export const placeOrderRequestSchema = z.object({
   deliveryAddressId: uuidSchema,
   billingAddressId: uuidSchema,
@@ -500,6 +530,26 @@ export const placeOrderRequestSchema = z.object({
    * ShippingAdapter. InPost locker: `{ targetPoint: string }`.
    */
   shippingAdapterData: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * `specs/182-related-payers/` — the Organization that pays for and is invoiced
+   * for this order (FR-060). Validated at placement against the buyer's usable
+   * payer links; `billingAddressId` must then be one of the payer's allowed
+   * billing addresses (FR-063). With a cart in a payer's-terms context it must
+   * equal the cart's `buyingFor`. Refused with a billing override (FR-062).
+   */
+  payerOrganizationId: uuidSchema.optional(),
+}).superRefine((val, ctx) => {
+  if (val.payerOrganizationId === undefined) return;
+  for (const field of ['billingCompanyName', 'billingTaxId'] as const) {
+    if (val[field] !== undefined && val[field].trim() !== '') {
+      ctx.addIssue({
+        code: 'custom',
+        path: [field],
+        message: PAYER_BILLING_OVERRIDE_CONFLICT,
+        params: { code: PAYER_BILLING_OVERRIDE_CONFLICT },
+      });
+    }
+  }
 });
 export type PlaceOrderRequest = z.infer<typeof placeOrderRequestSchema>;
 
@@ -514,6 +564,11 @@ export const orderPreviewTotalRequestSchema = z.object({
   deliveryMethodId: uuidSchema,
   paymentMethodId: uuidSchema,
   billingAddressId: uuidSchema.optional(),
+  /**
+   * `specs/182-related-payers/` FR-064 — preview as placement with this payer:
+   * tax from the payer's VAT status and the chosen payer billing address.
+   */
+  payerOrganizationId: uuidSchema.optional(),
 });
 export type OrderPreviewTotalRequest = z.infer<typeof orderPreviewTotalRequestSchema>;
 
@@ -760,6 +815,8 @@ export const adminOrdersListQuerySchema = z.object({
   salesChannelId: multiQueryParam(uuidSchema),
   paymentMethodId: multiQueryParam(uuidSchema),
   deliveryMethodId: multiQueryParam(uuidSchema),
+  /** `specs/182-related-payers/` FR-073 — orders a related payer pays for. */
+  payerOrganizationId: uuidSchema.optional(),
   organizationId: uuidSchema.optional(),
   q: z.string().max(200).optional(),
   // Dedicated org / customer name filters (free-text, AND-combined with `q`).
@@ -1307,6 +1364,12 @@ export interface OrderRecord {
   id: string;
   businessId: string;
   organizationId: string;
+  /**
+   * `specs/182-related-payers/` — the Organization billed when it is not the buyer, `null`
+   * otherwise. Optional on the type so a record built before it still compiles; read it as
+   * `payerOrganizationId ?? organizationId` for "who is invoiced".
+   */
+  payerOrganizationId?: string | null;
   placedByCustomerAccountId: string;
   placedOnBehalfByAdminUserId: string | null;
   salesChannelId: string;
@@ -1889,3 +1952,75 @@ export const purchaseConversionClaimResponseSchema = z.object({
 export type PurchaseConversionClaimResponse = z.infer<
   typeof purchaseConversionClaimResponseSchema
 >;
+
+// --- Orders a related payer pays for (`specs/182-related-payers/`, ports.md §3) ---
+
+/**
+ * `GET /api/v1/account/paid-orders` — the orders whose payer is the reader's
+ * Organization (FR-070). Cursor pagination, as every list.
+ */
+export const paidOrderListQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(200).default(20),
+  cursor: z.string().optional(),
+});
+export type PaidOrderListQuery = z.infer<typeof paidOrderListQuerySchema>;
+
+/** One row of the payer's list: what identifies the order, who bought, what it costs. */
+export const paidOrderSummarySchema = z.object({
+  id: uuidSchema,
+  businessId: z.string(),
+  placedAt: isoDateTimeSchema,
+  status: orderStatusCodeSchema,
+  /** The status label in the request's language. */
+  statusLabel: z.string(),
+  paymentStatus: paymentStatusSchema,
+  buyerOrganizationId: uuidSchema,
+  buyerName: z.string(),
+  total: z.number().finite().nonnegative(),
+  currency: z.string().length(3),
+});
+export type PaidOrderSummary = z.infer<typeof paidOrderSummarySchema>;
+
+export const paidOrderListPageSchema = z.object({
+  items: z.array(paidOrderSummarySchema),
+  cursor: z.string().nullable(),
+  hasMore: z.boolean(),
+});
+export type PaidOrderListPage = z.infer<typeof paidOrderListPageSchema>;
+
+/**
+ * The payer's read-only projection of an order (FR-071). It carries what the payer
+ * pays and is invoiced for, and deliberately **not** the delivery address, the
+ * customer note, the comment thread or the custom-field values: those are the
+ * buyer's. A parse drops them if a serialiser hands them over.
+ */
+export const paidOrderDetailSchema = paidOrderSummarySchema.extend({
+  items: z.array(orderItemSchema),
+  subtotal: z.number().finite().nonnegative(),
+  taxTotal: z.number().finite().nonnegative(),
+  discountTotal: z.number().finite().nonnegative(),
+  deliveryTotal: z.number().finite().nonnegative(),
+  /** The order's billing snapshot — the payer's address, company name and tax ID. */
+  billingAddress: addressSnapshotSchema,
+  payer: orderPayerSchema,
+  deliveryMethodName: z.string(),
+  /** The order's invoice documents, downloadable through the paid-order route. */
+  invoices: z.array(z.object({ id: uuidSchema, number: z.string() })),
+});
+export type PaidOrderDetail = z.infer<typeof paidOrderDetailSchema>;
+
+/**
+ * Container name: `paidOrderReadPort`. Owner: `orders`. Consumer: `related_payers` only.
+ * Implemented under `withSystemScope('orders: orders billed to a related payer', …)` with the predicate `payer_organization_id = payerOrganizationId`. The
+ * caller has already checked the reader's `related_payers.view_paid_orders`; the
+ * port does not know about that permission.
+ *
+ * **Owner off:** resolving this port throws `ModuleDisabledError` and the call
+ * answers 503 `MODULE_DISABLED`. Whether `orders` has an off state at all is its
+ * manifest's `activation` to say.
+ */
+export interface PaidOrderReadPort {
+  list(payerOrganizationId: string, query: PaidOrderListQuery): Promise<PaidOrderListPage>;
+  /** `null` when the order does not name this payer — the caller answers 404. */
+  find(payerOrganizationId: string, orderId: string): Promise<PaidOrderDetail | null>;
+}

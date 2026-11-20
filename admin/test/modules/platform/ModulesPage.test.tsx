@@ -2,7 +2,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
+import userEvent from '@testing-library/user-event';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { expectNoAxeViolations } from '../../helpers/axe';
+import {
+  AdminRegistryProvider,
+  type AdminRegistryEntry,
+} from '../../../../packages/admin-shell/src/lib/module-registry/index';
 
 /**
  * Feature 073 / US5 (T059, T062) — "not installed here", "we turned it off"
@@ -22,6 +28,8 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
 let listed: ModuleListItem[] = [];
 let presence: ModulePresence[] = [];
 let degraded = false;
+let registry: AdminRegistryEntry[] = [];
+let visibility: { moduleId: string; visible: boolean }[] | null = null;
 
 vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@endora-commerce/admin-kit/lib')>()),
@@ -40,6 +48,13 @@ vi.mock('@endora-commerce/admin-kit/lib', async (importOriginal) => ({
 
 vi.mock('../../../../packages/admin-shell/src/modules/platform/api', () => ({
   listModules: vi.fn(async () => ({ modules: listed })),
+  listRecentActivityVisibility: vi.fn(async () => {
+    if (visibility === null) throw new Error('forbidden');
+    return { modules: visibility };
+  }),
+  setRecentActivityVisibility: vi.fn(async (moduleId: string, visible: boolean) => ({
+    module: { moduleId, visible },
+  })),
 }));
 
 const { ModulesPage } = await import('../../../../packages/admin-shell/src/modules/platform/ModulesPage');
@@ -54,9 +69,23 @@ const bundle = passthroughBundle('core', [
   'platform.modules.column.activation',
   'platform.modules.column.version',
   'platform.modules.column.flags',
-  'platform.modules.column.actions',
-  'platform.modules.action.enable',
+  'platform.modules.column.dashboard',
   'platform.modules.action.disable',
+  'platform.modules.toolbar',
+  'platform.modules.search',
+  'platform.modules.count',
+  'platform.modules.countFiltered',
+  'platform.modules.group.other',
+  'platform.modules.details.toggle',
+  'platform.modules.details.dependencies',
+  'platform.modules.activation.switchLabel',
+  'platform.modules.recentActivity.switchLabel',
+  'platform.modules.recentActivity.columnHelp',
+  'appShell.section.sales',
+  'appShell.section.content',
+  'appShell.section.system',
+  'common.emptyState.noResults.title',
+  'common.emptyState.clearFilters',
   'platform.modules.state.installed',
   'platform.modules.state.disabled',
   'platform.modules.state.installing',
@@ -73,6 +102,11 @@ const bundle = passthroughBundle('core', [
   'platform.modules.flag.depDisabled',
   'platform.modules.versionDrift',
 ]);
+// The chips carry their count, which a passthrough key cannot show.
+bundle['core']!['platform.modules.filter.on'] = 'On ({count})';
+bundle['core']!['platform.modules.filter.off'] = 'Off ({count})';
+bundle['core']!['platform.modules.filter.notOffered'] = 'Not offered ({count})';
+bundle['core']!['platform.modules.filter.locked'] = 'Locked ({count})';
 
 function moduleItem(patch: Partial<ModuleListItem> & { id: string }): ModuleListItem {
   return {
@@ -118,7 +152,9 @@ function presenceItem(patch: Partial<ModulePresence> & { id: string }): ModulePr
 async function renderPage(): Promise<void> {
   renderWithI18n(
     <MemoryRouter>
-      <ModulesPage />
+      <AdminRegistryProvider entries={registry}>
+        <ModulesPage />
+      </AdminRegistryProvider>
     </MemoryRouter>,
     bundle,
   );
@@ -138,6 +174,8 @@ beforeEach(() => {
   listed = [];
   presence = [];
   degraded = false;
+  registry = [];
+  visibility = null;
 });
 
 describe('ModulesPage — the four states read differently (FR-034)', () => {
@@ -196,6 +234,11 @@ describe('ModulesPage — the four states read differently (FR-034)', () => {
 
     const auth = row('auth');
     expect(within(auth).getByText('platform.modules.activation.locked')).toBeInTheDocument();
+    // On, and not switchable: a focusable switch that says why (issue #1520).
+    const control = within(auth).getByRole('switch');
+    expect(control).toHaveAttribute('aria-checked', 'true');
+    expect(control).toHaveAttribute('aria-disabled', 'true');
+    expect(control).toHaveAccessibleDescription('Nobody could sign in to switch it back on.');
     // The reason comes from the module's manifest, through the projection —
     // SC-012: no hard-coded list of module ids anywhere in this app.
     expect(
@@ -232,9 +275,9 @@ describe('ModulesPage — the four states read differently (FR-034)', () => {
     // Not a core lock: that copy states a platform invariant this module does
     // not have.
     expect(within(probes).queryByText('platform.modules.activation.locked')).toBeNull();
-    // And the state column reads "on" like any other present module, because it
-    // is: the effective state forces the operator axis true.
-    expect(within(probes).getByText('platform.modules.activation.on')).toBeInTheDocument();
+    // And the switch reads on like any other present module, because it is: the
+    // effective state forces the operator axis true.
+    expect(within(probes).getByRole('switch')).toHaveAttribute('aria-checked', 'true');
   });
 
   it('selects that copy on the absent declaration, never on the module id (FR-016)', async () => {
@@ -318,5 +361,162 @@ describe('ModulesPage — platform diagnostics (T062)', () => {
     await renderPage();
 
     expect(screen.queryByText('platform.modules.degraded')).toBeNull();
+  });
+});
+
+describe('ModulesPage — search, status chips and grouping (issue #1520, SHELL-12)', () => {
+  const nav = (section: string) => ({ section, to: '/x', labelKey: 'x', icon: 'Box', weight: 100 });
+
+  function fixture(): void {
+    listed = [
+      moduleItem({ id: 'orders', name: 'Orders' }),
+      moduleItem({ id: 'blog', name: 'Blog', description: 'Posts and authors.' }),
+      moduleItem({ id: 'ksef', name: 'KSeF', state: 'not-installed' }),
+      moduleItem({ id: 'auth', name: 'Authentication' }),
+    ];
+    presence = [
+      presenceItem({ id: 'orders' }),
+      presenceItem({ id: 'blog', present: false, activated: false }),
+      presenceItem({ id: 'ksef', present: false, platformState: 'not-installed' }),
+      presenceItem({ id: 'auth', deactivatable: false, nonDeactivatableReason: 'Nobody could sign in.' }),
+    ];
+    registry = [
+      { moduleId: 'orders', contributions: { nav: [nav('sales')] } },
+      { moduleId: 'blog', contributions: { nav: [nav('content')] } },
+    ] as never;
+  }
+
+  function shownIds(): string[] {
+    return [...document.querySelectorAll('[data-module-id]')].map((el) => el.getAttribute('data-module-id')!);
+  }
+
+  it('groups the rows under the sidebar section of their menu entries, with the rest last', async () => {
+    fixture();
+    await renderPage();
+
+    const groups = [...document.querySelectorAll('[data-module-group]')].map((el) =>
+      el.getAttribute('data-module-group'),
+    );
+    expect(groups).toEqual(['sales', 'content', 'other']);
+    const sales = document.querySelector('[data-module-group="sales"]') as HTMLElement;
+    expect(within(sales).getByRole('columnheader', { name: /appShell.section.sales/ })).toBeInTheDocument();
+    const other = document.querySelector('[data-module-group="other"]') as HTMLElement;
+    // Sorted by name inside the group.
+    expect(
+      [...other.querySelectorAll('[data-module-id]')].map((el) => el.getAttribute('data-module-id')),
+    ).toEqual(['auth', 'ksef']);
+  });
+
+  it('counts each status on its chip and narrows the list to the pressed ones', async () => {
+    fixture();
+    await renderPage();
+
+    const toolbar = screen.getByRole('search', { name: 'platform.modules.toolbar' });
+    expect(within(toolbar).getByRole('button', { name: 'On (1)' })).toHaveAttribute('aria-pressed', 'false');
+    within(toolbar).getByRole('button', { name: 'Off (1)' });
+    within(toolbar).getByRole('button', { name: 'Not offered (1)' });
+    await userEvent.click(within(toolbar).getByRole('button', { name: 'Locked (1)' }));
+
+    expect(shownIds()).toEqual(['auth']);
+    await userEvent.click(within(toolbar).getByRole('button', { name: 'Off (1)' }));
+    expect(shownIds().sort()).toEqual(['auth', 'blog']);
+  });
+
+  it('searches the name, the id and the description as the operator types', async () => {
+    fixture();
+    await renderPage();
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'platform.modules.search' }), 'authors');
+    expect(shownIds()).toEqual(['blog']);
+  });
+
+  it('says when nothing matches, and Clear filters brings every row back', async () => {
+    fixture();
+    await renderPage();
+
+    await userEvent.type(screen.getByRole('searchbox', { name: 'platform.modules.search' }), 'zzz');
+    expect(document.querySelector('[data-empty-state="no-results"]')).not.toBeNull();
+    await userEvent.click(
+      within(document.querySelector('[data-empty-state="no-results"]') as HTMLElement).getByRole('button'),
+    );
+    await waitFor(() => expect(shownIds()).toHaveLength(4));
+  });
+
+  it('shows no filled button anywhere: activation is a switch, never a per-row primary', async () => {
+    fixture();
+    await renderPage();
+
+    // Von Restorff: the screen used to carry one filled "Switch on" per module
+    // that was off. Now the off row has a switch, unchecked.
+    const blog = within(row('blog')).getByRole('switch', { name: /platform.modules.activation.switchLabel/ });
+    expect(blog).toHaveAttribute('aria-checked', 'false');
+    expect(within(row('blog')).getByText('platform.modules.activation.off')).toBeInTheDocument();
+    const filled = [...document.querySelectorAll('button:not([role="switch"])')].filter((button) =>
+      button.className.split(/\s+/).includes('bg-primary'),
+    );
+    expect(filled).toEqual([]);
+  });
+
+  it('keeps the description behind the row disclosure', async () => {
+    fixture();
+    await renderPage();
+
+    expect(screen.queryByText('Posts and authors.')).toBeNull();
+    const toggle = within(row('blog')).getByRole('button', { name: /platform.modules.details.toggle/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    const details = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+    expect(details).toBeVisible();
+    expect(within(details).getByText('Posts and authors.')).toBeInTheDocument();
+
+    // A row with nothing to expand has no disclosure.
+    expect(within(row('orders')).queryByRole('button')).toBeNull();
+  });
+
+  it('renders the dashboard choice as a switch column only when the admin may read it', async () => {
+    fixture();
+    visibility = [{ moduleId: 'orders', visible: true }];
+    await renderPage();
+
+    const dashboard = await within(row('orders')).findByRole('switch', {
+      name: /platform.modules.recentActivity.switchLabel/,
+    });
+    expect(dashboard).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(dashboard);
+    await waitFor(() => expect(dashboard).toHaveAttribute('aria-checked', 'false'));
+  });
+
+  it('has no axe violations with a row expanded and the dashboard column shown', async () => {
+    fixture();
+    visibility = [{ moduleId: 'orders', visible: true }];
+    await renderPage();
+    await within(row('orders')).findByRole('switch', { name: /recentActivity/ });
+    await userEvent.click(within(row('auth')).getByRole('button', { name: /details.toggle/ }));
+    await expectNoAxeViolations(document.body);
+  });
+
+  it('drops the dashboard column when the eligible list cannot be read', async () => {
+    fixture();
+    visibility = null;
+    await renderPage();
+
+    expect(screen.queryByRole('columnheader', { name: /platform.modules.column.dashboard/ })).toBeNull();
+  });
+});
+
+describe('ModulesPage — no modules at all', () => {
+  it('renders the no-data empty state rather than an empty table', async () => {
+    renderWithI18n(
+      <MemoryRouter>
+        <AdminRegistryProvider entries={[]}>
+          <ModulesPage />
+        </AdminRegistryProvider>
+      </MemoryRouter>,
+      bundle,
+    );
+    await waitFor(() => expect(document.querySelector('[data-empty-state="no-data"]')).not.toBeNull());
+    expect(screen.getByText('platform.modules.empty')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
   });
 });

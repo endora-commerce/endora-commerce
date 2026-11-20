@@ -279,6 +279,18 @@ wycofano: każdy kanał, który miał go wyłączonego, dostał tryb *Żaden* dl
 odwiedzających, więc goście nadal nie widzą tam cen, a jego zalogowani kupujący widzą teraz ceny
 zgodnie ze swoim trybem prezentacji.
 
+## Ceny na warunkach płatnika powiązanego {#prices-on-a-related-payers-terms}
+
+Z modułem *Related payers* kupujący, którego powiązanie z płatnikiem jest na warunkach handlowych
+płatnika, może kupować **dla** tego płatnika: od wyboru *Kupujesz dla* w koszyku każde miejsce opisane
+wyżej — lista produktów, sortowanie, wyszukiwanie, strona produktu, porównania, endpoint ceny
+rozstrzygniętej, koszyk i zamówienie — wycenia dla płatnika, według cenników przypisanych do kanału
+żądania, i liczy brutto według statusu VAT i kraju płatnika. **Tryb wyświetlania** cen (i to, czy
+ceny są ukryte) pozostaje kupującego, podobnie jak widoczność produktów. Kontekst cenowy wskazuje
+organizację płatnika przez ten sam profil cenowy i te same klucze pamięci podręcznej co własne
+logowanie płatnika; nic nowego nie trafia do pamięci podręcznej, a kupujący bez takiego powiązania nie
+kosztuje żadnego dodatkowego zapytania.
+
 ## Przykłady — sklep demonstracyjny
 
 Sklep demonstracyjny (`pnpm run cli demo seed`) zawiera trzy scenariusze, na podstawie których

@@ -59,6 +59,7 @@ import type {
   OrganizationDetailsPort,
   OrganizationPermissionPort,
   OrganizationRestrictionPort,
+  RelatedPayerPolicyPort,
   PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
   QuoteRequestReadPort,
@@ -204,6 +205,8 @@ export interface OrdersModuleOptions {
    * total preview, that names a method outside them.
    */
   organizationRestriction: OrganizationRestrictionPort;
+  /** `specs/182-related-payers/` — read only for an order naming a payer. */
+  relatedPayerPolicy?: RelatedPayerPolicyPort;
   /** Accessors: both owners are deactivatable `degrades-without` edges. */
   deliveryMethodRead: () => DeliveryMethodReadPort | null;
   paymentMethodRead: () => PaymentMethodReadPort | null;
@@ -531,6 +534,7 @@ export function commerceModule(options: OrdersModuleOptions) {
         neighbours: {
           organizationDetails: options.organizationDetails,
           organizationRestriction: options.organizationRestriction,
+          ...(options.relatedPayerPolicy ? { relatedPayerPolicy: options.relatedPayerPolicy } : {}),
           customerAccountRead: options.customerAccountRead,
           addressRead: options.addressRead,
           catalogProductRead: options.catalogProductRead,

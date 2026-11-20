@@ -272,6 +272,17 @@ off a channel hid prices from everyone, signed-in buyers included. The switch wa
 channel that had it off was given *None* for anonymous visitors, so guests there still see no
 prices, and its signed-in buyers now see prices according to their display mode.
 
+## Prices on a related payer's terms {#prices-on-a-related-payers-terms}
+
+With the *Related payers* module, a buyer whose link to a payer is on the payer's commercial terms
+can buy **for** that payer: from the cart's *Buying for* choice on, every surface above — listing,
+sort, search, product page, comparisons, the resolved-price endpoint, cart and order — prices for
+the payer, on the price books bound to the request's channel, and grosses with the payer's VAT
+status and country. The price **display mode** (and whether prices are withheld) stays the buyer's,
+and so does product visibility. The pricing context names the payer's Organization through the same
+pricing profile and cache keys as the payer's own sign-in; nothing new is cached, and a buyer with no
+such link costs no extra query.
+
 ## Worked examples — the demo shop
 
 The demo shop (`pnpm run cli demo seed`) carries the three scenarios the model was designed

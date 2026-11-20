@@ -1,4 +1,5 @@
 {
+  "module.name": "CRM",
   "nav.opportunities.label": "Opportunities",
   "nav.board.label": "Board",
   "nav.calendar.label": "Calendar",
@@ -355,9 +356,10 @@
   "assignment.filter.person": "Person",
   "tags.title": "Tags",
   "tags.add": "Add tag",
-  "tags.empty": "There are no tags yet. Add the first one to start labelling opportunities.",
+  "tags.empty": "No tags yet",
+  "tags.emptyBody": "Add the first one to start labelling opportunities.",
   "tags.col.tag": "Tag",
-  "tags.col.usage": "Opportunities",
+  "tags.col.usage": "Opportunities (visible to you)",
   "tags.col.actions": "Actions",
   "tags.edit": "Edit the tag {name}",
   "tags.delete": "Delete the tag {name}",

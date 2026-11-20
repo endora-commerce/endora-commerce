@@ -7,6 +7,7 @@ import {
   ListPage,
   ListToolbar,
   ListToolbarSearch,
+  OrganizationPicker,
   ResponsiveTable,
   RowActionMenu,
   RowActionMenuItem,
@@ -71,6 +72,8 @@ export function InvoicesList(): ReactNode {
   const [issuedTo, setIssuedTo] = useState('');
   const [totalMin, setTotalMin] = useState('');
   const [totalMax, setTotalMax] = useState('');
+  // `specs/182-related-payers/` RP-17 (e) — the Organization the invoices bill.
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
 
   // The typed filters are debounced so typing does not refetch on every keystroke.
   const debouncedOrderNumber = useDebouncedValue(orderNumber.trim());
@@ -101,6 +104,7 @@ export function InvoicesList(): ReactNode {
             issuedTo,
             totalMin: debouncedTotalMin,
             totalMax: debouncedTotalMax,
+            organizationId,
           },
           cursor,
           limit,
@@ -115,7 +119,7 @@ export function InvoicesList(): ReactNode {
     } finally {
       if (current === generation.current) setLoading(false);
     }
-  }, [status, kind, debouncedOrderNumber, issuedFrom, issuedTo, debouncedTotalMin, debouncedTotalMax, cursor, limit, syncPage, ti]);
+  }, [status, kind, debouncedOrderNumber, issuedFrom, issuedTo, debouncedTotalMin, debouncedTotalMax, organizationId, cursor, limit, syncPage, ti]);
 
   useEffect(() => {
     void refresh();
@@ -161,6 +165,7 @@ export function InvoicesList(): ReactNode {
     setIssuedTo('');
     setTotalMin('');
     setTotalMax('');
+    setOrganizationId(null);
     resetPage();
   };
 
@@ -186,8 +191,20 @@ export function InvoicesList(): ReactNode {
     ...chip('issuedTo', t('invoices.fields.issuedTo'), issuedTo, () => setIssuedTo('')),
     ...chip('totalMin', t('invoices.fields.totalMin'), totalMin.trim(), () => setTotalMin('')),
     ...chip('totalMax', t('invoices.fields.totalMax'), totalMax.trim(), () => setTotalMax('')),
+    ...(organizationId
+      ? [
+          {
+            key: 'organization',
+            label: t('invoices.filters.organization'),
+            onRemove: (): void => {
+              setOrganizationId(null);
+              resetPage();
+            },
+          },
+        ]
+      : []),
   ];
-  const advancedActiveCount = [issuedFrom, issuedTo, totalMin.trim(), totalMax.trim()].filter(Boolean).length;
+  const advancedActiveCount = [issuedFrom, issuedTo, totalMin.trim(), totalMax.trim(), organizationId].filter(Boolean).length;
   const filtersActive = filterChips.length > 0 || orderNumber.trim() !== '';
   /** Whether the rows on screen were read through a filter — what the empty state tells apart. */
   const resultsFiltered =
@@ -197,7 +214,8 @@ export function InvoicesList(): ReactNode {
     issuedTo !== '' ||
     debouncedOrderNumber !== '' ||
     debouncedTotalMin !== '' ||
-    debouncedTotalMax !== '';
+    debouncedTotalMax !== '' ||
+    organizationId !== null;
 
   const columns: ResponsiveColumn<AdminInvoice>[] = [
     {
@@ -303,6 +321,16 @@ export function InvoicesList(): ReactNode {
           moreFiltersActiveCount={advancedActiveCount}
           moreFilters={
             <>
+              <div className="space-y-1">
+                <Label htmlFor={`${filterId}-organization`}>{t('invoices.filters.organization')}</Label>
+                <OrganizationPicker
+                  id={`${filterId}-organization`}
+                  ariaLabel={t('invoices.filters.organization')}
+                  value={organizationId}
+                  onChange={change(setOrganizationId)}
+                  clearable
+                />
+              </div>
               <div className="space-y-1">
                 <Label htmlFor={`${filterId}-from`}>{t('invoices.fields.issuedFrom')}</Label>
                 <Input

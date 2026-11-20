@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowRight, History } from 'lucide-react';
-import { ApiError, formatDateTime } from '../../lib/index.js';
+import { ApiError, cn, formatDateTime } from '../../lib/index.js';
 import { Alert, AlertDescription } from '../../ui/alert.js';
 import { Button } from '../../ui/button.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
@@ -187,6 +187,64 @@ export interface RecordHistoryProps<E extends RecordHistoryEntryShape> {
   title?: string;
 }
 
+export interface RecordHistoryChangeListProps {
+  /** The rows to draw — {@link recordHistoryChanges} of an entry, as a rule. */
+  changes: readonly RecordHistoryChange[];
+  /** A field's label. */
+  fieldLabel: (field: string) => ReactNode;
+  /** A value in words — never an id, never JSON. */
+  renderValue: (field: string, raw: unknown) => ReactNode;
+  /** A row drawn whole by the caller, in place of "before → after"; `undefined` leaves the row to the kit. */
+  renderChange?: (change: RecordHistoryChange) => ReactNode | undefined;
+  className?: string;
+}
+
+/**
+ * One entry's field changes as a definition list: a field's label, then the
+ * value as it was, struck through, an arrow, and the value as it is. A field
+ * that only arrived shows its value alone. The words "from" and "to" are
+ * spoken beside the struck-through value, because a strike-through and an
+ * arrow carry nothing to a screen reader. {@link RecordHistory} draws each of
+ * its entries with it; a screen showing one audited change on its own — the
+ * audit log's row detail (issue #1555) — draws the same list. Draws nothing
+ * for no changes: what an empty entry says is the caller's.
+ */
+export function RecordHistoryChangeList(props: RecordHistoryChangeListProps): ReactNode {
+  const t = useTranslation('core');
+  if (props.changes.length === 0) return null;
+  return (
+    <dl className={cn('grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[minmax(8rem,auto)_1fr]', props.className)}>
+      {props.changes.map((change) => {
+        const whole = props.renderChange?.(change);
+        return (
+          <div key={change.field} className="contents">
+            <dt className="text-xs text-muted-foreground sm:pt-0.5">{props.fieldLabel(change.field)}</dt>
+            <dd className="whitespace-pre-wrap break-words">
+              {whole !== undefined ? (
+                whole
+              ) : (
+                <>
+                  {'before' in change ? (
+                    <>
+                      <span className="sr-only">{t('history.status.from')}</span>
+                      <span className="text-muted-foreground line-through decoration-muted-foreground/60">
+                        {props.renderValue(change.field, change.before)}
+                      </span>
+                      <ArrowRight aria-hidden="true" className="mx-1.5 inline size-3.5 text-muted-foreground" />
+                      <span className="sr-only">{t('history.status.to')}</span>
+                    </>
+                  ) : null}
+                  <span>{props.renderValue(change.field, change.after)}</span>
+                </>
+              )}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
 /**
  * The history drawn: every entry an `h3` under the screen's own heading, its
  * actor and time, then its rows as a definition list — a field's label, and
@@ -264,37 +322,12 @@ export function RecordHistory<E extends RecordHistoryEntryShape>(props: RecordHi
                   </p>
                 </div>
                 {props.renderLead?.(entry, changes)}
-                {changes.length > 0 ? (
-                  <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[minmax(8rem,auto)_1fr]">
-                    {changes.map((change) => {
-                      const whole = props.renderChange?.(change, entry);
-                      return (
-                        <div key={change.field} className="contents">
-                          <dt className="text-xs text-muted-foreground sm:pt-0.5">{props.fieldLabel(change.field)}</dt>
-                          <dd className="whitespace-pre-wrap break-words">
-                            {whole !== undefined ? (
-                              whole
-                            ) : (
-                              <>
-                                {'before' in change ? (
-                                  <>
-                                    <span className="sr-only">{t('history.status.from')}</span>
-                                    <span className="text-muted-foreground line-through decoration-muted-foreground/60">
-                                      {props.renderValue(change.field, change.before, entry)}
-                                    </span>
-                                    <ArrowRight aria-hidden="true" className="mx-1.5 inline size-3.5 text-muted-foreground" />
-                                    <span className="sr-only">{t('history.status.to')}</span>
-                                  </>
-                                ) : null}
-                                <span>{props.renderValue(change.field, change.after, entry)}</span>
-                              </>
-                            )}
-                          </dd>
-                        </div>
-                      );
-                    })}
-                  </dl>
-                ) : null}
+                <RecordHistoryChangeList
+                  changes={changes}
+                  fieldLabel={props.fieldLabel}
+                  renderValue={(field, raw): ReactNode => props.renderValue(field, raw, entry)}
+                  {...(props.renderChange ? { renderChange: (change: RecordHistoryChange) => props.renderChange?.(change, entry) } : {})}
+                />
               </li>
             );
           })}

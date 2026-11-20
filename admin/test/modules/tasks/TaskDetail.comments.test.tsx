@@ -92,7 +92,8 @@ beforeEach(() => {
 async function renderPage(permissions: readonly string[] = ['tasks:read', 'tasks:write']): Promise<HTMLElement> {
   renderTasks(<TaskDetail />, { path: `/tasks/${TASK_ID}`, pattern: '/tasks/:id', permissions });
   await screen.findByRole('heading', { name: /Order the racking/ });
-  return screen.getByRole('region', { name: en('detail.comments') });
+  // The *Comments* tab is the one the screen opens on (issue #1524).
+  return screen.getByRole('tabpanel', { name: new RegExp(`^${en('detail.comments')}`) });
 }
 
 async function entries(section: HTMLElement): Promise<HTMLElement[]> {

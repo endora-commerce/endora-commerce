@@ -12,8 +12,8 @@
  * Tailwind utilities. This test keeps it there: its source may not name a
  * legacy layout or control class, nor write an inline style object. The
  * remaining `b2b-*` estate is listed on #1492; a screen joins `MIGRATED` in the
- * change that migrates it, and a directory whose every screen is migrated joins
- * `MIGRATED_DIRS`, which holds every screen added to it later too. A screen
+ * change that migrates it, and a module whose whole admin surface is migrated
+ * joins `MIGRATED_DIRS`, which holds every screen it adds later too. A screen
  * that keeps a named exception (a drawer frame, a computed width) says so in
  * `EXCEPTIONS`, counted.
  *
@@ -50,21 +50,26 @@ const MIGRATED = [
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx',
   // Issue #1437 (DS-03): one form card of sections and a language card, on kit primitives.
   'packages/admin-shell/src/modules/profile/ProfilePage.tsx',
-  // The rest of the shell's screens (#1492): the Home dashboard (with #1556) and
-  // the command palette's prompt mode. `AppShell.tsx` is still to come.
+  // The command palette's prompt mode (#1492). `AppShell.tsx` is still to come.
   'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx',
   'packages/admin-shell/src/components/prompt-actions/PromptPlanPreview.tsx',
 ] as const;
 
 /**
- * Directories whose every screen is migrated: each `.tsx` under one is held, so
- * a screen added later cannot bring the legacy classes back. Repo-relative.
- * The kit is here because a screen built from it inherits what it draws.
+ * Modules whose whole admin surface is migrated: every `.tsx` under the
+ * directory is held, so a screen added later cannot bring the legacy classes
+ * back. Repo-relative.
  */
 const MIGRATED_DIRS = [
+  // The kit is held whole: a screen built from it inherits what it draws.
   'packages/admin-kit/src/components',
   'packages/admin-kit/src/ui',
+  // The Home dashboard, with #1556.
   'packages/admin-shell/src/modules/home',
+  'packages/modules/import_export/src/admin',
+  'packages/modules/price_lists/src/admin',
+  'packages/modules/product_feeds/src/admin',
+  'packages/modules/seo/src/admin',
 ] as const;
 
 function screensUnder(dir: string): string[] {
@@ -100,22 +105,23 @@ interface Exception {
 
 const DRAWER_FRAME =
   'the frame of a side drawer: no kit drawer exists and no-hand-rolled-overlays.test.ts ledgers it (DRAWER); what is inside it is kit';
+const SCRIM =
+  'the scrim of an alertdialog that no-hand-rolled-overlays.test.ts ledgers for its move to ConfirmDialog (follow-up to #1444)';
 const COMPUTED =
   'a dimension computed at run time (a bar width, a tree indent), which no Tailwind utility can express';
+
 const DATA_COLOUR =
   'a colour that is data (a status or swatch colour an operator chose, a graph legend matching its SVG), which no token names';
 const FILTERCHIP =
   "the theme's filter-chip vocabulary, which the kit's own `FilterChip` owns and draws";
 
-const DRAWER_CLASSES = /\bb2b-(?:scrim|drawer(?:--[a-z]+|__[a-z]+)?)\b/g;
 const FILTERCHIP_CLASS = /\bb2b-filterchip\b/g;
-const COMPUTED_STYLE = /style=\{\{ (?:width|paddingLeft): `\$\{[^}]+\}(?:%|px)` \}\}/;
 const DATA_COLOUR_STYLE = /style=\{\{ (?:backgroundColor|background|color|borderColor): [A-Za-z][^}]*\}\}/;
+const DRAWER_CLASSES = /\bb2b-(?:scrim|drawer(?:--[a-z]+|__[a-z]+)?)\b/g;
+const SCRIM_CLASS = /\bb2b-scrim\b/g;
+const COMPUTED_STYLE = /style=\{\{ (?:width|paddingLeft): `\$\{[^}]+\}(?:%|px)` \}\}/;
 
 const EXCEPTIONS: Record<string, Exception[]> = {
-  'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx': [
-    { kind: 'classes', pattern: DRAWER_CLASSES, count: 6, reason: DRAWER_FRAME },
-  ],
   'packages/admin-kit/src/components/product-browser/ProductBrowserDialog.tsx': [
     { kind: 'classes', pattern: DRAWER_CLASSES, count: 6, reason: DRAWER_FRAME },
     // The type filter cycles through the product types (feature 145), so it is
@@ -136,6 +142,29 @@ const EXCEPTIONS: Record<string, Exception[]> = {
   ],
   'packages/admin-kit/src/ui/color-picker.tsx': [
     { kind: 'styles', pattern: DATA_COLOUR_STYLE, count: 3, reason: DATA_COLOUR },
+  ],
+  'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx': [
+    { kind: 'classes', pattern: DRAWER_CLASSES, count: 6, reason: DRAWER_FRAME },
+  ],
+  'packages/modules/product_feeds/src/admin/components/TemplatePreviewController.tsx': [
+    { kind: 'classes', pattern: DRAWER_CLASSES, count: 6, reason: DRAWER_FRAME },
+  ],
+  'packages/modules/product_feeds/src/admin/components/RevisionImpactDrawer.tsx': [
+    { kind: 'classes', pattern: DRAWER_CLASSES, count: 6, reason: DRAWER_FRAME },
+    { kind: 'styles', pattern: COMPUTED_STYLE, count: 1, reason: COMPUTED },
+  ],
+  'packages/modules/product_feeds/src/admin/pages/FeedTemplateEditorPage.tsx': [
+    // The inspector drawer below desktop (5) and the remove-required alertdialog's scrim (1).
+    { kind: 'classes', pattern: DRAWER_CLASSES, count: 6, reason: `${DRAWER_FRAME}; and ${SCRIM}` },
+  ],
+  'packages/modules/product_feeds/src/admin/components/ConsequenceDialog.tsx': [
+    { kind: 'classes', pattern: SCRIM_CLASS, count: 1, reason: SCRIM },
+  ],
+  'packages/modules/product_feeds/src/admin/components/CategoryMappingRow.tsx': [
+    { kind: 'styles', pattern: COMPUTED_STYLE, count: 1, reason: COMPUTED },
+  ],
+  'packages/modules/product_feeds/src/admin/pages/CategoryMappingPage.tsx': [
+    { kind: 'styles', pattern: COMPUTED_STYLE, count: 1, reason: COMPUTED },
   ],
 };
 
@@ -170,7 +199,7 @@ function exceptionCount(file: string, entry: Exception): number {
 }
 
 describe('one visual system per migrated screen (#1492, CAT-17)', () => {
-  it('finds the screens of every migrated directory', () => {
+  it('finds the screens of every migrated module directory', () => {
     for (const dir of MIGRATED_DIRS) expect(screensUnder(dir).length, dir).toBeGreaterThan(0);
   });
 

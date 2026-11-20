@@ -32,6 +32,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `auth` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `organizations` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `payments` | nie | degrades-without `paymentReadPort` — metody płatności nie można usunąć, można ją tylko ustawić jako nieaktywną |
+| `related_payers` | nie | refuses-without `relatedPayerPolicyPort` — storefront nie może wyświetlić metod płatności płatnika powiązanego; pozostałe listy metod działają bez zmian |
 
 ## Uprawnienia
 

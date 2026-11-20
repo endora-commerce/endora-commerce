@@ -1,9 +1,9 @@
 {
   "sourcePath": "generated:module-reference/payment-methods",
-  "sourceHash": "6f7916b9177317a00757d849d864d6779ce053faacd07b671b00428461dbc193",
+  "sourceHash": "ddb25ffa6e0d8d93f76520b695692283ecf835a285d1a3171a2c02eb74e80696",
   "locale": "pl",
   "meta": {
     "provider": "manual",
-    "updatedAt": "2026-11-05T11:45:06.368Z"
+    "updatedAt": "2026-11-19T17:17:27.602Z"
   }
 }

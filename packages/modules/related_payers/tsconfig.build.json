@@ -1,0 +1,16 @@
+{
+  // Emit configuration — the only configuration in this package allowed to write
+  // files, and the declaration the composer reads to learn where this package's
+  // sources end up (`backend/scripts/lib/module-packages.ts`). `paths` is
+  // cleared so `@endora-commerce/contracts` resolves at its built `.d.ts`
+  // (D-164); `noEmitOnError` so a failed compile ships nothing (feature 080, R11).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    "noEmitOnError": true
+  },
+  // A compiled `*.test.js` under `dist` would import `vitest`, a devDependency.
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts", "src/admin/**/*"]
+}

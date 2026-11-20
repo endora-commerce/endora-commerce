@@ -92,17 +92,18 @@ import { entities as entities53 } from '@endora-commerce/mod-prompt-actions/back
 import { entities as entities54 } from '@endora-commerce/mod-pwa/backend';
 import { entities as entities55 } from '@endora-commerce/mod-quick-order/backend';
 import { entities as entities56 } from '@endora-commerce/mod-quote-requests/backend';
-import { entities as entities57 } from '@endora-commerce/mod-returns/backend';
-import { entities as entities58 } from '@endora-commerce/mod-sales-channels/backend';
-import { entities as entities59 } from '@endora-commerce/mod-search/backend';
-import { entities as entities60 } from '@endora-commerce/mod-seo/backend';
-import { entities as entities61 } from '@endora-commerce/mod-settings/backend';
-import { entities as entities62 } from '@endora-commerce/mod-shipments/backend';
-import { entities as entities63 } from '@endora-commerce/mod-shopping-lists/backend';
-import { entities as entities64 } from '@endora-commerce/mod-tasks/backend';
-import { entities as entities65 } from '@endora-commerce/mod-taxes/backend';
-import { entities as entities66 } from '@endora-commerce/mod-transactional-emails/backend';
-import { entities as entities67 } from '@endora-commerce/mod-webhooks/backend';
+import { entities as entities57 } from '@endora-commerce/mod-related-payers/backend';
+import { entities as entities58 } from '@endora-commerce/mod-returns/backend';
+import { entities as entities59 } from '@endora-commerce/mod-sales-channels/backend';
+import { entities as entities60 } from '@endora-commerce/mod-search/backend';
+import { entities as entities61 } from '@endora-commerce/mod-seo/backend';
+import { entities as entities62 } from '@endora-commerce/mod-settings/backend';
+import { entities as entities63 } from '@endora-commerce/mod-shipments/backend';
+import { entities as entities64 } from '@endora-commerce/mod-shopping-lists/backend';
+import { entities as entities65 } from '@endora-commerce/mod-tasks/backend';
+import { entities as entities66 } from '@endora-commerce/mod-taxes/backend';
+import { entities as entities67 } from '@endora-commerce/mod-transactional-emails/backend';
+import { entities as entities68 } from '@endora-commerce/mod-webhooks/backend';
 
 /**
  * What a module package publishes in its `entities` array.
@@ -189,15 +190,16 @@ export const installedModuleEntities: Readonly<
   pwa: entities54,
   quick_order: entities55,
   quote_requests: entities56,
-  returns: entities57,
-  sales_channels: entities58,
-  search: entities59,
-  seo: entities60,
-  settings: entities61,
-  shipments: entities62,
-  shopping_lists: entities63,
-  tasks: entities64,
-  taxes: entities65,
-  transactional_emails: entities66,
-  webhooks: entities67,
+  related_payers: entities57,
+  returns: entities58,
+  sales_channels: entities59,
+  search: entities60,
+  seo: entities61,
+  settings: entities62,
+  shipments: entities63,
+  shopping_lists: entities64,
+  tasks: entities65,
+  taxes: entities66,
+  transactional_emails: entities67,
+  webhooks: entities68,
 };

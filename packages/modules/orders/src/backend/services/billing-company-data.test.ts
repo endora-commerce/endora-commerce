@@ -49,3 +49,22 @@ describe('billingCompanyData (#759)', () => {
     });
   });
 });
+
+describe('billingCompanyData with a related payer (`specs/182-related-payers/` FR-061, FR-067)', () => {
+  const payer = { name: 'Payer SA', taxId: 'PL1234567890' };
+
+  it('takes the company name and tax id from the payer snapshot', () => {
+    expect(billingCompanyData(company, {}, payer)).toEqual({ companyName: 'Payer SA', taxId: 'PL1234567890' });
+  });
+
+  it('never consults the override, even one the schema would have refused', () => {
+    expect(billingCompanyData(company, { billingCompanyName: 'Other', billingTaxId: '7740001454' }, payer)).toEqual({
+      companyName: 'Payer SA',
+      taxId: 'PL1234567890',
+    });
+  });
+
+  it('a payer is a company even when the buyer is personal', () => {
+    expect(billingCompanyData(personal, {}, payer)).toEqual({ companyName: 'Payer SA', taxId: 'PL1234567890' });
+  });
+});

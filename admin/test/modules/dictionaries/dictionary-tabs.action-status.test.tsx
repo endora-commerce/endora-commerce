@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import type { Country, DictionaryCurrency, DictionaryLanguage } from '@endora-commerce/contracts';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
@@ -8,8 +9,9 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  * Issue #1499 (UX audit SALES-17, owner decision DEC-12 a) — the dictionary
  * tabs said "Made default", "Saved" and "Deleted" in a success banner
  * conditionally mounted above the table. It is now an always-mounted polite
- * region in the list's toolbar, beside the button that opens the editor, and
- * an error empties it so "Saved" is never said beside a refusal.
+ * region in the list's toolbar, beside the search box, and an error empties it
+ * so "Saved" is never said beside a refusal. Since issue #1562 *Set default*
+ * is an entry of the row's menu.
  *
  * The paths name the package's `src/`, batch 8's convention for a screen test.
  */
@@ -37,6 +39,7 @@ const { CountriesTab } = await import('../../../../packages/modules/dictionaries
 
 const bundle = passthroughBundle('dictionaries', [
   'action.setDefault',
+  'action.rowMenu',
   'language.madeDefault',
   'currency.madeDefault',
   'country.madeDefault',
@@ -103,6 +106,13 @@ const CASES: Array<{ name: string; ui: () => ReactElement; setDefault: keyof typ
   { name: 'Countries', ui: () => <CountriesTab />, setDefault: 'setDefaultCountry', done: 'country.madeDefault' },
 ];
 
+/** Open the only row's menu and pick *Set default* (issue #1562). */
+async function setDefaultFromMenu(): Promise<void> {
+  const user = userEvent.setup();
+  await user.click(within(document.querySelector('tbody')!).getByRole('button', { name: 'action.rowMenu' }));
+  await user.click(await screen.findByRole('menuitem', { name: 'action.setDefault' }));
+}
+
 describe.each(CASES)('$name tab — action results beside the toolbar (SALES-17)', ({ ui, setDefault, done }) => {
   async function renderTab(): Promise<HTMLElement> {
     renderWithI18n(ui(), bundle);
@@ -115,14 +125,14 @@ describe.each(CASES)('$name tab — action results beside the toolbar (SALES-17)
     const region = await renderTab();
     expect(region.getAttribute('aria-live')).toBe('polite');
     expect(region.textContent).toBe('');
-    // Same toolbar as the button that opens the editor (Proximity).
-    expect(region.parentElement?.querySelector('button')).not.toBeNull();
+    // Same toolbar as the list's search box (Proximity).
+    expect(region.parentElement?.querySelector('input[type="search"]')).not.toBeNull();
   });
 
   it('says "made default" in that region and puts no success banner above the table', async () => {
     client[setDefault].mockResolvedValue(undefined);
     const region = await renderTab();
-    fireEvent.click(within(document.querySelector('tbody')!).getByRole('button', { name: 'action.setDefault' }));
+    await setDefaultFromMenu();
     await waitFor(() => expect(region).toHaveTextContent(done));
     expect(region).toHaveAttribute('data-tone', 'success');
     expect(successBanners()).toEqual([]);
@@ -131,11 +141,9 @@ describe.each(CASES)('$name tab — action results beside the toolbar (SALES-17)
   it('empties the region when the next action is refused, so the error stands alone', async () => {
     client[setDefault].mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('nope'));
     const region = await renderTab();
-    const star = (): HTMLElement =>
-      within(document.querySelector('tbody')!).getByRole('button', { name: 'action.setDefault' });
-    fireEvent.click(star());
+    await setDefaultFromMenu();
     await waitFor(() => expect(region).toHaveTextContent(done));
-    fireEvent.click(star());
+    await setDefaultFromMenu();
     await waitFor(() => expect(document.querySelector('[data-slot="alert"][data-variant="destructive"]')).not.toBeNull());
     expect(region.textContent).toBe('');
   });

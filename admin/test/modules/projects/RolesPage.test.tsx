@@ -221,6 +221,29 @@ describe('RolesPage', () => {
   });
 });
 
+describe('RolesPage — one place for Add (issue #1562, WORK-13)', () => {
+  it('puts the one filled Add in the page header while Roles exist', async () => {
+    renderRoles();
+    await screen.findByText('Sales Rep');
+    const add = screen.getAllByRole('button', { name: en('roles.add') });
+    expect(add).toHaveLength(1);
+    expect(add[0]!.closest('header')).not.toBeNull();
+    expect(add[0]!.className.split(/\s+/)).toContain('bg-primary');
+  });
+
+  it('shows the kit empty state, carrying the one Add, when the dictionary holds nothing', async () => {
+    getSpy.mockResolvedValue({ data: [] });
+    renderRoles();
+    const title = await screen.findByText(en('roles.empty.title'));
+    expect(title.closest('[data-empty-state="no-data"]')).not.toBeNull();
+    const add = screen.getAllByRole('button', { name: en('roles.add') });
+    expect(add).toHaveLength(1);
+    expect(add[0]!.closest('header')).toBeNull();
+    await userEvent.click(add[0]!);
+    expect(await screen.findByRole('dialog', { name: en('roles.addTitle') })).toBeTruthy();
+  });
+});
+
 describe('LossReasonsPage', () => {
   it('is the same screen over the loss reasons', async () => {
     renderProjects(<LossReasonsPage />, {

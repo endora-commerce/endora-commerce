@@ -319,9 +319,11 @@ function MetaEditorCard(): ReactNode {
           // Feature 174 (FR-094): a product's SEO is edited in the product editor, at its scope.
           <div className="space-y-2" data-testid="seo-product-link">
             <p className="m-0 text-sm text-muted-foreground">{tSeo('productLink.hint')}</p>
-            <Link to={`/catalog/products/${encodeURIComponent(entityId)}?tab=seo`} className="b2b-btn b2b-btn--default b2b-btn--sm">
-              {tSeo('productLink.editInEditor')}
-            </Link>
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/catalog/products/${encodeURIComponent(entityId)}?tab=seo`}>
+                {tSeo('productLink.editInEditor')}
+              </Link>
+            </Button>
           </div>
         ) : entityId.trim() && entityType !== 'product' ? (
           <SeoMetaScopeEditor key={`${entityType}:${entityId}`} entityType={entityType} entityId={entityId} />

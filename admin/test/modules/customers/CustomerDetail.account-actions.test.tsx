@@ -15,8 +15,8 @@ import { installOffsetParentShim } from '../../helpers/layout-shim';
  * verification* on the customer detail fired on one click, in one row with the
  * everyday actions. Each now asks in the kit's `ConfirmDialog`, naming the
  * customer and the consequence, with focus on Cancel; the request runs inside
- * the dialog, so a refusal stays there. *Delete* moves to its own section at
- * the end of the page.
+ * the dialog, so a refusal stays there. Since #1517 every one of them is an
+ * entry of the header's "More" menu, *Delete* last and set apart.
  */
 
 installOffsetParentShim();
@@ -45,8 +45,8 @@ vi.mock('../../../../packages/modules/customers/src/admin/panels/HistoryPanels',
   CartsPanel: () => null,
 }));
 vi.mock('../../../../packages/modules/customers/src/admin/panels/ManagementPanels', () => ({
-  OrganizationAssignmentPanel: () => null,
-  CustomerGroupPanel: () => null,
+  OrganizationAssignmentField: () => null,
+  CustomerGroupField: () => null,
   AddressesPanel: () => null,
 }));
 const { CustomerDetail } = await import('../../../../packages/modules/customers/src/admin/pages/CustomerDetail');
@@ -62,6 +62,14 @@ function bundle(language: 'en' | 'pl'): Record<string, Record<string, string>> {
 }
 const EN = read('../packages/modules/customers/i18n/en.json');
 const T = (key: string): string => EN[key] as string;
+const CORE_EN = read('../packages/modules/_i18n/i18n/en.json');
+
+/** Issue #1517 — the account actions are entries of the header's "More" menu. */
+async function chooseAction(name: string): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: CORE_EN['common.action.more'] as string }));
+  const menu = await screen.findByRole('menu');
+  await userEvent.click(within(menu).getByRole('menuitem', { name }));
+}
 
 const CUSTOMER_ID = '00000000-0000-4000-8000-000000001471';
 const CUSTOMER = {
@@ -116,7 +124,7 @@ beforeEach(() => {
 describe('CustomerDetail — account actions ask first (#1471)', () => {
   it('Block: names the customer and the sign-out, opens on Cancel, and Cancel blocks nothing', async () => {
     renderDetail();
-    await userEvent.click(await screen.findByRole('button', { name: T('detail.action.block') }));
+    await chooseAction(T('detail.action.block'));
 
     const dialog = await screen.findByRole('dialog', { name: 'Block Ewa Nowak?' });
     expect(dialog).toHaveTextContent('signed out');
@@ -129,7 +137,7 @@ describe('CustomerDetail — account actions ask first (#1471)', () => {
   it('Block: posts on confirm, closes, and re-reads the customer', async () => {
     postSpy.mockResolvedValue({});
     renderDetail();
-    await userEvent.click(await screen.findByRole('button', { name: T('detail.action.block') }));
+    await chooseAction(T('detail.action.block'));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Block customer' }));
 
@@ -141,20 +149,21 @@ describe('CustomerDetail — account actions ask first (#1471)', () => {
   it('Reset two-step verification asks before removing the enrolment', async () => {
     postSpy.mockResolvedValue({ data: { affected: true } });
     renderDetail();
-    await userEvent.click(await screen.findByRole('button', { name: T('detail.action.resetMfa') }));
+    await chooseAction(T('detail.action.resetMfa'));
     const dialog = await screen.findByRole('dialog', { name: 'Reset two-step verification for Ewa Nowak?' });
     expect(postSpy).not.toHaveBeenCalled();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Reset two-step verification' }));
     await waitFor(() => expect(postSpy).toHaveBeenCalledWith(`/api/v1/admin/customers/${CUSTOMER_ID}/mfa/reset`, {}));
   });
 
-  it('Delete sits in its own section at the end, away from the everyday actions', async () => {
+  it('Delete is the last entry of "More", set apart from the everyday actions (#1517)', async () => {
     renderDetail();
-    const del = await screen.findByRole('button', { name: T('detail.action.delete') });
-    const block = screen.getByRole('button', { name: T('detail.action.block') });
-    expect(del.closest('section')).toHaveTextContent(T('detail.dangerZone.title'));
-    expect(block.closest('section')).toBeNull();
-    expect(block.compareDocumentPosition(del) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.click(await screen.findByRole('button', { name: CORE_EN['common.action.more'] as string }));
+    const menu = await screen.findByRole('menu');
+    const items = within(menu).getAllByRole('menuitem');
+    const del = items[items.length - 1]!;
+    expect(del).toHaveTextContent(T('detail.action.delete'));
+    expect(del.previousElementSibling).toBe(within(menu).getByRole('separator'));
   });
 
   it('Delete: a refusal stays in the dialog, and nothing else changes', async () => {
@@ -162,7 +171,7 @@ describe('CustomerDetail — account actions ask first (#1471)', () => {
       new ApiError(409, { error: { code: 'ORG_OWNER_DEPLETION', message: 'This customer is the last administrator.' } } as never),
     );
     renderDetail();
-    await userEvent.click(await screen.findByRole('button', { name: T('detail.action.delete') }));
+    await chooseAction(T('detail.action.delete'));
     const dialog = await screen.findByRole('dialog', { name: 'Delete Ewa Nowak?' });
     expect(dialog).toHaveTextContent('can be restored');
     const confirmButton = within(dialog).getByRole('button', { name: 'Delete customer' });
@@ -177,7 +186,7 @@ describe('CustomerDetail — account actions ask first (#1471)', () => {
   it('blocks a second click while the request is in flight', async () => {
     deleteSpy.mockImplementation(() => new Promise(() => undefined));
     renderDetail();
-    await userEvent.click(await screen.findByRole('button', { name: T('detail.action.delete') }));
+    await chooseAction(T('detail.action.delete'));
     const dialog = await screen.findByRole('dialog');
     const confirmButton = within(dialog).getByRole('button', { name: 'Delete customer' });
     await userEvent.click(confirmButton);
@@ -190,7 +199,9 @@ describe('CustomerDetail — account actions ask first (#1471)', () => {
   it('asks in Polish too', async () => {
     renderDetail('pl');
     const pl = read('../packages/modules/customers/i18n/pl.json');
-    await userEvent.click(await screen.findByRole('button', { name: pl['detail.action.block'] as string }));
+    const corePl = read('../packages/modules/_i18n/i18n/pl.json');
+    await userEvent.click(await screen.findByRole('button', { name: corePl['common.action.more'] as string }));
+    await userEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: pl['detail.action.block'] as string }));
     const dialog = await screen.findByRole('dialog', { name: 'Zablokować konto klienta?' });
     expect(within(dialog).getByRole('button', { name: 'Zablokuj klienta' })).toBeInTheDocument();
   });

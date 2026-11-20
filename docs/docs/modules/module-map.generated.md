@@ -76,6 +76,7 @@ of the platform, not of what happens to be written.
 | [PWA (progressive web app)](./pwa.md) | Progressive-Web-App capabilities for the storefront and admin — installability, opt-in asset caching, a controlled update path and opt-in push | @endora-commerce/mod-pwa |
 | [Quick order](./quick_order.md) | CSV-import + type-ahead helpers for buyers ordering by SKU | @endora-commerce/mod-quick-order |
 | [Quote requests](./quote_requests.md) | RFQ lifecycle (draft → quote → accept/reject) | @endora-commerce/mod-quote-requests |
+| [Related payers](./related-payers/index.md) | A buyer organization places orders paid and invoiced by another organization of the store | @endora-commerce/mod-related-payers |
 | [Returns](./returns.md) | Returns and complaints (RMA) — submission, verification, reverse-logistics shipments and settlement over a configurable status graph | @endora-commerce/mod-returns |
 | [Sales channels](./sales_channels/index.md) | Channel registry, request resolver, bidirectional membership for every channel-scoped entity | @endora-commerce/mod-sales-channels |
 | [Storefront search](./search.md) | Meilisearch indexer + query bridge | @endora-commerce/mod-search |

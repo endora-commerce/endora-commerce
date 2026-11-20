@@ -104,13 +104,19 @@ async function moveTo(status: string): Promise<void> {
   await openMoveMenu();
   await userEvent.click(within(screen.getByRole('group', { name: MOVE_LABEL })).getByRole('button', { name: status }));
 }
-const statusGroup = (): HTMLElement => screen.getByRole('group', { name: en('field.status') });
+/** The status is said once, in the title (issue #1566). */
+const title = (): HTMLElement => screen.getByRole('heading', { level: 1 });
+/** The history is a tab of its own (issue #1524). */
+async function historyTab(): Promise<HTMLElement> {
+  await userEvent.click(screen.getByRole('tab', { name: en('detail.history') }));
+  return screen.getByRole('tabpanel', { name: en('detail.history') });
+}
 
 describe('TaskDetail — the header and the context card', () => {
   it('names the Task, its number and its status', async () => {
     await renderPage();
     expect(screen.getAllByText('TSK-000001').length).toBeGreaterThan(0);
-    expect(within(statusGroup()).getByText(STATUS.todo.name)).toBeInTheDocument();
+    expect(within(title()).getByText(STATUS.todo.name)).toBeInTheDocument();
     // No native select: arrow keys on one would write a move per keypress (WCAG 3.2.2).
     expect(screen.queryByRole('combobox', { name: en('field.status') })).toBeNull();
   });
@@ -167,7 +173,7 @@ describe('TaskDetail — writing', () => {
     await moveTo(STATUS.in_progress.name);
     expect(postSpy).toHaveBeenCalledTimes(1);
     expect(postSpy).toHaveBeenCalledWith(`${TASK_PATH}/status`, { from: 'todo', to: 'in_progress' });
-    await waitFor(() => expect(within(statusGroup()).getByText(STATUS.in_progress.name)).toBeInTheDocument());
+    await waitFor(() => expect(within(title()).getByText(STATUS.in_progress.name)).toBeInTheDocument());
     // The chosen target unmounted with the list: focus is back on the menu's trigger (WCAG 2.4.3).
     await waitFor(() => expect(moveMenu()).toHaveFocus());
   });
@@ -201,7 +207,7 @@ describe('TaskDetail — writing', () => {
     await renderPage();
     await moveTo(STATUS.done.name);
     expect(await screen.findByText('The task workflow does not allow this move. It can move to: Cancelled.')).toBeTruthy();
-    expect(within(statusGroup()).getByText(STATUS.todo.name)).toBeInTheDocument();
+    expect(within(title()).getByText(STATUS.todo.name)).toBeInTheDocument();
     await waitFor(() => expect(moveMenu()).toBeEnabled());
     expect(await openMoveMenu()).toEqual([STATUS.cancelled.name]);
   });
@@ -353,7 +359,7 @@ describe('TaskDetail — the way back (`?returnTo=`, #512)', () => {
 describe('TaskDetail — history and the zone', () => {
   it('lists the history, each entry by what happened', async () => {
     await renderPage();
-    const history = screen.getByRole('region', { name: en('detail.history') });
+    const history = await historyTab();
     expect(await within(history).findByText(en('auditLog.tasks.task.create'))).toBeTruthy();
     expect(within(history).getByText(en('auditLog.tasks.task.status_change'))).toBeTruthy();
   });
@@ -383,7 +389,7 @@ describe('TaskDetail — history and the zone', () => {
       return Promise.reject(new Error(`unexpected GET ${path}`));
     });
     await renderPage();
-    const history = screen.getByRole('region', { name: en('detail.history') });
+    const history = await historyTab();
     expect(await within(history).findByRole('heading', { name: en('auditLog.tasks.task.status_change') })).toBeTruthy();
     expect(within(history).getByText(en('history.field.status'))).toBeTruthy();
     // The workflow's own name for the code the entry stored (165 R-1).
@@ -407,7 +413,7 @@ describe('TaskDetail — history and the zone', () => {
       return Promise.reject(new Error(`unexpected GET ${path}`));
     });
     await renderPage();
-    const history = screen.getByRole('region', { name: en('detail.history') });
+    const history = await historyTab();
     expect(await within(history).findByText(en('history.field.dueAt'))).toBeTruthy();
     expect(within(history).queryByText(en('history.field.dueOn'))).toBeNull();
     expect(
@@ -429,7 +435,8 @@ describe('TaskDetail — history and the zone', () => {
       resolve(process.cwd(), '../packages/modules/tasks/src/admin/pages/TaskDetail.tsx'),
       'utf8',
     );
-    expect(source).toContain('<AdminZone name="task.detail.after" props={{ taskId: task.id }} chrome="card" />');
+    // A section of the sidebar card, no card in a card (issue #1524).
+    expect(source).toContain('<AdminZone name="task.detail.after" props={{ taskId: task.id }} chrome="section" />');
     expect(source).not.toMatch(/mod-projects|projects:/);
   });
 });

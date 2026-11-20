@@ -1,4 +1,5 @@
 {
+  "module.name": "Stany magazynowe",
   "actions.openInventory.label": "Otwórz zapasy",
   "actions.openInventory.description": "Wyświetl i zarządzaj stanami magazynowymi",
   "actions.openWarehouses.label": "Magazyny",

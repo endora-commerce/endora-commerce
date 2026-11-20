@@ -51,6 +51,8 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
   'b2b-badge--info':
     'rendered only by the price-list screens feature 160 deleted with the old model; P2\'s price-book editor, released together, is its next renderer',
   'b2b-badge--solid': 'a badge variant no screen renders; drains with the badge vocabulary',
+  'b2b-btn--default':
+    'the outline button the last screens rendered until issue #1492 moved them to the kit `Button variant="outline"`',
   'b2b-btn--lg': 'a button size no screen renders; the tree uses the default and `--sm`',
   'b2b-card--clickable':
     'the whole-card link the Home KPI tiles rendered until issue #1492 moved them to the kit `Card` with a `Link` inside',
@@ -60,8 +62,12 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
     'the card footer band `PaginationFooter` rendered until issue #1492 drew it in Tailwind from the same tokens; the kit `CardFooter` is the primitive',
   'b2b-card__head':
     'the card header the Home cards rendered until issue #1492; the kit `CardHeader` replaces it',
+  'b2b-card__sub':
+    'the card subtitle the Home activity card rendered until issue #1492; the kit `CardDescription` replaces it',
   'b2b-card__title':
     'the card title the Home cards rendered until issue #1492; the kit `CardTitle` (an `h2`) replaces it',
+  'b2b-field--addon':
+    'the search field with a leading icon the product browser rendered until issue #1492; the toolbar\'s `ListToolbarSearch` replaces it',
   'b2b-filterbar':
     'the filter bar the product browser rendered until issue #1492 moved it to Tailwind and `ListToolbarSearch`; the kit `ListToolbar` is the primitive',
   'b2b-filterbar__search': 'the search slot of `b2b-filterbar`, which nothing renders',
@@ -69,6 +75,8 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
     'the two-column form grid the profile screen rendered until issue #1437 moved it to a Tailwind `grid`; no other screen renders it',
   'b2b-home-dashboard-grid':
     'the Home dashboard\'s two-column grid until issue #1492 made it a Tailwind `grid`; its mobile rule goes with it',
+  'b2b-input-wrap':
+    'the icon wrapper of `b2b-field--addon`, which nothing renders since issue #1492',
   'b2b-kpi-grid':
     'the Home KPI row until issue #1492 made it a Tailwind `grid`; the mobile `.b2b-row:not(.b2b-kpi-grid)` exclusion names it too',
   'b2b-locale-strip':
@@ -98,6 +106,7 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
     'repository; the design system styles it because the host embeds the editor',
   'cell-input': 'a descendant of `b2b-matrix`, which nothing renders',
   'cell--num': 'a numeric-cell modifier under `b2b-matrix`, which nothing renders',
+  lead: 'the leading-icon descendant of `b2b-input-wrap`, which nothing renders since issue #1492',
   bar: 'a descendant of a chart block whose renderer is gone',
   dot: 'a descendant of a status block whose renderer is gone',
   lo: 'a descendant modifier of a stock indicator whose renderer is gone',

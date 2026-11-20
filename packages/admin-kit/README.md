@@ -513,6 +513,15 @@ dropzone and a dialog are fields or overlays, not frames, and stay.
 `CustomFieldValuesPanel`, `RecordHistory` or `CommentThread` on its own, outside a card, now gets
 no card; pass `chrome="card"` to keep it.
 
+### One audited change — `RecordHistoryChangeList`
+
+Issue #1555 (UX audit SHELL-20). The field-by-field list `RecordHistory` draws under each entry is
+published as `RecordHistoryChangeList` (`./components`), for a screen that shows one audited change
+outside a history — the audit log's row detail. Feed it `recordHistoryChanges(...)` or rows of your
+own, a `fieldLabel` and a `renderValue`; it draws the old value struck through with *from* / *to*
+spoken, and nothing at all for no rows, so what an empty entry says stays the caller's. Do not draw
+a change as two JSON blocks to compare by eye. Pinned in `admin/test/kit/kit-record-history.test.tsx`.
+
 ## Tabs — `Tabs`, `TabPanel` and `RecordTabs`
 
 Issue #1445 (UX audit 2026-11-17, DS-12). The one in-page tab strip; `RouteTabs` stays the strip
@@ -932,6 +941,8 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
 - **What the kit deliberately leaves to the screen:** the filters themselves and their "More
   filters" disclosure (DS-06, #1440, the kit `ListToolbar`), and the empty state's icon and copy
   (DS-15, #1448, the kit `EmptyState`). Both slot into `toolbar` and `emptyState` when they land.
+- **`help`** goes to `PageHeader`'s ⓘ, for a list whose header needs a longer explanation than a
+  one-line `description` (the Modules screen, #1520).
 - Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
   adopters are `CustomersList`, `OrganizationsList` and `CartsList`.
 - **A value edited from the row** (issue #1501, SHELL-14) is a `StatusChangeControl` with

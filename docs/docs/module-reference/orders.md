@@ -67,6 +67,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `prompt_actions` | no | contributes-to `promptActionToolRegistry` |
 | `quote_requests` | no | degrades-without `quoteRequestReadPort` — a basket still priced at a quote`s agreed prices is refused, since nothing can confirm the quote is still valid; any other basket is placed as before and names no quote |
 | `quote_requests` | no | refuses-without `rfqService` — an order cannot be turned back into a quote — the reorder-as-quote action on the order screen refuses, and every other order surface keeps serving |
+| `related_payers` | no | refuses-without `relatedPayerPolicyPort` — an order naming a related payer cannot be placed or previewed; every other order is unaffected |
 | `shipments` | no | degrades-without `shippingEmailRendererPort` — the order confirmation still goes out, with the delivery line written from the method snapshot instead of a carrier’s own wording |
 
 ## Permissions

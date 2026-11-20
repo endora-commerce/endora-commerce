@@ -49,6 +49,12 @@ import './sales-channel-access-option.js';
 import './response-language.js';
 
 export { HttpError } from './error-envelope.js';
-export { productAudienceOf, markPersonalisedPricing } from './product-audience.js';
+export {
+  productAudienceOf,
+  markPersonalisedPricing,
+  pricedAudienceOf,
+  providePricingSubjectResolver,
+  type PricingSubjectResolver,
+} from './product-audience.js';
 export { StorefrontRevalidator } from './storefront-revalidator.js';
 export { encodeCursor, decodeCursor } from './cursor.js';

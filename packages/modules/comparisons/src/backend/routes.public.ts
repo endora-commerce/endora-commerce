@@ -144,7 +144,7 @@ export async function registerComparisonsPublicRoutes(
       data: await comparisonService.buildOwnerView(
         comparison,
         channel.id,
-        buyerViewerOf(request),
+        await buyerViewerOf(request),
         // Owner decision CMP-1 = A — `/me` is the owner's own comparison.
         'owner',
       ),
@@ -176,7 +176,7 @@ export async function registerComparisonsPublicRoutes(
       data: await comparisonService.buildOwnerView(
         comparison,
         channel.id,
-        buyerViewerOf(request),
+        await buyerViewerOf(request),
         // Owner decision CMP-1 = A — `/me` is the owner's own comparison.
         'owner',
       ),
@@ -207,7 +207,7 @@ export async function registerComparisonsPublicRoutes(
         data: await comparisonService.buildOwnerView(
           comparison,
           channel.id,
-          buyerViewerOf(request),
+          await buyerViewerOf(request),
           // Owner decision CMP-1 = A — `/me` is the owner's own comparison.
           'owner',
         ),
@@ -235,7 +235,7 @@ export async function registerComparisonsPublicRoutes(
       data: await comparisonService.buildOwnerView(
         comparison,
         channel.id,
-        buyerViewerOf(request),
+        await buyerViewerOf(request),
         // Owner decision CMP-1 = A — `/me` is the owner's own comparison.
         'owner',
       ),
@@ -256,7 +256,7 @@ export async function registerComparisonsPublicRoutes(
       const view = await comparisonService.buildOwnerView(
         comparison,
         channel.id,
-        buyerViewerOf(request),
+        await buyerViewerOf(request),
         // Owner decision CMP-1 = A — `/me` is the owner's own comparison.
         'owner',
       );

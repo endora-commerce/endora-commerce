@@ -9,6 +9,7 @@ import type {
 import { Invoice } from '../entities/invoice.entity.js';
 import { InvoiceLine as InvoiceLineEntity } from '../entities/invoice-line.entity.js';
 import { isUuidShape } from '@endora-commerce/contracts';
+import { invoiceOwnerOrganizationId } from './invoice-owner.js';
 
 const EMPTY_BUYER: InvoiceBuyer = {
   name: '',
@@ -49,7 +50,10 @@ export class InvoiceCopyHostService implements InvoiceCopyHostPort {
     }));
     return {
       invoiceId: invoice.id,
-      organizationId: order?.organizationId ?? invoice.organizationId ?? '',
+      // `specs/182-related-payers/` FR-081 — the ledger client is the Organization billed.
+      organizationId: order
+        ? invoiceOwnerOrganizationId({ origin: 'platform' }, order)
+        : (invoice.organizationId ?? ''),
       number: invoice.number,
       kind: invoice.kind,
       salesChannelId: invoice.salesChannelId ?? null,

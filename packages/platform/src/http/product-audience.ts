@@ -108,3 +108,56 @@ export function markPersonalisedPricing(
   if (!audience.authenticated && audience.organizationId === null) return;
   reply.header('cache-control', 'private, no-store');
 }
+
+/**
+ * `specs/182-related-payers/` research R-4 — **who is priced**, when that is not who is
+ * looking. A buyer acting for another Organization on its commercial terms ("Buying for Y")
+ * sees Y's prices and VAT rate while visibility stays its own.
+ *
+ * Answers the Organization prices are resolved for, or `null` for "the viewer's own". Asked
+ * only for a customer actor with an Organization; never trusted from the client.
+ */
+export type PricingSubjectResolver = (request: FastifyRequest, audience: ProductAudience) => Promise<string | null>;
+
+/**
+ * The host-held slot: zero or one contributor (`carts`), filtered by the contributor's
+ * presence **at call time**, so switching the contributor off needs no restart and leaves the
+ * audience exactly `productAudienceOf`'s.
+ */
+let pricingSubject: { moduleId: string; resolve: PricingSubjectResolver; isPresent: () => boolean } | null = null;
+
+/**
+ * Registers the pricing-subject contributor. A second contributor is a composition fault, not a
+ * choice to arbitrate. Returns the release, for a test and for a composition torn down.
+ */
+export function providePricingSubjectResolver(
+  moduleId: string,
+  resolve: PricingSubjectResolver,
+  isPresent: () => boolean,
+): () => void {
+  if (pricingSubject && pricingSubject.moduleId !== moduleId) {
+    throw new Error(
+      `[platform] a pricing-subject resolver is already provided by '${pricingSubject.moduleId}'; '${moduleId}' cannot provide a second`,
+    );
+  }
+  const entry = { moduleId, resolve, isPresent };
+  pricingSubject = entry;
+  return () => {
+    if (pricingSubject === entry) pricingSubject = null;
+  };
+}
+
+/**
+ * {@link productAudienceOf} plus `pricingOrganizationId` when the contributor names one
+ * (FR-111, FR-115). Every catalogue-pricing route reads this, so the derivation of "who is
+ * priced" stays one. Anonymous, admin and API-key callers never reach the resolver.
+ */
+export async function pricedAudienceOf(request: FastifyRequest): Promise<ProductAudience> {
+  const audience = productAudienceOf(request);
+  const actor = request.actor as Actor | undefined;
+  if (!pricingSubject || actor?.kind !== 'customer' || audience.organizationId === null) return audience;
+  if (!pricingSubject.isPresent()) return audience;
+  const pricingOrganizationId = await pricingSubject.resolve(request, audience);
+  if (!pricingOrganizationId || pricingOrganizationId === audience.organizationId) return audience;
+  return { ...audience, pricingOrganizationId };
+}

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { isoDateTimeSchema, moneySchema, uuidSchema } from './common.js';
 import { boundedLineQuantity, lineQuantitySchema } from './line-bounds.js';
+import { payerCommercialTermsSchema } from './related-payers.js';
 
 /**
  * Cart + CartItem contracts. The Cart can be anonymous (cookie-held) or
@@ -341,6 +342,27 @@ export const cartPreviousRejectionSchema = z.object({
 });
 export type CartPreviousRejection = z.infer<typeof cartPreviousRejectionSchema>;
 
+/**
+ * `specs/182-related-payers/` (FR-110, research R-3) — the cart's *Buying for*
+ * context: the payer the cart is bought for, and the terms its link carried when
+ * it was set. `null` — the buyer's own Organization. With `terms = 'payer'` every
+ * price of the cart is the payer's (FR-111).
+ */
+export const cartBuyingForSchema = z.object({
+  organizationId: uuidSchema,
+  name: z.string(),
+  terms: payerCommercialTermsSchema,
+});
+export type CartBuyingFor = z.infer<typeof cartBuyingForSchema>;
+
+/**
+ * Why a cart read dropped its *Buying for* context and repriced for the buyer
+ * (FR-116): the link stopped being usable, its terms changed to the buyer's, or
+ * the capability is absent (module off, or switched off on the channel).
+ */
+export const cartBuyingForResetReasonSchema = z.enum(['link_not_usable', 'terms_changed', 'capability_unavailable']);
+export type CartBuyingForResetReason = z.infer<typeof cartBuyingForResetReasonSchema>;
+
 export const cartFullPayloadSchema = z.object({
   id: uuidSchema.nullable(),
   customerAccountId: uuidSchema.nullable(),
@@ -388,8 +410,62 @@ export const cartFullPayloadSchema = z.object({
    * could not resolve a rate. Additive: a reply without the key parses as `null`.
    */
   vat: cartVatSchema.nullable().default(null),
+  /**
+   * `specs/182-related-payers/` — see {@link cartBuyingForSchema}. Additive: a
+   * reply without the key parses as `null`.
+   */
+  buyingFor: cartBuyingForSchema.nullable().default(null),
+  /**
+   * `specs/182-related-payers/` FR-116 — set on the one read that dropped the
+   * context, so the storefront can say why the prices changed. `null` otherwise.
+   */
+  buyingForReset: z.object({ reason: cartBuyingForResetReasonSchema }).nullable().default(null),
 });
 export type CartFullPayload = z.infer<typeof cartFullPayloadSchema>;
+
+/** `PUT /api/v1/cart/buying-for` (FR-110). `null` returns the cart to the buyer itself. */
+export const setCartBuyingForRequestSchema = z.strictObject({
+  payerOrganizationId: uuidSchema.nullable(),
+});
+export type SetCartBuyingForRequest = z.infer<typeof setCartBuyingForRequestSchema>;
+
+/**
+ * One line of a repricing (FR-113, FR-114): the unit price before and after the
+ * switch. A line with no price in the new context stays in the cart, `unpriced`,
+ * with `after = null`; `before = null` for a line that had none either.
+ */
+export const cartRepricedLineSchema = z
+  .object({
+    lineId: uuidSchema,
+    before: moneySchema.nullable(),
+    after: moneySchema.nullable(),
+    unpriced: z.boolean(),
+  })
+  .refine((line) => (line.after === null) === line.unpriced, {
+    path: ['after'],
+    message: 'An unpriced line has no price after the switch, and a priced one has',
+  });
+export type CartRepricedLine = z.infer<typeof cartRepricedLineSchema>;
+
+const repricedPromotionSchema = z.object({
+  promotionId: uuidSchema,
+  /** In the request's language; `null` when the promotion has no name to show. */
+  name: z.string().nullable(),
+});
+
+/** What switching *Buying for* changed (FR-113). */
+export const cartRepricingSummarySchema = z.object({
+  lines: z.array(cartRepricedLineSchema),
+  promotionsAdded: z.array(repricedPromotionSchema),
+  promotionsRemoved: z.array(repricedPromotionSchema),
+});
+export type CartRepricingSummary = z.infer<typeof cartRepricingSummarySchema>;
+
+/** The reply of `PUT /api/v1/cart/buying-for`: the repriced cart and what changed. */
+export const setCartBuyingForResponseSchema = z.object({
+  data: cartFullPayloadSchema.extend({ repricing: cartRepricingSummarySchema }),
+});
+export type SetCartBuyingForResponse = z.infer<typeof setCartBuyingForResponseSchema>;
 
 export const cartFullResponseSchema = z.object({ data: cartFullPayloadSchema });
 export type CartFullResponse = z.infer<typeof cartFullResponseSchema>;
@@ -785,6 +861,13 @@ export interface CartRecord {
   id: string;
   customerAccountId: string | null;
   organizationId: string | null;
+  /**
+   * `specs/182-related-payers/` FR-110 — the payer this basket is bought for and the terms its
+   * link carried when chosen; `null` for the buyer's own. Optional so a hand-built record in a
+   * test needs neither.
+   */
+  buyingForOrganizationId?: string | null;
+  buyingForTerms?: 'buyer' | 'payer' | null;
   anonymousCartToken: string | null;
   salesChannelId: string | null;
   status: CartStatus;
@@ -1201,3 +1284,4 @@ export interface CartQueryPort {
 export interface CartAnonymizationPort {
   anonymizeForCustomerAccount(customerAccountId: string): Promise<number>;
 }
+

@@ -110,6 +110,37 @@ describe('TaskPrioritiesPage — the table', () => {
   });
 });
 
+describe('TaskPrioritiesPage — one place for Add (issue #1562, WORK-13)', () => {
+  it('puts the one filled Add in the page header, with no card title repeating the page title', async () => {
+    await renderPage();
+    const add = screen.getAllByRole('button', { name: en('priorities.add') });
+    expect(add).toHaveLength(1);
+    expect(add[0]!.closest('header')).not.toBeNull();
+    expect(add[0]!.className.split(/\s+/)).toContain('bg-primary');
+    expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([en('priorities.title')]);
+  });
+
+  it('says in the column header that the count is of the Tasks the operator can see', async () => {
+    await renderPage();
+    expect(screen.getByRole('columnheader', { name: en('workflow.col.inUse') })).toBeInTheDocument();
+    expect(en('workflow.col.inUse')).toBe('Tasks (visible to you)');
+  });
+
+  it('hides the header Add while the list is empty, so the empty state carries the one primary', async () => {
+    getSpy.mockResolvedValue({ data: [] });
+    renderTasks(<TaskPrioritiesPage />, { permissions: CONFIGURER });
+    await screen.findByText(en('priorities.empty.title'));
+    expect(screen.getByRole('button', { name: en('priorities.add') }).closest('header')).toBeNull();
+  });
+
+  it('draws a row’s Remove in the destructive tone, not as a filled button', async () => {
+    await renderPage();
+    const remove = within(priorityRow('high')).getByRole('button', { name: en('priorities.deleteLabel', { name: 'High' }) });
+    expect(remove).toHaveClass('text-destructive');
+    expect(remove).not.toHaveClass('bg-destructive');
+  });
+});
+
 /** The codes of the priorities table, top to bottom. */
 function tableCodes(): string[] {
   const table = screen.getByRole('table', { name: en('priorities.title') });

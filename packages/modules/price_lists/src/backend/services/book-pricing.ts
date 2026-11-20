@@ -150,6 +150,11 @@ export interface CachedBookLine {
 
 export interface BookPricingViewer {
   organizationId: string | null;
+  /**
+   * RP-14 — whose display mode the tail resolves, when not `organizationId`'s (a buyer on a
+   * payer's terms). Not part of the profile: the mode is applied after the cache.
+   */
+  displayModeOrganizationId?: string | null;
   customerGroupId: string | null;
   signedIn: boolean;
   salesChannelId: string;
@@ -459,7 +464,7 @@ export class BookPricing {
   async #viewerMode(viewer: BookPricingViewer): Promise<DisplayMode> {
     const customerKind = viewer.signedIn ? 'signed_in' : 'guest';
     const input = {
-      organizationId: viewer.signedIn ? viewer.organizationId : null,
+      organizationId: viewer.signedIn ? (viewer.displayModeOrganizationId ?? viewer.organizationId) : null,
       salesChannelId: viewer.salesChannelId,
       customerKind,
     } as const;

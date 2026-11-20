@@ -1,4 +1,5 @@
 {
+  "module.name": "Faktury",
   "settings.sellerTaxId.label": "NIP / VAT sprzedawcy",
   "settings.sellerCompanyData.label": "Dane firmy sprzedawcy",
   "settings.autoIssueTriggerStatus.label": "Automatyczne wystawianie wg statusu zamówienia",

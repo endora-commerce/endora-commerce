@@ -1,16 +1,30 @@
 import type { FastifyInstance } from 'fastify';
-import type { AuditReferenceLabel } from '@endora-commerce/contracts';
+import type { AuditLogFacetsResponse, AuditReferenceLabel } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { AuditLogEntry } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import { decodeAuditLogCursor, encodeAuditLogCursor } from './audit-log-cursor.js';
 
 /**
  * Admin Audit Log query route (T195 / FR-084).
  *
  * Always reads — never mutates — the append-only audit log. Filters are
  * accepted as query params (`filter[actor]`, `filter[action]`, …); a
- * default `limit=100` keeps the page lightweight, capped at 500.
+ * default `limit=100` keeps the page lightweight, capped at
+ * {@link AUDIT_LOG_MAX_LIMIT}.
+ *
+ * The list pages by cursor (issue #1555): while more entries exist the answer
+ * carries `pagination.cursor`, and `?cursor=` reads the page after it. It used
+ * to answer `hasMore: false` always, so the screen showed the newest page and
+ * nothing behind it.
  */
+
+/**
+ * The largest page. One entry past the page is read to know whether another
+ * page exists, and the platform's read caps at 500, so a page stays under it.
+ */
+export const AUDIT_LOG_MAX_LIMIT = 200;
+const AUDIT_LOG_DEFAULT_LIMIT = 100;
 
 /** Minimal actor identity used to enrich the audit-log actor column. */
 export interface AuditActorIdentity {
@@ -50,7 +64,12 @@ export async function registerAuditLogAdminRoutes(
     async (request) => {
       const q = (request.query ?? {}) as Record<string, string | undefined>;
       const limitNum = q['limit'] ? Number.parseInt(q['limit'], 10) : undefined;
-      const entries = await auditLogService.query({
+      const limit = Math.min(
+        Math.max(limitNum !== undefined && Number.isFinite(limitNum) ? limitNum : AUDIT_LOG_DEFAULT_LIMIT, 1),
+        AUDIT_LOG_MAX_LIMIT,
+      );
+      const after = q['cursor'] ? decodeAuditLogCursor(q['cursor']) : undefined;
+      const read = await auditLogService.query({
         ...(q['filter[actor]'] ? { actorAdminUserId: q['filter[actor]']! } : {}),
         ...(q['filter[customer]']
           ? { impersonatedCustomerAccountId: q['filter[customer]']! }
@@ -58,8 +77,12 @@ export async function registerAuditLogAdminRoutes(
         ...(q['filter[action]'] ? { action: q['filter[action]']! } : {}),
         ...(q['filter[objectType]'] ? { objectType: q['filter[objectType]']! } : {}),
         ...(q['filter[objectId]'] ? { objectId: q['filter[objectId]']! } : {}),
-        ...(limitNum !== undefined && Number.isFinite(limitNum) ? { limit: limitNum } : {}),
+        ...(after ? { after } : {}),
+        limit: limit + 1,
       });
+      const hasMore = read.length > limit;
+      const entries = hasMore ? read.slice(0, limit) : read;
+      const last = entries[entries.length - 1];
       // Enrich the actor column with name + email (one batched lookup).
       const actorIds = entries
         .map((e) => e.actorAdminUserId)
@@ -80,7 +103,27 @@ export async function registerAuditLogAdminRoutes(
       const actorById = new Map(actors.map((a) => [a.id, a]));
       return {
         data: entries.map((e) => serialize(e, actorById, customers)),
-        pagination: { cursor: null, hasMore: false, limit: entries.length },
+        pagination: {
+          cursor: hasMore && last ? encodeAuditLogCursor({ actedAt: last.actedAt, id: last.id }) : null,
+          hasMore,
+          limit,
+        },
+      };
+    },
+  );
+
+  // What the viewer's filters offer (issue #1555): the actions the log holds,
+  // each with the module whose bundle labels it, and the object types.
+  app.get(
+    '/api/v1/admin/audit-log/facets',
+    { preHandler: requireAdmin('audit_log:read') },
+    async (): Promise<{ data: AuditLogFacetsResponse }> => {
+      const facets = await auditLogService.queryFacets();
+      return {
+        data: {
+          actions: facets.actions.map((action) => ({ action, moduleId: moduleIdForAuditAction(action) })),
+          objectTypes: facets.objectTypes,
+        },
       };
     },
   );

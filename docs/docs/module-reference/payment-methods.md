@@ -32,6 +32,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `organizations` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `payments` | no | degrades-without `paymentReadPort` — a payment method cannot be deleted, only set inactive |
+| `related_payers` | no | refuses-without `relatedPayerPolicyPort` — the storefront cannot list the payment methods of a related payer; every other listing is unaffected |
 
 ## Permissions
 

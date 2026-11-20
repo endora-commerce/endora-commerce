@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import {
   feedOutputFormatSchema,
   isTabularFeedFormat,
@@ -8,8 +8,8 @@ import {
   type FeedFieldSourceKind,
   type FeedOutputFormat,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
-import { useViewportTier } from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, Button, Card, CardContent, Input, Label, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { ListToolbarSearch, useViewportTier } from '@endora-commerce/admin-kit/components';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -374,7 +374,7 @@ export function FeedTemplateEditorPage(): ReactNode {
           title={t('builder.title')}
           back={{ label: t('templates.title'), to: '/product-feeds/templates' }}
         />
-        <p className="b2b-help">{t('feeds.criteria.counting')}</p>
+        <p role="status" className="m-0 text-sm text-muted-foreground">{t('feeds.criteria.counting')}</p>
       </div>
     );
   }
@@ -403,12 +403,9 @@ export function FeedTemplateEditorPage(): ReactNode {
             {/* FR-012 — the portability document, as a plain download. An
                 anchor rather than a fetch, so the filename comes from the
                 server's `Content-Disposition` and nothing is held in memory. */}
-            <a
-              href={productFeedsClient.templateExportUrl(template.id)}
-              className="b2b-btn b2b-btn--ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm underline-offset-2 hover:underline"
-            >
-              {t('templates.export')}
-            </a>
+            <Button asChild variant="ghost" size="sm">
+              <a href={productFeedsClient.templateExportUrl(template.id)}>{t('templates.export')}</a>
+            </Button>
             <Button
               type="button"
               disabled={saving || readOnly}
@@ -497,8 +494,8 @@ export function FeedTemplateEditorPage(): ReactNode {
           None of the three had a control before — a rename meant duplicating
           the template, and the format was fixed at creation, which meant an
           operator who needed a marketplace's flat file rebuilt everything. */}
-      <div className="b2b-card mb-4 p-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <Card className="mb-4">
+        <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="template-name">{t('builder.name')}</Label>
             <Input
@@ -528,7 +525,7 @@ export function FeedTemplateEditorPage(): ReactNode {
                 })
               }
             />
-            <p id="template-description-hint" className="b2b-help">
+            <p id="template-description-hint" className="m-0 text-xs text-muted-foreground">
               {t('builder.description.hint')}
             </p>
           </div>
@@ -551,10 +548,10 @@ export function FeedTemplateEditorPage(): ReactNode {
             </Select>
             {/* Changing the format re-runs validation immediately, which is
                 what surfaces a field the new format cannot carry. */}
-            <p className="b2b-help">{t('builder.outputFormat.hint')}</p>
+            <p className="m-0 text-xs text-muted-foreground">{t('builder.outputFormat.hint')}</p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-3">
@@ -562,17 +559,15 @@ export function FeedTemplateEditorPage(): ReactNode {
             <h2 className="text-sm font-medium">
               {t('builder.fields', { count: draft.fields.length })}
             </h2>
-            <span className="b2b-input-wrap ml-auto">
-              <Search size={14} className="lead" aria-hidden="true" />
-              <Input
-                ref={searchRef}
-                className="h-8"
-                aria-label={t('builder.search')}
-                placeholder={t('builder.search')}
-                value={search}
-                onChange={(event): void => setSearch(event.target.value)}
-              />
-            </span>
+            {/* Issue #1492 (CAT-17): the kit's search box, not the legacy input wrapper. */}
+            <ListToolbarSearch
+              ref={searchRef}
+              className="ml-auto min-w-0 flex-none sm:w-64"
+              label={t('builder.search')}
+              placeholder={t('builder.search')}
+              value={search}
+              onValueChange={setSearch}
+            />
             <Button
               type="button"
               variant="outline"

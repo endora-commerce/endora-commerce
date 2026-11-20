@@ -153,11 +153,34 @@ describe('TagsPage', () => {
     expect(within(row('Tender')).getByText('0')).toBeInTheDocument();
   });
 
-  it('says there are no tags yet, with the way to add the first', async () => {
+  it('says there are no tags yet, with the one way to add the first (issue #1562)', async () => {
     tags = [];
     await renderPage();
-    expect(await screen.findByText(en('tags.empty'))).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: en('tags.add') }).length).toBeGreaterThan(0);
+    const empty = await screen.findByText(en('tags.empty'));
+    expect(empty.closest('[data-empty-state="no-data"]')).not.toBeNull();
+    expect(screen.getByText(en('tags.emptyBody'))).toBeInTheDocument();
+    // While the list is empty the empty state's Add is the view's one primary;
+    // the header's goes away (Von Restorff).
+    const add = screen.getAllByRole('button', { name: en('tags.add') });
+    expect(add).toHaveLength(1);
+    expect(add[0]!.closest('header')).toBeNull();
+  });
+
+  it('puts the one filled Add in the page header while tags exist (issue #1562)', async () => {
+    await renderPage();
+    await screen.findByText('Key account');
+    const add = screen.getAllByRole('button', { name: en('tags.add') });
+    expect(add).toHaveLength(1);
+    expect(add[0]!.closest('header')).not.toBeNull();
+    expect(add[0]!.className.split(/\s+/)).toContain('bg-primary');
+  });
+
+  it('draws a row’s Delete as a ghost button in the destructive tone, naming the tag', async () => {
+    await renderPage();
+    await screen.findByText('Key account');
+    const remove = within(row('Key account')).getByRole('button', { name: en('tags.delete', { name: 'Key account' }) });
+    expect(remove).toHaveClass('text-destructive');
+    expect(remove).not.toHaveClass('bg-destructive');
   });
 
   it('says the list could not be loaded and tries again', async () => {

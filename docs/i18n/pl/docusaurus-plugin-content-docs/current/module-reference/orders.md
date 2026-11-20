@@ -67,6 +67,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `prompt_actions` | nie | contributes-to `promptActionToolRegistry` |
 | `quote_requests` | nie | degrades-without `quoteRequestReadPort` — koszyk wciąż wyceniony według uzgodnionych cen z oferty jest odrzucany, bo nic nie może potwierdzić, że oferta jest nadal ważna; każdy inny koszyk jest składany jak dotąd i nie wskazuje oferty |
 | `quote_requests` | nie | refuses-without `rfqService` — zamówienia nie można zamienić z powrotem w zapytanie ofertowe — akcja „zamów ponownie jako zapytanie” na ekranie zamówienia jest odrzucana, a pozostałe funkcje zamówienia działają bez zmian |
+| `related_payers` | nie | refuses-without `relatedPayerPolicyPort` — nie można złożyć ani podejrzeć zamówienia wskazującego płatnika powiązanego; pozostałe zamówienia działają bez zmian |
 | `shipments` | nie | degrades-without `shippingEmailRendererPort` — potwierdzenie zamówienia nadal jest wysyłane, z wierszem dostawy opisanym na podstawie zapisanych danych metody zamiast sformułowania samego przewoźnika |
 
 ## Uprawnienia

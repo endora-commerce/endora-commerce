@@ -65,6 +65,7 @@
     "@endora-commerce/mod-pwa": "workspace:*",
     "@endora-commerce/mod-quick-order": "workspace:*",
     "@endora-commerce/mod-quote-requests": "workspace:*",
+    "@endora-commerce/mod-related-payers": "workspace:*",
     "@endora-commerce/mod-returns": "workspace:*",
     "@endora-commerce/mod-sales-channels": "workspace:*",
     "@endora-commerce/mod-seo": "workspace:*",

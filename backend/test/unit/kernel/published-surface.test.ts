@@ -177,9 +177,11 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   'request-scope-hook.js': ['scopeRequestToActor'],
   /**
    * D-160.10 — the port replaces the class. `RecordAuditInput` and
-   * `AuditLogFilter` are the argument shapes of its own methods.
+   * `AuditLogFilter` are the argument shapes of its own methods;
+   * `AuditLogPosition` is the filter's keyset `after`, and `AuditLogFacets`
+   * the answer of `queryFacets` (issue #1555).
    */
-  'ports/audit.js': ['AuditPort', 'RecordAuditInput', 'AuditLogFilter'],
+  'ports/audit.js': ['AuditPort', 'RecordAuditInput', 'AuditLogFilter', 'AuditLogFacets', 'AuditLogPosition'],
   /** Row 37 — the return shape of every {@link AuditPort} method. */
   'audit/audit-log-entry.entity.js': ['AuditLogEntry'],
   /**
@@ -460,6 +462,12 @@ const PUBLISHED_HTTP_SURFACE: readonly string[] = [
   'StorefrontRevalidator',
   'encodeCursor',
   'decodeCursor',
+  // `specs/182-related-payers/` research R-4 — the priced audience every catalogue-pricing route
+  // reads, and the one slot its contributor (`carts`) fills. Published beside `productAudienceOf`
+  // for the reason it is: one derivation of "who is priced", not one per module.
+  'pricedAudienceOf',
+  'providePricingSubjectResolver',
+  'PricingSubjectResolver',
 ];
 
 /** `src/events/index.ts` — the `./events` subpath, as MR !880 built it. */
@@ -1423,7 +1431,7 @@ describe('the platform’s published surface', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('the http barrel exports exactly the six symbols §1.3 marks P', () => {
+  it('the http barrel exports exactly the symbols §1.3 marks P, and R-4\'s priced audience', () => {
     expect([...new Set(barrelExports('http/index.ts'))].sort()).toEqual(
       [...PUBLISHED_HTTP_SURFACE].sort(),
     );

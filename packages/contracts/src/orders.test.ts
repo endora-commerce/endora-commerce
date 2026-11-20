@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   ADMIN_ORDER_PREVIEW_MESSAGE_PRECEDENCE,
   adminOrderDetailSchema,
@@ -26,6 +26,17 @@ import {
   paymentStatusTransitionActorSchema,
 } from './orders.js';
 import { paymentStatusSchema } from './common.js';
+import {
+  orderPayerSchema,
+  orderPreviewTotalRequestSchema,
+  paidOrderDetailSchema,
+  paidOrderListQuerySchema,
+  placeOrderRequestSchema,
+  PAYER_BILLING_OVERRIDE_CONFLICT,
+  type PaidOrderDetail,
+  type PaidOrderReadPort,
+} from './orders.js';
+import type { OrderReturnContext } from './returns.js';
 
 const ADDRESS = {
   recipientName: 'Jan Kowalski',
@@ -618,5 +629,138 @@ describe('payment-status transitions (issue #1574)', () => {
     expect(() =>
       orderPaymentStatusRefusalDetailsSchema.parse({ code: 'other', from: 'refunded', to: 'paid' }),
     ).toThrow();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+//  `specs/182-related-payers/` — the payer of an order (contracts/ports.md §3, §5)
+// ──────────────────────────────────────────────────────────────────────────
+
+const PAYER_ORG = '00000000-0000-4000-8000-0000000000b2';
+const PLACE = {
+  deliveryAddressId: '00000000-0000-4000-8000-000000000011',
+  billingAddressId: '00000000-0000-4000-8000-000000000012',
+  deliveryMethodId: '00000000-0000-4000-8000-000000000005',
+  paymentMethodId: '00000000-0000-4000-8000-000000000006',
+};
+
+describe('placeOrderRequestSchema — payerOrganizationId (FR-062)', () => {
+  it('accepts an optional payer', () => {
+    expect(placeOrderRequestSchema.parse({ ...PLACE, payerOrganizationId: PAYER_ORG }).payerOrganizationId).toBe(
+      PAYER_ORG,
+    );
+    expect(placeOrderRequestSchema.parse(PLACE).payerOrganizationId).toBeUndefined();
+    expect(placeOrderRequestSchema.safeParse({ ...PLACE, payerOrganizationId: 'not-a-uuid' }).success).toBe(false);
+  });
+
+  it.each([
+    ['billingCompanyName', { billingCompanyName: 'Other Ltd' }],
+    ['billingTaxId', { billingTaxId: 'PL0000000000' }],
+  ])('refuses a payer together with a non-empty %s, with the conflict code', (field, override) => {
+    const result = placeOrderRequestSchema.safeParse({ ...PLACE, payerOrganizationId: PAYER_ORG, ...override });
+    expect(result.success).toBe(false);
+    const issue = result.error?.issues.find((i) => i.message === PAYER_BILLING_OVERRIDE_CONFLICT);
+    expect(issue).toBeDefined();
+    expect(issue?.path).toEqual([field]);
+    expect((issue as { params?: { code?: string } } | undefined)?.params?.code).toBe('payer_billing_override_conflict');
+  });
+
+  it('an empty override is no override, so it does not conflict', () => {
+    expect(
+      placeOrderRequestSchema.safeParse({ ...PLACE, payerOrganizationId: PAYER_ORG, billingCompanyName: '', billingTaxId: '' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('accepts the override alone, as before', () => {
+    const parsed = placeOrderRequestSchema.parse({ ...PLACE, billingCompanyName: 'Other Ltd', billingTaxId: 'PL0000000000' });
+    expect(parsed.billingCompanyName).toBe('Other Ltd');
+  });
+
+  it('the preview takes the same payer (FR-064)', () => {
+    const preview = {
+      deliveryMethodId: PLACE.deliveryMethodId,
+      paymentMethodId: PLACE.paymentMethodId,
+      payerOrganizationId: PAYER_ORG,
+    };
+    expect(orderPreviewTotalRequestSchema.parse(preview).payerOrganizationId).toBe(PAYER_ORG);
+  });
+});
+
+describe('order shapes carry the payer (FR-067, FR-073)', () => {
+  const payer = { organizationId: PAYER_ORG, name: 'Payer SA', taxId: 'PL1234567890', terms: 'payer' };
+
+  it('an order without a payer reads payer: null, including a reply from before the field', () => {
+    expect(orderSchema.parse(ORDER).payer).toBeNull();
+    expect(orderSchema.parse({ ...ORDER, payer: null }).payer).toBeNull();
+  });
+
+  it('an order with a payer carries id, name, tax ID and terms', () => {
+    expect(orderSchema.parse({ ...ORDER, payer }).payer).toEqual(payer);
+    expect(orderPayerSchema.safeParse({ ...payer, terms: 'other' }).success).toBe(false);
+  });
+
+  it('the admin detail carries it too', () => {
+    const parsed = adminOrderDetailSchema.parse({ ...ORDER, payer, organization: ORGANIZATION, customer: CUSTOMER });
+    expect(parsed.payer).toEqual(payer);
+  });
+});
+
+describe('OrderReturnContext — the refund target (FR-082)', () => {
+  it('carries payerOrganizationId', () => {
+    expectTypeOf<OrderReturnContext['payerOrganizationId']>().toEqualTypeOf<string | null>();
+  });
+});
+
+describe('PaidOrderDetail — the payer\'s read-only projection (FR-071, ports.md §3)', () => {
+  const detail = {
+    id: ORDER.id,
+    businessId: '1',
+    placedAt: ORDER.placedAt,
+    status: 'new',
+    statusLabel: 'New',
+    paymentStatus: 'awaiting_payment',
+    buyerOrganizationId: ORDER.organizationId,
+    buyerName: 'Buyer Ltd',
+    items: [],
+    subtotal: 0,
+    taxTotal: 0,
+    discountTotal: 0,
+    deliveryTotal: 0,
+    total: 0,
+    currency: 'PLN',
+    billingAddress: { ...ADDRESS, companyName: 'Payer SA', taxId: 'PL1234567890' },
+    payer: { organizationId: PAYER_ORG, name: 'Payer SA', taxId: 'PL1234567890', terms: 'buyer' },
+    deliveryMethodName: 'Pickup',
+    invoices: [{ id: '00000000-0000-4000-8000-0000000000f1', number: 'FV/1/2026' }],
+  };
+
+  it('parses the projection', () => {
+    expect(paidOrderDetailSchema.safeParse(detail).success).toBe(true);
+  });
+
+  it('has no delivery phone, customer note or comment thread', () => {
+    const keys = Object.keys(paidOrderDetailSchema.shape);
+    for (const hidden of ['customerNote', 'comments', 'deliveryAddress', 'customFieldValues', 'nextAction']) {
+      expect(keys).not.toContain(hidden);
+    }
+    const parsed = paidOrderDetailSchema.parse({
+      ...detail,
+      customerNote: 'call me',
+      comments: [{ body: 'x' }],
+      deliveryAddress: { ...ADDRESS, phone: '+48 600 000 000' },
+    }) as PaidOrderDetail & Record<string, unknown>;
+    expect(parsed.customerNote).toBeUndefined();
+    expect(parsed.comments).toBeUndefined();
+    expect(parsed.deliveryAddress).toBeUndefined();
+  });
+
+  it('the list query is bounded', () => {
+    expect(paidOrderListQuerySchema.parse({}).limit).toBe(20);
+    expect(paidOrderListQuerySchema.safeParse({ limit: 201 }).success).toBe(false);
+  });
+
+  it('the port answers null for an order that does not name the payer', () => {
+    expectTypeOf<PaidOrderReadPort['find']>().returns.resolves.toEqualTypeOf<PaidOrderDetail | null>();
   });
 });

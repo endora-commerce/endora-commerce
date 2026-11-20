@@ -41,6 +41,8 @@
   "audit.error.invalidate": "Unieważnienie cache nie powiodło się.",
   "action.edit": "Edytuj",
   "action.delete": "Usuń",
+  "action.deleteDefault": "Nie można usunąć pozycji domyślnej.",
+  "action.rowMenu": "Akcje dla {code}",
   "action.setDefault": "Ustaw jako domyślny",
   "countries.title": "Kraje",
   "countries.searchPlaceholder": "Szukaj kodu, nazwy, regionu",

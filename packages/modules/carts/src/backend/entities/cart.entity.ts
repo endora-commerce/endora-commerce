@@ -58,6 +58,8 @@ export class Cart {
     | 'rejectedByActor'
     | 'rejectedReason'
     | 'appliedPromotionCode'
+    | 'buyingForOrganizationId'
+    | 'buyingForTerms'
     | 'completedOrderId'
     | 'convertedToQuoteRequestId'
     | 'sourceQuoteRequestId'
@@ -165,6 +167,19 @@ export class Cart {
    */
   @Property({ type: 'uuid', nullable: true })
   sourceQuoteRequestId?: string | null;
+
+  /**
+   * `specs/182-related-payers/` FR-110 — *Buying for*: the payer whose commercial terms price
+   * this basket, or `null` for the buyer's own. Set and cleared only by `CartBuyingForService`,
+   * which asks `relatedPayerPolicyPort` first; reset on a read that finds the link unusable
+   * (FR-116); cleared on completion.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  buyingForOrganizationId?: string | null;
+
+  /** The terms the link carried when *Buying for* was chosen; `null` with no payer. */
+  @Property({ type: 'string', length: 8, nullable: true })
+  buyingForTerms?: 'buyer' | 'payer' | null;
 
   /**
    * Idempotency stamp for the abandonment-sweep notification. Cleared on

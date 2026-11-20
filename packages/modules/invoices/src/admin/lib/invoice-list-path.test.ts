@@ -29,4 +29,11 @@ describe('invoiceListPath (issue #1120)', () => {
     expect(query.get('filter[issuedFrom]')).toBe('2026-11-01T00:00:00.000Z');
     expect(query.get('filter[issuedTo]')).toBe('2026-11-13T23:59:59.999Z');
   });
+
+  it('carries the organization the invoices bill (`specs/182-related-payers/` RP-17 e)', () => {
+    const query = new URLSearchParams(
+      invoiceListPath({ ...NO_INVOICE_FILTERS, organizationId: '00000000-0000-4000-8000-0000000000b2' }).split('?')[1],
+    );
+    expect(query.get('filter[organizationId]')).toBe('00000000-0000-4000-8000-0000000000b2');
+  });
 });

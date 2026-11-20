@@ -86,6 +86,8 @@ export interface PricingServiceOptions {
 /** The buyer a batched resolution is for, with the customer group already applied. */
 interface ResolvedViewer {
   organization: PricingOrganizationRef | null;
+  /** RP-14 — the display-mode organisation, when not `organization`. */
+  displayModeOrganizationId: string | null;
   customerGroupId: string | null;
   salesChannel: { id: string; defaultCurrency: string };
   currencyCode: string;
@@ -192,6 +194,7 @@ export class PricingService implements PricingServiceContract {
   #engineViewer(viewer: ResolvedViewer): BookPricingViewer {
     return {
       organizationId: viewer.organization?.id ?? null,
+      ...(viewer.displayModeOrganizationId ? { displayModeOrganizationId: viewer.displayModeOrganizationId } : {}),
       customerGroupId: viewer.customerGroupId,
       signedIn: viewer.organization !== null,
       salesChannelId: viewer.salesChannel.id,
@@ -243,11 +246,13 @@ export class PricingService implements PricingServiceContract {
     organization?: PricingOrganizationRef | null;
     customerGroupId?: string | null;
     customerAccountId?: string | null;
+    displayModeOrganization?: { id: string } | null;
     salesChannel: { id: string; defaultCurrency: string };
     currencyCode?: string;
   }): Promise<ResolvedViewer> {
     return {
       organization: context.organization ?? null,
+      displayModeOrganizationId: context.displayModeOrganization?.id ?? null,
       customerGroupId: await this.#customerGroupFor(context),
       salesChannel: context.salesChannel,
       currencyCode: (context.currencyCode ?? context.salesChannel.defaultCurrency).toUpperCase(),
@@ -421,7 +426,8 @@ export class PricingService implements PricingServiceContract {
    */
   async pageDisplayMode(input: { context: ListingPriceViewerContext }): Promise<DisplayMode> {
     return (await this.#displayModes()).resolvePageDisplayMode({
-      organizationId: input.context.organization?.id ?? null,
+      // RP-14 — the buyer's mode on a payer's terms (`displayModeOrganization`), else the viewer's.
+      organizationId: input.context.displayModeOrganization?.id ?? input.context.organization?.id ?? null,
       salesChannelId: input.context.salesChannel.id,
       customerKind: input.context.organization ? 'signed_in' : 'guest',
     });

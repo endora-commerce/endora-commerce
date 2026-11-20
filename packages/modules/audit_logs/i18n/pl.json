@@ -6,5 +6,18 @@
   "actions.openAuditLog.keywords": "audyt, dziennik, historia",
   "settingGroups.audit_logs.name": "Dziennik audytu",
   "auditLog.erased": "Usunięto",
-  "auditLog.audit.redacted": "Historia audytu usunięta"
+  "auditLog.audit.redacted": "Historia audytu usunięta",
+  "auditLog.toolbar.label": "Filtruj dziennik audytu",
+  "auditLog.filter.anyAction": "Dowolna akcja",
+  "auditLog.filter.anyObjectType": "Dowolny typ obiektu",
+  "auditLog.filter.optionsFailed": "Nie udało się wczytać wartości. Odśwież stronę, aby spróbować ponownie.",
+  "auditLog.column.detail": "Szczegóły",
+  "auditLog.diff.none": "Dla tego wpisu nie zapisano wartości pól.",
+  "auditLog.diff.unchanged": "Żadne zapisane pole się nie zmieniło.",
+  "auditLog.diff.raw": "Zapisany JSON",
+  "auditLog.field.changedFields": "Zmienione pola",
+  "auditLog.field.changedCustomFields": "Zmienione pola dodatkowe",
+  "auditLog.value.empty": "puste",
+  "auditLog.value.true": "Tak",
+  "auditLog.value.false": "Nie"
 }

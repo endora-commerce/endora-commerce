@@ -1,4 +1,4 @@
-import { purchaseConversionClaimResponseSchema } from '@endora-commerce/contracts';
+import { purchaseConversionClaimResponseSchema, type OrderPayer } from '@endora-commerce/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
 import type { RequestContext } from './client';
 import type { CheckoutBelowMinimumLine } from '../cartMinimum';
@@ -118,6 +118,8 @@ export interface OrderSummary {
   total: number;
   currency: string;
   customerNote: string | null;
+  /** `specs/182-related-payers/` FR-073 — the Organization billed, when not the buyer; absent on an older backend. */
+  payer?: OrderPayer | null;
   placedAt: string;
   nextAction: NextAction | null;
   /**
@@ -187,7 +189,13 @@ export type QuoteCommitmentRefusal = 'lapsed' | 'withdrawn' | 'unavailable';
  */
 export async function previewOrderTotal(
   sessionCookie: string,
-  payload: { deliveryMethodId: string; paymentMethodId: string; billingAddressId?: string },
+  payload: {
+    deliveryMethodId: string;
+    paymentMethodId: string;
+    billingAddressId?: string;
+    /** `specs/182-related-payers/` FR-064 — preview as placement with this payer. */
+    payerOrganizationId?: string;
+  },
   ctx: RequestContext,
 ): Promise<OrderTotalPreview> {
   const result = await apiMutate<OrderTotalPreview>({

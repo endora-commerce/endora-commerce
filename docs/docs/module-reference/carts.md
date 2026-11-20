@@ -41,6 +41,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `transactional_emails` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `promotions` | gating only | resolves `promotionCodePort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `promotions` | gating only | resolves `promotionService`; withheld from `dependencies` because the install order cannot carry the edge |
+| `related_payers` | no | degrades-without `relatedPayerPolicyPort` — no payer can be chosen on the cart, and a cart bought for a payer returns to the buyer's own prices on its next read |
 
 ## Permissions
 

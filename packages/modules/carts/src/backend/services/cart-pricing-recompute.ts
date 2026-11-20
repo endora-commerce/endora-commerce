@@ -65,6 +65,8 @@ export interface CartPricingRecomputeContext {
    * organisation's. Absent for a guest basket.
    */
   customerAccountId?: string | null;
+  /** `specs/182-related-payers/` FR-111 — the payer whose terms price the cart, or `null`. */
+  pricingOrganizationId?: string | null;
 }
 
 export class CartPricingRecompute {
@@ -110,6 +112,7 @@ export class CartPricingRecompute {
       signedIn: ctx.organizationId !== null,
       salesChannelId: ctx.salesChannelId,
       customerAccountId: ctx.customerAccountId ?? null,
+      pricingOrganizationId: ctx.pricingOrganizationId ?? null,
     });
 
     const productIds = Array.from(new Set(lines.map((l) => l.productId)));
