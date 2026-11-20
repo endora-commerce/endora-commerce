@@ -16,7 +16,7 @@ import {
   type SearchSuggestResponse,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { markPersonalisedPricing, productAudienceOf } from '@endora-commerce/platform/http';
+import { markPersonalisedPricing, pricedAudienceOf, productAudienceOf } from '@endora-commerce/platform/http';
 import {
   currentSalesChannel,
   getResolvedChannel,
@@ -93,6 +93,8 @@ export type SuggestionPricingEnricher = (
      * overrides the organisation's; null for guests.
      */
     customerAccountId?: string | null;
+    /** `specs/182-related-payers/` FR-115 — the payer pricing a buyer on its terms, else `null`. */
+    pricingOrganizationId?: string | null;
     /**
      * Feature 160 — the currency the request is priced in (`?currency=`, else
      * the channel's default), so a suggestion quotes what its card quotes.
@@ -172,7 +174,8 @@ export async function registerSearchPublicRoutes(
   // GET /api/v1/search/suggest
   app.get('/api/v1/search/suggest', async (request, reply) => {
     const parsed = parseSuggestQuery(request);
-    const ctx = readContext(request);
+    // `specs/182-related-payers/` FR-115 — priced for the payer on its terms (research R-4).
+    const ctx = { ...readContext(request), audience: await pricedAudienceOf(request) };
     // The popup has carried the buyer's own resolved price since feature 075
     // and said nothing about it to a cache. It is the same private response the
     // result feed below it now returns, so it gets the same header; the
@@ -204,6 +207,8 @@ export async function registerSearchPublicRoutes(
             resolvedChannel: ctx.resolvedChannel,
             organizationId,
             customerAccountId,
+            // RP-14 — the payer prices the type-ahead on its terms; the display mode stays the buyer's.
+            pricingOrganizationId: ctx.audience.pricingOrganizationId ?? null,
             currencyCode,
           });
           return {

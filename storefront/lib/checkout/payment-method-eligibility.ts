@@ -1,3 +1,4 @@
+import type { CheckoutPayer } from '@endora-commerce/contracts';
 import type { PaymentMethodSummary } from '../api/methods';
 
 /**
@@ -49,4 +50,17 @@ export function selectablePaymentMethods(
     if (buyer.creditAvailable === null) return false;
     return buyer.creditAvailable >= buyer.cartTotal;
   });
+}
+
+/**
+ * `specs/182-related-payers/` RP-16 (c) — the methods offered when a related payer pays: the
+ * payer's catalogue under the very rule {@link selectablePaymentMethods} applies to the buyer,
+ * fed the **payer's** available credit (`null` without a grant hides the credit-limit method).
+ */
+export function payerSelectablePaymentMethods(
+  methods: readonly PaymentMethodSummary[],
+  payer: Pick<CheckoutPayer, 'creditAvailable'>,
+  cartTotal: number,
+): PaymentMethodSummary[] {
+  return selectablePaymentMethods(methods, { creditAvailable: payer.creditAvailable, cartTotal });
 }

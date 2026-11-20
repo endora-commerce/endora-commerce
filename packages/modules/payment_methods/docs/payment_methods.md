@@ -244,3 +244,10 @@ platform's sales-channel membership service.
 active methods are offered; non-empty ⇒ only the listed methods. Use it to
 filter the methods a given Organization may use. Managed through the
 organizations restriction service / admin restrictions UI.
+
+## Methods for a related payer {#methods-for-a-related-payer}
+
+`GET /api/v1/payment-methods?payerOrganizationId=` lists the methods for an order paid by a related
+payer (the *Related payers* module): the module's policy port first vouches that the buyer may use
+that payer, then the **payer's** allow-list applies instead of the buyer's. While the module is off a
+request naming a payer answers `503 MODULE_DISABLED`; every other listing is unaffected.

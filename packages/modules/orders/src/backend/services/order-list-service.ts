@@ -41,6 +41,8 @@ export interface OrderListQuery {
    */
   placedByCustomerAccountId?: string | undefined;
   q?: string | undefined;
+  /** `specs/182-related-payers/` FR-073 — orders this Organization pays for. */
+  payerOrganizationId?: string | undefined;
   /** Dedicated org / customer name filters, AND-combined with the global `q`. */
   orgName?: string | undefined;
   customerName?: string | undefined;
@@ -180,6 +182,7 @@ export class OrderListService {
     const and: FilterQuery<Order>[] = [];
     if (scope) Object.assign(base, scope.where);
     if (query.organizationId) base.organizationId = query.organizationId;
+    if (query.payerOrganizationId) base.payerOrganizationId = query.payerOrganizationId;
     if (query.placedByCustomerAccountId) {
       base.placedByCustomerAccountId = query.placedByCustomerAccountId;
     }

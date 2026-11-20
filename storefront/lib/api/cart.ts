@@ -3,7 +3,7 @@ import { StorefrontApiError, type RequestContext } from './client';
 import { withModuleAbsence } from './module-absence';
 import { backendBaseUrl } from '../env.mjs';
 import { activeChannelHeaders } from './channel-headers';
-import type { CartVat } from '@endora-commerce/contracts';
+import type { CartBuyingFor, CartBuyingForResetReason, CartRepricingSummary, CartVat } from '@endora-commerce/contracts';
 
 /**
  * The backend's origin, read per call.
@@ -94,6 +94,10 @@ export interface CartSummary {
   appliedPromotions?: Array<{ promotionId: string; couponId: string | null; amount: number; currency: string }>;
   /** Feature 027 — grand total after the optional discount. */
   grandTotal?: { amount: number; currency: string };
+  /** `specs/182-related-payers/` FR-110 — the payer this cart is bought for; absent on an older backend. */
+  buyingFor?: CartBuyingFor | null;
+  /** FR-116 — why this read returned the cart to the buyer's own prices. */
+  buyingForReset?: { reason: CartBuyingForResetReason } | null;
   /**
    * Feature 027 — buyer-facing primary CTA derived from the two-axis state. Since
    * `specs/170-organization-roles/` (FR-031, FR-057) `submit_for_approval` means the member's
@@ -423,6 +427,29 @@ export async function submitCartForApproval(
     rawCookieHeader: combineCookies(jar) || null,
     ...(ctx ? { ctx } : {}),
   });
+}
+
+/**
+ * `specs/182-related-payers/` FR-110, FR-113 — sets (or with `null` clears) the cart's *Buying
+ * for*; answers how many lines were repriced and how many have no price in the new context.
+ */
+export async function setCartBuyingFor(
+  jar: CartCookieJar,
+  payerOrganizationId: string | null,
+  ctx?: RequestContext,
+): Promise<{ repriced: number; unpriced: number }> {
+  const result = await apiMutate<{ repricing: CartRepricingSummary }>({
+    method: 'PUT',
+    path: '/api/v1/cart/buying-for',
+    body: { payerOrganizationId },
+    rawCookieHeader: combineCookies(jar) || null,
+    ...(ctx ? { ctx } : {}),
+  });
+  const lines = result.data?.repricing.lines ?? [];
+  return {
+    repriced: lines.filter((l) => !l.unpriced && l.before?.amount !== l.after?.amount).length,
+    unpriced: lines.filter((l) => l.unpriced).length,
+  };
 }
 
 export async function touchCart(jar: CartCookieJar, ctx?: RequestContext): Promise<void> {

@@ -7,6 +7,7 @@ import { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
 import { createRootContainer } from '@endora-commerce/platform/composition';
 import { composeModules } from '@endora-commerce/platform/composition';
 import { MODULES } from '../../../src/composition.generated.js';
+import { generatedListCommandHooks } from '../../helpers/generated-list-command-hooks.js';
 import { codeOnly } from '../../../scripts/lib/source-text.js';
 
 /**
@@ -66,11 +67,15 @@ function composeGeneratedList(): { ids: string[]; registrations: string[] } {
   const eventBus = new EventBus();
   const entries = [...MODULES];
   const before = new Set(Object.keys(container.registrations));
+  // A module of the list registers command hooks (`related_payers`), as both real roots allow.
+  const hooks = generatedListCommandHooks();
   const composed = composeModules(entries, {
     container,
     eventBus,
     log: log(),
     interceptorRegistry: new ApiInterceptorRegistry(),
+    commandHookRegistry: hooks.registry,
+    commandHooks: hooks.data,
   });
   const registrations = Object.keys(container.registrations)
     .filter((name) => !before.has(name))

@@ -28,7 +28,7 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import { effectiveState, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
-import { markPersonalisedPricing, productAudienceOf } from '@endora-commerce/platform/http';
+import { markPersonalisedPricing, pricedAudienceOf, productAudienceOf } from '@endora-commerce/platform/http';
 
 /**
  * Public catalog routes (US1 read surface).
@@ -178,7 +178,8 @@ export async function registerCatalogPublicRoutes(
     if (!resolve || products.length === 0) return products;
     try {
       const byType = await resolve({
-        organizationId: ctx.audience.organizationId,
+        // RP-14 — the VAT rate is the priced Organization's (the payer's on its terms).
+        organizationId: ctx.audience.pricingOrganizationId ?? ctx.audience.organizationId,
         productTypes: products.map((p) => p.type),
       });
       return products.map((p) => ({ ...p, vatRate: byType.get(p.type) ?? 0 }));
@@ -238,7 +239,7 @@ export async function registerCatalogPublicRoutes(
   app.get('/api/v1/catalog/products', async (request, reply) => {
     const { q, ids, limit, cursor, sort, categorySlug, attributeFilters, changedSince, minPrice, maxPrice } =
       parseListQuery(request);
-    const ctx = readContext(request);
+    const ctx = await pricedContext(request);
     // The page's prices are resolved for this caller, so a page resolved for a
     // buying organisation must not enter a shared cache.
     markPersonalisedPricing(reply, ctx.audience);
@@ -361,7 +362,7 @@ export async function registerCatalogPublicRoutes(
       // Feature 172 (research R-11) — `?include=content` asks for the product
       // page's Page Builder content; any other `include` is refused (400).
       const query = productDetailQuerySchema.parse(request.query ?? {});
-      const ctx = readContext(request);
+      const ctx = await pricedContext(request);
       markPersonalisedPricing(reply, ctx.audience);
       const found = await queryService.getProductByIdOrSlug(request.params.idOrSlug, ctx);
       const product = (await withVatRates([found], ctx, request.log))[0] ?? found;
@@ -396,7 +397,7 @@ export async function registerCatalogPublicRoutes(
     app.get<{ Params: { idOrSlug: string }; Querystring: { kind?: string } }>(
       '/api/v1/catalog/products/:idOrSlug/links',
       async (request, reply) => {
-        const ctx = readContext(request);
+        const ctx = await pricedContext(request);
         markPersonalisedPricing(reply, ctx.audience);
         const product = await queryService.getProductByIdOrSlug(
           request.params.idOrSlug,
@@ -424,7 +425,7 @@ export async function registerCatalogPublicRoutes(
         schema: { body: validateBundleConfigurationRequestSchema },
       },
       async (request) => {
-        const ctx = readContext(request);
+        const ctx = await pricedContext(request);
         const product = await queryService.getProductByIdOrSlug(
           request.params.idOrSlug,
           ctx,
@@ -440,7 +441,7 @@ export async function registerCatalogPublicRoutes(
 
   // GET /api/v1/catalog/categories
   app.get('/api/v1/catalog/categories', async (request, reply) => {
-    const ctx = readContext(request);
+    const ctx = await pricedContext(request);
     // Feature 163 — the tree is cut by what this caller may reach (a category
     // whose products are all restricted to an organisation is not shown to the
     // public), so a caller's tree must not enter a shared cache.
@@ -454,7 +455,7 @@ export async function registerCatalogPublicRoutes(
   app.get<{ Params: { id: string } }>(
     '/api/v1/catalog/categories/:id/content',
     async (request) => {
-      const ctx = readContext(request);
+      const ctx = await pricedContext(request);
       const content = await queryService.getCategoryPageContent(request.params.id, ctx);
       return { data: content };
     },
@@ -462,7 +463,7 @@ export async function registerCatalogPublicRoutes(
 
   // GET /api/v1/catalog/filters
   app.get('/api/v1/catalog/filters', async (request, reply) => {
-    const ctx = readContext(request);
+    const ctx = await pricedContext(request);
     // Feature 163 — the facet counts are counted over what this caller may
     // reach, so they are the caller's and must not enter a shared cache.
     markPersonalisedPricing(reply, ctx.audience);
@@ -502,6 +503,15 @@ export async function registerCatalogPublicRoutes(
  * the audience from the session. Exported for the URL-key resolve route (feature
  * 163), which must read a request exactly as the product page does.
  */
+/**
+ * {@link readContext} with the **priced** audience (`specs/182-related-payers/` FR-115,
+ * research R-4): a buyer on a payer's commercial terms sees that payer's prices and VAT rate,
+ * while visibility and the display mode stay its own. The one derivation of "who is priced".
+ */
+export async function pricedContext(request: FastifyRequest): Promise<ReturnType<typeof readContext>> {
+  return { ...readContext(request), audience: await pricedAudienceOf(request) };
+}
+
 export function readContext(request: FastifyRequest): {
   resolvedChannel: {
     id: string;

@@ -421,9 +421,12 @@ export class SearchQueryService {
               ...listingPriceChannelContext(channel, ctx.currency),
               organization: viewerOrganization,
               // The customer's own group, as on the Postgres page.
-              ...(viewerOrganization && ctx.audience.customerAccountId
-                ? { customerAccountId: ctx.audience.customerAccountId }
-                : {}),
+              // A-18 / RP-14 — no account on a payer's terms; the buyer's display mode.
+              ...(ctx.audience.pricingOrganizationId && ctx.audience.organizationId
+                ? { displayModeOrganization: { id: ctx.audience.organizationId } }
+                : viewerOrganization && ctx.audience.customerAccountId
+                  ? { customerAccountId: ctx.audience.customerAccountId }
+                  : {}),
             },
           })
         : new Map<string, ListingPriceDetail>();
@@ -539,7 +542,8 @@ export class SearchQueryService {
    */
   async #viewerOrganization(audience: ProductAudience): Promise<PriceOrganization | null> {
     if (audience.organizationId === null) return null;
-    const record = await this.#requireOrganizations().findById(audience.organizationId);
+    // `specs/182-related-payers/` FR-115 — the payer on its terms, else the viewer.
+    const record = await this.#requireOrganizations().findById(audience.pricingOrganizationId ?? audience.organizationId);
     if (!record) return null;
     return { id: record.id, customerGroupId: record.customerGroupId };
   }

@@ -9,7 +9,16 @@ import {
   type CartSummary,
 } from '../../../lib/api/cart';
 import { listAddresses, createAddress } from '../../../lib/api/organization';
-import { listDeliveryMethods, listPaymentMethods } from '../../../lib/api/methods';
+import { listDeliveryMethods, listPaymentMethods, listPaymentMethodsForPayer } from '../../../lib/api/methods';
+import { listCheckoutPayers } from '../../../lib/api/related-payers';
+import {
+  CheckoutPayerScope,
+  PayerAwarePaymentMethods,
+  PayerSelector,
+  PayerTotals,
+  type PayerTotalsInput,
+  type PayerTotalsResult,
+} from '../../../components/checkout/CheckoutPayer';
 import { CheckoutForm } from '../../../components/checkout/CheckoutForm';
 import { listCountries } from '../../../lib/api/dictionary';
 import { placeOrder, previewOrderTotal, type QuoteCommitmentRefusal } from '../../../lib/api/orders';
@@ -22,14 +31,16 @@ import {
 import { getMyCreditLimit } from '../../../lib/api/credit-limit';
 import { getResolvedQuickOrderDefaults } from '../../../lib/api/quick-order';
 import { CreditLimitWidget } from '../../../components/CreditLimitWidget';
-import { PaymentMethods } from '../../../components/checkout/PaymentMethods';
 import { ShippingMethods } from '../../../components/checkout/ShippingMethods';
 import { AddressSection } from '../../../components/checkout/AddressSection';
 import { isPersonalOrganization } from '../../../lib/account/organization-area';
 import { PlaceOrderButton } from '../../../components/checkout/PlaceOrderButton';
 import { QuoteValidityNotice } from '../../../components/checkout/QuoteValidityNotice';
 import { blockTitle, placeOrderBlock } from '../../../lib/checkout/place-order-gate';
-import { selectablePaymentMethods } from '../../../lib/checkout/payment-method-eligibility';
+import {
+  payerSelectablePaymentMethods,
+  selectablePaymentMethods,
+} from '../../../lib/checkout/payment-method-eligibility';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { format } from '../../../lib/i18n/format';
 import { formatCount } from '../../../lib/orderMinimum';
@@ -156,6 +167,27 @@ export default async function CheckoutPage(_props: {
     cartTotal,
   });
 
+  // `specs/182-related-payers/` (FR-060, FR-066) — the payers this buyer may name at
+  // checkout (on the buyer's terms; a payer's-terms link is chosen on the cart), and each
+  // payer's own payment methods. None ⇒ no *Paid by* choice and checkout is unchanged.
+  // RP-16 (c) — the credit method is offered for a payer by the buyer's own rule, on the
+  // payer's available credit, which the payer list carries.
+  // FR-060, FR-110 — a cart bought for a payer on its terms fixes that payer here.
+  const fixedPayerId = cart.buyingFor?.terms === 'payer' ? cart.buyingFor.organizationId : null;
+  const payers = modules.isPresent('related_payers')
+    ? (await listCheckoutPayers(session, ctx)).filter((p) =>
+        fixedPayerId ? p.payerOrganizationId === fixedPayerId : p.commercialTerms === 'buyer',
+      )
+    : [];
+  const methodsByPayer: Record<string, typeof paymentMethods> = {};
+  for (const payer of payers) {
+    methodsByPayer[payer.payerOrganizationId] = payerSelectablePaymentMethods(
+      await listPaymentMethodsForPayer(session, ctx, payer.payerOrganizationId),
+      payer,
+      cartTotal,
+    );
+  }
+
   /**
    * **No gateway is collapsed here, deliberately.**
    *
@@ -268,6 +300,11 @@ export default async function CheckoutPage(_props: {
       {/* Issue #1250 — the coupon form sits after the checkout form, not inside it. */}
       <CouponScope action={couponAction}>
         <CheckoutForm action={submitAction} className="b2b-auth__form">
+          <CheckoutPayerScope payers={payers} initialPayerId={fixedPayerId} fixed={fixedPayerId !== null}>
+          <PayerSelector
+            locale={locale}
+            organizationName={me?.organization?.legalName || me?.organization?.name || null}
+          />
           <AddressSection
             deliveryAddresses={deliveryAddrs}
             billingAddresses={billingAddrs}
@@ -287,12 +324,15 @@ export default async function CheckoutPage(_props: {
             locale={locale}
           />
 
-          <PaymentMethods
+          <PayerAwarePaymentMethods
             methods={paymentMethods}
+            methodsByPayer={methodsByPayer}
             currency={cart.subtotal.currency}
             preferredId={defaults?.paymentMethodId ?? null}
             locale={locale}
           />
+          <PayerTotals action={payerTotalsAction} locale={locale} />
+          </CheckoutPayerScope>
 
           <CouponField applied={cart.discount ?? null} locale={locale} />
           <div className="b2b-auth__field">
@@ -427,9 +467,16 @@ async function readCheckoutVerdict(input: {
   quoteCommitmentRefusal: QuoteCommitmentRefusal | null;
 }> {
   if (input.deliveryMethodId !== null && input.paymentMethodId !== null) {
+    // `specs/182-related-payers/` FR-117 — a cart bought for a payer on its terms is previewed
+    // naming that payer, as placement will be.
+    const fixedPayer = input.cart.buyingFor?.terms === 'payer' ? input.cart.buyingFor.organizationId : null;
     const preview = await previewOrderTotal(
       input.session,
-      { deliveryMethodId: input.deliveryMethodId, paymentMethodId: input.paymentMethodId },
+      {
+        deliveryMethodId: input.deliveryMethodId,
+        paymentMethodId: input.paymentMethodId,
+        ...(fixedPayer ? { payerOrganizationId: fixedPayer } : {}),
+      },
       input.ctx,
     ).catch(() => null);
     if (preview !== null) {
@@ -494,12 +541,16 @@ async function buildPlaceOrderPayload(
   const promo = (formData.get('promotionCode') as string | null) || undefined;
   const note = (formData.get('customerNote') as string | null) || undefined;
   const deliveryAddressId = await resolveAddress('delivery', 'delivery');
-  const billingAddressId =
-    formData.get('billingSameAsShipping') != null
+  // `specs/182-related-payers/` — with a payer, billing is one of the payer's addresses and
+  // the company data is the payer's: no override is sent (FR-061, FR-062).
+  const payerOrganizationId = field('payerOrganizationId');
+  const billingAddressId = payerOrganizationId
+    ? field('payerBillingAddressId')
+    : formData.get('billingSameAsShipping') != null
       ? deliveryAddressId
       : await resolveAddress('billing', 'billing');
-  const billingCompanyName = field('billingCompanyName');
-  const billingTaxId = field('billingTaxId');
+  const billingCompanyName = payerOrganizationId ? '' : field('billingCompanyName');
+  const billingTaxId = payerOrganizationId ? '' : field('billingTaxId');
   const deliveryPointProvider = field('deliveryPointProvider');
   const deliveryPointId = field('deliveryPointId');
   const deliveryPointMethodId = field('deliveryPointMethodId');
@@ -514,6 +565,7 @@ async function buildPlaceOrderPayload(
     billingAddressId,
     deliveryMethodId: selectedDeliveryMethodId,
     paymentMethodId: (formData.get('paymentMethodId') as string) ?? '',
+    ...(payerOrganizationId ? { payerOrganizationId } : {}),
     ...(promo ? { promotionCode: promo } : {}),
     ...(note ? { customerNote: note } : {}),
     ...(billingCompanyName ? { billingCompanyName } : {}),
@@ -588,6 +640,39 @@ async function submitAction(formData: FormData): Promise<void> {
  * reason worded in the page language (issue #745: a code is mapped, never echoed); totals stay
  * unchanged.
  */
+/**
+ * `specs/182-related-payers/` RP-16 (b), FR-064 — the totals for a chosen payer: the existing
+ * order preview asked with the payer, so the figures shown are the ones placement writes. A
+ * refused or failed preview answers `null`, which the page shows as "could not be computed";
+ * placement still refuses what the preview would have.
+ */
+async function payerTotalsAction(input: PayerTotalsInput): Promise<PayerTotalsResult | null> {
+  'use server';
+  const session = await getSessionCookie();
+  if (!session || !input.deliveryMethodId || !input.paymentMethodId) return null;
+  const { ctx } = await getServerContext();
+  const preview = await previewOrderTotal(
+    session,
+    {
+      deliveryMethodId: input.deliveryMethodId,
+      paymentMethodId: input.paymentMethodId,
+      payerOrganizationId: input.payerOrganizationId,
+      ...(input.billingAddressId ? { billingAddressId: input.billingAddressId } : {}),
+    },
+    ctx,
+  ).catch(() => null);
+  if (!preview) return null;
+  return {
+    subtotal: preview.subtotal,
+    taxTotal: preview.taxTotal,
+    deliveryTotal: preview.deliveryTotal,
+    paymentSurcharge: preview.paymentSurcharge,
+    discountTotal: preview.discountTotal,
+    total: preview.total,
+    currency: preview.currency,
+  };
+}
+
 async function couponAction(
   _prev: CouponActionState | null,
   formData: FormData,

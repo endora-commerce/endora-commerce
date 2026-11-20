@@ -1,7 +1,10 @@
 import type { FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
-import type { PaymentMethodReadPort, PaymentReadPort } from '@endora-commerce/contracts';
+import { ERROR_CODES, type PaymentMethodReadPort, type PaymentReadPort, type RelatedPayerPolicyPort } from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -82,6 +85,8 @@ export interface PaymentMethodsCradle {
    * is a deployment input, the other is a port.
    */
   readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
+  /** The signed-in buyer, root-supplied; throws 401 for a caller who is not one. */
+  readonly customerContextResolver: (req: FastifyRequest) => { customerAccountId: string; organizationId: string };
   readonly organizationRestrictionPort: {
     allowedIdsFor(
       organizationId: string,
@@ -203,6 +208,30 @@ export function registerModule(ctx: ModuleContext): void {
      */
     const resolveAllowList = async (req: FastifyRequest): Promise<string[] | null> => {
       const cradle = ctx.cradle<PaymentMethodsCradle>();
+      const payer = (req.query as { payerOrganizationId?: unknown } | undefined)?.payerOrganizationId;
+      if (payer !== undefined) {
+        // `specs/182-related-payers/` (FR-066, RP-9) — the methods a related payer allows,
+        // which the buyer's own list does not narrow. The payer is vouched for by
+        // `related_payers` (`refuses-without`: 503 while it is off) before its allow-list
+        // is read — under a system scope with the payer's id from the validated link,
+        // because the allow-list rows are tenant-scoped and, read under the buyer's
+        // context, an empty answer would mean "unrestricted".
+        if (typeof payer !== 'string' || payer.length === 0) {
+          throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'payerOrganizationId must be an organization id.');
+        }
+        const customer = cradle.customerContextResolver(req);
+        const usable = await lazyPort<RelatedPayerPolicyPort>(ctx, 'relatedPayerPolicyPort').assertUsable(
+          {
+            buyerOrganizationId: customer.organizationId,
+            customerAccountId: customer.customerAccountId,
+            salesChannelId: getResolvedChannel(req).id,
+          },
+          payer,
+        );
+        return withSystemScope('payment_methods: payment methods of a related payer', () =>
+          cradle.organizationRestrictionPort.allowedIdsFor(usable.payerOrganizationId, 'paymentMethodIds'),
+        );
+      }
       const organizationId = cradle.customerOrganizationIdResolver(req);
       if (organizationId === null) return null;
       return cradle.organizationRestrictionPort.allowedIdsFor(organizationId, 'paymentMethodIds');

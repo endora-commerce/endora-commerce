@@ -31,7 +31,25 @@ export async function viewerOrganizationFor(
   audience: ProductAudience,
 ): Promise<PriceOrganization | null> {
   if (audience.organizationId === null) return null;
-  const record = await organizations.findById(audience.organizationId);
+  // `specs/182-related-payers/` FR-115 — the Organization prices are resolved for: the payer
+  // on its commercial terms (`pricedAudienceOf`), else the viewer's own. Visibility never reads it.
+  const record = await organizations.findById(audience.pricingOrganizationId ?? audience.organizationId);
   if (!record) return null;
   return { id: record.id, customerGroupId: record.customerGroupId };
+}
+
+/**
+ * `specs/182-related-payers/` A-18, RP-14 — the rest of a priced viewer beside its
+ * organisation: the customer account only when the priced organisation is the account's own
+ * (a payer's prices never take the buyer's user's group), and the buyer's display mode when the
+ * prices are a payer's.
+ */
+export function pricingViewerFields(
+  audience: ProductAudience,
+  organization: PriceOrganization | null,
+): { customerAccountId?: string; displayModeOrganization?: PriceOrganization } {
+  if (audience.pricingOrganizationId && audience.organizationId) {
+    return { displayModeOrganization: { id: audience.organizationId } };
+  }
+  return organization && audience.customerAccountId ? { customerAccountId: audience.customerAccountId } : {};
 }

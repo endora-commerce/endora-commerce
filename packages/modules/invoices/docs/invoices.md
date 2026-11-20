@@ -194,6 +194,14 @@ difference as the **overpayment** (`overpayment` in the API, the
 *Overpayment* row on the admin screen, *Nadpłata* on the PDF — the label is a
 setting of the totals block, and the row can be hidden there).
 
+## Orders paid by a related payer {#orders-paid-by-a-related-payer}
+
+An order placed with a related payer (the *Related payers* module) carries the payer's billing
+snapshot, so its invoice is issued to the payer. The invoice ledger records it under the payer —
+`payerOrganizationId ?? organizationId` — and the admin invoice list's reach and its
+*Billed organization* filter use the same expression, so such an invoice is listed under the payer and not
+under the buyer. The payer downloads it through its read-only view of the order.
+
 ## Entities
 
 `Invoice` (number, `kind ∈ {invoice, proforma, correction, wz}`,

@@ -71,7 +71,7 @@ import { composeCompletenessGate } from './services/scope-completeness.js';
 import { AttributeScopePreviewService } from './services/attribute-scope-preview.js';
 import { ScopedValuesService } from './services/scoped-values.service.js';
 import { ProductValueResolverService } from './services/product-value-resolver.service.js';
-import { readContext as readCatalogContext, registerCatalogPublicRoutes } from './routes.public.js';
+import { pricedContext as readCatalogContext, registerCatalogPublicRoutes } from './routes.public.js';
 import { registerCatalogUrlKeyPublicRoutes } from './routes.public.url-keys.js';
 import { UrlKeyResolutionService } from './services/url-key-resolution.service.js';
 import type { ResolveSeoProductMeta } from './services/catalog-query.service.js';

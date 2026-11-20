@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cartBuyingForResetReasonSchema,
   cartFullPayloadSchema,
   cartMiniPayloadSchema,
+  cartRepricingSummarySchema,
   cartViewLineSchema,
   orgCartDetailViewSchema,
+  setCartBuyingForRequestSchema,
+  setCartBuyingForResponseSchema,
 } from './carts.js';
 
 /**
@@ -232,5 +236,82 @@ describe('cartMiniPayloadSchema', () => {
     });
     expect(parsed.subtotal).toEqual({ amount: 20, currency: 'PLN' });
     expect(parsed.items[0]?.variantId).toBeNull();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+//  `specs/182-related-payers/` — the cart's *Buying for* context (FR-110 – FR-116)
+// ──────────────────────────────────────────────────────────────────────────
+
+const PAYER_ORG = '00000000-0000-4000-8000-0000000000b2';
+const BUYING_FOR = { organizationId: PAYER_ORG, name: 'Payer SA', terms: 'payer' };
+
+describe('cartFullPayloadSchema — buyingFor (FR-110)', () => {
+  it('reads a reply without the key as no context, and no reset', () => {
+    const parsed = cartFullPayloadSchema.parse(EMPTY_BASKET);
+    expect(parsed.buyingFor).toBeNull();
+    expect(parsed.buyingForReset).toBeNull();
+  });
+
+  it('carries the payer, its name and the terms the link had', () => {
+    expect(cartFullPayloadSchema.parse({ ...EMPTY_BASKET, buyingFor: BUYING_FOR }).buyingFor).toEqual(BUYING_FOR);
+    expect(
+      cartFullPayloadSchema.safeParse({ ...EMPTY_BASKET, buyingFor: { ...BUYING_FOR, terms: 'other' } }).success,
+    ).toBe(false);
+  });
+
+  it('says why a context was dropped on this read (FR-116)', () => {
+    expect(cartBuyingForResetReasonSchema.options).toEqual(['link_not_usable', 'terms_changed', 'capability_unavailable']);
+    const parsed = cartFullPayloadSchema.parse({ ...EMPTY_BASKET, buyingForReset: { reason: 'terms_changed' } });
+    expect(parsed.buyingForReset).toEqual({ reason: 'terms_changed' });
+  });
+});
+
+describe('setCartBuyingForRequestSchema (FR-110)', () => {
+  it('names a payer or returns to the buyer itself', () => {
+    expect(setCartBuyingForRequestSchema.parse({ payerOrganizationId: PAYER_ORG }).payerOrganizationId).toBe(PAYER_ORG);
+    expect(setCartBuyingForRequestSchema.parse({ payerOrganizationId: null }).payerOrganizationId).toBeNull();
+  });
+
+  it('requires the key, a uuid, and nothing the client could steer pricing with', () => {
+    expect(setCartBuyingForRequestSchema.safeParse({}).success).toBe(false);
+    expect(setCartBuyingForRequestSchema.safeParse({ payerOrganizationId: 'x' }).success).toBe(false);
+    expect(setCartBuyingForRequestSchema.safeParse({ payerOrganizationId: PAYER_ORG, terms: 'payer' }).success).toBe(
+      false,
+    );
+    expect(
+      setCartBuyingForRequestSchema.safeParse({ payerOrganizationId: PAYER_ORG, priceListId: PAYER_ORG }).success,
+    ).toBe(false);
+  });
+});
+
+describe('cartRepricingSummarySchema — what the switch changed (FR-113, FR-114)', () => {
+  const summary = {
+    lines: [
+      { lineId: LINE.id, before: { amount: 10, currency: 'PLN' }, after: { amount: 9, currency: 'PLN' }, unpriced: false },
+      { lineId: '00000000-0000-4000-8000-000000000012', before: { amount: 5, currency: 'PLN' }, after: null, unpriced: true },
+    ],
+    promotionsAdded: [{ promotionId: '00000000-0000-4000-8000-0000000000d1', name: 'Payer -5%' }],
+    promotionsRemoved: [{ promotionId: '00000000-0000-4000-8000-0000000000d2', name: null }],
+  };
+
+  it('per line the unit price before and after, and the lines left unpriced', () => {
+    expect(cartRepricingSummarySchema.parse(summary)).toEqual(summary);
+  });
+
+  it('an unpriced line has no price after', () => {
+    expect(
+      cartRepricingSummarySchema.safeParse({
+        ...summary,
+        lines: [{ lineId: LINE.id, before: null, after: { amount: 1, currency: 'PLN' }, unpriced: true }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('the switch answers the cart and the summary', () => {
+    const reply = { data: { ...EMPTY_BASKET, buyingFor: BUYING_FOR, repricing: summary } };
+    const parsed = setCartBuyingForResponseSchema.parse(reply);
+    expect(parsed.data.repricing).toEqual(summary);
+    expect(parsed.data.buyingFor).toEqual(BUYING_FOR);
   });
 });

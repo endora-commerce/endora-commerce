@@ -1263,6 +1263,48 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'data — sending a new tracking link — on a guest case whose data has been erased. The case is ' +
       '`returns`\' own row; the raise site is `guest-tracking-link.ts`.',
   },
+  RELATED_PAYER_LINK_EXISTS: {
+    to: 'related_payers',
+    reason:
+      'Minted by `specs/182-related-payers/` (FR-010) for a link the pair already has: at most one ' +
+      'non-revoked link per ordered pair. The link is `related_payers`\' own row; raised by the ' +
+      '`related_payers.link.create` Command behind the operator routes and `relatedPayerWritePort`. ' +
+      '`VERSION_CONFLICT` is not reused: nothing was stale, the pair is taken.',
+  },
+  RELATED_PAYER_INVALID_PAIR: {
+    to: 'related_payers',
+    reason:
+      'Minted by `specs/182-related-payers/` (FR-010) for a pair that can never be linked — one ' +
+      'Organization twice, or a personal Organization on either side. Raised by the link Commands ' +
+      'behind the operator routes and `relatedPayerWritePort`. `VALIDATION_FAILED` is not reused: ' +
+      'the request is well formed, and the sentence has to say why the pair is refused.',
+  },
+  RELATED_PAYER_NOT_USABLE: {
+    to: 'related_payers',
+    reason:
+      'Minted by `specs/182-related-payers/` (contracts/ports.md §5) for a payer the buyer names at ' +
+      'checkout or placement whose link is not usable now — inactive, revoked, outside its window, a ' +
+      'blocked payer, no allowed billing address, the capability off on the channel or the person ' +
+      'without the permission (FR-012, FR-068). Raised by `relatedPayerPolicyPort.assertUsable`. ' +
+      '`VALIDATION_FAILED` is not reused: the request is well formed, and the sentence has to say the ' +
+      'payer cannot be used.',
+  },
+  RELATED_PAYER_REQUEST_LIMIT: {
+    to: 'related_payers',
+    reason:
+      'Minted by `specs/182-related-payers/` (FR-046) for a sender whose Organization reached its daily ' +
+      'number of payer requests and invitations. Raised by the request Commands before the tax ID is ' +
+      'looked up, so the refusal reveals nothing about it. `RATE_LIMITED` is not reused: this is a ' +
+      'business limit the store sets per channel, and the sentence has to say so.',
+  },
+  RELATED_PAYER_REQUEST_DECIDED: {
+    to: 'related_payers',
+    reason:
+      'Minted by `specs/182-related-payers/` (FR-045) for a decision on a request already decided — ' +
+      'accepted, rejected, withdrawn or expired — including the loser of two concurrent decisions. ' +
+      'The request is `related_payers`\' own row. `VERSION_CONFLICT` is not reused: re-reading does ' +
+      'not help, the request is closed.',
+  },
   RFQ_SAVED_VIEW_NAME_TAKEN: {
     to: 'quote_requests',
     reason:

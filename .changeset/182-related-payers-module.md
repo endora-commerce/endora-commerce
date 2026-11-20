@@ -1,0 +1,8 @@
+---
+"@endora-commerce/mod-related-payers": minor
+"@endora-commerce/contracts": minor
+---
+
+New module `@endora-commerce/mod-related-payers` (`related_payers`): a buyer Organization places orders that another Organization of the store pays for and is invoiced for. It owns the buyer → payer link (state, allowed billing addresses, validity window, buyer's or payer's commercial terms), its operator surface (the *Payers* section of the organization card and the *Payer requests* queue), customer requests and payer invitations with an enumeration-safe reply, the account's *Payers* and *Orders we pay for* screens, eight transactional e-mails, and the ports `relatedPayerWritePort` (for overlays: `addPayer` / `revokePayer`, audited as `automation` with a `source`) and `relatedPayerPolicyPort` (read by `orders`, `carts` and `payment_methods`). It ships switched off (`related_payers.module_enabled`) and disabled on every sales channel (`related_payers.enabled`), so installing it changes nothing until an operator turns it on. `GET /api/v1/related-payers/availability` tells a signed-in customer's storefront whether the capability is on for the request's channel, so the account screens appear only where their routes answer.
+
+`@endora-commerce/contracts` exports the module's schemas and port types from `related-payers.ts` (`RelatedPayerWritePort`, `RelatedPayerPolicyPort`, `addPayerInputSchema`, the link, request and invitation DTOs, `relatedPayersAvailabilityResponseSchema`, `RELATED_PAYERS_SETTING_CODES`, `RELATED_PAYERS_HOOKABLE_ACTIONS`) and five error codes in `ERROR_CODES`: `RELATED_PAYER_NOT_USABLE`, `RELATED_PAYER_REQUEST_LIMIT`, `RELATED_PAYER_REQUEST_DECIDED`, `RELATED_PAYER_LINK_EXISTS`, `RELATED_PAYER_INVALID_PAIR`.

@@ -197,6 +197,9 @@
   "sidebar.main.category.quote_requests": {
     "message": "Zapytania ofertowe"
   },
+  "sidebar.main.category.related_payers": {
+    "message": "Płatnicy powiązani"
+  },
   "sidebar.main.category.returns": {
     "message": "Zwroty"
   },

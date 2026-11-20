@@ -126,6 +126,8 @@ vi.mock('../../lib/api/cart', () => ({
   listOrganizationCarts: async () => ({ data: [], meta: { page: 1, pageSize: 20, totalCount: 0 } }),
 }));
 vi.mock('../../lib/api/credit-limit', () => ({ getMyCreditLimit: async () => null }));
+// `specs/182-related-payers/` FR-002 — the channel read the account navigation makes; not this test's subject.
+vi.mock('../../lib/api/related-payers', () => ({ getRelatedPayersAvailability: async () => false }));
 vi.mock('../../lib/api/pwa-server', () => ({
   fetchPwaConfig: async () => ({ pushEnabled: false }),
   getPushPreferences: async () => null,

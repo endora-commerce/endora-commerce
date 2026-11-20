@@ -10,6 +10,7 @@ import {
   clearCartCoupon,
   convertCartToQuoteRequest,
   submitCartForApproval,
+  setCartBuyingFor,
   saveCartItemToShoppingList,
   type CartCookieJar,
   type CartItem,
@@ -32,6 +33,8 @@ import { CartConvertButtons } from '../../../components/CartConvertButtons';
 import { CartDroppedLinesBanner } from '../../../components/CartDroppedLinesBanner';
 import { CartApprovalBanner } from '../../../components/CartApprovalBanner';
 import { CartPrimaryCta } from '../../../components/CartPrimaryCta';
+import { CartBuyingFor, CartBuyingForNotice } from '../../../components/CartBuyingFor';
+import { listCheckoutPayers } from '../../../lib/api/related-payers';
 import { CartQuantityAutosave, type CartQuantitySaveResult } from '../../../components/CartQuantityAutosave';
 import { getMe } from '../../../lib/api/account';
 import { commerceAbilities, memberSession } from '../../../lib/commerce-permissions';
@@ -86,6 +89,9 @@ export default async function CartPage({
 }: {
   searchParams: Promise<{
     error?: string;
+    /** `specs/182-related-payers/` FR-113 — what the last *Paid by* (*Buying for*) switch changed. */
+    buyingForRepriced?: string;
+    buyingForUnpriced?: string;
     /** U4 — the line whose quantity edit `error` refuses; the sentence renders beside it. */
     errorItem?: string;
     /** U4 — what the buyer typed into that line, kept in its field. */
@@ -163,6 +169,13 @@ export default async function CartPage({
   // Issue #672 (Principle XVII item 5) — the conversion into a quote request and
   // save-to-list are offered only while their modules are present, too.
   const abilities = withModulePresence(commerceAbilities(memberSession(me)), moduleActionPresence(modules));
+  // `specs/182-related-payers/` FR-110 — the payers this member may choose on the cart (RP-22:
+  // *Paid by*), only while the module is present, the cart has lines and belongs to an
+  // Organization (SC-007: nothing otherwise). An empty cart has no price to change.
+  const buyingForPayers =
+    session && me?.organization && modules.isPresent('related_payers') && cart.items.length > 0
+      ? await listCheckoutPayers(session, ctx).catch(() => [])
+      : [];
 
   // Resolve ONE price display mode for the whole cart so the net/gross
   // presentation matches the PDP and product cards. It is resolved for the
@@ -314,6 +327,24 @@ export default async function CartPage({
 
       {/* Issue #1252 — a typed quantity saves itself, and the page's other actions wait for it. */}
       <CartQuantityAutosave strings={strings.autosave}>
+        {/* `specs/182-related-payers/` FR-110, FR-113, FR-116 — *Paid by* (RP-22), above the lines it
+            reprices: what the last switch changed, or why the cart left the payer's prices. Inside
+            the autosave so a typed quantity is saved before the switch reprices the lines. */}
+        <CartBuyingForNotice
+          repriced={countParam(params.buyingForRepriced)}
+          unpriced={countParam(params.buyingForUnpriced)}
+          reset={cart.buyingForReset?.reason ?? null}
+          locale={locale}
+        />
+        {abilities.editCart ? (
+          <CartBuyingFor
+            payers={buyingForPayers}
+            current={cart.buyingFor?.organizationId ?? null}
+            organizationName={me?.organization?.name ?? null}
+            action={buyingForAction}
+            locale={locale}
+          />
+        ) : null}
         <div className="grid grid-cols-[1fr_380px] items-start gap-8 max-[960px]:grid-cols-1">
           <div>
             <div className="overflow-hidden rounded-md border border-line bg-surface">
@@ -641,6 +672,28 @@ async function convertToQrAction(formData: FormData): Promise<void> {
     return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'CONVERT_FAILED')}`);
   }
   return await localeRedirect(`/quote-requests/${slug}?from=cart`);
+}
+
+/** `specs/182-related-payers/` FR-110 — *Paid by* (RP-22; the spec's *Buying for*); the summary travels as two counts. */
+async function buyingForAction(formData: FormData): Promise<void> {
+  'use server';
+  const raw = formData.get('payerOrganizationId');
+  const payerOrganizationId = typeof raw === 'string' && raw !== '' ? raw : null;
+  const { ctx } = await getServerContext();
+  let summary: { repriced: number; unpriced: number };
+  try {
+    summary = await setCartBuyingFor(await readJar(), payerOrganizationId, ctx);
+  } catch (err) {
+    return await localeRedirect(`/cart?error=${CART_ERRORS.failureCode(err, 'BUYING_FOR_FAILED')}`);
+  }
+  const qs = new URLSearchParams({ buyingForRepriced: String(summary.repriced), buyingForUnpriced: String(summary.unpriced) });
+  return await localeRedirect(`/cart?${qs.toString()}`);
+}
+
+/** A non-negative count from the query, or `null`. */
+function countParam(value: string | undefined): number | null {
+  if (value === undefined || !/^\d{1,4}$/.test(value)) return null;
+  return Number(value);
 }
 
 async function submitForApprovalAction(): Promise<void> {

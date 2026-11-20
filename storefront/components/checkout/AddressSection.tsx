@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { AddressSummary } from '../../lib/api/organization';
 import { tForLocale } from '../../lib/i18n/messages';
+import { PayerBillingSection, useCheckoutPayer } from './CheckoutPayer';
 
 /**
  * Checkout address section (feature 036, US2). Per address kind the buyer can
@@ -143,6 +144,9 @@ export function AddressSection({
   initialCompanyInvoice = false,
 }: AddressSectionProps): React.ReactNode {
   const t = tForLocale(locale);
+  // `specs/182-related-payers/` FR-061 — with a payer chosen at checkout, billing is the
+  // payer's: its company data read-only and one of its allowed billing addresses.
+  const payer = useCheckoutPayer();
   const [companyInvoice, setCompanyInvoice] = useState(initialCompanyInvoice);
   const [shippingMode, setShippingMode] = useState<'saved' | 'new'>(
     deliveryAddresses.length > 0 ? 'saved' : 'new',
@@ -199,7 +203,9 @@ export function AddressSection({
         )}
       </fieldset>
 
-      {personalOrganization ? (
+      {payer ? (
+        <PayerBillingSection payer={payer} locale={locale} />
+      ) : personalOrganization ? (
         <>
           {/* Issue #759 (owner ruling of 2026-11-05) — a personal Organization
               is billed to the person. Company data is opt-in, starts empty and
@@ -270,6 +276,7 @@ export function AddressSection({
         </fieldset>
       )}
 
+      {payer ? null : (
       <label style={{ display: 'block', margin: 'var(--b2b-spacing, 12px) 0' }}>
         <input
           type="checkbox"
@@ -279,8 +286,9 @@ export function AddressSection({
         />{' '}
         {t('checkout.address.sameAsShipping')}
       </label>
+      )}
 
-      {!billingSame ? (
+      {!payer && !billingSame ? (
         <fieldset className="b2b-auth__form" style={{ border: 0, padding: 0 }}>
           <legend style={{ fontWeight: 600 }}>{t('checkout.address.billingTitle')}</legend>
           {billingAddresses.length > 0 ? (

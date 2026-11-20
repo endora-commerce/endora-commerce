@@ -479,6 +479,16 @@ const modules = [
   },
   {
     type: 'category',
+    label: 'Related payers', key: 'related_payers',
+    link: { type: 'doc', id: 'modules/related-payers/index' },
+    items: [
+      'modules/related-payers/operator-guide',
+      'modules/related-payers/storefront-guide',
+      'module-reference/related-payers',
+    ],
+  },
+  {
+    type: 'category',
     label: 'Returns', key: 'returns',
     link: { type: 'doc', id: 'modules/returns' },
     items: [

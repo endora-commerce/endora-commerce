@@ -165,6 +165,23 @@ export interface CreditLimitReadPort {
 }
 
 /**
+ * Container name: `creditAvailabilityReadPort`. Owner: `credit_limits`.
+ *
+ * An Organization's available credit — its grant (resolved under the inheritance rule) less
+ * its active reservations — computed exactly as `GET /api/v1/me/credit-limit` computes it for
+ * the Organization itself. Published for `related_payers` (`specs/182-related-payers/`
+ * RP-16 c), whose checkout offers the credit-limit method for a payer by the rule the buyer's
+ * own credit follows. The caller establishes the scope: a read for an Organization other than
+ * the ambient one runs under `withSystemScope`.
+ *
+ * **Owner off:** resolving this port throws `ModuleDisabledError` (503 `MODULE_DISABLED`).
+ */
+export interface CreditAvailabilityReadPort {
+  /** `null` when the Organization (and its chain) holds no grant. */
+  availableFor(organizationId: string): Promise<{ availableAmount: number; currency: string } | null>;
+}
+
+/**
  * Container name: `creditLimitService`. Owner: `credit_limits`.
  *
  * The narrow grant/adjust seam over `credit_limits`' own registration, for a

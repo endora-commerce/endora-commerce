@@ -4,6 +4,22 @@ import { randomUUID } from 'crypto';
 import type { NextAction, OrderChargeLine } from '@endora-commerce/contracts';
 import { ORDER_STATUS_COMPLETED } from '../domain/order-status-graph.js';
 
+/** `specs/182-related-payers/` — the payer frozen at placement (data-model §3). */
+export interface OrderPayerSnapshot {
+  organizationId: string;
+  name: string;
+  taxId: string;
+  vatStatus: string;
+  billingAddress: {
+    recipientName: string;
+    street: string;
+    city: string;
+    postalCode: string;
+    country: string;
+    phone: string | null;
+  };
+}
+
 /**
  * Order — data-model.md § Domain 4.
  *
@@ -35,7 +51,11 @@ export class Order {
     | 'deliveryPointSnapshot'
     | 'purchaseConversionOwed'
     | 'purchaseConversionReportedAt'
-    | 'shippingAdapterData';
+    | 'shippingAdapterData'
+    | 'payerOrganizationId'
+    | 'payerLinkId'
+    | 'payerTerms'
+    | 'payerSnapshot';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -166,6 +186,25 @@ export class Order {
 
   @Property({ type: 'uuid', nullable: true })
   sourceQuoteRequestId?: string | null;
+
+  /**
+   * `specs/182-related-payers/` (research R-2) — the Organization that pays for and is
+   * invoiced for this order, when it is not the buyer. `organizationId` stays the buyer's.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  payerOrganizationId?: string | null;
+
+  /** The payer link that vouched for the payer at placement (provenance). */
+  @Property({ type: 'uuid', nullable: true })
+  payerLinkId?: string | null;
+
+  /** Whose commercial terms priced the order (FR-117). */
+  @Property({ type: 'string', length: 8, nullable: true })
+  payerTerms?: 'buyer' | 'payer' | null;
+
+  /** The payer as it was at placement (FR-067). A value — never in audit state. */
+  @Property({ type: 'json', nullable: true })
+  payerSnapshot?: OrderPayerSnapshot | null;
 
   @Property({ type: 'decimal', precision: 14, scale: 2 })
   subtotal!: string;

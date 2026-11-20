@@ -1124,6 +1124,7 @@
   "invoices.fields.totalMax": "Suma do",
   "invoices.fields.totalMin": "Suma od",
   "invoices.filters.orderNumberPlaceholder": "np. ORD-2026-…",
+  "invoices.filters.organization": "Organizacja na fakturze",
   "invoices.kind.correction": "korekta",
   "invoices.kind.invoice": "faktura",
   "invoices.kind.proforma": "proforma",

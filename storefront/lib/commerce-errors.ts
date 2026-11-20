@@ -85,6 +85,7 @@ export const CART_ERRORS = defineUrlErrors({
     APPLY_COUPON_FAILED: 'commerce.cart.error.applyCouponFailed',
     CONVERT_FAILED: 'commerce.cart.error.convertFailed',
     SUBMIT_FOR_APPROVAL_FAILED: 'cart.submitForApprovalFailed',
+    BUYING_FOR_FAILED: 'cart.buyingFor.failed',
     FAILED: 'commerce.cart.error.FAILED',
   },
   generic: 'FAILED',

@@ -41,6 +41,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `transactional_emails` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `promotions` | tylko bramkowanie | rozwiązuje `promotionCodePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `promotions` | tylko bramkowanie | rozwiązuje `promotionService`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
+| `related_payers` | nie | degrades-without `relatedPayerPolicyPort` — w koszyku nie można wybrać płatnika, a koszyk kupowany dla płatnika przy następnym odczycie wraca do własnych cen kupującego |
 
 ## Uprawnienia
 

@@ -242,6 +242,20 @@ export const manifest = defineModuleManifest({
   // sentence the operator's confirmation dialog renders.
   nonBindingDependencies: [
     {
+      moduleId: 'related_payers',
+      name: 'relatedPayerPolicyPort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'an order naming a related payer cannot be placed or previewed; every other order is unaffected',
+      reason:
+        '`specs/182-related-payers/` (research R-6) — placement and the total preview ask the ' +
+        'policy port whether the named payer is usable, for its billing address and through it ' +
+        'for the payer`s method allow-list and credit. A `lazyPort` forward on a `di.providePort` ' +
+        'name with no fallback, reached only when a request names a payer. Not `dependencies`: ' +
+        '`related_payers` ships off, and binding on it would make its activation control a dead ' +
+        'switch in every shop that takes orders.',
+    },
+    {
       moduleId: 'credit_limits',
       name: 'creditLimitService',
       kind: 'refuses-without',

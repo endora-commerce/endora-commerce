@@ -45,6 +45,7 @@ import { Migration20261024T145147OrdersVatMethod } from './20261024T145147_order
 import { Migration20261025T031732OrdersUnitPriceFourPlaces } from './20261025T031732_orders_unit_price_four_places.js';
 import { Migration20261108T000543OrdersCompletedAt } from './20261108T000543_orders_completed_at.js';
 import { Migration20261108T073238OrdersChargeLines } from './20261108T073238_orders_charge_lines.js';
+import { Migration20261118T162646OrdersPayerOnOrder } from './20261118T162646_orders_payer_on_order.js';
 import { Migration20261110T143322OrdersOrderExternalReferences } from './20261110T143322_orders_order_external_references.js';
 
 export const migrations = [
@@ -72,6 +73,7 @@ export const migrations = [
   Migration20261108T000543OrdersCompletedAt,
   Migration20261108T073238OrdersChargeLines,
   Migration20261110T143322OrdersOrderExternalReferences,
+  Migration20261118T162646OrdersPayerOnOrder,
 ];
 
 export {
@@ -99,4 +101,5 @@ export {
   Migration20261108T000543OrdersCompletedAt,
   Migration20261108T073238OrdersChargeLines,
   Migration20261110T143322OrdersOrderExternalReferences,
+  Migration20261118T162646OrdersPayerOnOrder,
 };

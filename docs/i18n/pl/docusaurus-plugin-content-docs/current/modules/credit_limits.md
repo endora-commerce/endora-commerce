@@ -78,6 +78,14 @@ w całości; ścisły schemat to `CreditLimitAdjustedEventV1Schema` w `@endora-c
   odrzucana; zapisane subskrypcje zostają i nic nie dostają, dopóki moduł nie zostanie włączony
   ponownie.
 
+## Zamówienia opłacane przez płatnika powiązanego {#orders-paid-by-a-related-payer}
+
+Zamówienie złożone z płatnikiem powiązanym (moduł *Related payers*) rezerwuje kredyt **płatnika**,
+albo właściciela jego kredytu, gdy płatnik korzysta ze wspólnej puli organizacji nadrzędnej; kredyt
+kupującego pozostaje nietknięty. `credit_limits` publikuje `creditAvailabilityReadPort`, przez który
+checkout odczytuje dostępny kredyt płatnika, żeby zdecydować, czy oferować metodę płatności w ramach
+limitu kredytowego.
+
 ## W dzienniku audytu
 
 Przyznanie, zmiana i zaliczenie limitu ze zwrotu to każde jeden wpis w dzienniku audytu całej
