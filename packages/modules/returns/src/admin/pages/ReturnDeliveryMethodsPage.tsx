@@ -123,7 +123,7 @@ export function ReturnDeliveryMethodsPage(): ReactNode {
 
       {rows !== null && (
         <Card>
-          <CardContent className="pt-6">
+          <CardContent>
             {rows.length === 0 ? (
               <EmptyState
                 icon={<Truck size={20} />}
