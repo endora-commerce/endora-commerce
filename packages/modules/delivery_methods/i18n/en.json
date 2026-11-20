@@ -25,5 +25,10 @@
   "errors.DELIVERY_METHOD_IN_USE.change_adapter": "The adapter of delivery method \"{deliveryMethodCode}\" cannot be changed: {shipmentCount} shipment(s) were created against it through \"{adapter}\". Set its status to \"inactive\" and create a new method for the other adapter instead.",
   "errors.DELIVERY_METHOD_USAGE_UNKNOWN": "The \"{module}\" module is switched off, so the platform cannot tell whether any shipment was created against this delivery method. Switch the module on and try again.",
   "errors.DELIVERY_METHOD_USAGE_UNKNOWN.delete": "This delivery method cannot be deleted: the \"{module}\" module is switched off, so the platform cannot tell whether any shipment was created against it. Switch the module on and try again, or set the method's status to \"inactive\".",
-  "errors.DELIVERY_METHOD_USAGE_UNKNOWN.change_adapter": "The adapter of this delivery method cannot be changed: the \"{module}\" module is switched off, so the platform cannot tell whether any shipment was created against it. Switch the module on and try again, or create a new method for the other adapter."
+  "errors.DELIVERY_METHOD_USAGE_UNKNOWN.change_adapter": "The adapter of this delivery method cannot be changed: the \"{module}\" module is switched off, so the platform cannot tell whether any shipment was created against it. Switch the module on and try again, or create a new method for the other adapter.",
+  "methods.fields.statusOnSuccess": "Order status on shipment success",
+  "methods.fields.statusOnFailure": "Order status on shipment failure",
+  "methods.fields.statusDefault": "Default ({status})",
+  "methods.columns.statuses": "Order status on success / failure",
+  "methods.statusGroup": "Order status changes"
 }

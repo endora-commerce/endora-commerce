@@ -25,5 +25,10 @@
   "errors.DELIVERY_METHOD_IN_USE.change_adapter": "Nie można zmienić adaptera metody dostawy „{deliveryMethodCode}”: utworzono dla niej przesyłki przez adapter „{adapter}” (liczba: {shipmentCount}). Ustaw jej status na „nieaktywna” i utwórz nową metodę dla innego adaptera.",
   "errors.DELIVERY_METHOD_USAGE_UNKNOWN": "Moduł „{module}” jest wyłączony, więc platforma nie może ustalić, czy dla tej metody dostawy utworzono jakąkolwiek przesyłkę. Włącz ten moduł i spróbuj ponownie.",
   "errors.DELIVERY_METHOD_USAGE_UNKNOWN.delete": "Nie można usunąć tej metody dostawy: moduł „{module}” jest wyłączony, więc platforma nie może ustalić, czy utworzono dla niej jakąkolwiek przesyłkę. Włącz ten moduł i spróbuj ponownie albo ustaw status metody na „nieaktywna”.",
-  "errors.DELIVERY_METHOD_USAGE_UNKNOWN.change_adapter": "Nie można zmienić adaptera tej metody dostawy: moduł „{module}” jest wyłączony, więc platforma nie może ustalić, czy utworzono dla niej jakąkolwiek przesyłkę. Włącz ten moduł i spróbuj ponownie albo utwórz nową metodę dla innego adaptera."
+  "errors.DELIVERY_METHOD_USAGE_UNKNOWN.change_adapter": "Nie można zmienić adaptera tej metody dostawy: moduł „{module}” jest wyłączony, więc platforma nie może ustalić, czy utworzono dla niej jakąkolwiek przesyłkę. Włącz ten moduł i spróbuj ponownie albo utwórz nową metodę dla innego adaptera.",
+  "methods.fields.statusOnSuccess": "Status zamówienia po udanej wysyłce",
+  "methods.fields.statusOnFailure": "Status zamówienia po nieudanej wysyłce",
+  "methods.fields.statusDefault": "Domyślny ({status})",
+  "methods.columns.statuses": "Status zamówienia po sukcesie / porażce",
+  "methods.statusGroup": "Zmiany statusu zamówienia"
 }

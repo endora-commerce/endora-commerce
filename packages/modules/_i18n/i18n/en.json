@@ -1132,7 +1132,7 @@
   "invoices.status.pending": "pending",
   "invoices.status.ready": "ready",
   "invoices.title": "Invoices",
-  "legacyMethods.action.new": "Add method",
+  "legacyMethods.action.new": "New method",
   "legacyMethods.availability.moduleOff": "The \"{module}\" module is switched off.",
   "legacyMethods.availability.moduleUnavailable": "The \"{module}\" module is not available on this deployment.",
   "legacyMethods.availability.noAdapter": "No module provides the \"{adapter}\" adapter.",
@@ -1164,7 +1164,6 @@
   "legacyMethods.fields.statusOnFailure": "Order status — payment failed",
   "legacyMethods.fields.statusOnPending": "Order status — awaiting payment",
   "legacyMethods.fields.statusOnSuccess": "Order status — payment succeeded",
-  "legacyMethods.formTitle": "New / update method",
   "legacyMethods.integrations.configure": "Configure",
   "legacyMethods.integrations.title": "Integrations",
   "legacyMethods.messages.saved": "Saved {code}.",
@@ -2801,5 +2800,10 @@
   "pageBuilder.catalogPicker.noCategories": "No categories match your filter.",
   "pageBuilder.catalogPicker.selectedCount": "{count} selected",
   "pageBuilder.catalogPicker.apply": "Apply",
-  "pageBuilder.catalogPicker.applySelection": "Apply selection"
+  "pageBuilder.catalogPicker.applySelection": "Apply selection",
+  "legacyMethods.payment.newTitle": "New payment method",
+  "legacyMethods.delivery.newTitle": "New delivery method",
+  "legacyMethods.rowActions": "Actions for {code}",
+  "legacyMethods.fields.adapterDefault": "Default for the kind ({kind})",
+  "legacyMethods.payment.statusGroup": "Order status changes"
 }

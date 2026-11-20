@@ -1132,7 +1132,7 @@
   "invoices.status.pending": "oczekująca",
   "invoices.status.ready": "gotowa",
   "invoices.title": "Faktury",
-  "legacyMethods.action.new": "Dodaj metodę",
+  "legacyMethods.action.new": "Nowa metoda",
   "legacyMethods.availability.moduleOff": "Moduł \"{module}\" jest wyłączony.",
   "legacyMethods.availability.moduleUnavailable": "Moduł \"{module}\" nie jest dostępny w tej instalacji.",
   "legacyMethods.availability.noAdapter": "Żaden moduł nie dostarcza adaptera \"{adapter}\".",
@@ -1164,7 +1164,6 @@
   "legacyMethods.fields.statusOnFailure": "Status zamówienia — płatność nieudana",
   "legacyMethods.fields.statusOnPending": "Status zamówienia — oczekiwanie na płatność",
   "legacyMethods.fields.statusOnSuccess": "Status zamówienia — płatność udana",
-  "legacyMethods.formTitle": "Nowa / aktualizacja metody",
   "legacyMethods.integrations.configure": "Konfiguruj",
   "legacyMethods.integrations.title": "Integracje",
   "legacyMethods.messages.saved": "Zapisano {code}.",
@@ -2801,5 +2800,10 @@
   "pageBuilder.catalogPicker.noCategories": "Żadna kategoria nie pasuje do filtra.",
   "pageBuilder.catalogPicker.selectedCount": "Wybrano: {count}",
   "pageBuilder.catalogPicker.apply": "Zastosuj",
-  "pageBuilder.catalogPicker.applySelection": "Zastosuj wybór"
+  "pageBuilder.catalogPicker.applySelection": "Zastosuj wybór",
+  "legacyMethods.payment.newTitle": "Nowa metoda płatności",
+  "legacyMethods.delivery.newTitle": "Nowa metoda dostawy",
+  "legacyMethods.rowActions": "Akcje dla {code}",
+  "legacyMethods.fields.adapterDefault": "Domyślny dla typu ({kind})",
+  "legacyMethods.payment.statusGroup": "Zmiany statusu zamówienia"
 }
