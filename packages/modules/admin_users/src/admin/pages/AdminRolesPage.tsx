@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { StickyFormActions, useConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { Link } from 'react-router-dom';
 import { AlertTriangle, Info, Plus, ShieldAlert, Trash2 } from 'lucide-react';
 import { missingPermissionRequirements } from '@endora-commerce/contracts';
 import { ApiError, apiClient, cn, useModulePresence } from '@endora-commerce/admin-kit/lib';
@@ -196,15 +195,6 @@ export default function AdminRolesPage(): ReactNode {
     <>
       <PageHeader
         title={t('adminRoles.page.title')}
-        description={
-          <>
-            {t('adminRoles.page.descriptionPrefix')}{' '}
-            <Link to="/admin-users" className="underline underline-offset-2">
-              {t('adminRoles.usersLink')}
-            </Link>
-            .
-          </>
-        }
         actions={
           <div className="flex items-center gap-3">
             <InlineStatus {...statusProps} />

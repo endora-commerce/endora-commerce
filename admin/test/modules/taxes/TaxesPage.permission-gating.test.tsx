@@ -89,7 +89,6 @@ let presentModules: readonly string[] = [];
 
 const KEYS = [
   'taxes.page.title',
-  'taxes.page.description',
   'taxes.noPermission',
   'taxes.empty',
   'taxes.column.code',

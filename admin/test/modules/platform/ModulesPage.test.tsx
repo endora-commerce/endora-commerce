@@ -46,8 +46,7 @@ const { ModulesPage } = await import('../../../../packages/admin-shell/src/modul
 
 const bundle = passthroughBundle('core', [
   'platform.modules.title',
-  'platform.modules.description',
-  'platform.modules.cliHint',
+  'platform.modules.help',
   'platform.modules.degraded',
   'platform.modules.empty',
   'platform.modules.column.module',

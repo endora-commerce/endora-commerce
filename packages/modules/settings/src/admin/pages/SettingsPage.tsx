@@ -444,7 +444,6 @@ export function SettingsPage(): ReactNode {
     <>
       <PageHeader
         title={t('page.title')}
-        description={t('page.description')}
       />
       {error && (
         <Alert variant="destructive" className="mb-4">

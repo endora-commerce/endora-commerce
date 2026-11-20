@@ -142,7 +142,6 @@ export function FormsListPage(): ReactNode {
     <div className="space-y-4">
       <PageHeader
         title={t('list.title')}
-        description={t('list.description')}
         actions={canWrite && !nothingYet ? createLink : null}
       />
       <Card>

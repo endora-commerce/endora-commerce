@@ -34,7 +34,6 @@ const { GlobalSearchPage } = await import('../../../../packages/modules/admin_se
 
 const KEYS = [
   'page.results.title',
-  'page.results.description',
   'page.results.inputLabel',
   'page.results.inputPlaceholder',
   'page.results.typesLabel',

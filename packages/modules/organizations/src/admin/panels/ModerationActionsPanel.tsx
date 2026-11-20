@@ -1,6 +1,6 @@
 import { useCallback, useId, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, Label, Textarea, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog, OrganizationStatusBadge, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { TriangleAlert } from 'lucide-react';
@@ -63,14 +63,17 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — "Organization approved" is said
+  // beside the buttons, in a region mounted before it has text, not as a success
+  // banner at the top of the card.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const descriptionId = useId();
   const reasonId = useId();
   const errorId = useId();
 
   const openModal = (kind: ActionKind): void => {
     setError(null);
-    setInfo(null);
+    clearStatus();
     setReason('');
     if (kind === 'approve' || kind === 'unblock') {
       void execute(kind, undefined);
@@ -84,7 +87,7 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
       if (busy) return;
       setBusy(true);
       setError(null);
-      setInfo(null);
+      clearStatus();
       try {
         const body: Record<string, unknown> = { expectedVersion: props.version };
         if (kind === 'reject') {
@@ -99,7 +102,7 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
           body['reason'] = providedReason.trim();
         }
         await apiClient.post(`/api/v1/admin/organizations/${props.organizationId}/${kind}`, body);
-        setInfo(t(`organizations.moderation.success.${kind}`));
+        showStatus(t(`organizations.moderation.success.${kind}`));
         setModal(null);
         setReason('');
         await props.onChanged();
@@ -119,7 +122,7 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
         setBusy(false);
       }
     },
-    [busy, props, t],
+    [busy, props, t, showStatus, clearStatus],
   );
 
   const canApprove = props.status === 'pending_verification';
@@ -140,11 +143,6 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
         {error ? (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        {info ? (
-          <Alert variant="success">
-            <AlertDescription>{info}</AlertDescription>
           </Alert>
         ) : null}
         {showRegistryDivergenceNotice(props.status, props.registryDivergenceCount) ? (
@@ -177,7 +175,7 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
         ) : null}
 
         {props.canModerate ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="default"
               disabled={!canApprove || busy}
@@ -206,6 +204,7 @@ export function ModerationActionsPanel(props: ModerationActionsPanelProps): Reac
             >
               {t('organizations.moderation.action.unblock')}
             </Button>
+            <InlineStatus {...statusProps} />
           </div>
         ) : null}
 

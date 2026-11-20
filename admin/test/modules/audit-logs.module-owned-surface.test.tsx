@@ -139,7 +139,7 @@ const bundle = {
     'app.notFound',
   ]),
   ...passthroughBundle('audit_logs', ['nav.auditLog.label']),
-  ...passthroughBundle('auditLog', ['auditLog.page.title', 'auditLog.page.description']),
+  ...passthroughBundle('auditLog', ['auditLog.page.title']),
 };
 
 function renderAt(path: string): RenderResult {

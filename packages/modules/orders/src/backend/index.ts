@@ -107,6 +107,8 @@ import { releaseOrderAllocations } from './services/order-allocation-release.js'
 import { createOrderTransitionEffectHandlers } from './services/order-transition-effect-handlers.js';
 import { OrderTransitionEffectService } from './services/order-transition-effect-service.js';
 import { OrderTransitionEffectRepairService } from './services/order-transition-effect-repair-service.js';
+import { OrderPaymentSettlementEffectsService } from './services/order-payment-settlement-effects-port.js';
+import type { OrderPaymentSettlementEffectsPort } from '../ports/index.js';
 import { startTransitionEffectSweep } from './workers/transition-effect-sweep-worker.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
 import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
@@ -1063,7 +1065,28 @@ export function registerModule(ctx: ModuleContext): void {
    */
   ctx.di.providePort<OrderPaymentStatusApplyPort>(
     'orderPaymentStatusApplyPort',
-    ctx.asFunction(() => new OrderPaymentStatusApplyService()).singleton(),
+    ctx
+      .asFunction(
+        ({ orderTransitionEffectService }: OrdersCradle) =>
+          new OrderPaymentStatusApplyService(orderTransitionEffectService),
+      )
+      .singleton(),
+  );
+
+  /**
+   * Drains outstanding payment-status follow-ups after the settlement commits.
+   * `orderPaymentStatusApplyPort` records the obligation on the caller's
+   * transaction; `orders` owns the transition-effect service and credit-limit
+   * access, so `payments` uses this port for the post-commit attempt.
+   */
+  ctx.di.providePort<OrderPaymentSettlementEffectsPort>(
+    'orderPaymentSettlementEffectsPort',
+    ctx
+      .asFunction(
+        ({ orderTransitionEffectService }: OrdersCradle) =>
+          new OrderPaymentSettlementEffectsService(orderTransitionEffectService),
+      )
+      .singleton(),
   );
 
   /**

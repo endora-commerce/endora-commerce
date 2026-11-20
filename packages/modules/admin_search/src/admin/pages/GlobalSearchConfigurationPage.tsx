@@ -144,7 +144,6 @@ export function GlobalSearchConfigurationPage(): ReactNode {
     <>
       <PageHeader
         title={t('page.configuration.title')}
-        description={t('page.configuration.description')}
       />
       <p className="mb-4 text-sm text-muted-foreground">
         {t('page.configuration.settingsNote')}{' '}

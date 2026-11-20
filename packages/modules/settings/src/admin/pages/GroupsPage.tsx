@@ -109,7 +109,6 @@ export function GroupsPage(): ReactNode {
     <>
       <ListPage
         title={t('groups.page.title')}
-        description={t('groups.page.description')}
         actions={newGroupButton('default')}
         load={load}
         onRetry={() => void refresh()}

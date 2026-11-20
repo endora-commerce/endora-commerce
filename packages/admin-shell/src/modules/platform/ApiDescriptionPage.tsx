@@ -73,7 +73,6 @@ export function ApiDescriptionPage(): React.ReactElement {
     <>
       <PageHeader
         title={t('platform.apiDescription.title')}
-        description={t('platform.apiDescription.description')}
       />
 
       {error && (

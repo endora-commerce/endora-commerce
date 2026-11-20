@@ -24,6 +24,7 @@ import { Payment } from './entities/payment.entity.js';
 import {
   ReceivePaymentHandler,
   type OrderPaymentStatusApplyPort,
+  type OrderPaymentSettlementEffectsPort,
   type PaymentEventBus,
 } from './services/receive-payment-handler.js';
 import { PaymentService } from './services/payment-service.js';
@@ -373,6 +374,7 @@ export function registerModule(ctx: ModuleContext): void {
             lazyPort<PaymentMethodReadPort>(ctx, 'paymentMethodReadPort'),
             lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
             lazyPort<OrderPaymentStatusApplyPort>(ctx, 'orderPaymentStatusApplyPort'),
+            lazyPort<OrderPaymentSettlementEffectsPort>(ctx, 'orderPaymentSettlementEffectsPort'),
             ctx.log,
             eventBus as PaymentEventBus,
           ),

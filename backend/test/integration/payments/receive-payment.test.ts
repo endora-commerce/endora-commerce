@@ -15,11 +15,10 @@ import {
   ReceivePaymentHandler,
   type SettlementLogger,
 } from '../../../../packages/modules/payments/src/backend/services/receive-payment-handler.js';
-import type { OrderPaymentStatusApplyPort } from '../../../../packages/modules/orders/src/ports/index.js';
+import { seedCreditLimitWithActiveReservation, SEED_CREDIT_LIMIT_ORDER_ID } from '../../helpers/seed-credit-limit.js';
+import type { OrderPaymentStatusApplyPort, OrderPaymentSettlementEffectsPort } from '../../../../packages/modules/orders/src/ports/index.js';
 import { PaymentService } from '../../../../packages/modules/payments/src/backend/services/payment-service.js';
-import { PaymentMethod, type PaymentMethodRow } from '../../helpers/package-entities.js';
-import { Order } from '../../helpers/package-entities.js';
-import { Payment } from '../../helpers/package-entities.js';
+import { CreditLimitReservation, PaymentMethod, Order, Payment, type PaymentMethodRow } from '../../helpers/package-entities.js';
 
 interface Fixture {
   method: PaymentMethodRow;
@@ -88,8 +87,11 @@ describe('ReceivePaymentHandler', () => {
    * Feature 080's T048 makes it three: `orders.payment_status` used to be
    * written from inside this handler on the `Order` entity, and is now
    * `orderPaymentStatusApplyPort.applyPaymentStatus(tx, …)` — the same
-   * transaction, the same constraint, resolved off the same container. All
-   * are gated ports, so resolving them here is what the four gateways do
+   * transaction, the same constraint, resolved off the same container.
+   * The composed apply service receives `orderTransitionEffectService` from
+   * `orders`; it records owed effects itself, while the separate effects port
+   * remains here for the post-commit drain. All are gated ports, so resolving
+   * them here is what the four gateways do
    * through `receivePaymentPort`, and a test that stubbed them would stop
    * exercising the seam it is here to keep honest — the lifecycle one above
    * all, since the whole point of Phase D is that the graph now answers.
@@ -98,11 +100,13 @@ describe('ReceivePaymentHandler', () => {
     PaymentMethodReadPort,
     OrderTransitionPort,
     OrderPaymentStatusApplyPort,
+    OrderPaymentSettlementEffectsPort,
     SettlementLogger,
   ] => [
     h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
     h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
     h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
+    h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
     quiet,
   ];
 
@@ -377,5 +381,38 @@ describe('ReceivePaymentHandler', () => {
     expect(res.status).toBe('paid');
     const reloadedOrder = await h.em().findOne(Order, { id: order.id });
     expect(reloadedOrder!.status).toBe('paid');
+  });
+
+  /**
+   * #1576 — settling a deferred (credit-limit) order via `receive` returns a
+   * paid payment and changes its active credit reservation to released.
+   */
+  it('#1576 releases the credit reservation when a deferred credit-limit order is settled', async () => {
+    await seedCreditLimitWithActiveReservation(h.em());
+
+    // Precondition: reservation is active and credit is consumed.
+    const reservationBefore = await h.em().findOne(CreditLimitReservation, {
+      orderId: SEED_CREDIT_LIMIT_ORDER_ID,
+    });
+    expect(reservationBefore).not.toBeNull();
+    expect(reservationBefore!.status).toBe('active');
+
+    const payment = await h.em().findOne(Payment, { orderId: SEED_CREDIT_LIMIT_ORDER_ID });
+    expect(payment).not.toBeNull();
+    expect(payment!.status).toBe('deferred');
+
+    const handler = new ReceivePaymentHandler(h.em, ...handlerPorts());
+
+    const res = await handler.receive({
+      paymentId: payment!.id,
+      outcome: 'success',
+    });
+    expect(res.status).toBe('paid');
+
+    // Postcondition: the reservation is released after receive completes.
+    const reservationAfter = await h.em().findOne(CreditLimitReservation, {
+      orderId: SEED_CREDIT_LIMIT_ORDER_ID,
+    }, { refresh: true });
+    expect(reservationAfter!.status).toBe('released');
   });
 });
