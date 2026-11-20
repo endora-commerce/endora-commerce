@@ -16,7 +16,7 @@ All admin routes are gated by the `credit_limits:manage` permission.
 | Verb + Path | Audience | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/me/credit-limit` | customer | View granted limit + currently reserved (404 `CREDIT_LIMIT_NOT_GRANTED` if none) |
-| `GET /api/v1/admin/credit-limits` | admin | Roster of every granted limit with active reservations |
+| `GET /api/v1/admin/credit-limits?page=&pageSize=` | admin | One page of granted limits with their active reservations, newest grant first, with `meta: { page, pageSize, total }`; without `pageSize` the whole roster (issue #1664) |
 | `GET /api/v1/admin/organizations/:id/credit-limit` | admin | One organization's limit + reservations |
 | `POST /api/v1/admin/organizations/:id/credit-limit` | admin | Grant initial limit |
 | `PATCH /api/v1/admin/organizations/:id/credit-limit` | admin | Adjust amount (rejects below active reservations unless `allowOverAllocation`) |

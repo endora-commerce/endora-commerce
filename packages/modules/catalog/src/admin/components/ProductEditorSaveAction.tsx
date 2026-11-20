@@ -1,6 +1,7 @@
 import { useContext, type ReactNode } from 'react';
 import { Save } from 'lucide-react';
 import { StickyFormActions } from '@endora-commerce/admin-kit/components';
+import { InlineStatus, type InlineStatusProps } from '@endora-commerce/admin-kit/ui';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
@@ -21,11 +22,16 @@ export interface ProductEditorSaveActionProps {
   ready: boolean;
   /** The current scope in words, read out after the label ("Save 2 changes at B2B PL"). */
   scopeWords: string;
+  /**
+   * The last save's result ("Saved 2 changes at Global"), said beside Save in a region that is
+   * mounted before it has text (issue #1499, CAT-09) — `useInlineStatus().props`.
+   */
+  status?: Pick<InlineStatusProps, 'children' | 'tone' | 'revision'>;
   onSave(): void;
 }
 
 export function ProductEditorSaveAction(props: ProductEditorSaveActionProps): ReactNode {
-  const { stagedCount, saving, ready, scopeWords, onSave } = props;
+  const { stagedCount, saving, ready, scopeWords, status, onSave } = props;
   const t = useTranslation('catalog');
   const adminLanguage = useContext(AppLanguageContext)?.language ?? 'en';
   const inert = stagedCount === 0 || saving || !ready;
@@ -34,6 +40,16 @@ export function ProductEditorSaveAction(props: ProductEditorSaveActionProps): Re
       {/* Own layout box: `.b2b-sticky-form-actions` is unlayered CSS, so utilities on it would
           not win. Below 1024 px Save spans the bar (thumb target, Fitts); the note sits under it. */}
       <div className="flex w-full flex-col gap-1 lg:w-auto lg:flex-row lg:items-center lg:gap-2">
+        {status === undefined ? null : (
+          <InlineStatus
+            tone={status.tone ?? 'success'}
+            {...(status.revision === undefined ? {} : { revision: status.revision })}
+            className="max-lg:justify-center"
+            data-testid="product-save-info"
+          >
+            {status.children}
+          </InlineStatus>
+        )}
         <button
           type="button"
           className="b2b-btn b2b-btn--primary max-lg:min-h-11 max-lg:w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50"

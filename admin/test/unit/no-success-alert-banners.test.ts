@@ -26,18 +26,9 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
-const OPEN = 'migrates under #1499 (SALES-17)';
-
-/** What is still a success banner, and where it goes. Keyed by repo-relative file. */
-const LEDGER: Record<string, { count: number; reason: string }> = {
-  'packages/modules/catalog/src/admin/pages/AttachmentTypesPage.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/AttributesManager.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/BulkOperationDetailPage.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/CategoriesTree.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/CategoryContentPage.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/ProductContentPage.tsx': { count: 1, reason: OPEN },
-  'packages/modules/catalog/src/admin/pages/ProductEditor.tsx': { count: 1, reason: `${OPEN}, with CAT-09` },
-};
+/** What is still a success banner, and where it goes. Keyed by repo-relative file.
+ * Empty since #1499 (SALES-17) migrated the last screens: a new success banner fails. */
+const LEDGER: Record<string, { count: number; reason: string }> = {};
 
 const SUCCESS_ALERT = /<Alert\b[^>]*?\bvariant="success"/g;
 

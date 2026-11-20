@@ -7,7 +7,7 @@ import {
   type CustomFieldAdminAccess as AdminAccess,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, InlineStatus, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { isScopeNarrowing, previewAttributeScopeChange, scopableOf, type AttributeScopePreview } from '../lib/attribute-scope.js';
@@ -121,7 +121,19 @@ export function AttributesManager(): ReactNode {
   const [attrs, setAttrs] = useState<AdminAttribute[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — a result is said where it was
+  // asked for, in a region mounted before it has text, not as a success banner
+  // above the page: "created" / "updated" in the attribute form's header (the
+  // edit form gives way to the create form on save, the card stays), "flags
+  // saved" above the table (the unsaved-flags bar is gone once they are saved).
+  const formStatus = useInlineStatus();
+  const { show: showFormStatus, clear: clearFormStatus } = formStatus;
+  const flagsStatus = useInlineStatus();
+  const { show: showFlagsStatus, clear: clearFlagsStatus } = flagsStatus;
+  const clearStatuses = useCallback((): void => {
+    clearFormStatus();
+    clearFlagsStatus();
+  }, [clearFormStatus, clearFlagsStatus]);
   // Per-attribute local flag drafts; only flushed to the API on Save.
   const [flagDrafts, setFlagDrafts] = useState<Record<string, FlagSet>>({});
   const [saving, setSaving] = useState(false);
@@ -165,8 +177,9 @@ export function AttributesManager(): ReactNode {
   );
 
   const toggleFlag = useCallback((id: string, key: FlagKey, value: boolean): void => {
+    clearFlagsStatus();
     setFlagDrafts((prev) => ({ ...prev, [id]: { ...prev[id]!, [key]: value } }));
-  }, []);
+  }, [clearFlagsStatus]);
 
   const buildAttributePayload = (input: AttributeFormValues): Record<string, unknown> => {
     const label: Record<string, string> = {};
@@ -200,6 +213,8 @@ export function AttributesManager(): ReactNode {
               .map((s) => s.trim())
               .filter(Boolean)
           : undefined;
+      clearStatuses();
+      setError(null);
       try {
         await apiClient.post<{ data: AdminAttribute }>('/api/v1/admin/catalog/attributes', {
           key: input.key,
@@ -207,30 +222,32 @@ export function AttributesManager(): ReactNode {
           ...buildAttributePayload(input),
           ...(enumValues !== undefined ? { enumValues } : {}),
         });
-        setInfo(t('attributes.success.create', { key: input.key }));
+        showFormStatus(t('attributes.success.create', { key: input.key }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.create'));
       }
     },
-    [refresh, t],
+    [refresh, t, clearStatuses, showFormStatus],
   );
 
   const saveEdit = useCallback(
     async (attr: AdminAttribute, input: AttributeFormValues): Promise<void> => {
+      clearStatuses();
+      setError(null);
       try {
         await apiClient.patch<{ data: AdminAttribute }>(
           `/api/v1/admin/catalog/attributes/${attr.key}`,
           buildAttributePayload(input),
         );
-        setInfo(t('attributes.success.update', { key: attr.key }));
+        showFormStatus(t('attributes.success.update', { key: attr.key }));
         setEditingId(null);
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.update'));
       }
     },
-    [refresh, t],
+    [refresh, t, clearStatuses, showFormStatus],
   );
 
   // Feature 163 (FR-090) — narrowing a scope flag leaves values set at that level
@@ -284,20 +301,21 @@ export function AttributesManager(): ReactNode {
     if (dirtyIds.length === 0) return;
     setSaving(true);
     setError(null);
+    clearStatuses();
     try {
       for (const id of dirtyIds) {
         const attr = attrs.find((a) => a.id === id);
         if (!attr) continue;
         await apiClient.patch(`/api/v1/admin/catalog/attributes/${attr.key}`, flagDrafts[id]!);
       }
-      setInfo(t('attributes.success.flagsSaved', { count: dirtyIds.length }));
+      showFlagsStatus(t('attributes.success.flagsSaved', { count: dirtyIds.length }));
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.update'));
     } finally {
       setSaving(false);
     }
-  }, [attrs, dirtyIds, flagDrafts, refresh, t]);
+  }, [attrs, dirtyIds, flagDrafts, refresh, t, clearStatuses, showFlagsStatus]);
 
   const resetFlags = useCallback((): void => {
     setFlagDrafts(Object.fromEntries(attrs.map((a) => [a.id, flagsOf(a)])));
@@ -313,11 +331,6 @@ export function AttributesManager(): ReactNode {
       {error ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -384,11 +397,17 @@ export function AttributesManager(): ReactNode {
         />
       ) : null}
 
-      {editingAttr ? (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle>{t('attributes.edit.title', { key: editingAttr.key })}</CardTitle>
-          </CardHeader>
+      {/* One card for the create and the edit form, so its header — and the
+          result said in it — stays mounted when a saved edit gives way to the
+          create form. */}
+      <Card className="mb-4">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+          <CardTitle>
+            {editingAttr ? t('attributes.edit.title', { key: editingAttr.key }) : t('attributes.create.title')}
+          </CardTitle>
+          <InlineStatus {...formStatus.props} />
+        </CardHeader>
+        {editingAttr ? (
           <CardContent className="space-y-6">
             {/* Keyed so opening an attribute starts from its stored values, not the
                 previous form's state (same element type at the same position). */}
@@ -407,17 +426,12 @@ export function AttributesManager(): ReactNode {
               />
             ) : null}
           </CardContent>
-        </Card>
-      ) : (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle>{t('attributes.create.title')}</CardTitle>
-          </CardHeader>
+        ) : (
           <CardContent>
             <AttributeForm key="create" mode="create" onSubmit={handleCreate} />
           </CardContent>
-        </Card>
-      )}
+        )}
+      </Card>
 
       {dirtyIds.length > 0 ? (
         <Card className="mb-4">
@@ -437,6 +451,10 @@ export function AttributesManager(): ReactNode {
 
       <Card>
         <CardContent>
+          {/* "Flags saved" — the bar that saved them is gone, the table stays. */}
+          <div className="flex">
+            <InlineStatus {...flagsStatus.props} className="mb-4 empty:mb-0" />
+          </div>
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('attributes.loading')}</p>
           ) : attrs.length === 0 ? (
@@ -495,7 +513,7 @@ export function AttributesManager(): ReactNode {
                           size="sm"
                           onClick={(): void => {
                             setEditingId(a.id);
-                            setInfo(null);
+                            clearStatuses();
                           }}
                         >
                           <Pencil />
@@ -507,7 +525,7 @@ export function AttributesManager(): ReactNode {
                           className="ml-2"
                           onClick={(): void => {
                             setDeleting(a);
-                            setInfo(null);
+                            clearStatuses();
                           }}
                         >
                           <Trash2 />

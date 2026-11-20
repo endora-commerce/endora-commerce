@@ -140,6 +140,7 @@
   "explainer.currency.default": "The channel's currency",
   "explainer.entry.book": "Explain a price",
   "explainer.entry.organization": "Explain a price for this organization",
+  "organizationPanel.title": "Pricing",
   "explainer.error.customerRequired": "Choose a customer, or ask for a guest.",
   "explainer.error.organizationRequired": "Choose an organization, or ask for a guest.",
   "explainer.error.productRequired": "Choose a product on every line.",

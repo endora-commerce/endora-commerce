@@ -149,6 +149,11 @@ describe('global-only tabs outside Global (FR-081)', () => {
   });
 });
 
+/** The Save button as it is now (its name follows the staged count). */
+function saveButtonNow(): HTMLElement {
+  return screen.getByRole('button', { name: /^Save/ });
+}
+
 describe('after Save', () => {
   it('says "Saved 1 change" as a status, keeps focus on Save, and clears the line on the next edit', async () => {
     renderEditor(ProductEditor);
@@ -157,16 +162,19 @@ describe('after Save', () => {
     const save = screen.getByRole('button', { name: /^Save 1 change\b/ });
     save.focus();
     fireEvent.click(save);
-    const info = await screen.findByTestId('product-save-info');
-    expect(info).toHaveTextContent('Saved 1 change at');
-    expect(info.closest('[role="status"]')).not.toBeNull();
+    // Issue #1499 / CAT-09: beside Save, in a region mounted before it has text — no banner.
+    const info = screen.getByTestId('product-save-info');
+    await waitFor(() => expect(info).toHaveTextContent('Saved 1 change at'));
+    expect(info).toHaveAttribute('role', 'status');
     expect(info.closest('[role="alert"]')).toBeNull();
+    expect(info.closest('[data-slot="sticky-form-actions"]')).toContainElement(saveButtonNow());
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
     const saveAfter = screen.getByRole('button', { name: /^Save/ });
     expect(saveAfter).toHaveAttribute('aria-disabled', 'true');
     expect(saveAfter).not.toBeDisabled();
     expect(document.activeElement).toBe(saveAfter);
     fireEvent.change(screen.getByLabelText(en['productEditor.field.name']!), { target: { value: 'Wiertarka 2' } });
-    await waitFor(() => expect(screen.queryByTestId('product-save-info')).toBeNull());
+    await waitFor(() => expect(screen.getByTestId('product-save-info').textContent).toBe(''));
   });
 
   it('the Product menu is described by its caption, and nothing uses window.confirm', async () => {

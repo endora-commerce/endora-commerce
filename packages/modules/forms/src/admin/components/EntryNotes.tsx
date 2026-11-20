@@ -50,9 +50,10 @@ export function EntryNotes({ notes, canWrite, onAdd }: EntryNotesProps): ReactNo
           {notes.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('entry.noNotes')}</p>
           ) : (
-            <ol className="space-y-3">
+            // Issue #1437 (DS-03): rows divided by a rule, not a bordered box per note.
+            <ol className="divide-y">
               {notes.map((note) => (
-                <li key={note.id} className="rounded-md border border-border p-3">
+                <li key={note.id} className="py-3 first:pt-0">
                   <p className="whitespace-pre-wrap break-words text-sm">{note.body}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     <time dateTime={note.createdAt}>{time.format(new Date(note.createdAt))}</time>

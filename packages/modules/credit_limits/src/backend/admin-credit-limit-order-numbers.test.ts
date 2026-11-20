@@ -65,7 +65,7 @@ async function build(
   app.setSerializerCompiler(serializerCompiler);
   await registerCreditLimitsRoutes(app, {
     creditLimitService: {
-      listAll: async () => [LIMIT_A, LIMIT_B],
+      listPage: async () => ({ rows: [LIMIT_A, LIMIT_B], total: 2 }),
       getForOrganization: async (orgId: string) => (orgId === ORG_A ? LIMIT_A : orgId === ORG_B ? LIMIT_B : null),
       listActiveReservations: async (limitId: string) => reservations[limitId] ?? [],
     } as unknown as CreditLimitService,
