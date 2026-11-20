@@ -420,6 +420,12 @@ what the message is:
   some recipients, issued without its e-mail (#1499). `visuallyHidden` announces without showing — for a control whose visible
   state already changed (a badge, a reordered row). An `InlineStatus` is always polite; an error
   that has to interrupt is an `Alert`.
+
+  Where it goes when the button is not still on screen (#1499): after a dialog opened from a list
+  page's header or a row menu, put it beside the header's primary action, where focus returns; when
+  a form remounts on save (a `key` bump), put it in the form card's header, outside the remounted
+  part, so it is not created already carrying its text. `admin/test/unit/no-success-alert-banners.test.ts`
+  lists the screens that still show a success `Alert`.
 - **A banner** — a page-level error, a warning about the record, a static notice — is an
   **`Alert`**. Its role follows its variant: `destructive` is `role="alert"` (interrupts),
   `success` is `role="status"` (polite), `default` and `warning` have **no live role**, because

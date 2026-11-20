@@ -113,6 +113,24 @@ describe('TaxesPage — the list comes first (SHELL-14)', () => {
     expect(screen.getByText('taxes.success.save')).toBeInTheDocument();
   });
 
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): the saved rule is said beside the
+  // header button the dialog returns focus to, in a region mounted before it has
+  // text, and not as a success banner above the list.
+  it('says the saved rule beside "New rule", with no success banner', async () => {
+    mount();
+    await screen.findByText('vat_pl_23');
+    const newRule = screen.getByRole('button', { name: 'taxes.action.new' });
+    const region = within(newRule.parentElement!).getByRole('status');
+    expect(region.textContent).toBe('');
+    await userEvent.click(newRule);
+    const dialog = await screen.findByRole('dialog', { name: 'taxes.upsert.createTitle' });
+    await userEvent.type(within(dialog).getByLabelText('taxes.field.code'), 'vat_de_19');
+    await userEvent.type(within(dialog).getByLabelText('taxes.field.name'), 'VAT DE');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'taxes.action.save' }));
+    await waitFor(() => expect(region).toHaveTextContent('taxes.success.save'));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
+
   it('keeps the dialog open with the server refusal', async () => {
     const { ApiError } = await import('@endora-commerce/admin-kit/lib');
     put.mockRejectedValue(new ApiError(400, { error: { code: 'VALIDATION_FAILED', message: 'Rate out of range.' } }));

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Percent, Plus } from 'lucide-react';
 import { ApiError, apiClient, cn, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Checkbox, EmptyState, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Checkbox, EmptyState, InlineStatus, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import {
   CountryPicker,
   ListPage,
@@ -62,7 +62,9 @@ export function TaxesPage(): ReactNode {
   const canWrite = isVisible({ module: 'taxes', requiredPermission: 'taxes:write' });
   const [rows, setRows] = useState<AdminTax[]>([]);
   const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
-  const [info, setInfo] = useState<string | null>(null);
+  // A saved rule is said beside "New rule", where the dialog hands focus back, in
+  // a region mounted before it has text — not a success banner (#1499, DEC-12 a).
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   /**
    * The rule in the upsert dialog (issue #1501, SHELL-14): `'new'` for a blank
    * form, a row to edit it, `null` while the dialog is closed. The form used to
@@ -92,7 +94,7 @@ export function TaxesPage(): ReactNode {
   /** Throws on a refused save, so the dialog stays open and says why. */
   const handleUpsert = useCallback(
     async (input: AdminTax): Promise<void> => {
-      setInfo(null);
+      clearStatus();
       await apiClient.put<{ data: AdminTax }>(`/api/v1/admin/taxes/${encodeURIComponent(input.code)}`, {
         code: input.code,
         name: input.name,
@@ -104,15 +106,15 @@ export function TaxesPage(): ReactNode {
         priority: input.priority,
       });
       setEditing(null);
-      setInfo(t('taxes.success.save', { code: input.code }));
+      showStatus(t('taxes.success.save', { code: input.code }));
       await refresh();
     },
-    [refresh, t],
+    [refresh, t, clearStatus, showStatus],
   );
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
-      setInfo(null);
+      clearStatus();
       // The request runs inside the dialog, so a refusal is read where the operator is looking.
       const ok = await confirm({
         message: t('taxes.deleteConfirm'),
@@ -123,7 +125,7 @@ export function TaxesPage(): ReactNode {
       });
       if (ok) await refresh();
     },
-    [refresh, t, confirm],
+    [refresh, t, confirm, clearStatus],
   );
 
   const newRuleButton = (variant: 'default' | 'outline'): ReactNode => (
@@ -146,16 +148,16 @@ export function TaxesPage(): ReactNode {
       <ListPage
         title={t('taxes.page.title')}
         description={t('taxes.page.description')}
-        actions={canWrite ? newRuleButton('default') : undefined}
+        actions={
+          canWrite ? (
+            <div className="flex items-center gap-3">
+              <InlineStatus {...statusProps} />
+              {newRuleButton('default')}
+            </div>
+          ) : undefined
+        }
         load={load}
         onRetry={(): void => void refresh()}
-        notice={
-          info ? (
-            <Alert variant="success">
-              <AlertDescription>{info}</AlertDescription>
-            </Alert>
-          ) : null
-        }
       >
         {rows.length === 0 ? (
           <EmptyState

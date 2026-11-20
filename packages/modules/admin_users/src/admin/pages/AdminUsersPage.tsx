@@ -17,6 +17,7 @@ import {
   AlertDescription,
   Button,
   EmptyState,
+  InlineStatus,
   Input,
   Label,
   Select,
@@ -26,6 +27,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -77,9 +79,11 @@ export default function AdminUsersPage(): ReactNode {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [roles, setRoles] = useState<AdminRole[]>([]);
   const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
-  // An action's refusal, or the last reset that succeeded — above the rows.
+  // An action's refusal — above the rows.
   const [error, setError] = useState<string | null>(null);
-  const [resetDone, setResetDone] = useState<string | null>(null);
+  // The last reset that succeeded, beside "New user" in a region mounted before
+  // it has text — not a success banner (issue #1499, DEC-12 a).
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [creating, setCreating] = useState(false);
   // The account whose password is being reset, in a dialog.
   const [resetFor, setResetFor] = useState<AdminUser | null>(null);
@@ -131,7 +135,7 @@ export default function AdminUsersPage(): ReactNode {
   const handleToggleStatus = useCallback(
     async (user: AdminUser): Promise<void> => {
       setError(null);
-      setResetDone(null);
+      clearStatus();
       try {
         await apiClient.patch<{ data: AdminUser }>(`/api/v1/admin/admin-users/${user.id}`, {
           status: user.status === 'active' ? 'inactive' : 'active',
@@ -141,7 +145,7 @@ export default function AdminUsersPage(): ReactNode {
         setError(describeApiError(err, t('adminUsers.error.update')));
       }
     },
-    [refresh, t],
+    [refresh, t, clearStatus],
   );
 
   /** Throws on a refused reset, so the dialog stays open and says why. */
@@ -149,13 +153,13 @@ export default function AdminUsersPage(): ReactNode {
     await apiClient.post<{ data: AdminUser }>(`/api/v1/admin/admin-users/${user.id}/password`, { password });
     setResetFor(null);
     setError(null);
-    setResetDone(user.email);
-  }, []);
+    showStatus(t('adminUsers.resetPassword.done', { email: user.email }));
+  }, [showStatus, t]);
 
   const handleRemove = useCallback(
     async (user: AdminUser): Promise<void> => {
       setError(null);
-      setResetDone(null);
+      clearStatus();
       // The request runs inside the dialog, so a refusal is read where the operator is looking.
       const ok = await confirm({
         message: t('adminUsers.confirmRemove', { email: user.email }),
@@ -166,7 +170,7 @@ export default function AdminUsersPage(): ReactNode {
       });
       if (ok) await refresh();
     },
-    [refresh, t, confirm],
+    [refresh, t, confirm, clearStatus],
   );
 
   const newUserButton = (variant: 'default' | 'outline'): ReactNode => (
@@ -189,17 +193,18 @@ export default function AdminUsersPage(): ReactNode {
             .
           </>
         }
-        actions={newUserButton('default')}
+        actions={
+          <div className="flex items-center gap-3">
+            <InlineStatus {...statusProps} />
+            {newUserButton('default')}
+          </div>
+        }
         load={load}
         onRetry={(): void => void refresh()}
         notice={
           error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : resetDone ? (
-            <Alert variant="success">
-              <AlertDescription>{t('adminUsers.resetPassword.done', { email: resetDone })}</AlertDescription>
             </Alert>
           ) : null
         }
