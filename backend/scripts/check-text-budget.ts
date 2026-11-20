@@ -242,7 +242,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   // Measured with `--print-baseline` on `origin/master` 2026-11-20 (issue #1451).
   '_i18n:adminUsers.resetPassword.hint': 120,
   '_i18n:apiKeys.page.description': 93,
-  '_i18n:creditLimits.page.description': 147,
   '_i18n:fulfilment.hint': 119,
   '_i18n:pageBuilder.fieldText.editorName.hint': 81,
   '_i18n:platform.commandHooks.outbox.hint': 94,
@@ -264,7 +263,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'cms:settingLabels.cms.page_builder.translation.enabled.description': 254,
   'cms:settingLabels.cms.page_builder.translation.llm_credentials.description': 279,
   'cms:settingLabels.cms.page_builder.translation.max_source_characters.description': 359,
-  'customer_accounts:groups.page.description': 219,
   'customer_notifications:settingLabels.customer_notifications.enabled.description': 299,
   'customers:detail.dangerZone.hint': 89,
   'document_templates:page.description': 169,
@@ -275,7 +273,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'meta_ads:customEvents.subtitle': 161,
   'newsletter:settingLabels.newsletter.tracking.clicks_enabled.description': 281,
   'newsletter:settingLabels.newsletter.tracking.opens_enabled.description': 261,
-  'organizations:changeTaxId.page.description': 94,
   'organizations:settingLabels.organizations.registration.gus_credentials.description': 272,
   'organizations:settingLabels.organizations.registration.registry_lookup_enabled.description': 490,
   'organizations:settingLabels.organizations.registration.registry_lookup_pl_sources.description': 726,
