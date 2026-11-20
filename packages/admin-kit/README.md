@@ -849,6 +849,9 @@ what a hand-drawn scrim leaves out:
   opens above the dialog) or `overlay` (`MODAL_OVERLAY_Z_INDEX`, above the fullscreen Page Builder,
   its 9999 floating action bar and the rich-text editor's own dialogs), for a dialog opened from
   inside the builder — every Page Builder, e-mail builder and translate dialog uses it (#1493).
+  `ConfirmDialog` takes the same `layer` prop, and `useConfirmDialog({ layer: 'overlay' })` opens
+  every question the screen asks on that layer. The Page Builder's *Clear canvas* question uses it.
+  The default is `page`.
 
 ```tsx
 <ModalDialog title={t('x.dialog.title')} onClose={close} busy={busy} footer={<>{cancel}{apply}</>}>

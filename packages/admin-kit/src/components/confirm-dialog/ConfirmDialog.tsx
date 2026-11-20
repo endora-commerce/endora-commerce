@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../../ui/button.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
-import { ModalDialog } from '../modal-dialog/ModalDialog.js';
+import { ModalDialog, type ModalDialogLayer } from '../modal-dialog/ModalDialog.js';
 
 /**
  * A yes/no question asked in the admin's own dialog rather than the browser's
@@ -81,6 +81,11 @@ export interface ConfirmDialogProps extends Omit<ConfirmOptions, 'returnFocusTo'
   error?: ReactNode;
   /** Focused when the dialog closes instead of the opener — {@link ModalDialog}'s own prop. */
   finalFocusRef?: RefObject<HTMLElement | null> | undefined;
+  /**
+   * The stacking layer — {@link ModalDialog}'s own prop. `page` (the default) or `overlay`, for a
+   * question asked from inside the fullscreen Page Builder, above Puck's 9999 action bar.
+   */
+  layer?: ModalDialogLayer | undefined;
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps): ReactNode {
@@ -95,6 +100,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): ReactNode {
     busy = false,
     error,
     finalFocusRef,
+    layer = 'page',
   } = props;
   const t = useTranslation('core');
   const messageId = useId();
@@ -108,6 +114,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): ReactNode {
       title={title ?? t('common.confirm.title')}
       onClose={onCancel}
       busy={busy}
+      layer={layer}
       initialFocusRef={destructive ? cancelRef : confirmRef}
       {...(finalFocusRef ? { finalFocusRef } : {})}
       aria-describedby={hasError ? `${messageId} ${errorId}` : messageId}
@@ -140,6 +147,15 @@ export function ConfirmDialog(props: ConfirmDialogProps): ReactNode {
     </ModalDialog>,
     document.body,
   );
+}
+
+/** What {@link useConfirmDialog} takes once, for every question the screen asks. */
+export interface UseConfirmDialogOptions {
+  /**
+   * The stacking layer every dialog it opens uses — see {@link ConfirmDialogProps.layer}. A screen
+   * inside the Page Builder passes `overlay`; the default is `page`.
+   */
+  layer?: ModalDialogLayer | undefined;
 }
 
 export interface UseConfirmDialog {
@@ -186,8 +202,12 @@ function hasAction(options: ConfirmOptions | ConfirmActionOptions): options is C
  * Focus returns to the opener on close. A confirmed action that removes the opener passes
  * `returnFocusTo` — see {@link ConfirmOptions.returnFocusTo} — so focus lands on a neighbour
  * rather than on `body` once the row is gone (WCAG 2.4.3).
+ *
+ * Asked from inside the fullscreen Page Builder, pass `useConfirmDialog({ layer: 'overlay' })`, so
+ * the question opens above the builder's chrome like every other builder dialog.
  */
-export function useConfirmDialog(): UseConfirmDialog {
+export function useConfirmDialog(options: UseConfirmDialogOptions = {}): UseConfirmDialog {
+  const { layer = 'page' } = options;
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ReactNode>(null);
@@ -260,6 +280,7 @@ export function useConfirmDialog(): UseConfirmDialog {
       busy={busy}
       error={error}
       finalFocusRef={finalFocusRef}
+      layer={layer}
       onConfirm={(): void => void accept()}
       onCancel={(): void => settle(false)}
     />
