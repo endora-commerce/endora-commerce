@@ -1461,7 +1461,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/cms/src/admin/components/HeroFields.tsx': 14,
   'packages/modules/cms/src/admin/components/PageBuilderActionBar.tsx': 7,
   'packages/modules/cms/src/admin/components/SectionBlockFields.tsx': 6,
-  'packages/modules/invoices/src/admin/pages/InvoicesList.tsx': 3,
   'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx': 2,
   'packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx': 1,
   'packages/modules/payment_methods/src/admin/pages/PaymentMethodsPage.tsx': 1,
