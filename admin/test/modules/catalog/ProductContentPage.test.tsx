@@ -268,6 +268,32 @@ describe('ProductContentPage (feature 172)', () => {
     });
   }
 
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): "Saved" is said beside Save, in a
+  // region mounted empty before the save, not as a success banner above the
+  // canvas; the next edit in the canvas clears it, and a refused save is the banner.
+  it('says "saved" beside Save, with no success banner, and clears it on the next edit (#1499)', async () => {
+    stubApi({ languages: { 'en-US': tree('stored-en') } });
+    renderPage({});
+    await waitFor(() => expect(screen.getByText('stub-edit')).toBeTruthy());
+    const save = screen.getByRole('button', { name: 'productContent.action.save' });
+    const region = save.parentElement?.querySelector<HTMLElement>(':scope > [role="status"]');
+    if (!region) throw new Error('no status region beside Save');
+    expect(region.textContent).toBe('');
+
+    fireEvent.click(screen.getByText('stub-edit'));
+    fireEvent.click(save);
+    await waitFor(() => expect(region).toHaveTextContent('productContent.success.save'));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+
+    fireEvent.click(screen.getByText('stub-edit'));
+    expect(region.textContent).toBe('');
+
+    putSpy.mockRejectedValueOnce(new Error('down'));
+    fireEvent.click(save);
+    await waitFor(() => expect(screen.getByText('productContent.error.save')).toBeTruthy());
+    expect(region.textContent).toBe('');
+  });
+
   it('names no Page Builder owner in its own source', async () => {
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');

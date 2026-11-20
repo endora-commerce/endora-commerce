@@ -181,7 +181,7 @@ describe('the product editor’s one Save with a zone participant (feature 180)'
     fireEvent.click(saveButton());
     await waitFor(() => expect(writes()).toEqual([`${BASE}/scoped-values`, '/probe']));
     await waitFor(() => expect(saveButton()).toHaveAccessibleName(/^Save/));
-    expect(await screen.findByTestId('product-save-info')).toHaveTextContent('Saved 2 changes at Global.');
+    await waitFor(() => expect(screen.getByTestId('product-save-info')).toHaveTextContent('Saved 2 changes at Global.'));
   });
 
   it('a panel-only change writes the panel only — no scoped-values request', async () => {

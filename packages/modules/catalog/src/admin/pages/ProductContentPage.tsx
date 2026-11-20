@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { Link, useParams } from 'react-router-dom';
 import type { AdminProductContent, AdminProductContentList, AdminZoneProps } from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { ContentLanguageTabs, adminLanguageToLocale } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
@@ -56,7 +56,10 @@ export function ProductContentPage(): ReactNode {
   const [loaded, setLoaded] = useState(false);
   const [notAvailable, setNotAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — "Saved" is said beside Save,
+  // in a region mounted before it has text, not as a success banner above the
+  // canvas; the next edit clears it.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [languages, setLanguages] = useState<string[]>([...CATALOG_LOCALES]);
@@ -126,7 +129,7 @@ export function ProductContentPage(): ReactNode {
   const save = useCallback(async (): Promise<void> => {
     setSaving(true);
     setError(null);
-    setInfo(null);
+    clearStatus();
     try {
       const res = await apiClient.put<{ data: AdminProductContent }>(
         `/api/v1/admin/catalog/products/${productId}/content/${attributeKey}`,
@@ -134,13 +137,13 @@ export function ProductContentPage(): ReactNode {
       );
       draft.current = { ...(res.data.content?.languages ?? {}) };
       setDirty(false);
-      setInfo(t('productContent.success.save'));
+      showStatus(t('productContent.success.save'));
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('productContent.error.save'));
     } finally {
       setSaving(false);
     }
-  }, [productId, attributeKey, t]);
+  }, [productId, attributeKey, t, showStatus, clearStatus]);
 
   // One object per seed, so the zone's own memo holds between edits.
   const zoneProps = useMemo(
@@ -152,10 +155,10 @@ export function ProductContentPage(): ReactNode {
       onChange: (data: unknown): void => {
         draft.current = { ...draft.current, [seed.language]: data };
         setDirty(true);
-        setInfo(null);
+        clearStatus();
       },
     }),
-    [productId, attributeKey, seed],
+    [productId, attributeKey, seed, clearStatus],
   );
   // Z15 — counted, not named: the filter has already applied both presence
   // axes and the contributor's own permission.
@@ -182,11 +185,6 @@ export function ProductContentPage(): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {info ? (
-        <Alert variant="success">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
 
       {notAvailable ? (
         <Alert>
@@ -211,9 +209,12 @@ export function ProductContentPage(): ReactNode {
               <ContentLanguageTabs languages={languages} activeLanguage={activeLanguage} onChange={selectLanguage} />
             </div>
             {canWrite ? (
-              <Button type="button" disabled={!dirty || saving} onClick={(): void => void save()}>
-                {saving ? t('productContent.action.saving') : t('productContent.action.save')}
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <InlineStatus {...statusProps} />
+                <Button type="button" disabled={!dirty || saving} onClick={(): void => void save()}>
+                  {saving ? t('productContent.action.saving') : t('productContent.action.save')}
+                </Button>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">{t('productContent.readOnly')}</p>
             )}
