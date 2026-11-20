@@ -1387,8 +1387,8 @@ sformatowanym przechodzi jako numerowane znaczniki, a zmienne takie jak
 `{{customer.firstName}}` są sprawdzane po powrocie; tekst, którego odpowiedź
 gubi jedno albo drugie, zachowuje pierwotne brzmienie.
 
-**Użycie.** Przycisk znajduje się na pasku narzędzi Page Buildera obok
-**Kopiuj z języka** i mówi, co przetłumaczy:
+**Użycie.** Przycisk znajduje się na pasku narzędzi Page Buildera, przed
+menu **Więcej**, w którym jest **Kopiuj z języka**, i mówi, co przetłumaczy:
 
 - **Przetłumacz całą treść** — nic nie jest zaznaczone. Domyślnie tłumaczona
   jest zawartość bieżącej zakładki, a jej język jest wykrywany automatycznie;

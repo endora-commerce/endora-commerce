@@ -342,6 +342,46 @@ describe('OrganizationDetail — one Members section (SALES-14)', () => {
     expect(await screen.findByText(core('organizations.detail.info.memberRemoved'))).toBeInTheDocument();
   });
 
+  describe('focus after a member is removed (useConfirmDialog returnFocusTo)', () => {
+    const CAL = '00000000-0000-4000-8000-0000000000c3';
+    const removeAndReread = async (email: string, id: string): Promise<void> => {
+      deleteSpy.mockImplementationOnce(() => {
+        detail = { ...detail, members: detail.members.filter((m) => m.id !== id) };
+        return Promise.resolve(undefined);
+      });
+      fireEvent.click(screen.getByRole('button', { name: own('members.row.remove', { email }) }));
+      await answerConfirm(true);
+      await waitFor(() => expect(screen.queryByText(email)).toBeNull());
+    };
+
+    it('lands on the next row\'s Edit, not on the page, once the row is gone', async () => {
+      renderDetail(undefined, org({
+        members: [
+          member(ADA, 'ada@acme.test', ADMINISTRATOR),
+          member(BEA, 'bea@acme.test', BUYER),
+          member(CAL, 'cal@acme.test', BUYER),
+        ],
+      }));
+      await screen.findByText('bea@acme.test');
+      await removeAndReread('bea@acme.test', BEA);
+      expect(screen.getByRole('button', { name: own('members.row.edit', { email: 'cal@acme.test' }) })).toHaveFocus();
+    });
+
+    it('lands on the previous row\'s Edit when the last row is removed', async () => {
+      renderDetail();
+      await screen.findByText('bea@acme.test');
+      await removeAndReread('bea@acme.test', BEA);
+      expect(screen.getByRole('button', { name: own('members.row.edit', { email: 'ada@acme.test' }) })).toHaveFocus();
+    });
+
+    it('lands on Add member in the empty state when the only member is removed', async () => {
+      renderDetail(undefined, org({ members: [member(BEA, 'bea@acme.test', BUYER)] }));
+      await screen.findByText('bea@acme.test');
+      await removeAndReread('bea@acme.test', BEA);
+      await waitFor(() => expect(screen.getByRole('button', { name: own('members.add') })).toHaveFocus());
+    });
+  });
+
   // Issue #1499 (SALES-17, DEC-12 a) — a member write's result is said right above the
   // Members section the operator acted in, in a region mounted empty from the first
   // render, not as a success banner at the top of the page.

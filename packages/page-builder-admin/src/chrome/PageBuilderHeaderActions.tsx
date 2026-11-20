@@ -1,21 +1,16 @@
 'use client';
 
-import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-} from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useId, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import type { Data } from '@puckeditor/core';
 import { Copy, Eraser, FileInput, Loader2, Maximize2, Minimize2, Save } from 'lucide-react';
 import { slugify } from '@endora-commerce/contracts';
 import { Button, InlineStatus, Input, Label, Select, useInlineStatus } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog } from '@endora-commerce/admin-kit/components';
+import {
+  ModalDialog,
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+} from '@endora-commerce/admin-kit/components';
 import { isEmptyPageBuilderData } from './page-builder-data.js';
 
 export type ApplyTemplateOption = { id: string; label: string };
@@ -36,82 +31,26 @@ export type ApplyTemplateOption = { id: string; label: string };
 const TEMPLATE_CODE_MAX_LENGTH = 180;
 
 /**
- * The translator a caller hands this file's components.
+ * The translator a caller hands this file's component.
  *
  * **It reads `core`, and that is a contract rather than a convention** (feature
  * 091 P5a, `admin-kit-surface.md` R-1). This is the shared page-builder chrome:
- * `cms`, `invoices` and the e-mail builder all render it, its copy names
- * `cms` nowhere, and the `t` prop makes the namespace the caller's decision
- * rather than this file's. Two of the three callers were supplying
- * `useTranslation('cms')` — module knowledge in a component that owns none, and
- * a defect nothing catches at compile time, because a key the namespace does not
- * carry renders `<scope>.<key>` into the operator's screen instead of failing.
- * So the keys below live in `_i18n`'s bundle, which the admin serves under the
- * synthetic `core` scope, and every caller passes `useTranslation('core')`.
+ * `cms`, `document_templates` and the e-mail builder all render it, its copy
+ * names `cms` nowhere, and the `t` prop makes the namespace the caller's
+ * decision rather than this file's. A key the namespace does not carry renders
+ * `<scope>.<key>` into the operator's screen instead of failing, so the keys
+ * below live in `_i18n`'s bundle, which the admin serves under the synthetic
+ * `core` scope, and every caller passes `useTranslation('core')`.
  * `admin/test/page-builder-admin/chrome-core-namespace.test.tsx` asserts both
  * halves against the shipped bundles, in both shipped languages.
  */
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
-/** Injects `leading` into Puck's left header column (after sidebar toggles). */
-export function PageBuilderHeaderShell({
-  children,
-  leading,
-}: {
-  children: ReactNode;
-  leading: ReactNode;
-}): ReactElement {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const [mountNode, setMountNode] = useState<HTMLElement | null>(null);
-
-  useLayoutEffect(() => {
-    const root = wrapRef.current;
-    if (!root) {
-      setMountNode(null);
-      return;
-    }
-
-    // Prefer the left toggle column so the center title stays visually centered.
-    const leftColumn =
-      root.querySelector<HTMLElement>('[class*="PuckHeader-toggle"]') ??
-      root.querySelector<HTMLElement>('[class*="PuckHeader-inner"]');
-    if (!leftColumn) {
-      setMountNode(null);
-      return;
-    }
-
-    leftColumn.classList.add('cms-pb-header-left');
-    let mount = leftColumn.querySelector<HTMLElement>(':scope > [data-cms-pb-leading]');
-    if (!mount) {
-      // Remove a stale mount left in the title from earlier iterations.
-      root.querySelectorAll('[data-cms-pb-leading]').forEach((node) => {
-        if (node.parentElement !== leftColumn) node.remove();
-      });
-      root.querySelectorAll('.cms-pb-header-title').forEach((node) => {
-        node.classList.remove('cms-pb-header-title');
-      });
-
-      mount = document.createElement('span');
-      mount.setAttribute('data-cms-pb-leading', '');
-      mount.className = 'cms-pb-header-leading';
-      leftColumn.appendChild(mount);
-    }
-    setMountNode(mount);
-  }, [children]);
-
-  return (
-    <div ref={wrapRef} className="cms-pb-header-shell">
-      {children}
-      {mountNode && leading ? createPortal(leading, mountNode) : null}
-    </div>
-  );
-}
-
 /**
  * Issue #1493 (UX audit CONTENT-03) — every dialog below is the kit's
  * `ModalDialog` on the `overlay` layer: it opens above the fullscreen builder
  * and Puck's floating action bar, traps focus, closes on Escape and returns
- * focus to the button that opened it. A failure is shown inside the dialog, in
+ * focus to the control that opened it. A failure is shown inside the dialog, in
  * a `role="alert"` region mounted before it has text; a success is shown next
  * to the buttons in an always-mounted `InlineStatus`, where the operator is
  * looking, rather than only to a screen reader.
@@ -122,39 +61,122 @@ function BusyIcon({ busy }: { busy: boolean }): ReactElement | null {
   return busy ? <Loader2 aria-hidden="true" className="mr-1 h-4 w-4 motion-safe:animate-spin" /> : null;
 }
 
-/** Save as template / Apply template — meant for the left of the page title. */
-export function PageBuilderTemplateActions({
+/**
+ * One entry of the canvas "More" menu. An entry that cannot run says why **in
+ * the entry**, under its label, rather than in a `title` only a mouse reaches:
+ * the reason is part of the item's text, so a screen reader reads it too.
+ */
+function MenuEntry({
+  icon,
+  label,
+  reason = null,
+}: {
+  /** A `lucide-react` icon element, `aria-hidden`. */
+  icon: ReactElement;
+  label: string;
+  reason?: string | null;
+}): ReactElement {
+  return (
+    <>
+      {icon}
+      <span className="flex min-w-0 flex-col">
+        <span>{label}</span>
+        {reason ? <span className="text-xs text-muted-foreground">{reason}</span> : null}
+      </span>
+    </>
+  );
+}
+
+type CanvasDialog = 'save' | 'apply' | 'copy' | 'clear';
+
+export interface PageBuilderHeaderActionsProps {
+  fullscreen: boolean;
+  onToggleFullscreen: () => void;
+  languages?: string[];
+  activeLanguage?: string | null;
+  currentData: Data | null;
+  onCopyFromLanguage?: (sourceLanguage: string) => void | Promise<void>;
+  onClearCanvas?: () => void;
+  onSaveAsTemplate?: (meta: { name: string; code: string }, data: Data) => void | Promise<void>;
+  /** Offered together with `onApplyTemplate`; either alone offers no "Apply template". */
+  onListTemplatesForApply?: () => Promise<ApplyTemplateOption[]>;
+  onApplyTemplate?: (templateId: string) => void | Promise<void>;
+  /**
+   * Module-owned actions drawn as visible `outline` buttons, first in the
+   * toolbar (feature 151 — `cms`' Translate; the e-mail builder's Preview). The
+   * chrome owns no copy, permission or endpoint for them; it only gives them a
+   * place. Keep it to one or two: everything else belongs in the menu.
+   */
+  extraActions?: ReactNode;
+  t: Translate;
+}
+
+/**
+ * The Page Builder's **one** canvas toolbar — issue #1494 (UX audit CONTENT-11).
+ *
+ * It used to be two clusters in Puck's header: the template actions portalled
+ * into the left column beside Puck's panel toggles, and on the right
+ * Translate, Copy from language, a solid red Clear canvas and Fullscreen —
+ * about eleven controls before the content, the destructive one the loudest.
+ * It is now one group in Puck's right-hand slot:
+ *
+ * - the module's own one or two actions (`extraActions`), `outline`;
+ * - a labelled **More** menu holding the long tail — Save as template, Apply
+ *   template, Copy from language and, last and apart behind a separator, Clear
+ *   canvas as a quiet destructive entry that still asks first (Hick: the long
+ *   tail costs one press rather than a decision at every glance; Von Restorff:
+ *   nothing red competes with the editor's Save; Fitts: the destructive entry
+ *   is kept away from the frequent ones);
+ * - **Fullscreen**, last, where a view toggle is expected (Jakob).
+ *
+ * The page's primary action — Save — stays in the admin page header, the only
+ * filled button on the screen. The menu is the kit's `RowActionMenu`: it
+ * portals out of Puck's header, takes arrow keys, typeahead and Escape, and
+ * runs a chosen entry only once focus is back on "More", so each dialog below
+ * keeps its focus and returns it there when it closes (WCAG 2.4.3).
+ *
+ * The result of the last action ("Template applied.") is said in one
+ * always-mounted `InlineStatus` at the start of the group (WCAG 4.1.3).
+ */
+export function PageBuilderHeaderActions({
+  fullscreen,
+  onToggleFullscreen,
+  languages = [],
+  activeLanguage = null,
   currentData,
+  onCopyFromLanguage,
+  onClearCanvas,
   onSaveAsTemplate,
   onListTemplatesForApply,
   onApplyTemplate,
+  extraActions,
   t,
-}: {
-  currentData: Data | null;
-  onSaveAsTemplate?: (meta: { name: string; code: string }, data: Data) => void | Promise<void>;
-  onListTemplatesForApply?: () => Promise<ApplyTemplateOption[]>;
-  onApplyTemplate?: (templateId: string) => void | Promise<void>;
-  t: Translate;
-}): ReactElement | null {
+}: PageBuilderHeaderActionsProps): ReactElement {
   const ids = useId();
-  const [saveOpen, setSaveOpen] = useState(false);
-  const [applyOpen, setApplyOpen] = useState(false);
+  const clearCancelRef = useRef<HTMLButtonElement>(null);
+  const [dialog, setDialog] = useState<CanvasDialog | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [templateCode, setTemplateCode] = useState('');
   const [codeEdited, setCodeEdited] = useState(false);
   const [applyOptions, setApplyOptions] = useState<ApplyTemplateOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [sourceLanguage, setSourceLanguage] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const status = useInlineStatus();
 
-  const canSave = Boolean(onSaveAsTemplate) && !isEmptyPageBuilderData(currentData);
+  const canvasEmpty = isEmptyPageBuilderData(currentData);
+  const otherLanguages = useMemo(
+    () => languages.filter((lang) => lang !== activeLanguage),
+    [activeLanguage, languages],
+  );
   const canApply = Boolean(onApplyTemplate && onListTemplatesForApply);
-  const canvasHasContent = !isEmptyPageBuilderData(currentData);
+  const hasTemplateEntries = Boolean(onSaveAsTemplate) || canApply;
+  const hasMenu = hasTemplateEntries || Boolean(onCopyFromLanguage) || Boolean(onClearCanvas);
 
   useEffect(() => {
-    if (!applyOpen || !onListTemplatesForApply) return;
+    if (dialog !== 'apply' || !onListTemplatesForApply) return;
     let live = true;
     setLoadingOptions(true);
     setError(null);
@@ -176,9 +198,20 @@ export function PageBuilderTemplateActions({
     return (): void => {
       live = false;
     };
-  }, [applyOpen, onListTemplatesForApply]);
+  }, [dialog, onListTemplatesForApply]);
 
-  if (!onSaveAsTemplate && !canApply) return null;
+  const openDialog = (next: CanvasDialog): void => {
+    setError(null);
+    status.clear();
+    if (next === 'save') {
+      setTemplateName('');
+      setTemplateCode('');
+      setCodeEdited(false);
+    }
+    if (next === 'copy') setSourceLanguage(otherLanguages[0] ?? '');
+    setDialog(next);
+  };
+  const closeDialog = (): void => setDialog(null);
 
   const runSave = async (): Promise<void> => {
     if (!onSaveAsTemplate || !currentData) return;
@@ -192,7 +225,7 @@ export function PageBuilderTemplateActions({
     setError(null);
     try {
       await onSaveAsTemplate({ name, code }, currentData);
-      setSaveOpen(false);
+      setDialog(null);
       setTemplateName('');
       setTemplateCode('');
       setCodeEdited(false);
@@ -217,7 +250,7 @@ export function PageBuilderTemplateActions({
     setError(null);
     try {
       await onApplyTemplate(selectedTemplateId);
-      setApplyOpen(false);
+      setDialog(null);
       setSelectedTemplateId('');
       status.show(t('pageBuilder.applyTemplate.success'));
     } catch (err) {
@@ -227,78 +260,110 @@ export function PageBuilderTemplateActions({
     }
   };
 
-  const saveDescriptionId = `${ids}-save-description`;
-  const applyDescriptionId = `${ids}-apply-description`;
-  const applyWarningId = `${ids}-apply-warning`;
+  const runCopy = async (): Promise<void> => {
+    if (!onCopyFromLanguage || !sourceLanguage) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onCopyFromLanguage(sourceLanguage);
+      setDialog(null);
+      setSourceLanguage('');
+      status.show(t('pageBuilder.copyLanguage.success', { language: sourceLanguage }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const descriptionId = `${ids}-description`;
+  const warningId = `${ids}-warning`;
   const errorId = `${ids}-error`;
   const hasError = error !== null && error !== '';
+  const describedBy = (...extra: Array<string | null>): string =>
+    [descriptionId, ...extra, hasError ? errorId : null].filter(Boolean).join(' ');
   const errorRegion = (
     <p id={errorId} role="alert" className="text-sm text-destructive">
       {error}
     </p>
   );
+  const cancelButton = (label: string): ReactElement => (
+    <Button type="button" variant="outline" disabled={busy} onClick={closeDialog}>
+      {label}
+    </Button>
+  );
+  const fullscreenLabel = fullscreen ? t('pageBuilder.fullscreen.exit') : t('pageBuilder.fullscreen.enter');
 
   return (
     <>
       <div className="cms-pb-header-actions">
-        {onSaveAsTemplate ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!canSave}
-            title={
-              isEmptyPageBuilderData(currentData)
-                ? t('pageBuilder.saveAsTemplate.emptyCanvas')
-                : t('pageBuilder.saveAsTemplate.button')
-            }
-            onClick={(): void => {
-              setError(null);
-              status.clear();
-              setTemplateName('');
-              setTemplateCode('');
-              setCodeEdited(false);
-              setSaveOpen(true);
-            }}
-          >
-            <Save className="mr-1 h-4 w-4" aria-hidden="true" />
-            {t('pageBuilder.saveAsTemplate.button')}
-          </Button>
+        <InlineStatus {...status.props} className="whitespace-nowrap" />
+        {extraActions ?? null}
+        {hasMenu ? (
+          <RowActionMenu label={t('common.action.more')} showLabel>
+            {onSaveAsTemplate ? (
+              <RowActionMenuItem disabled={canvasEmpty} onSelect={(): void => openDialog('save')}>
+                <MenuEntry
+                  icon={<Save aria-hidden="true" />}
+                  label={t('pageBuilder.saveAsTemplate.button')}
+                  reason={canvasEmpty ? t('pageBuilder.saveAsTemplate.emptyCanvas') : null}
+                />
+              </RowActionMenuItem>
+            ) : null}
+            {canApply ? (
+              <RowActionMenuItem onSelect={(): void => openDialog('apply')}>
+                <MenuEntry icon={<FileInput aria-hidden="true" />} label={t('pageBuilder.applyTemplate.button')} />
+              </RowActionMenuItem>
+            ) : null}
+            {onCopyFromLanguage && hasTemplateEntries ? <RowActionMenuSeparator /> : null}
+            {onCopyFromLanguage ? (
+              <RowActionMenuItem disabled={otherLanguages.length === 0} onSelect={(): void => openDialog('copy')}>
+                <MenuEntry
+                  icon={<Copy aria-hidden="true" />}
+                  label={t('pageBuilder.copyLanguage.button')}
+                  reason={otherLanguages.length === 0 ? t('pageBuilder.copyLanguage.noTargets') : null}
+                />
+              </RowActionMenuItem>
+            ) : null}
+            {onClearCanvas && (hasTemplateEntries || onCopyFromLanguage) ? <RowActionMenuSeparator /> : null}
+            {onClearCanvas ? (
+              <RowActionMenuItem destructive disabled={canvasEmpty} onSelect={(): void => openDialog('clear')}>
+                <MenuEntry
+                  icon={<Eraser aria-hidden="true" />}
+                  label={t('pageBuilder.clearCanvas.button')}
+                  reason={canvasEmpty ? t('pageBuilder.clearCanvas.alreadyEmpty') : null}
+                />
+              </RowActionMenuItem>
+            ) : null}
+          </RowActionMenu>
         ) : null}
-        {canApply ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={(): void => {
-              setError(null);
-              status.clear();
-              setApplyOpen(true);
-            }}
-          >
-            <FileInput className="mr-1 h-4 w-4" aria-hidden="true" />
-            {t('pageBuilder.applyTemplate.button')}
-          </Button>
-        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onToggleFullscreen}
+          aria-pressed={fullscreen}
+          title={fullscreenLabel}
+          aria-label={fullscreenLabel}
+        >
+          {fullscreen ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
+          <span className="cms-pb-header-actions__label">{fullscreenLabel}</span>
+        </Button>
       </div>
 
-      <InlineStatus {...status.props} className="whitespace-nowrap" />
-
-      {saveOpen ? (
+      {dialog === 'save' ? (
         <ModalDialog
           layer="overlay"
           title={t('pageBuilder.saveAsTemplate.title')}
-          onClose={(): void => setSaveOpen(false)}
+          onClose={closeDialog}
           busy={busy}
           // A stray click on the scrim must not drop a typed name.
           dismissOnScrim={false}
           widthClassName="max-w-md"
-          aria-describedby={hasError ? `${saveDescriptionId} ${errorId}` : saveDescriptionId}
+          aria-describedby={describedBy()}
           footer={
             <>
-              <Button type="button" variant="outline" disabled={busy} onClick={(): void => setSaveOpen(false)}>
-                {t('pageBuilder.saveAsTemplate.cancel')}
-              </Button>
+              {cancelButton(t('pageBuilder.saveAsTemplate.cancel'))}
               <Button
                 type="button"
                 disabled={busy || !templateName.trim() || !templateCode.trim()}
@@ -312,7 +377,7 @@ export function PageBuilderTemplateActions({
           }
         >
           <div className="space-y-4">
-            <p id={saveDescriptionId} className="text-sm text-muted-foreground">
+            <p id={descriptionId} className="text-sm text-muted-foreground">
               {t('pageBuilder.saveAsTemplate.description')}
             </p>
             <div className="space-y-1">
@@ -346,21 +411,17 @@ export function PageBuilderTemplateActions({
         </ModalDialog>
       ) : null}
 
-      {applyOpen ? (
+      {dialog === 'apply' ? (
         <ModalDialog
           layer="overlay"
           title={t('pageBuilder.applyTemplate.title')}
-          onClose={(): void => setApplyOpen(false)}
+          onClose={closeDialog}
           busy={busy}
           widthClassName="max-w-md"
-          aria-describedby={[applyDescriptionId, canvasHasContent ? applyWarningId : null, hasError ? errorId : null]
-            .filter(Boolean)
-            .join(' ')}
+          aria-describedby={describedBy(canvasEmpty ? null : warningId)}
           footer={
             <>
-              <Button type="button" variant="outline" disabled={busy} onClick={(): void => setApplyOpen(false)}>
-                {t('pageBuilder.applyTemplate.cancel')}
-              </Button>
+              {cancelButton(t('pageBuilder.applyTemplate.cancel'))}
               <Button
                 type="button"
                 disabled={busy || loadingOptions || !selectedTemplateId}
@@ -375,14 +436,14 @@ export function PageBuilderTemplateActions({
         >
           <div className="space-y-4">
             <div className="space-y-1">
-              <p id={applyDescriptionId} className="text-sm text-muted-foreground">
+              <p id={descriptionId} className="text-sm text-muted-foreground">
                 {t('pageBuilder.applyTemplate.description')}
               </p>
-              {canvasHasContent ? (
-                <p id={applyWarningId} className="text-sm text-amber-700 dark:text-amber-400">
+              {canvasEmpty ? null : (
+                <p id={warningId} className="text-sm text-amber-700 dark:text-amber-400">
                   {t('pageBuilder.applyTemplate.replaceWarning')}
                 </p>
-              ) : null}
+              )}
             </div>
             <div className="space-y-1">
               <Label htmlFor={`${ids}-template`}>{t('pageBuilder.applyTemplate.selectLabel')}</Label>
@@ -410,150 +471,18 @@ export function PageBuilderTemplateActions({
           </div>
         </ModalDialog>
       ) : null}
-    </>
-  );
-}
 
-/** Right-side header tools: copy language, clear canvas, fullscreen. */
-export function PageBuilderHeaderActions({
-  fullscreen,
-  onToggleFullscreen,
-  languages = [],
-  activeLanguage = null,
-  currentData,
-  onCopyFromLanguage,
-  onClearCanvas,
-  extraActions,
-  t,
-}: {
-  fullscreen: boolean;
-  onToggleFullscreen: () => void;
-  languages?: string[];
-  activeLanguage?: string | null;
-  currentData: Data | null;
-  onCopyFromLanguage?: (sourceLanguage: string) => void | Promise<void>;
-  onClearCanvas?: () => void;
-  /**
-   * Module-owned actions rendered first in the right-hand header group (feature
-   * 151 — `cms`' Translate). The chrome owns no copy, permission or endpoint for
-   * them; it only gives them a place.
-   */
-  extraActions?: ReactNode;
-  t: Translate;
-}): ReactElement {
-  const ids = useId();
-  const clearCancelRef = useRef<HTMLButtonElement>(null);
-  const [copyOpen, setCopyOpen] = useState(false);
-  const [clearOpen, setClearOpen] = useState(false);
-  const [sourceLanguage, setSourceLanguage] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const status = useInlineStatus();
-
-  const otherLanguages = useMemo(
-    () => languages.filter((lang) => lang !== activeLanguage),
-    [activeLanguage, languages],
-  );
-  const canCopy = Boolean(onCopyFromLanguage) && otherLanguages.length > 0;
-  const canClear = Boolean(onClearCanvas) && !isEmptyPageBuilderData(currentData);
-
-  const runCopy = async (): Promise<void> => {
-    if (!onCopyFromLanguage || !sourceLanguage) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await onCopyFromLanguage(sourceLanguage);
-      setCopyOpen(false);
-      setSourceLanguage('');
-      status.show(t('pageBuilder.copyLanguage.success', { language: sourceLanguage }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const copyDescriptionId = `${ids}-copy-description`;
-  const copyErrorId = `${ids}-copy-error`;
-  const clearDescriptionId = `${ids}-clear-description`;
-  const hasError = error !== null && error !== '';
-
-  return (
-    <>
-      <div className="cms-pb-header-actions">
-        {extraActions ?? null}
-        {onCopyFromLanguage ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!canCopy}
-            title={
-              otherLanguages.length === 0
-                ? t('pageBuilder.copyLanguage.noTargets')
-                : t('pageBuilder.copyLanguage.button')
-            }
-            aria-label={t('pageBuilder.copyLanguage.button')}
-            onClick={(): void => {
-              setError(null);
-              status.clear();
-              setSourceLanguage(otherLanguages[0] ?? '');
-              setCopyOpen(true);
-            }}
-          >
-            <Copy className="h-4 w-4" aria-hidden="true" />
-            <span className="cms-pb-header-actions__label">{t('pageBuilder.copyLanguage.button')}</span>
-          </Button>
-        ) : null}
-        {onClearCanvas ? (
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            disabled={!canClear}
-            title={t('pageBuilder.clearCanvas.button')}
-            aria-label={t('pageBuilder.clearCanvas.button')}
-            onClick={(): void => {
-              status.clear();
-              setClearOpen(true);
-            }}
-          >
-            <Eraser className="h-4 w-4" aria-hidden="true" />
-            <span className="cms-pb-header-actions__label">{t('pageBuilder.clearCanvas.button')}</span>
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onToggleFullscreen}
-          aria-pressed={fullscreen}
-          title={fullscreen ? t('pageBuilder.fullscreen.exit') : t('pageBuilder.fullscreen.enter')}
-          aria-label={fullscreen ? t('pageBuilder.fullscreen.exit') : t('pageBuilder.fullscreen.enter')}
-        >
-          {fullscreen ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
-          <span className="cms-pb-header-actions__label">
-            {fullscreen ? t('pageBuilder.fullscreen.exit') : t('pageBuilder.fullscreen.enter')}
-          </span>
-        </Button>
-      </div>
-
-      {/* Only copy-from-language reports a result; clearing shows itself on the canvas. */}
-      {onCopyFromLanguage ? <InlineStatus {...status.props} className="whitespace-nowrap" /> : null}
-
-      {copyOpen ? (
+      {dialog === 'copy' ? (
         <ModalDialog
           layer="overlay"
           title={t('pageBuilder.copyLanguage.title')}
-          onClose={(): void => setCopyOpen(false)}
+          onClose={closeDialog}
           busy={busy}
           widthClassName="max-w-md"
-          aria-describedby={hasError ? `${copyDescriptionId} ${copyErrorId}` : copyDescriptionId}
+          aria-describedby={describedBy()}
           footer={
             <>
-              <Button type="button" variant="outline" disabled={busy} onClick={(): void => setCopyOpen(false)}>
-                {t('pageBuilder.copyLanguage.cancel')}
-              </Button>
+              {cancelButton(t('pageBuilder.copyLanguage.cancel'))}
               <Button
                 type="button"
                 disabled={busy || !sourceLanguage}
@@ -567,7 +496,7 @@ export function PageBuilderHeaderActions({
           }
         >
           <div className="space-y-4">
-            <p id={copyDescriptionId} className="text-sm text-muted-foreground">
+            <p id={descriptionId} className="text-sm text-muted-foreground">
               {t('pageBuilder.copyLanguage.description', { target: activeLanguage ?? '—' })}
             </p>
             <div className="space-y-1">
@@ -585,25 +514,23 @@ export function PageBuilderHeaderActions({
                 ))}
               </Select>
             </div>
-            <p id={copyErrorId} role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
+            {errorRegion}
           </div>
         </ModalDialog>
       ) : null}
 
-      {clearOpen ? (
+      {dialog === 'clear' ? (
         <ModalDialog
           layer="overlay"
           title={t('pageBuilder.clearCanvas.title')}
-          onClose={(): void => setClearOpen(false)}
+          onClose={closeDialog}
           // Destructive: focus starts on Cancel, so Enter on a dialog opened by accident keeps the canvas.
           initialFocusRef={clearCancelRef}
           widthClassName="max-w-md"
-          aria-describedby={clearDescriptionId}
+          aria-describedby={descriptionId}
           footer={
             <>
-              <Button ref={clearCancelRef} type="button" variant="outline" onClick={(): void => setClearOpen(false)}>
+              <Button ref={clearCancelRef} type="button" variant="outline" onClick={closeDialog}>
                 {t('pageBuilder.clearCanvas.cancel')}
               </Button>
               <Button
@@ -611,7 +538,7 @@ export function PageBuilderHeaderActions({
                 variant="destructive"
                 onClick={(): void => {
                   onClearCanvas?.();
-                  setClearOpen(false);
+                  setDialog(null);
                 }}
               >
                 {t('pageBuilder.clearCanvas.confirm')}
@@ -619,7 +546,7 @@ export function PageBuilderHeaderActions({
             </>
           }
         >
-          <p id={clearDescriptionId} className="text-sm text-muted-foreground">
+          <p id={descriptionId} className="text-sm text-muted-foreground">
             {t('pageBuilder.clearCanvas.description')}
           </p>
         </ModalDialog>

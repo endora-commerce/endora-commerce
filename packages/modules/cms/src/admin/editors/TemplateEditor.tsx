@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type { CmsTemplateDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
@@ -204,14 +204,12 @@ export function TemplateEditor(): ReactNode {
       header={
         <>
           <PageHeader
+            back={{ label: t('common.back'), to: '/cms/templates' }}
             title={isNew ? t('templateEditor.title.new') : form.name || t('templateEditor.title.edit')}
             description={t('templateEditor.description')}
             actions={
               <div className="flex items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />
-                <Button asChild variant="outline">
-                  <Link to="/cms/templates">{t('common.back')}</Link>
-                </Button>
                 <SaveButtonGroup
                   onSave={() => void save()}
                   onSaveAndExit={() => void saveAndExit()}

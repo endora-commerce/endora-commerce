@@ -1467,7 +1467,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/payment_methods/src/admin/pages/PaymentMethodsPage.tsx': 1,
   'packages/modules/quick_order/src/admin/pages/QuickOrderOnBehalfPage.tsx': 1,
   'packages/modules/settings/src/admin/components/ConflictBanner.tsx': 2,
-  'packages/modules/settings/src/admin/pages/GroupsPage.tsx': 3,
   'packages/modules/settings/src/admin/pages/SettingsPage.tsx': 6,
   'packages/page-builder-admin/src/email/EmailBuilderActionBar.tsx': 5,
   'packages/page-builder-admin/src/email/EmailVariableFields.tsx': 2,

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { ORDER_MINIMUM_MAX, type PackagingUnitDto } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, EditorSection } from '@endora-commerce/admin-kit/ui';
+import { Plus } from 'lucide-react';
+import { Alert, AlertDescription, Button, EditorSection } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { parseOrderMinimumInput } from '../lib/order-minimum-input.js';
 import { sectionTitle } from './editor/SectionBadge.js';
+import { RowRemoveButton } from './editor/RowRemoveButton.js';
+import { useConfirmRemoval } from './editor/confirm-removal.js';
 
 /**
  * Feature 043 — Packaging units editor, rendered inside the product card's
@@ -40,6 +43,7 @@ export function PackagingUnitsEditor({
   onChanged?: () => Promise<void>;
 }): ReactNode {
   const t = useTranslation('catalog');
+  const { ask, dialog: removalDialog } = useConfirmRemoval();
   const base = `/api/v1/admin/catalog/products/${productId}/packaging-units`;
 
   const [units, setUnits] = useState<PackagingUnitDto[]>([]);
@@ -138,7 +142,11 @@ export function PackagingUnitsEditor({
   const minimumA11y = (key: string): { 'aria-invalid'?: true; 'aria-describedby'?: string } =>
     invalidMinimum === key ? { 'aria-invalid': true, 'aria-describedby': errorId } : {};
 
-  const remove = (id: string): void => {
+  // Issue #1489 (CAT-07): removing a unit deletes it at once, so it asks first, in the same
+  // dialog as every other structural removal of the editor.
+  const remove = async (unit: PackagingUnitDto): Promise<void> => {
+    if (!(await ask(t('packagingUnits.removeConfirm', { name: unit.name })))) return;
+    const id = unit.id;
     if (invalidMinimum === id) setInvalidMinimum(null);
     void run(async () => {
       await apiClient.delete(`${base}/${id}`);
@@ -269,14 +277,11 @@ export function PackagingUnitsEditor({
                 </td>
                 <td style={{ whiteSpace: 'nowrap' }}>
                   {structural ? (
-                    <button
-                      type="button"
-                      className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                    <RowRemoveButton
+                      label={t('packagingUnits.action.removeFor', { name: u.name })}
                       disabled={busy}
-                      onClick={() => remove(u.id)}
-                    >
-                      {t('packagingUnits.action.remove')}
-                    </button>
+                      onClick={() => void remove(u)}
+                    />
                   ) : null}
                 </td>
               </tr>
@@ -323,16 +328,14 @@ export function PackagingUnitsEditor({
               if (invalidMinimum === 'new') setInvalidMinimum(null);
             }}
           />
-          <button
-            type="button"
-            className="b2b-btn b2b-btn--primary b2b-btn--sm"
-            disabled={busy}
-            onClick={add}
-          >
+          {/* Issue #1489 (CAT-07): "Add" adds a row; the page's one Save stays the only filled action. */}
+          <Button type="button" variant="outline" size="sm" className="max-lg:min-h-11" disabled={busy} onClick={add}>
+            <Plus aria-hidden="true" />
             {t('packagingUnits.action.add')}
-          </button>
+          </Button>
         </div>
       ) : null}
+      {removalDialog}
     </EditorSection>
   );
 }

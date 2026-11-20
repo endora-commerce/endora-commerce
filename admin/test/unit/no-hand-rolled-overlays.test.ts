@@ -84,10 +84,6 @@ const LEDGER: Record<string, { shapes: Partial<Record<OverlayShape, number>>; re
     shapes: { 'role-dialog': 2 },
     reason: 'the inspector drawer below desktop, and an alertdialog with its own trap; the latter to ConfirmDialog (follow-up to #1444)',
   },
-  'packages/page-builder-admin/src/chrome/PageBuilderHeaderActions.tsx': {
-    shapes: { 'create-portal': 1 },
-    reason: "mounts the template actions into Puck's header column; not an overlay (its dialogs moved to ModalDialog under CONTENT-03, #1493)",
-  },
   'packages/page-builder-admin/src/email/EmailBuilderActionBar.tsx': {
     shapes: { 'position-fixed': 1, 'create-portal': 1 },
     reason: ACTION_BAR,

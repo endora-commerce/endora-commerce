@@ -52,7 +52,7 @@ afterEach(() => {
 const LINKS = `/catalog/products/${PRODUCT_ID}?scope=global&tab=links`;
 
 async function openLinkRemoval(): Promise<HTMLElement> {
-  const remove = await screen.findByRole('button', { name: en['productEditor.links.action.remove']! });
+  const remove = await screen.findByRole('button', { name: sub('productEditor.links.action.removeFor', { product: 'Target' }) });
   fireEvent.click(remove);
   return screen.findByRole('dialog', { name: en['productEditor.links.removeConfirm']! });
 }

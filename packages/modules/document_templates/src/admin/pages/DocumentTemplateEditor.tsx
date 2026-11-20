@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { ComponentConfig, Config, Data, Field } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import type {
@@ -410,6 +410,10 @@ export function DocumentTemplateEditor(): ReactNode {
   return (
     <>
       <PageHeader
+        back={{
+          label: tCore('common.action.back'),
+          to: template ? `/document-templates?type=${encodeURIComponent(template.documentType)}` : '/document-templates',
+        }}
         title={template?.name ?? t('editor.title')}
         description={
           template
@@ -420,11 +424,6 @@ export function DocumentTemplateEditor(): ReactNode {
           <div className="flex flex-wrap items-center gap-2">
             {template?.isDefault ? <Badge>{t('page.default')}</Badge> : null}
             {canWrite ? <UnsavedChangesHint dirty={dirty} /> : null}
-            <Button variant="outline" size="sm" asChild>
-              <Link to={template ? `/document-templates?type=${encodeURIComponent(template.documentType)}` : '/document-templates'}>
-                {tCore('common.action.back')}
-              </Link>
-            </Button>
             <Button variant="outline" size="sm" disabled={!template || busy !== null} onClick={() => void preview()}>
               {busy === 'preview' ? t('editor.previewing') : t('editor.preview')}
             </Button>

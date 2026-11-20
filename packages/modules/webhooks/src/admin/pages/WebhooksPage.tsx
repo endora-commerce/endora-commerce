@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Check, Copy, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
-import {
-  deliverableWebhookEventTypes,
-  type CreateWebhookResponse,
-  type Webhook,
-  type WebhookDelivery,
-  type WebhookDeliveryListResponse,
-  type WebhookEventTypeListResponse,
-  type WebhookListResponse,
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Plus, RefreshCw, Webhook as WebhookIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import type {
+  Webhook,
+  WebhookDelivery,
+  WebhookDeliveryListResponse,
+  WebhookListResponse,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -20,10 +18,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Checkbox,
-  Input,
-  Label,
-  PageHeader,
+  EmptyState,
   Select,
   Table,
   TableBody,
@@ -32,51 +27,50 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
-import { OrganizationPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
+import {
+  ListPage,
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+  useConfirmDialog,
+  type ListPageLoad,
+} from '@endora-commerce/admin-kit/components';
+import { WEBHOOKS_NEW_PATH } from '../paths.js';
+import { useDeliverableEventTypes } from '../use-deliverable-event-types.js';
 
+/**
+ * The webhooks list — the kit's `ListPage` (issue #1501, UX audit SHELL-14).
+ * The subscribe form used to be drawn open above the subscriptions; it is its
+ * own route now (`WebhookCreatePage`, `/webhooks/new`), reached from the
+ * header's *New webhook*, and it ends on the one-time signing secret. *Pause*
+ * / *Resume* and *Delete* are the row's overflow menu, *Delete* last and
+ * confirmed (Fitts: destructive actions get distance). The delivery log stays
+ * under the list, unchanged.
+ */
 export default function WebhooksPage(): ReactNode {
   const t = useTranslation('core');
   const { confirm, confirmDialog } = useConfirmDialog();
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
-  const [loadingHooks, setLoadingHooks] = useState(true);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
   const [filter, setFilter] = useState<'all' | 'failed' | 'dead_lettered'>('all');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [revealedSecret, setRevealedSecret] = useState<{ name: string; secret: string } | null>(null);
-  const [copied, setCopied] = useState(false);
   // Feature 062 — best-effort id → name lookup for the org-scope column.
   const [orgNames, setOrgNames] = useState<Map<string, string>>(new Map());
   const tWebhooks = useTranslation('webhooks');
-  // `null` until the endpoint has answered: an unread list is not an empty one,
-  // and marking a contributed type as undelivered because the read failed would
-  // be a second wrong answer on the screen this list exists to make truthful.
-  const [contributedEventTypes, setContributedEventTypes] = useState<string[] | null>(null);
-  // What a subscription can receive — the backend bridges from, and validates
-  // against, the same function over the same data (issue #173).
-  const deliverable = deliverableWebhookEventTypes(contributedEventTypes ?? []);
-
-  const copySecret = useCallback(async (secret: string): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(secret);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* clipboard unavailable — the input is selectable as a fallback */
-    }
-  }, []);
+  const { deliverable, known: eventTypesKnown } = useDeliverableEventTypes();
 
   const refreshWebhooks = useCallback(async (): Promise<void> => {
-    setLoadingHooks(true);
-    setError(null);
+    // A reload after a write keeps the rows on screen rather than flashing the skeleton.
+    setLoad((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }));
     try {
       const res = await apiClient.get<WebhookListResponse>('/api/v1/admin/webhooks');
       setWebhooks(res.data);
+      setLoad({ kind: 'ready' });
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.load'));
-    } finally {
-      setLoadingHooks(false);
+      setLoad({ kind: 'error', message: err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.load') });
     }
   }, [t]);
 
@@ -98,25 +92,6 @@ export default function WebhooksPage(): ReactNode {
   useEffect(() => {
     void refreshWebhooks();
   }, [refreshWebhooks]);
-
-  // The event types other modules contribute, offered after the built-in ones.
-  // Best effort: the form offers the built-in ones when this cannot be read.
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await apiClient.get<WebhookEventTypeListResponse>(
-          '/api/v1/admin/webhooks/event-types',
-        );
-        if (!cancelled) setContributedEventTypes(res.data.map((descriptor) => descriptor.eventType));
-      } catch {
-        /* the form offers the built-in types regardless */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     void refreshDeliveries();
@@ -153,38 +128,10 @@ export default function WebhooksPage(): ReactNode {
     })();
   }, [webhooks, orgNames]);
 
-  const handleCreate = useCallback(
-    async (input: {
-      name: string;
-      url: string;
-      eventTypes: string[];
-      organizationId: string | null;
-    }): Promise<void> => {
-      try {
-        const res = await apiClient.post<CreateWebhookResponse>(
-          '/api/v1/admin/webhooks',
-          {
-            name: input.name,
-            url: input.url,
-            eventTypes: input.eventTypes,
-            ...(input.organizationId ? { organizationId: input.organizationId } : {}),
-          },
-        );
-        setInfo(t('webhooks.create.success'));
-        if (res.data.secret) {
-          setRevealedSecret({ name: input.name, secret: res.data.secret });
-          setCopied(false);
-        }
-        await refreshWebhooks();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.create'));
-      }
-    },
-    [refreshWebhooks, t],
-  );
-
   const handleToggleStatus = useCallback(
     async (w: Webhook): Promise<void> => {
+      setError(null);
+      setInfo(null);
       const next = w.status === 'active' ? 'paused' : 'active';
       try {
         await apiClient.patch<{ data: Webhook }>(`/api/v1/admin/webhooks/${w.id}`, { status: next });
@@ -198,18 +145,17 @@ export default function WebhooksPage(): ReactNode {
 
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
+      setError(null);
+      setInfo(null);
+      // The request runs inside the dialog, so a refusal is read where the operator is looking.
       const ok = await confirm({
         message: t('webhooks.action.deleteConfirm'),
         confirmLabel: t('webhooks.action.delete'),
         destructive: true,
+        action: () => apiClient.delete<void>(`/api/v1/admin/webhooks/${id}`),
+        describeError: (err) => (err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.delete')),
       });
-      if (!ok) return;
-      try {
-        await apiClient.delete<void>(`/api/v1/admin/webhooks/${id}`);
-        await refreshWebhooks();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('webhooks.error.delete'));
-      }
+      if (ok) await refreshWebhooks();
     },
     [refreshWebhooks, t, confirm],
   );
@@ -231,177 +177,117 @@ export default function WebhooksPage(): ReactNode {
 
   const webhookNameById = new Map(webhooks.map((w) => [w.id, w.name]));
 
+  const newWebhookLink = (variant: 'default' | 'outline'): ReactNode => (
+    <Button asChild variant={variant}>
+      <Link to={WEBHOOKS_NEW_PATH}>
+        <Plus aria-hidden="true" />
+        {t('webhooks.create.action')}
+      </Link>
+    </Button>
+  );
+
   return (
     <>
-      <PageHeader
+      <ListPage
         title={t('webhooks.page.title')}
         description={t('webhooks.page.description')}
-      />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {revealedSecret ? (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle>{t('webhooks.revealed.title')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">{revealedSecret.name}</p>
-            <div className="mt-2 flex items-center gap-2">
-              <Input
-                readOnly
-                value={revealedSecret.secret}
-                className="flex-1 bg-muted font-mono text-sm text-foreground"
-                onFocus={(e): void => e.currentTarget.select()}
-                aria-label={t('webhooks.revealed.title')}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="shrink-0"
-                onClick={(): void => void copySecret(revealedSecret.secret)}
-              >
-                {copied ? <Check className="mr-1 h-4 w-4" /> : <Copy className="mr-1 h-4 w-4" />}
-                {copied ? t('webhooks.revealed.copied') : t('webhooks.revealed.copy')}
-              </Button>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3"
-              onClick={(): void => {
-                setRevealedSecret(null);
-                setCopied(false);
-              }}
-            >
-              {t('webhooks.revealed.confirm')}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('webhooks.create.title')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CreateWebhookForm onSubmit={handleCreate} offeredEventTypes={deliverable} />
-        </CardContent>
-      </Card>
-
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle>{t('webhooks.list.title')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingHooks ? (
-            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
-          ) : webhooks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('webhooks.empty')}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('webhooks.column.name')}</TableHead>
-                  <TableHead>{t('webhooks.column.url')}</TableHead>
-                  <TableHead>{t('webhooks.column.events')}</TableHead>
-                  <TableHead>{t('webhooks.column.organization')}</TableHead>
-                  <TableHead>{t('webhooks.column.status')}</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {webhooks.map((w) => (
-                  <TableRow key={w.id}>
-                    <TableCell className="font-medium">{w.name}</TableCell>
-                    <TableCell className="font-mono text-xs">{w.url}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {w.eventTypes.map((e) =>
-                          // A subscription written before event types were
-                          // validated may carry one nothing delivers. It is
-                          // shown as stored, and marked, rather than hidden.
-                          contributedEventTypes !== null && !deliverable.includes(e) ? (
-                            <Badge
-                              key={e}
-                              variant="warning"
-                              className="font-mono text-xs"
-                              title={tWebhooks('subscription.eventType.notDelivered')}
-                              data-undelivered-event-type={e}
-                            >
-                              {e}
-                              <span className="sr-only">
-                                {' — '}
-                                {tWebhooks('subscription.eventType.notDelivered')}
-                              </span>
-                            </Badge>
-                          ) : (
-                            <Badge key={e} variant="outline" className="font-mono text-xs">
-                              {e}
-                            </Badge>
-                          ),
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {w.organizationId ? (
-                        <Badge variant="outline">
-                          {orgNames.get(w.organizationId) ?? w.organizationId}
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          {t('webhooks.organization.platformWide')}
-                        </span>
+        actions={newWebhookLink('default')}
+        load={load}
+        onRetry={(): void => void refreshWebhooks()}
+        notice={
+          error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : info ? (
+            <Alert variant="success">
+              <AlertDescription>{info}</AlertDescription>
+            </Alert>
+          ) : null
+        }
+      >
+        {webhooks.length === 0 ? (
+          <EmptyState icon={<WebhookIcon size={20} />} title={t('webhooks.empty')} action={newWebhookLink('outline')} />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('webhooks.column.name')}</TableHead>
+                <TableHead>{t('webhooks.column.url')}</TableHead>
+                <TableHead>{t('webhooks.column.events')}</TableHead>
+                <TableHead>{t('webhooks.column.organization')}</TableHead>
+                <TableHead>{t('webhooks.column.status')}</TableHead>
+                <TableHead className="w-12" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {webhooks.map((w) => (
+                <TableRow key={w.id}>
+                  <TableCell className="font-medium">{w.name}</TableCell>
+                  <TableCell className="font-mono text-xs">{w.url}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap gap-1">
+                      {w.eventTypes.map((e) =>
+                        // A subscription written before event types were
+                        // validated may carry one nothing delivers. It is
+                        // shown as stored, and marked, rather than hidden.
+                        eventTypesKnown && !deliverable.includes(e) ? (
+                          <Badge
+                            key={e}
+                            variant="warning"
+                            className="font-mono text-xs"
+                            title={tWebhooks('subscription.eventType.notDelivered')}
+                            data-undelivered-event-type={e}
+                          >
+                            {e}
+                            <span className="sr-only">
+                              {' — '}
+                              {tWebhooks('subscription.eventType.notDelivered')}
+                            </span>
+                          </Badge>
+                        ) : (
+                          <Badge key={e} variant="outline" className="font-mono text-xs">
+                            {e}
+                          </Badge>
+                        ),
                       )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={w.status === 'active' ? 'success' : 'warning'}>
-                        {t(`webhooks.status.${w.status}`)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {w.organizationId ? (
+                      <Badge variant="outline">
+                        {orgNames.get(w.organizationId) ?? w.organizationId}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(): void => {
-                            void handleToggleStatus(w);
-                          }}
-                        >
-                          {w.status === 'active' ? <Pause /> : <Play />}
-                          {w.status === 'active' ? t('webhooks.action.pause') : t('webhooks.action.resume')}
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={(): void => {
-                            void handleDelete(w.id);
-                          }}
-                        >
-                          <Trash2 />
-                          {t('webhooks.action.delete')}
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {t('webhooks.organization.platformWide')}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={w.status === 'active' ? 'success' : 'warning'}>
+                      {t(`webhooks.status.${w.status}`)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <RowActionMenu label={t('webhooks.rowActions', { name: w.name })}>
+                      <RowActionMenuItem onSelect={(): void => void handleToggleStatus(w)}>
+                        {w.status === 'active' ? t('webhooks.action.pause') : t('webhooks.action.resume')}
+                      </RowActionMenuItem>
+                      <RowActionMenuSeparator />
+                      <RowActionMenuItem destructive onSelect={(): void => void handleDelete(w.id)}>
+                        {t('webhooks.action.delete')}
+                      </RowActionMenuItem>
+                    </RowActionMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ListPage>
 
-      <Card>
+      <Card className="mt-6">
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>{t('webhooks.deliveries.title')}</CardTitle>
           <div className="flex items-center gap-2">
@@ -497,118 +383,4 @@ function DeliveryStatusBadge({ status }: { status: WebhookDelivery['status'] }):
         ? 'destructive'
         : 'warning';
   return <Badge variant={variant}>{status}</Badge>;
-}
-
-function CreateWebhookForm(props: {
-  onSubmit: (input: {
-    name: string;
-    url: string;
-    eventTypes: string[];
-    organizationId: string | null;
-  }) => Promise<void>;
-  /**
-   * Every event type a subscription can receive — the built-in ones, then the
-   * contributed ones, each once. The form keeps no list of its own.
-   */
-  offeredEventTypes: readonly string[];
-}): ReactNode {
-  const t = useTranslation('core');
-  const { offeredEventTypes } = props;
-  const [name, setName] = useState('');
-  const [url, setUrl] = useState('');
-  const [events, setEvents] = useState<Set<string>>(new Set());
-  const [organizationId, setOrganizationId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const toggle = (event: string): void => {
-    setEvents((prev) => {
-      const next = new Set(prev);
-      if (next.has(event)) next.delete(event);
-      else next.add(event);
-      return next;
-    });
-  };
-
-  const onSubmit = async (event: FormEvent): Promise<void> => {
-    event.preventDefault();
-    if (!name.trim() || !url.trim() || events.size === 0) return;
-    setSubmitting(true);
-    try {
-      await props.onSubmit({
-        name: name.trim(),
-        url: url.trim(),
-        eventTypes: Array.from(events),
-        organizationId,
-      });
-      setName('');
-      setUrl('');
-      setEvents(new Set());
-      setOrganizationId(null);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form
-      className="space-y-4"
-      onSubmit={(e): void => {
-        void onSubmit(e);
-      }}
-    >
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="webhook-name">{t('webhooks.create.nameLabel')}</Label>
-          <Input
-            id="webhook-name"
-            value={name}
-            onChange={(e): void => setName(e.target.value)}
-            placeholder={t('webhooks.create.namePlaceholder')}
-            required
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="webhook-url">{t('webhooks.create.urlLabel')}</Label>
-          <Input
-            id="webhook-url"
-            type="url"
-            value={url}
-            onChange={(e): void => setUrl(e.target.value)}
-            placeholder={t('webhooks.create.urlPlaceholder')}
-            required
-          />
-        </div>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="webhook-organization">{t('webhooks.create.organizationLabel')}</Label>
-        <OrganizationPicker
-          id="webhook-organization"
-          value={organizationId}
-          onChange={setOrganizationId}
-          ariaLabel={t('webhooks.create.organizationLabel')}
-        />
-        <p className="text-xs text-muted-foreground">{t('webhooks.create.organizationHelp')}</p>
-      </div>
-      <div className="space-y-2">
-        <Label>{t('webhooks.create.eventsLabel')}</Label>
-        <div className="flex flex-wrap gap-3">
-          {offeredEventTypes.map((event) => (
-            <label
-              key={event}
-              className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs"
-            >
-              <Checkbox checked={events.has(event)} onChange={(): void => toggle(event)} />
-              <code className="font-mono">{event}</code>
-            </label>
-          ))}
-        </div>
-      </div>
-      <Button
-        type="submit"
-        disabled={submitting || !name.trim() || !url.trim() || events.size === 0}
-      >
-        {submitting ? t('webhooks.create.submitting') : t('webhooks.create.submit')}
-      </Button>
-    </form>
-  );
 }

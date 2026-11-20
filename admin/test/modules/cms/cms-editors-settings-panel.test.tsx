@@ -669,6 +669,17 @@ describe.each(screens)('$name — unsaved changes', (screenUnderTest) => {
     expect(await screen.findByText('List screen')).toBeTruthy();
   });
 
+  it('Back is the page header\'s back link above the title, not one more button beside Save (#1494)', async () => {
+    renderWithList();
+    await loaded();
+    const back = screen.getByRole('link', { name: copy('common.back') });
+    const heading = screen.getByRole('heading', { level: 1, name: 'Stored entity' });
+    // Before the title in document order, and not styled as a button.
+    expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(back.closest('header')?.contains(heading)).toBe(true);
+    expect(back.className).not.toMatch(/\bborder\b/);
+  });
+
   it('a metadata edit shows the hint; Back asks, Stay keeps the edit', async () => {
     renderWithList();
     await loaded();

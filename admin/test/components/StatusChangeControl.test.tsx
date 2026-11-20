@@ -75,6 +75,12 @@ describe('StatusChangeControl (#1435, DS-18)', () => {
     expect(opener()).toHaveAccessibleName('common.statusChange.change Order status');
   });
 
+  it('keeps the label as the name but hides it visually with labelVisuallyHidden (#1501)', () => {
+    renderControl({ labelVisuallyHidden: true });
+    expect(opener()).toHaveAccessibleName('common.statusChange.change Order status');
+    expect(screen.getByText('Order status')).toHaveClass('sr-only');
+  });
+
   it('offers only the allowed targets, never the current value, and writes nothing on pick', async () => {
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     renderControl({ onConfirm, options: [{ value: 'processing', label: 'Processing' }, ...OPTIONS] });

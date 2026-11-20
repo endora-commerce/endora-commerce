@@ -134,7 +134,12 @@ export { ModalDialog, MODAL_OVERLAY_Z_INDEX } from './modal-dialog/ModalDialog.j
 export type { ModalDialogLayer, ModalDialogProps } from './modal-dialog/ModalDialog.js';
 // Issue #313 — the design-system replacement for the browser's `confirm()`.
 export { ConfirmDialog, useConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
-export type { ConfirmDialogProps, ConfirmOptions, UseConfirmDialog } from './confirm-dialog/ConfirmDialog.js';
+export type {
+  ConfirmDialogProps,
+  ConfirmFocusTarget,
+  ConfirmOptions,
+  UseConfirmDialog,
+} from './confirm-dialog/ConfirmDialog.js';
 // Issue #1446 (DS-13) — the one unsaved-changes guard: Save / Discard / Stay before a navigation drops edits.
 export { UnsavedChangesDialog, UnsavedChangesHint, useUnsavedChangesGuard } from './unsaved-changes/UnsavedChangesGuard.js';
 export type {

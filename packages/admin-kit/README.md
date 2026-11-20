@@ -639,7 +639,9 @@ Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
 - **Row actions are `ghost` icon buttons with an `aria-label` naming the row** ("Remove Warsaw"),
   or, past two of them, entries of a **`RowActionMenu`**. A row never carries a filled button. A row
   action that writes at once (an immediate *Apply*) is `outline size="sm"`, under the section's
-  `ImmediateBadge`.
+  `ImmediateBadge`. A row's removal is a `ghost size="icon"` `Trash2` button in the destructive
+  tone (`text-destructive`), asking before it deletes anything; the product editor's tabs follow
+  it (#1489).
 - **Destructive actions sit in a menu and are confirmed.** A `RowActionMenuItem destructive` whose
   `onSelect` opens `useConfirmDialog` — never a red button beside the primary (Fitts: distance, not
   proximity).
@@ -857,6 +859,18 @@ written by hand anywhere under the admin, the shell, the kit, the page-builder c
 two-way ledger names each remaining one and the issue that migrates it. The behaviour is pinned in
 `admin/test/components/ModalDialog.test.tsx`, including an axe pass.
 
+**Focus after a confirmed removal.** A dialog returns focus to its opener. When the confirmed
+action removes the opener (a row's *Remove*), focus would fall to `body` once the row is gone.
+Pass `returnFocusTo` to `useConfirmDialog`'s `confirm` to send it to a neighbour instead (WCAG
+2.4.3). It takes an element, a ref, or a resolver. It is resolved once, when the dialog closes
+on a confirmed answer (with an `action`, after it succeeded), and the removed row is still on
+screen at that moment. So name an element that outlives it, such as the next row or the
+section's *Add*. On Cancel, or when the target resolves to nothing, focus returns to the opener.
+
+```tsx
+await confirm({ message, destructive: true, action, describeError, returnFocusTo: () => nextRowEdit(member) });
+```
+
 ## List pages — `ListPage` and `useListPagination`
 
 Issue #1439 (UX audit 2026-11-17, DS-05). An admin list came in several shapes: a create form drawn
@@ -906,6 +920,12 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   (DS-15, #1448, the kit `EmptyState`). Both slot into `toolbar` and `emptyState` when they land.
 - Pinned in `admin/test/kit/kit-list-page.test.tsx`, including an axe pass; the three first
   adopters are `CustomersList`, `OrganizationsList` and `CartsList`.
+- **A value edited from the row** (issue #1501, SHELL-14) is a `StatusChangeControl` with
+  `labelVisuallyHidden`, not a `<select>` that saves on `change`: the column header already names
+  it, so the label stays the button's accessible name without being drawn on every row. The Users
+  list's role column is the first; the five SHELL-14 lists (Users, API keys, Webhooks, Taxes,
+  Setting groups) are the pattern's next adopters, API keys and Webhooks with their create form on
+  a `/new` route because it ends on a one-time secret.
 
 ### Search as you type — `useDebouncedValue`
 

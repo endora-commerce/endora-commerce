@@ -1310,8 +1310,8 @@ numbered tags and placeholders such as `{{customer.firstName}}` are checked to
 come back unchanged; a text whose answer loses either keeps its original
 wording.
 
-**Using it.** The button sits in the Page Builder toolbar beside **Copy from
-language** and names what it will translate:
+**Using it.** The button sits in the Page Builder toolbar, before the **More**
+menu that holds **Copy from language**, and names what it will translate:
 
 - **Translate all content** — nothing is selected. By default the current tab's
   canvas is translated and its language is detected; the dialog can instead

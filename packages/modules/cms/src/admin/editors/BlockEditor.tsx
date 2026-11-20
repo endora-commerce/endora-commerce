@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import { slugify, type CmsBlockDetail } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, FormField, Input, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker, UnsavedChangesHint, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
 import { isDraftEqual } from '@endora-commerce/admin-kit/lib';
@@ -229,14 +229,12 @@ export function BlockEditor(): ReactNode {
       header={
         <>
           <PageHeader
+            back={{ label: t('common.back'), to: '/cms/blocks' }}
             title={isNew ? t('blockEditor.title.new') : form.name || t('blockEditor.title.edit')}
             description={t('blockEditor.description')}
             actions={
               <div className="flex items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />
-                <Button asChild variant="outline">
-                  <Link to="/cms/blocks">{t('common.back')}</Link>
-                </Button>
                 <SaveButtonGroup
                   onSave={() => void save()}
                   onSaveAndExit={() => void saveAndExit()}

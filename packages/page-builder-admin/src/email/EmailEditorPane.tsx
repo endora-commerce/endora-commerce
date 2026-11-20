@@ -56,11 +56,7 @@ import {
   createProductSlugsField,
 } from '../chrome/CatalogPickers.js';
 import { PageBuilderColorPaletteProvider } from '../chrome/ColorPaletteProvider.js';
-import {
-  PageBuilderHeaderActions,
-  PageBuilderHeaderShell,
-  PageBuilderTemplateActions,
-} from '../chrome/PageBuilderHeaderActions.js';
+import { PageBuilderHeaderActions } from '../chrome/PageBuilderHeaderActions.js';
 import { PageBuilderOverlayBridge } from '../chrome/PageBuilderOverlayBridge.js';
 import {
   getPageBuilderColorPalette,
@@ -816,10 +812,6 @@ export function EmailEditorPane({
     [onChange],
   );
 
-  const hasTemplateActions = Boolean(
-    onSaveAsTemplate || (onListTemplatesForApply && onResolveTemplateLayout),
-  );
-
   useEffect(() => {
     if (embedsProp) setEmbeds(embedsProp);
   }, [embedsProp]);
@@ -1065,55 +1057,40 @@ export function EmailEditorPane({
                       componentId: string;
                       componentType: string;
                     }) => <PageBuilderOverlayBridge {...props} />,
-                    ...(hasTemplateActions
-                      ? {
-                          header: ({ children }: { children?: ReactNode }) => (
-                            <PageBuilderHeaderShell
-                              leading={
-                                <PageBuilderTemplateActions
-                                  currentData={data ?? emptyData}
-                                  {...(onSaveAsTemplate ? { onSaveAsTemplate } : {})}
-                                  {...(onListTemplatesForApply
-                                    ? { onListTemplatesForApply }
-                                    : {})}
-                                  {...(onResolveTemplateLayout
-                                    ? {
-                                        onApplyTemplate: async (templateId: string) => {
-                                          const next = await onResolveTemplateLayout(templateId);
-                                          applyCanvasData(structuredClone(next));
-                                        },
-                                      }
-                                    : {})}
-                                  t={tChrome}
-                                />
-                              }
-                            >
-                              {children}
-                            </PageBuilderHeaderShell>
-                          ),
-                        }
-                      : {}),
                     headerActions: () => (
-                      <div className="cms-pb-header-actions">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPreviewOpen(true)}
-                          title={tChrome('pageBuilder.emailPreview.title')}
-                          aria-label={tChrome('pageBuilder.emailPreview.title')}
-                        >
-                          <Eye className="h-4 w-4" aria-hidden="true" />
-                          <span className="cms-pb-header-actions__label">{tChrome('pageBuilder.emailPreview.title')}</span>
-                        </Button>
-                        <PageBuilderHeaderActions
-                          fullscreen={fullscreen}
-                          onToggleFullscreen={(): void => setFullscreen((f) => !f)}
-                          currentData={data ?? emptyData}
-                          onClearCanvas={(): void => applyCanvasData(emptyData)}
-                          t={tChrome}
-                        />
-                      </div>
+                      // Issue #1494 (CONTENT-11): one toolbar. Preview is this
+                      // builder's own visible action; templates and Clear canvas
+                      // sit in the shared "More" menu, Fullscreen last.
+                      <PageBuilderHeaderActions
+                        fullscreen={fullscreen}
+                        onToggleFullscreen={(): void => setFullscreen((f) => !f)}
+                        currentData={data ?? emptyData}
+                        onClearCanvas={(): void => applyCanvasData(emptyData)}
+                        {...(onSaveAsTemplate ? { onSaveAsTemplate } : {})}
+                        {...(onListTemplatesForApply ? { onListTemplatesForApply } : {})}
+                        {...(onResolveTemplateLayout
+                          ? {
+                              onApplyTemplate: async (templateId: string): Promise<void> => {
+                                const next = await onResolveTemplateLayout(templateId);
+                                applyCanvasData(structuredClone(next));
+                              },
+                            }
+                          : {})}
+                        extraActions={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPreviewOpen(true)}
+                            title={tChrome('pageBuilder.emailPreview.title')}
+                            aria-label={tChrome('pageBuilder.emailPreview.title')}
+                          >
+                            <Eye className="h-4 w-4" aria-hidden="true" />
+                            <span className="cms-pb-header-actions__label">{tChrome('pageBuilder.emailPreview.title')}</span>
+                          </Button>
+                        }
+                        t={tChrome}
+                      />
                     ),
                   }}
                 />

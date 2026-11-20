@@ -4,13 +4,19 @@ import { PageBuilderHeaderActions } from '@endora-commerce/page-builder-admin';
 
 /**
  * Feature 151, T039 — the shared chrome gains one module-agnostic slot,
- * `extraActions`, rendered first in the right-hand header group. The chrome owns
- * no copy for it; without it the group is exactly what it was.
+ * `extraActions`, rendered first among the toolbar's buttons. The chrome owns
+ * no copy for it; without it the group is exactly what it was. Since issue
+ * #1494 (CONTENT-11) the group opens with its always-mounted status region.
  */
 const t = (key: string): string => key;
 
+function buttonsOf(container: HTMLElement): Element[] {
+  const group = container.querySelector('.cms-pb-header-actions')!;
+  return Array.from(group.children).filter((child) => child.getAttribute('role') !== 'status');
+}
+
 describe('PageBuilderHeaderActions extraActions', () => {
-  it('renders the slot first in the header group', () => {
+  it('renders the slot first among the toolbar buttons', () => {
     const { container } = render(
       <PageBuilderHeaderActions
         fullscreen={false}
@@ -20,8 +26,7 @@ describe('PageBuilderHeaderActions extraActions', () => {
         t={t}
       />,
     );
-    const group = container.querySelector('.cms-pb-header-actions')!;
-    expect(group.firstElementChild?.textContent).toBe('module action');
+    expect(buttonsOf(container)[0]?.textContent).toBe('module action');
     expect(screen.getByRole('button', { name: 'module action' })).toBeTruthy();
   });
 
@@ -29,8 +34,8 @@ describe('PageBuilderHeaderActions extraActions', () => {
     const { container } = render(
       <PageBuilderHeaderActions fullscreen={false} onToggleFullscreen={(): void => {}} currentData={null} t={t} />,
     );
-    const group = container.querySelector('.cms-pb-header-actions')!;
-    expect(group.children).toHaveLength(1);
-    expect(group.firstElementChild?.getAttribute('aria-label')).toBe('pageBuilder.fullscreen.enter');
+    const buttons = buttonsOf(container);
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]?.getAttribute('aria-label')).toBe('pageBuilder.fullscreen.enter');
   });
 });
