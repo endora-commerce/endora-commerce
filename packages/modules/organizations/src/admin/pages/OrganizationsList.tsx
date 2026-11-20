@@ -116,7 +116,6 @@ export function OrganizationsList(): ReactNode {
   return (
     <ListPage
       title={t('organizations.page.title')}
-      description={t('organizations.page.description')}
       actions={
         canCreate || hasMenu ? (
           <>

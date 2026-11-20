@@ -135,7 +135,7 @@ export function OrganizationCreate(): ReactNode {
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         {t('create.back')}
       </Link>
-      <PageHeader title={t('create.title')} description={t('create.description')} />
+      <PageHeader title={t('create.title')} />
       <Card>
         <CardContent>
           {error ? (
@@ -313,7 +313,9 @@ export function OrganizationCreate(): ReactNode {
               />
             ) : null}
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {/* What follows the Save, said beside it rather than as the page's description. */}
+              <p className="mr-auto text-xs text-muted-foreground">{t('create.hint.inviteMembers')}</p>
               <Button type="button" variant="ghost" onClick={() => { navigate('/organizations'); }} disabled={saving}>
                 {t('create.cancel')}
               </Button>
