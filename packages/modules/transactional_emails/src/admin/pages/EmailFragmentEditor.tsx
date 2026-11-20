@@ -133,7 +133,7 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
                     saving={busy}
                     disabled={!canWrite}
                     saveLabel={t('editor.save')}
-                    savingLabel={t('editor.save')}
+                    savingLabel={t('editor.saving')}
                     saveAndExitLabel={t('editor.saveAndExit')}
                   />
                 </div>

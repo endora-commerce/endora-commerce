@@ -1,4 +1,5 @@
 {
+  "module.name": "Organizacje",
   "nav.organizations.label": "Organizacje",
   "actions.openOrganizations.label": "Organizacje",
   "actions.openOrganizations.description": "Konta klientów",

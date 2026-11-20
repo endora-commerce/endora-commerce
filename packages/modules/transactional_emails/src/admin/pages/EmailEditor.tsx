@@ -7,9 +7,10 @@ import type {
   TransactionalEmailDetail,
 } from '@endora-commerce/contracts';
 import { apiClient, isDraftEqual, useAuth } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { Alert, AlertDescription, Button, Label, PageHeader, SaveButtonGroup, Select } from '@endora-commerce/admin-kit/ui';
 import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
+import { channelDisplayName, emailSourceLabels } from '../lib/labels.js';
 import {
   EmailSubjectWithVariables,
   EmailVariablesProvider,
@@ -54,13 +55,14 @@ const emptyData: Data = { root: { props: {} }, content: [] };
  */
 export function EmailEditor(): React.ReactElement {
   const t = useTranslation('transactional_emails');
+  const { language: adminLanguage } = useTranslationContext();
   const { confirm, confirmDialog } = useConfirmDialog();
   const { code = '' } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('transactional_emails:write');
 
-  const [channels, setChannels] = useState<Array<{ id: string; code: string }>>([]);
+  const [channels, setChannels] = useState<Array<{ id: string; code: string; name: Record<string, string> }>>([]);
   const [channelId, setChannelId] = useState<string | null>(null);
   const [language, setLanguage] = useState<string>('');
   const [detail, setDetail] = useState<TransactionalEmailDetail | null>(null);
@@ -74,7 +76,7 @@ export function EmailEditor(): React.ReactElement {
   useEffect(() => {
     let live = true;
     void listActiveSalesChannels().then((res) => {
-      if (live) setChannels(res.items.map((c) => ({ id: c.id, code: c.code })));
+      if (live) setChannels(res.items.map((c) => ({ id: c.id, code: c.code, name: c.name })));
     });
     return () => {
       live = false;
@@ -179,7 +181,7 @@ export function EmailEditor(): React.ReactElement {
           <>
             <PageHeader
               title={detail?.name ?? code}
-              description={t('editor.source', { source: detail?.effective.source ?? '—' })}
+              description={detail ? emailSourceLabels.label(t, detail.effective.source) : undefined}
               actions={
                 <div className="flex flex-wrap items-center gap-2">
                   <UnsavedChangesHint dirty={dirty} />
@@ -192,7 +194,7 @@ export function EmailEditor(): React.ReactElement {
                     saving={busy}
                     disabled={!canWrite}
                     saveLabel={t('editor.save')}
-                    savingLabel={t('editor.save')}
+                    savingLabel={t('editor.saving')}
                     saveAndExitLabel={t('editor.saveAndExit')}
                   />
                 </div>
@@ -231,7 +233,7 @@ export function EmailEditor(): React.ReactElement {
                 <option value="">{t('scope.global')}</option>
                 {channels.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.code}
+                    {channelDisplayName(c, adminLanguage)}
                   </option>
                 ))}
               </Select>

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { SalesChannelListResponse } from '@endora-commerce/contracts';
 import { AssetFieldPicker, ModalDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import {
   Alert,
   AlertDescription,
@@ -17,6 +17,7 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
 import { brandingPatch, draftOfBranding, type BrandingDraft } from '../components/branding-draft.js';
+import { channelDisplayName } from '../lib/labels.js';
 
 const READ_PERMISSION = 'transactional_emails:read';
 const WRITE_PERMISSION = 'transactional_emails:write';
@@ -47,12 +48,13 @@ function messageOf(error: unknown, fallback: string): string {
  */
 export function EmailBrandingPage(): ReactNode {
   const t = useTranslation('transactional_emails');
+  const { language: adminLanguage } = useTranslationContext();
   const tc = useTranslation('core');
   const { hasPermission } = useAuth();
   const canRead = hasPermission(READ_PERMISSION);
   const canWrite = hasPermission(WRITE_PERMISSION);
 
-  const [channels, setChannels] = useState<Array<{ id: string; code: string }>>([]);
+  const [channels, setChannels] = useState<Array<{ id: string; code: string; name: Record<string, string> }>>([]);
   const [channelId, setChannelId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<BrandingDraft | null>(null);
   const [draft, setDraft] = useState<BrandingDraft | null>(null);
@@ -73,7 +75,7 @@ export function EmailBrandingPage(): ReactNode {
     // A channel list that does not load leaves the all-channels scope usable.
     listActiveSalesChannels()
       .then((res) => {
-        if (live) setChannels(res.items.map((c) => ({ id: c.id, code: c.code })));
+        if (live) setChannels(res.items.map((c) => ({ id: c.id, code: c.code, name: c.name })));
       })
       .catch(() => undefined);
     return () => {
@@ -192,7 +194,7 @@ export function EmailBrandingPage(): ReactNode {
               <option value="">{t('scope.global')}</option>
               {channels.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.code}
+                  {channelDisplayName(c, adminLanguage)}
                 </option>
               ))}
             </Select>

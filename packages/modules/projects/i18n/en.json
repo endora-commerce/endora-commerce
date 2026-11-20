@@ -1,4 +1,5 @@
 {
+  "module.name": "Projects",
   "adminRoles.permission.projects:read": "View projects",
   "adminRoles.permission.projects:write": "Create and run projects",
   "adminRoles.permission.projects:configure": "Configure projects (roles, templates, loss reasons)",

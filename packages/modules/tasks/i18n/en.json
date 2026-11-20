@@ -1,4 +1,5 @@
 {
+  "module.name": "Tasks",
   "adminRoles.permission.tasks:read": "View tasks",
   "adminRoles.permission.tasks:write": "Create and edit tasks",
   "adminRoles.permission.tasks:configure": "Configure tasks (workflow, tags, priorities, board card, time zone)",

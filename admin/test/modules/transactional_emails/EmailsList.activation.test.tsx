@@ -1,8 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { TransactionalEmailSummary } from '@endora-commerce/contracts';
+import type { Bundle } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
 
 /**
@@ -50,16 +51,22 @@ const { EmailsList } = await import(
   '../../../../packages/modules/transactional_emails/src/admin/pages/EmailsList'
 );
 
-const bundle = passthroughBundle('transactional_emails', [
+const passthrough = passthroughBundle('transactional_emails', [
   'activation.column',
   'activation.on',
   'activation.off',
   'activation.locked',
-  'activation.action.enable',
-  'activation.action.disable',
+  'activation.switchLabel',
   'list.search',
   'list.searchLabel',
+  'list.filter.module',
+  'list.filter.allModules',
 ]);
+const bundle: Bundle = {
+  transactional_emails: { ...passthrough.transactional_emails, 'list.toggleError': '{name}: {message}' },
+  // The sending module's own name, from its own bundle (#1536).
+  demo: { 'module.name': 'Demo module' },
+};
 
 function summary(patch: Partial<TransactionalEmailSummary> & { code: string }): TransactionalEmailSummary {
   return {
@@ -87,8 +94,8 @@ async function renderList(): Promise<void> {
 }
 
 function row(code: string): HTMLElement {
-  const cell = screen.getByText(code, { selector: 'td.font-mono' });
-  const tr = cell.closest('tr');
+  const link = screen.getByRole('link', { name: code });
+  const tr = link.closest('tr');
   if (!tr) throw new Error(`no row rendered for email "${code}"`);
   return tr as HTMLElement;
 }
@@ -99,34 +106,51 @@ beforeEach(() => {
   setActive.mockReset();
 });
 
-describe('EmailsList — per-email activation (issue #89)', () => {
-  it('switches an email off through the audited endpoint', async () => {
+describe('EmailsList — per-email activation (issues #89, #1536)', () => {
+  it('switches an email off through the audited endpoint, with a switch rather than a filled button', async () => {
     items = [summary({ code: 'demo_notice' })];
     setActive.mockResolvedValue(summary({ code: 'demo_notice', active: false }));
     await renderList();
 
-    await userEvent.click(
-      within(row('demo_notice')).getByRole('button', { name: /activation.action.disable/ }),
-    );
+    const control = within(row('demo_notice')).getByRole('switch', { name: 'activation.switchLabel' });
+    expect(control).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(control);
 
     expect(setActive).toHaveBeenCalledWith('demo_notice', false);
     // The row re-renders from the server's summary, not from an assumption.
-    expect(
-      await within(row('demo_notice')).findByRole('button', {
-        name: /activation.action.enable/,
-      }),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(row('demo_notice')).getByRole('switch')).toHaveAttribute('aria-checked', 'false'),
+    );
+    expect(within(row('demo_notice')).getByText('activation.off')).toBeInTheDocument();
   });
 
-  it('offers the way back for an email already switched off', async () => {
+  it('offers the way back for an email already switched off, and no row carries a filled button', async () => {
     items = [summary({ code: 'demo_notice', active: false })];
     setActive.mockResolvedValue(summary({ code: 'demo_notice', active: true }));
     await renderList();
 
-    await userEvent.click(
-      within(row('demo_notice')).getByRole('button', { name: /activation.action.enable/ }),
-    );
+    // CONTENT-19: an inactive row used to carry the page's only filled button (Von Restorff).
+    expect(within(row('demo_notice')).queryByRole('button')).toBeNull();
+    const control = within(row('demo_notice')).getByRole('switch', { name: 'activation.switchLabel' });
+    expect(control).toHaveAttribute('aria-checked', 'false');
+    await userEvent.click(control);
     expect(setActive).toHaveBeenCalledWith('demo_notice', true);
+  });
+
+  it('marks the switch busy while the write runs, and ignores a second press', async () => {
+    items = [summary({ code: 'demo_notice' })];
+    let finish: (value: TransactionalEmailSummary) => void = () => undefined;
+    setActive.mockReturnValue(new Promise<TransactionalEmailSummary>((resolve) => { finish = resolve; }));
+    await renderList();
+
+    const control = within(row('demo_notice')).getByRole('switch');
+    await userEvent.click(control);
+    expect(control).toHaveAttribute('aria-busy', 'true');
+    await userEvent.click(control);
+    expect(setActive).toHaveBeenCalledTimes(1);
+
+    finish(summary({ code: 'demo_notice', active: false }));
+    await waitFor(() => expect(within(row('demo_notice')).getByRole('switch')).not.toHaveAttribute('aria-busy'));
   });
 
   it('renders a protected email locked, with the reason the owning module declared', async () => {
@@ -139,14 +163,14 @@ describe('EmailsList — per-email activation (issue #89)', () => {
     ];
     await renderList();
 
-    const control = within(row('demo_account_setup')).getByRole('button', {
-      name: /activation.locked/,
-    });
-    expect(control).toBeDisabled();
-    expect(control.getAttribute('title')).toBe('Nobody could finish signing up.');
+    const control = within(row('demo_account_setup')).getByRole('switch', { name: 'activation.switchLabel' });
+    // Focusable, so the reason is heard, but not operable.
+    expect(control).toHaveAttribute('aria-disabled', 'true');
+    expect(control).toHaveAccessibleDescription('Nobody could finish signing up.');
+    expect(within(row('demo_account_setup')).getByText('activation.locked')).toBeInTheDocument();
     expect(
-      within(row('demo_account_setup')).getByText('Nobody could finish signing up.'),
-    ).toBeInTheDocument();
+      within(row('demo_account_setup')).getAllByText('Nobody could finish signing up.').length,
+    ).toBeGreaterThan(0);
 
     await userEvent.click(control);
     expect(setActive).not.toHaveBeenCalled();
@@ -157,6 +181,7 @@ describe('EmailsList — per-email activation (issue #89)', () => {
     items = [summary({ code: 'demo_notice' })];
     await renderList();
 
+    expect(within(row('demo_notice')).queryByRole('switch')).toBeNull();
     expect(within(row('demo_notice')).queryByRole('button')).toBeNull();
     expect(within(row('demo_notice')).getByText('activation.on')).toBeInTheDocument();
   });
@@ -166,20 +191,36 @@ describe('EmailsList — per-email activation (issue #89)', () => {
     setActive.mockRejectedValue(new Error('the server said no'));
     await renderList();
 
-    await userEvent.click(
-      within(row('demo_notice')).getByRole('button', { name: /activation.action.disable/ }),
-    );
+    await userEvent.click(within(row('demo_notice')).getByRole('switch'));
 
-    expect(await screen.findByText(/the server said no/)).toBeInTheDocument();
+    expect(await screen.findByText('demo_notice: the server said no')).toBeInTheDocument();
     // Still on: nothing was written, so nothing may look written.
-    expect(
-      within(row('demo_notice')).getByRole('button', { name: /activation.action.disable/ }),
-    ).toBeInTheDocument();
+    expect(within(row('demo_notice')).getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+  });
+});
+
+describe('EmailsList — the sending module (#1536)', () => {
+  it("names the module by its own name, not by its id", async () => {
+    items = [summary({ code: 'demo_notice' })];
+    await renderList();
+    expect(within(row('demo_notice')).getByText('Demo module')).toBeInTheDocument();
+    expect(within(row('demo_notice')).queryByText('demo')).toBeNull();
+  });
+
+  it('filters the list by module', async () => {
+    items = [summary({ code: 'demo_notice' }), summary({ code: 'other_notice', ownerModule: 'other' })];
+    await renderList();
+    const select = screen.getByRole('combobox', { name: 'list.filter.module' });
+    expect(within(select).getByRole('option', { name: 'Demo module' })).toBeInTheDocument();
+    await userEvent.selectOptions(select, 'demo');
+    expect(screen.getByRole('link', { name: 'demo_notice' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'other_notice' })).toBeNull();
   });
 });
 
 describe('EmailsList — search box (#1465)', () => {
   it('names the search box by a label, not only by its placeholder', async () => {
+    items = [summary({ code: 'demo_notice' })];
     await renderList();
     const search = screen.getByRole('searchbox', { name: 'list.searchLabel' });
     expect(search).toHaveAttribute('placeholder', 'list.search');
