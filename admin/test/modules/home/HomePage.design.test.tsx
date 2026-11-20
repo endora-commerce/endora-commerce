@@ -31,7 +31,7 @@ import {
  */
 
 let grantedPermissions = new Set<string>();
-const getSpy = vi.fn(async (_path: string) => ({ data: [], items: [], counts: {} }));
+const getSpy = vi.fn(async (_path: string): Promise<unknown> => ({ data: [], items: [], counts: {} }));
 
 
 
