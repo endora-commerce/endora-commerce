@@ -125,7 +125,20 @@ describe('admin Blog Posts CRUD contract (T030)', () => {
       payload: JSON.stringify({ version: unp.version }),
     });
     expect(archive.statusCode).toBe(200);
-    expect((archive.json() as { data: { status: string } }).data.status).toBe('archived');
+    const arc = (archive.json() as { data: { status: string; version: number } }).data;
+    expect(arc.status).toBe('archived');
+
+    // Issue #1495 — the post list's "Unarchive" is `/unpublish`: an archived
+    // post goes back to a draft, not straight onto the storefront.
+    const unarchive = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/blog/posts/${id}/unpublish`,
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({ version: arc.version }),
+    });
+    expect(unarchive.statusCode).toBe(200);
+    expect((unarchive.json() as { data: { status: string } }).data.status).toBe('draft');
   });
 
   it('PATCH with stale version returns 409 VERSION_CONFLICT', async () => {

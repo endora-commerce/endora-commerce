@@ -68,6 +68,8 @@ Gdy usunięcie zostanie odrzucone, okno zostaje otwarte, podaje przyczynę i mó
 | `409 CMS_HOOK_SYSTEM_PROTECTED` | Hooka systemowego nie można usunąć. | Nic. Hooki systemowe nie mają w menu pozycji **Usuń**. |
 | Każdy inny błąd | Usunięcie się nie powiodło. | Sprawdź połączenie i wybierz **Usuń** ponownie albo *Anuluj*. |
 
+Na liście stron menu ma też pozycję **Archiwizuj**, a dla zarchiwizowanej strony **Przywróć z archiwum**, przed **Usuń**. Żadna z nich nie prosi o potwierdzenie, tak jak w edytorze strony: archiwizacja zdejmuje stronę ze sklepu i można ją cofnąć. **Przywróć z archiwum** robi ze strony szkic, więc wraca ona do sklepu dopiero po ponownej publikacji. Etykieta statusu w wierszu zmienia się od razu, wynik pojawia się obok przycisku **Nowa strona**, a fokus zostaje na menu wiersza. Gdy lista jest filtrowana po statusie, którego strona już nie ma, strona znika z listy, a fokus przechodzi do następnego wiersza. Jeśli zmiana się nie powiedzie, lista o tym informuje, a strona zachowuje swój status.
+
 Bez `cms.write` listy są tylko do odczytu: bez menu w wierszu i bez przycisku **Nowy**. Pusta lista mówi, do czego służy, a administratorowi, który może utworzyć rekord, pokazuje przycisk **Nowy**.
 
 ### Duplikowanie strony, bloku lub szablonu

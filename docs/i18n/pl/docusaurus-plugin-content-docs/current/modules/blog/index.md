@@ -172,7 +172,9 @@ Ekrany **Wpisy bloga**, **Tagi bloga** i **Kategorie bloga** mają układ list p
 
 Administrator z uprawnieniem `blog.write` ma na końcu każdego wiersza menu (⋮).
 
-**Wpisy: Otwórz i Usuń.** **Usuń** prosi o potwierdzenie i wysyła wersję odczytaną przez listę. Usunięty wpis znika ze sklepu i z każdego wpisu, który wskazuje go jako powiązany (odłączenie przy usunięciu, powyżej). Jeśli usunięcie się nie powiedzie, najczęściej dlatego, że ktoś zmienił wpis po odczytaniu listy, okno zostaje otwarte i prosi o odświeżenie listy i ponowną próbę.
+**Wpisy: Otwórz, Archiwizuj lub Przywróć z archiwum oraz Usuń.** **Archiwizuj**, a dla zarchiwizowanego wpisu **Przywróć z archiwum**, nie prosi o potwierdzenie, tak jak w edytorze wpisu: archiwizacja zdejmuje wpis ze sklepu i można ją cofnąć. Wysyła wersję odczytaną przez listę. **Przywróć z archiwum** robi z wpisu szkic, więc wraca on do sklepu dopiero po ponownej publikacji. Etykieta statusu i wersja w wierszu zmieniają się od razu, wynik pojawia się obok przycisku **Nowy wpis**, a fokus zostaje na menu wiersza. Gdy lista jest filtrowana po statusie, którego wpis już nie ma, wpis znika z listy, a fokus przechodzi do następnego wiersza. Jeśli zmiana się nie powiedzie, najczęściej dlatego, że ktoś zmienił wpis po odczytaniu listy, lista o tym informuje i prosi o odświeżenie i ponowną próbę.
+
+**Usuń** prosi o potwierdzenie i wysyła wersję odczytaną przez listę. Usunięty wpis znika ze sklepu i z każdego wpisu, który wskazuje go jako powiązany (odłączenie przy usunięciu, powyżej). Jeśli usunięcie się nie powiedzie, najczęściej dlatego, że ktoś zmienił wpis po odczytaniu listy, okno zostaje otwarte i prosi o odświeżenie listy i ponowną próbę.
 
 **Tagi: Edytuj i Usuń.** **Nowy tag** w nagłówku i **Edytuj** w wierszu otwierają to samo okno z trzema polami: nazwa, kod i opis. Podczas tworzenia tagu kod podąża za nazwą (`Poradniki` → `poradniki`), dopóki nie wpiszesz własnego. Każdy problem jest pokazany przy swoim polu:
 
