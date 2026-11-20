@@ -4,7 +4,6 @@ import { Extension, Node, type JSONContent } from '@tiptap/core';
 import { EditorContent, NodeViewWrapper, ReactNodeViewRenderer, useEditor, type ReactNodeViewProps } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { createPortal } from 'react-dom';
 import {
   BRAND_COLOR_ROLES,
   EMPHASIS_VARIANTS,
@@ -24,6 +23,7 @@ import { Divider, EMPHASIS_LABELS, LinkDialog, ToolbarButton } from './RichConte
 import { emphasisMark, inlineIconNode } from './rich-content-shared.js';
 import { CMS_ICON_CATALOG, humanizeIconName, resolveCmsIcon, type CmsIconName } from './icon-catalog.js';
 import { emphasisColor } from './emphasis-color.js';
+import { CmsModalDialog } from './CmsModalDialog.js';
 
 /** A document of exactly one paragraph — the inline grammar's top node (data-model §3.5). */
 const InlineDocument = Node.create({
@@ -174,121 +174,107 @@ function IconInsertDialog({
     return { name, ...(size !== undefined ? { size } : {}), ...(shift !== undefined ? { offset: shift } : {}) };
   };
   return (
-    <div
-      className="cmsc:fixed cmsc:inset-0 cmsc:z-[2147483001] cmsc:flex cmsc:items-center cmsc:justify-center cmsc:bg-[rgba(15,23,42,0.45)] cmsc:p-[16px]"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') onCancel();
-      }}
-    >
-      <div className="cmsc:font-sans cmsc:w-full cmsc:max-w-[420px] cmsc:rounded-[10px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:p-[16px] cmsc:shadow-lg">
-        <h3 className="cmsc:m-0 cmsc:mb-[12px] cmsc:text-[15px] cmsc:font-semibold cmsc:text-[#15202b]">{title}</h3>
-        <div className="cmsc:mb-[12px] cmsc:grid cmsc:grid-cols-2 cmsc:gap-[8px]">
+    <CmsModalDialog title={title} onClose={onCancel}>
+      <div className="cmsc:mb-[12px] cmsc:grid cmsc:grid-cols-2 cmsc:gap-[8px]">
+        <label className="cmsc:block">
+          <span className={DIALOG_LABEL_CLASS}>{text('inlineIcon.size')}</span>
+          <select
+            className={DIALOG_INPUT_CLASS}
+            aria-label={text('inlineIcon.size')}
+            value={unit}
+            onChange={(event) => {
+              const next = event.target.value as IconSizeUnit;
+              setUnit(next);
+              setSizeValue(next === 'px' ? '24' : next === 'em' ? '1' : '');
+            }}
+          >
+            <option value="">{text('inlineIcon.size.text')}</option>
+            <option value="em">{text('inlineIcon.size.em')}</option>
+            <option value="px">{text('inlineIcon.size.px')}</option>
+          </select>
+        </label>
+        {unit !== '' ? (
           <label className="cmsc:block">
-            <span className={DIALOG_LABEL_CLASS}>{text('inlineIcon.size')}</span>
-            <select
-              className={DIALOG_INPUT_CLASS}
-              aria-label={text('inlineIcon.size')}
-              value={unit}
-              onChange={(event) => {
-                const next = event.target.value as IconSizeUnit;
-                setUnit(next);
-                setSizeValue(next === 'px' ? '24' : next === 'em' ? '1' : '');
-              }}
-            >
-              <option value="">{text('inlineIcon.size.text')}</option>
-              <option value="em">{text('inlineIcon.size.em')}</option>
-              <option value="px">{text('inlineIcon.size.px')}</option>
-            </select>
-          </label>
-          {unit !== '' ? (
-            <label className="cmsc:block">
-              <span className={DIALOG_LABEL_CLASS}>{unit}</span>
-              <input
-                type="number"
-                className={DIALOG_INPUT_CLASS}
-                aria-label={text('inlineIcon.sizeValue')}
-                min={unit === 'px' ? INLINE_ICON_SIZE_PX[0] : INLINE_ICON_SIZE_EM[0]}
-                max={unit === 'px' ? INLINE_ICON_SIZE_PX[1] : INLINE_ICON_SIZE_EM[1]}
-                step={unit === 'px' ? 1 : 0.05}
-                value={sizeValue}
-                onChange={(event) => setSizeValue(event.target.value)}
-              />
-            </label>
-          ) : null}
-          <label className="cmsc:col-span-2 cmsc:block">
-            <span className={DIALOG_LABEL_CLASS}>{text('inlineIcon.offset')}</span>
+            <span className={DIALOG_LABEL_CLASS}>{unit}</span>
             <input
               type="number"
               className={DIALOG_INPUT_CLASS}
-              aria-label={text('inlineIcon.offset')}
-              min={INLINE_ICON_OFFSET_EM[0]}
-              max={INLINE_ICON_OFFSET_EM[1]}
-              step={0.05}
-              placeholder="-0.125"
-              value={offset}
-              onChange={(event) => setOffset(event.target.value)}
+              aria-label={text('inlineIcon.sizeValue')}
+              min={unit === 'px' ? INLINE_ICON_SIZE_PX[0] : INLINE_ICON_SIZE_EM[0]}
+              max={unit === 'px' ? INLINE_ICON_SIZE_PX[1] : INLINE_ICON_SIZE_EM[1]}
+              step={unit === 'px' ? 1 : 0.05}
+              value={sizeValue}
+              onChange={(event) => setSizeValue(event.target.value)}
             />
-            <span className="cmsc:mt-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">{text('inlineIcon.offsetHint')}</span>
           </label>
-        </div>
-        <div className="cmsc-pb-icon-picker">
+        ) : null}
+        <label className="cmsc:col-span-2 cmsc:block">
+          <span className={DIALOG_LABEL_CLASS}>{text('inlineIcon.offset')}</span>
           <input
-            type="search"
-            className="cmsc-pb-icon-picker__search"
-            placeholder={text('inlineIcon.searchPlaceholder')}
-            aria-label={text('inlineIcon.search')}
-            value={query}
-            autoFocus
-            onChange={(event) => setQuery(event.target.value)}
+            type="number"
+            className={DIALOG_INPUT_CLASS}
+            aria-label={text('inlineIcon.offset')}
+            min={INLINE_ICON_OFFSET_EM[0]}
+            max={INLINE_ICON_OFFSET_EM[1]}
+            step={0.05}
+            placeholder="-0.125"
+            value={offset}
+            onChange={(event) => setOffset(event.target.value)}
           />
-          <div className="cmsc-pb-icon-picker__grid" role="listbox" aria-label={text('inlineIcon.icons')}>
-            {names.map((name) => {
-              const Icon = CMS_ICON_CATALOG[name];
-              const selected = editing && initial?.name === name;
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  role="option"
-                  aria-selected={selected}
-                  aria-label={humanizeIconName(name)}
-                  title={humanizeIconName(name)}
-                  className={`cmsc-pb-icon-picker__item${selected ? ' cmsc-pb-icon-picker__item--active' : ''}`}
-                  onClick={() => onPick(choice(name))}
-                >
-                  <Icon size={18} aria-hidden />
-                </button>
-              );
-            })}
-          </div>
-          {names.length === 0 ? <p className="cmsc-pb-icon-picker__empty">{text('inlineIcon.noMatch', { query })}</p> : null}
+          <span className="cmsc:mt-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">{text('inlineIcon.offsetHint')}</span>
+        </label>
+      </div>
+      <div className="cmsc-pb-icon-picker">
+        <input
+          type="search"
+          className="cmsc-pb-icon-picker__search"
+          placeholder={text('inlineIcon.searchPlaceholder')}
+          aria-label={text('inlineIcon.search')}
+          value={query}
+          autoFocus
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <div className="cmsc-pb-icon-picker__grid" role="listbox" aria-label={text('inlineIcon.icons')}>
+          {names.map((name) => {
+            const Icon = CMS_ICON_CATALOG[name];
+            const selected = editing && initial?.name === name;
+            return (
+              <button
+                key={name}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                aria-label={humanizeIconName(name)}
+                title={humanizeIconName(name)}
+                className={`cmsc-pb-icon-picker__item${selected ? ' cmsc-pb-icon-picker__item--active' : ''}`}
+                onClick={() => onPick(choice(name))}
+              >
+                <Icon size={18} aria-hidden />
+              </button>
+            );
+          })}
         </div>
-        <div className="cmsc:mt-[12px] cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
+        {names.length === 0 ? <p className="cmsc-pb-icon-picker__empty">{text('inlineIcon.noMatch', { query })}</p> : null}
+      </div>
+      <div className="cmsc:mt-[12px] cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
+        <button
+          type="button"
+          className="cmsc:font-sans cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-[#334155]"
+          onClick={onCancel}
+        >
+          {text('inlineIcon.cancel')}
+        </button>
+        {editing ? (
           <button
             type="button"
-            className="cmsc:font-sans cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-[#334155]"
-            onClick={onCancel}
+            className="cmsc:font-sans cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white"
+            onClick={() => onPick(choice((initial?.name ?? '') as CmsIconName))}
           >
-            {text('inlineIcon.cancel')}
+            {text('inlineIcon.apply')}
           </button>
-          {editing ? (
-            <button
-              type="button"
-              className="cmsc:font-sans cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white"
-              onClick={() => onPick(choice((initial?.name ?? '') as CmsIconName))}
-            >
-              {text('inlineIcon.apply')}
-            </button>
-          ) : null}
-        </div>
+        ) : null}
       </div>
-    </div>
+    </CmsModalDialog>
   );
 }
 
@@ -315,93 +301,79 @@ function EmphasisColorDialog({
   const valid = emphasisColor(normalised) !== null;
   const title = text('emphasisColor.title');
   return (
-    <div
-      className="cmsc:fixed cmsc:inset-0 cmsc:z-[2147483001] cmsc:flex cmsc:items-center cmsc:justify-center cmsc:bg-[rgba(15,23,42,0.45)] cmsc:p-[16px]"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') onCancel();
-      }}
-    >
-      <div className="cmsc:font-sans cmsc:w-full cmsc:max-w-[380px] cmsc:rounded-[10px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:p-[16px] cmsc:shadow-lg">
-        <h3 className="cmsc:m-0 cmsc:mb-[12px] cmsc:text-[15px] cmsc:font-semibold cmsc:text-[#15202b]">{title}</h3>
-        <span className={DIALOG_LABEL_CLASS}>{text('emphasisColor.brand')}</span>
-        <div className="cmsc:mb-[12px] cmsc:flex cmsc:flex-wrap cmsc:gap-[6px]">
-          {BRAND_COLOR_ROLES.map((entry) => {
-            const label = text('emphasisColor.token', { role: entry.role });
-            const selected = normalised === entry.value;
-            return (
-              <button
-                key={entry.role}
-                type="button"
-                aria-label={label}
-                title={label}
-                aria-pressed={selected}
-                className={`cmsc:h-[28px] cmsc:w-[28px] cmsc:cursor-pointer cmsc:rounded-full cmsc:border-2 cmsc:border-solid ${
-                  selected ? 'cmsc:border-[#15202b]' : 'cmsc:border-[#d9e0e7]'
-                }`}
-                style={{ background: `var(--cmsb-color-${entry.role}, ${entry.fallback})` }}
-                onClick={() => setDraft(entry.value)}
-              />
-            );
-          })}
-        </div>
-        <label className="cmsc:block">
-          <span className={DIALOG_LABEL_CLASS}>{text('emphasisColor.custom')}</span>
-          <span className="cmsc:flex cmsc:items-center cmsc:gap-[8px]">
-            <NativeColorInput
-              className="cmsc:h-[34px] cmsc:w-[40px] cmsc:shrink-0 cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:p-[2px]"
-              ariaLabel={text('emphasisColor.picker')}
-              value={HEX_COLOR_RE.test(normalised) ? normalised : '#1261a6'}
-              onCommit={(hex) => setDraft(hex.toLowerCase())}
-            />
-            <input
-              type="text"
-              className={DIALOG_INPUT_CLASS}
-              aria-label={text('emphasisColor.custom')}
-              placeholder="#1d4ed8"
-              value={draft}
-              aria-invalid={draft.trim() !== '' && !valid}
-              onChange={(event) => setDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && valid) onApply(normalised);
-              }}
-            />
-          </span>
-        </label>
-        <p className="cmsc:mt-[6px] cmsc:mb-0 cmsc:text-[12px] cmsc:text-[#64748b]">{text('emphasisColor.hint')}</p>
-        <div className="cmsc:mt-[12px] cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
-          {initial !== undefined ? (
+    <CmsModalDialog title={title} onClose={onCancel} widthClassName="cmsc:max-w-[380px]">
+      <span className={DIALOG_LABEL_CLASS}>{text('emphasisColor.brand')}</span>
+      <div className="cmsc:mb-[12px] cmsc:flex cmsc:flex-wrap cmsc:gap-[6px]">
+        {BRAND_COLOR_ROLES.map((entry) => {
+          const label = text('emphasisColor.token', { role: entry.role });
+          const selected = normalised === entry.value;
+          return (
             <button
+              key={entry.role}
               type="button"
-              className="cmsc:font-sans cmsc:mr-auto cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-[#334155]"
-              onClick={onRemove}
-            >
-              {text('emphasisColor.remove')}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            className="cmsc:font-sans cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-[#334155]"
-            onClick={onCancel}
-          >
-            {text('emphasisColor.cancel')}
-          </button>
-          <button
-            type="button"
-            disabled={!valid}
-            className="cmsc:font-sans cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white cmsc:disabled:cursor-not-allowed cmsc:disabled:opacity-40"
-            onClick={() => onApply(normalised)}
-          >
-            {text('emphasisColor.apply')}
-          </button>
-        </div>
+              aria-label={label}
+              title={label}
+              aria-pressed={selected}
+              className={`cmsc:h-[28px] cmsc:w-[28px] cmsc:cursor-pointer cmsc:rounded-full cmsc:border-2 cmsc:border-solid ${
+                selected ? 'cmsc:border-[#15202b]' : 'cmsc:border-[#d9e0e7]'
+              }`}
+              style={{ background: `var(--cmsb-color-${entry.role}, ${entry.fallback})` }}
+              onClick={() => setDraft(entry.value)}
+            />
+          );
+        })}
       </div>
-    </div>
+      <label className="cmsc:block">
+        <span className={DIALOG_LABEL_CLASS}>{text('emphasisColor.custom')}</span>
+        <span className="cmsc:flex cmsc:items-center cmsc:gap-[8px]">
+          <NativeColorInput
+            className="cmsc:h-[34px] cmsc:w-[40px] cmsc:shrink-0 cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:p-[2px]"
+            ariaLabel={text('emphasisColor.picker')}
+            value={HEX_COLOR_RE.test(normalised) ? normalised : '#1261a6'}
+            onCommit={(hex) => setDraft(hex.toLowerCase())}
+          />
+          <input
+            type="text"
+            className={DIALOG_INPUT_CLASS}
+            aria-label={text('emphasisColor.custom')}
+            placeholder="#1d4ed8"
+            value={draft}
+            aria-invalid={draft.trim() !== '' && !valid}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && valid) onApply(normalised);
+            }}
+          />
+        </span>
+      </label>
+      <p className="cmsc:mt-[6px] cmsc:mb-0 cmsc:text-[12px] cmsc:text-[#64748b]">{text('emphasisColor.hint')}</p>
+      <div className="cmsc:mt-[12px] cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
+        {initial !== undefined ? (
+          <button
+            type="button"
+            className="cmsc:font-sans cmsc:mr-auto cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-[#334155]"
+            onClick={onRemove}
+          >
+            {text('emphasisColor.remove')}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="cmsc:font-sans cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-[#334155]"
+          onClick={onCancel}
+        >
+          {text('emphasisColor.cancel')}
+        </button>
+        <button
+          type="button"
+          disabled={!valid}
+          className="cmsc:font-sans cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white cmsc:disabled:cursor-not-allowed cmsc:disabled:opacity-40"
+          onClick={() => onApply(normalised)}
+        >
+          {text('emphasisColor.apply')}
+        </button>
+      </div>
+    </CmsModalDialog>
   );
 }
 
@@ -505,81 +477,79 @@ export function InlineRichTextEditor({
     );
   }
 
+  // #1652: on the canvas the toolbar hides once the text loses focus, so a cancelled
+  // dialog hands focus back to the text there; in the side bar, to the toolbar button.
+  const refocusTextOnCancel = variant === 'canvas';
+
   const linkDialog =
-    linkOpen && editor && typeof document !== 'undefined'
-      ? createPortal(
-          <LinkDialog
-            initialUrl={(editor.getAttributes('link').href as string | undefined) ?? ''}
-            initialBlank={(editor.getAttributes('link').target as string | undefined) === '_blank'}
-            onCancel={() => setLinkOpen(false)}
-            onApply={(url, openInNewTab) => {
-              const range = editor.chain().focus().extendMarkRange('link');
-              if (url.trim() === '') range.unsetLink().run();
-              else
-                range
-                  .setLink({
-                    href: url.trim(),
-                    target: openInNewTab ? '_blank' : null,
-                    rel: openInNewTab ? 'noopener noreferrer' : null,
-                  })
-                  .run();
-              setLinkOpen(false);
-            }}
-          />,
-          document.body,
-        )
-      : null;
+    linkOpen && editor ? (
+      <LinkDialog
+        initialUrl={(editor.getAttributes('link').href as string | undefined) ?? ''}
+        initialBlank={(editor.getAttributes('link').target as string | undefined) === '_blank'}
+        onCancel={() => {
+          setLinkOpen(false);
+          if (refocusTextOnCancel) editor.commands.focus();
+        }}
+        onApply={(url, openInNewTab) => {
+          const range = editor.chain().focus().extendMarkRange('link');
+          if (url.trim() === '') range.unsetLink().run();
+          else
+            range
+              .setLink({
+                href: url.trim(),
+                target: openInNewTab ? '_blank' : null,
+                rel: openInNewTab ? 'noopener noreferrer' : null,
+              })
+              .run();
+          setLinkOpen(false);
+        }}
+      />
+    ) : null;
 
   const iconDialog =
-    iconOpen && editor && typeof document !== 'undefined'
-      ? createPortal(
-          <IconInsertDialog
-            initial={iconEditing}
-            onCancel={() => {
-              setIconOpen(false);
-              editor.commands.focus();
-            }}
-            onPick={(choice) => {
-              if (iconEditing !== undefined && editor.isActive('inlineIcon')) {
-                // T166: the selected icon takes the choice; an attribute left unset goes back to its default.
-                editor
-                  .chain()
-                  .focus()
-                  .updateAttributes('inlineIcon', { name: choice.name, size: choice.size, offset: choice.offset })
-                  .run();
-              } else {
-                editor.chain().focus().insertContent({ type: 'inlineIcon', attrs: choice }).run();
-              }
-              setIconOpen(false);
-            }}
-          />,
-          document.body,
-        )
-      : null;
+    iconOpen && editor ? (
+      <IconInsertDialog
+        initial={iconEditing}
+        onCancel={() => {
+          setIconOpen(false);
+          if (refocusTextOnCancel) editor.commands.focus();
+        }}
+        onPick={(choice) => {
+          if (iconEditing !== undefined && editor.isActive('inlineIcon')) {
+            // T166: the selected icon takes the choice; an attribute left unset goes back to its default.
+            editor
+              .chain()
+              .focus()
+              .updateAttributes('inlineIcon', { name: choice.name, size: choice.size, offset: choice.offset })
+              .run();
+          } else {
+            editor.chain().focus().insertContent({ type: 'inlineIcon', attrs: choice }).run();
+          }
+          setIconOpen(false);
+        }}
+      />
+    ) : null;
 
   // T175: the selected phrase's emphasis colour, when it has one.
   const currentColor = editor ? emphasisColor((editor.getAttributes('emphasis') as { color?: unknown }).color)?.value : undefined;
   const colorDialog =
-    colorOpen && editor && typeof document !== 'undefined'
-      ? createPortal(
-          <EmphasisColorDialog
-            initial={currentColor}
-            onCancel={() => {
-              setColorOpen(false);
-              editor.commands.focus();
-            }}
-            onApply={(color) => {
-              editor.chain().focus().setEmphasisColor(color).run();
-              setColorOpen(false);
-            }}
-            onRemove={() => {
-              editor.chain().focus().setEmphasisColor(null).run();
-              setColorOpen(false);
-            }}
-          />,
-          document.body,
-        )
-      : null;
+    colorOpen && editor ? (
+      <EmphasisColorDialog
+        initial={currentColor}
+        onCancel={() => {
+          setColorOpen(false);
+          if (refocusTextOnCancel) editor.commands.focus();
+        }}
+        onApply={(color) => {
+          editor.chain().focus().setEmphasisColor(color).run();
+          setColorOpen(false);
+        }}
+        onRemove={() => {
+          editor.chain().focus().setEmphasisColor(null).run();
+          setColorOpen(false);
+        }}
+      />
+    ) : null;
 
   const toolbarButtons = editor ? (
     <>

@@ -2,8 +2,7 @@
 
 import { type Editor, type JSONContent } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
-import { useEffect, useId, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { useId, useRef, useState, type ReactNode, type Ref } from 'react';
 import { EMPHASIS_VARIANTS, normalizeAnchor, useFieldText, useImagePicker, type EmphasisVariant } from '@endora-commerce/page-builder-core';
 import {
   LIST_MARKERS,
@@ -19,6 +18,7 @@ import {
   richContentExtensions,
   sanitizeRichHtml,
 } from './rich-content-shared.js';
+import { CmsModalDialog } from './CmsModalDialog.js';
 
 /** The emphasis variants' names, shared by the inline and the rich text toolbar (R-10, R-14). */
 export const EMPHASIS_LABELS: Record<EmphasisVariant, string> = {
@@ -47,15 +47,18 @@ export function ToolbarButton({
   active,
   disabled,
   onClick,
+  ref,
 }: {
   children: ReactNode;
   title: string;
   active?: boolean;
   disabled?: boolean;
   onClick: () => void;
+  ref?: Ref<HTMLButtonElement> | undefined;
 }) {
   return (
     <button
+      ref={ref}
       type="button"
       title={title}
       aria-label={title}
@@ -116,73 +119,61 @@ export function LinkDialog({
   const apply = () => onApply(url, openInNewTab, variant === '' ? null : variant);
 
   return (
-    <div
-      className="cmsc:fixed cmsc:inset-0 cmsc:z-[2147483001] cmsc:flex cmsc:items-center cmsc:justify-center cmsc:bg-[rgba(15,23,42,0.45)] cmsc:p-[16px]"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Edit link"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-    >
-      <div className="cmsc:font-sans cmsc:w-full cmsc:max-w-[420px] cmsc:rounded-[10px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:p-[16px] cmsc:shadow-lg">
-        <h3 className="cmsc:m-0 cmsc:mb-[12px] cmsc:text-[15px] cmsc:font-semibold cmsc:text-[#15202b]">Link</h3>
+    <CmsModalDialog title="Link" onClose={onCancel}>
+      <label className="cmsc:block cmsc:mb-[10px]">
+        <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">URL</span>
+        <input
+          className="cmsc:box-border cmsc:w-full cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:px-[10px] cmsc:py-[8px] cmsc:text-[14px]"
+          value={url}
+          placeholder="https://…"
+          autoFocus
+          onChange={(event) => setUrl(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') apply();
+          }}
+        />
+      </label>
+      {displayOptions ? (
         <label className="cmsc:block cmsc:mb-[10px]">
-          <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">URL</span>
-          <input
-            className="cmsc:box-border cmsc:w-full cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:px-[10px] cmsc:py-[8px] cmsc:text-[14px]"
-            value={url}
-            placeholder="https://…"
-            autoFocus
-            onChange={(event) => setUrl(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') apply();
-              if (event.key === 'Escape') onCancel();
-            }}
-          />
-        </label>
-        {displayOptions ? (
-          <label className="cmsc:block cmsc:mb-[10px]">
-            <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">Show as</span>
-            <select
-              className="cmsc:box-border cmsc:w-full cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[8px] cmsc:py-[7px] cmsc:text-[14px]"
-              value={variant}
-              onChange={(event) => setVariant(event.target.value)}
-            >
-              {displayOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <label className="cmsc:mb-[14px] cmsc:flex cmsc:items-center cmsc:gap-[8px] cmsc:text-[13px] cmsc:text-[#334155]">
-          <input
-            type="checkbox"
-            checked={openInNewTab}
-            onChange={(event) => setOpenInNewTab(event.target.checked)}
-          />
-          Open in new tab
-        </label>
-        <div className="cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
-          <button
-            type="button"
-            className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
-            onClick={onCancel}
+          <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">Show as</span>
+          <select
+            className="cmsc:box-border cmsc:w-full cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[8px] cmsc:py-[7px] cmsc:text-[14px]"
+            value={variant}
+            onChange={(event) => setVariant(event.target.value)}
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white"
-            onClick={apply}
-          >
-            {url.trim() ? 'Apply' : 'Remove link'}
-          </button>
-        </div>
+            {displayOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <label className="cmsc:mb-[14px] cmsc:flex cmsc:items-center cmsc:gap-[8px] cmsc:text-[13px] cmsc:text-[#334155]">
+        <input
+          type="checkbox"
+          checked={openInNewTab}
+          onChange={(event) => setOpenInNewTab(event.target.checked)}
+        />
+        Open in new tab
+      </label>
+      <div className="cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
+        <button
+          type="button"
+          className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white"
+          onClick={apply}
+        >
+          {url.trim() ? 'Apply' : 'Remove link'}
+        </button>
       </div>
-    </div>
+    </CmsModalDialog>
   );
 }
 
@@ -206,53 +197,41 @@ export function AnchorDialog({
   const apply = () => onApply(anchor === '' ? null : anchor);
 
   return (
-    <div
-      className="cmsc:fixed cmsc:inset-0 cmsc:z-[2147483001] cmsc:flex cmsc:items-center cmsc:justify-center cmsc:bg-[rgba(15,23,42,0.45)] cmsc:p-[16px]"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Heading anchor"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-    >
-      <div className="cmsc:font-sans cmsc:w-full cmsc:max-w-[420px] cmsc:rounded-[10px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:p-[16px] cmsc:shadow-lg">
-        <h3 className="cmsc:m-0 cmsc:mb-[12px] cmsc:text-[15px] cmsc:font-semibold cmsc:text-[#15202b]">Heading anchor</h3>
-        <label className="cmsc:block cmsc:mb-[6px]">
-          <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">Anchor</span>
-          <input
-            className="cmsc:box-border cmsc:w-full cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:px-[10px] cmsc:py-[8px] cmsc:text-[14px]"
-            value={raw}
-            placeholder="pricing"
-            autoFocus
-            aria-describedby={previewId}
-            onChange={(event) => setRaw(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') apply();
-              if (event.key === 'Escape') onCancel();
-            }}
-          />
-        </label>
-        <p id={previewId} className="cmsc:m-0 cmsc:mb-[14px] cmsc:text-[12px] cmsc:text-[#64748b]" aria-live="polite">
-          {anchor === '' ? 'No anchor' : `Link to it with #${anchor}`}
-        </p>
-        <div className="cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
-          <button
-            type="button"
-            className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white"
-            onClick={apply}
-          >
-            {anchor === '' ? 'Remove anchor' : 'Apply'}
-          </button>
-        </div>
+    <CmsModalDialog title="Heading anchor" onClose={onCancel}>
+      <label className="cmsc:block cmsc:mb-[6px]">
+        <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">Anchor</span>
+        <input
+          className="cmsc:box-border cmsc:w-full cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:px-[10px] cmsc:py-[8px] cmsc:text-[14px]"
+          value={raw}
+          placeholder="pricing"
+          autoFocus
+          aria-describedby={previewId}
+          onChange={(event) => setRaw(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') apply();
+          }}
+        />
+      </label>
+      <p id={previewId} className="cmsc:m-0 cmsc:mb-[14px] cmsc:text-[12px] cmsc:text-[#64748b]" aria-live="polite">
+        {anchor === '' ? 'No anchor' : `Link to it with #${anchor}`}
+      </p>
+      <div className="cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
+        <button
+          type="button"
+          className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white"
+          onClick={apply}
+        >
+          {anchor === '' ? 'Remove anchor' : 'Apply'}
+        </button>
       </div>
-    </div>
+    </CmsModalDialog>
   );
 }
 
@@ -327,129 +306,116 @@ export function ImageDialog({
   };
 
   return (
-    <div
-      className="cmsc:fixed cmsc:inset-0 cmsc:z-[2147483001] cmsc:flex cmsc:items-center cmsc:justify-center cmsc:bg-[rgba(15,23,42,0.45)] cmsc:p-[16px]"
-      role="dialog"
-      aria-modal="true"
-      aria-label={editing ? 'Edit image' : 'Insert image'}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-    >
-      <div className="cmsc:font-sans cmsc:w-full cmsc:max-w-[420px] cmsc:rounded-[10px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:p-[16px] cmsc:shadow-lg">
-        <h3 className="cmsc:m-0 cmsc:mb-[12px] cmsc:text-[15px] cmsc:font-semibold cmsc:text-[#15202b]">
-          {editing ? 'Edit image' : 'Insert image'}
-        </h3>
-        {Picker !== null ? (
-          <label className="cmsc:block cmsc:mb-[10px]">
-            <span className={DIALOG_LABEL_CLASS}>{text('richImage.source')}</span>
-            <select
-              aria-label={text('richImage.source')}
-              className={DIALOG_INPUT_CLASS}
-              value={source}
-              onChange={(event) => setSource(event.target.value as 'library' | 'url')}
-            >
-              <option value="library">{text('richImage.source.library')}</option>
-              <option value="url">{text('richImage.source.url')}</option>
-            </select>
-          </label>
-        ) : null}
-        {fromLibrary ? (
-          <div className="cmsc:mb-[10px] cmsc:flex cmsc:items-center cmsc:gap-[10px]">
-            {url.trim() ? (
-              <img
-                data-role="preview"
-                src={url.trim()}
-                alt={text('richImage.preview')}
-                className="cmsc:h-[56px] cmsc:w-[56px] cmsc:flex-none cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:object-contain"
-              />
-            ) : null}
-            <button
-              type="button"
-              data-action="choose"
-              autoFocus
-              className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
-              onClick={() => setPicking(true)}
-            >
-              {url.trim() ? text('richImage.change') : text('richImage.choose')}
-            </button>
-          </div>
-        ) : (
-          <label className="cmsc:block cmsc:mb-[10px]">
-            <span className={DIALOG_LABEL_CLASS}>Image URL</span>
-            <input
-              className={DIALOG_INPUT_CLASS}
-              value={url}
-              placeholder="https://…"
-              autoFocus
-              onChange={(event) => setUrl(event.target.value)}
-            />
-          </label>
-        )}
+    <CmsModalDialog title={editing ? 'Edit image' : 'Insert image'} onClose={onCancel}>
+      {Picker !== null ? (
         <label className="cmsc:block cmsc:mb-[10px]">
-          <span className={DIALOG_LABEL_CLASS}>Alt text</span>
-          <input className={DIALOG_INPUT_CLASS} value={alt} onChange={(event) => setAlt(event.target.value)} />
-        </label>
-        <div className="cmsc:mb-[10px] cmsc:flex cmsc:items-end cmsc:gap-[8px]">
-          <label className="cmsc:block cmsc:min-w-0 cmsc:flex-1">
-            <span className={DIALOG_LABEL_CLASS}>Width</span>
-            <input
-              className={DIALOG_INPUT_CLASS}
-              type="number"
-              min={1}
-              max={unit === '%' ? 100 : 9999}
-              inputMode="numeric"
-              placeholder="Auto"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-            />
-          </label>
+          <span className={DIALOG_LABEL_CLASS}>{text('richImage.source')}</span>
           <select
-            aria-label="Width unit"
-            className={`${DIALOG_CONTROL_CLASS} cmsc:w-[76px] cmsc:flex-none`}
-            value={unit}
-            onChange={(event) => setUnit(event.target.value as 'px' | '%')}
-          >
-            <option value="px">px</option>
-            <option value="%">%</option>
-          </select>
-        </div>
-        <label className="cmsc:block cmsc:mb-[10px]">
-          <span className={DIALOG_LABEL_CLASS}>Alignment</span>
-          <select
+            aria-label={text('richImage.source')}
             className={DIALOG_INPUT_CLASS}
-            value={inline ? '' : align}
-            disabled={inline}
-            onChange={(event) => setAlign(event.target.value)}
+            value={source}
+            onChange={(event) => setSource(event.target.value as 'library' | 'url')}
           >
-            <option value="">Default</option>
-            <option value="left">Left</option>
-            <option value="center">Center</option>
-            <option value="right">Right</option>
+            <option value="library">{text('richImage.source.library')}</option>
+            <option value="url">{text('richImage.source.url')}</option>
           </select>
         </label>
-        <label className="cmsc:mb-[14px] cmsc:flex cmsc:min-h-[24px] cmsc:items-center cmsc:gap-[8px] cmsc:text-[13px] cmsc:text-[#334155]">
-          <input type="checkbox" checked={inline} onChange={(event) => setInline(event.target.checked)} />
-          In the line of text
-        </label>
-        <div className="cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
+      ) : null}
+      {fromLibrary ? (
+        <div className="cmsc:mb-[10px] cmsc:flex cmsc:items-center cmsc:gap-[10px]">
+          {url.trim() ? (
+            <img
+              data-role="preview"
+              src={url.trim()}
+              alt={text('richImage.preview')}
+              className="cmsc:h-[56px] cmsc:w-[56px] cmsc:flex-none cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:object-contain"
+            />
+          ) : null}
           <button
             type="button"
+            data-action="choose"
+            autoFocus
             className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
-            onClick={onCancel}
+            onClick={() => setPicking(true)}
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            data-action="apply"
-            className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white disabled:cmsc:opacity-40"
-            disabled={!url.trim()}
-            onClick={apply}
-          >
-            {editing ? 'Apply' : 'Insert'}
+            {url.trim() ? text('richImage.change') : text('richImage.choose')}
           </button>
         </div>
+      ) : (
+        <label className="cmsc:block cmsc:mb-[10px]">
+          <span className={DIALOG_LABEL_CLASS}>Image URL</span>
+          <input
+            className={DIALOG_INPUT_CLASS}
+            value={url}
+            placeholder="https://…"
+            autoFocus
+            onChange={(event) => setUrl(event.target.value)}
+          />
+        </label>
+      )}
+      <label className="cmsc:block cmsc:mb-[10px]">
+        <span className={DIALOG_LABEL_CLASS}>Alt text</span>
+        <input className={DIALOG_INPUT_CLASS} value={alt} onChange={(event) => setAlt(event.target.value)} />
+      </label>
+      <div className="cmsc:mb-[10px] cmsc:flex cmsc:items-end cmsc:gap-[8px]">
+        <label className="cmsc:block cmsc:min-w-0 cmsc:flex-1">
+          <span className={DIALOG_LABEL_CLASS}>Width</span>
+          <input
+            className={DIALOG_INPUT_CLASS}
+            type="number"
+            min={1}
+            max={unit === '%' ? 100 : 9999}
+            inputMode="numeric"
+            placeholder="Auto"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+          />
+        </label>
+        <select
+          aria-label="Width unit"
+          className={`${DIALOG_CONTROL_CLASS} cmsc:w-[76px] cmsc:flex-none`}
+          value={unit}
+          onChange={(event) => setUnit(event.target.value as 'px' | '%')}
+        >
+          <option value="px">px</option>
+          <option value="%">%</option>
+        </select>
+      </div>
+      <label className="cmsc:block cmsc:mb-[10px]">
+        <span className={DIALOG_LABEL_CLASS}>Alignment</span>
+        <select
+          className={DIALOG_INPUT_CLASS}
+          value={inline ? '' : align}
+          disabled={inline}
+          onChange={(event) => setAlign(event.target.value)}
+        >
+          <option value="">Default</option>
+          <option value="left">Left</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </select>
+      </label>
+      <label className="cmsc:mb-[14px] cmsc:flex cmsc:min-h-[24px] cmsc:items-center cmsc:gap-[8px] cmsc:text-[13px] cmsc:text-[#334155]">
+        <input type="checkbox" checked={inline} onChange={(event) => setInline(event.target.checked)} />
+        In the line of text
+      </label>
+      <div className="cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
+        <button
+          type="button"
+          className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          data-action="apply"
+          className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white disabled:cmsc:opacity-40"
+          disabled={!url.trim()}
+          onClick={apply}
+        >
+          {editing ? 'Apply' : 'Insert'}
+        </button>
       </div>
       {Picker !== null && picking ? (
         <Picker
@@ -461,7 +427,7 @@ export function ImageDialog({
           }}
         />
       ) : null}
-    </div>
+    </CmsModalDialog>
   );
 }
 
@@ -495,11 +461,14 @@ function Toolbar({
   editor,
   expanded,
   onToggleExpand,
+  expandButtonRef,
   toolbarExtra,
 }: {
   editor: Editor | null;
   expanded: boolean;
   onToggleExpand: () => void;
+  /** The full-screen toggle, where focus returns when full screen closes (#1652). */
+  expandButtonRef?: Ref<HTMLButtonElement> | undefined;
   toolbarExtra?: ReactNode | ((editor: Editor) => ReactNode);
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
@@ -781,65 +750,61 @@ function Toolbar({
         ) : null}
 
         <span className="cmsc:ml-auto" />
-        <ToolbarButton title={expanded ? 'Collapse editor' : 'Expand editor to full screen'} active={expanded} onClick={onToggleExpand}>
+        <ToolbarButton
+          ref={expandButtonRef}
+          title={expanded ? 'Collapse editor' : 'Expand editor to full screen'}
+          active={expanded}
+          onClick={onToggleExpand}
+        >
           {expanded ? '🗗' : '⤢'}
         </ToolbarButton>
       </div>
 
-      {linkOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <LinkDialog
-              initialUrl={(editor.getAttributes('link').href as string | undefined) ?? ''}
-              initialBlank={(editor.getAttributes('link').target as string | undefined) === '_blank'}
-              initialVariant={(editor.getAttributes('link').variant as string | null | undefined) ?? null}
-              displayOptions={LINK_DISPLAY_OPTIONS}
-              onCancel={() => setLinkOpen(false)}
-              onApply={(url, openInNewTab, variant) => {
-                const range = editor.chain().focus().extendMarkRange('link');
-                if (url.trim() === '') range.unsetLink().run();
-                else
-                  range
-                    .setLink({
-                      href: url.trim(),
-                      target: openInNewTab ? '_blank' : null,
-                      rel: openInNewTab ? 'noopener noreferrer' : null,
-                    })
-                    .updateAttributes('link', { variant })
-                    .run();
-                setLinkOpen(false);
-              }}
-            />,
-            document.body,
-          )
-        : null}
+      {linkOpen ? (
+        <LinkDialog
+          initialUrl={(editor.getAttributes('link').href as string | undefined) ?? ''}
+          initialBlank={(editor.getAttributes('link').target as string | undefined) === '_blank'}
+          initialVariant={(editor.getAttributes('link').variant as string | null | undefined) ?? null}
+          displayOptions={LINK_DISPLAY_OPTIONS}
+          onCancel={() => setLinkOpen(false)}
+          onApply={(url, openInNewTab, variant) => {
+            const range = editor.chain().focus().extendMarkRange('link');
+            if (url.trim() === '') range.unsetLink().run();
+            else
+              range
+                .setLink({
+                  href: url.trim(),
+                  target: openInNewTab ? '_blank' : null,
+                  rel: openInNewTab ? 'noopener noreferrer' : null,
+                })
+                .updateAttributes('link', { variant })
+                .run();
+            setLinkOpen(false);
+          }}
+        />
+      ) : null}
 
-      {anchorOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <AnchorDialog
-              initialAnchor={headingAttrs.anchor ?? ''}
-              onCancel={() => setAnchorOpen(false)}
-              onApply={(anchor) => {
-                editor.chain().focus().updateAttributes('heading', { anchor }).run();
-                setAnchorOpen(false);
-              }}
-            />,
-            document.body,
-          )
-        : null}
+      {anchorOpen ? (
+        <AnchorDialog
+          initialAnchor={headingAttrs.anchor ?? ''}
+          onCancel={() => setAnchorOpen(false)}
+          onApply={(anchor) => {
+            editor.chain().focus().updateAttributes('heading', { anchor }).run();
+            setAnchorOpen(false);
+          }}
+        />
+      ) : null}
 
-      {imageOpen && typeof document !== 'undefined'
-        ? createPortal(
-            <ImageDialog
-              initial={selectedImage(editor)}
-              onCancel={() => setImageOpen(false)}
-              onApply={(choice) => {
-                applyImage(editor, choice, selectedImage(editor) !== undefined);
-                setImageOpen(false);
-              }}
-            />,
-            document.body,
-          )
-        : null}
+      {imageOpen ? (
+        <ImageDialog
+          initial={selectedImage(editor)}
+          onCancel={() => setImageOpen(false)}
+          onApply={(choice) => {
+            applyImage(editor, choice, selectedImage(editor) !== undefined);
+            setImageOpen(false);
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -857,6 +822,8 @@ export function RichContentEditorField({
   toolbarExtra?: ReactNode | ((editor: Editor) => ReactNode);
 }) {
   const [expanded, setExpanded] = useState(false);
+  const expandButtonRef = useRef<HTMLButtonElement>(null);
+  const text = useFieldText();
   const [, setTick] = useState(0);
   const editor = useEditor(
     {
@@ -877,15 +844,6 @@ export function RichContentEditorField({
     [],
   );
 
-  useEffect(() => {
-    if (!expanded) return undefined;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setExpanded(false);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [expanded]);
-
   if (readOnly) {
     return (
       <div className="cmsc:font-sans cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:rounded-[8px] cmsc:bg-white cmsc:p-[12px]">
@@ -900,11 +858,16 @@ export function RichContentEditorField({
   }
 
   const shell = (
-    <div className={expanded ? 'cmsc:flex cmsc:flex-col cmsc:w-full cmsc:max-w-[860px] cmsc:mx-auto cmsc:h-full' : 'cmsc:flex cmsc:flex-col'}>
+    <div className={expanded ? 'cmsc:flex cmsc:flex-col cmsc:w-full cmsc:h-full' : 'cmsc:flex cmsc:flex-col'}>
       <Toolbar
         editor={editor}
         expanded={expanded}
-        onToggleExpand={() => setExpanded((on) => !on)}
+        onToggleExpand={() => {
+          // Full screen opens to the text, not to the first toolbar control.
+          if (!expanded) editor?.commands.focus();
+          setExpanded(!expanded);
+        }}
+        expandButtonRef={expandButtonRef}
         {...(toolbarExtra !== undefined ? { toolbarExtra } : {})}
       />
       <div
@@ -917,17 +880,19 @@ export function RichContentEditorField({
     </div>
   );
 
-  if (expanded && typeof document !== 'undefined') {
-    return createPortal(
-      <div
-        className="cmsc:fixed cmsc:inset-0 cmsc:z-[2147483000] cmsc:bg-[rgba(15,23,42,0.55)] cmsc:p-[24px] cmsc:flex cmsc:flex-col"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) setExpanded(false);
-        }}
+  // #1652: full screen is a modal dialog — named, focus held, Escape and the scrim collapse it,
+  // and focus returns to the toggle of the collapsed editor, which is a new element by then.
+  if (expanded) {
+    return (
+      <CmsModalDialog
+        title={text('richText.fullscreen')}
+        hideTitle
+        variant="fullscreen"
+        onClose={() => setExpanded(false)}
+        returnFocusRef={expandButtonRef}
       >
         {shell}
-      </div>,
-      document.body,
+      </CmsModalDialog>
     );
   }
 

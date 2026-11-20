@@ -132,7 +132,6 @@ export function CreditLimitsPage(): ReactNode {
     <>
       <PageHeader
         title={t('creditLimits.page.title')}
-        description={t('creditLimits.page.description')}
       />
 
       {error ? (

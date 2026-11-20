@@ -399,7 +399,6 @@ export function ReturnsList(): ReactNode {
   return (
     <ListPage
       title={t('returns.title')}
-      description={t('returns.description')}
       actions={
         <>
           <InlineStatus {...bulkStatus} className="max-w-sm" />

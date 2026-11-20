@@ -101,6 +101,7 @@ when no coupon was applied — never the promotion's id, which travels only as
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET/POST/PUT/DELETE /api/v1/admin/promotions[/:id]` | Promotion CRUD |
+| `GET /api/v1/admin/promotions?page=&pageSize=` | One page of promotions by name, with `meta: { page, pageSize, total }`; without `pageSize` the whole list (issue #1664) |
 | `GET /api/v1/admin/promotions/action-types` | Action catalogue for the editor |
 | `GET /api/v1/admin/promotions/rule-targets/attributes` | Promo-eligible attributes |
 | `GET /api/v1/admin/promotions/rule-targets/{categories,customer-groups,delivery-methods,organizations,payment-methods,sales-channels}` | The other pickers of the rule editor |

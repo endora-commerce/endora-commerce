@@ -748,7 +748,6 @@ export function OrdersList(): ReactNode {
     <>
       <ListPage
         title={t('orders.page.title')}
-        description={t('orders.page.description')}
         actions={
           <>
             <InlineStatus {...bulkStatus} className="max-w-sm" />

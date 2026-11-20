@@ -567,7 +567,6 @@ export function RfqList(): ReactNode {
   return (
     <ListPage
       title={t('rfq.list.title')}
-      description={t('rfq.list.description')}
       actions={create}
       load={load}
       onRetry={retry}

@@ -267,9 +267,9 @@ export function ProductFeedDetailPage(): ReactNode {
         )}
 
         {tab === 'runs' && (
-          // Same card surface as every other admin list, and the same `.b2b-empty`
-          // block the feed list uses — the hand-rolled dashed box was a third
-          // empty-state design in one module.
+          // Same card surface as every other admin list, and the same kit
+          // `EmptyState` the feed list uses — the hand-rolled dashed box was a
+          // third empty-state design in one module.
           <Card>
             <CardContent>
               <ResponsiveTable

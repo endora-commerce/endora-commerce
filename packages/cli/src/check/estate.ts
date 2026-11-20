@@ -1250,6 +1250,34 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'B',
   },
   {
+    id: 'check:text-budget',
+    script: 'backend/scripts/check-text-budget.ts',
+    scope: 'package',
+    /**
+     * Issue #1451 (UX audit DS-23). **Not `repository-only`**: the rule walks
+     * the module tree (`residueGuard: 'derived-population'`), and one package's
+     * English bundle is exactly the subject it judges — a module author can ask
+     * it about their own copy.
+     *
+     * The host is pending for a reason that is the rule's, not the package's:
+     * it landed as a ratchet whose ledger records **this repository's** copy as
+     * it stood (DEC-01, *"the check after the first text pass"*), and the
+     * analysis has not been relocated into `@endora-commerce/cli/rules`. A
+     * package host judges a package against an empty ledger, which is the right
+     * verdict for new copy and needs only that relocation.
+     */
+    host: pending(
+      'the relocation of the analysis into `@endora-commerce/cli/rules`; a lone package is judged against an empty ledger',
+    ),
+    subjectDeclaration: {
+      kind: 'manifest-block',
+      declaration: '`i18n.bundlesDir` in the module manifest',
+    },
+    // `bundlesDir` is read off the imported manifest, as `check:bundle-pairing` does.
+    readsArtefact: true,
+    tier: 'A',
+  },
+  {
     id: 'check:transaction-context',
     script: 'backend/scripts/check-transaction-context.ts',
     scope: 'package',

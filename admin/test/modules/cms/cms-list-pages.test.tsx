@@ -311,9 +311,11 @@ describe.each([
     mount(element);
     await openRowMenu(name);
     const items = await screen.findAllByRole('menuitem');
+    // Pages also have Archive / Unarchive before Delete (cms-pages-archive-action.test.tsx).
     expect(items.map((item) => item.textContent)).toEqual([
       en['listActions.open'],
       en['listActions.duplicate'],
+      ...(kind === 'pages' ? [en['pagesList.archive']] : []),
       en['listActions.delete'],
     ]);
   });

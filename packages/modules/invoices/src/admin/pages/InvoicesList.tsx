@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FileDown, Mail } from 'lucide-react';
+import { FileDown, FileText, Mail } from 'lucide-react';
 import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoiceEmailMessage } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, EmptyState, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  ListPage,
+  ListToolbar,
+  ListToolbarSearch,
+  ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
+  useCursorPagination,
+  useDebouncedValue,
+  type AppliedFilter,
+  type ListPageLoad,
+  type ResponsiveColumn,
+} from '@endora-commerce/admin-kit/components';
 import { InvoiceSectionTabs } from '../components/InvoiceSectionTabs.js';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -11,7 +24,7 @@ import {
   type AdminInvoiceListResponse,
   type SendInvoiceEmailResult,
 } from '@endora-commerce/contracts';
-import { invoiceListPath } from '../lib/invoice-list-path.js';
+import { INVOICE_LIST_MAX_LIMIT, invoiceListPath, type InvoiceListFilters } from '../lib/invoice-list-path.js';
 
 type AdminInvoice = AdminInvoiceListItem;
 
@@ -25,89 +38,87 @@ const STATUS_VARIANT: Record<AdminInvoice['status'], 'default' | 'secondary' | '
   cancelled: 'destructive',
 };
 
+/**
+ * The invoices list (feature 047; issue #1664, UX audit SALES-24). The kit
+ * `ListPage`, as every other sales list: the toolbar as a plain row, one
+ * results card, and the kit pager — in cursor mode, because the endpoint pages
+ * by cursor and answers no total (#1120).
+ */
 export function InvoicesList(): ReactNode {
   const t = useTranslation('core');
+  const ti = useTranslation('invoices');
+  const filterId = useId();
+  const pager = useCursorPagination({ scope: 'invoices', maxPageSize: INVOICE_LIST_MAX_LIMIT });
+  const { resetPage, syncPage } = pager;
+  /** The search box, where focus goes once *Clear filters* empties the list's filters. */
+  const searchRef = useRef<HTMLInputElement>(null);
+
   const [rows, setRows] = useState<AdminInvoice[]>([]);
   const [loading, setLoading] = useState(true);
-  // Issue #1120 — the cursor the last page answered; `null` once the list is complete.
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-  // Bumped by every first-page load, so a "load more" answering after the
-  // filters changed does not append rows of the old filter.
-  const generation = useRef(0);
+  /** Why the list could not be read — the list's own state, beside which *Retry* is offered. */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  /** An action on a row that failed, or what it did — a notice above the results. */
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [status, setStatus] = useState<'' | (typeof STATUSES)[number]>('');
-  const [kind, setKind] = useState<'' | (typeof KINDS)[number]>('');
+  // Bumped by every request, so a page answering after a newer one was asked
+  // for does not replace its rows.
+  const generation = useRef(0);
+
+  const [status, setStatus] = useState<InvoiceListFilters['status']>('');
+  const [kind, setKind] = useState<InvoiceListFilters['kind']>('');
   const [orderNumber, setOrderNumber] = useState('');
   const [issuedFrom, setIssuedFrom] = useState('');
   const [issuedTo, setIssuedTo] = useState('');
   const [totalMin, setTotalMin] = useState('');
   const [totalMax, setTotalMax] = useState('');
 
-  const hasFilters =
-    status !== '' ||
-    kind !== '' ||
-    orderNumber.trim() !== '' ||
-    issuedFrom !== '' ||
-    issuedTo !== '' ||
-    totalMin !== '' ||
-    totalMax !== '';
+  // The typed filters are debounced so typing does not refetch on every keystroke.
+  const debouncedOrderNumber = useDebouncedValue(orderNumber.trim());
+  const debouncedTotalMin = useDebouncedValue(totalMin.trim());
+  const debouncedTotalMax = useDebouncedValue(totalMax.trim());
 
-  const clearFilters = useCallback((): void => {
-    setStatus('');
-    setKind('');
-    setOrderNumber('');
-    setIssuedFrom('');
-    setIssuedTo('');
-    setTotalMin('');
-    setTotalMax('');
-  }, []);
+  /** Every filter change goes back to the first page, before the request that reads it. */
+  const change =
+    <T,>(set: (next: T) => void) =>
+    (next: T): void => {
+      set(next);
+      resetPage();
+    };
 
-  const filters = { status, kind, orderNumber, issuedFrom, issuedTo, totalMin, totalMax };
-
+  const { cursor, limit } = pager.query;
   const refresh = useCallback(async (): Promise<void> => {
     const current = ++generation.current;
     setLoading(true);
-    setError(null);
+    setLoadError(null);
     try {
       const res = await apiClient.get<AdminInvoiceListResponse>(
-        invoiceListPath({ status, kind, orderNumber, issuedFrom, issuedTo, totalMin, totalMax }),
+        invoiceListPath(
+          {
+            status,
+            kind,
+            orderNumber: debouncedOrderNumber,
+            issuedFrom,
+            issuedTo,
+            totalMin: debouncedTotalMin,
+            totalMax: debouncedTotalMax,
+          },
+          cursor,
+          limit,
+        ),
       );
       if (current !== generation.current) return;
       setRows(res.data);
-      setNextCursor(res.pagination.cursor);
+      syncPage(res.pagination, res.data.length);
     } catch (err) {
       if (current !== generation.current) return;
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
+      setLoadError(err instanceof ApiError ? err.envelope.error.message : ti('list.error.load'));
     } finally {
       if (current === generation.current) setLoading(false);
     }
-  }, [status, kind, orderNumber, issuedFrom, issuedTo, totalMin, totalMax]);
+  }, [status, kind, debouncedOrderNumber, issuedFrom, issuedTo, debouncedTotalMin, debouncedTotalMax, cursor, limit, syncPage, ti]);
 
-  const loadMore = async (): Promise<void> => {
-    if (!nextCursor || loadingMore) return;
-    const current = generation.current;
-    setLoadingMore(true);
-    setError(null);
-    try {
-      const res = await apiClient.get<AdminInvoiceListResponse>(invoiceListPath(filters, nextCursor));
-      if (current !== generation.current) return;
-      setRows((previous) => [...previous, ...res.data]);
-      setNextCursor(res.pagination.cursor);
-    } catch (err) {
-      if (current !== generation.current) return;
-      setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  // Debounced so typing in the order-number / total inputs doesn't refetch
-  // on every keystroke.
   useEffect(() => {
-    const id = setTimeout(() => void refresh(), 300);
-    return (): void => clearTimeout(id);
+    void refresh();
   }, [refresh]);
 
   /**
@@ -136,222 +147,279 @@ export function InvoicesList(): ReactNode {
         if (outcome.ok) setNotice(outcome.message);
         else setError(outcome.message);
       } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to send.');
+        setError(err instanceof ApiError ? err.envelope.error.message : ti('list.error.send'));
       }
     },
-    [t],
+    [t, ti],
   );
 
+  const clearAllFilters = (): void => {
+    setStatus('');
+    setKind('');
+    setOrderNumber('');
+    setIssuedFrom('');
+    setIssuedTo('');
+    setTotalMin('');
+    setTotalMax('');
+    resetPage();
+  };
+
+  // Removable summary chips for every applied filter. The search box is not
+  // one: it is always visible, and *Clear all filters* empties it too.
+  const chip = (key: string, label: string, value: string, clear: () => void): AppliedFilter[] =>
+    value
+      ? [
+          {
+            key,
+            label: `${label}: ${value}`,
+            onRemove: (): void => {
+              clear();
+              resetPage();
+            },
+          },
+        ]
+      : [];
+  const filterChips: AppliedFilter[] = [
+    ...chip('kind', t('invoices.fields.kind'), kind ? t(`invoices.kind.${kind}`) : '', () => setKind('')),
+    ...chip('status', t('invoices.fields.status'), status ? t(`invoices.status.${status}`) : '', () => setStatus('')),
+    ...chip('issuedFrom', t('invoices.fields.issuedFrom'), issuedFrom, () => setIssuedFrom('')),
+    ...chip('issuedTo', t('invoices.fields.issuedTo'), issuedTo, () => setIssuedTo('')),
+    ...chip('totalMin', t('invoices.fields.totalMin'), totalMin.trim(), () => setTotalMin('')),
+    ...chip('totalMax', t('invoices.fields.totalMax'), totalMax.trim(), () => setTotalMax('')),
+  ];
+  const advancedActiveCount = [issuedFrom, issuedTo, totalMin.trim(), totalMax.trim()].filter(Boolean).length;
+  const filtersActive = filterChips.length > 0 || orderNumber.trim() !== '';
+  /** Whether the rows on screen were read through a filter — what the empty state tells apart. */
+  const resultsFiltered =
+    status !== '' ||
+    kind !== '' ||
+    issuedFrom !== '' ||
+    issuedTo !== '' ||
+    debouncedOrderNumber !== '' ||
+    debouncedTotalMin !== '' ||
+    debouncedTotalMax !== '';
+
+  const columns: ResponsiveColumn<AdminInvoice>[] = [
+    {
+      id: 'number',
+      header: t('invoices.columns.number'),
+      primary: true,
+      render: (i) => (
+        <Link to={`/invoices/${i.id}`} className="font-medium underline underline-offset-2">
+          {i.number}
+        </Link>
+      ),
+      meta: (i) => formatDateTime(i.issuedAt),
+    },
+    { id: 'kind', header: t('invoices.columns.kind'), render: (i) => t(`invoices.kind.${i.kind}`) },
+    {
+      id: 'issued',
+      header: t('invoices.columns.issued'),
+      hideOnMobile: true,
+      render: (i) => formatDateTime(i.issuedAt),
+    },
+    {
+      id: 'order',
+      header: t('invoices.columns.order'),
+      render: (i) =>
+        i.orderId === null ? (
+          // An ERP-imported sale document may have no order.
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          <Link to={`/orders/${i.orderId}`} className="font-mono text-xs underline underline-offset-2">
+            {i.orderBusinessId ?? i.orderId.slice(0, 8)}
+          </Link>
+        ),
+    },
+    {
+      id: 'total',
+      header: t('invoices.columns.total'),
+      render: (i) => <span className="tabular-nums">{formatMoney(i.total, i.currency)}</span>,
+    },
+    {
+      id: 'status',
+      header: t('invoices.columns.status'),
+      render: (i) => <Badge variant={STATUS_VARIANT[i.status]}>{t(`invoices.status.${i.status}`)}</Badge>,
+    },
+  ];
+
+  const load: ListPageLoad = loading
+    ? { kind: 'loading' }
+    : loadError !== null
+      ? { kind: 'error', message: loadError }
+      : { kind: 'ready' };
+
   return (
-    <>
-      {/* The templates button is gone: it is a tab now. */}
-      <PageHeader title={t('invoices.title')} description={t('invoices.description')} />
-
-      <InvoiceSectionTabs />
-
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {notice ? (
-        <Alert live="polite" className="mb-4">
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card className="mb-4">
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
-            <div className="space-y-2">
-              <Label htmlFor="iorder">{t('invoices.fields.orderNumber')}</Label>
-              <Input
-                id="iorder"
-                value={orderNumber}
-                onChange={(e): void => setOrderNumber(e.target.value)}
-                placeholder={t('invoices.filters.orderNumberPlaceholder')}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ikind">{t('invoices.fields.kind')}</Label>
+    <ListPage
+      title={t('invoices.title')}
+      description={t('invoices.description')}
+      // The templates button is gone: it is a tab now.
+      tabs={<InvoiceSectionTabs />}
+      load={load}
+      onRetry={(): void => void refresh()}
+      toolbar={
+        <ListToolbar
+          className="min-w-0 flex-1"
+          label={ti('list.toolbar.label')}
+          search={
+            <ListToolbarSearch
+              ref={searchRef}
+              label={t('invoices.fields.orderNumber')}
+              placeholder={t('invoices.filters.orderNumberPlaceholder')}
+              value={orderNumber}
+              onValueChange={change(setOrderNumber)}
+            />
+          }
+          filters={
+            <>
               <Select
-                id="ikind"
+                aria-label={t('invoices.fields.kind')}
+                className="w-auto"
                 value={kind}
-                onChange={(e): void => setKind(e.target.value as typeof kind)}
+                onChange={(e): void => change(setKind)(e.target.value as InvoiceListFilters['kind'])}
               >
-                <option value="">{t('invoices.kind.all')}</option>
+                <option value="">{ti('list.filter.allKinds')}</option>
                 {KINDS.map((k) => (
                   <option key={k} value={k}>
                     {t(`invoices.kind.${k}`)}
                   </option>
                 ))}
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="istatus">{t('invoices.fields.status')}</Label>
               <Select
-                id="istatus"
+                aria-label={t('invoices.fields.status')}
+                className="w-auto"
                 value={status}
-                onChange={(e): void => setStatus(e.target.value as typeof status)}
+                onChange={(e): void => change(setStatus)(e.target.value as InvoiceListFilters['status'])}
               >
-                <option value="">{t('invoices.status.all')}</option>
+                <option value="">{ti('list.filter.allStatuses')}</option>
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {t(`invoices.status.${s}`)}
                   </option>
                 ))}
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ifrom">{t('invoices.fields.issuedFrom')}</Label>
-              <Input
-                id="ifrom"
-                type="date"
-                value={issuedFrom}
-                onChange={(e): void => setIssuedFrom(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ito">{t('invoices.fields.issuedTo')}</Label>
-              <Input
-                id="ito"
-                type="date"
-                value={issuedTo}
-                onChange={(e): void => setIssuedTo(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="itmin">{t('invoices.fields.totalMin')}</Label>
-              <Input
-                id="itmin"
-                type="number"
-                step="0.01"
-                min="0"
-                value={totalMin}
-                onChange={(e): void => setTotalMin(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="itmax">{t('invoices.fields.totalMax')}</Label>
-              <Input
-                id="itmax"
-                type="number"
-                step="0.01"
-                min="0"
-                value={totalMax}
-                onChange={(e): void => setTotalMax(e.target.value)}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button type="button" variant="outline" disabled={!hasFilters} onClick={clearFilters}>
-                {t('invoices.filters.clear')}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('invoices.empty')}</p>
+            </>
+          }
+          moreFiltersActiveCount={advancedActiveCount}
+          moreFilters={
+            <>
+              <div className="space-y-1">
+                <Label htmlFor={`${filterId}-from`}>{t('invoices.fields.issuedFrom')}</Label>
+                <Input
+                  id={`${filterId}-from`}
+                  type="date"
+                  value={issuedFrom}
+                  onChange={(e): void => change(setIssuedFrom)(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`${filterId}-to`}>{t('invoices.fields.issuedTo')}</Label>
+                <Input
+                  id={`${filterId}-to`}
+                  type="date"
+                  value={issuedTo}
+                  onChange={(e): void => change(setIssuedTo)(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`${filterId}-tmin`}>{t('invoices.fields.totalMin')}</Label>
+                <Input
+                  id={`${filterId}-tmin`}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={totalMin}
+                  onChange={(e): void => change(setTotalMin)(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor={`${filterId}-tmax`}>{t('invoices.fields.totalMax')}</Label>
+                <Input
+                  id={`${filterId}-tmax`}
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={totalMax}
+                  onChange={(e): void => change(setTotalMax)(e.target.value)}
+                />
+              </div>
+            </>
+          }
+          appliedFilters={filterChips}
+          filtersActive={filtersActive}
+          onClearFilters={clearAllFilters}
+        />
+      }
+      notice={
+        error || notice ? (
+          <>
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {notice ? (
+              <Alert live="polite">
+                <AlertDescription>{notice}</AlertDescription>
+              </Alert>
+            ) : null}
+          </>
+        ) : null
+      }
+      pagination={pager.footer(rows.length)}
+    >
+      <ResponsiveTable
+        data={rows}
+        keyExtractor={(i) => i.id}
+        columns={columns}
+        // "No invoices yet" and "these filters match nothing" are two situations (#1448,
+        // DS-15). Invoices are issued from orders, so the no-data state offers no create action.
+        emptyState={
+          resultsFiltered ? (
+            <EmptyState
+              variant="no-results"
+              title={t('invoices.empty')}
+              onClearFilters={clearAllFilters}
+              focusAfterClear={searchRef}
+            />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('invoices.columns.number')}</TableHead>
-                  <TableHead>{t('invoices.columns.kind')}</TableHead>
-                  <TableHead>{t('invoices.columns.issued')}</TableHead>
-                  <TableHead>{t('invoices.columns.order')}</TableHead>
-                  <TableHead>{t('invoices.columns.total')}</TableHead>
-                  <TableHead>{t('invoices.columns.status')}</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((i) => (
-                  <TableRow key={i.id}>
-                    <TableCell className="font-medium">
-                      <Link to={`/invoices/${i.id}`} className="underline underline-offset-2">
-                        {i.number}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{t(`invoices.kind.${i.kind}`)}</TableCell>
-                    <TableCell>{formatDateTime(i.issuedAt)}</TableCell>
-                    <TableCell>
-                      {i.orderId === null ? (
-                        // An ERP-imported sale document may have no order.
-                        <span className="text-muted-foreground">—</span>
-                      ) : (
-                        <Link
-                          to={`/orders/${i.orderId}`}
-                          className="font-mono text-xs underline underline-offset-2"
-                        >
-                          {i.orderBusinessId ?? i.orderId.slice(0, 8)}
-                        </Link>
-                      )}
-                    </TableCell>
-                    <TableCell className="tabular-nums">
-                      {formatMoney(i.total, i.currency)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={STATUS_VARIANT[i.status]}>{t(`invoices.status.${i.status}`)}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {i.pdfReady ? (
-                          <Button asChild variant="outline" size="sm">
-                            <a
-                              href={`${baseUrl}/api/v1/admin/invoices/${i.id}/pdf`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <FileDown />
-                              PDF
-                            </a>
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">{t('invoices.pdfNotReady')}</span>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(): void => void resendEmail(i.id)}
-                          title={t('invoices.resendEmail')}
-                        >
-                          <Mail />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-          {!loading && nextCursor ? (
-            <div className="mt-4 flex justify-center">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={loadingMore}
-                aria-busy={loadingMore}
-                onClick={(): void => void loadMore()}
-              >
-                {t('invoices.loadMore')}
-              </Button>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-    </>
+            <EmptyState
+              icon={<FileText size={20} />}
+              title={t('invoices.emptyState.title')}
+              description={t('invoices.emptyState.body')}
+            />
+          )
+        }
+        // The number is the way in; the menu holds the document's own actions.
+        renderActions={(i) => (
+          <RowActionMenu label={ti('list.rowMenu.label', { number: i.number })}>
+            {i.pdfReady ? (
+              <RowActionMenuItem asChild>
+                <a href={`${baseUrl}/api/v1/admin/invoices/${i.id}/pdf`} target="_blank" rel="noreferrer">
+                  <FileDown aria-hidden="true" />
+                  {ti('list.rowMenu.pdf')}
+                </a>
+              </RowActionMenuItem>
+            ) : (
+              <RowActionMenuItem disabled>
+                <FileDown aria-hidden="true" />
+                {ti('list.rowMenu.pdfNotReady')}
+              </RowActionMenuItem>
+            )}
+            <RowActionMenuItem onSelect={(): void => void resendEmail(i.id)}>
+              <Mail aria-hidden="true" />
+              {ti('list.rowMenu.resendEmail')}
+            </RowActionMenuItem>
+          </RowActionMenu>
+        )}
+      />
+    </ListPage>
   );
 }
 
 /**
  * The registry loads a route component through a dynamic-import factory and
- * reads its default export (feature 091, FR-013). The named export stays: it is
+ * reads its default export (feature 091, FR-013). The named export is kept: it is
  * the spelling this module's own code and its tests use.
  */
 export default InvoicesList;
