@@ -1,4 +1,4 @@
-import type { ModuleListItem, ModulePresence } from '@endora-commerce/contracts';
+import { foldDiacritics, type ModuleListItem, type ModulePresence } from '@endora-commerce/contracts';
 import type { AdminRegistryEntry } from '../../lib/module-registry/index.js';
 
 /**
@@ -110,12 +110,7 @@ export function statusFilterCounts(
 
 /** Lower case with the diacritics removed, so "Ksiegowosc" finds "Księgowość" (Postel). */
 function fold(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/ł/g, 'l')
-    .replace(/Ł/g, 'L')
-    .toLowerCase();
+  return foldDiacritics(value).toLowerCase();
 }
 
 /**
