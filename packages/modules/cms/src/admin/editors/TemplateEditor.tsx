@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type { CmsTemplateDetail } from '@endora-commerce/contracts';
@@ -20,6 +20,7 @@ import {
 } from '../components/cms-template-layout.js';
 import { isSameScope, resolveScopedContentLanguage } from '../components/scope-utils.js';
 import { cmsClient } from '../api/cms-client.js';
+import { useDuplicatedLanding } from '../components/duplicate-record.js';
 
 interface FormState {
   name: string;
@@ -54,6 +55,14 @@ export function TemplateEditor(): ReactNode {
   const navigate = useNavigate();
   const settingsPanel = usePageBuilderEditorSettingsPanel(isNew);
   const [template, setTemplate] = useState<CmsTemplateDetail | null>(null);
+  // Issue #1495 (DEC-17) — opened on a fresh copy: the notice, and focus on its name.
+  const nameRef = useRef<HTMLInputElement>(null);
+  const landedOnCopy = useDuplicatedLanding({
+    ready: template !== null,
+    reveal: settingsPanel.reveal,
+    open: settingsPanel.open,
+    nameRef,
+  });
   const [form, setForm] = useState<FormState>(blankForm);
   const [scope, setScope] = useState<ScopePickerValue>({ salesChannelIds: [], languages: [] });
   const [activeLanguage, setActiveLanguage] = useState<string | null>(null);
@@ -226,6 +235,11 @@ export function TemplateEditor(): ReactNode {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           ) : null}
+          {landedOnCopy ? (
+            <Alert live="polite">
+              <AlertDescription>{t('duplicate.created')}</AlertDescription>
+            </Alert>
+          ) : null}
         </>
       }
       settings={
@@ -236,7 +250,7 @@ export function TemplateEditor(): ReactNode {
             </CardHeader>
             <CardContent className="space-y-3">
               <FormField label={t('fields.name')}>
-                <Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                <Input ref={nameRef} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
               </FormField>
               <FormField label={t('fields.code')}>
                 <Input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} />

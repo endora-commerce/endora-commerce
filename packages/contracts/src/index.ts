@@ -95,6 +95,9 @@ export {
   cmsTemplateDetailSchema,
   createCmsTemplateRequestSchema,
   patchCmsTemplateRequestSchema,
+  // Issue #1495 (DEC-17) — the Duplicate row action of pages, blocks and templates.
+  duplicateCmsRecordRequestSchema,
+  type DuplicateCmsRecordRequest,
   cmsHookSummarySchema,
   cmsHookDetailSchema,
   createCmsHookRequestSchema,

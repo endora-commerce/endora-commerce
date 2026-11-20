@@ -160,6 +160,14 @@ describe('cms off-state (Constitution XVII)', () => {
       routes: [
         { url: '/api/v1/admin/cms/pages', cookies: admin },
         { method: 'POST', url: '/api/v1/admin/cms/pages', cookies: admin, payload: {} },
+        // Issue #1495 (DEC-17) — the three duplicate writes go with the module. The id
+        // names no record, so a restored probe answers 404 and copies nothing.
+        ...(['pages', 'blocks', 'templates'] as const).map((kind) => ({
+          method: 'POST' as const,
+          url: `/api/v1/admin/cms/${kind}/${randomUUID()}/duplicate`,
+          cookies: admin,
+          payload: {},
+        })),
         { url: '/api/v1/cms/pages/by-slug?slug=home', headers: channel },
         { url: '/api/v1/cms/pages/by-channel', headers: channel },
         // Feature 151 — the Page Builder translation goes with the module.

@@ -57,6 +57,7 @@ Ekrany **Strony CMS**, **Bloki CMS**, **Szablony CMS** i **Hooki CMS** pokazują
 Administrator z uprawnieniem `cms.write` ma na końcu każdego wiersza menu (⋮):
 
 - **Otwórz** otwiera edytor rekordu.
+- **Duplikuj** (strony, bloki i szablony) od razu tworzy kopię i otwiera ją w edytorze, z kursorem w polu nazwy. Zobacz niżej *Duplikowanie strony, bloku lub szablonu*.
 - **Usuń** najpierw prosi o potwierdzenie. Okno podaje nazwę rekordu i ostrzega, że usunięcia nie można cofnąć. Usunięta strona od razu znika ze sklepu. Bloki usuniętego hooka zostają, ale przestają się pojawiać w tym miejscu.
 
 Gdy usunięcie zostanie odrzucone, okno zostaje otwarte, podaje przyczynę i mówi, co zrobić:
@@ -68,6 +69,40 @@ Gdy usunięcie zostanie odrzucone, okno zostaje otwarte, podaje przyczynę i mó
 | Każdy inny błąd | Usunięcie się nie powiodło. | Sprawdź połączenie i wybierz **Usuń** ponownie albo *Anuluj*. |
 
 Bez `cms.write` listy są tylko do odczytu: bez menu w wierszu i bez przycisku **Nowy**. Pusta lista mówi, do czego służy, a administratorowi, który może utworzyć rekord, pokazuje przycisk **Nowy**.
+
+### Duplikowanie strony, bloku lub szablonu
+
+**Duplikuj** o nic nie pyta: kopia dostaje nazwę i adres automatycznie, a potem można ją przemianować albo usunąć jak każdy inny rekord. Dopóki kopia powstaje, pozycja jest niedostępna, więc drugie kliknięcie nie tworzy drugiej kopii.
+
+Kopia nosi nazwę oryginału z dopiskiem *(kopia)*, w języku panelu. Jej slug albo kod to slug albo kod oryginału z końcówką `-copy`, a gdy ta jest zajęta przez dowolny rekord tego samego rodzaju w dowolnym kanale sprzedaży — `-copy-2`, `-copy-3` i tak dalej. Slugi strony w poszczególnych językach dostają tę samą końcówkę co jej slug, więc `about` i `o-nas` stają się `about-copy` i `o-nas-copy`. Kopia kopii dostaje końcówkę jeszcze raz: `about-copy-copy`.
+
+| | Strona | Blok | Szablon |
+| --- | --- | --- | --- |
+| Treść we wszystkich językach | kopiowana | kopiowana | kopiowana |
+| Języki, opis, kanały sprzedaży | kopiowane | kopiowane | kopiowane |
+| Metadane wyszukiwania (meta tytuł, opis, słowa kluczowe) i nazwy w językach | kopiowane | — | — |
+| Strona nadrzędna (kopia trafia obok oryginału), ustawienia okruszków, obraz do udostępniania | kopiowane | — | — |
+| Aktywność | kopiowana | kopiowana | — |
+| Status | zawsze **Szkic** | — | — |
+| Wersja i historia | od wersji 1, z jednym wpisem audytu `cms_page.duplicate` | od wersji 1, `cms_block.duplicate` | od wersji 1, `cms_template.duplicate` |
+
+Nigdy nie jest kopiowane:
+
+- stan publikacji: kopia opublikowanej strony jest szkicem, więc nie pojawi się w sklepie, dopóki jej nie opublikujesz;
+- miejsca bloku w hookach: inaczej kopia od razu pojawiłaby się obok oryginału;
+- strony podrzędne oraz strony, bloki i menu, które linkują do oryginału albo go osadzają: nadal wskazują oryginał;
+- ustawienia wyszukiwania, które moduł SEO przechowuje dla strony.
+
+Bloki, szablony i obrazy użyte w treści są wspólne z oryginałem, nie są kopiowane.
+
+Gdy kopii nie da się utworzyć, lista zostaje i podaje powód:
+
+| Odmowa | Dlaczego | Co zrobić |
+| --- | --- | --- |
+| `409 CMS_SLUG_RESERVED` | Adres kopii zaczynałby się od segmentu, który sklep już obsługuje. | Zmień slug oryginału i zduplikuj go ponownie. |
+| `409 CMS_SLUG_CONFLICT` | Pod adresem kopii jest już inna strona. | Zmień slug oryginału i zduplikuj go ponownie. |
+| `409 CMS_CODE_CONFLICT` | Zajęte są wszystkie końcówki aż do `-copy-1000`. | Usuń istniejące kopie lub zmień ich nazwy. |
+| `400 CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE` | Języki oryginału nie pasują już do jego kanałów sprzedaży. | Popraw języki albo kanały oryginału. |
 
 ## Tworzenie treści w Page Builderze
 
@@ -1464,9 +1499,10 @@ albo nieudane pobranie nic nie wyświetla — hooki nie mogą zepsuć wyświetla
 | PATCH   | `/pages/:id`                                        | Edycja metadanych, w tym `parentPageId`, `parentPathInUrl`, `breadcrumbsVisible`, `breadcrumbsScheme`, `breadcrumbsOverlay`, `shareImageAssetId` i `translations` (nazwa, slug i opis w każdym języku, zastępowane w całości); uwzględnia `If-Match` przez `version`. Rodzic tworzący cykl albo zbyt głęboki daje `422 CMS_PAGE_PARENT_CYCLE`; adres, który ma już inna strona, daje `409 CMS_SLUG_CONFLICT`. |
 | PUT     | `/pages/:id/content/:language`                      | Zapis drzewa Page Buildera dla danego języka. Powtórzona albo zastrzeżona kotwica daje `422 CMS_DUPLICATE_ANCHOR` / `CMS_RESERVED_ANCHOR`. |
 | POST    | `/pages/:id/{publish,archive,unarchive}`            | Przejścia w cyklu życia.                          |
+| POST    | `/pages/:id/duplicate`                              | Kopiuje Stronę jako `draft` w wersji 1 pod slugiem `<slug>-copy` (`-copy-2`, …); każdy slug językowy dostaje tę samą końcówkę. Treść `{ name? }` (`duplicateCmsRecordRequestSchema`); domyślna nazwa to `"<name> (copy)"`. Odpowiada `201` ze szczegółami Strony. Wymaga `cms.write`; audytowane jako `cms_page.duplicate` na kopii. |
 | DELETE  | `/pages/:id`                                        | Trwałe usunięcie (przypisania do kanałów są usuwane kaskadowo).        |
-| Analogicznie    | `/blocks/*`                                         | Ta sama postać; `code` unikalny w obrębie kanału; ochrona odwołań przy usuwaniu. |
-| Analogicznie    | `/templates/*`                                      | Ta sama postać, bez flagi `active`.             |
+| Analogicznie    | `/blocks/*`                                         | Ta sama postać; `code` unikalny w obrębie kanału; ochrona odwołań przy usuwaniu. `POST /blocks/:id/duplicate` kopiuje pod `<code>-copy`, bez przypięć do hooków (`cms_block.duplicate`). |
+| Analogicznie    | `/templates/*`                                      | Ta sama postać, bez flagi `active`; `POST /templates/:id/duplicate` kopiuje pod `<code>-copy` (`cms_template.duplicate`). |
 | GET     | `/hooks`, `/hooks/:id`                              | Lista i szczegóły z liczbą przypiętych bloków.        |
 | POST    | `/hooks`                                            | Utworzenie hooka przez administratora (niesystemowego).            |
 | PATCH   | `/hooks/:id`                                        | Edycja nazwy, aktywności i zakresu; `code` nie można zmienić.|

@@ -5,6 +5,7 @@ import {
   type CmsTemplateDetail,
   type CmsTemplateSummary,
   type CreateCmsTemplateRequest,
+  type DuplicateCmsRecordRequest,
   type PatchCmsTemplateRequest,
   isUuidShape,
 } from '@endora-commerce/contracts';
@@ -15,6 +16,7 @@ import { assertAssetsLinkable, type CmsAssetVisibility } from './linkable-assets
 import { assertAnchors } from './anchor-guard.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';
 import type { CmsContentInvalidator } from './cms-content-invalidator.js';
+import { copyCandidate, copyName, copyPrefix, likeLiteral, pickCopyNumber } from './copy-naming.js';
 
 type TemplateRow = {
   id: string;
@@ -154,6 +156,92 @@ export class CmsTemplateService {
     });
     await this.invalidateAll();
     return this.get(id);
+  }
+
+  /**
+   * Issue #1495 (UX audit CONTENT-13, DEC-17) — a copy of a template, as one
+   * `cms_template.duplicate` Command audited against the **copy**: every
+   * language's tree byte for byte, the languages, the description and
+   * the channel set, under a new code and at version 1.
+   *
+   * The code is the source's with the lowest free `-copy`, `-copy-2`, … suffix,
+   * free meaning held by no template in any channel, so the answer does not depend
+   * on the scope. The taken set is read under a transaction lock, so two
+   * duplicates of one template get `-copy` and `-copy-2` rather than a conflict;
+   * `assertCodeAvailable` still runs after the write and is the authority. The
+   * content checks of a content save do not run: the tree is a stored row's
+   * that already passed them.
+   */
+  async duplicate(sourceId: string, input: DuplicateCmsRecordRequest): Promise<CmsTemplateDetail> {
+    if (!isUuidShape(sourceId)) {
+      throw new HttpError(404, ERROR_CODES.CMS_TEMPLATE_NOT_FOUND, 'CMS Template not found.');
+    }
+    const id = randomUUID();
+    await this.commandBus.run<void>({
+      action: 'cms_template.duplicate',
+      objectType: TEMPLATE_OBJECT_TYPE,
+      objectId: id,
+      run: async ({ em: tx }) => {
+        await tx.execute("select pg_advisory_xact_lock(hashtext('cms_templates.code'))");
+        const source = await this.findRow(sourceId, tx);
+        if (!source) throw new HttpError(404, ERROR_CODES.CMS_TEMPLATE_NOT_FOUND, 'CMS Template not found.');
+        const n = pickCopyNumber([source.code], await this.takenCodes(tx, source.code));
+        if (n === null) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.CMS_CODE_CONFLICT,
+            `Could not allocate a free CMS Template code derived from "${source.code}".`,
+          );
+        }
+        const channelIds = await this.channelIdsFor(sourceId, tx);
+        const now = new Date();
+        const copy: TemplateRow = {
+          ...source,
+          id,
+          name: copyName(source.name, input.name),
+          code: copyCandidate(source.code, n),
+          version: 1,
+          created_at: now,
+          updated_at: now,
+        };
+        await tx.execute(
+          `insert into cms_templates
+            (id, name, code, description, content, languages, version, created_at, updated_at)
+           values (?, ?, ?, ?, ?::jsonb, ?::jsonb, 1, ?, ?)`,
+          [
+            id,
+            copy.name,
+            copy.code,
+            copy.description,
+            JSON.stringify({ languages: source.content.languages ?? {} }),
+            JSON.stringify(copy.languages),
+            now,
+            now,
+          ],
+        );
+        await this.replaceChannelScope(tx, id, channelIds, copy.code);
+        await this.assertCodeAvailable(tx, copy.code, channelIds, id);
+        return {
+          result: undefined,
+          before: null,
+          after: { ...(await this.auditState(tx, copy)), sourceTemplateId: sourceId },
+        };
+      },
+    });
+    await this.invalidateAll();
+    return this.get(id);
+  }
+
+  /** Every code a template holds, its own or a channel's, that a copy of `base` could collide with — one query. */
+  private async takenCodes(em: EntityManager, base: string): Promise<Set<string>> {
+    const pattern = `${likeLiteral(copyPrefix(base))}%`;
+    const rows = (await em.execute(
+      `select code as value from cms_templates where code like ?
+       union
+       select code as value from cms_template_sales_channels where code like ?`,
+      [pattern, pattern],
+    )) as Array<{ value: string }>;
+    return new Set(rows.map((row) => row.value));
   }
 
   async get(id: string): Promise<CmsTemplateDetail> {
