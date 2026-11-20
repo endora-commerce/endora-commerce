@@ -568,6 +568,18 @@ describe.each(['en', 'pl'] as const)('OrderCreatePage — fields named by their 
     ).toBeInTheDocument();
   });
 
+  it('says which address source is chosen, not only by colour (aria-pressed, issue #1445)', async () => {
+    renderTranslated();
+    const delivery = await screen.findByRole('group', { name: copy('orderCreate.address.deliveryHeading') });
+    const existing = within(delivery).getByRole('button', { name: copy('orderCreate.address.mode.existing') });
+    const fresh = within(delivery).getByRole('button', { name: copy('orderCreate.address.mode.new') });
+    expect(existing).toHaveAttribute('aria-pressed', 'true');
+    expect(fresh).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(fresh);
+    expect(existing).toHaveAttribute('aria-pressed', 'false');
+    expect(fresh).toHaveAttribute('aria-pressed', 'true');
+  });
+
   it('lays a new address\'s fields out in the parties card, not in a frame of their own (#1498, SALES-13)', async () => {
     renderTranslated();
     const delivery = await screen.findByRole('group', { name: copy('orderCreate.address.deliveryHeading') });

@@ -1350,6 +1350,7 @@
   "orderStatusConfig.flag.terminal": "Końcowy",
   "orderStatusConfig.graph.connectMode": "Połącz",
   "orderStatusConfig.graph.empty": "Brak statusów. Dodaj status, aby rysować przejścia.",
+  "orderStatusConfig.graph.layout": "Układ",
   "orderStatusConfig.graph.layoutCircular": "Kołowy",
   "orderStatusConfig.graph.layoutForce": "Siłowy",
   "orderStatusConfig.graph.layoutNone": "Brak",

@@ -539,6 +539,7 @@ function AddressPicker(props: {
             type="button"
             size="sm"
             variant={choice.mode === 'existing' ? 'default' : 'outline'}
+            aria-pressed={choice.mode === 'existing'}
             disabled={props.disabled}
             onClick={(): void => onChange({ mode: 'existing', id: '' })}
           >
@@ -548,6 +549,7 @@ function AddressPicker(props: {
             type="button"
             size="sm"
             variant={choice.mode === 'new' ? 'default' : 'outline'}
+            aria-pressed={choice.mode === 'new'}
             onClick={(): void => onChange({ mode: 'new', fields: { ...EMPTY_INLINE }, save: true })}
           >
             {t('orderCreate.address.mode.new')}

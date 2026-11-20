@@ -1350,6 +1350,7 @@
   "orderStatusConfig.flag.terminal": "Terminal",
   "orderStatusConfig.graph.connectMode": "Connect",
   "orderStatusConfig.graph.empty": "No statuses yet. Add a status to start drawing transitions.",
+  "orderStatusConfig.graph.layout": "Layout",
   "orderStatusConfig.graph.layoutCircular": "Circular",
   "orderStatusConfig.graph.layoutForce": "Force",
   "orderStatusConfig.graph.layoutNone": "None",

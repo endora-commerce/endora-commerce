@@ -207,6 +207,29 @@ describe('Tabs and TabPanel — the WAI-ARIA tabs pattern', () => {
     expect(screen.getByRole('tab', { name: 'Wiadomości, nieprzeczytane: 5' })).toBeInTheDocument();
   });
 
+  it('marks a tab holding unsaved changes with a dot, and says so in words (issue #1445)', () => {
+    renderWithI18n(
+      <Strip
+        items={[
+          { value: 'details', label: 'Details', unsaved: 'unsaved changes' },
+          { value: 'notes', label: 'Notes', count: 3, unsaved: 'unsaved changes' },
+          { value: 'links', label: 'Links' },
+        ]}
+      />,
+      EN,
+    );
+    // The dot is decoration; the words carry the meaning, never the colour alone (SC 1.4.1).
+    const details = screen.getByRole('tab', { name: 'Details (unsaved changes)' });
+    const dot = details.querySelector('[data-testid="tab-unsaved-dot"]');
+    expect(dot).not.toBeNull();
+    expect(dot).toHaveAttribute('aria-hidden', 'true');
+    // A counted tab keeps its count in the name and adds the same words.
+    const notes = screen.getByRole('tab', { name: 'Notes, items: 3 (unsaved changes)' });
+    expect(notes.querySelector('[data-testid="tab-unsaved-dot"]')).not.toBeNull();
+    const links = screen.getByRole('tab', { name: 'Links' });
+    expect(links.querySelector('[data-testid="tab-unsaved-dot"]')).toBeNull();
+  });
+
   it('renders an icon as decoration, outside the accessible name', () => {
     renderWithI18n(
       <Tabs

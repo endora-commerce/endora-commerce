@@ -10,7 +10,22 @@ import type {
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { FulfilmentStrategyPicker, ImmediateBadge } from '@endora-commerce/admin-kit/components';
 import type { FulfilmentStrategyValue } from '@endora-commerce/admin-kit/components';
-import { Alert, Button, EditorSection, InlineStatus, SettingRow, Switch, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  Button,
+  EditorSection,
+  InlineStatus,
+  Input,
+  SettingRow,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useProductEditor } from './editor/editor-context.js';
 
@@ -248,7 +263,13 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
     }
   };
 
-  if (loading) return <div className="b2b-help">{t('inventoryTab.loading')}</div>;
+  if (loading) {
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        {t('inventoryTab.loading')}
+      </p>
+    );
+  }
 
   return (
     // Issue #1488 (CAT-06): sections of the editor's card, not cards inside it. A fragment, so
@@ -279,50 +300,43 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
       </EditorSection>
 
       <EditorSection title={t('inventoryTab.lowStock.title')}>
-        <div className="b2b-row" style={{ gap: 16, alignItems: 'flex-start', marginBottom: 12 }}>
-          <label className="b2b-row" style={{ gap: 6, alignItems: 'center' }}>
-            <input
-              type="radio"
-              name={`low-stock-mode-${productId}`}
-              checked={mode === 'cumulative'}
-              onChange={(): void => stage('lowStockThresholdMode', 'cumulative')}
-            />
-            {t('inventoryTab.lowStock.modeCumulative')}
-          </label>
-          <label className="b2b-row" style={{ gap: 6, alignItems: 'center' }}>
-            <input
-              type="radio"
-              name={`low-stock-mode-${productId}`}
-              checked={mode === 'per_warehouse'}
-              onChange={(): void => stage('lowStockThresholdMode', 'per_warehouse')}
-            />
-            {t('inventoryTab.lowStock.modePerWarehouse')}
-          </label>
+        {/* Issue #1492 (CAT-17): one radio group, named by its section, so the choice says what
+            it is about; each label is the whole target (Fitts). */}
+        <div role="radiogroup" aria-label={t('inventoryTab.lowStock.title')} className="mb-3 flex flex-wrap gap-4">
+          {(['cumulative', 'per_warehouse'] as const).map((value) => (
+            <label key={value} className="flex min-h-9 cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="radio"
+                className="size-4 accent-primary"
+                name={`low-stock-mode-${productId}`}
+                checked={mode === value}
+                onChange={(): void => stage('lowStockThresholdMode', value)}
+              />
+              {value === 'cumulative'
+                ? t('inventoryTab.lowStock.modeCumulative')
+                : t('inventoryTab.lowStock.modePerWarehouse')}
+            </label>
+          ))}
         </div>
 
         {mode === 'cumulative' ? (
-          <>
-            <div className="b2b-row" style={{ gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ minWidth: 220 }}>
-                <input
-                  className="b2b-field"
-                  type="number"
-                  min="0"
-                  aria-label={t('inventoryTab.lowStock.title')}
-                  value={lowStockThreshold}
-                  placeholder={t('inventoryTab.lowStock.placeholder')}
-                  onChange={(e): void => setLowStockThreshold(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="b2b-help" style={{ marginTop: 6 }}>
+          <div className="space-y-1">
+            <Input
+              className="max-w-56"
+              type="number"
+              min="0"
+              aria-label={t('inventoryTab.lowStock.title')}
+              aria-describedby={`low-stock-help-${productId}`}
+              value={lowStockThreshold}
+              placeholder={t('inventoryTab.lowStock.placeholder')}
+              onChange={(e): void => setLowStockThreshold(e.target.value)}
+            />
+            <p id={`low-stock-help-${productId}`} className="text-xs text-muted-foreground">
               {t('inventoryTab.lowStock.help')}
-            </div>
-          </>
-        ) : (
-          <div className="b2b-help">
-            {t('inventoryTab.lowStock.perWarehouseHelp')}
+            </p>
           </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">{t('inventoryTab.lowStock.perWarehouseHelp')}</p>
         )}
       </EditorSection>
 
@@ -356,23 +370,23 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
         // Mounted before it has text, so the result of a row's Apply is announced (WCAG 4.1.3).
         action={<InlineStatus {...status.props} />}
       >
-        <table className="b2b-tbl">
-          <thead>
-            <tr>
-              <th>{t('inventoryTab.column.warehouse')}</th>
-              <th>{t('inventoryTab.column.code')}</th>
-              <th className="num">{t('inventoryTab.column.onHand')}</th>
-              <th className="num">{t('inventoryTab.column.newValue')}</th>
-              <th />
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('inventoryTab.column.warehouse')}</TableHead>
+              <TableHead>{t('inventoryTab.column.code')}</TableHead>
+              <TableHead className="text-right">{t('inventoryTab.column.onHand')}</TableHead>
+              <TableHead className="text-right">{t('inventoryTab.column.newValue')}</TableHead>
+              <TableHead className="w-[1%]" />
               {mode === 'per_warehouse' ? (
                 <>
-                  <th className="num">{t('inventoryTab.column.threshold')}</th>
-                  <th />
+                  <TableHead className="text-right">{t('inventoryTab.column.threshold')}</TableHead>
+                  <TableHead className="w-[1%]" />
                 </>
               ) : null}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {warehouses.map((w) => {
               const current = perWarehouse.get(w.id) ?? 0;
               const resolvedThreshold = perWarehouseThreshold.get(w.id) ?? null;
@@ -381,18 +395,15 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
               const stockChanged = onHandFromDraft(onHandDraft) !== current;
               const thresholdChanged = thresholdFromDraft(draftValue) !== resolvedThreshold;
               return (
-                <tr key={w.id}>
-                  <td>{w.name}</td>
-                  <td>
-                    <span className="b2b-mono" style={{ fontSize: 12 }}>{w.code}</span>
-                  </td>
-                  <td className="num b2b-tabular">{current.toLocaleString()}</td>
-                  <td>
-                    <input
-                      className="b2b-field"
+                <TableRow key={w.id}>
+                  <TableCell>{w.name}</TableCell>
+                  <TableCell className="font-mono text-xs">{w.code}</TableCell>
+                  <TableCell className="text-right tabular-nums">{current.toLocaleString()}</TableCell>
+                  <TableCell className="text-right">
+                    <Input
+                      className="ml-auto w-24 text-right"
                       type="number"
                       min="0"
-                      style={{ width: 100, textAlign: 'right' }}
                       aria-label={t('inventoryTab.column.newValueFor', { warehouse: w.name })}
                       value={onHandDraft}
                       onChange={(e): void =>
@@ -403,8 +414,8 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
                         })
                       }
                     />
-                  </td>
-                  <td className="actions">
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <RowApplyButton
                       label={t('inventoryTab.action.applyStockFor', { warehouse: w.name })}
                       text={t('inventoryTab.action.apply')}
@@ -412,15 +423,14 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
                       disabled={!stockChanged}
                       onApply={(): void => { void handleSave(w); }}
                     />
-                  </td>
+                  </TableCell>
                   {mode === 'per_warehouse' ? (
                     <>
-                      <td>
-                        <input
-                          className="b2b-field"
+                      <TableCell className="text-right">
+                        <Input
+                          className="ml-auto w-28 text-right"
                           type="number"
                           min="0"
-                          style={{ width: 110, textAlign: 'right' }}
                           aria-label={t('inventoryTab.column.thresholdFor', { warehouse: w.name })}
                           value={draftValue}
                           placeholder={
@@ -436,8 +446,8 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
                             })
                           }
                         />
-                      </td>
-                      <td className="actions">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <RowApplyButton
                           label={t('inventoryTab.action.applyThresholdFor', { warehouse: w.name })}
                           text={t('inventoryTab.action.apply')}
@@ -445,14 +455,14 @@ export function ProductInventoryTab({ productId, editable = true }: { productId:
                           disabled={!thresholdChanged}
                           onApply={(): void => { void handleSaveWarehouseThreshold(w); }}
                         />
-                      </td>
+                      </TableCell>
                     </>
                   ) : null}
-                </tr>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </EditorSection>
     </>
   );

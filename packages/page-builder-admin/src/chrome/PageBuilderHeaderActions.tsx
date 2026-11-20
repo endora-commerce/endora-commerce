@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import type { Data } from '@puckeditor/core';
 import { Copy, Eraser, FileInput, Loader2, Maximize2, Minimize2, Save } from 'lucide-react';
 import { slugify } from '@endora-commerce/contracts';
@@ -10,6 +10,7 @@ import {
   RowActionMenu,
   RowActionMenuItem,
   RowActionMenuSeparator,
+  useConfirmDialog,
 } from '@endora-commerce/admin-kit/components';
 import { isEmptyPageBuilderData } from './page-builder-data.js';
 
@@ -87,7 +88,7 @@ function MenuEntry({
   );
 }
 
-type CanvasDialog = 'save' | 'apply' | 'copy' | 'clear';
+type CanvasDialog = 'save' | 'apply' | 'copy';
 
 export interface PageBuilderHeaderActionsProps {
   fullscreen: boolean;
@@ -153,7 +154,6 @@ export function PageBuilderHeaderActions({
   t,
 }: PageBuilderHeaderActionsProps): ReactElement {
   const ids = useId();
-  const clearCancelRef = useRef<HTMLButtonElement>(null);
   const [dialog, setDialog] = useState<CanvasDialog | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [templateCode, setTemplateCode] = useState('');
@@ -165,6 +165,8 @@ export function PageBuilderHeaderActions({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const status = useInlineStatus();
+  // Clear canvas is a yes/no question: the kit's confirmation, on the builder's `overlay` layer.
+  const { confirm, confirmDialog } = useConfirmDialog({ layer: 'overlay' });
 
   const canvasEmpty = isEmptyPageBuilderData(currentData);
   const otherLanguages = useMemo(
@@ -212,6 +214,19 @@ export function PageBuilderHeaderActions({
     setDialog(next);
   };
   const closeDialog = (): void => setDialog(null);
+
+  const askClearCanvas = async (): Promise<void> => {
+    status.clear();
+    // Destructive: focus starts on Cancel, so Enter on a dialog opened by accident keeps the canvas.
+    const ok = await confirm({
+      title: t('pageBuilder.clearCanvas.title'),
+      message: <span className="text-muted-foreground">{t('pageBuilder.clearCanvas.description')}</span>,
+      confirmLabel: t('pageBuilder.clearCanvas.confirm'),
+      cancelLabel: t('pageBuilder.clearCanvas.cancel'),
+      destructive: true,
+    });
+    if (ok) onClearCanvas?.();
+  };
 
   const runSave = async (): Promise<void> => {
     if (!onSaveAsTemplate || !currentData) return;
@@ -327,7 +342,7 @@ export function PageBuilderHeaderActions({
             ) : null}
             {onClearCanvas && (hasTemplateEntries || onCopyFromLanguage) ? <RowActionMenuSeparator /> : null}
             {onClearCanvas ? (
-              <RowActionMenuItem destructive disabled={canvasEmpty} onSelect={(): void => openDialog('clear')}>
+              <RowActionMenuItem destructive disabled={canvasEmpty} onSelect={(): void => void askClearCanvas()}>
                 <MenuEntry
                   icon={<Eraser aria-hidden="true" />}
                   label={t('pageBuilder.clearCanvas.button')}
@@ -519,38 +534,7 @@ export function PageBuilderHeaderActions({
         </ModalDialog>
       ) : null}
 
-      {dialog === 'clear' ? (
-        <ModalDialog
-          layer="overlay"
-          title={t('pageBuilder.clearCanvas.title')}
-          onClose={closeDialog}
-          // Destructive: focus starts on Cancel, so Enter on a dialog opened by accident keeps the canvas.
-          initialFocusRef={clearCancelRef}
-          widthClassName="max-w-md"
-          aria-describedby={descriptionId}
-          footer={
-            <>
-              <Button ref={clearCancelRef} type="button" variant="outline" onClick={closeDialog}>
-                {t('pageBuilder.clearCanvas.cancel')}
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={(): void => {
-                  onClearCanvas?.();
-                  setDialog(null);
-                }}
-              >
-                {t('pageBuilder.clearCanvas.confirm')}
-              </Button>
-            </>
-          }
-        >
-          <p id={descriptionId} className="text-sm text-muted-foreground">
-            {t('pageBuilder.clearCanvas.description')}
-          </p>
-        </ModalDialog>
-      ) : null}
+      {confirmDialog}
     </>
   );
 }

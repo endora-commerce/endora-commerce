@@ -74,6 +74,8 @@ function answerList(response: unknown): void {
 }
 
 const BUNDLE = passthroughBundle('catalog', [
+  'productsList.selection.selectPage',
+  'productsList.selection.selectRow',
   'productsList.title',
   'productsList.description',
   'productsList.action.create',
@@ -232,8 +234,11 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     const editBtn = screen.getByText('productsList.bulk.edit').closest('button')!;
     const deleteBtn = screen.getByText('productsList.bulk.delete').closest('button')!;
     expect(screen.queryByText('productsList.bulk.editPrice')).toBeNull();
-    expect(restoreBtn.className).toContain('b2b-btn--primary');
-    expect(editBtn.className).not.toContain('b2b-btn--primary');
+    // Issue #1492 (CAT-17): the bar's buttons are the kit's; Restore is its one filled primary.
+    expect(restoreBtn).toHaveClass('bg-primary');
+    expect(editBtn).not.toHaveClass('bg-primary');
+    expect(deleteBtn).not.toHaveClass('bg-primary');
+    expect(restoreBtn.closest('.b2b-bulkbar')).toBeNull();
     expect(restoreBtn.compareDocumentPosition(editBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(editBtn.compareDocumentPosition(deleteBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -265,5 +270,26 @@ describe('ProductsList — streamlined selection toolbar (T041)', () => {
     await waitFor(() => {
       expect(deleteSpy).toHaveBeenCalledWith(`/api/v1/admin/catalog/products/${id}`);
     });
+  });
+
+  // Issue #1492 (CAT-17): the selection checkboxes were bare `b2b-cbx` inputs with no name.
+  it('names the page and row selection checkboxes', async () => {
+    answerList({
+      data: [productRow('00000000-0000-4000-8000-000000000a10', 'ROW-N', 'Named widget')],
+      pagination: { page: 0, pageSize: 25, total: 1 },
+      counts: { all: 1, active: 1, inactive: 0, archived: 0 },
+    });
+    renderWithI18n(
+      withSession(
+        <MemoryRouter initialEntries={['/catalog/products']}>
+          <ProductsList />
+        </MemoryRouter>,
+        { presence: PRESENCE, session: adminSession({ permissions: ['*'] }) },
+      ),
+      BUNDLE,
+    );
+    await screen.findByText('Named widget');
+    expect(screen.getByRole('checkbox', { name: 'productsList.selection.selectPage' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'productsList.selection.selectRow' })).toBeInTheDocument();
   });
 });

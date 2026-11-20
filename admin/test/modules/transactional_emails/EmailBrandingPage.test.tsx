@@ -131,6 +131,21 @@ describe('EmailBrandingPage', () => {
     expect((saveButton() as HTMLButtonElement).disabled).toBe(true);
   });
 
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): "Saved" is said beside Save, in
+  // one always-mounted region, and not again in a success banner under the header.
+  it('says "Saved" beside the Save button, with no success banner', async () => {
+    await renderPage();
+    await screen.findByRole('group', { name: en['branding.accent'] });
+    const region = screen.getByRole('status');
+    expect(region.textContent).toBe('');
+    expect(region.parentElement?.contains(saveButton())).toBe(true);
+    await pickAccent('#ea580c');
+    await userEvent.click(saveButton());
+    await waitFor(() => expect(region).toHaveTextContent(en['branding.saved']));
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
+
   it('asks before switching scope with unsaved edits; Stay keeps them, Discard switches', async () => {
     await renderPage();
     await pickAccent('#ea580c');

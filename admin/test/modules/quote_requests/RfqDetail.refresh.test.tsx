@@ -131,6 +131,8 @@ describe('RfqDetail — first load and refresh (SALES-06)', () => {
     await waitFor(() => expect(reads).toHaveLength(1));
     reads[0]!({ data: rfqPayload('Pending') });
     const tablist = await screen.findByRole('tablist');
+    // The selected section is what re-reads; the strip stays usable (#1445: the kit's `RecordTabs`).
+    const panel = screen.getByRole('tabpanel');
     postSpy.mockResolvedValue({});
 
     await userEvent.click(await screen.findByRole('button', { name: approveName() }));
@@ -139,11 +141,11 @@ describe('RfqDetail — first load and refresh (SALES-06)', () => {
 
     await waitFor(() => expect(reads).toHaveLength(2));
     expect(tablist).toBeInTheDocument();
-    expect(tablist.closest('[aria-busy="true"]')).not.toBeNull();
+    expect(panel).toHaveAttribute('aria-busy', 'true');
     expect(document.querySelector('[data-slot="detail-skeleton"]')).toBeNull();
 
     reads[1]!({ data: rfqPayload('Approved') });
-    await waitFor(() => expect(tablist.closest('[aria-busy="true"]')).toBeNull());
+    await waitFor(() => expect(panel).not.toHaveAttribute('aria-busy'));
     expect(tablist).toBeInTheDocument();
   });
 

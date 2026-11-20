@@ -5,6 +5,7 @@ import { screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { MegamenuSummary } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * Issue #1567 (UX audit follow-up) — the list's "active in N scopes" badge read
@@ -45,9 +46,12 @@ function menu(id: number, activeIn: number): MegamenuSummary {
 async function renderList(language: 'en' | 'pl', counts: number[]): Promise<void> {
   listMenus.mockResolvedValue({ data: counts.map((count, i) => menu(i + 1, count)) });
   renderWithI18n(
-    <MemoryRouter>
-      <MegamenuListPage />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter>
+        <MegamenuListPage />
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: ['megamenu'] }) },
+    ),
     bundle(language),
     { language },
   );

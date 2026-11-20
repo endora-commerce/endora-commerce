@@ -17,7 +17,7 @@ import type {
   UpdateDictionaryLanguageRequest,
 } from '@endora-commerce/contracts';
 import { normalize, type PageSizeOption } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, InlineStatus, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { dictionaryClient } from '../api/client.js';
 import { EntryStatusBadges } from '../components/EntryStatusBadges.js';
@@ -74,7 +74,9 @@ export function LanguagesTab(): ReactNode {
   const [saving, setSaving] = useState(false);
   const [assocSaving, setAssocSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // An action's result is said beside the list's toolbar, in an always-mounted
+  // polite region, not as a success banner (issue #1499, DEC-12 a).
+  const actionStatus = useInlineStatus();
   const searchId = useId();
   // Read through a ref so `load` keeps one identity while the bundle arrives.
   const tRef = useRef(t);
@@ -159,6 +161,7 @@ export function LanguagesTab(): ReactNode {
   const lastCode = rows[rows.length - 1]?.code;
 
   const openCreate = (): void => {
+    actionStatus.clear();
     setCreating(true);
     setSelected(null);
     setForm({ ...emptyLanguage, sortOrder: nextSortOrder(rows) });
@@ -193,7 +196,7 @@ export function LanguagesTab(): ReactNode {
           ...(form.fallbackCode ? { fallbackCode: form.fallbackCode } : {}),
         };
         await dictionaryClient.createLanguage(input);
-        setInfo(t('language.created', { code: input.code }));
+        actionStatus.show(t('language.created', { code: input.code }));
       } else if (selected) {
         const input: UpdateDictionaryLanguageRequest = {
           label: form.label.trim(),
@@ -204,7 +207,7 @@ export function LanguagesTab(): ReactNode {
           sortOrder: form.sortOrder,
         };
         await dictionaryClient.updateLanguage(selected.code, input);
-        setInfo(t('language.saved', { code: selected.code }));
+        actionStatus.show(t('language.saved', { code: selected.code }));
       }
       const fresh = await load();
       const code = creating ? form.code.trim() : selected?.code;
@@ -213,6 +216,7 @@ export function LanguagesTab(): ReactNode {
       setSelected(nextSelected);
       if (nextSelected) openEdit(nextSelected);
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.save')));
     } finally {
       setSaving(false);
@@ -222,9 +226,10 @@ export function LanguagesTab(): ReactNode {
   const setDefault = async (code: string): Promise<void> => {
     try {
       await dictionaryClient.setDefaultLanguage(code);
-      setInfo(t('language.madeDefault', { code }));
+      actionStatus.show(t('language.madeDefault', { code }));
       await load();
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.setDefault')));
     }
   };
@@ -238,10 +243,11 @@ export function LanguagesTab(): ReactNode {
     if (!ok) return;
     try {
       await dictionaryClient.deleteLanguage(code);
-      setInfo(t('language.deleted', { code }));
+      actionStatus.show(t('language.deleted', { code }));
       const fresh = await load();
       setSelected(fresh.find((row) => row.code === selected?.code) ?? null);
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.delete')));
     }
   };
@@ -256,6 +262,7 @@ export function LanguagesTab(): ReactNode {
       await dictionaryClient.updateLanguage(other.code, { sortOrder: row.sortOrder });
       await load();
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.reorder')));
     }
   };
@@ -278,6 +285,7 @@ export function LanguagesTab(): ReactNode {
       setSelected(nextSelected);
       if (nextSelected) openEdit(nextSelected);
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.association')));
     } finally {
       setAssocSaving(null);
@@ -289,12 +297,13 @@ export function LanguagesTab(): ReactNode {
     setError(null);
     try {
       await dictionaryClient.upsertLanguageCountry(language.code, countryCode, { isPrimary: true });
-      setInfo(t('language.primarySet', { country: countryCode, language: language.code }));
+      actionStatus.show(t('language.primarySet', { country: countryCode, language: language.code }));
       const fresh = await load();
       const nextSelected = fresh.find((row) => row.code === language.code) ?? null;
       setSelected(nextSelected);
       if (nextSelected) openEdit(nextSelected);
     } catch (err) {
+      actionStatus.clear();
       setError(formatError(err, t('error.primary')));
     } finally {
       setAssocSaving(null);
@@ -328,6 +337,7 @@ export function LanguagesTab(): ReactNode {
               <option value="active">{t('languages.filter.active')}</option>
               <option value="inactive">{t('languages.filter.inactive')}</option>
             </Select>
+            <InlineStatus {...actionStatus.props} className="self-center" />
             <Button type="button" onClick={openCreate}>
               <Plus />
               {t('languages.addLanguage')}
@@ -339,11 +349,6 @@ export function LanguagesTab(): ReactNode {
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-          {info ? (
-            <Alert variant="success">
-              <AlertDescription>{info}</AlertDescription>
             </Alert>
           ) : null}
           {loading ? (
@@ -398,7 +403,15 @@ export function LanguagesTab(): ReactNode {
                           first={row.code === firstCode}
                           last={row.code === lastCode}
                         />
-                        <Button type="button" variant="outline" size="sm" onClick={() => openEdit(row)}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            actionStatus.clear();
+                            openEdit(row);
+                          }}
+                        >
                           {t('action.edit')}
                         </Button>
                         <Button

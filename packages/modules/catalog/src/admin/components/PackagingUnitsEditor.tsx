@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { ORDER_MINIMUM_MAX, type PackagingUnitDto } from '@endora-commerce/contracts';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Plus } from 'lucide-react';
-import { Alert, AlertDescription, Button, EditorSection } from '@endora-commerce/admin-kit/ui';
+import { ArrowDown, ArrowUp, Plus } from 'lucide-react';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  EditorSection,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { parseOrderMinimumInput } from '../lib/order-minimum-input.js';
 import { sectionTitle } from './editor/SectionBadge.js';
@@ -169,8 +181,10 @@ export function PackagingUnitsEditor({
     <EditorSection
       title={sectionTitle(t('packagingUnits.title'), structural, atGlobal ? undefined : t('packagingUnits.setGlobalOnly'))}
     >
-      <div className="b2b-help">{t('packagingUnits.help')}</div>
-      {!canWrite ? <div className="b2b-help">{t('packagingUnits.readOnly')}</div> : null}
+      {/* Issue #1492 (CAT-17): kit inputs, table and buttons. The legacy input class these
+          used was never defined, so they drew unstyled beside the kit's "Add". */}
+      <p className="text-xs text-muted-foreground">{t('packagingUnits.help')}</p>
+      {!canWrite ? <p className="text-xs text-muted-foreground">{t('packagingUnits.readOnly')}</p> : null}
       {invalidMinimum !== null ? (
         <Alert id={errorId} variant="destructive">
           <AlertDescription>{minimumMessage()}</AlertDescription>
@@ -183,34 +197,36 @@ export function PackagingUnitsEditor({
       ) : null}
 
       {loading ? (
-        <div className="b2b-help">{t('packagingUnits.loading')}</div>
+        <p role="status" className="text-sm text-muted-foreground">
+          {t('packagingUnits.loading')}
+        </p>
       ) : units.length === 0 ? (
-        <div className="b2b-help">{t('packagingUnits.empty')}</div>
+        <p className="text-sm text-muted-foreground">{t('packagingUnits.empty')}</p>
       ) : (
-        <table className="b2b-table">
-          <thead>
-            <tr>
-              <th>{t('packagingUnits.col.name')}</th>
-              <th>{t('packagingUnits.col.baseQuantity')}</th>
-              <th>{t('packagingUnits.col.minOrderUnits')}</th>
-              <th>{t('packagingUnits.col.default')}</th>
-              <th>{t('packagingUnits.col.order')}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('packagingUnits.col.name')}</TableHead>
+              <TableHead>{t('packagingUnits.col.baseQuantity')}</TableHead>
+              <TableHead>{t('packagingUnits.col.minOrderUnits')}</TableHead>
+              <TableHead>{t('packagingUnits.col.default')}</TableHead>
+              <TableHead>{t('packagingUnits.col.order')}</TableHead>
+              <TableHead className="w-[1%]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {units.map((u, i) => (
-              <tr key={u.id}>
-                <td style={{ minWidth: 220 }}>
+              <TableRow key={u.id}>
+                <TableCell className="min-w-56">
                   {renderName ? (
                     renderName(u)
                   ) : (
-                    <input className="b2b-input" value={u.name} readOnly aria-label={t('packagingUnits.col.name')} />
+                    <Input value={u.name} readOnly aria-label={t('packagingUnits.col.name')} />
                   )}
-                </td>
-                <td>
-                  <input
-                    className="b2b-input"
+                </TableCell>
+                <TableCell>
+                  <Input
+                    className="w-28"
                     type="number"
                     min={1}
                     step={1}
@@ -224,10 +240,10 @@ export function PackagingUnitsEditor({
                       }
                     }}
                   />
-                </td>
-                <td>
-                  <input
-                    className="b2b-input"
+                </TableCell>
+                <TableCell>
+                  <Input
+                    className="w-28"
                     type="number"
                     inputMode="numeric"
                     min={1}
@@ -242,10 +258,11 @@ export function PackagingUnitsEditor({
                     }}
                     onBlur={(e) => saveMinimum(u, e.target.value)}
                   />
-                </td>
-                <td>
+                </TableCell>
+                <TableCell>
                   <input
                     type="radio"
+                    className="size-4 accent-primary"
                     name={`pkg-default-${productId}`}
                     checked={u.isDefault}
                     disabled={busy || !structural}
@@ -254,28 +271,32 @@ export function PackagingUnitsEditor({
                       if (!u.isDefault) patch(u.id, { isDefault: true });
                     }}
                   />
-                </td>
-                <td>
-                  <button
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <Button
                     type="button"
-                    className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                    variant="ghost"
+                    size="icon"
+                    className="max-lg:size-11"
                     disabled={busy || !structural || i === 0}
                     aria-label={t('packagingUnits.action.moveUp')}
                     onClick={() => move(i, -1)}
                   >
-                    ↑
-                  </button>
-                  <button
+                    <ArrowUp aria-hidden="true" />
+                  </Button>
+                  <Button
                     type="button"
-                    className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                    variant="ghost"
+                    size="icon"
+                    className="max-lg:size-11"
                     disabled={busy || !structural || i === units.length - 1}
                     aria-label={t('packagingUnits.action.moveDown')}
                     onClick={() => move(i, 1)}
                   >
-                    ↓
-                  </button>
-                </td>
-                <td style={{ whiteSpace: 'nowrap' }}>
+                    <ArrowDown aria-hidden="true" />
+                  </Button>
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
                   {structural ? (
                     <RowRemoveButton
                       label={t('packagingUnits.action.removeFor', { name: u.name })}
@@ -283,25 +304,25 @@ export function PackagingUnitsEditor({
                       onClick={() => void remove(u)}
                     />
                   ) : null}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
 
       {structural ? (
-        <div className="b2b-row" style={{ gap: 8, alignItems: 'flex-end' }}>
-          <input
-            className="b2b-input"
+        <div className="flex flex-wrap items-end gap-2">
+          <Input
+            className="w-auto min-w-48 flex-1"
             placeholder={t('packagingUnits.newName')}
             value={newName}
             disabled={busy}
             aria-label={t('packagingUnits.col.name')}
             onChange={(e) => setNewName(e.target.value)}
           />
-          <input
-            className="b2b-input"
+          <Input
+            className="w-28"
             type="number"
             min={1}
             step={1}
@@ -311,8 +332,8 @@ export function PackagingUnitsEditor({
             aria-label={t('packagingUnits.col.baseQuantity')}
             onChange={(e) => setNewQty(e.target.value)}
           />
-          <input
-            className="b2b-input"
+          <Input
+            className="w-40"
             type="number"
             inputMode="numeric"
             min={1}

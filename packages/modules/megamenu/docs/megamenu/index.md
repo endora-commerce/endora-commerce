@@ -75,6 +75,17 @@ Hiding an item hides its whole subtree. An audience naming a customer group that
 
 The storefront API answers each visitor only the items of their audience, and nothing of the rest — no label, URL or audience rule.
 
+## The admin list
+
+The **Megamenu** screen lists every configuration with its number of bindings, whether it is active (for example *5 scopes*) or only staged, and its version. Its name opens the editor.
+
+An administrator with `megamenu.write` creates and deletes from here:
+
+- **New megamenu** opens a dialog with one field, the name. *Create* saves the megamenu and opens its editor; an empty name is refused at the field.
+- The row menu (⋮) has **Open** and **Delete**. **Delete** asks for confirmation, and removes the megamenu with its tree. A megamenu with at least one active binding is refused (`409 MEGAMENU_HAS_ACTIVE_BINDINGS`): the dialog stays open and asks you to deactivate its bindings in the editor first, then delete it again.
+
+Without `megamenu.write` the list is read-only: no **New megamenu** and no row menu.
+
 ## Writes and audit
 
 Every write — a menu's create, update and delete, the item tree's save, and a binding's add, remove, activation and deactivation — runs as a Command (`megamenu.create`, `megamenu.update`, `megamenu.delete`, `megamenu.items.set`, `megamenu.binding.add`, `megamenu.binding.remove`, `megamenu.binding.activate`, `megamenu.binding.deactivate`) and records one audit entry under object type `megamenu`. A tree save's entry holds the tree: each item's kind, presentation, alignment, audience, labels and target.

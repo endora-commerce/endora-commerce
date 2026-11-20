@@ -130,6 +130,28 @@ describe('PWA screen — a push send asks first (#1462)', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): the queued count is said beside
+  // Send, in a region mounted before it has text, and not as a success banner
+  // at the top of the page; Save says "Settings saved" beside Save the same way.
+  it('says the queued count beside Send and "saved" beside Save, with no success banner', async () => {
+    post.mockResolvedValue({ queuedDeliveries: 1240 });
+    await mountAndCompose();
+    const sendRegion = within(sendButton().parentElement!).getByRole('status');
+    expect(sendRegion.textContent).toBe('');
+    await userEvent.click(sendButton());
+    await answerConfirm(true);
+    await waitFor(() => expect(sendRegion).toHaveTextContent('Queued 1,240 notifications.'));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+
+    const save = screen.getByRole('button', { name: 'Save' });
+    const saveRegion = within(save.parentElement!).getByRole('status');
+    fireEvent.click(save);
+    await waitFor(() => expect(saveRegion).toHaveTextContent('Settings saved.'));
+    // The earlier result is not left standing beside Send.
+    expect(sendRegion.textContent).toBe('');
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
+
   it('keeps a failed send in the dialog', async () => {
     post.mockRejectedValue(new Error('offline'));
     await mountAndCompose();

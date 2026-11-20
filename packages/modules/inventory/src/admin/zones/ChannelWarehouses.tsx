@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ImmediateBadge, useConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, EditorSection, InlineStatus } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  EditorSection,
+  FormField,
+  InlineStatus,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
 import type {
   AdminZoneProps,
   Warehouse,
@@ -205,95 +219,93 @@ export function ChannelWarehouses({ channelId }: ChannelWarehousesProps): ReactN
           {t('warehouses.channel.loading')}
         </p>
       ) : (
-        <table className="b2b-tbl">
-          <thead>
-            <tr>
-              <th>{t('warehouses.channel.column.warehouse')}</th>
-              <th>{t('warehouses.channel.column.code')}</th>
-              <th>{t('warehouses.channel.column.default')}</th>
-              <th>{t('warehouses.channel.column.sort')}</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
+        // Issue #1492 (CAT-17): the kit's table and controls, one look with the channel editor.
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('warehouses.channel.column.warehouse')}</TableHead>
+              <TableHead>{t('warehouses.channel.column.code')}</TableHead>
+              <TableHead>{t('warehouses.channel.column.default')}</TableHead>
+              <TableHead>{t('warehouses.channel.column.sort')}</TableHead>
+              <TableHead className="w-[1%]" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {assignments.length === 0 ? (
-              <tr>
-                <td colSpan={5}>
-                  <span className="b2b-muted">{t('warehouses.channel.empty')}</span>
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={5} className="text-muted-foreground">
+                  {t('warehouses.channel.empty')}
+                </TableCell>
+              </TableRow>
             ) : (
               assignments.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.warehouseName}</td>
-                  <td>
-                    <span className="b2b-mono" style={{ fontSize: 12 }}>{a.warehouseCode}</span>
-                  </td>
-                  <td>
+                <TableRow key={a.id}>
+                  <TableCell>{a.warehouseName}</TableCell>
+                  <TableCell className="font-mono text-xs">{a.warehouseCode}</TableCell>
+                  <TableCell>
                     {a.isDefault ? (
                       <span className="b2b-badge b2b-badge--success">{t('warehouses.channel.defaultBadge')}</span>
                     ) : !canWrite ? (
                       // Read-only: the row is simply not the default. Rendering
                       // the promote button disabled would advertise a
                       // capability; rendering the badge would misstate the row.
-                      <span className="b2b-muted">—</span>
+                      <span className="text-muted-foreground">—</span>
                     ) : (
-                      <button
+                      <Button
                         type="button"
-                        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                        variant="ghost"
+                        size="sm"
                         onClick={(): void => { void handlePromote(a.id); }}
                         disabled={busy === a.id}
                       >
                         {t('warehouses.channel.action.makeDefault')}
-                      </button>
+                      </Button>
                     )}
-                  </td>
-                  <td>{a.sortOrder}</td>
-                  <td className="actions">
+                  </TableCell>
+                  <TableCell className="tabular-nums">{a.sortOrder}</TableCell>
+                  <TableCell className="whitespace-nowrap">
                     {canWrite ? (
-                      <button
+                      <Button
                         type="button"
-                        className="b2b-btn b2b-btn--ghost b2b-btn--sm"
+                        variant="ghost"
+                        size="sm"
                         onClick={(): void => { void handleUnassign(a.id, a.isDefault); }}
                         disabled={busy === a.id}
                       >
                         {t('warehouses.channel.action.unassign')}
-                      </button>
+                      </Button>
                     ) : null}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
 
       {!firstLoad && canWrite && candidates.length > 0 ? (
         <EditorSection as="h3" title={t('warehouses.channel.addTitle')}>
-          <div className="b2b-row" style={{ gap: 8, alignItems: 'flex-end' }}>
-            <div style={{ flex: 1 }}>
-              <label className="b2b-label" htmlFor="ch-add-wh">{t('warehouses.channel.field.warehouse')}</label>
-              <select
-                id="ch-add-wh"
-                className="b2b-field"
-                value={pendingWarehouseId}
-                onChange={(e): void => setPendingWarehouseId(e.target.value)}
-              >
+          <div className="flex flex-wrap items-end gap-2">
+            <FormField label={t('warehouses.channel.field.warehouse')} id="ch-add-wh" className="min-w-56 flex-1">
+              <Select value={pendingWarehouseId} onChange={(e): void => setPendingWarehouseId(e.target.value)}>
                 <option value="">{t('warehouses.channel.field.pickOne')}</option>
                 {candidates.map((w) => (
                   <option key={w.id} value={w.id}>{w.name} ({w.code})</option>
                 ))}
-              </select>
-            </div>
-            <button
+              </Select>
+            </FormField>
+            {/* It writes at once, so it is outline: the channel editor's Save stays the page's
+                one filled primary (Von Restorff, DS-07 #1441). */}
+            <Button
               type="button"
-              className="b2b-btn b2b-btn--primary"
+              variant="outline"
+              className="max-lg:min-h-11"
               onClick={(): void => { void handleAssign(); }}
               disabled={busy === 'assign' || !pendingWarehouseId}
               aria-busy={busy === 'assign' || undefined}
             >
               {busy === 'assign' ? t('warehouses.channel.action.adding') : t('warehouses.channel.action.add')}
-            </button>
+            </Button>
           </div>
         </EditorSection>
       ) : null}

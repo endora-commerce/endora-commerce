@@ -42,7 +42,8 @@ export function stockDisplayBandTone(band: string): string {
     case 'out_of_stock':
       return 'b2b-badge b2b-badge--danger b2b-badge--dot';
     default:
-      return 'b2b-badge b2b-badge--muted';
+      // The neutral pill: `b2b-badge` unmodified (a `--muted` modifier was never defined).
+      return 'b2b-badge';
   }
 }
 

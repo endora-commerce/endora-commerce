@@ -139,6 +139,7 @@ export type {
   ConfirmFocusTarget,
   ConfirmOptions,
   UseConfirmDialog,
+  UseConfirmDialogOptions,
 } from './confirm-dialog/ConfirmDialog.js';
 // Issue #1446 (DS-13) — the one unsaved-changes guard: Save / Discard / Stay before a navigation drops edits.
 export { UnsavedChangesDialog, UnsavedChangesHint, useUnsavedChangesGuard } from './unsaved-changes/UnsavedChangesGuard.js';
@@ -151,6 +152,11 @@ export type {
 // Issue #1435 (DS-18) — a status changed through a confirmed dialog, never a select that writes on change.
 export { StatusChangeControl } from './status-change/StatusChangeControl.js';
 export type { StatusChangeControlProps, StatusChangeOption } from './status-change/StatusChangeControl.js';
+// Issue #1495 (CONTENT-13) — a list search that runs as the operator types, one request per pause.
+export { SEARCH_DEBOUNCE_MS, useDebouncedValue } from './hooks/useDebouncedValue.js';
+// Issue #1495 (CONTENT-13) — focus to the next row, or the create action, after a row is deleted.
+export { useRemovalFocus } from './hooks/useRemovalFocus.js';
+export type { RemovalFocus } from './hooks/useRemovalFocus.js';
 export { useViewportTier } from './hooks/useViewportTier.js';
 export type { ViewportTier } from './hooks/useViewportTier.js';
 export { MethodAvailabilityCaption, MethodAvailabilityCell, MethodNotOfferedNotice } from './payment-method-availability/MethodAvailabilityCell.js';
