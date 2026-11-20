@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, EditorSection, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { AssetPicker, ModalDialog, ScopedFieldGrid } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { EditorField, useProductEditor } from './editor/editor-context.js';
 import { sectionTitle } from './editor/SectionBadge.js';
+import { RowRemoveButton } from './editor/RowRemoveButton.js';
 import { BooleanControl, TextControl, TextareaControl } from './editor/scoped-controls.js';
 
 /**
@@ -100,17 +101,11 @@ export function AttachmentsSection(): ReactNode {
                 <span className="flex-1 font-mono text-sm">{attachment.fileName}</span>
                 <span className="text-xs text-muted-foreground">{typeName(attachment.typeId)}</span>
                 {structural ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="max-lg:min-h-11"
+                  <RowRemoveButton
+                    label={t('productEditor.attachments.action.removeItem', { name: subject })}
                     disabled={busy}
                     onClick={(): void => setRemoving({ id: attachment.id, name: subject })}
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                    {t('productEditor.attachments.action.removeItem', { name: subject })}
-                  </Button>
+                  />
                 ) : null}
               </div>
               <ScopedFieldGrid>
@@ -278,6 +273,8 @@ function CreateAttachmentInline({
       <div className="md:col-span-4">
         <Button
           type="button"
+          variant="outline"
+          className="max-lg:min-h-11"
           onClick={() => {
             if (!assetId || !attachmentTypeId || !name) return;
             void onCreate({ assetId, attachmentTypeId, name, description }).then(() => {
@@ -289,6 +286,7 @@ function CreateAttachmentInline({
             });
           }}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.attachments.action.add')}
         </Button>
       </div>

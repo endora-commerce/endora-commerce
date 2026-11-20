@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus } from 'lucide-react';
 import type { AssetDetail, AssetSummary } from '@endora-commerce/contracts';
 import { ApiError, apiClient, toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, EditorSection, Input, Label } from '@endora-commerce/admin-kit/ui';
@@ -7,6 +7,7 @@ import { AssetPicker, ModalDialog, ScopedFieldGrid } from '@endora-commerce/admi
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { EditorField, useProductEditor } from './editor/editor-context.js';
 import { sectionTitle } from './editor/SectionBadge.js';
+import { RowRemoveButton } from './editor/RowRemoveButton.js';
 import { BooleanControl, SelectControl, TextControl } from './editor/scoped-controls.js';
 
 /**
@@ -162,10 +163,11 @@ export function GallerySection(): ReactNode {
                     >
                       <ArrowDown className="size-4" aria-hidden="true" />
                     </Button>
-                    <Button type="button" variant="destructive" size="sm" className="max-lg:min-h-11" disabled={busy} onClick={(): void => setRemoving(item.id)}>
-                      <Trash2 className="size-4" aria-hidden="true" />
-                      {t('productEditor.gallery.action.removeItem', { item: name })}
-                    </Button>
+                    <RowRemoveButton
+                      label={t('productEditor.gallery.action.removeItem', { item: name })}
+                      disabled={busy}
+                      onClick={(): void => setRemoving(item.id)}
+                    />
                   </>
                 ) : null}
               </div>
@@ -278,12 +280,15 @@ function AddGalleryItem({ disabled, onAdd }: { disabled: boolean; onAdd(assetId:
         </Button>
         <Button
           type="button"
+          variant="outline"
+          className="max-lg:min-h-11"
           disabled={disabled || !picked}
           onClick={(): void => {
             if (!picked) return;
             void onAdd(picked.id).then(() => setPicked(null));
           }}
         >
+          <Plus aria-hidden="true" />
           {t('productEditor.gallery.action.add')}
         </Button>
       </div>

@@ -639,7 +639,9 @@ Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
 - **Row actions are `ghost` icon buttons with an `aria-label` naming the row** ("Remove Warsaw"),
   or, past two of them, entries of a **`RowActionMenu`**. A row never carries a filled button. A row
   action that writes at once (an immediate *Apply*) is `outline size="sm"`, under the section's
-  `ImmediateBadge`.
+  `ImmediateBadge`. A row's removal is a `ghost size="icon"` `Trash2` button in the destructive
+  tone (`text-destructive`), asking before it deletes anything; the product editor's tabs follow
+  it (#1489).
 - **Destructive actions sit in a menu and are confirmed.** A `RowActionMenuItem destructive` whose
   `onSelect` opens `useConfirmDialog` — never a red button beside the primary (Fitts: distance, not
   proximity).
