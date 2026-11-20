@@ -12,9 +12,11 @@ import {
   Card,
   CardContent,
   Checkbox,
+  InlineStatus,
   Input,
   Label,
   PageHeader,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { resolvePermissionLabel } from '../permission-label.js';
@@ -65,7 +67,9 @@ export default function AdminRolesPage(): ReactNode {
   const [permissions, setPermissions] = useState<PermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // A deletion closes the editor, so it is said beside "New role" in a region
+  // mounted before it has text — not a success banner (issue #1499, DEC-12 a).
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   // Issue #1449 (DS-19) — a save's refusal and outcome are said in the editor's save bar,
   // beside the Save that caused them, not in the page banner above the role list.
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -76,6 +80,13 @@ export default function AdminRolesPage(): ReactNode {
     setSaveInfo(null);
     setEditingCodeState(next);
   }, []);
+  const openEditor = useCallback(
+    (next: string): void => {
+      clearStatus();
+      setEditingCode(next);
+    },
+    [clearStatus, setEditingCode],
+  );
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -168,16 +179,17 @@ export default function AdminRolesPage(): ReactNode {
         destructive: true,
       });
       if (!ok) return;
+      clearStatus();
       try {
         await apiClient.delete<void>(`/api/v1/admin/admin-roles/${role.id}`);
-        setInfo(t('adminRoles.info.deleted', { code: role.code }));
+        showStatus(t('adminRoles.info.deleted', { code: role.code }));
         if (editingCode === role.code) setEditingCode(null);
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('adminRoles.error.delete'));
       }
     },
-    [refresh, editingCode, t, confirm, setEditingCode],
+    [refresh, editingCode, t, confirm, setEditingCode, clearStatus, showStatus],
   );
 
   return (
@@ -194,21 +206,19 @@ export default function AdminRolesPage(): ReactNode {
           </>
         }
         actions={
-          <Button onClick={(): void => setEditingCode(NEW_ROLE_KEY)}>
-            <Plus />
-            {t('adminRoles.newRole')}
-          </Button>
+          <div className="flex items-center gap-3">
+            <InlineStatus {...statusProps} />
+            <Button onClick={(): void => openEditor(NEW_ROLE_KEY)}>
+              <Plus />
+              {t('adminRoles.newRole')}
+            </Button>
+          </div>
         }
       />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -223,7 +233,7 @@ export default function AdminRolesPage(): ReactNode {
                   <li key={r.id}>
                     <button
                       type="button"
-                      onClick={(): void => setEditingCode(r.code)}
+                      onClick={(): void => openEditor(r.code)}
                       className={cn(
                         'flex w-full flex-col items-start gap-0.5 rounded-md px-3 py-2 text-left text-sm transition-colors',
                         editingCode === r.code

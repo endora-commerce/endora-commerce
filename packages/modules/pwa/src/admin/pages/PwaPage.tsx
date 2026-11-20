@@ -11,7 +11,7 @@ import type {
 import { ApiError, apiClient, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { ConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, ColorPicker, FormField, Input, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, ColorPicker, FormField, InlineStatus, Input, PageHeader, Select, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { pwaClient } from '../api/pwa-client.js';
 import { PushAudienceRuleBuilder } from '../components/PushAudienceRuleBuilder.js';
 import { displayModeLabels } from '../lib/labels.js';
@@ -66,7 +66,17 @@ export function PwaPage(): ReactNode {
   const [config, setConfig] = useState<PwaAdminConfig | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Each action's result is said beside its own button, in a region mounted
+  // before it has text — not one success banner at the top (issue #1499,
+  // DEC-12 a). A new action empties every one, so only the latest stands.
+  const saveStatus = useInlineStatus();
+  const resetStatus = useInlineStatus();
+  const iconStatus = useInlineStatus();
+  const vapidStatus = useInlineStatus();
+  const pushStatus = useInlineStatus();
+  const clearResults = (): void => {
+    for (const status of [saveStatus, resetStatus, iconStatus, vapidStatus, pushStatus]) status.clear();
+  };
   const [stats, setStats] = useState<{ active: number; invalid: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -120,7 +130,7 @@ export function PwaPage(): ReactNode {
     if (!config) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearResults();
     try {
       await pwaClient.updateConfig({
         ...(selectedChannelId ? { salesChannelId: selectedChannelId } : {}),
@@ -134,7 +144,7 @@ export function PwaPage(): ReactNode {
         orderStatusPushEnabled: config.orderStatusPushEnabled,
         ...(quotesPresent ? { quoteStatusPushEnabled: config.quoteStatusPushEnabled } : {}),
       });
-      setInfo(t('settings.saved'));
+      saveStatus.show(t('settings.saved'));
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('settings.saveError'));
@@ -147,10 +157,10 @@ export function PwaPage(): ReactNode {
     if (!selectedChannelId) return;
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearResults();
     try {
       await pwaClient.resetConfig(selectedChannelId);
-      setInfo(t('settings.resetDone'));
+      resetStatus.show(t('settings.resetDone'));
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('settings.resetError'));
@@ -162,10 +172,10 @@ export function PwaPage(): ReactNode {
   const generateVapid = async (): Promise<void> => {
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearResults();
     try {
       await pwaClient.generateVapid();
-      setInfo(t('settings.vapid.generated'));
+      vapidStatus.show(t('settings.vapid.generated'));
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('settings.vapid.error'));
@@ -177,10 +187,10 @@ export function PwaPage(): ReactNode {
   const uploadIcon = async (file: File): Promise<void> => {
     setBusy(true);
     setError(null);
-    setInfo(null);
+    clearResults();
     try {
       await pwaClient.uploadIcon(file, selectedChannelId);
-      setInfo(t('settings.icon.uploaded'));
+      iconStatus.show(t('settings.icon.uploaded'));
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('settings.icon.uploadError'));
@@ -206,7 +216,7 @@ export function PwaPage(): ReactNode {
     if (!selectedChannelId) return;
     setBusy(true);
     setSendError(null);
-    setInfo(null);
+    clearResults();
     try {
       // A 'rule' audience that resolves to "all" is equivalent to a broadcast.
       const audience: PushAudience = targeted ? { kind: 'rule', rule: audienceRule } : { kind: 'all' };
@@ -219,7 +229,7 @@ export function PwaPage(): ReactNode {
       });
       setConfirmingSend(false);
       const form = new Intl.PluralRules(language).select(res.queuedDeliveries);
-      setInfo(t(`push.queued.${form}`, { count: new Intl.NumberFormat(language).format(res.queuedDeliveries) }));
+      pushStatus.show(t(`push.queued.${form}`, { count: new Intl.NumberFormat(language).format(res.queuedDeliveries) }));
       setPushTitle('');
       setPushBody('');
       setPushUrl('');
@@ -269,7 +279,10 @@ export function PwaPage(): ReactNode {
         >
           <Select
             value={selectedChannelId ?? ''}
-            onChange={(e) => setSelectedChannelId(e.target.value === '' ? null : e.target.value)}
+            onChange={(e) => {
+              clearResults();
+              setSelectedChannelId(e.target.value === '' ? null : e.target.value);
+            }}
           >
             <option value="">{t('settings.channel.global')}</option>
             {channels.map((c) => (
@@ -280,20 +293,18 @@ export function PwaPage(): ReactNode {
           </Select>
         </FormField>
         {selectedChannelId ? (
-          <Button type="button" variant="outline" size="sm" className="mb-5" disabled={busy} onClick={() => void resetToGlobal()}>
-            {t('settings.resetToGlobal')}
-          </Button>
+          <div className="mb-5 flex items-center gap-3">
+            <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void resetToGlobal()}>
+              {t('settings.resetToGlobal')}
+            </Button>
+            <InlineStatus {...resetStatus.props} />
+          </div>
         ) : null}
       </div>
 
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -361,6 +372,7 @@ export function PwaPage(): ReactNode {
                   {t('settings.icon.hint')}
                   {config.iconAssetId ? <> {t('settings.icon.set')}</> : null}
                 </span>
+                <InlineStatus {...iconStatus.props} />
               </div>
             </CardContent>
           </Card>
@@ -406,11 +418,13 @@ export function PwaPage(): ReactNode {
                 <span className="text-sm text-muted-foreground">
                   {config.vapidPrivateKeyIsSet ? t('settings.vapid.set') : t('settings.vapid.unset')}
                 </span>
+                <InlineStatus {...vapidStatus.props} />
               </div>
             </CardContent>
           </Card>
 
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-3">
+            <InlineStatus {...saveStatus.props} />
             <Button type="button" disabled={busy} onClick={() => void save()}>
               <Save className="mr-2 h-4 w-4" aria-hidden="true" /> {t('settings.save')}
             </Button>
@@ -466,7 +480,8 @@ export function PwaPage(): ReactNode {
               {!selectedChannelId ? (
                 <p className="text-sm text-muted-foreground">{t('push.selectChannel')}</p>
               ) : null}
-              <div className="flex justify-end">
+              <div className="flex items-center justify-end gap-3">
+                <InlineStatus {...pushStatus.props} />
                 <Button
                   type="button"
                   disabled={busy || !selectedChannelId || !config.pushEnabled || !pushTitle || !pushBody}
