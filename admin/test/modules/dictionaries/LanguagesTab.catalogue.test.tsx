@@ -225,7 +225,9 @@ describe('LanguagesTab — the ISO 639-1 catalogue', () => {
 
     fireEvent.change(searchInput(), { target: { value: 'no such language' } });
     await waitFor(() => expect(visibleCodes()).toEqual([]));
-    expect(document.querySelector('tbody')?.textContent).toContain('languages.empty');
+    // The no-match sentence is the kit's no-results empty state now (#1448).
+    const empty = document.querySelector('[data-empty-state="no-results"]');
+    expect(empty?.textContent).toContain('languages.empty');
   });
 
   it('narrows the list to the languages that are switched on, or off', async () => {

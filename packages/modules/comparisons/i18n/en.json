@@ -13,6 +13,8 @@
   "list.filter.createdAfter": "Created after",
   "list.filter.createdBefore": "Created before",
   "list.empty": "No comparisons match the filters.",
+  "list.emptyState.title": "No comparisons yet",
+  "list.emptyState.body": "Comparisons appear here once shoppers create them on the storefront.",
   "list.column.owner": "Owner",
   "list.column.salesChannel": "Sales channel",
   "list.column.mode": "Mode",
