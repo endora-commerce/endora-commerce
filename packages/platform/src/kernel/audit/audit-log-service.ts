@@ -1,6 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AuditLogEntry } from './audit-log-entry.entity.js';
-import type { AuditLogFilter, AuditPort, RecordAuditInput } from '../ports/audit.js';
+import type { AuditLogFacets, AuditLogFilter, AuditPort, RecordAuditInput } from '../ports/audit.js';
 
 /**
  * Append-only audit log writer. Every sensitive operation (FR-084) calls `record()`
@@ -79,10 +79,42 @@ export class AuditLogService implements AuditPort {
     if (filter.impersonatedCustomerAccountId) {
       where['impersonatedCustomerAccountId'] = filter.impersonatedCustomerAccountId;
     }
+    if (filter.after) {
+      const { actedAt, id } = filter.after;
+      where['$or'] = [{ actedAt: { $lt: actedAt } }, { actedAt, id: { $lt: id } }];
+    }
     return em.find(AuditLogEntry, where, {
-      orderBy: { actedAt: 'desc' },
+      orderBy: { actedAt: 'desc', id: 'desc' },
       limit: Math.min(Math.max(filter.limit ?? 100, 1), 500),
     });
+  }
+
+  async queryFacets(): Promise<AuditLogFacets> {
+    // A loose index scan: each step asks the `action` index for the next value
+    // above the last one, so the cost is one probe per distinct action rather
+    // than a read of every row. The object type is one row's per action, for
+    // the reason the port states.
+    const rows = (await this.emFactory()
+      .getConnection()
+      .execute(
+        `with recursive actions(action) as (
+           (select "action" from "audit_log_entries" order by "action" limit 1)
+           union all
+           select (select e."action" from "audit_log_entries" e
+                    where e."action" > a."action" order by e."action" limit 1)
+             from actions a where a."action" is not null
+         )
+         select a."action",
+                (select e."object_type" from "audit_log_entries" e
+                  where e."action" = a."action" limit 1) as "object_type"
+           from actions a
+          where a."action" is not null`,
+      )) as Array<{ action: string; object_type: string | null }>;
+    const sorted = (values: Iterable<string>): string[] => [...new Set(values)].sort();
+    return {
+      actions: sorted(rows.map((row) => row.action)),
+      objectTypes: sorted(rows.flatMap((row) => (row.object_type ? [row.object_type] : []))),
+    };
   }
 
   /**

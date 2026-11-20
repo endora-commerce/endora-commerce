@@ -235,9 +235,15 @@ export type { TagMultiSelectProps, TagOption } from './tags/TagPicker.js';
 export { AttachmentUploader } from './attachments/AttachmentUploader.js';
 export type { AttachmentUploaderProps } from './attachments/AttachmentUploader.js';
 export { uploadAttachment } from './attachments/upload-attachment.js';
-export { RecordHistory, recordHistoryChanges, useRecordHistory } from './record-history/RecordHistory.js';
+export {
+  RecordHistory,
+  RecordHistoryChangeList,
+  recordHistoryChanges,
+  useRecordHistory,
+} from './record-history/RecordHistory.js';
 export type {
   RecordHistoryChange,
+  RecordHistoryChangeListProps,
   RecordHistoryCopy,
   RecordHistoryEntryShape,
   RecordHistoryPageShape,

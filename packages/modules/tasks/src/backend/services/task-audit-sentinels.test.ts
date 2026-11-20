@@ -137,6 +137,7 @@ function harness() {
     },
     query: async () => [],
     findByObjectIds: async () => [],
+    queryFacets: async () => ({ actions: [], objectTypes: [] }),
   };
   const events = { run: async <T>(fn: () => Promise<T>) => fn(), emit: vi.fn() };
   const commandBus = new CommandBus({ em } as never, auditLog as never, events as never);

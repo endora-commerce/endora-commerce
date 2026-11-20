@@ -6,5 +6,18 @@
   "actions.openAuditLog.keywords": "audit, log, history",
   "settingGroups.audit_logs.name": "Audit log",
   "auditLog.erased": "Erased",
-  "auditLog.audit.redacted": "Audit history erased"
+  "auditLog.audit.redacted": "Audit history erased",
+  "auditLog.toolbar.label": "Filter the audit log",
+  "auditLog.filter.anyAction": "Any action",
+  "auditLog.filter.anyObjectType": "Any object type",
+  "auditLog.filter.optionsFailed": "Could not load the values. Reload the page to try again.",
+  "auditLog.column.detail": "Detail",
+  "auditLog.diff.none": "No field values were recorded for this entry.",
+  "auditLog.diff.unchanged": "No recorded field changed.",
+  "auditLog.diff.raw": "Stored JSON",
+  "auditLog.field.changedFields": "Changed fields",
+  "auditLog.field.changedCustomFields": "Changed custom fields",
+  "auditLog.value.empty": "empty",
+  "auditLog.value.true": "Yes",
+  "auditLog.value.false": "No"
 }

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { auditLogFacetsSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -109,6 +110,63 @@ describe('GET /api/v1/admin/audit-log', () => {
       // The customer-account audit reference names the person (owner ruling on PR #744).
       actorCustomerLabel: personLabel,
     });
+  });
+
+  /**
+   * Issue #1555 (UX audit SHELL-20) — the list answered `hasMore: false` always,
+   * so the screen showed the newest page and nothing behind it. It now answers
+   * a cursor while more entries exist, and the next page continues the log.
+   */
+  it('pages the log by cursor, without a repeat across the boundary', async () => {
+    const first = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/audit-log?limit=1',
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(first.statusCode, first.body).toBe(200);
+    const one = first.json() as { data: Array<{ id: string }>; pagination: { cursor: string | null; hasMore: boolean; limit: number } };
+    expect(one.data).toHaveLength(1);
+    expect(one.pagination).toMatchObject({ hasMore: true, limit: 1 });
+    expect(one.pagination.cursor).toEqual(expect.any(String));
+
+    const second = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/audit-log?limit=1&cursor=${encodeURIComponent(one.pagination.cursor!)}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(second.statusCode, second.body).toBe(200);
+    const two = second.json() as { data: Array<{ id: string }> };
+    expect(two.data).toHaveLength(1);
+    expect(two.data[0]!.id).not.toBe(one.data[0]!.id);
+
+    const refused = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/audit-log?cursor=not-a-cursor',
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(refused.statusCode).toBe(400);
+  });
+
+  it('lists the actions and object types the filters offer', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/audit-log/facets',
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = auditLogFacetsSchema.parse((res.json() as { data: unknown }).data);
+    expect(body.actions).toContainEqual({ action: 'product.update', moduleId: 'catalog' });
+    expect(body.objectTypes).toContain('product');
+    expect(body.actions.map((a) => a.action)).toEqual([...body.actions.map((a) => a.action)].sort());
+  });
+
+  it('refuses the facets to callers without audit_log:read scope', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/audit-log/facets',
+      cookies: { b2b_session: 'stub-restricted-admin-session' },
+    });
+    expect([401, 403]).toContain(res.statusCode);
   });
 
   it('rejects callers without audit_log:read scope', async () => {

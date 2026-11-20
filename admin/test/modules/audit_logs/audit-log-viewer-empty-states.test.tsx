@@ -54,7 +54,7 @@ async function mount(url: string): Promise<void> {
 }
 
 const lastAuditCall = (): URL =>
-  new URL(get.mock.calls.map((c) => c[0]).filter((u) => u.startsWith('/api/v1/admin/audit-log')).at(-1)!, 'http://x');
+  new URL(get.mock.calls.map((c) => c[0]).filter((u) => u.startsWith('/api/v1/admin/audit-log?')).at(-1)!, 'http://x');
 
 describe('audit-log viewer — empty states (#1448)', () => {
   beforeEach(() => {

@@ -108,6 +108,7 @@ function harness(initial: Row[]) {
     record: vi.fn(),
     query: vi.fn(),
     findByObjectIds: vi.fn(),
+    queryFacets: vi.fn(),
     recordWithin: vi.fn((_em: EntityManager, input: RecordAuditInput) => {
       recorded.push(input);
       rows.push(

@@ -150,7 +150,13 @@ export { scopeRequestToActor } from './request-scope-hook.js';
  * freezing the writer class into the platform contract would owe third-party
  * packages a major version to change the shape the principle routes around.
  */
-export { type AuditPort, type RecordAuditInput, type AuditLogFilter } from './ports/audit.js';
+export {
+  type AuditPort,
+  type RecordAuditInput,
+  type AuditLogFilter,
+  type AuditLogFacets,
+  type AuditLogPosition,
+} from './ports/audit.js';
 export { AuditLogEntry } from './audit/audit-log-entry.entity.js';
 
 /**
