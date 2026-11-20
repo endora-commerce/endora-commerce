@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2 } from 'lucide-react';
 import { Button } from '../../ui/button.js';
@@ -40,7 +40,23 @@ export interface ConfirmOptions {
   cancelLabel?: ReactNode;
   /** Styles the confirm button as destructive and opens with focus on *Cancel*. */
   destructive?: boolean;
+  /**
+   * Where focus goes once the question is answered **yes** — for an action that removes the
+   * control that asked it (a row's *Remove*), whose opener would otherwise leave focus on
+   * `body`. An element, a ref, or a resolver; it is resolved once, the moment the dialog closes
+   * on a confirmed answer (with an `action`, after it succeeded), while the removed row is
+   * still on screen — so point at a neighbour that outlives it: the next row, the section's
+   * *Add*. Unresolved (`null`, a detached element) or on Cancel, focus returns to the opener.
+   * Only {@link useConfirmDialog} reads it; the controlled dialog takes `finalFocusRef`.
+   */
+  returnFocusTo?: ConfirmFocusTarget | undefined;
 }
+
+/** What {@link ConfirmOptions.returnFocusTo} accepts. */
+export type ConfirmFocusTarget =
+  | HTMLElement
+  | RefObject<HTMLElement | null>
+  | (() => HTMLElement | null | undefined);
 
 /**
  * A question whose answer is a request: `confirm` runs `action` with the dialog
@@ -55,7 +71,7 @@ export interface ConfirmActionOptions extends ConfirmOptions {
   describeError: (err: unknown) => ReactNode;
 }
 
-export interface ConfirmDialogProps extends ConfirmOptions {
+export interface ConfirmDialogProps extends Omit<ConfirmOptions, 'returnFocusTo'> {
   onConfirm: () => void;
   /** Cancel, Escape and the scrim. */
   onCancel: () => void;
@@ -63,10 +79,23 @@ export interface ConfirmDialogProps extends ConfirmOptions {
   busy?: boolean;
   /** Shown inside the dialog, announced as an alert. */
   error?: ReactNode;
+  /** Focused when the dialog closes instead of the opener — {@link ModalDialog}'s own prop. */
+  finalFocusRef?: RefObject<HTMLElement | null> | undefined;
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps): ReactNode {
-  const { title, message, confirmLabel, cancelLabel, destructive = false, onConfirm, onCancel, busy = false, error } = props;
+  const {
+    title,
+    message,
+    confirmLabel,
+    cancelLabel,
+    destructive = false,
+    onConfirm,
+    onCancel,
+    busy = false,
+    error,
+    finalFocusRef,
+  } = props;
   const t = useTranslation('core');
   const messageId = useId();
   const errorId = useId();
@@ -80,6 +109,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): ReactNode {
       onClose={onCancel}
       busy={busy}
       initialFocusRef={destructive ? cancelRef : confirmRef}
+      {...(finalFocusRef ? { finalFocusRef } : {})}
       aria-describedby={hasError ? `${messageId} ${errorId}` : messageId}
       footer={
         <>
@@ -127,6 +157,13 @@ interface Pending {
   resolve: (ok: boolean) => void;
 }
 
+/** The element a {@link ConfirmFocusTarget} names now, or `null` when it names none still in the page. */
+function resolveFocusTarget(target: ConfirmFocusTarget | undefined): HTMLElement | null {
+  if (target === undefined) return null;
+  const element = typeof target === 'function' ? target() : target instanceof HTMLElement ? target : target.current;
+  return element?.isConnected ? element : null;
+}
+
 function hasAction(options: ConfirmOptions | ConfirmActionOptions): options is ConfirmActionOptions {
   return typeof (options as Partial<ConfirmActionOptions>).action === 'function';
 }
@@ -145,15 +182,22 @@ function hasAction(options: ConfirmOptions | ConfirmActionOptions): options is C
  * A second `confirm` while one is open answers the first `false`. A question
  * still open when the screen unmounts is answered `false`, so no caller is left
  * awaiting forever.
+ *
+ * Focus returns to the opener on close. A confirmed action that removes the opener passes
+ * `returnFocusTo` — see {@link ConfirmOptions.returnFocusTo} — so focus lands on a neighbour
+ * rather than on `body` once the row is gone (WCAG 2.4.3).
  */
 export function useConfirmDialog(): UseConfirmDialog {
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ReactNode>(null);
   const pendingRef = useRef<Pending | null>(null);
+  // Read by the dialog's focus trap as it releases, which is the render after `settle`.
+  const finalFocusRef = useRef<HTMLElement | null>(null);
 
   const settle = useCallback((ok: boolean): void => {
     const current = pendingRef.current;
+    finalFocusRef.current = ok ? resolveFocusTarget(current?.options.returnFocusTo) : null;
     pendingRef.current = null;
     setPending(null);
     setBusy(false);
@@ -167,6 +211,7 @@ export function useConfirmDialog(): UseConfirmDialog {
         pendingRef.current?.resolve(false);
         const next = { options, resolve };
         pendingRef.current = next;
+        finalFocusRef.current = null;
         setBusy(false);
         setError(null);
         setPending(next);
@@ -214,6 +259,7 @@ export function useConfirmDialog(): UseConfirmDialog {
       destructive={pending.options.destructive ?? false}
       busy={busy}
       error={error}
+      finalFocusRef={finalFocusRef}
       onConfirm={(): void => void accept()}
       onCancel={(): void => settle(false)}
     />

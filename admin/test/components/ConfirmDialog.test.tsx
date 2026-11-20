@@ -234,3 +234,115 @@ describe('useConfirmDialog — an action run inside the dialog (#1464)', () => {
     expect(action).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * A confirmed action that removes its own opener — a row's *Remove* — used to leave focus on
+ * `body` once the row was gone. `returnFocusTo` names where focus goes instead (WCAG 2.4.3).
+ */
+describe('useConfirmDialog — focus after a confirmed answer (returnFocusTo)', () => {
+  function NeighbourHarness(props: {
+    target: (neighbour: HTMLButtonElement | null) => ConfirmArgs['returnFocusTo'];
+    withAction?: boolean;
+    onResult?: (ok: boolean) => void;
+  }): ReactElement {
+    const { confirm, confirmDialog } = useConfirmDialog();
+    const [removed, setRemoved] = useState(false);
+    const [neighbour, setNeighbour] = useState<HTMLButtonElement | null>(null);
+    const neighbourRef = { current: neighbour };
+    const ask = async (): Promise<void> => {
+      const ok = await confirm({
+        message: 'Remove the row?',
+        confirmLabel: 'Remove',
+        destructive: true,
+        returnFocusTo: props.target(neighbourRef.current),
+        ...(props.withAction ? { action: () => Promise.resolve(), describeError: () => 'failed' } : {}),
+      });
+      props.onResult?.(ok);
+      if (ok) setRemoved(true);
+    };
+    return (
+      <div>
+        {removed ? null : (
+          <button type="button" onClick={(): void => void ask()}>
+            Remove row
+          </button>
+        )}
+        <button type="button" ref={setNeighbour}>
+          Next row
+        </button>
+        {confirmDialog}
+      </div>
+    );
+  }
+
+  function renderNeighbour(props: Parameters<typeof NeighbourHarness>[0]): void {
+    renderWithI18n(
+      <StrictMode>
+        <NeighbourHarness {...props} />
+      </StrictMode>,
+      CORE,
+    );
+  }
+
+  async function removeRow(): Promise<void> {
+    await userEvent.click(screen.getByRole('button', { name: 'Remove row' }));
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  }
+
+  it('sends focus to the element it names, not to body, once the opener is gone', async () => {
+    renderNeighbour({ target: (neighbour) => neighbour ?? undefined });
+    await removeRow();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Remove row' })).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Next row' })).toHaveFocus();
+  });
+
+  it('accepts a ref', async () => {
+    const ref = { current: null as HTMLElement | null };
+    renderNeighbour({
+      target: (neighbour) => {
+        ref.current = neighbour;
+        return ref;
+      },
+    });
+    await removeRow();
+    expect(screen.getByRole('button', { name: 'Next row' })).toHaveFocus();
+  });
+
+  it('calls a resolver once, when the dialog closes on yes after its action succeeded', async () => {
+    const resolver = vi.fn(() => screen.getByRole('button', { name: 'Next row' }));
+    renderNeighbour({ target: () => resolver, withAction: true });
+    await userEvent.click(screen.getByRole('button', { name: 'Remove row' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(resolver).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(resolver).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Next row' })).toHaveFocus();
+  });
+
+  it('returns focus to the opener on Cancel, without resolving the target', async () => {
+    const resolver = vi.fn(() => screen.getByRole('button', { name: 'Next row' }));
+    const onResult = vi.fn();
+    renderNeighbour({ target: () => resolver, onResult });
+    const opener = screen.getByRole('button', { name: 'Remove row' });
+    await userEvent.click(opener);
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.action.cancel' }));
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(false));
+    expect(resolver).not.toHaveBeenCalled();
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it('falls back to the opener when the resolver names nothing', async () => {
+    const onResult = vi.fn();
+    renderNeighbour({ target: () => () => null, onResult });
+    const opener = screen.getByRole('button', { name: 'Remove row' });
+    await userEvent.click(opener);
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
+    expect(screen.getByRole('button', { name: 'Next row' })).not.toHaveFocus();
+  });
+});

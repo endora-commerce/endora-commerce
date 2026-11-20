@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Loader2, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import type { AdminOrganizationMember, OrganizationRoleRef } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
@@ -136,7 +136,27 @@ export function OrganizationMembersSection(props: OrganizationMembersSectionProp
   // The latest read of the member being edited; gone when it was removed meanwhile.
   const editing = editingId === null ? null : (members.find((m) => m.id === editingId) ?? null);
 
+  // Where focus goes once a member is removed and its row — holding the Remove that asked —
+  // is gone: the next row's Edit, else the previous row's, else the section's Add member,
+  // which moves into the empty state once the list re-reads empty (WCAG 2.4.3).
+  const editButtons = useRef(new Map<string, HTMLButtonElement>());
+  const addRef = useRef<HTMLButtonElement>(null);
+  const focusAddOnceEmpty = useRef(false);
+  useEffect(() => {
+    if (members.length > 0 || !focusAddOnceEmpty.current) return;
+    focusAddOnceEmpty.current = false;
+    addRef.current?.focus();
+  }, [members.length]);
+  const neighbourOf = (m: AdminOrganizationMember): HTMLElement | null => {
+    const index = members.findIndex((candidate) => candidate.id === m.id);
+    const neighbour = members[index + 1] ?? members[index - 1];
+    if (neighbour) return editButtons.current.get(neighbour.id) ?? null;
+    focusAddOnceEmpty.current = true;
+    return addRef.current;
+  };
+
   const removeMember = async (m: AdminOrganizationMember): Promise<void> => {
+    focusAddOnceEmpty.current = false;
     const removed = await confirm({
       title: own('members.remove.title'),
       message: own('members.remove.message', { email: m.email, organization: organizationName }),
@@ -144,12 +164,20 @@ export function OrganizationMembersSection(props: OrganizationMembersSectionProp
       destructive: true,
       action: () => apiClient.delete(`/api/v1/admin/organizations/${organizationId}/members/${m.id}`),
       describeError: (err) => messageOf(err, t('organizations.detail.error.remove')),
+      returnFocusTo: () => neighbourOf(m),
     });
     if (removed) await onChanged(t('organizations.detail.info.memberRemoved'));
   };
 
   const addButton = canAdd ? (
-    <Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" onClick={(): void => setAdding(true)}>
+    <Button
+      ref={addRef}
+      type="button"
+      variant="outline"
+      size="sm"
+      className="min-h-11 sm:min-h-8"
+      onClick={(): void => setAdding(true)}
+    >
       <Plus aria-hidden="true" />
       {own('members.add')}
     </Button>
@@ -214,6 +242,10 @@ export function OrganizationMembersSection(props: OrganizationMembersSectionProp
                   // destructive one's neighbour by accident (Fitts), and Remove is asked anyway.
                   <div className="flex shrink-0 items-center gap-3">
                     <Button
+                      ref={(node): void => {
+                        if (node) editButtons.current.set(m.id, node);
+                        else editButtons.current.delete(m.id);
+                      }}
                       type="button"
                       variant="outline"
                       size="sm"

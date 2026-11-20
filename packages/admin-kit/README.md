@@ -857,6 +857,18 @@ written by hand anywhere under the admin, the shell, the kit, the page-builder c
 two-way ledger names each remaining one and the issue that migrates it. The behaviour is pinned in
 `admin/test/components/ModalDialog.test.tsx`, including an axe pass.
 
+**Focus after a confirmed removal.** A dialog returns focus to its opener. When the confirmed
+action removes the opener (a row's *Remove*), focus would fall to `body` once the row is gone.
+Pass `returnFocusTo` to `useConfirmDialog`'s `confirm` to send it to a neighbour instead (WCAG
+2.4.3). It takes an element, a ref, or a resolver. It is resolved once, when the dialog closes
+on a confirmed answer (with an `action`, after it succeeded), and the removed row is still on
+screen at that moment. So name an element that outlives it, such as the next row or the
+section's *Add*. On Cancel, or when the target resolves to nothing, focus returns to the opener.
+
+```tsx
+await confirm({ message, destructive: true, action, describeError, returnFocusTo: () => nextRowEdit(member) });
+```
+
 ## List pages — `ListPage` and `useListPagination`
 
 Issue #1439 (UX audit 2026-11-17, DS-05). An admin list came in several shapes: a create form drawn
