@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Download, Trash2 } from 'lucide-react';
 import { TASK_ATTACHMENT_MAX_BYTES, type TaskAttachment } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button } from '@endora-commerce/admin-kit/ui';
@@ -22,14 +22,16 @@ import { errorMessage, fileSizeLabel, momentLabel } from '../lib/labels.js';
  * carries a signed link valid for minutes, so *Download* reads the list again.
  *
  * `onChange` is told after a file is added or removed — both are audited, so
- * the screen reads its history again (165 T095).
+ * the screen reads its history again (165 T095) and the tab's count.
+ *
+ * It is the *Attachments* tab of the Task's screen (issue #1524): the tab names
+ * the panel, so the list draws no heading of its own.
  */
 export function TaskAttachments(props: { taskId: string; canChange: boolean; onChange?: () => void }): ReactNode {
   const { taskId, canChange, onChange } = props;
   const t = useTranslation('tasks');
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
-  const headingId = useId();
   const maxSize = fileSizeLabel(TASK_ATTACHMENT_MAX_BYTES, language);
 
   const [attachments, setAttachments] = useState<TaskAttachment[] | null>(null);
@@ -123,10 +125,7 @@ export function TaskAttachments(props: { taskId: string; canChange: boolean; onC
   };
 
   return (
-    <section aria-labelledby={headingId} className="space-y-3">
-      <h2 id={headingId} className="text-base font-semibold">
-        {t('attachments.title')}
-      </h2>
+    <div className="space-y-3">
 
       {error ? (
         <Alert variant="destructive">
@@ -251,6 +250,6 @@ export function TaskAttachments(props: { taskId: string; canChange: boolean; onC
           ) : null}
         </ModalDialog>
       ) : null}
-    </section>
+    </div>
   );
 }

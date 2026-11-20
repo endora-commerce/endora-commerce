@@ -257,6 +257,8 @@
   "detail.delete": "Usuń zadanie",
   "detail.deleteNotAllowed": "Usunięcie tego zadania wymaga uprawnienia do zmieniania rekordu, do którego należy.",
   "detail.history": "Historia",
+  "detail.sidebar": "Kontekst i powiązania",
+  "detail.tabs": "Aktywność zadania",
   "detail.comments": "Komentarze",
   "detail.subtasks": "Podzadania",
   "detail.related": "Powiązane zadania",

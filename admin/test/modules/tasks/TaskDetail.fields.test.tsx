@@ -131,6 +131,12 @@ async function renderPage(permissions: readonly string[] = PERMISSIONS): Promise
   await screen.findByRole('heading', { name: /Order the racking/ });
 }
 
+/** The attachments are a tab of the Task's screen (issue #1524). */
+async function openTab(label: string): Promise<HTMLElement> {
+  await userEvent.click(screen.getByRole('tab', { name: new RegExp(`^${label}`) }));
+  return screen.getByRole('tabpanel', { name: new RegExp(`^${label}`) });
+}
+
 describe('TaskDetail — the fields of a full work item (US1)', () => {
   it('shows every assignee, the due date with its time, the start date, the priority and the tags', async () => {
     await renderPage();
@@ -220,13 +226,14 @@ describe('TaskDetail — the fields of a full work item (US1)', () => {
 
   it('lists the attachments with name, size and uploader, and offers the upload to a writer', async () => {
     await renderPage();
-    const section = screen.getByRole('region', { name: en('attachments.title') });
+    const section = await openTab(en('attachments.title'));
     expect(await within(section).findByText('plan.pdf')).toBeTruthy();
     expect(within(section).getByText('Ada Min')).toBeTruthy();
     expect(within(section).getByRole('button', { name: en('attachments.upload') })).toBeTruthy();
   });
 
-  it('reads the history again after a file is added or removed, as after a reminder (T095)', async () => {
+  it('reads the Task again after a file is added or removed, and the history tab shows the change (T095, #1524)', async () => {
+    const taskReads = (): number => getSpy.mock.calls.filter(([path]) => path === TASK_PATH).length;
     const historyReads = (): number =>
       getSpy.mock.calls.filter(([path]) => String(path).startsWith(`${TASK_PATH}/history`)).length;
     const added: TaskAttachment = { ...ATTACHMENT, id: '00000000-0000-4000-8000-0000000000f3', fileName: 'notes.txt' };
@@ -237,20 +244,25 @@ describe('TaskDetail — the fields of a full work item (US1)', () => {
     deleteSpy.mockResolvedValue(undefined);
     try {
       await renderPage();
-      const section = screen.getByRole('region', { name: en('attachments.title') });
+      const section = await openTab(en('attachments.title'));
       await within(section).findByText('plan.pdf');
-      await waitFor(() => expect(historyReads()).toBeGreaterThan(0));
-      const before = historyReads();
+      const before = taskReads();
 
       const input = section.querySelector('input[type="file"]') as HTMLInputElement;
       await userEvent.upload(input, new File(['hello'], 'notes.txt', { type: 'text/plain' }));
       expect(await within(section).findByText('notes.txt')).toBeTruthy();
-      await waitFor(() => expect(historyReads()).toBe(before + 1));
+      // The tab's count is the Task's: it is read again.
+      await waitFor(() => expect(taskReads()).toBe(before + 1));
 
       await userEvent.click(within(section).getByRole('button', { name: en('attachments.remove', { name: 'plan.pdf' }) }));
       await userEvent.click(await screen.findByRole('button', { name: en('attachments.removeConfirm') }));
       await waitFor(() => expect(within(section).queryByText('plan.pdf')).toBeNull());
-      await waitFor(() => expect(historyReads()).toBe(before + 2));
+      await waitFor(() => expect(taskReads()).toBe(before + 2));
+
+      // The history tab reads the history when it opens, so it holds both writes.
+      const reads = historyReads();
+      await openTab(en('detail.history'));
+      await waitFor(() => expect(historyReads()).toBe(reads + 1));
     } finally {
       vi.unstubAllGlobals();
     }
@@ -259,7 +271,7 @@ describe('TaskDetail — the fields of a full work item (US1)', () => {
   it('a reader sees the fields and the files, and none of the controls', async () => {
     await renderPage(['tasks:read']);
     expect(screen.queryByRole('button', { name: en('detail.edit') })).toBeNull();
-    const section = screen.getByRole('region', { name: en('attachments.title') });
+    const section = await openTab(en('attachments.title'));
     expect(await within(section).findByText('plan.pdf')).toBeTruthy();
     expect(within(section).queryByRole('button', { name: en('attachments.upload') })).toBeNull();
   });

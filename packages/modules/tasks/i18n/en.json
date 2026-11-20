@@ -257,6 +257,8 @@
   "detail.delete": "Delete task",
   "detail.deleteNotAllowed": "Deleting this task needs permission to change the record it belongs to.",
   "detail.history": "History",
+  "detail.sidebar": "Context and links",
+  "detail.tabs": "Task activity",
   "detail.comments": "Comments",
   "detail.subtasks": "Sub-tasks",
   "detail.related": "Related tasks",
