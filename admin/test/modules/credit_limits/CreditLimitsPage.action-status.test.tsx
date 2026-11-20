@@ -147,7 +147,7 @@ describe('CreditLimitsPage — the result beside the panel, not a banner (#1499)
     fireEvent.click(save);
     await waitFor(() => expect(region).toHaveTextContent('core.creditLimits.success.adjust'));
 
-    patch.mockRejectedValueOnce(new ApiError(422, { error: { code: 'OVER', message: 'Over allocation' } }));
+    patch.mockRejectedValueOnce(new ApiError(422, { error: { code: 'OVER', message: 'Over allocation' } } as never));
     fireEvent.click(screen.getByRole('button', { name: 'core.creditLimits.action.saveAdjust' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Over allocation');
