@@ -174,4 +174,23 @@ describe('OrderStatusConfigPage', () => {
       screen.getByRole('button', { name: 'core.orderStatusConfig.graph.connectMode' }),
     ).toBeInTheDocument();
   });
+
+  it('says which graph toggles are on, not only by colour (aria-pressed, issue #1445)', async () => {
+    renderPage();
+    const connect = await screen.findByRole('button', { name: 'core.orderStatusConfig.graph.connectMode' });
+    expect(connect).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(connect);
+    expect(connect).toHaveAttribute('aria-pressed', 'true');
+
+    const layout = screen.getByRole('group', { name: 'core.orderStatusConfig.graph.layout' });
+    const none = within(layout).getByRole('button', { name: 'core.orderStatusConfig.graph.layoutNone' });
+    const force = within(layout).getByRole('button', { name: 'core.orderStatusConfig.graph.layoutForce' });
+    const pressed = (): string[] =>
+      within(layout).getAllByRole('button').filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.textContent ?? '');
+    expect(pressed()).toHaveLength(1);
+    await userEvent.click(force);
+    expect(force).toHaveAttribute('aria-pressed', 'true');
+    expect(none).toHaveAttribute('aria-pressed', 'false');
+    expect(pressed()).toEqual(['core.orderStatusConfig.graph.layoutForce']);
+  });
 });

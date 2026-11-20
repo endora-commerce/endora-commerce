@@ -196,5 +196,6 @@
   "customerNotifications.approved.title": "Quote request {number} was approved",
   "customerNotifications.canceled.title": "Quote request {number} was canceled",
   "customerPush.title": "Quote request update",
-  "negotiation.partLabel": "Price negotiation"
+  "negotiation.partLabel": "Price negotiation",
+  "detail.tabs.label": "Quote request sections"
 }

@@ -538,6 +538,9 @@ whose tabs are routes. Both draw `.b2b-tabs` / `.b2b-tab`, so an operator cannot
 - **Counts** (`RecordTabs`): `count` draws a badge after the label; zero draws nothing. The
   accessible name says what is counted — `common.tabs.counted`, "Notes, items: 3", or the
   item's own `countLabel` ("Messages, unread: 2"), which must start with the label (SC 2.5.3).
+- **Unsaved changes**: `unsaved: t('…unsaved')` on an item draws a dot after the label and adds
+  the words to the accessible name ("Modify (unsaved changes)"), so the colour is never the one
+  carrier (SC 1.4.1). Leave it `undefined` while the section's draft is clean.
 - `icon` is decorative (`aria-hidden`). The panel is focusable (`tabIndex` 0) unless the screen
   passes `-1` because it only focuses the panel programmatically.
 - **No tabs inside tabs.** A second level inside a panel hides content two clicks deep and gives

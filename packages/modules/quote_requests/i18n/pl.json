@@ -198,5 +198,6 @@
   "customerNotifications.approved.title": "Zapytanie ofertowe {number} zostało zatwierdzone",
   "customerNotifications.canceled.title": "Zapytanie ofertowe {number} zostało anulowane",
   "customerPush.title": "Aktualizacja zapytania ofertowego",
-  "negotiation.partLabel": "Negocjacja cen"
+  "negotiation.partLabel": "Negocjacja cen",
+  "detail.tabs.label": "Sekcje zapytania ofertowego"
 }
