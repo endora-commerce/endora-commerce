@@ -198,7 +198,7 @@ const SFTP = {
   version: 1,
 } as unknown as FeedDeliveryConfig;
 
-function withAdmin(node: React.ReactNode): React.ReactNode {
+function withAdmin(node: React.ReactNode): React.ReactElement {
   return withSession(<MemoryRouter>{node}</MemoryRouter>, {
     session: adminSession({ permissions: ['*'] }),
     presence: modulePresence({ present: ['product_feeds', 'price_lists'] }),
