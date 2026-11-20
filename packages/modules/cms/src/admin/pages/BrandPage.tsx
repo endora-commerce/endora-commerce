@@ -22,12 +22,14 @@ import {
   CardContent,
   Checkbox,
   ColorPicker,
+  InlineStatus,
   Input,
   Label,
   PageHeader,
   SaveButtonGroup,
   Section,
   Select,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { AssetFieldPicker, SalesChannelPicker, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
@@ -47,9 +49,11 @@ const BUTTON_WEIGHTS = [400, 500, 600, 700] as const;
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
+/**
+ * What a failed save or reset says, as the page's one banner. A success is not
+ * here: it is said beside Save, in the header's status region (issue #1499).
+ */
 type Feedback =
-  | { kind: 'saved' }
-  | { kind: 'reset' }
   | { kind: 'conflict' }
   | { kind: 'invalid'; fields: string }
   | { kind: 'error'; message: string };
@@ -242,6 +246,11 @@ export function BrandPage(): ReactNode {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — "Saved" and "Reset" are said
+  // beside Save in the header, in a region mounted before it has text: the reset
+  // button is gone once the channel follows the global set, and a success banner
+  // under the header was far from both and competed with the errors.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   // Only the latest read may land: switching channels while one is in flight
   // must not leave the previous channel's set on screen.
   const requestRef = useRef(0);
@@ -268,13 +277,14 @@ export function BrandPage(): ReactNode {
   }, [channelId, load]);
 
   const edit = useCallback((mutate: (tokens: CmsBrandTokens) => void): void => {
+    clearStatus();
     setDraft((current) => {
       if (!current) return current;
       const next = structuredClone(current);
       mutate(next);
       return next;
     });
-  }, []);
+  }, [clearStatus]);
 
   const channelState = channelId !== null && read?.channel?.salesChannelId === channelId ? read.channel : null;
   const hasOverride = channelState?.tokens != null;
@@ -297,6 +307,7 @@ export function BrandPage(): ReactNode {
   const save = async (): Promise<boolean> => {
     if (!draft || !editable) return false;
     setFeedback(null);
+    clearStatus();
     const parsed = cmsBrandTokensSchema.safeParse(draft);
     if (!parsed.success) {
       const fields = [...new Set(parsed.error.issues.map((issue) => issue.path.join('.')))].join(', ');
@@ -306,7 +317,7 @@ export function BrandPage(): ReactNode {
     setSaving(true);
     try {
       await cmsClient.putBrandTokens({ scope, tokens: parsed.data, expectedVersion: storedVersion });
-      setFeedback({ kind: 'saved' });
+      showStatus(t('brand.saved'));
       await load(channelId);
       return true;
     } catch (err) {
@@ -332,10 +343,11 @@ export function BrandPage(): ReactNode {
     });
     if (!ok) return;
     setFeedback(null);
+    clearStatus();
     setSaving(true);
     try {
       await cmsClient.putBrandTokens({ scope, tokens: null, expectedVersion: channelState?.version ?? 0 });
-      setFeedback({ kind: 'reset' });
+      showStatus(t('brand.resetDone'));
       await load(channelId);
     } catch (err) {
       await failed(err);
@@ -347,6 +359,7 @@ export function BrandPage(): ReactNode {
   const startOverride = (): void => {
     if (!read) return;
     setFeedback(null);
+    clearStatus();
     // A complete copy of what the channel shows now, which is the global set.
     setDraft(structuredClone(read.effective));
     setOverriding(true);
@@ -360,19 +373,22 @@ export function BrandPage(): ReactNode {
         title={t('brand.title')}
         actions={
           canEdit ? (
-            <SaveButtonGroup
-              onSave={async (): Promise<void> => {
-                await save();
-              }}
-              onSaveAndExit={async (): Promise<void> => {
-                if (await save()) navigate('/cms/pages');
-              }}
-              saving={saving}
-              disabled={!editable || !draft}
-              saveLabel={t('common.save')}
-              savingLabel={t('common.saving')}
-              saveAndExitLabel={t('common.saveAndExit')}
-            />
+            <div className="flex flex-wrap items-center gap-3">
+              <InlineStatus {...statusProps} />
+              <SaveButtonGroup
+                onSave={async (): Promise<void> => {
+                  await save();
+                }}
+                onSaveAndExit={async (): Promise<void> => {
+                  if (await save()) navigate('/cms/pages');
+                }}
+                saving={saving}
+                disabled={!editable || !draft}
+                saveLabel={t('common.save')}
+                savingLabel={t('common.saving')}
+                saveAndExitLabel={t('common.saveAndExit')}
+              />
+            </div>
           ) : null
         }
       />
@@ -395,6 +411,7 @@ export function BrandPage(): ReactNode {
                 value={channelId}
                 onChange={(next): void => {
                   setFeedback(null);
+                  clearStatus();
                   setChannelId(next);
                 }}
                 clearable
@@ -729,18 +746,6 @@ export function BrandPage(): ReactNode {
 
 function FeedbackAlert({ feedback, t }: { feedback: Feedback; t: Translate }): ReactElement {
   switch (feedback.kind) {
-    case 'saved':
-      return (
-        <Alert variant="success">
-          <AlertDescription>{t('brand.saved')}</AlertDescription>
-        </Alert>
-      );
-    case 'reset':
-      return (
-        <Alert variant="success">
-          <AlertDescription>{t('brand.resetDone')}</AlertDescription>
-        </Alert>
-      );
     case 'conflict':
       return (
         <Alert variant="destructive">

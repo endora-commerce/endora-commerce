@@ -196,7 +196,9 @@ describe('coming back from the create-order screen', () => {
     reads = [detail({ links: [createdLink({})] })];
     await openOpportunity(arrival);
     const orders = await section(en('links.title'));
-    expect(within(orders).getByText(en('origin.order.linked', { number: 'ORD-2001' }))).toBeInTheDocument();
+    expect(
+      await within(orders).findByText(en('origin.order.linked', { number: 'ORD-2001' })),
+    ).toBeInTheDocument();
     expect(getSpy.mock.calls.filter(([path]) => path === DETAIL_PATH)).toHaveLength(1);
   });
 
@@ -211,6 +213,29 @@ describe('coming back from the create-order screen', () => {
       returningHere(`/orders/${NEW_ORDER_ID}`),
     );
   }, 12_000);
+
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): the outcome is said beside the
+  // "Create order" button that started it, in a polite region — never a success
+  // banner — and the region is there, empty, on an ordinary visit too.
+  it('says it beside "Create order", in a polite region, with no success banner', async () => {
+    reads = [detail({ links: [createdLink({})] })];
+    await openOpportunity(arrival);
+    const orders = await section(en('links.title'));
+    const create = within(orders).getByRole('link', { name: en('origin.order.create') });
+    const region = create.parentElement?.querySelector<HTMLElement>(':scope > [role="status"]');
+    if (!region) throw new Error('no status region beside "Create order"');
+    await waitFor(() => expect(region).toHaveTextContent(en('origin.order.linked', { number: 'ORD-2001' })));
+    expect(region.getAttribute('data-tone')).toBe('success');
+    expect(orders.querySelector('[data-slot="alert"]')).toBeNull();
+  });
+
+  it('keeps the region mounted and empty on an ordinary visit', async () => {
+    await openOpportunity();
+    const orders = await section(en('links.title'));
+    const create = await within(orders).findByRole('link', { name: en('origin.order.create') });
+    const region = create.parentElement?.querySelector<HTMLElement>(':scope > [role="status"]');
+    expect(region?.textContent).toBe('');
+  });
 
   it('says nothing on an ordinary visit', async () => {
     await openOpportunity();

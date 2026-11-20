@@ -2,13 +2,14 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { TriangleAlert } from 'lucide-react';
 import type { OrganizationTaxIdValidationRecord } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
   attemptNotes,
   newestRegistrationRow,
   registryComparisonRows,
   vatStatusKey,
+  vatValidationResultTone,
 } from './vat-validation-view.js';
 import { ImmediateBadge } from '@endora-commerce/admin-kit/components';
 
@@ -66,7 +67,9 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
   const [items, setItems] = useState<ValidationRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — the outcome is said beside the
+  // buttons, in a region mounted before it has text, not as a success banner.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
@@ -94,13 +97,13 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
       if (busy) return;
       setBusy(true);
       setError(null);
-      setInfo(null);
+      clearStatus();
       try {
         const res = await apiClient.post<{ outcome: Outcome; errorKind: string | null }>(
           `/api/v1/admin/organizations/${props.organizationId}/vat-validations`,
           { providerHint: 'auto', applyAutoFill },
         );
-        setInfo(t(`organizations.vatValidation.success.${res.outcome}`));
+        showStatus(t(`organizations.vatValidation.success.${res.outcome}`), vatValidationResultTone(res.outcome));
         await Promise.all([refresh(), props.onChanged()]);
       } catch (err) {
         setError(
@@ -112,7 +115,7 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
         setBusy(false);
       }
     },
-    [busy, props, refresh, t],
+    [busy, props, refresh, t, showStatus, clearStatus],
   );
 
   const registration = newestRegistrationRow(items);
@@ -134,11 +137,6 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : null}
-        {info ? (
-          <Alert variant="success">
-            <AlertDescription>{info}</AlertDescription>
-          </Alert>
-        ) : null}
 
         <div className="flex flex-wrap items-center gap-3 text-sm">
           <span className="text-muted-foreground">
@@ -157,7 +155,7 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
           ) : null}
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button onClick={(): void => void trigger(false)} disabled={busy}>
             {t('organizations.vatValidation.action.validateNow')}
           </Button>
@@ -173,6 +171,7 @@ export function VatValidationPanel(props: VatValidationPanelProps): ReactNode {
           >
             {t('organizations.vatValidation.action.validateAndAutoFill')}
           </Button>
+          <InlineStatus {...statusProps} />
         </div>
 
         {registration ? <RegistrySnapshotCard row={registration} /> : null}

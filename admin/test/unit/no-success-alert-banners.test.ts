@@ -37,12 +37,6 @@ const LEDGER: Record<string, { count: number; reason: string }> = {
   'packages/modules/catalog/src/admin/pages/CategoryContentPage.tsx': { count: 1, reason: OPEN },
   'packages/modules/catalog/src/admin/pages/ProductContentPage.tsx': { count: 1, reason: OPEN },
   'packages/modules/catalog/src/admin/pages/ProductEditor.tsx': { count: 1, reason: `${OPEN}, with CAT-09` },
-  'packages/modules/cms/src/admin/pages/BrandPage.tsx': { count: 2, reason: OPEN },
-  'packages/modules/crm/src/admin/components/CreateFromOpportunity.tsx': { count: 1, reason: OPEN },
-  'packages/modules/organizations/src/admin/components/OrganizationRolesTab.tsx': { count: 1, reason: OPEN },
-  'packages/modules/organizations/src/admin/panels/HierarchyPanel.tsx': { count: 1, reason: OPEN },
-  'packages/modules/organizations/src/admin/panels/ModerationActionsPanel.tsx': { count: 1, reason: OPEN },
-  'packages/modules/organizations/src/admin/panels/VatValidationPanel.tsx': { count: 1, reason: OPEN },
 };
 
 const SUCCESS_ALERT = /<Alert\b[^>]*?\bvariant="success"/g;

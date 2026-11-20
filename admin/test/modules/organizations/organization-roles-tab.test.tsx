@@ -267,6 +267,34 @@ describe('OrganizationRolesTab — managing with organizations:manage-roles', ()
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): the dialog that did it is gone, so
+  // the result is said in the tab's header beside Create — in a region mounted
+  // empty before the dialog opened — not as a success banner inside the card.
+  it('says "created" beside the Create button, in a region mounted before it, with no success banner', async () => {
+    postSpy.mockResolvedValue({ data: { ...ROLES[3], id: '00000000-0000-4000-8000-000000000007', name: 'Approver' } });
+    renderTab(['organizations:manage-roles']);
+
+    const create = await screen.findByRole('button', { name: tr('roles.action.create') });
+    const region = create.parentElement?.querySelector<HTMLElement>(':scope > [role="status"]');
+    if (!region) throw new Error('no status region beside the Create button');
+    expect(region.textContent).toBe('');
+
+    await waitFor(() => expect(create).not.toBeDisabled());
+    fireEvent.click(create);
+    const dialog = await screen.findByRole('dialog', { name: tr('roles.editor.createTitle') });
+    fireEvent.change(within(dialog).getByLabelText(tr('roles.editor.field.name')), { target: { value: 'Approver' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: tr('roles.action.save') }));
+
+    await waitFor(() => expect(region).toHaveTextContent(tr('roles.info.created')));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+
+    // Opening the editor again starts a new action: the old result goes.
+    await waitFor(() => expect(create).not.toBeDisabled());
+    fireEvent.click(create);
+    await screen.findByRole('dialog', { name: tr('roles.editor.createTitle') });
+    expect(region.textContent).toBe('');
+  });
+
   /**
    * T140 (owner ruling OR-9, FR-004a, R-39) — characterization: a new custom
    * role starts with no permissions. The editor ticks nothing, the
