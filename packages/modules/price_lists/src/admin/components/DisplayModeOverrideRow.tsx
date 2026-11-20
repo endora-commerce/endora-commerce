@@ -10,6 +10,7 @@ import {
   type SaveParticipantHandlers,
 } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { Label, Select } from '@endora-commerce/admin-kit/ui';
 
 type Scope = 'organization' | 'category' | 'product';
 type Mode = DisplayMode | 'inherit';
@@ -141,24 +142,24 @@ export function DisplayModeOverrideRow(props: {
   const shownError = participant.error ?? participant.issues?.message ?? error;
 
   const selectId = `dm-${scope}-${targetId}`;
+  const helpId = `${selectId}-help`;
+  const errorId = `${selectId}-error`;
+  // Issue #1492 (CAT-17): kit `Label` / `Select` and Tailwind instead of the legacy field
+  // classes and inline px styles. The help line is now tied to the select, so it
+  // is read with it, and the error keeps its link on top.
   return (
-    <div className="b2b-col" style={{ gap: 4 }}>
-      <label
-        className="b2b-label"
-        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-        {...(mayWrite ? { htmlFor: selectId } : {})}
-      >
-        {!withoutIcon ? <Eye size={12} /> : null}
+    <div className="flex flex-col gap-1">
+      <Label className="flex items-center gap-1.5" {...(mayWrite ? { htmlFor: selectId } : {})}>
+        {!withoutIcon ? <Eye size={12} aria-hidden="true" /> : null}
         {t('priceLists.displayMode.rowLabel')}
-      </label>
+      </Label>
       {mayWrite ? (
-        <select
+        <Select
           id={selectId}
-          className="b2b-field"
           value={mode}
           disabled={loading || loaded === null || participant.status === 'saving'}
           aria-invalid={shownError !== null ? true : undefined}
-          {...(shownError !== null ? { 'aria-describedby': `${selectId}-error` } : {})}
+          aria-describedby={shownError !== null ? `${errorId} ${helpId}` : helpId}
           onChange={(e): void => participant.setDraft(e.target.value as Mode)}
         >
           {(Object.keys(MODE_LABEL) as Mode[]).map((m) => (
@@ -166,22 +167,22 @@ export function DisplayModeOverrideRow(props: {
               {MODE_LABEL[m]}
             </option>
           ))}
-        </select>
+        </Select>
       ) : (
-        <div style={{ fontSize: 13 }}>{loading ? '…' : MODE_LABEL[mode]}</div>
+        <p className="m-0 text-sm">{loading ? '…' : MODE_LABEL[mode]}</p>
       )}
-      <div className="b2b-help" style={{ marginTop: 2 }}>
+      <p id={helpId} className="m-0 text-xs text-muted-foreground">
         {/* Checkpoint 11 ruling 3: the module's bundle, not an English literal. */}
         {mode === 'inherit'
           ? tl('displayModeRow.help.inherit')
           : mode === 'none'
             ? tl('displayModeRow.help.none')
             : tl('displayModeRow.help.format', { mode: MODE_LABEL[mode] })}
-      </div>
+      </p>
       {shownError ? (
-        <div id={`${selectId}-error`} style={{ fontSize: 11, color: 'hsl(8 80% 40%)', marginTop: 2 }}>
+        <p id={errorId} className="m-0 text-xs text-destructive">
           {shownError}
-        </div>
+        </p>
       ) : null}
     </div>
   );

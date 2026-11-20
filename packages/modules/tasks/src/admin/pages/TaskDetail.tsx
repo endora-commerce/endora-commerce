@@ -8,7 +8,7 @@ import {
   type TaskWorkflow,
   type UpdateTaskBody,
 } from '@endora-commerce/contracts';
-import { ApiError, readReturnTo, useAuth } from '@endora-commerce/admin-kit/lib';
+import { ApiError, cn, readReturnTo, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -20,6 +20,7 @@ import {
   Input,
   Label,
   PageHeader,
+  RecordTabs,
 } from '@endora-commerce/admin-kit/ui';
 import {
   ConfirmDialog,
@@ -49,8 +50,12 @@ import { useCurrentAdmin } from '../lib/current-admin.js';
 import { calendarDateLabel, errorMessage, momentLabel } from '../lib/labels.js';
 import { useEditorFocus } from '../lib/use-editor-focus.js';
 import { useFocusFirstInvalid } from '../lib/use-focus-first-invalid.js';
+import { searchForTaskTab, taskTabFromSearch, type TaskTab } from '../lib/task-tabs.js';
 
 const LIST_PATH = '/tasks';
+
+/** One section of the sidebar card: a rule above every one but the first, as `divide-y` would draw. */
+const SIDEBAR_SECTION = 'border-t pt-5 first:border-t-0 first:pt-0';
 
 /** The permitted next statuses a `TASK_TRANSITION_FORBIDDEN` refusal names, if `failure` is one. */
 function allowedTargetsOf(failure: unknown): readonly string[] | null {
@@ -63,25 +68,26 @@ function allowedTargetsOf(failure: unknown): readonly string[] | null {
  * One Task (`specs/163-projects-and-tasks/`, User Story 2;
  * `contracts/admin-surfaces.md` §2–§3).
  *
- * Top to bottom: **the header** — title, number and status; **the details** —
- * the status with the kit's *Move to…* menu, the board's own, which offers only
- * the moves the configured workflow permits from where the Task is
- * (`specs/165-task-management/` research R-1) and writes one move per
- * deliberate press, never per arrow key (WCAG 3.2.2, T092), and the rest
- * edited in place, sending only what changed —
- * several assignees (R-2), the description in the kit's reference editor and
- * drawn with its references as links (R-4, R-5), the due date with an
- * optional time, the start date, the priority and the tags (User Story 1);
- * **the sub-tasks** — the parent, the progress line and the visible sub-tasks
- * — beside **the related Tasks** (User Story 5, R-15);
- * **the comments** (User Story 4, R-6), **the attachments** and **the custom
- * fields** (R-7, R-8); beside the details, **the context card** — the record
- * the Task belongs to as its owner describes it, which a writer may change
- * (`components/ContextSection.tsx`) — and **the linked records** — the
+ * The Opportunity's layout (issue #1524, UX audit 2026-11-17 WORK-02):
+ * **the header** — title, number and the status, said there once (#1566);
+ * **the main card** — the details, with the kit's *Move to…* menu, the
+ * board's own, which offers only the moves the configured workflow permits
+ * from where the Task is (`specs/165-task-management/` research R-1) and
+ * writes one move per deliberate press, never per arrow key (WCAG 3.2.2,
+ * T092), and the rest edited in place, sending only what changed — several
+ * assignees (R-2), the description in the kit's reference editor and drawn
+ * with its references as links (R-4, R-5), the due date with an optional
+ * time, the start date, the priority, the tags (User Story 1) and the custom
+ * fields (R-8) — then **the sub-tasks**: the parent, the progress line and
+ * the visible sub-tasks (User Story 5); **the sidebar card** — the record the
+ * Task belongs to as its owner describes it, which a writer may change
+ * (`components/ContextSection.tsx`), **the linked records** — the
  * Opportunities, Orders and Quote Requests the Task is about (User Story 6,
- * R-16) — and **the reminders** the reader set or is named in (User Story 7,
- * R-17); **the history**; and last the zone `task.detail.after`, which
- * other modules fill and this one names none of.
+ * R-16) — **the reminders** the reader set or is named in (User Story 7,
+ * R-17), **the related Tasks** (R-15) and last the zone `task.detail.after`,
+ * which other modules fill and this one names none of; and **the tabs** —
+ * the comments (User Story 4, R-6), the attachments (R-7) and the history,
+ * the tab kept in the address (`?tab=`).
  *
  * A Task the operator may not see answers exactly as one that does not exist
  * (404 `TASK_NOT_FOUND`), and the screen says what the server said. Without
@@ -93,16 +99,14 @@ export function TaskDetail(): ReactNode {
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const returnTo = readReturnTo(searchParams);
   const { hasPermission } = useAuth();
   const [task, setTask] = useState<TaskDetailData | null>(null);
   // Someone else's private Task is read-only even to a holder of `tasks:write` (R-3).
   const canWrite = hasPermission('tasks:write') && (task === null || task.permissions.canChange);
   const me = useCurrentAdmin();
-  const statusId = useId();
   const detailsHeadingId = useId();
-  const historyHeadingId = useId();
   const [workflow, setWorkflow] = useState<TaskWorkflow | null>(null);
   /**
    * The moves the server named when it refused one, from the status it was
@@ -127,7 +131,7 @@ export function TaskDetail(): ReactNode {
   const editFocus = useEditorFocus(editing);
   /** The *Move to…* menu's wrapper: its trigger takes focus back after a move (the chosen target unmounts). */
   const moveMenuRef = useRef<HTMLDivElement>(null);
-  const statusLabelRef = useRef<HTMLParagraphElement>(null);
+  const detailsHeadingRef = useRef<HTMLHeadingElement>(null);
   const refocusMove = useRef(false);
   const [deleting, setDeleting] = useState(false);
   const [historyVersion, setHistoryVersion] = useState(0);
@@ -154,13 +158,13 @@ export function TaskDetail(): ReactNode {
   }, [load]);
 
   // After a move from the menu: back to its trigger once it is enabled again, or
-  // to the status's label when no move is left from the new status (WCAG 2.4.3).
+  // to the Details heading when no move is left from the new status (WCAG 2.4.3).
   useEffect(() => {
     if (!refocusMove.current || busy) return;
     refocusMove.current = false;
     const trigger = moveMenuRef.current?.querySelector('button');
     if (trigger) trigger.focus();
-    else statusLabelRef.current?.focus();
+    else detailsHeadingRef.current?.focus();
   });
 
   // The statuses and moves of the workflow, for the status control and the history.
@@ -212,6 +216,12 @@ export function TaskDetail(): ReactNode {
 
   // Opened from another screen that named its own address (a record's *Tasks*
   // panel, issue #512): the way back — and the way out after a delete — leads there.
+  const tab = taskTabFromSearch(searchParams);
+  // A tab is a view of the same page: it replaces the entry instead of adding one.
+  const selectTab = (next: TaskTab): void => {
+    setSearchParams((previous) => searchForTaskTab(previous, next), { replace: true });
+  };
+
   const back = returnTo ? { label: tCore('common.action.back'), to: returnTo } : { label: t('detail.back'), to: LIST_PATH };
 
   if (task === null) {
@@ -307,6 +317,13 @@ export function TaskDetail(): ReactNode {
     .map((status) => ({ code: status.code, name: status.name[language] || status.defaultName, color: status.color }));
   const assignedToMe = me !== null && task.assignees.some((person) => person.id === me.id);
 
+  /** After a sidebar section wrote through its own route: say so, and read the Task and its history again. */
+  const reloadAfter = (message: string): void => {
+    setNotice(message);
+    setHistoryVersion((version) => version + 1);
+    void load();
+  };
+
   return (
     <>
       <PageHeader
@@ -366,61 +383,68 @@ export function TaskDetail(): ReactNode {
         </Alert>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="min-w-0 lg:col-span-2">
-          <CardContent>
+      {/*
+        The Opportunity's layout (issue #1524): one grid from the header down.
+        In the markup — the order a narrow screen stacks them in — the main
+        card, the sidebar, the tabs; from `lg` the sidebar is the right column
+        beside both, and the last row is the flexible one, so a tall sidebar
+        stretches the space under the tabs and never the gap between the cards.
+      */}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_1fr]">
+        <Card className="min-w-0 lg:col-start-1">
+          <CardContent className="space-y-6">
             <section aria-labelledby={detailsHeadingId} className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <h2 id={detailsHeadingId} className="text-base font-semibold">
+                <h2
+                  ref={detailsHeadingRef}
+                  id={detailsHeadingId}
+                  tabIndex={-1}
+                  className="text-base font-semibold"
+                >
                   {t('detail.details')}
                 </h2>
                 {canWrite && !editing ? (
-                  <Button
-                    ref={editFocus.openerRef}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="min-h-11 sm:min-h-8"
-                    disabled={busy}
-                    onClick={(): void => setEditing(true)}
-                  >
-                    <Pencil aria-hidden="true" />
-                    {t('detail.edit')}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* The status itself is the title's badge; here only the move (issue #1566). */}
+                    {moveTargets.length > 0 ? (
+                      <div ref={moveMenuRef}>
+                        <MoveToMenu
+                          title={task.title}
+                          targets={moveTargets}
+                          busy={busy}
+                          onMove={(code): void => {
+                            refocusMove.current = true;
+                            void changeStatus(code);
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                    <Button
+                      ref={editFocus.openerRef}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="min-h-11 sm:min-h-8"
+                      disabled={busy}
+                      onClick={(): void => setEditing(true)}
+                    >
+                      <Pencil aria-hidden="true" />
+                      {t('detail.edit')}
+                    </Button>
+                  </div>
                 ) : null}
               </div>
               {canWrite && !mayDelete ? (
                 <p className="text-xs text-muted-foreground">{t('detail.deleteNotAllowed')}</p>
               ) : null}
 
-              {canWrite ? (
-                <div role="group" aria-labelledby={statusId} className="max-w-xs space-y-1">
-                  <p ref={statusLabelRef} id={statusId} tabIndex={-1} className="text-sm font-medium leading-none">
-                    {t('field.status')}
-                  </p>
-                  <StatusBadge status={task.status} />
-                  {moveTargets.length > 0 ? (
-                    <div ref={moveMenuRef}>
-                      <MoveToMenu
-                        title={task.title}
-                        targets={moveTargets}
-                        busy={busy}
-                        onMove={(code): void => {
-                          refocusMove.current = true;
-                          void changeStatus(code);
-                        }}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
+              {canWrite ? null : (
                 <p className="text-sm text-muted-foreground">
                   {someoneElsesPrivate
                     ? t('detail.privateReadOnly', { name: task.createdBy?.name ?? '' })
                     : t('detail.readOnly')}
                 </p>
               )}
-
               {/* Only its Creator says whether a Task is private, and a Task of a record never is (FR-038). */}
               {canWrite && mine && task.context === null && !editing ? (
                 <div className="space-y-1">
@@ -563,6 +587,17 @@ export function TaskDetail(): ReactNode {
                 </dl>
               )}
 
+              {/* The record's own fields are details of it too (WORK-04): a section here, not a card. */}
+              <TaskCustomFields
+                task={task}
+                canChange={canWrite}
+                onChange={(next): void => {
+                  setTask(next);
+                  setNotice(t('detail.saved'));
+                  setHistoryVersion((version) => version + 1);
+                }}
+              />
+
               {openSubtasks > 0 ? (
                 <Alert>
                   <AlertDescription>{t('detail.openSubtasks', { count: openSubtasks })}</AlertDescription>
@@ -575,125 +610,94 @@ export function TaskDetail(): ReactNode {
                 </Alert>
               ) : null}
             </section>
-          </CardContent>
-        </Card>
 
-        {/* The side column beside the details: where the Task belongs, what it is linked to, its reminders. */}
-        <div className="min-w-0 space-y-6">
-          <Card>
-            <CardContent>
-              <ContextSection
+            <div className="border-t pt-6">
+              <SubtasksSection
                 task={task}
                 canChange={canWrite}
-                busy={busy}
-                onWrite={(body, message): Promise<boolean> => write(body, () => message)}
-              />
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent>
-              <LinkedRecordsSection
-                task={task}
-                canChange={canWrite}
-                onChange={(message): void => {
+                onChange={(next, message): void => {
+                  setTask(next);
                   setNotice(message);
                   setHistoryVersion((version) => version + 1);
-                  void load();
                 }}
               />
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/*
+          Beside the details, one card of sections as on an Opportunity: where
+          the Task belongs, what it is linked to, its reminders, the related
+          Tasks, and last what other modules say about it (the zone's panels are
+          sections of this card, no card in a card).
+        */}
+        <aside
+          aria-label={t('detail.sidebar')}
+          className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1"
+        >
           <Card>
-            <CardContent>
-              <RemindersSection
-                task={task}
-                canChange={canWrite}
-                onChange={(message): void => {
-                  setNotice(message);
-                  setHistoryVersion((version) => version + 1);
-                  void load();
-                }}
-              />
+            <CardContent className="space-y-5">
+              <div className={SIDEBAR_SECTION}>
+                <ContextSection
+                  task={task}
+                  canChange={canWrite}
+                  busy={busy}
+                  onWrite={(body, message): Promise<boolean> => write(body, () => message)}
+                />
+              </div>
+              <div className={SIDEBAR_SECTION}>
+                <LinkedRecordsSection task={task} canChange={canWrite} onChange={reloadAfter} />
+              </div>
+              <div className={SIDEBAR_SECTION}>
+                <RemindersSection task={task} canChange={canWrite} onChange={reloadAfter} />
+              </div>
+              <div className={SIDEBAR_SECTION}>
+                <RelatedTasksSection task={task} canChange={canWrite} onChange={reloadAfter} />
+              </div>
+              {/* Empty while nobody contributes, and then not drawn at all: no rule over nothing. */}
+              <div className={cn(SIDEBAR_SECTION, 'empty:hidden *:mt-0')}>
+                <AdminZone name="task.detail.after" props={{ taskId: task.id }} chrome="section" />
+              </div>
             </CardContent>
           </Card>
-        </div>
+        </aside>
 
-        <Card className="min-w-0 lg:col-span-2">
-          <CardContent>
-            <SubtasksSection
-              task={task}
-              canChange={canWrite}
-              onChange={(next, message): void => {
-                setTask(next);
-                setNotice(message);
-                setHistoryVersion((version) => version + 1);
-              }}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0">
-          <CardContent>
-            <RelatedTasksSection
-              task={task}
-              canChange={canWrite}
-              onChange={(message): void => {
-                setNotice(message);
-                setHistoryVersion((version) => version + 1);
-                void load();
-              }}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0 lg:col-span-3">
-          <CardContent>
+        <RecordTabs<TaskTab>
+          className="min-w-0 overflow-hidden lg:col-start-1"
+          items={[
+            { value: 'comments', label: t('detail.comments'), count: task.commentsCount },
+            { value: 'attachments', label: t('attachments.title'), count: task.attachmentsCount },
+            { value: 'history', label: t('detail.history') },
+          ]}
+          value={tab}
+          onValueChange={selectTab}
+          idBase="task-detail"
+          aria-label={t('detail.tabs')}
+        >
+          {tab === 'comments' ? (
             <TaskComments
               taskId={task.id}
               // Whoever may see the Task may comment, but someone else's private Task is read only (R-3).
               canComment={hasPermission('tasks:read') && !(task.private && task.createdBy?.id !== me?.id)}
-              onChange={(): void => setHistoryVersion((version) => version + 1)}
+              // The history has an entry more, and the tab's count changed.
+              onChange={(): void => {
+                setHistoryVersion((version) => version + 1);
+                void load();
+              }}
             />
-          </CardContent>
-        </Card>
-
-        <Card className="min-w-0 lg:col-span-2">
-          <CardContent>
+          ) : tab === 'attachments' ? (
             <TaskAttachments
               taskId={task.id}
               canChange={canWrite}
-              onChange={(): void => setHistoryVersion((version) => version + 1)}
+              onChange={(): void => {
+                setHistoryVersion((version) => version + 1);
+                void load();
+              }}
             />
-          </CardContent>
-        </Card>
-
-        <div className="min-w-0">
-          <TaskCustomFields
-            task={task}
-            canChange={canWrite}
-            onChange={(next): void => {
-              setTask(next);
-              setNotice(t('detail.saved'));
-              setHistoryVersion((version) => version + 1);
-            }}
-          />
-        </div>
-
-        <Card className="min-w-0 lg:col-span-3">
-          <CardContent>
-            <section aria-labelledby={historyHeadingId} className="space-y-3">
-              <h2 id={historyHeadingId} className="text-base font-semibold">
-                {t('detail.history')}
-              </h2>
-              <TaskHistory
-                taskId={task.id}
-                version={historyVersion}
-                statusName={statusName}
-                priorityName={priorityName}
-              />
-            </section>
-          </CardContent>
-        </Card>
+          ) : (
+            <TaskHistory taskId={task.id} version={historyVersion} statusName={statusName} priorityName={priorityName} />
+          )}
+        </RecordTabs>
       </div>
 
       {/* Mounted before it has text, so the announcement is reliable (WCAG 4.1.3). */}
@@ -708,9 +712,6 @@ export function TaskDetail(): ReactNode {
           onDeleted={(): void => void navigate(back.to)}
         />
       ) : null}
-
-      {/* At page level each contribution is a card of its own (issue #1437). */}
-      <AdminZone name="task.detail.after" props={{ taskId: task.id }} chrome="card" />
     </>
   );
 }

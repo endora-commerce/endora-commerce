@@ -124,30 +124,34 @@ its stages. Started from a record's *Tasks* panel, the task is linked to that
 record, and *Back* returns to that record; started from a task's *Add
 sub-task*, it is that task's sub-task.
 
-**A task's screen** shows its number and title, its status — offering only the
-moves the workflow allows — and *Draft* or *Private* when it is one. A draft
-shows *Publish* to its creator; the creator of a task with no record can switch
-*Private* on and off. Then:
+**A task's screen** is laid out as an opportunity's. The header shows the
+task's number, its title, its status and *Draft* or *Private* when it is one. A
+draft shows *Publish* to its creator; the creator of a task with no record can
+switch *Private* on and off. Below are three cards:
 
-- **Details** — the description, with its references as links; assignees, due
-  date and time, start date, priority and tags, changed with *Edit* and saved
+- **Details** — *Move to…* beside *Edit*, offering only the moves the workflow
+  allows; the description, with its references as links; assignees, due date
+  and time, start date, priority and tags, changed with *Edit* and saved
   together; *Assign to me*; who created the task and when, and when it was
-  finished. *Delete task*, at the top of the screen and away from *Edit*, asks
+  finished; and the task's **custom fields**. *Delete task*, at the top of the screen and away from *Edit*, asks
   before it deletes, and says how many sub-tasks the task has: they become
   top-level tasks, they are not deleted. It is not
   offered for a task of a record you may not change — a project you may not
   edit — and the screen says why.
 - **Sub-tasks** — how many are done of how many, each with its status,
   assignees and due date; *Add sub-task* and *Make sub-task of…*. A sub-task
-  names its parent, with *Remove from parent*.
-- **Comments**, **Attachments** and **History**.
-- Beside them: **Reminders**, **Belongs to** — the record the task belongs to,
-  as its module names it, with *Place in a record*, *Move* and *Remove from the
+  names its parent, with *Remove from parent*. Details and sub-tasks share the
+  main card.
+- Beside it, one card: **Belongs to** — the record the task belongs to, as its
+  module names it, with *Place in a record*, *Move* and *Remove from the
   record*, which asks first: out of its record, the task is seen by everyone
-  who may view tasks — **Linked records**, **Related tasks** and the task's **custom
-  fields**.
+  who may view tasks — **Linked records**, **Reminders** and **Related tasks**.
+- Under the details, tabs: **Comments** and **Attachments**, each with its
+  count, and **History**. The address keeps the open tab, so a link can open
+  the history.
 
-Other modules can add panels at the end of a task's screen. Without the
+Other modules can add sections at the end of the card beside the details — the
+project the task is in, for one. Without the
 permission to change tasks the screen is read-only.
 
 **On other records.** The screens of an **opportunity**, an **order** and a

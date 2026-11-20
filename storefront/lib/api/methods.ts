@@ -1,4 +1,5 @@
 import { apiGet, type RequestContext } from './client';
+import { apiGetAuthed } from './mutations';
 import { withModuleAbsence } from './module-absence';
 
 /**
@@ -113,4 +114,25 @@ async function fetchPaymentMethods(ctx: RequestContext): Promise<PaymentMethodSu
     ctx,
   );
   return payload.data;
+}
+
+/**
+ * `specs/182-related-payers/` (FR-066, RP-9) — the payment methods a related payer allows
+ * (`GET /api/v1/payment-methods?payerOrganizationId=`), which the buyer's own list does not
+ * narrow. Signed in: the catalogue vouches for the payer against the buyer's session.
+ */
+export async function listPaymentMethodsForPayer(
+  sessionCookie: string,
+  ctx: RequestContext,
+  payerOrganizationId: string,
+): Promise<PaymentMethodSummary[]> {
+  return withModuleAbsence(
+    () =>
+      apiGetAuthed<PaymentMethodSummary[]>({
+        path: `/api/v1/payment-methods?payerOrganizationId=${encodeURIComponent(payerOrganizationId)}`,
+        sessionCookie,
+        ctx,
+      }),
+    [],
+  );
 }

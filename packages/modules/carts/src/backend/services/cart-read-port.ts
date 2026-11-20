@@ -202,6 +202,8 @@ export function toCartRecord(cart: Cart): CartRecord {
     id: cart.id,
     customerAccountId: cart.customerAccountId ?? null,
     organizationId: cart.organizationId ?? null,
+    buyingForOrganizationId: cart.buyingForOrganizationId ?? null,
+    buyingForTerms: cart.buyingForTerms ?? null,
     anonymousCartToken: cart.anonymousCartToken ?? null,
     salesChannelId: cart.salesChannelId ?? null,
     status: cart.status,

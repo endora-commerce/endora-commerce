@@ -1,4 +1,5 @@
 {
+  "module.name": "Invoices",
   "settings.sellerTaxId.label": "Seller VAT / NIP",
   "settings.sellerCompanyData.label": "Seller company data",
   "settings.autoIssueTriggerStatus.label": "Auto-issue on order status",

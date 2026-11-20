@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import type { AdminZoneContribution, AdminZoneProps } from '@endora-commerce/contracts';
@@ -322,10 +323,10 @@ describe('customer detail — immediate actions stay immediate (feature 180, FR-
     await screen.findByLabelText('Loyalty tier');
     const badge = coreEn['saveSession.immediateBadge']!;
     // Each badge sits in its section's heading: the heading's text is the title, then the badge.
+    // Issue #1517 — one immediate section now: the account, whose organization and group fields
+    // apply at once. The account actions are the header's "More" menu.
     const headings = screen.getAllByText(badge).map((node) => node.parentElement?.textContent ?? '');
-    expect(headings.sort()).toEqual(
-      [en['detail.actions.title']!, en['detail.org.title']!, en['detail.group.title']!].map((title) => `${title}${badge}`).sort(),
-    );
+    expect(headings).toEqual([`${en['detail.info.title']!}${badge}`]);
     // The custom fields are not immediate: they save with the page.
     expect(within(screen.getByText(coreEn['customFields.title']!)).queryByText(badge)).toBeNull();
   });
@@ -333,7 +334,9 @@ describe('customer detail — immediate actions stay immediate (feature 180, FR-
   it('Block applies at once once confirmed, without Save, and keeps the staged changes', async () => {
     renderDetail();
     await editTier('silver');
-    fireEvent.click(screen.getByRole('button', { name: en['detail.action.block']! }));
+    // Issue #1517 — Block is an entry of the header's "More" menu.
+    await userEvent.click(screen.getByRole('button', { name: coreEn['common.action.more']! }));
+    await userEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: en['detail.action.block']! }));
     // Issue #1471 — Block asks first; the answer, not the page Save, is what applies it.
     expect(postSpy).not.toHaveBeenCalled();
     await answerConfirm(true);

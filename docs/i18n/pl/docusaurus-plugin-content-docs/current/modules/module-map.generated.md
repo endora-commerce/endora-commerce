@@ -76,6 +76,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [PWA (Progressive Web App)](./pwa.md) | Funkcje Progressive Web App dla storefrontu i panelu administracyjnego — instalacja na ekranie głównym, opcjonalna pamięć podręczna zasobów, kontrolowane aktualizacje i opcjonalne powiadomienia push | @endora-commerce/mod-pwa |
 | [Szybkie zamówienia](./quick_order.md) | Import CSV i podpowiedzi dla kupujących zamawiających według SKU | @endora-commerce/mod-quick-order |
 | [Zapytania ofertowe](./quote_requests.md) | Cykl życia zapytania ofertowego (RFQ) — szkic → oferta → akceptacja lub odrzucenie | @endora-commerce/mod-quote-requests |
+| [Płatnicy powiązani](./related-payers/index.md) | Organizacja kupująca składa zamówienia opłacane i fakturowane przez inną organizację sklepu | @endora-commerce/mod-related-payers |
 | [Zwroty](./returns.md) | Zwroty i reklamacje (RMA) — zgłoszenie, weryfikacja, przesyłki zwrotne i rozliczenie według konfigurowalnego grafu statusów | @endora-commerce/mod-returns |
 | [Kanały sprzedaży](./sales_channels/index.md) | Rejestr kanałów, wyznaczanie kanału dla żądania i dwukierunkowe przypisania dla każdej encji zależnej od kanału | @endora-commerce/mod-sales-channels |
 | [Wyszukiwanie w sklepie](./search.md) | Indeksator Meilisearch i warstwa zapytań | @endora-commerce/mod-search |

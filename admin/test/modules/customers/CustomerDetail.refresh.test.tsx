@@ -41,8 +41,8 @@ vi.mock('../../../../packages/modules/customers/src/admin/panels/HistoryPanels',
   CartsPanel: () => null,
 }));
 vi.mock('../../../../packages/modules/customers/src/admin/panels/ManagementPanels', () => ({
-  OrganizationAssignmentPanel: () => null,
-  CustomerGroupPanel: () => null,
+  OrganizationAssignmentField: () => null,
+  CustomerGroupField: () => null,
   AddressesPanel: () => null,
 }));
 const { CustomerDetail } = await import('../../../../packages/modules/customers/src/admin/pages/CustomerDetail');
@@ -80,6 +80,13 @@ const CUSTOMER = {
 };
 
 const CORE_EN = read('../packages/modules/_i18n/i18n/en.json');
+
+/** Issue #1517 — the account actions are entries of the header's "More" menu. */
+async function chooseAction(name: string): Promise<void> {
+  await userEvent.click(await screen.findByRole('button', { name: CORE_EN['common.action.more']! }));
+  const menu = await screen.findByRole('menu');
+  await userEvent.click(within(menu).getByRole('menuitem', { name }));
+}
 
 function renderDetail(readCustomer: () => Promise<unknown>): void {
   getSpy.mockImplementation((path: string) => {
@@ -131,7 +138,7 @@ describe('CustomerDetail — first load and refresh (DS-14)', () => {
     const heading = await screen.findByText(T('detail.info.title'));
     postSpy.mockResolvedValue({});
 
-    await userEvent.click(screen.getByRole('button', { name: T('detail.action.block') }));
+    await chooseAction(T('detail.action.block'));
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Block customer' }));
 

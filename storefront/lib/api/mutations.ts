@@ -126,6 +126,19 @@ export async function apiGetAuthed<T>(opts: {
   sessionCookie: string;
   ctx?: RequestContext;
 }): Promise<T> {
+  return (await apiGetAuthedEnvelope<{ data: T }>(opts)).data;
+}
+
+/**
+ * {@link apiGetAuthed} answering the whole response body rather than its `data` — for a list
+ * whose envelope carries more than `data`, such as a cursor-paged list's `pagination`, which
+ * `apiGetAuthed` drops.
+ */
+export async function apiGetAuthedEnvelope<E extends { data: unknown }>(opts: {
+  path: string;
+  sessionCookie: string;
+  ctx?: RequestContext;
+}): Promise<E> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
     Cookie: `b2b_session=${opts.sessionCookie}`,
@@ -142,8 +155,7 @@ export async function apiGetAuthed<T>(opts: {
     const envelope = await response.json().catch(() => null);
     throwFromErrorEnvelope(response.status, envelope);
   }
-  const payload = (await response.json()) as { data: T };
-  return payload.data;
+  return (await response.json()) as E;
 }
 
 function collectSetCookie(headers: Headers): string[] {

@@ -1,4 +1,5 @@
 {
+  "module.name": "CRM",
   "nav.opportunities.label": "Opportunities",
   "nav.board.label": "Board",
   "nav.calendar.label": "Calendar",

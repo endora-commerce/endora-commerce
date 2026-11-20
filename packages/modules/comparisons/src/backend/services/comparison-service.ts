@@ -315,7 +315,8 @@ export class ComparisonService {
    */
   async #viewerOrganization(viewer: ProductAudience): Promise<PriceOrganization | null> {
     if (viewer.organizationId === null) return null;
-    const record = await this.#requireOrganizationDetails().findById(viewer.organizationId);
+    // `specs/182-related-payers/` FR-115 — the payer on its terms, else the viewer.
+    const record = await this.#requireOrganizationDetails().findById(viewer.pricingOrganizationId ?? viewer.organizationId);
     if (!record) return null;
     return { id: record.id, customerGroupId: record.customerGroupId };
   }
@@ -679,9 +680,12 @@ export class ComparisonService {
               salesChannel: { id: viewerSalesChannelId, defaultCurrency: currency },
               organization: viewerOrganization,
               // D-287 P0 — the customer's own group, as on the catalogue listing.
-              ...(viewerOrganization && viewer.kind === 'buyer' && viewer.audience.customerAccountId
-                ? { customerAccountId: viewer.audience.customerAccountId }
-                : {}),
+              // A-18 / RP-14 — no account on a payer's terms; the buyer's display mode.
+              ...(viewer.kind === 'buyer' && viewer.audience.pricingOrganizationId && viewer.audience.organizationId
+                ? { displayModeOrganization: { id: viewer.audience.organizationId } }
+                : viewerOrganization && viewer.kind === 'buyer' && viewer.audience.customerAccountId
+                  ? { customerAccountId: viewer.audience.customerAccountId }
+                  : {}),
             },
           })
         : new Map<string, ListingPrice>();

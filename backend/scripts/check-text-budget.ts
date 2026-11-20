@@ -261,7 +261,6 @@ export const TEXT_BUDGET_BASELINE: Readonly<Record<string, number>> = {
   'cms:settingLabels.cms.page_builder.translation.llm_credentials.description': 279,
   'cms:settingLabels.cms.page_builder.translation.max_source_characters.description': 359,
   'customer_notifications:settingLabels.customer_notifications.enabled.description': 299,
-  'customers:detail.dangerZone.hint': 89,
   'forms:notifications.recipients.hint': 94,
   'forms:palette.hint': 82,
   'inventory:settingLabels.inventory.low_stock_alert_recipient_email.description': 168,

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
-import { Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
+import { EditorSection } from '@endora-commerce/admin-kit/ui';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { cartStatusLabels, orderStatusName, quoteRequestStatusLabels } from '../lib/labels.js';
 
-/** Generic read-only fetch-on-mount panel for the customer-detail history views. */
+/** Generic read-only fetch-on-mount section for the customer detail's Activity tab. */
 function usePanelData<T>(path: string, enabled: boolean): { rows: T[]; loading: boolean; error: string | null } {
   const t = useTranslation('customers');
   const [rows, setRows] = useState<T[]>([]);
@@ -52,11 +52,7 @@ export function OrdersPanel({ customerId }: { customerId: string }): ReactNode {
     true,
   );
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle>{t('detail.orders.title')}</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <EditorSection title={t('detail.orders.title')}>
         {loading ? (
           <p className="text-sm text-muted-foreground">{t('detail.panel.loading')}</p>
         ) : error ? (
@@ -82,8 +78,7 @@ export function OrdersPanel({ customerId }: { customerId: string }): ReactNode {
             ))}
           </ul>
         )}
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }
 
@@ -102,11 +97,7 @@ export function QuoteRequestsPanel({ customerId }: { customerId: string }): Reac
     true,
   );
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle>{t('detail.rfqs.title')}</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <EditorSection title={t('detail.rfqs.title')}>
         {loading ? (
           <p className="text-sm text-muted-foreground">{t('detail.panel.loading')}</p>
         ) : error ? (
@@ -128,8 +119,7 @@ export function QuoteRequestsPanel({ customerId }: { customerId: string }): Reac
             ))}
           </ul>
         )}
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }
 
@@ -168,8 +158,10 @@ export function CartsPanel({ customerId }: { customerId: string }): ReactNode {
     void load();
   }, [load]);
 
+  // Issue #1517 — rows divided by a rule inside the section, not a bordered box per cart
+  // (Common Region: a frame inside a card reads as a separate object).
   const renderCart = (c: CartView): ReactNode => (
-    <div key={c.id} className="rounded border p-3">
+    <li key={c.id} className="py-3 first:pt-0 last:pb-0">
       <p className="mb-2 text-xs text-muted-foreground">
         {cartStatusLabels.label(t, c.status)} · {c.items.length} {t('detail.carts.items')}
       </p>
@@ -183,28 +175,26 @@ export function CartsPanel({ customerId }: { customerId: string }): ReactNode {
           </li>
         ))}
       </ul>
-    </div>
+    </li>
   );
 
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle>{t('detail.carts.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <EditorSection title={t('detail.carts.title')}>
         {error ? (
           <p className="text-sm text-destructive">{error}</p>
         ) : !data ? (
           <p className="text-sm text-muted-foreground">{t('detail.panel.loading')}</p>
         ) : (
           <>
-            {data.current ? renderCart(data.current) : (
-              <p className="text-sm text-muted-foreground">{t('detail.carts.noCurrent')}</p>
-            )}
-            {data.abandoned.map(renderCart)}
+            {data.current ? null : <p className="text-sm text-muted-foreground">{t('detail.carts.noCurrent')}</p>}
+            {data.current !== null || data.abandoned.length > 0 ? (
+              <ul className="divide-y divide-border">
+                {data.current ? renderCart(data.current) : null}
+                {data.abandoned.map(renderCart)}
+              </ul>
+            ) : null}
           </>
         )}
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }

@@ -191,6 +191,11 @@ vi.mock('../../lib/api/cart', () => ({
   clearCartCoupon: async () => undefined,
   listOrganizationCarts: async () => ({ data: [], meta: { page: 1, pageSize: 20, totalCount: 0 } }),
 }));
+// `specs/182-related-payers/` — no related payers: the checkout without a *Paid by* choice.
+vi.mock('../../lib/api/related-payers', () => ({
+  listCheckoutPayers: async () => [],
+  getRelatedPayersAvailability: async () => false,
+}));
 vi.mock('../../lib/api/methods', () => ({
   listDeliveryMethods: async () => [],
   listPaymentMethods: async () => [],

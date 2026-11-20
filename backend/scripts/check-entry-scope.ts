@@ -128,6 +128,13 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'check reloads, inside its caller\'s own scope. Falsified the day the handler ' +
     'warms the cache instead of emptying it, which would need `enterSystemScope` here.',
 
+  "packages/modules/related_payers/src/backend/services/link-cache.ts:start:on('message')":
+    '`specs/182-related-payers/` research R-9 — a synchronous, EntityManager-free cache ' +
+    'drop: `handleMessage` parses the `{ buyerOrganizationId }` payload and deletes that ' +
+    'buyer\'s cached links (every entry for an unreadable one). No EntityManager, no read — ' +
+    'the next reader reloads, inside its caller\'s own scope. Falsified the day the ' +
+    'handler warms the cache instead of emptying it, which would need `enterSystemScope` here.',
+
   "packages/modules/price_lists/src/backend/services/pricing-generation.ts:start:on('message')":
     'D-287 P0 — a synchronous, EntityManager-free cache drop: `handleMessage` parses ' +
     'the `{ origin }` payload and, unless the announcement is this process\'s own, ' +

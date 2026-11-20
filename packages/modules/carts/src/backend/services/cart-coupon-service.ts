@@ -93,6 +93,19 @@ export class CartCouponService {
     });
   }
 
+  /**
+   * `specs/182-related-payers/` FR-112 — who the promotions are evaluated for: on a payer's
+   * commercial terms the payer and its customer group, with no customer account (A-18);
+   * otherwise the buyer and its effective group.
+   */
+  private async promotionBuyerOf(cart: Cart): Promise<{ organizationId: string | null; customerGroupId: string | null }> {
+    if (cart.buyingForTerms === 'payer' && cart.buyingForOrganizationId) {
+      const payer = await this.organizations.findById(cart.buyingForOrganizationId);
+      return { organizationId: cart.buyingForOrganizationId, customerGroupId: payer?.customerGroupId ?? null };
+    }
+    return { organizationId: cart.organizationId ?? null, customerGroupId: await this.customerGroupIdFor(cart) };
+  }
+
   /** The buyer's effective group: their own, else their Organization's. */
   private customerGroupIdFor(cart: Cart): Promise<string | null> {
     return resolveCartCustomerGroupId(
@@ -156,7 +169,8 @@ export class CartCouponService {
     if (promotion.validUntil && now > promotion.validUntil) {
       return { outcome: 'dropped', reason: 'expired' };
     }
-    if (promotion.organizationId && promotion.organizationId !== managedCart.organizationId) {
+    const buyer = await this.promotionBuyerOf(managedCart);
+    if (promotion.organizationId && promotion.organizationId !== buyer.organizationId) {
       return { outcome: 'dropped', reason: 'wrong_organization' };
     }
 
@@ -179,8 +193,8 @@ export class CartCouponService {
     // we don't replicate here (e.g. attribute/category rules from
     // feature 012).
     const snapshot: CartSnapshot = {
-      organizationId: cart.organizationId ?? null,
-      customerGroupId: await this.customerGroupIdFor(managedCart),
+      organizationId: buyer.organizationId,
+      customerGroupId: buyer.customerGroupId,
       currency,
       lines: items.map((it) => {
         const taxRate = taxRates?.get(it.id);
@@ -240,9 +254,10 @@ export class CartCouponService {
     taxRates?: ReadonlyMap<string, number> | null,
   ): Promise<PromotionApplication> {
     const currency = items[0]?.currency ?? 'PLN';
+    const buyer = await this.promotionBuyerOf(cart);
     const snapshot: CartSnapshot = {
-      organizationId: cart.organizationId ?? null,
-      customerGroupId: await this.customerGroupIdFor(cart),
+      organizationId: buyer.organizationId,
+      customerGroupId: buyer.customerGroupId,
       currency,
       lines: items.map((it) => {
         const taxRate = taxRates?.get(it.id);

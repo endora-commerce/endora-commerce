@@ -48,6 +48,19 @@ export const manifest = defineModuleManifest({
    */
   nonBindingDependencies: [
     {
+      moduleId: 'related_payers',
+      name: 'relatedPayerPolicyPort',
+      kind: 'refuses-without',
+      whenAbsent:
+        'the storefront cannot list the payment methods of a related payer; every other listing is unaffected',
+      reason:
+        '`specs/182-related-payers/` (FR-066) — `GET /api/v1/payment-methods?payerOrganizationId=` ' +
+        'lists the payer`s allowed methods after the policy port vouched for the payer. A ' +
+        '`lazyPort` forward with no fallback, reached only when the query names a payer. Not ' +
+        '`dependencies`: `related_payers` ships off, and binding on it would make its activation ' +
+        'control a dead switch.',
+    },
+    {
       moduleId: 'payments',
       name: 'paymentReadPort',
       kind: 'degrades-without',

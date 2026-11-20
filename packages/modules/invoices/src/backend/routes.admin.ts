@@ -10,7 +10,8 @@ import {
   type OrderReadPort,
 } from '@endora-commerce/contracts';
 import { Invoice } from './entities/invoice.entity.js';
-import { orgInScope } from '@endora-commerce/platform/tenancy';
+import { orgInScope, withSystemScope } from '@endora-commerce/platform/tenancy';
+import { invoiceOwnerOrganizationId } from './services/invoice-owner.js';
 import type { InvoiceService } from './services/invoice-service.js';
 import { renderInvoicePdf } from './document/render-invoice.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -78,6 +79,9 @@ export async function registerInvoicesAdminRoutes(
       if (q['filter[orderId]']) where['orderId'] = q['filter[orderId]'];
       if (q['filter[kind]']) where['kind'] = q['filter[kind]'];
       if (q['filter[salesChannelId]']) where['salesChannelId'] = q['filter[salesChannelId]'];
+      // `specs/182-related-payers/` RP-8 — the Organization an invoice belongs to (the order's
+      // payer, else its buyer; an ERP row's own). Applied with the reach, after the read.
+      const organizationFilter = q['filter[organizationId]']?.trim() || null;
       const issuedAt: Record<string, Date> = {};
       if (q['filter[issuedFrom]']) issuedAt['$gte'] = new Date(q['filter[issuedFrom]'] as string);
       if (q['filter[issuedTo]']) issuedAt['$lte'] = new Date(q['filter[issuedTo]'] as string);
@@ -126,7 +130,7 @@ export async function registerInvoicesAdminRoutes(
           position ? { $and: [where, afterPosition(position)] } : where,
           { orderBy: { issuedAt: 'desc', id: 'desc' }, limit: batch },
         );
-        visible.push(...(await scoped(rows, businessIdByOrder)));
+        visible.push(...(await scoped(rows, businessIdByOrder, organizationFilter)));
         const last = rows[rows.length - 1];
         if (visible.length > limit || rows.length < batch || !last) break;
         position = { issuedAt: last.issuedAt, id: last.id };
@@ -149,26 +153,34 @@ export async function registerInvoicesAdminRoutes(
    * The rows of `rows` in the ambient tenant scope, in order. Records each
    * order's business id into `businessIdByOrder` for the serializer.
    */
-  async function scoped(rows: Invoice[], businessIdByOrder: Map<string, string>): Promise<Invoice[]> {
+  async function scoped(
+    rows: Invoice[],
+    businessIdByOrder: Map<string, string>,
+    organizationFilter: string | null,
+  ): Promise<Invoice[]> {
     const orderIds = [
       ...new Set(rows.map((r) => r.orderId).filter((id): id is string => id != null)),
     ];
     // Feature 075, Phase C — the order number and the owning organisation are
     // `orders`' fields, read over its port rather than out of its table.
-    const orders = orderIds.length > 0 ? await orderReadPort.findByIds(orderIds) : [];
+    // `specs/182-related-payers/` — read under a system scope: whose invoice it is depends on
+    // the order's payer, and a scoped administrator may reach the payer without reaching the
+    // buyer whose order it is. Only the ids decide anything below; the reach check that
+    // follows applies to the Organization billed, so nothing out of reach is answered.
+    const orders =
+      orderIds.length > 0
+        ? await withSystemScope('invoices: the Organization an invoice bills', () => orderReadPort.findByIds(orderIds))
+        : [];
     for (const o of orders) businessIdByOrder.set(o.id, o.businessId);
-    const orgByOrder = new Map(orders.map((o) => [o.id, o.organizationId]));
+    const orderById = new Map(orders.map((o) => [o.id, o]));
     // Feature 050 — Invoice is transitively scoped via its Order's org; hide
     // invoices whose order is out of the ambient tenant scope. ERP-imported
     // rows without an order scope directly on `organizationId` (feature 119).
-    const inScope = await Promise.all(
-      rows.map((i) =>
-        i.origin === 'erp_import'
-          ? orgInScope(i.organizationId ?? '')
-          : orgInScope(orgByOrder.get(i.orderId ?? '') ?? ''),
-      ),
-    );
-    return rows.filter((_, index) => inScope[index]);
+    // `specs/182-related-payers/` (FR-080, RP-8) — a paid order's invoice belongs to its
+    // payer: reach and the organization filter both read the Organization billed.
+    const owners = rows.map((i) => invoiceOwnerOrganizationId(i, orderById.get(i.orderId ?? '') ?? null));
+    const inScope = await Promise.all(owners.map((owner) => orgInScope(owner)));
+    return rows.filter((_, index) => inScope[index] && (organizationFilter === null || owners[index] === organizationFilter));
   }
 
   // Detail ----------------------------------------------------------------

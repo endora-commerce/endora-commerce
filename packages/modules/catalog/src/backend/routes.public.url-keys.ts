@@ -23,7 +23,7 @@ import type { CatalogQueryContext } from './services/catalog-query.service.js';
 export interface CatalogUrlKeyPublicDeps {
   resolutionService: UrlKeyResolutionService;
   /** `routes.public.ts`'s reader — the one place a catalogue request's channel, language and audience are read. */
-  readContext: (request: FastifyRequest) => CatalogQueryContext;
+  readContext: (request: FastifyRequest) => CatalogQueryContext | Promise<CatalogQueryContext>;
 }
 
 /** A key longer than the column holds names no product (the `products.slug` width). */
@@ -36,7 +36,7 @@ export async function registerCatalogUrlKeyPublicRoutes(
   const { resolutionService, readContext } = deps;
 
   app.get<{ Params: { key: string } }>('/api/v1/catalog/products/resolve/:key', async (request, reply) => {
-    const ctx = readContext(request);
+    const ctx = await readContext(request);
     markPersonalisedPricing(reply, ctx.audience);
     const key = request.params.key;
     if (key.length === 0 || key.length > KEY_MAX_LENGTH) {

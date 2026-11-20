@@ -20,7 +20,7 @@ import { manifest } from '../../../../packages/modules/transactional_emails/src/
  * failure, an unsaved scope switch) exist.
  */
 
-const CHANNEL = { id: '4b1f0a2c-8e3d-4a7b-9c11-2f6d5e8a0b34', code: 'b2b-pl' };
+const CHANNEL = { id: '4b1f0a2c-8e3d-4a7b-9c11-2f6d5e8a0b34', code: 'b2b-pl', name: { 'pl-PL': 'Hurt PL' } };
 let permissions = ['transactional_emails:read', 'transactional_emails:write'];
 const brandingFor = new Map<string | null, EmailBranding>();
 const branding = vi.fn(async (salesChannelId: string | null): Promise<EmailBranding> => {
@@ -150,7 +150,7 @@ describe('EmailBrandingPage', () => {
     await renderPage();
     await pickAccent('#ea580c');
     const scope = await screen.findByRole('combobox', { name: en['editor.scope'] });
-    await screen.findByRole('option', { name: CHANNEL.code });
+    await screen.findByRole('option', { name: 'Hurt PL' });
 
     await userEvent.selectOptions(scope, CHANNEL.id);
     let dialog = await screen.findByRole('dialog');
@@ -170,7 +170,7 @@ describe('EmailBrandingPage', () => {
     await renderPage();
     await pickAccent('#ea580c');
     const scope = await screen.findByRole('combobox', { name: en['editor.scope'] });
-    await screen.findByRole('option', { name: CHANNEL.code });
+    await screen.findByRole('option', { name: 'Hurt PL' });
     await userEvent.selectOptions(scope, CHANNEL.id);
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: en['branding.switchScope.save'] }));

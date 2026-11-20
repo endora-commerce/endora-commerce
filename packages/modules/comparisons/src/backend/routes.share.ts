@@ -57,7 +57,7 @@ export async function registerComparisonsShareRoutes(
       const view = await comparisonService.buildOwnerView(
         comparison,
         channel.id,
-        buyerViewerOf(request),
+        await buyerViewerOf(request),
         viewerIsOwner ? 'owner' : 'recipient',
       );
       reply.header('cache-control', 'no-store');

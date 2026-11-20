@@ -658,6 +658,14 @@ oznaczony w katalogu jako podlegający zwrotowi — zaznacz produkty na liście 
 **Edycja masowa → Podlega zwrotowi → Tak — podlega zwrotowi**. Zamówienia złożone przed wydaniem
 pozostają bez zmian: ich pozycje nie mają zapisanej wartości i nadal podlegają zwrotowi.
 
+## Zamówienia opłacane przez płatnika powiązanego {#orders-paid-by-a-related-payer}
+
+Kontekst zamówienia, który odczytuje `returns`, zawiera `payerOrganizationId`. Rozliczenie w formie
+kredytu sprawy dotyczącej zamówienia opłaconego przez płatnika powiązanego (moduł *Related payers*)
+uznaje **płatnika** — `payerOrganizationId ?? organizationId` — bo to płatnik dostał fakturę. To, kto
+może zgłosić sprawę i ją prowadzić, się nie zmienia: organizacja kupującego; płatnik nie może zgłosić
+zwrotu zamówienia, za które płaci.
+
 ## W dzienniku audytu
 
 Sprawa zwrotu to rekord organizacji, a dziennik audytu całej platformy czyta każdy, kto ma

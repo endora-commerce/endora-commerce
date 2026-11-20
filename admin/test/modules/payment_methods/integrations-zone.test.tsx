@@ -68,7 +68,6 @@ const bundle = passthroughBundle('core', [
   'legacyMethods.payment.empty',
   'legacyMethods.payment.noPermission',
   'legacyMethods.integrations.title',
-  'legacyMethods.formTitle',
   'legacyMethods.columns.code',
   'legacyMethods.columns.name',
   'legacyMethods.columns.kind',

@@ -168,7 +168,7 @@ export function FeedTemplateImportPage(): ReactNode {
         </Alert>
       ) : null}
 
-      <p className="b2b-help mb-2">
+      <p className="mb-2 mt-0 text-xs text-muted-foreground">
         {t('import.step', { current: step === 'choose' ? 1 : 2, total: 3 })}
       </p>
 
@@ -216,7 +216,7 @@ export function FeedTemplateImportPage(): ReactNode {
                   <ul className="ml-6 list-disc text-muted-foreground">
                     {summary.keyedBindings.map((binding) => (
                       <li key={`${binding.outputName}:${binding.sourceKey}`}>
-                        {binding.outputName} → <code className="b2b-code">{binding.sourceKey}</code>
+                        {binding.outputName} → <code>{binding.sourceKey}</code>
                       </li>
                     ))}
                   </ul>

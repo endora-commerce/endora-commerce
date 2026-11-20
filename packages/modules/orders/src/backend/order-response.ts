@@ -139,6 +139,16 @@ async function serializeShared(
     // details / gateway redirect / none). Order reads (GET/list) load it as
     // undefined → null.
     nextAction: order.nextAction ?? null,
+    // `specs/182-related-payers/` (FR-067, FR-073) — the payer, as order data.
+    payer:
+      order.payerOrganizationId && order.payerSnapshot
+        ? {
+            organizationId: order.payerOrganizationId,
+            name: order.payerSnapshot.name,
+            taxId: order.payerSnapshot.taxId,
+            terms: order.payerTerms ?? 'buyer',
+          }
+        : null,
   };
 }
 

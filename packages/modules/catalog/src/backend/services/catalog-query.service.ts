@@ -943,8 +943,14 @@ export class CatalogQueryService {
       // D-287 P0 — the customer's own group overrides the organisation's; the
       // engine resolves it from the account. Named only beside the account's
       // organisation, so an anonymous page asks exactly what it asked before.
-      ...(organization && audience.customerAccountId
+      // A-18 — the account is named only when the priced organisation is its own: a payer's
+      // prices never take the buyer's user's own group.
+      ...(organization && audience.customerAccountId && !audience.pricingOrganizationId
         ? { customerAccountId: audience.customerAccountId }
+        : {}),
+      // RP-14 — on a payer's terms the display mode stays the buyer's.
+      ...(audience.pricingOrganizationId && audience.organizationId
+        ? { displayModeOrganization: { id: audience.organizationId } }
         : {}),
     };
   }

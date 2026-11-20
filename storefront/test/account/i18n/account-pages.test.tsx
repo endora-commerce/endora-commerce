@@ -102,6 +102,8 @@ vi.mock('../../../lib/api/auth', () => ({ logoutCustomer: async () => undefined 
 vi.mock('../../../lib/api/credit-limit', () => ({ getMyCreditLimit: async () => null }));
 // `specs/179-rfq-and-customer-notifications/` — the sidebar's *Notifications* entry; nothing unread.
 vi.mock('../../../lib/api/customer-notifications', () => ({ getUnreadNotificationCount: async () => 0 }));
+// `specs/182-related-payers/` FR-002 — the capability on for the channel: *Payers* and *Orders we pay for*.
+vi.mock('../../../lib/api/related-payers', () => ({ getRelatedPayersAvailability: async () => true }));
 vi.mock('../../../lib/api/pwa-server', () => ({
   fetchPwaConfig: async () => ({ pushEnabled: false }),
   getPushPreferences: async () => null,
@@ -202,10 +204,14 @@ describe('account shell — the shop language (issue #85)', () => {
     const { en, pl } = await both(() => Layout({ children: null }));
     // The links sit side by side with no text between them.
     // A company member's one address entry is the Organization's (spec 173, OD-11).
-    expect(en).toContain('ProfileNotificationsChange passwordOrdersReturnsQuote requestsShopping lists');
+    // `specs/182-related-payers/` FR-070, FR-047 — an Administrator with the module present sees
+    // *Orders we pay for* and *Payers* beside the orders.
+    expect(en).toContain('ProfileNotificationsChange passwordOrdersOrders we pay forPayersReturnsQuote requestsShopping lists');
     expect(en).toContain('OrganizationOrganization addressesMembersRolesCarts to approve (1)');
     expect(en).not.toMatch(POLISH_DIACRITIC);
-    expect(pl).toContain('ProfilPowiadomieniaZmień hasłoZamówieniaZwrotyZapytania ofertoweListy zakupów');
+    expect(pl).toContain(
+      'ProfilPowiadomieniaZmień hasłoZamówieniaZamówienia, za które płacimyPłatnicyZwrotyZapytania ofertoweListy zakupów',
+    );
     // Issue #359 — the ordering preferences, beside the quick order they serve.
     expect(en).toContain('Quick orderOrdering preferences');
     expect(pl).toContain('Szybkie zamówienieUstawienia zamówień');

@@ -6,6 +6,7 @@ import type { ModuleContext, RequireAdminFactory } from '@endora-commerce/platfo
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import {
   CREDIT_LIMIT_WEBHOOK_EVENT_TYPES,
+  type CreditAvailabilityReadPort,
   type CreditLimitReadPort,
   type OrderReadPort,
   type OrganizationDetailsPort,
@@ -16,6 +17,7 @@ import {
 import { CreditLimitService, type CreditLimitEventBus } from './services/credit-limit-service.js';
 import { CreditLimitReadService } from './services/credit-limit-read.js';
 import { CreditTopupProvider } from './services/credit-topup.js';
+import { CreditAvailabilityReadService } from './services/credit-availability-read.js';
 import { registerCreditLimitsRoutes } from './routes.js';
 import { CreditLimit } from './entities/credit-limit.entity.js';
 import { CreditLimitReservation } from './entities/credit-limit-reservation.entity.js';
@@ -120,6 +122,20 @@ export function registerModule(ctx: ModuleContext): void {
    * the whole point of the inheritance, so the org filter would answer the
    * empty set for every descendant.
    */
+  /**
+   * `specs/182-related-payers/` RP-16 (c) — an Organization's available credit, as the
+   * buyer's own credit widget computes it, for the checkout's payer list. The service is
+   * this module's own gated port, read per call.
+   */
+  ctx.di.providePort<CreditAvailabilityReadPort>(
+    'creditAvailabilityReadPort',
+    ctx
+      .asFunction(
+        () => new CreditAvailabilityReadService(() => lazyPort<CreditLimitService>(ctx, 'creditLimitService')),
+      )
+      .singleton(),
+  );
+
   ctx.di.providePort<CreditLimitReadPort>(
     'creditLimitReadPort',
     ctx

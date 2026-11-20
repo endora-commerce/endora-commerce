@@ -122,7 +122,7 @@ export function TemplateFieldList(props: TemplateFieldListProps): ReactNode {
       />
 
       {filtering && !disabled ? (
-        <p className="b2b-help">{t('builder.help.filterBlocksReorder')}</p>
+        <p className="m-0 text-xs text-muted-foreground">{t('builder.help.filterBlocksReorder')}</p>
       ) : null}
 
       {fields.length === 0 ? (

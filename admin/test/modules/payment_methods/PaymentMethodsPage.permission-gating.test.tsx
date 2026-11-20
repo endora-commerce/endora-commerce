@@ -77,7 +77,6 @@ const KEYS = [
   'legacyMethods.fields.status',
   'legacyMethods.status.active',
   'legacyMethods.status.inactive',
-  'legacyMethods.formTitle',
   'legacyMethods.editTitle',
   'common.state.loading',
   'common.action.edit',

@@ -88,6 +88,18 @@ interface LineDefault {
 }
 
 /**
+ * `specs/182-related-payers/` (FR-082, RP-7) — whose credit a return's credit resolution tops up:
+ * the payer's when a related payer paid for the order, the buyer's otherwise. The return itself
+ * stays the buyer's case to start and follow.
+ */
+export function creditTopupOrganizationId(
+  caseOrganizationId: string | null,
+  context: { readonly payerOrganizationId?: string | null } | null,
+): string | null {
+  return context?.payerOrganizationId ?? caseOrganizationId;
+}
+
+/**
  * ReturnSettlementService — feature 046 (US5).
  *
  * Validates per-line refund amounts (never exceeding the paid amount), advances
@@ -576,9 +588,11 @@ export class ReturnSettlementService {
       } else {
         // `credit_limits` applies once per return case, so this survives the
         // retry the law above makes reachable.
-        const credit = rc.organizationId
+        // `specs/182-related-payers/` (FR-082, RP-7) — a paid order's credit is the payer's.
+        const creditOrganizationId = creditTopupOrganizationId(rc.organizationId ?? null, context);
+        const credit = creditOrganizationId
           ? await this.deps.creditTopup.creditFromReturn({
-              organizationId: rc.organizationId,
+              organizationId: creditOrganizationId,
               amount: total,
               currency: rc.currency,
               returnCaseId: rc.id,

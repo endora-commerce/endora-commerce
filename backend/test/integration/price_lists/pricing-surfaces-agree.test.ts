@@ -172,4 +172,81 @@ describe('pricing — every surface agrees (SC-002)', () => {
       expect(sorted.rows.find((r) => r.productId === p.id)?.amount, p.id).toBe(cards.get(p.id)?.amount);
     }
   });
+
+  /**
+   * `specs/182-related-payers/` T056 (SC-008, SC-009, FR-115) — the same buyer bought for a payer
+   * on its commercial terms: listing, product page, resolved price, cart, the placement price check
+   * and the price sort all quote the payer's price; switching back restores every buyer price.
+   */
+  it('a buyer on a payer\'s terms sees the payer\'s price on every surface, and its own again after', async () => {
+    const { makeAddress, makeOrganization, ADMIN } = await import('../related_payers/fixtures.js');
+    const enabled = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/settings/related_payers.enabled/value',
+      cookies: ADMIN,
+      payload: { scope: 'all', value: true },
+    });
+    expect(enabled.statusCode, enabled.body).toBe(200);
+    const payer = await makeOrganization(h.em(), 'Agree payer');
+    await makeAddress(h.em(), payer, 'billing');
+    await seedPriceBookSql(h.em(), {
+      name: 'Agree — payer',
+      audience: { organizations: [payer] },
+      rows: [
+        { productId: SEED_PRODUCT_101_ID, fixed: '7' },
+        { productId: SEED_PRODUCT_102_ID, fixed: '8' },
+      ],
+    });
+    const link = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/organizations/${TEST_ORGANIZATION_ID}/related-payers`,
+      cookies: ADMIN,
+      payload: { payerOrganizationId: payer, commercialTerms: 'payer' },
+    });
+    expect(link.statusCode, link.body).toBe(201);
+    const PAYER_PRICE: Record<string, number> = { [SEED_PRODUCT_101_ID]: 7, [SEED_PRODUCT_102_ID]: 8 };
+    const surfaces = async (): Promise<Record<string, Record<string, number>>> => {
+      const seen: Record<string, Record<string, number>> = {};
+      const record = (surface: string, productId: string, amount: number | null | undefined) => {
+        if (PAYER_PRICE[productId] !== undefined) (seen[productId] ??= {})[surface] = Number(Number(amount).toFixed(2));
+      };
+      const ids = Object.keys(PAYER_PRICE);
+      const listing = await h.app.inject({ method: 'GET', url: `/api/v1/catalog/products?ids=${ids.join(',')}`, headers: RETAIL, cookies: SESSION });
+      for (const p of listing.json().data as Array<{ id: string; price: { amount: number } | null }>) record('listing', p.id, p.price?.amount);
+      const sorted = await h.app.inject({ method: 'GET', url: `/api/v1/catalog/products?ids=${ids.join(',')}&sort=price`, headers: RETAIL, cookies: SESSION });
+      expect(sorted.statusCode, sorted.body).toBe(200);
+      for (const p of sorted.json().data as Array<{ id: string; price: { amount: number } | null }>) record('sort', p.id, p.price?.amount);
+      for (const id of ids) {
+        const d = await h.app.inject({ method: 'GET', url: `/api/v1/catalog/products/${id}`, headers: RETAIL, cookies: SESSION });
+        record('detail', id, d.json().data.price?.amount);
+        const r = (await h.app.inject({ method: 'GET', url: `/api/v1/storefront/products/${id}/resolved-price?quantity=1`, headers: RETAIL, cookies: SESSION })).json()
+          .data.resolvedPrice as { basePrice: { amount: string } | null; salePrice: { amount: string } | null };
+        record('resolved-price', id, Number((r.salePrice ?? r.basePrice)?.amount));
+      }
+      const cart = (await h.app.inject({ method: 'GET', url: '/api/v1/cart', headers: RETAIL, cookies: SESSION })).json().data as {
+        id: string;
+        items: Array<{ productId: string; unitPrice: { amount: number } }>;
+      };
+      for (const line of cart.items) record('cart', line.productId, line.unitPrice.amount);
+      const placement = (h.container.cradle as unknown as { cartPlacementApplyPort: CartPlacementApplyPort }).cartPlacementApplyPort;
+      expect(await placement.findPriceDrift(h.em().fork(), { cartId: cart.id, organizationId: TEST_ORGANIZATION_ID })).toEqual([]);
+      return seen;
+    };
+    try {
+      const set = await h.app.inject({ method: 'PUT', url: '/api/v1/cart/buying-for', headers: RETAIL, cookies: SESSION, payload: { payerOrganizationId: payer } });
+      expect(set.statusCode, set.body).toBe(200);
+      for (const [productId, bySurface] of Object.entries(await surfaces())) {
+        expect(Object.keys(bySurface).sort()).toEqual(['cart', 'detail', 'listing', 'resolved-price', 'sort']);
+        for (const [surface, amount] of Object.entries(bySurface)) expect(amount, `${surface} ${productId}`).toBe(PAYER_PRICE[productId]);
+      }
+      const back = await h.app.inject({ method: 'PUT', url: '/api/v1/cart/buying-for', headers: RETAIL, cookies: SESSION, payload: { payerOrganizationId: null } });
+      expect(back.statusCode, back.body).toBe(200);
+      for (const [productId, bySurface] of Object.entries(await surfaces())) {
+        for (const [surface, amount] of Object.entries(bySurface)) expect(amount, `back: ${surface} ${productId}`).toBe(EXPECTED[productId]!.amount);
+      }
+    } finally {
+      await h.app.inject({ method: 'POST', url: `/api/v1/admin/related-payers/links/${link.json().data.id}/revoke`, cookies: ADMIN, payload: {} });
+    }
+  });
 });
+

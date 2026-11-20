@@ -13,6 +13,7 @@ import {
   ListPage,
   ListToolbar,
   ListToolbarSearch,
+  OrganizationPicker,
   pruneRemovedOptions,
   readCustomFieldFilterParams,
   ResponsiveTable,
@@ -191,6 +192,8 @@ export function OrdersList(): ReactNode {
   const [deliveryMethodIds, setDeliveryMethodIds] = useState<string[]>([]);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  // `specs/182-related-payers/` FR-073 — orders a related payer pays for.
+  const [payerOrganizationId, setPayerOrganizationId] = useState<string | null>(null);
   const [textFilters, setTextFilters] = useState(EMPTY_TEXT);
   const [debouncedText, setDebouncedText] = useState(EMPTY_TEXT);
   // Feature 157 — custom-field filters, deep-linkable as `cf.<key>.<op>`.
@@ -280,6 +283,7 @@ export function OrdersList(): ReactNode {
     for (const id of deliveryMethodIds) params.append('deliveryMethodId', id);
     if (dateFrom) params.set('placedFrom', `${dateFrom}T00:00:00.000Z`);
     if (dateTo) params.set('placedTo', `${dateTo}T23:59:59.999Z`);
+    if (payerOrganizationId) params.set('payerOrganizationId', payerOrganizationId);
     const { q, orgName, customerName, totalMin, totalMax } = debouncedText;
     if (q.trim()) params.set('q', q.trim());
     if (orgName.trim()) params.set('orgName', orgName.trim());
@@ -301,6 +305,7 @@ export function OrdersList(): ReactNode {
     deliveryMethodIds,
     dateFrom,
     dateTo,
+    payerOrganizationId,
     debouncedText,
   ]);
 
@@ -378,6 +383,7 @@ export function OrdersList(): ReactNode {
     deliveryMethodIds,
     dateFrom,
     dateTo,
+    payerOrganizationId,
     debouncedText,
     customFieldFilters,
     sort,
@@ -530,6 +536,7 @@ export function OrdersList(): ReactNode {
     deliveryMethodIds.length +
     (dateFrom ? 1 : 0) +
     (dateTo ? 1 : 0) +
+    (payerOrganizationId ? 1 : 0) +
     (textFilters.orgName.trim() ? 1 : 0) +
     (textFilters.customerName.trim() ? 1 : 0) +
     (textFilters.totalMin.trim() ? 1 : 0) +
@@ -573,6 +580,9 @@ export function OrdersList(): ReactNode {
     ...(dateTo
       ? [{ key: 'to', label: `${t('orders.field.dateTo')}: ${dateTo}`, onRemove: (): void => setDateTo('') }]
       : []),
+    ...(payerOrganizationId
+      ? [{ key: 'payer', label: tOrders('list.filter.payer'), onRemove: (): void => setPayerOrganizationId(null) }]
+      : []),
     ...(textFilters.orgName.trim()
       ? [{ key: 'org', label: `${t('orders.field.orgName')}: ${textFilters.orgName.trim()}`, onRemove: (): void => setText('orgName', '') }]
       : []),
@@ -606,6 +616,7 @@ export function OrdersList(): ReactNode {
     setDeliveryMethodIds([]);
     setDateFrom('');
     setDateTo('');
+    setPayerOrganizationId(null);
     setTextFilters(EMPTY_TEXT);
     changeCustomFieldFilters(emptyCustomFieldFilters());
   };
@@ -873,6 +884,16 @@ export function OrdersList(): ReactNode {
                     options={methodOptions(deliveryMethods)}
                     selected={deliveryMethodIds}
                     onChange={setDeliveryMethodIds}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`${filterId}-payer`}>{tOrders('list.filter.payer')}</Label>
+                  <OrganizationPicker
+                    id={`${filterId}-payer`}
+                    ariaLabel={tOrders('list.filter.payer')}
+                    value={payerOrganizationId}
+                    onChange={setPayerOrganizationId}
+                    clearable
                   />
                 </div>
                 <div className="space-y-1">

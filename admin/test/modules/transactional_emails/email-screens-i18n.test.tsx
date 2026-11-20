@@ -73,6 +73,7 @@ describe.each(['en', 'pl'] as const)('transactional e-mail screens in %s (#1463)
   const render = (ui: React.ReactElement): void => {
     renderWithI18n(<MemoryRouter>{ui}</MemoryRouter>, {
       ...shippedModuleBundle('transactional_emails', language),
+      ...shippedModuleBundle('orders', language),
       ...shippedCoreBundle(language),
     }, { language });
   };
@@ -84,7 +85,18 @@ describe.each(['en', 'pl'] as const)('transactional e-mail screens in %s (#1463)
     for (const column of ['list.column.name', 'list.column.code', 'list.column.module', 'list.column.customized']) {
       expect(screen.getByRole('columnheader', { name: key(column) })).toBeInTheDocument();
     }
-    expect(within(row).getByText(key('list.customized.yes'))).toBeInTheDocument();
+    expect(within(row).getByText(key('customization.all'))).toBeInTheDocument();
+  });
+
+  // Issue #1536 (CONTENT-19): the Module column printed the id `orders`.
+  it("the e-mail list names the sending module in the reader's language", async () => {
+    render(<EmailsList />);
+    const row = (await screen.findByRole('link', { name: 'Order confirmation' })).closest('tr')!;
+    const ordersName = shippedModuleBundle('orders', language).orders?.['module.name'];
+    expect(ordersName).toBeTruthy();
+    expect(within(row).getByText(ordersName!)).toBeInTheDocument();
+    expect(within(row).queryByText('orders')).toBeNull();
+    expect(within(row).getByRole('switch', { name: key('activation.switchLabel').replace('{name}', 'Order confirmation') })).toBeInTheDocument();
   });
 
   // Issue #1448 (DS-15): "no e-mails" and "no e-mail matches the search" are

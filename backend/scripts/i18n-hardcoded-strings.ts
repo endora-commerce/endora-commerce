@@ -1382,9 +1382,9 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   // two-way and keyed by path, so each move stranded the old key and reported
   // the new one as a regression. Both halves of all five fired in one run,
   // which is what the ratchet is for: a re-key is visible as a re-key rather
-  // than as a debt that quietly moved house. The four `returns` entries were
-  // drained to zero and deleted by issue #1472 (UX audit SALES-07).
-  'packages/modules/delivery_methods/src/admin/pages/DeliveryMethodsPage.tsx': 6,
+  // than as a debt that quietly moved house. The `delivery_methods` entry was
+  // drained by #1694 and the four `returns` entries by issue #1472 (UX audit
+  // SALES-07); all five reached zero and were deleted.
   // Feature 091, Phase 4 batch five: the screen moved into `stripe`'s package
   // and the entry is **re-keyed**, not raised and not dropped — the same
   // twenty-nine strings at a new address, which this check's two-way ratchet
@@ -1460,7 +1460,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/cms/src/admin/components/SectionBlockFields.tsx': 6,
   'packages/modules/orders/src/admin/pages/OrderStatusConfigPage.tsx': 2,
   'packages/modules/organizations/src/admin/pages/OrganizationDetail.tsx': 1,
-  'packages/modules/payment_methods/src/admin/pages/PaymentMethodsPage.tsx': 1,
   'packages/modules/quick_order/src/admin/pages/QuickOrderOnBehalfPage.tsx': 1,
   'packages/modules/settings/src/admin/components/ConflictBanner.tsx': 2,
   'packages/modules/settings/src/admin/pages/SettingsPage.tsx': 6,
