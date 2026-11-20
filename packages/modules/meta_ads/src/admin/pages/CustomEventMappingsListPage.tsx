@@ -118,6 +118,7 @@ export default function CustomEventMappingsListPage(): ReactNode {
       <PageHeader
         title={t('customEvents.title')}
         description={t('customEvents.subtitle')}
+        help={t('customEvents.help')}
         actions={
           <Button asChild>
             <Link to="/meta-ads/new">{t('customEvents.new')}</Link>

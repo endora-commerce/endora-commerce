@@ -3,6 +3,7 @@ import type {
   RegistryDivergence,
   RegistryProvider,
 } from '@endora-commerce/contracts';
+import type { InlineStatusTone } from '@endora-commerce/admin-kit/ui';
 
 /**
  * Feature 173 — the pure decisions behind the VAT validation panel's
@@ -94,4 +95,22 @@ export function attemptNotes(
       provider: attempt.provider,
       reason: (attempt.errorKind && KNOWN_REASONS.has(attempt.errorKind) ? attempt.errorKind : 'other') as AttemptReason,
     }));
+}
+
+/**
+ * Issue #1499 — the tone of a validation's result beside "Validate now". The
+ * call itself went through whatever the outcome, so it is never an interrupting
+ * error banner; but only `validated` is good news: format-only and deferred are
+ * partial, and a rejected identifier is bad news about the record.
+ */
+export function vatValidationResultTone(outcome: OrganizationTaxIdValidationRecord['outcome']): InlineStatusTone {
+  switch (outcome) {
+    case 'validated':
+      return 'success';
+    case 'failed':
+      return 'error';
+    case 'unverified':
+    case 'deferred':
+      return 'warning';
+  }
 }

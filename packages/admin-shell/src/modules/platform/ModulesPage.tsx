@@ -192,7 +192,7 @@ export function ModulesPage(): ReactNode {
     <>
       <PageHeader
         title={t('platform.modules.title')}
-        description={t('platform.modules.description')}
+        help={t('platform.modules.help')}
       />
 
       {degraded && (
@@ -206,8 +206,6 @@ export function ModulesPage(): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-
-      <p className="mb-4 text-sm text-muted-foreground">{t('platform.modules.cliHint')}</p>
 
       <Card>
         <CardContent>

@@ -19,7 +19,7 @@ import {
   type InlineRichText,
 } from '@endora-commerce/page-builder-core';
 import { InlineRich, inlineIconPresentation } from './InlineRich.js';
-import { Divider, EMPHASIS_LABELS, LinkDialog, ToolbarButton } from './RichContentEditorField.js';
+import { Divider, LinkDialog, ToolbarButton } from './RichContentEditorField.js';
 import { emphasisMark, inlineIconNode } from './rich-content-shared.js';
 import { CMS_ICON_CATALOG, humanizeIconName, resolveCmsIcon, type CmsIconName } from './icon-catalog.js';
 import { emphasisColor } from './emphasis-color.js';
@@ -553,20 +553,20 @@ export function InlineRichTextEditor({
 
   const toolbarButtons = editor ? (
     <>
-      <ToolbarButton title="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
+      <ToolbarButton title={text('richText.bold')} active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
         <strong>B</strong>
       </ToolbarButton>
-      <ToolbarButton title="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
+      <ToolbarButton title={text('richText.italic')} active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
         <em>I</em>
       </ToolbarButton>
-      <ToolbarButton title="Link" active={editor.isActive('link')} onClick={() => setLinkOpen(true)}>
+      <ToolbarButton title={text('richText.link')} active={editor.isActive('link')} onClick={() => setLinkOpen(true)}>
         🔗
       </ToolbarButton>
       <Divider />
       {EMPHASIS_VARIANTS.map((emphasis) => (
         <ToolbarButton
           key={emphasis}
-          title={EMPHASIS_LABELS[emphasis]}
+          title={text(`emphasis.${emphasis}`)}
           active={editor.isActive('emphasis', { variant: emphasis })}
           onClick={() => editor.chain().focus().toggleEmphasis(emphasis).run()}
         >

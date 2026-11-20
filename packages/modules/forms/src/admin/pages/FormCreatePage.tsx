@@ -65,7 +65,7 @@ export function FormCreatePage(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <PageHeader title={t('create.title')} description={t('create.description')} back={{ label: t('create.back'), to: '/forms' }} />
+      <PageHeader title={t('create.title')} back={{ label: t('create.back'), to: '/forms' }} />
       <Card>
         <CardContent>
           <form noValidate onSubmit={(event) => void submit(event)} className="max-w-xl space-y-4">

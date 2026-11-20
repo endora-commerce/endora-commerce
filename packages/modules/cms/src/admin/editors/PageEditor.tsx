@@ -646,7 +646,6 @@ export function PageEditor(): ReactNode {
           <PageHeader
             back={{ label: t('common.back'), to: '/cms/pages' }}
             title={isNew ? t('pageEditor.title.new') : form.name || t('pageEditor.title.edit')}
-            description={t('pageEditor.description')}
             actions={
               <div className="flex items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />

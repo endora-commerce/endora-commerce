@@ -192,7 +192,7 @@ export function EntriesListPage(): ReactNode {
 
   return (
     <div className="space-y-4">
-      <PageHeader title={t('entries.title')} description={t('entries.description')} actions={exportControl} />
+      <PageHeader title={t('entries.title')} actions={exportControl} />
       <Card>
         <CardHeader className="border-b border-border p-4">
           <EntryFilters values={filters} forms={forms} onChange={setFilters} searchRef={searchRef} />

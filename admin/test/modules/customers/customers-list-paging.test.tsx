@@ -190,6 +190,31 @@ describe('Customers list — organization 2FA reset (feature 042 US6)', () => {
     ).toBeInTheDocument();
   });
 
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): the outcome is said beside the
+  // reset button, in a region mounted with it before it has text — not as a
+  // success banner above the rows. Some accounts left out is a partial result.
+  it('says the outcome beside the reset button, as a warning when some accounts were skipped', async () => {
+    answer(3);
+    postSpy.mockResolvedValue({ data: { requested: 3, affected: 2, skipped: 1 } });
+    renderList(['customers:read', 'mfa:reset']);
+    await screen.findByRole('link', { name: 'Buyer 1' });
+    await chooseOrganization();
+    const reset = screen.getByRole('button', { name: own['list.action.resetOrgMfa']! });
+    const region = Array.from(reset.parentElement!.children).find((el) => el.getAttribute('role') === 'status');
+    expect(region?.textContent).toBe('');
+
+    await userEvent.click(reset);
+    await answerConfirm(true);
+
+    await waitFor(() =>
+      expect(region).toHaveTextContent(
+        own['list.action.resetOrgMfaResult']!.replace('{affected}', '2').replace('{requested}', '3'),
+      ),
+    );
+    expect(region).toHaveAttribute('data-tone', 'warning');
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
+
   it('offers no reset to an operator without mfa:reset', async () => {
     answer(3);
     renderList(['customers:read']);

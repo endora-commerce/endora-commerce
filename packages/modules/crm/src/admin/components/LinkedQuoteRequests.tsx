@@ -193,9 +193,12 @@ export function LinkedQuoteRequests(props: LinkedQuoteRequestsProps): ReactNode 
         <h2 id={headingId} className="text-sm font-semibold tracking-tight">
           {t('links.quote.title')}
         </h2>
-        {present ? <CreateDocumentButton kind="quote_request" opportunity={opportunity} /> : null}
+        {/* The result of "Create quote request" is said beside it (#1499). */}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <CreatedDocumentNotice kind="quote_request" opportunity={opportunity} reload={reload} />
+          {present ? <CreateDocumentButton kind="quote_request" opportunity={opportunity} /> : null}
+        </div>
       </div>
-      <CreatedDocumentNotice kind="quote_request" opportunity={opportunity} reload={reload} />
 
       {!present ? (
         <Alert>

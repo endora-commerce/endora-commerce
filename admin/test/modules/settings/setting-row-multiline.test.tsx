@@ -50,7 +50,6 @@ const { SettingRowEditor, deriveDisplayValue, parseValue } = await import(
 
 const BUNDLE = passthroughBundle('settings', [
   'page.title',
-  'page.description',
   'search.placeholder',
   'search.shortcut',
   'context.label',

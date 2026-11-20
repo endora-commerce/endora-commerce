@@ -9,7 +9,6 @@ import {
   useConfirmDialog,
   type ListPageLoad,
 } from '@endora-commerce/admin-kit/components';
-import { Link } from 'react-router-dom';
 import { Plus, Users } from 'lucide-react';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import {
@@ -184,15 +183,6 @@ export default function AdminUsersPage(): ReactNode {
     <>
       <ListPage
         title={t('adminUsers.page.title')}
-        description={
-          <>
-            {t('adminUsers.page.descriptionPrefix')}{' '}
-            <Link to="/admin-roles" className="underline underline-offset-2">
-              {t('adminUsers.rolesLink')}
-            </Link>
-            .
-          </>
-        }
         actions={
           <div className="flex items-center gap-3">
             <InlineStatus {...statusProps} />

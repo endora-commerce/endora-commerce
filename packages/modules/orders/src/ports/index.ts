@@ -97,6 +97,7 @@ export interface OrderPaymentStatusApplied {
    * of its work — `payments` asks for no lifecycle move behind one.
    */
   readonly outcome: 'applied' | 'unchanged' | 'refused';
+  readonly owesEffects: boolean;
 }
 
 /**
@@ -135,7 +136,11 @@ export interface OrderPaymentStatusApplied {
 export interface OrderPaymentStatusApplyPort {
   /**
    * Stamp `paymentStatus` on the order — when the graph allows it — and
-   * report where the order is and whether it moved (`outcome`).
+   * record any effects owed by the move on the same transaction. Report where
+   * the order is, whether it moved, and whether an obligation is owed.
+   * `owesEffects` is true even when the obligation already exists and the
+   * insert does nothing; it is false for unchanged or refused moves and for
+   * moves that owe no effect.
    *
    * `em` is **required** (D-169). Its one caller is the settlement handler,
    * which always passes the `EntityManager` its own transaction runs on; an
@@ -152,6 +157,26 @@ export interface OrderPaymentStatusApplyPort {
     em: EntityManager,
     input: { orderId: string; paymentStatus: OrderPaymentStatus },
   ): Promise<OrderPaymentStatusApplied | null>;
+}
+
+/**
+ * Attempts the follow-up owed by a payment-status settlement after commit.
+ *
+ * Container name: `orderPaymentSettlementEffectsPort`. Owner: `orders`.
+ *
+ * `orderPaymentStatusApplyPort` records the obligation on the settlement
+ * transaction. This port drains it after commit, on its own `EntityManager`
+ * (issue #200). `orders` is `nonDeactivatable`, so this port is always present
+ * when `orders` is installed.
+ */
+export interface OrderPaymentSettlementEffectsPort {
+  /**
+   * Attempt every outstanding follow-up of one order, now. Uses its own
+   * `EntityManager` — must be called **after** the settlement transaction
+   * commits. Ordinary failures are logged and left for the sweep; a
+   * `ModuleDisabledError` propagates (fail-closed).
+   */
+  drainForOrder(orderId: string): Promise<void>;
 }
 
 /**

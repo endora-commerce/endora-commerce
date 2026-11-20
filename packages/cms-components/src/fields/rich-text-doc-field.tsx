@@ -3,6 +3,7 @@
 import { lazy, Suspense, type ReactElement } from 'react';
 import { FieldLabel, type CustomField } from '@puckeditor/core';
 import type { JSONContent } from '@tiptap/core';
+import { EditorLoading } from './editor-loading.js';
 
 /**
  * The editor is loaded on demand: a block's field map is imported wherever the
@@ -28,7 +29,7 @@ export function createRichTextDocField(options: { label: string }): CustomField<
     label: options.label,
     render: ({ value, onChange, readOnly, field }): ReactElement => (
       <FieldLabel label={field.label ?? options.label} el="div" {...(readOnly === true ? { readOnly: true } : {})}>
-        <Suspense fallback={<p className="cmsc:font-sans cmsc:text-[13px] cmsc:opacity-70">Loading editor…</p>}>
+        <Suspense fallback={<EditorLoading />}>
           <LazyRichContentEditorField
             value={value ?? EMPTY_DOC}
             onChange={onChange}
