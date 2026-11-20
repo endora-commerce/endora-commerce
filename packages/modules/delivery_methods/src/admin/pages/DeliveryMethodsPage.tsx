@@ -238,9 +238,6 @@ export function DeliveryMethodsPage(): ReactNode {
             <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="mb-4 text-sm text-muted-foreground">
-              {t('legacyMethods.integrations.shippingDescription')}
-            </p>
             <AdminZone name="delivery_method.list.integrations" props={{}} />
           </CardContent>
         </Card>

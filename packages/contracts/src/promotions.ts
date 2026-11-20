@@ -301,9 +301,30 @@ export const promotionSchema = z.object({
 });
 export type Promotion = z.infer<typeof promotionSchema>;
 
-/** `GET /api/v1/admin/promotions` — every promotion (issue #599). */
+/**
+ * `GET /api/v1/admin/promotions?page=&pageSize=` — the paging the admin list
+ * asks for (issue #1664). A caller that names no `pageSize` keeps the whole
+ * list on one page, as the endpoint answered before.
+ */
+export const adminPromotionListQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
+});
+export type AdminPromotionListQuery = z.infer<typeof adminPromotionListQuerySchema>;
+
+/**
+ * `GET /api/v1/admin/promotions` — one page of promotions, by name (issue #599).
+ * `meta` is the offset page and the total across every page (issue #1664), in
+ * the shape the Organizations list answers with; without a `pageSize` the page
+ * is the whole list and `meta.pageSize` its length (at least 1).
+ */
 export const promotionListResponseSchema = z.object({
   data: z.array(promotionSchema),
+  meta: z.object({
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+  }),
 });
 export type PromotionListResponse = z.infer<typeof promotionListResponseSchema>;
 

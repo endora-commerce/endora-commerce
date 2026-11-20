@@ -41,7 +41,6 @@ const LEDGER: Record<string, { count: number; reason: string }> = {
   'packages/modules/customers/src/admin/pages/CustomersList.tsx': { count: 1, reason: `${OPEN}, in #1663` },
   'packages/modules/invoices/src/admin/pages/InvoiceDetail.tsx': { count: 1, reason: OPEN },
   'packages/modules/orders/src/admin/pages/OrdersList.tsx': { count: 1, reason: `${OPEN}, in #1663` },
-  'packages/modules/promotions/src/admin/pages/PromotionsPage.tsx': { count: 1, reason: OPEN },
   'packages/modules/returns/src/admin/pages/ReturnsList.tsx': { count: 1, reason: `${OPEN}, in #1663` },
 };
 

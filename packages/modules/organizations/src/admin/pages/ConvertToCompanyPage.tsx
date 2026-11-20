@@ -29,7 +29,6 @@ export function ConvertToCompanyPage(): ReactNode {
     <>
       <PageHeader
         title={t('convertToCompany.page.title')}
-        description={t('convertToCompany.page.description')}
         actions={
           <Button asChild variant="outline">
             <Link to="/organizations">{t('taxIdScope.back')}</Link>

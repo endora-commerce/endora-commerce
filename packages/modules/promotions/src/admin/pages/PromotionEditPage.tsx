@@ -208,7 +208,6 @@ export const PromotionEditPage = (): ReactNode => {
     <>
       <PageHeader
         title={isNew ? t('promotions.edit.titleNew') : t('promotions.edit.titleEdit')}
-        description={t('promotions.edit.description')}
       />
       <form onSubmit={(e) => void onSubmit(e)} className="flex flex-col gap-4">
         <Card>
