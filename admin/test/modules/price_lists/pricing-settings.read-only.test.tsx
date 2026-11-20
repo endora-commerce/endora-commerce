@@ -87,7 +87,7 @@ describe('Pricing settings — a reader sees values, never controls (FR-028)', (
     expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /Add override/ })).toBeNull();
     // Still a reader's page: the scope tabs and the search stay.
-    expect(screen.getByRole('button', { name: 'Category' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Category' })).toBeInTheDocument();
     expect(screen.queryAllByRole('combobox')).toEqual([]);
     expect(api.put).not.toHaveBeenCalled();
   });

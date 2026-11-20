@@ -98,4 +98,25 @@ describe('PackagingUnitsEditor (043)', () => {
     expect(postSpy.mock.calls[0]![0]).toBe('/api/v1/admin/catalog/products/p1/packaging-units');
     expect(postSpy.mock.calls[0]![1]).toEqual({ name: 'Paleta', baseQuantity: 480 });
   });
+
+  // Issue #1492 (UX audit CAT-17): the editor drew kit buttons beside `b2b-input`s — a class
+  // the design system never defined, so those inputs were unstyled — and text arrows in
+  // `b2b-btn`s. Its controls are the kit's now.
+  it('draws its inputs and its reorder buttons with the kit', async () => {
+    getSpy.mockResolvedValue({ data: [unit, { ...unit, id: '00000000-0000-4000-8000-000000000002', name: 'Karton', isDefault: false }] });
+    renderWithI18n(<PackagingUnitsEditor productId="p1" canWrite />, BUNDLE);
+    // The add row renders before the list arrives; wait for the rows themselves.
+    const [down] = await screen.findAllByRole('button', { name: 'packagingUnits.action.moveDown' });
+    const name = screen.getByPlaceholderText('packagingUnits.newName');
+    expect(name).toHaveClass('border-input');
+    expect(name).not.toHaveClass('b2b-input');
+    expect(down!.querySelector('svg')).not.toBeNull();
+    expect(down).not.toHaveTextContent('↓');
+  });
+
+  it('says it is loading in a status region', async () => {
+    getSpy.mockReturnValue(new Promise(() => {}));
+    renderWithI18n(<PackagingUnitsEditor productId="p1" canWrite />, BUNDLE);
+    expect(await screen.findByRole('status')).toHaveTextContent('packagingUnits.loading');
+  });
 });

@@ -297,3 +297,27 @@ describe('the per-warehouse rows (issue #1454, UX audit CAT-01)', () => {
     expect(en['inventoryTab.stockMgmt.disableManageStockHelp']).toBeUndefined();
   });
 });
+
+/**
+ * Issue #1492 (UX audit CAT-17): the tab drew kit sections around legacy
+ * `b2b-field` inputs, a `b2b-tbl` and two bare radios in a `b2b-row`. Its
+ * controls are the kit's now, and the two threshold modes are one radio group
+ * named by its section, so a screen reader hears what the choice is about.
+ */
+describe('the Inventory tab in one visual system (#1492)', () => {
+  it('groups the threshold modes as one radio group, named by its section', async () => {
+    await openInventory();
+    const group = screen.getByRole('radiogroup', { name: en['inventoryTab.lowStock.title']! });
+    expect(within(group).getAllByRole('radio')).toHaveLength(2);
+    expect(within(group).getByRole('radio', { name: en['inventoryTab.lowStock.modeCumulative']! })).toBeChecked();
+  });
+
+  it('draws the per-warehouse table and its inputs with the kit', async () => {
+    await openInventory();
+    const table = screen.getByRole('table');
+    expect(table).not.toHaveClass('b2b-tbl');
+    const input = within(table).getByRole('spinbutton', { name: copy('column.newValueFor', { warehouse: 'Warsaw' }) });
+    expect(input).not.toHaveClass('b2b-field');
+    expect(input).toHaveClass('border-input');
+  });
+});

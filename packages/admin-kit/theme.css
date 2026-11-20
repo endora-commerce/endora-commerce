@@ -1221,16 +1221,10 @@ textarea.b2b-field {
 }
 .b2b-tbl tbody tr { transition: background .08s; }
 .b2b-tbl tbody tr:hover { background: var(--surface-muted); }
-.b2b-tbl tbody tr.is-selected { background: var(--primary-soft); }
-.b2b-tbl tbody tr.is-selected:hover {
-  background: hsl(var(--accent-h) calc(var(--accent-s) - 10%) 92%);
-}
 .b2b-tbl tbody tr:last-child td { border-bottom: none; }
 .b2b-tbl tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .b2b-tbl thead th.num { text-align: right; }
 .b2b-tbl tbody td.actions { width: 1%; white-space: nowrap; }
-.b2b-tbl .col-cb { width: 32px; padding-left: 14px; padding-right: 0; }
-.b2b-tbl tbody tr.is-clickable { cursor: pointer; }
 
 /* Empty state */
 .b2b-empty {
@@ -1321,34 +1315,6 @@ textarea.b2b-field {
   border: 1px solid hsl(var(--accent-h) 30% 80%);
 }
 .b2b-filterchip svg { width: 12px; height: 12px; }
-
-/* ============================================================
-   Bulk action bar
-   ============================================================ */
-.b2b-bulkbar {
-  background: var(--fg);
-  color: #fff;
-  border-radius: var(--r-md);
-  padding: 8px 12px 8px 16px;
-  display: flex; align-items: center; gap: 12px;
-  font-size: 13px;
-  margin: 0 12px 12px;
-  box-shadow: var(--sh-2);
-}
-.b2b-bulkbar .count { font-weight: 500; }
-.b2b-bulkbar .actions { margin-left: auto; display: flex; gap: 6px; }
-.b2b-bulkbar .b2b-btn {
-  height: 28px; font-size: 12px;
-  background: rgba(255,255,255,0.10);
-  border-color: rgba(255,255,255,0.15);
-  color: #fff;
-}
-.b2b-bulkbar .b2b-btn:hover { background: rgba(255,255,255,0.18); }
-.b2b-bulkbar .b2b-btn--danger {
-  background: rgba(255,255,255,0.10);
-  color: #ffb4ab;
-  border-color: rgba(255,255,255,0.15);
-}
 
 /* ============================================================
    Save bar (sticky)
@@ -1751,7 +1717,6 @@ textarea.b2b-field {
   .b2b-touch-reorder {
     display: flex;
   }
-  .b2b-table,
   .b2b-table-wrap,
   .b2b-tbl {
     display: block;
