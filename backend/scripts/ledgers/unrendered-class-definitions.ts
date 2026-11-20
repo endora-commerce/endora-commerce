@@ -52,8 +52,25 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
     'rendered only by the price-list screens feature 160 deleted with the old model; P2\'s price-book editor, released together, is its next renderer',
   'b2b-badge--solid': 'a badge variant no screen renders; drains with the badge vocabulary',
   'b2b-btn--lg': 'a button size no screen renders; the tree uses the default and `--sm`',
+  'b2b-card--clickable':
+    'the whole-card link the Home KPI tiles rendered until issue #1492 moved them to the kit `Card` with a `Link` inside',
+  'b2b-card__body--flush':
+    'the flush card body the Home cards rendered until issue #1492; the kit `<Card flush>` replaces it',
+  'b2b-card__foot':
+    'the card footer band `PaginationFooter` rendered until issue #1492 drew it in Tailwind from the same tokens; the kit `CardFooter` is the primitive',
+  'b2b-card__head':
+    'the card header the Home cards rendered until issue #1492; the kit `CardHeader` replaces it',
+  'b2b-card__title':
+    'the card title the Home cards rendered until issue #1492; the kit `CardTitle` (an `h2`) replaces it',
+  'b2b-filterbar':
+    'the filter bar the product browser rendered until issue #1492 moved it to Tailwind and `ListToolbarSearch`; the kit `ListToolbar` is the primitive',
+  'b2b-filterbar__search': 'the search slot of `b2b-filterbar`, which nothing renders',
   'b2b-grid--cols-2':
     'the two-column form grid the profile screen rendered until issue #1437 moved it to a Tailwind `grid`; no other screen renders it',
+  'b2b-home-dashboard-grid':
+    'the Home dashboard\'s two-column grid until issue #1492 made it a Tailwind `grid`; its mobile rule goes with it',
+  'b2b-kpi-grid':
+    'the Home KPI row until issue #1492 made it a Tailwind `grid`; the mobile `.b2b-row:not(.b2b-kpi-grid)` exclusion names it too',
   'b2b-locale-strip':
     'the language switcher this styled is not in the admin; its `button` child rule goes with it',
   'b2b-matrix': 'a price-matrix block with no renderer; `b2b-matrix-wrap` and `cell-input` are its parts',
@@ -64,6 +81,8 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
   'b2b-select': 'a select skin no screen renders; the kit `ui/select` primitive is what is used',
   'b2b-stock-pill': 'an inventory pill no screen renders',
   'b2b-switch': 'a toggle skin no screen renders; the kit primitive is what is used',
+  'b2b-thumb':
+    'the stock-alert thumbnail on Home until issue #1556 drew it on the sunken-surface token in Tailwind',
   'b2b-table-wrap':
     'a table wrapper no screen renders; `b2b-table-scroll` is the one the mobile shell uses',
   'b2b-tag-pill': 'a tag pill no screen renders',

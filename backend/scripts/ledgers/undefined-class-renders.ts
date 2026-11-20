@@ -44,16 +44,12 @@ export type UndefinedClassRenderLedger = Readonly<Record<string, string>>;
 
 export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
   // -- a variant that does not exist ------------------------------------
-  'packages/admin-kit/src/components/PaginationFooter.tsx::b2b-field--sm':
-    'renders as an unmodified `b2b-field`; the design system defines no `--sm` size',
   'packages/modules/product_feeds/src/admin/components/FeedLinkCard.tsx::b2b-btn--outline':
     'renders as an unmodified `b2b-btn`; the design system defines `--primary`, `--ghost` and `--danger`',
   'packages/modules/product_feeds/src/admin/pages/FeedRunDetailPage.tsx::b2b-btn--outline':
     'the same missing variant',
 
   // -- a block that was never in the vocabulary --------------------------
-  'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx::b2b-input':
-    'no `b2b-input` block exists; the kit publishes `ui/input`',
   'packages/modules/product_feeds/src/admin/components/FeedLinkCard.tsx::b2b-code':
     'no `b2b-code` block exists; the deleted shim had an unprefixed `.code` and nothing replaced it',
   'packages/modules/product_feeds/src/admin/components/RunIssueGroups.tsx::b2b-code':

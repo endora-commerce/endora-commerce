@@ -2,6 +2,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { PAGE_SIZE_OPTIONS, type PageSizeOption } from '../lib/page-size-options.js';
 import { useTranslation } from '../i18n/useTranslation.js';
+import { Button } from '../ui/button.js';
+import { Select } from '../ui/select.js';
 
 export interface PaginationFooterProps<S extends number = PageSizeOption> {
   /** A list that knows its total; the default. */
@@ -125,23 +127,25 @@ interface PagerFrameProps<S extends number> {
   isLast: boolean;
 }
 
-/** The footer's one layout, shared by both modes so a cursor-paged list looks like every other. */
+/**
+ * The footer's one layout, shared by both modes so a cursor-paged list looks like every other.
+ * The muted band across a card's foot, drawn from the same `--card-pad*` tokens
+ * as the card it closes (issue #1492: kit primitives, no legacy classes).
+ */
 function PagerFrame<S extends number>(props: PagerFrameProps<S>): ReactNode {
   const { sizes, pageSize, onPageSizeChange, summary, position, onPrev, onNext, isFirst, isLast } = props;
   const t = useTranslation('core');
   return (
-    <div className="b2b-card__foot">
-      <div className="b2b-row" style={{ gap: 12, alignItems: 'center' }}>
-        <div className="b2b-muted" style={{ fontSize: 12 }}>
-          {summary}
-        </div>
-        <label
-          className="b2b-row"
-          style={{ gap: 6, alignItems: 'center', fontSize: 12, color: 'var(--fg-muted)' }}
-        >
+    <div
+      data-slot="pagination-footer"
+      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-b-lg border-t bg-muted px-(--card-pad) py-(--card-pad-sm) text-xs text-muted-foreground"
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <div>{summary}</div>
+        <label className="flex items-center gap-1.5">
           {t('common.pagination.rowsPerPage')}
-          <select
-            className="b2b-field b2b-field--sm"
+          <Select
+            className="h-7 w-auto py-0 pl-2 pr-6 text-xs text-foreground"
             value={pageSize}
             onChange={(e): void => {
               const next = Number.parseInt(e.target.value, 10) as S;
@@ -149,36 +153,23 @@ function PagerFrame<S extends number>(props: PagerFrameProps<S>): ReactNode {
                 onPageSizeChange(next);
               }
             }}
-            style={{ height: 28, padding: '0 24px 0 8px', fontSize: 12 }}
           >
             {sizes.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
-      <div className="b2b-row" style={{ gap: 8, alignItems: 'center' }}>
-        <span className="b2b-muted" style={{ fontSize: 12 }}>
-          {position}
-        </span>
-        <button
-          type="button"
-          className="b2b-btn b2b-btn--default b2b-btn--sm"
-          onClick={onPrev}
-          disabled={isFirst}
-        >
-          <ChevronLeft size={13} /> {t('common.pagination.previous')}
-        </button>
-        <button
-          type="button"
-          className="b2b-btn b2b-btn--default b2b-btn--sm"
-          onClick={onNext}
-          disabled={isLast}
-        >
-          {t('common.pagination.next')} <ChevronRight size={13} />
-        </button>
+      <div className="flex items-center gap-2">
+        <span>{position}</span>
+        <Button type="button" variant="outline" size="sm" onClick={onPrev} disabled={isFirst}>
+          <ChevronLeft aria-hidden="true" /> {t('common.pagination.previous')}
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={onNext} disabled={isLast}>
+          {t('common.pagination.next')} <ChevronRight aria-hidden="true" />
+        </Button>
       </div>
     </div>
   );

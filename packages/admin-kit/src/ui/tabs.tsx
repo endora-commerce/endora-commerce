@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { cn } from '../lib/utils.js';
+import { Card } from './card.js';
 import { useTranslation } from '../i18n/useTranslation.js';
 
 /**
@@ -278,7 +279,7 @@ export interface RecordTabsProps<V extends string = string> extends TabsProps<V>
 export function RecordTabs<V extends string>(props: RecordTabsProps<V>): ReactNode {
   const { children, panelProps, className, ...tabs } = props;
   return (
-    <div className={cn('b2b-card', className)}>
+    <Card className={className}>
       <div className="overflow-hidden px-1 pt-1">
         <Tabs {...tabs} />
       </div>
@@ -286,10 +287,10 @@ export function RecordTabs<V extends string>(props: RecordTabsProps<V>): ReactNo
         {...panelProps}
         idBase={tabs.idBase}
         value={tabs.value}
-        className={cn('b2b-card__body', panelProps?.className)}
+        className={cn('p-(--card-pad)', panelProps?.className)}
       >
         {children}
       </TabPanel>
-    </div>
+    </Card>
   );
 }

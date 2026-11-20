@@ -271,9 +271,11 @@ describe('RecordTabs — a record’s sections in one card', () => {
   it('frames the strip and the selected section as one card body', async () => {
     const { container } = renderWithI18n(<Record />, EN);
     const panel = screen.getByRole('tabpanel');
-    expect(panel).toHaveClass('b2b-card__body');
+    // The kit `Card`, padded by its own token — not the legacy `b2b-card` (#1492).
+    expect(panel).toHaveClass('p-(--card-pad)');
     expect(panel).toHaveAttribute('tabindex', '-1');
-    expect(panel.closest('.b2b-card')).toBe(container.querySelector('.b2b-card'));
+    expect(container.querySelector('.b2b-card')).toBeNull();
+    expect(panel.closest('[data-slot="card"]')).toBe(container.querySelector('[data-slot="card"]'));
     const user = userEvent.setup();
     await user.click(screen.getByRole('tab', { name: 'Notes, items: 3' }));
     expect(screen.getByText('Body of notes')).toBeInTheDocument();

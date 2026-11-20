@@ -5,7 +5,7 @@ import { cn } from '../lib/utils.js';
  * The admin's one card (issue #1438, UX audit 2026-11-17 DS-04; owner decision
  * DEC-03). Its density comes from the tokens in `theme.css` — `--card-pad`
  * around header, content and footer, `--fs-section-title` for the title — so
- * the deprecated `.b2b-card*` classes, which read the same tokens, draw the
+ * the deprecated legacy card classes in `theme.css`, which read the same tokens, draw the
  * same box.
  *
  * Every part carries a `data-slot`, which is how `CardContent` knows whether it

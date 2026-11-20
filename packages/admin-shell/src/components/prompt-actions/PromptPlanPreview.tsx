@@ -23,36 +23,29 @@ interface Props {
 export function PromptPlanPreview({ plan, busy, onConfirm, onCancel }: Props): ReactNode {
   const t = useTranslation('prompt_actions');
   return (
-    <div data-testid="prompt-plan-preview" style={{ padding: '12px 16px' }}>
-      <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 8 }}>
+    <div data-testid="prompt-plan-preview" className="px-4 py-3">
+      <div className="mb-2 text-xs text-muted-foreground">
         {t('panel.planHeading')}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="flex flex-col gap-2.5">
         {plan.operations.map((op, i) => (
-          <div
-            key={`${op.toolId}-${i}`}
-            style={{
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '10px 12px',
-            }}
-          >
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{op.preview.headline}</div>
+          <div key={`${op.toolId}-${i}`} className="rounded-lg border px-3 py-2.5">
+            <div className="text-sm font-semibold">{op.preview.headline}</div>
             {op.preview.current !== undefined ? (
-              <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>
+              <div className="mt-1 text-xs text-muted-foreground">
                 {t('panel.currentValue')}{' '}
-                <code style={{ fontSize: 11 }}>{JSON.stringify(op.preview.current)}</code>
+                <code className="font-mono text-xs">{JSON.stringify(op.preview.current)}</code>
               </div>
             ) : null}
             {op.preview.affectedCount > 1 ? (
-              <div style={{ fontSize: 12, marginTop: 4 }}>
+              <div className="mt-1 text-xs">
                 {t('panel.affectedCount', { count: op.preview.affectedCount })}
               </div>
             ) : null}
             {op.preview.sample && op.preview.sample.length > 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 6 }}>
+              <div className="mt-1.5 text-xs text-muted-foreground">
                 <div>{t('panel.sampleHeading')}</div>
-                <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                <ul className="ml-4 mt-1 list-disc">
                   {op.preview.sample.map((s) => (
                     <li key={s.id}>{s.label}</li>
                   ))}
@@ -62,10 +55,10 @@ export function PromptPlanPreview({ plan, busy, onConfirm, onCancel }: Props): R
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 10 }}>
+      <div className="mt-2.5 text-xs text-muted-foreground">
         {t('panel.expiresHint')}
       </div>
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+      <div className="mt-3 flex gap-2">
         <Button type="button" size="sm" onClick={onConfirm} disabled={busy}>
           {t('panel.confirm')}
         </Button>

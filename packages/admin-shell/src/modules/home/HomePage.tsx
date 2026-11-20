@@ -1,15 +1,25 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { CircleDollarSign, FileText, Plus, Upload, type LucideIcon } from 'lucide-react';
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { CircleDollarSign, FileText, Package, Plus, Upload, type LucideIcon } from 'lucide-react';
 import {
   ApiError,
   apiClient,
   useAuth,
   useSurfaceVisibility,
+  cn,
   type GatedSurface,
 } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { PageHeader } from '@endora-commerce/admin-kit/ui';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PageHeader,
+  Skeleton,
+} from '@endora-commerce/admin-kit/ui';
+import { MINI_ROW, MINI_ROW_LINK } from './mini-row.js';
 import { RecentActivityCard } from './RecentActivityCard.js';
 
 /**
@@ -212,7 +222,6 @@ export function HomePage(): ReactNode {
   const t = useTranslation('core');
   const { me } = useAuth();
   const isVisible = useSurfaceVisibility();
-  const navigate = useNavigate();
   const firstName = me?.adminUser.firstName?.trim() || t('home.defaultName');
   const kpiContext: KpiContext = { platformAdmin: me?.role?.code === 'platform_admin' };
 
@@ -226,8 +235,8 @@ export function HomePage(): ReactNode {
         }
       />
 
-      {/* KPI tiles */}
-      <div className="b2b-row b2b-kpi-grid" style={{ gap: 16, marginBottom: 20 }}>
+      {/* KPI tiles — two per row below desktop, one row of equal tiles on it. */}
+      <div className="mb-5 grid grid-cols-2 gap-4 lg:flex">
         {/* A tile is mounted only while it is visible, and fetches when it is
             mounted — see the header. Feature 073 and issue #230 are both held
             by that one condition: an absent module or a missing permission
@@ -238,37 +247,13 @@ export function HomePage(): ReactNode {
       </div>
 
       {/* Two-column: recent activity + sidebar (quick actions, stock alerts) */}
-      <div className="b2b-home-dashboard-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16 }}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <RecentActivityCard />
 
-        <div className="b2b-col" style={{ gap: 16 }}>
+        <div className="flex flex-col gap-4">
           {/* Quick actions — the card folds away when every action in it belongs
               to a switched-off module, the same rule the sidebar sections use. */}
-          {QUICK_ACTIONS.some(isVisible) && (
-          <div className="b2b-card">
-            <div className="b2b-card__head">
-              <div className="b2b-card__title">{t('home.quickActions.title')}</div>
-            </div>
-            <div className="b2b-card__body">
-              <div className="b2b-col" style={{ gap: 8 }}>
-                {QUICK_ACTIONS.filter(isVisible).map((action) => {
-                  const Icon = action.icon;
-                  return (
-                    <button
-                      key={action.to}
-                      type="button"
-                      className="b2b-btn b2b-btn--default"
-                      style={{ justifyContent: 'flex-start' }}
-                      onClick={(): void => { navigate(action.to); }}
-                    >
-                      <Icon size={14} /> {t(action.labelKey)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-          )}
+          {QUICK_ACTIONS.some(isVisible) && <QuickActionsCard actions={QUICK_ACTIONS.filter(isVisible)} />}
 
           {/* Stock alerts — wholly owned by `inventory`; the card is the
               module's contribution to the dashboard, so it goes with it. */}
@@ -276,6 +261,45 @@ export function HomePage(): ReactNode {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Issue #1556 (SHELL-21) — the quick actions are navigation, so they are a
+ * compact list of links. They used to be four full-width default buttons, each
+ * as loud as the page's one primary action (Von Restorff), stacked into a card
+ * that said less than the sidebar beside it (Occam's Razor).
+ */
+function QuickActionsCard({ actions }: { actions: readonly QuickAction[] }): ReactNode {
+  const t = useTranslation('core');
+  const titleId = useId();
+  return (
+    <Card role="region" aria-labelledby={titleId}>
+      <CardHeader>
+        <CardTitle id={titleId}>{t('home.quickActions.title')}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="-mx-2 flex flex-col">
+          {actions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <li key={action.to}>
+                <Link
+                  to={action.to}
+                  className={cn(
+                    'flex min-h-9 items-center gap-2 rounded-md px-2 text-sm font-medium text-primary hover:bg-muted',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring pointer-coarse:min-h-11',
+                  )}
+                >
+                  <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                  {t(action.labelKey)}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -327,16 +351,13 @@ function useRemote<T>(
   return { state, retry };
 }
 
-const KPI_LABEL_STYLE = {
-  fontSize: 11,
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
-} as const;
+const KPI_LABEL = 'text-xs uppercase tracking-wider text-muted-foreground';
 
-const SKELETON_STYLE = {
-  background: 'var(--surface-sunken)',
-  borderRadius: 4,
-} as const;
+const KPI_TONE: Record<NonNullable<Kpi['tone']>, string> = {
+  default: 'text-foreground',
+  warn: 'text-[var(--warn)]',
+  danger: 'text-[var(--danger)]',
+};
 
 function KpiTile({ kpi, path }: { kpi: Kpi; path: string }): ReactNode {
   const t = useTranslation('core');
@@ -350,74 +371,53 @@ function KpiTile({ kpi, path }: { kpi: Kpi; path: string }): ReactNode {
   // button cannot be nested inside one; the label keeps the drill-down.
   if (state.status === 'error') {
     return (
-      <div
-        className="b2b-card"
-        style={{ flex: 1, padding: 16 }}
-        data-testid={`kpi-${kpi.labelKey}-error`}
-      >
-        <Link
-          to={kpi.to}
-          className="b2b-muted"
-          style={{ ...KPI_LABEL_STYLE, display: 'block', textDecoration: 'none' }}
-        >
+      <Card className="min-w-0 flex-1 p-4" data-testid={`kpi-${kpi.labelKey}-error`}>
+        <Link to={kpi.to} className={cn(KPI_LABEL, 'block hover:underline')}>
           {label}
         </Link>
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: 8,
-            marginTop: 4,
-          }}
-        >
-          <span className="b2b-help" style={{ marginTop: 0 }} role="alert">
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <span className="text-sm text-muted-foreground" role="alert">
             {t('home.kpi.error')}
           </span>
-          <button
+          <Button
             type="button"
-            className="b2b-btn b2b-btn--default b2b-btn--sm"
+            variant="outline"
+            size="sm"
             aria-label={t('home.kpi.retryLabel', { label })}
             onClick={retry}
           >
             {t('home.kpi.retry')}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     );
   }
 
-  const color =
-    kpi.tone === 'danger' ? 'var(--danger)' : kpi.tone === 'warn' ? 'var(--warn)' : 'var(--fg)';
   const loading = state.status === 'loading';
   return (
-    <Link
-      to={kpi.to}
-      className="b2b-card b2b-card--clickable"
-      style={{ flex: 1, padding: 16, textDecoration: 'none', color: 'inherit' }}
-      data-testid={`kpi-${kpi.labelKey}`}
-      {...(loading ? { 'aria-busy': true } : {})}
-    >
-      <div className="b2b-muted" style={KPI_LABEL_STYLE}>
-        {label}
-      </div>
-      {/* The placeholder sits in the value's own line box, so the tile is the
-          same height pending and loaded and nothing shifts when the number
-          lands. */}
-      <div style={{ fontSize: 26, fontWeight: 600, marginTop: 4, color }}>
-        {loading ? (
-          <>
-            <span
-              aria-hidden="true"
-              style={{ ...SKELETON_STYLE, display: 'inline-block', width: '2.5ch', height: '0.7em' }}
-            />
-            <span className="sr-only">{t('home.kpi.loading')}</span>
-          </>
-        ) : (
-          (state.data ?? '—')
-        )}
-      </div>
-    </Link>
+    <Card className="min-w-0 flex-1 transition-colors hover:bg-muted/40">
+      <Link
+        to={kpi.to}
+        className="block rounded-lg p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        data-testid={`kpi-${kpi.labelKey}`}
+        {...(loading ? { 'aria-busy': true } : {})}
+      >
+        <div className={KPI_LABEL}>{label}</div>
+        {/* The placeholder sits in the value's own line box, so the tile is the
+            same height pending and loaded and nothing shifts when the number
+            lands. */}
+        <div className={cn('mt-1 text-2xl font-semibold', KPI_TONE[kpi.tone ?? 'default'])}>
+          {loading ? (
+            <>
+              <Skeleton className="inline-block h-[0.7em] w-[2.5ch]" />
+              <span className="sr-only">{t('home.kpi.loading')}</span>
+            </>
+          ) : (
+            (state.data ?? '—')
+          )}
+        </div>
+      </Link>
+    </Card>
   );
 }
 
@@ -437,80 +437,59 @@ function StockAlertsCard(): ReactNode {
   const { state, retry } = useRemote(STOCK_ALERTS_PATH, readStockAlerts);
 
   return (
-    <div className="b2b-card">
-      <div className="b2b-card__head">
-        <div>
-          <div className="b2b-card__title">{t('home.stockAlerts.title')}</div>
-        </div>
-        <Link to="/inventory/low-stock" className="b2b-btn b2b-btn--ghost b2b-btn--sm">
-          {t('home.stockAlerts.seeAll')}
-        </Link>
-      </div>
-      <div className="b2b-card__body b2b-card__body--flush">
+    <Card flush>
+      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle>{t('home.stockAlerts.title')}</CardTitle>
+        <Button asChild variant="ghost" size="sm">
+          <Link to="/inventory/low-stock">{t('home.stockAlerts.seeAll')}</Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
         {state.status === 'loading' && (
-          <div
-            className="b2b-minilist"
-            style={{ padding: 4 }}
-            data-testid="stock-alerts-loading"
-            aria-busy="true"
-          >
+          <div className="flex flex-col p-1" data-testid="stock-alerts-loading" aria-busy="true">
             <span className="sr-only">{t('home.stockAlerts.loading')}</span>
             {Array.from({ length: STOCK_ALERT_PLACEHOLDER_COUNT }).map((_, idx) => (
-              <div key={idx} className="b2b-minirow" style={{ opacity: 0.6 }} aria-hidden="true">
-                <div style={{ ...SKELETON_STYLE, width: 28, height: 28, flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ ...SKELETON_STYLE, height: 10, width: '70%' }} />
-                  <div style={{ ...SKELETON_STYLE, height: 8, width: '40%', marginTop: 6 }} />
+              <div key={idx} className={MINI_ROW} aria-hidden="true">
+                <Skeleton className="size-7 shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-2.5 w-[70%]" />
+                  <Skeleton className="h-2 w-[40%]" />
                 </div>
-                <span style={{ ...SKELETON_STYLE, width: 36, height: 10, flexShrink: 0 }} />
+                <Skeleton className="h-2.5 w-9 shrink-0" />
               </div>
             ))}
           </div>
         )}
         {state.status === 'error' && (
-          <div
-            className="b2b-help"
-            style={{
-              padding: 16,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 12,
-            }}
-            role="alert"
-          >
+          <div className="flex items-center justify-between gap-3 p-4 text-sm text-muted-foreground" role="alert">
             <span>{t('home.stockAlerts.error')}</span>
-            <button type="button" className="b2b-btn b2b-btn--default b2b-btn--sm" onClick={retry}>
+            <Button type="button" variant="outline" size="sm" onClick={retry}>
               {t('home.stockAlerts.retry')}
-            </button>
+            </Button>
           </div>
         )}
         {state.status === 'ready' && state.data.length === 0 && (
-          <div className="b2b-help" style={{ padding: 16 }}>
-            {t('home.stockAlerts.empty')}
-          </div>
+          <p className="p-4 text-sm text-muted-foreground">{t('home.stockAlerts.empty')}</p>
         )}
         {state.status === 'ready' && state.data.length > 0 && (
-          <div className="b2b-minilist" style={{ padding: 4 }}>
+          <div className="flex flex-col p-1">
             {state.data.map((alert) => (
               <Link
                 key={alert.productId}
                 to={`/catalog/products/${alert.productId}`}
-                className="b2b-minirow"
-                style={{ textDecoration: 'none', color: 'inherit' }}
+                className={cn(MINI_ROW, MINI_ROW_LINK)}
               >
-                <div
-                  className="b2b-thumb"
-                  style={{
-                    width: 28,
-                    height: 28,
-                    background: 'linear-gradient(135deg, #94a3b8cc, #94a3b888)',
-                  }}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500 }}>{alert.name}</div>
-                  <div className="b2b-mono b2b-muted" style={{ fontSize: 10 }}>{alert.sku}</div>
-                </div>
+                <span
+                  data-slot="stock-alert-thumb"
+                  aria-hidden="true"
+                  className="grid size-7 shrink-0 place-items-center rounded-md bg-[var(--surface-sunken)] text-muted-foreground"
+                >
+                  <Package className="size-3.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-medium">{alert.name}</span>
+                  <span className="block font-mono text-xs text-muted-foreground">{alert.sku}</span>
+                </span>
                 <span
                   className={alert.qty === 0 ? 'b2b-badge b2b-badge--danger' : 'b2b-badge b2b-badge--warn'}
                 >
@@ -520,7 +499,7 @@ function StockAlertsCard(): ReactNode {
             ))}
           </div>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
