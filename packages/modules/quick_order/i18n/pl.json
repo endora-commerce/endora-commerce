@@ -5,7 +5,6 @@
   "actions.openQuickOrder.label": "Szybkie zamówienie w imieniu klienta",
   "actions.openQuickOrder.description": "Zaimportuj plik CSV lub Excel i zbuduj koszyk albo zapytanie ofertowe dla klienta",
   "onBehalf.page.title": "Szybkie zamówienie w imieniu klienta",
-  "onBehalf.page.description": "Zaimportuj plik CSV / Excel i zbuduj koszyk albo zapytanie ofertowe dla klienta.",
   "onBehalf.customer.title": "Klient",
   "onBehalf.customer.account": "Konto klienta",
   "onBehalf.customer.accountPlaceholder": "Szukaj klientów po nazwie lub adresie e-mail…",

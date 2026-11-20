@@ -68,7 +68,6 @@ vi.mock('../../../../packages/modules/payment_methods/src/admin/api/payment-meth
 
 const KEYS = [
   'legacyMethods.payment.title',
-  'legacyMethods.payment.description',
   'legacyMethods.payment.empty',
   'legacyMethods.payment.noPermission',
   'legacyMethods.columns.code',

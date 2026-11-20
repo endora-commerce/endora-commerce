@@ -136,7 +136,6 @@ const bundle = {
   ...passthroughBundle('carts', [
     'nav.carts.label',
     'carts.page.title',
-    'carts.page.description',
     'carts.loading',
     'carts.empty',
   ]),
