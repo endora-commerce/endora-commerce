@@ -7,7 +7,9 @@ import {
   fitPageSize,
   lastPageIndex,
   pageSizesUpTo,
+  useCursorPagination,
   useListPagination,
+  type CursorListPagination,
   type ListPageLoad,
   type ListPagination,
 } from '@endora-commerce/admin-kit/components';
@@ -189,3 +191,145 @@ describe('useListPagination', () => {
     expect(pager.query.page).toBe(1);
   });
 });
+
+/**
+ * Issue #1664 — the pager's cursor mode, for a list whose endpoint pages by an
+ * opaque cursor and answers no total (the invoices list, #1120). Previous and
+ * Next, the page number without "of Y", and a "more than N" hint while a next
+ * page exists.
+ */
+function CursorHarness({
+  rows,
+  onPager,
+}: {
+  rows: number;
+  onPager?: (pager: CursorListPagination) => void;
+}): ReactNode {
+  const pager = useCursorPagination({ scope: 'kit-cursor-page-test', maxPageSize: 100 });
+  useEffect(() => {
+    onPager?.(pager);
+  });
+  return (
+    <ListPage title="Invoices" load={{ kind: 'ready' }} pagination={pager.footer(rows)}>
+      <p>rows</p>
+    </ListPage>
+  );
+}
+
+describe('useCursorPagination', () => {
+  const next = (): HTMLElement => screen.getByRole('button', { name: core['common.pagination.next']! });
+  const previous = (): HTMLElement => screen.getByRole('button', { name: core['common.pagination.previous']! });
+
+  it('asks for the first page with no cursor, and offers Next only once a response says more exist', () => {
+    let pager!: CursorListPagination;
+    renderWithI18n(wrap(<CursorHarness rows={20} onPager={(p) => (pager = p)} />), en);
+    expect(pager.query).toEqual({ cursor: null, limit: 20 });
+    expect(next()).toBeDisabled();
+    expect(previous()).toBeDisabled();
+    act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 20));
+    expect(next()).toBeEnabled();
+    expect(screen.getByText('Showing 1–20 of more than 20')).toBeInTheDocument();
+    expect(screen.getByText(fill(core['cursorPagination.page']!, { page: 1 }))).toBeInTheDocument();
+    // No total, so no "of Y" anywhere.
+    expect(screen.queryByText(/Page 1 of/)).toBeNull();
+  });
+
+  it('walks forward by the cursor each page answered, and back the way it came', async () => {
+    let pager!: CursorListPagination;
+    const { rerender } = renderWithI18n(wrap(<CursorHarness rows={20} onPager={(p) => (pager = p)} />), en);
+    act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 20));
+    await userEvent.click(next());
+    expect(pager.query).toEqual({ cursor: 'c-2', limit: 20 });
+    expect(pager.page).toBe(1);
+    act(() => pager.syncPage({ cursor: 'c-3', hasMore: true }, 20));
+    await userEvent.click(next());
+    expect(pager.query.cursor).toBe('c-3');
+    rerender(wrap(<CursorHarness rows={5} onPager={(p) => (pager = p)} />));
+    act(() => pager.syncPage({ cursor: null, hasMore: false }, 5));
+    // The last page: the range, and no claim about a total.
+    expect(screen.getByText('Showing 41–45')).toBeInTheDocument();
+    expect(next()).toBeDisabled();
+    await userEvent.click(previous());
+    expect(pager.query.cursor).toBe('c-2');
+    await userEvent.click(previous());
+    expect(pager.query.cursor).toBeNull();
+    expect(previous()).toBeDisabled();
+  });
+
+  it('does not skip a page when Next is pressed again before the page answers', async () => {
+    let pager!: CursorListPagination;
+    renderWithI18n(wrap(<CursorHarness rows={20} onPager={(p) => (pager = p)} />), en);
+    act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 20));
+    await userEvent.click(next());
+    expect(next()).toBeDisabled();
+    expect(pager.page).toBe(1);
+  });
+
+  it('goes back to the first page on a size change and on resetPage', async () => {
+    let pager!: CursorListPagination;
+    renderWithI18n(wrap(<CursorHarness rows={20} onPager={(p) => (pager = p)} />), en);
+    const select = screen.getByLabelText(core['common.pagination.rowsPerPage']!);
+    expect([...select.querySelectorAll('option')].map((o) => o.textContent)).toEqual(['5', '10', '20', '50', '100']);
+    act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 20));
+    await userEvent.click(next());
+    await userEvent.selectOptions(screen.getByLabelText(core['common.pagination.rowsPerPage']!), '50');
+    expect(pager.query).toEqual({ cursor: null, limit: 50 });
+    act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 50));
+    await userEvent.click(next());
+    act(() => pager.resetPage());
+    expect(pager.query.cursor).toBeNull();
+  });
+
+  it('steps back when a later page comes back empty', async () => {
+    let pager!: CursorListPagination;
+    renderWithI18n(wrap(<CursorHarness rows={20} onPager={(p) => (pager = p)} />), en);
+    act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 20));
+    await userEvent.click(next());
+    act(() => pager.syncPage({ cursor: null, hasMore: false }, 0));
+    expect(pager.page).toBe(0);
+    expect(pager.query.cursor).toBeNull();
+  });
+
+  it('draws no pager under an empty first page', () => {
+    renderWithI18n(wrap(<CursorHarness rows={0} />), en);
+    expect(screen.queryByText(core['common.pagination.rowsPerPage']!)).toBeNull();
+  });
+
+  it('renders the hint in Polish from the shipped bundle', () => {
+    const pl = shippedCoreBundle('pl');
+    let pager!: CursorListPagination;
+    renderWithI18n(wrap(<CursorHarness rows={20} onPager={(p) => (pager = p)} />), pl, { language: 'pl' });
+    act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 20));
+    expect(
+      screen.getByText(fill(pl.core!['common.pagination.showingRangeMore']!, { start: 1, end: 20 })),
+    ).toBeInTheDocument();
+  });
+
+  it('has no axe violations', async () => {
+    let pager!: CursorListPagination;
+    const { container } = renderWithI18n(wrap(<CursorHarness rows={20} onPager={(p) => (pager = p)} />), en);
+    act(() => pager.syncPage({ cursor: 'c-2', hasMore: true }, 20));
+    await expectNoAxeViolations(container);
+  });
+});
+
+describe('ListPage tabs', () => {
+  it('draws section tabs between the header and the toolbar', () => {
+    renderWithI18n(
+      wrap(
+        <ListPage title="Invoices" tabs={<nav aria-label="Sections">tabs</nav>} toolbar={<input aria-label="Search" />} load={{ kind: 'ready' }}>
+          <p>rows</p>
+        </ListPage>,
+      ),
+      en,
+    );
+    const tabs = screen.getByRole('navigation', { name: 'Sections' });
+    const heading = screen.getByRole('heading', { level: 1, name: 'Invoices' });
+    const search = screen.getByRole('textbox', { name: 'Search' });
+    expect(heading.compareDocumentPosition(tabs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(tabs.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+const fill = (template: string, values: Record<string, string | number>): string =>
+  Object.entries(values).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, String(value)), template);

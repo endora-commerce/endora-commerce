@@ -19,7 +19,7 @@
  */
 export { FileDropzone } from './FileDropzone.js';
 export { PaginationFooter } from './PaginationFooter.js';
-export type { PaginationFooterProps } from './PaginationFooter.js';
+export type { CursorPaginationFooterProps, PaginationFooterProps } from './PaginationFooter.js';
 export { ResponsiveTable } from './ResponsiveTable.js';
 export type { ResponsiveColumn, ResponsiveTableProps } from './ResponsiveTable.js';
 export { RowActionMenu, RowActionMenuItem, RowActionMenuSeparator } from './RowActionMenu.js';
@@ -32,6 +32,8 @@ export { ListPage } from './list-page/ListPage.js';
 export type { ListPageLoad, ListPageProps } from './list-page/ListPage.js';
 export { fitPageSize, lastPageIndex, pageSizesUpTo, useListPagination } from './list-page/use-list-pagination.js';
 export type { ListPagination, UseListPaginationOptions } from './list-page/use-list-pagination.js';
+export { useCursorPagination } from './list-page/use-cursor-pagination.js';
+export type { CursorListPagination, CursorPageInfo } from './list-page/use-cursor-pagination.js';
 export { StickyFormActions } from './StickyFormActions.js';
 export type { StickyFormActionsProps } from './StickyFormActions.js';
 // Feature 180 — the generic Save and outcome summary of an editor's save session.

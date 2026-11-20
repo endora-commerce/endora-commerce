@@ -16,6 +16,12 @@ describe('invoiceListPath (issue #1120)', () => {
     expect(query.get('cursor')).toBe('abc_-');
   });
 
+  it('asks for the page size the pager holds (issue #1664)', () => {
+    const query = new URLSearchParams(invoiceListPath(NO_INVOICE_FILTERS, null, 20).split('?')[1]);
+    expect(query.get('limit')).toBe('20');
+    expect(query.get('cursor')).toBeNull();
+  });
+
   it('bounds an issued-date range to whole days in UTC', () => {
     const query = new URLSearchParams(
       invoiceListPath({ ...NO_INVOICE_FILTERS, issuedFrom: '2026-11-01', issuedTo: '2026-11-13' }).split('?')[1],
