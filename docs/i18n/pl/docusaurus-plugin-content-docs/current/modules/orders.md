@@ -414,11 +414,10 @@ zwolnienia tym samym mechanizmem działań następczych, od razu próbuje je wyk
 wpis audytu na stronę zamówień; to, czego nie uda się dokończyć, ponawia zadanie w tle. Ponowne
 uruchomienie niczego już nie znajduje.
 
-Zamówienia rozliczone przez `POST /api/v1/payments/receive` przed tą poprawką również mogą
-pozostać bez zwolnienia: opłacone z limitu kredytowego, z nadal aktywną rezerwacją limitu, ale bez
-wiersza działania następczego `credit.release`. Najpierw uruchom przebieg próbny, aby je znaleźć,
-a potem użyj `--apply`, aby zwolnić rezerwacje. Nowe rozliczenia zapisują działania następcze
-i nie wymagają tej naprawy.
+Polecenie naprawcze znajduje również opłacone zamówienia korzystające z limitu kredytowego,
+które mają aktywne rezerwacje limitu, ale nie mają wiersza działania następczego `credit.release`.
+Najpierw uruchom przebieg próbny, aby przejrzeć te zamówienia, a następnie użyj `--apply`,
+aby zapisać brakujące zwolnienia i podjąć próbę ich wykonania.
 
 **Po aktualizacji uruchom raz przebieg próbny** i przeczytaj listę, zanim ją zastosujesz:
 zwolnienie zmienia liczniki zarezerwowanego stanu i dostępny limit. Naprawa nigdy nie uruchamia się

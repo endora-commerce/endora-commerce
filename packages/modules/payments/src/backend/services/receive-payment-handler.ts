@@ -389,7 +389,7 @@ export class ReceivePaymentHandler {
         await this.orderPaymentSettlementEffects.drainForOrder(result.payment.orderId);
       } catch (error) {
         rethrowIfModuleDisabled(error);
-        this.log?.warn(
+        this.log.warn(
           { orderId: result.payment.orderId, error },
           'payments: the immediate attempt at a payment-status follow-up failed; the sweep retries it',
         );

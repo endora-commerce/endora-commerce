@@ -41,7 +41,7 @@ export class OrderPaymentStatusApplyService implements OrderPaymentStatusApplyPo
   async applyPaymentStatus(
     em: EntityManager,
     input: { orderId: string; paymentStatus: OrderPaymentStatus },
-  ): Promise<(OrderPaymentStatusApplied & { owesEffects: boolean }) | null> {
+  ): Promise<OrderPaymentStatusApplied | null> {
     if (!isUuidShape(input.orderId)) return null;
     // Decide on the refreshed, locked row, as the admin payment-status path does.
     const order = await em.findOne(

@@ -97,6 +97,7 @@ export interface OrderPaymentStatusApplied {
    * of its work — `payments` asks for no lifecycle move behind one.
    */
   readonly outcome: 'applied' | 'unchanged' | 'refused';
+  readonly owesEffects: boolean;
 }
 
 /**
@@ -155,7 +156,7 @@ export interface OrderPaymentStatusApplyPort {
   applyPaymentStatus(
     em: EntityManager,
     input: { orderId: string; paymentStatus: OrderPaymentStatus },
-  ): Promise<(OrderPaymentStatusApplied & { owesEffects: boolean }) | null>;
+  ): Promise<OrderPaymentStatusApplied | null>;
 }
 
 /**
