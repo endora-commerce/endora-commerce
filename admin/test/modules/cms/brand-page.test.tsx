@@ -385,6 +385,68 @@ describe('BrandPage', () => {
     expect(screen.queryByRole('button', { name: copy('brand.scope.override') })).toBeNull();
   });
 
+  // Issue #1499 (UX audit SALES-17, DEC-12 a): "Saved" and "Reset" are said in
+  // the page header beside Save, in a region mounted empty before the action —
+  // the reset button is gone once the channel follows the global set again.
+  function headerStatus(): HTMLElement {
+    const header = screen.getByRole('button', { name: copy('common.save') }).closest('header');
+    const region = header?.querySelector<HTMLElement>('[role="status"]');
+    if (!region) throw new Error('no status region in the page header');
+    return region;
+  }
+
+  it('says "saved" beside Save, with no success banner, and clears it on the next edit', async () => {
+    vi.spyOn(apiClient, 'put').mockResolvedValue({ data: { version: 4, warnings: [] } } as never);
+    mount();
+    await loaded();
+    const region = headerStatus();
+    expect(region.textContent).toBe('');
+
+    setColor(copy('brand.colors.primary'), '#b91c1c');
+    fireEvent.click(screen.getByRole('button', { name: copy('common.save') }));
+
+    await waitFor(() => expect(region).toHaveTextContent(copy('brand.saved')));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+
+    setColor(copy('brand.colors.primary'), '#0f766e');
+    expect(region.textContent).toBe('');
+  });
+
+  it('says "follows the global set again" beside Save after a reset, with no success banner', async () => {
+    channelState = { tokens: OVERRIDE, version: 2 };
+    mount();
+    await loaded();
+    await chooseChannel();
+    await screen.findByText(copy('brand.scope.overriddenNotice'));
+    const region = headerStatus();
+    expect(region.textContent).toBe('');
+
+    vi.spyOn(apiClient, 'put').mockImplementation(() => {
+      channelState = { tokens: null, version: 0 };
+      return Promise.resolve({ data: { version: 0, warnings: [] } } as never);
+    });
+    fireEvent.click(screen.getByRole('button', { name: copy('brand.scope.reset') }));
+    await answerConfirm(true);
+
+    await waitFor(() => expect(region).toHaveTextContent(copy('brand.resetDone')));
+    expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
+  });
+
+  it('an error clears the previous result and is the banner', async () => {
+    const put = vi.spyOn(apiClient, 'put').mockResolvedValueOnce({ data: { version: 4, warnings: [] } } as never);
+    mount();
+    await loaded();
+    const region = headerStatus();
+    fireEvent.click(screen.getByRole('button', { name: copy('common.save') }));
+    await waitFor(() => expect(region).toHaveTextContent(copy('brand.saved')));
+
+    put.mockRejectedValueOnce(new Error('down'));
+    fireEvent.click(screen.getByRole('button', { name: copy('common.save') }));
+
+    expect(await screen.findByText(copy('brand.errors.saveFailed', { message: 'down' }))).toBeTruthy();
+    expect(region.textContent).toBe('');
+  });
+
   it('shows the conflict message on 409 and reloads the stored set', async () => {
     mount();
     await loaded();
