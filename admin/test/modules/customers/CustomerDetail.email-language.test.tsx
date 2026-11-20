@@ -51,8 +51,8 @@ vi.mock('../../../../packages/modules/customers/src/admin/panels/HistoryPanels',
   CartsPanel: () => null,
 }));
 vi.mock('../../../../packages/modules/customers/src/admin/panels/ManagementPanels', () => ({
-  OrganizationAssignmentPanel: () => null,
-  CustomerGroupPanel: () => null,
+  OrganizationAssignmentField: () => null,
+  CustomerGroupField: () => null,
   AddressesPanel: () => null,
 }));
 // A fourth `vi.mock` stood here until feature 091's P7b — `quick_order`'s

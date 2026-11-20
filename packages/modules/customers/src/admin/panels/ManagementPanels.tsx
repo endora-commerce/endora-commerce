@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Label } from '@endora-commerce/admin-kit/ui';
-import { OrganizationPicker, CustomerGroupPicker, ImmediateBadge } from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, Button, EditorSection, Label } from '@endora-commerce/admin-kit/ui';
+import { OrganizationPicker, CustomerGroupPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { addressKindLabels } from '../lib/labels.js';
 
@@ -36,121 +36,129 @@ function useAction(onChanged: () => void): {
   return { busy, error, run };
 }
 
-export function OrganizationAssignmentPanel({
+/**
+ * Issue #1517 (UX audit SALES-22) — the organization as a field of the Profile
+ * tab's account section, not a card of its own holding one picker and one
+ * button. The picker starts on the current organization; *Assign* is live
+ * once another one is picked, and applies at once, like every control in that
+ * section (its heading carries the `ImmediateBadge`). Mount it with
+ * `key={organizationId}` so a re-read after the change resets the draft.
+ */
+export function OrganizationAssignmentField({
   customerId,
   organizationId,
+  organizationName,
   onChanged,
-}: CommonProps & { organizationId: string | null }): ReactNode {
+}: CommonProps & { organizationId: string | null; organizationName: string | null }): ReactNode {
   const t = useTranslation('customers');
   const { busy, error, run } = useAction(onChanged);
-  const [orgId, setOrgId] = useState<string | null>(null);
+  const [orgId, setOrgId] = useState<string | null>(organizationId);
+  const label = t('detail.field.organization');
 
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle>
-          {t('detail.org.title')}
-          <ImmediateBadge />
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        <div className="space-y-2">
-          <Label htmlFor="assign-org">{t('detail.org.assignLabel')}</Label>
-          <div className="flex gap-2">
-            <OrganizationPicker id="assign-org" value={orgId} onChange={setOrgId} className="flex-1" />
-            <Button
-              disabled={busy || !orgId}
-              onClick={(): void => {
-                if (!orgId) return;
-                void run(() => apiClient.post(`/api/v1/admin/customers/${customerId}/organization`, { organizationId: orgId }));
-              }}
-            >
-              {t('detail.org.assign')}
-            </Button>
-          </div>
+    <div className="space-y-2">
+      <Label htmlFor="assign-org">{label}</Label>
+      <div className="flex gap-2">
+        <OrganizationPicker
+          id="assign-org"
+          value={orgId}
+          onChange={setOrgId}
+          ariaLabel={label}
+          clearable={false}
+          {...(organizationName === null ? {} : { selectedLabel: organizationName })}
+          className="min-w-0 flex-1"
+        />
+        <Button
+          variant="outline"
+          disabled={busy || orgId === null || orgId === organizationId}
+          aria-busy={busy}
+          onClick={(): void => {
+            if (!orgId) return;
+            void run(() => apiClient.post(`/api/v1/admin/customers/${customerId}/organization`, { organizationId: orgId }));
+          }}
+        >
+          {t('detail.org.assign')}
+        </Button>
+      </div>
+      {organizationId ? (
+        <div className="space-y-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-ml-2"
+            disabled={busy}
+            aria-describedby="assign-org-unassign-hint"
+            onClick={(): void => void run(() => apiClient.delete(`/api/v1/admin/customers/${customerId}/organization`))}
+          >
+            {t('detail.org.unassign')}
+          </Button>
+          {/*
+            D-178 — the operation moves the customer to their own personal
+            organization rather than leaving them without one, and the button
+            said "Unassign", which described the outcome it used to have.
+          */}
+          <p id="assign-org-unassign-hint" className="text-xs text-muted-foreground">
+            {t('detail.org.unassignHint')}
+          </p>
         </div>
-        {organizationId ? (
-          <div className="space-y-1">
-            <Button
-              variant="outline"
-              disabled={busy}
-              onClick={(): void => void run(() => apiClient.delete(`/api/v1/admin/customers/${customerId}/organization`))}
-            >
-              {t('detail.org.unassign')}
-            </Button>
-            {/*
-              D-178 — the operation moves the customer to their own personal
-              organization rather than leaving them without one, and the button
-              said "Unassign", which described the outcome it used to have.
-            */}
-            <p className="text-sm text-muted-foreground">{t('detail.org.unassignHint')}</p>
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
+      ) : null}
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
-export function CustomerGroupPanel({
+/**
+ * Issue #1517 — the customer group as a field beside the organization: the
+ * picker starts on the current group and clears to "no group"; *Set* applies
+ * whichever differs, at once. Mount it with `key={customerGroupId}`.
+ */
+export function CustomerGroupField({
   customerId,
   customerGroupId,
   onChanged,
 }: CommonProps & { customerGroupId: string | null }): ReactNode {
   const t = useTranslation('customers');
   const { busy, error, run } = useAction(onChanged);
-  const [groupId, setGroupId] = useState<string | null>(null);
+  const [groupId, setGroupId] = useState<string | null>(customerGroupId);
+  const label = t('detail.field.group');
 
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle>
-          {t('detail.group.title')}
-          <ImmediateBadge />
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {error ? (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        ) : null}
-        <div className="space-y-2">
-          <Label htmlFor="set-group">{t('detail.group.setLabel')}</Label>
-          <div className="flex gap-2">
-            <CustomerGroupPicker id="set-group" value={groupId} onChange={setGroupId} className="flex-1" />
-            <Button
-              disabled={busy || !groupId}
-              onClick={(): void => {
-                if (!groupId) return;
-                void run(() => apiClient.put(`/api/v1/admin/customers/${customerId}/customer-group`, { customerGroupId: groupId }));
-              }}
-            >
-              {t('detail.group.set')}
-            </Button>
-          </div>
-        </div>
-        {customerGroupId ? (
-          <Button
-            variant="outline"
-            disabled={busy}
-            onClick={(): void =>
-              void run(() => apiClient.put(`/api/v1/admin/customers/${customerId}/customer-group`, { customerGroupId: null }))
-            }
-          >
-            {t('detail.group.clear')}
-          </Button>
-        ) : null}
-      </CardContent>
-    </Card>
+    <div className="space-y-2">
+      <Label htmlFor="set-group">{label}</Label>
+      <div className="flex gap-2">
+        <CustomerGroupPicker
+          id="set-group"
+          value={groupId}
+          onChange={setGroupId}
+          ariaLabel={label}
+          placeholder={t('detail.group.none')}
+          className="min-w-0 flex-1"
+        />
+        <Button
+          variant="outline"
+          disabled={busy || groupId === customerGroupId}
+          aria-busy={busy}
+          onClick={(): void =>
+            void run(() => apiClient.put(`/api/v1/admin/customers/${customerId}/customer-group`, { customerGroupId: groupId }))
+          }
+        >
+          {t('detail.group.set')}
+        </Button>
+      </div>
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
-/** One line of the addresses card — an Organization address or a refused personal-book row. */
+/** One line of the addresses section — an Organization address or a refused personal-book row. */
 interface AdminAddressLine {
   id: string;
   kind: 'delivery' | 'billing';
@@ -203,11 +211,7 @@ export function AddressesPanel({ customerId }: CommonProps): ReactNode {
   );
 
   return (
-    <Card className="mb-4">
-      <CardHeader>
-        <CardTitle>{t('detail.addresses.title')}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <EditorSection title={t('detail.addresses.title')}>
         {failed ? (
           <Alert variant="destructive">
             <AlertDescription>{t('detail.panel.error')}</AlertDescription>
@@ -253,7 +257,6 @@ export function AddressesPanel({ customerId }: CommonProps): ReactNode {
             ) : null}
           </>
         ) : null}
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }
