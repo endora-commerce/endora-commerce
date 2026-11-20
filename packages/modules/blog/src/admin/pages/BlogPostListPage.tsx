@@ -13,6 +13,7 @@ import {
   RowActionMenuSeparator,
   useConfirmDialog,
   useDebouncedValue,
+  useRemovalFocus,
   useListPagination,
   type ListPageLoad,
   type ResponsiveColumn,
@@ -29,6 +30,8 @@ const MAX_PAGE_SIZE = 100;
 const POST_STATUSES: readonly BlogPostStatus[] = ['draft', 'published', 'archived'];
 
 type StatusFilter = BlogPostStatus | '';
+
+const rowId = (row: { id: string }): string => row.id;
 
 function pickPrimaryName(name: Record<string, string> | undefined | null, fallback: string): string {
   if (!name) return fallback;
@@ -63,6 +66,8 @@ export function BlogPostListPage(): ReactNode {
   const [reloadKey, setReloadKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const { page, pageSize } = pager.query;
+  // After a delete, focus goes to the next row, or to "New post" once the list is empty (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
 
   // A new search goes back to the first page.
   useEffect(() => {
@@ -108,16 +113,25 @@ export function BlogPostListPage(): ReactNode {
       action: () => blogClient.deletePost(post.id, post.version),
       // The likely cause is a row changed by someone else since it was read; a reload reads it again.
       describeError: () => t('listActions.deleteFailed'),
+      returnFocusTo: removalFocus.returnFocusTo(post),
     });
     if (!deleted) return;
     setNotice(t('postList.deleted', { name }));
-    // Read the page again: the server's total moves, and the pager with it.
-    setReloadKey((key) => key + 1);
+    // The row goes in place rather than through a reload, so the row focus moved to stays
+    // mounted. A page emptied this way moves back through `syncTotal`, which reads again.
+    setRows((current) => current.filter((row) => row.id !== post.id));
+    setTotal((current) => current - 1);
+    syncTotal(total - 1);
   };
 
   const createLink = (
     <Button asChild className="min-h-11 sm:min-h-9">
-      <Link to="/blog/posts/new">
+      <Link
+        ref={(element) => {
+          removalFocus.createRef.current = element;
+        }}
+        to="/blog/posts/new"
+      >
         <Plus size={16} aria-hidden="true" />
         {t('postList.newPost')}
       </Link>
@@ -132,7 +146,7 @@ export function BlogPostListPage(): ReactNode {
       header: t('columns.name'),
       primary: true,
       render: (post) => (
-        <Link to={`/blog/posts/${post.id}`} className="font-medium text-primary hover:underline">
+        <Link ref={removalFocus.targetRef(post)} to={`/blog/posts/${post.id}`} className="font-medium text-primary hover:underline">
           {pickPrimaryName(post.name, post.slug)}
         </Link>
       ),

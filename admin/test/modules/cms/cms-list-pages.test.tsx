@@ -188,6 +188,29 @@ describe.each([
   });
 });
 
+describe('CMS lists — focus after a delete (WCAG 2.4.3)', () => {
+  it('moves focus to the next row once a row is deleted', async () => {
+    client.listBlocks.mockResolvedValue({
+      data: [block(), block({ id: '00000000-0000-4000-8000-0000000000b2', name: 'Header promo', code: 'header-promo' })],
+    });
+    mount(<BlocksListPage />);
+    await openRowMenu('Footer promo');
+    await userEvent.click(await screen.findByRole('menuitem', { name: en['listActions.delete']! }));
+    await answerConfirm(true);
+    await waitFor(() => expect(screen.queryByText('Footer promo')).not.toBeInTheDocument());
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Header promo' })));
+  });
+
+  it('moves focus to the create action once the last row is deleted', async () => {
+    mount(<PagesListPage />);
+    await openRowMenu('About');
+    await userEvent.click(await screen.findByRole('menuitem', { name: en['listActions.delete']! }));
+    await answerConfirm(true);
+    const create = await screen.findByRole('link', { name: en['pagesList.new']! });
+    await waitFor(() => expect(document.activeElement).toBe(create));
+  });
+});
+
 describe('CMS pages list — statuses and search', () => {
   it('draws the status and the inactive state as badges with text', async () => {
     client.listPages.mockResolvedValue({ data: [page({ status: 'draft', active: false })], nextCursor: null });

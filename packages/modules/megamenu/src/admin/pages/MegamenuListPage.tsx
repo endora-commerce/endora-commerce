@@ -11,6 +11,7 @@ import {
   RowActionMenuItem,
   RowActionMenuSeparator,
   useConfirmDialog,
+  useRemovalFocus,
   type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
@@ -18,6 +19,8 @@ import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 import { megamenuClient } from '../api/megamenu-client.js';
+
+const rowId = (row: { id: string }): string => row.id;
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
 
@@ -111,6 +114,8 @@ export function MegamenuListPage(): ReactNode {
   const [reloadKey, setReloadKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  // After a delete, focus goes to the next row, or to "New megamenu" once the list is empty (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
 
   useEffect(() => {
     let alive = true;
@@ -141,6 +146,7 @@ export function MegamenuListPage(): ReactNode {
       destructive: true,
       action: () => megamenuClient.deleteMenu(menu.id),
       describeError: (err) => megamenuDeleteErrorMessage(err, t),
+      returnFocusTo: removalFocus.returnFocusTo(menu),
     });
     if (!deleted) return;
     setRows((current) => current.filter((row) => row.id !== menu.id));
@@ -148,7 +154,14 @@ export function MegamenuListPage(): ReactNode {
   };
 
   const newMenu = (
-    <Button type="button" className="min-h-11 sm:min-h-9" onClick={() => setCreating(true)}>
+    <Button
+      ref={(element) => {
+        removalFocus.createRef.current = element;
+      }}
+      type="button"
+      className="min-h-11 sm:min-h-9"
+      onClick={() => setCreating(true)}
+    >
       <Plus size={16} aria-hidden="true" />
       {t('list.new')}
     </Button>
@@ -162,7 +175,7 @@ export function MegamenuListPage(): ReactNode {
       header: t('columns.name'),
       primary: true,
       render: (row) => (
-        <Link to={`/megamenu/${row.id}`} className="font-medium text-primary hover:underline">
+        <Link ref={removalFocus.targetRef(row)} to={`/megamenu/${row.id}`} className="font-medium text-primary hover:underline">
           {row.name}
         </Link>
       ),

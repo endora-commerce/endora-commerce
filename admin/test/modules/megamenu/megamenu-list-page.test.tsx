@@ -111,6 +111,8 @@ describe('megamenu list', () => {
     await answerConfirm(true);
     await waitFor(() => expect(client.deleteMenu).toHaveBeenCalledWith(MENU_ID));
     expect(await screen.findByText(fill(en['list.deleted']!, { name: 'Main navigation' }))).toBeInTheDocument();
+    // Focus goes to the next row, not to <body> (WCAG 2.4.3).
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Footer' })));
   });
 
   it('says why a megamenu still bound to a channel cannot go', async () => {

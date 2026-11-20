@@ -13,6 +13,7 @@ import {
   RowActionMenuSeparator,
   useConfirmDialog,
   useDebouncedValue,
+  useRemovalFocus,
   type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
@@ -28,6 +29,8 @@ const STATUS_VARIANT: Record<CmsPageStatus, 'success' | 'secondary' | 'outline'>
   draft: 'secondary',
   archived: 'outline',
 };
+
+const rowId = (row: { id: string }): string => row.id;
 
 /**
  * The CMS page list — the kit's `ListPage` (issue #1495, UX audit CONTENT-13):
@@ -54,6 +57,8 @@ export function PagesListPage(): ReactNode {
   const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  // After a delete, focus goes to the next row, or to "New …" once the list is empty (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
 
   useEffect(() => {
     // A response that lands after a newer request was sent is dropped, so a
@@ -90,6 +95,7 @@ export function PagesListPage(): ReactNode {
       destructive: true,
       action: () => cmsClient.deletePage(page.id),
       describeError: (err) => cmsDeleteErrorMessage(err, t),
+      returnFocusTo: removalFocus.returnFocusTo(page),
     });
     if (!deleted) return;
     setRows((current) => current.filter((row) => row.id !== page.id));
@@ -98,7 +104,7 @@ export function PagesListPage(): ReactNode {
 
   const createLink = (
     <Button asChild className="min-h-11 sm:min-h-9">
-      <Link to="/cms/pages/new">
+      <Link ref={(element) => { removalFocus.createRef.current = element; }} to="/cms/pages/new">
         <Plus size={16} aria-hidden="true" />
         {t('pagesList.new')}
       </Link>
@@ -114,7 +120,7 @@ export function PagesListPage(): ReactNode {
       header: t('columns.name'),
       primary: true,
       render: (page) => (
-        <Link to={`/cms/pages/${page.id}`} className="font-medium text-primary hover:underline">
+        <Link ref={removalFocus.targetRef(page)} to={`/cms/pages/${page.id}`} className="font-medium text-primary hover:underline">
           {page.name}
         </Link>
       ),

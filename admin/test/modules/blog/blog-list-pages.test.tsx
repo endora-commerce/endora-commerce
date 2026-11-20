@@ -220,6 +220,18 @@ describe('blog tag list', () => {
     await answerConfirm(true);
     await waitFor(() => expect(client.deleteTag).toHaveBeenCalledWith(TAG_ID, 2));
   });
+
+  it('moves focus to the empty state\'s "New tag" once the last tag is deleted', async () => {
+    client.listTags
+      .mockResolvedValueOnce({ data: [tag()], pagination: pagination(1) })
+      .mockResolvedValue({ data: [], pagination: pagination(0) });
+    mount(<BlogTagListPage />);
+    await openRowMenu('Comparison');
+    await userEvent.click(await screen.findByRole('menuitem', { name: en['listActions.delete']! }));
+    await answerConfirm(true);
+    await screen.findByText(en['tagList.emptyTitle']!);
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: en['tagList.newTag']! })));
+  });
 });
 
 describe('blog category tree', () => {

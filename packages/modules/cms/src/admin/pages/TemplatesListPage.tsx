@@ -10,6 +10,7 @@ import {
   RowActionMenuItem,
   RowActionMenuSeparator,
   useConfirmDialog,
+  useRemovalFocus,
   type ListPageLoad,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
@@ -17,6 +18,8 @@ import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cmsClient } from '../api/cms-client.js';
 import { cmsDeleteErrorMessage, loadErrorMessage } from '../components/list-delete-error.js';
+
+const rowId = (row: { id: string }): string => row.id;
 
 /**
  * The CMS template list — the kit's `ListPage` (issue #1495, UX audit
@@ -36,6 +39,8 @@ export function TemplatesListPage(): ReactNode {
   const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  // After a delete, focus goes to the next row, or to "New …" once the list is empty (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
 
   useEffect(() => {
     let alive = true;
@@ -64,6 +69,7 @@ export function TemplatesListPage(): ReactNode {
       destructive: true,
       action: () => cmsClient.deleteTemplate(template.id),
       describeError: (err) => cmsDeleteErrorMessage(err, t),
+      returnFocusTo: removalFocus.returnFocusTo(template),
     });
     if (!deleted) return;
     setRows((current) => current.filter((row) => row.id !== template.id));
@@ -72,7 +78,7 @@ export function TemplatesListPage(): ReactNode {
 
   const createLink = (
     <Button asChild className="min-h-11 sm:min-h-9">
-      <Link to="/cms/templates/new">
+      <Link ref={(element) => { removalFocus.createRef.current = element; }} to="/cms/templates/new">
         <Plus size={16} aria-hidden="true" />
         {t('templatesList.new')}
       </Link>
@@ -87,7 +93,7 @@ export function TemplatesListPage(): ReactNode {
       header: t('columns.name'),
       primary: true,
       render: (template) => (
-        <Link to={`/cms/templates/${template.id}`} className="font-medium text-primary hover:underline">
+        <Link ref={removalFocus.targetRef(template)} to={`/cms/templates/${template.id}`} className="font-medium text-primary hover:underline">
           {template.name}
         </Link>
       ),

@@ -12,6 +12,7 @@ import {
   RowActionMenuSeparator,
   useConfirmDialog,
   useDebouncedValue,
+  useRemovalFocus,
   useListPagination,
   type ListPageLoad,
   type ResponsiveColumn,
@@ -29,6 +30,8 @@ function pickName(name: Record<string, string> | undefined | null, fallback: str
   if (!name) return fallback;
   return name['en-US'] ?? Object.values(name)[0] ?? fallback;
 }
+
+const rowId = (row: { id: string }): string => row.id;
 
 type Notice = { kind: 'done' | 'blocked'; text: string };
 
@@ -59,6 +62,8 @@ export function BlogTagListPage(): ReactNode {
   // `undefined`: closed; `null`: creating; a tag: editing it.
   const [dialogTag, setDialogTag] = useState<BlogTagDetail | null | undefined>(undefined);
   const { page, pageSize } = pager.query;
+  // After a delete, focus goes to the next row, or to "New tag" once the list is empty (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
 
   useEffect(() => {
     resetPage();
@@ -110,14 +115,26 @@ export function BlogTagListPage(): ReactNode {
       destructive: true,
       action: () => blogClient.deleteTag(tag.id, tag.version),
       describeError: () => t('listActions.deleteFailed'),
+      returnFocusTo: removalFocus.returnFocusTo(tag),
     });
     if (!deleted) return;
     setNotice({ kind: 'done', text: t('tagList.deleted', { code: tag.code }) });
-    setReloadKey((key) => key + 1);
+    // The row goes in place rather than through a reload, so the row focus moved to stays
+    // mounted. A page emptied this way moves back through `syncTotal`, which reads again.
+    setRows((current) => current.filter((row) => row.id !== tag.id));
+    setTotal((current) => current - 1);
+    syncTotal(total - 1);
   };
 
   const newTag = (
-    <Button type="button" className="min-h-11 sm:min-h-9" onClick={() => setDialogTag(null)}>
+    <Button
+      ref={(element) => {
+        removalFocus.createRef.current = element;
+      }}
+      type="button"
+      className="min-h-11 sm:min-h-9"
+      onClick={() => setDialogTag(null)}
+    >
       <Plus size={16} aria-hidden="true" />
       {t('tagList.newTag')}
     </Button>
@@ -130,7 +147,20 @@ export function BlogTagListPage(): ReactNode {
       id: 'name',
       header: t('columns.name'),
       primary: true,
-      render: (tag) => <span className="font-medium">{pickName(tag.name, tag.code)}</span>,
+      // A tag has no page of its own: its name opens the edit dialog, like the row's *Edit*.
+      render: (tag) =>
+        canWrite ? (
+          <button
+            ref={removalFocus.targetRef(tag)}
+            type="button"
+            className="text-left font-medium text-primary hover:underline"
+            onClick={() => setDialogTag(tag)}
+          >
+            {pickName(tag.name, tag.code)}
+          </button>
+        ) : (
+          <span className="font-medium">{pickName(tag.name, tag.code)}</span>
+        ),
       meta: (tag) => <code className="text-xs">{tag.code}</code>,
     },
     {

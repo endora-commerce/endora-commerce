@@ -7,6 +7,7 @@ import {
   RowActionMenu,
   RowActionMenuItem,
   useConfirmDialog,
+  useRemovalFocus,
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
@@ -16,6 +17,8 @@ import { HookBlockAttachmentsPanel } from '../components/HookBlockAttachmentsPan
 import { cmsDeleteErrorMessage, loadErrorMessage } from '../components/list-delete-error.js';
 
 const SKELETON_ROWS = ['a', 'b', 'c', 'd'] as const;
+
+const rowId = (row: { id: string }): string => row.id;
 
 /**
  * The CMS hooks screen: the hook list beside the selected hook's attached
@@ -37,6 +40,8 @@ export function HooksPage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // After a delete, focus goes to the next hook, or to *Refresh* once none is left (WCAG 2.4.3).
+  const removalFocus = useRemovalFocus(rows, rowId, !loading);
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -67,6 +72,7 @@ export function HooksPage(): ReactNode {
       destructive: true,
       action: () => cmsClient.deleteHook(hook.id),
       describeError: (err) => cmsDeleteErrorMessage(err, t),
+      returnFocusTo: removalFocus.returnFocusTo(hook),
     });
     if (!deleted) return;
     setRows((current) => current.filter((row) => row.id !== hook.id));
@@ -82,6 +88,7 @@ export function HooksPage(): ReactNode {
       primary: true,
       render: (hook) => (
         <button
+          ref={removalFocus.targetRef(hook)}
           type="button"
           className="text-left font-medium text-primary hover:underline"
           onClick={() => setSelectedId(hook.id)}
@@ -134,7 +141,15 @@ export function HooksPage(): ReactNode {
         title={t('hooksList.title')}
         help={t('hooksList.help')}
         actions={
-          <Button type="button" variant="outline" onClick={() => void load()} disabled={loading}>
+          <Button
+            ref={(element) => {
+              removalFocus.createRef.current = element;
+            }}
+            type="button"
+            variant="outline"
+            onClick={() => void load()}
+            disabled={loading}
+          >
             <RotateCw size={14} aria-hidden="true" />
             {t('common.refresh')}
           </Button>
