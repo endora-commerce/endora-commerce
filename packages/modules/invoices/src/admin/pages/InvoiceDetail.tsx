@@ -6,7 +6,8 @@ import type {
   SendInvoiceEmailResult,
 } from '@endora-commerce/contracts';
 import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoiceEmailMessage, useAuth, useDetailResource } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, DetailSkeleton, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import { DetailHeaderActions } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone } from '@endora-commerce/admin-kit/zones';
 
@@ -23,7 +24,10 @@ export function InvoiceDetail(): ReactNode {
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('invoices:write');
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — "PDF regenerated" and "Invoice
+  // sent" are said beside the header buttons, in a region mounted before it has
+  // text, not as a success banner under the header.
+  const { props: actionStatus, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [busy, setBusy] = useState(false);
 
   /**
@@ -64,20 +68,22 @@ export function InvoiceDetail(): ReactNode {
   const regenerate = useCallback(async (): Promise<void> => {
     setBusy(true);
     setError(null);
+    clearStatus();
     try {
       await apiClient.post(`/api/v1/admin/invoices/${id}/regenerate-pdf`, {});
-      setNotice(t('invoiceDetail.regenerated'));
+      showStatus(t('invoiceDetail.regenerated'));
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('invoiceDetail.regenerateError'));
     } finally {
       setBusy(false);
     }
-  }, [id, refresh, t]);
+  }, [id, refresh, t, showStatus, clearStatus]);
 
   const resendEmail = useCallback(async (): Promise<void> => {
     setBusy(true);
     setError(null);
+    clearStatus();
     try {
       const res = await apiClient.post<{ data: SendInvoiceEmailResult }>(
         `/api/v1/admin/invoices/${id}/send-email`,
@@ -86,14 +92,14 @@ export function InvoiceDetail(): ReactNode {
       // Issue #149 — the same answer the list surface now reads: a send that
       // was suppressed says so instead of being confirmed.
       const outcome = sendInvoiceEmailMessage(res.data, t);
-      if (outcome.ok) setNotice(outcome.message);
+      if (outcome.ok) showStatus(outcome.message);
       else setError(outcome.message);
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('invoiceDetail.error.load'));
     } finally {
       setBusy(false);
     }
-  }, [id, t]);
+  }, [id, t, showStatus, clearStatus]);
 
   if (resource.initialLoading) return <DetailSkeleton />;
   if (!invoice)
@@ -129,58 +135,59 @@ export function InvoiceDetail(): ReactNode {
           </>
         }
         actions={
-          <>
-            {invoice.status === 'ready' ? (
-              <Button asChild variant="outline" size="sm" className="bg-card">
-                <a
-                  href={`${baseUrl}/api/v1/admin/invoices/${invoice.id}/pdf`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <FileDown />
-                  {t('invoiceDetail.action.downloadPdf')}
-                </a>
-              </Button>
-            ) : null}
-            {canWrite ? (
+          <DetailHeaderActions
+            status={actionStatus}
+            secondary={
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-card"
-                  disabled={busy}
-                  onClick={(): void => void regenerate()}
-                >
-                  <RefreshCw />
-                  {t('invoiceDetail.action.regeneratePdf')}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-card"
-                  disabled={busy}
-                  onClick={(): void => void resendEmail()}
-                >
-                  <Mail />
-                  {t('invoiceDetail.action.resendEmail')}
-                </Button>
+                {invoice.status === 'ready' ? (
+                  <Button asChild variant="outline" size="sm" className="bg-card">
+                    <a
+                      href={`${baseUrl}/api/v1/admin/invoices/${invoice.id}/pdf`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <FileDown />
+                      {t('invoiceDetail.action.downloadPdf')}
+                    </a>
+                  </Button>
+                ) : null}
+                {canWrite ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-card"
+                      disabled={busy}
+                      onClick={(): void => void regenerate()}
+                    >
+                      <RefreshCw />
+                      {t('invoiceDetail.action.regeneratePdf')}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-card"
+                      disabled={busy}
+                      onClick={(): void => void resendEmail()}
+                    >
+                      <Mail />
+                      {t('invoiceDetail.action.resendEmail')}
+                    </Button>
+                  </>
+                ) : null}
               </>
-            ) : null}
-          </>
+            }
+          />
         }
       />
 
+      {/* At most one banner above the content (#1499): the error first, then
+          the standing "PDF not ready" state. */}
       {(error ?? loadError) ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error ?? loadError}</AlertDescription>
         </Alert>
-      ) : null}
-      {notice ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      ) : null}
-      {invoice.status !== 'ready' ? (
+      ) : invoice.status !== 'ready' ? (
         <Alert variant="warning" className="mb-4">
           <AlertDescription>{t('invoiceDetail.pdfNotReady')}</AlertDescription>
         </Alert>
