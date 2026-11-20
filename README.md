@@ -7,6 +7,8 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://www.npmjs.com/package/@endora-commerce/cli"><img src="https://img.shields.io/npm/v/@endora-commerce/cli?label=npm&amp;logo=npm" alt="npm version of @endora-commerce/cli"></a>
+  <a href="https://www.npmjs.com/package/@endora-commerce/cli"><img src="https://img.shields.io/npm/dm/@endora-commerce/cli?label=downloads&amp;logo=npm" alt="Monthly npm downloads of @endora-commerce/cli"></a>
+  <a href="https://github.com/endora-commerce/endora-commerce/graphs/commit-activity"><img src="https://img.shields.io/github/commit-activity/m/endora-commerce/endora-commerce?label=commits&amp;logo=github" alt="Commits per month"></a>
   <a href="https://docs.commerce.endora.software"><img src="https://img.shields.io/badge/docs-docs.commerce.endora.software-6322C8" alt="Documentation"></a>
   <a href="https://discord.gg/GJ2Yk9CvY"><img src="https://img.shields.io/badge/Discord-join%20us-5865F2?logo=discord&amp;logoColor=white" alt="Join us on Discord"></a>
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
