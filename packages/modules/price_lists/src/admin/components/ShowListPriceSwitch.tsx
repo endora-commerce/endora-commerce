@@ -2,7 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from 'react';
 import { Store } from 'lucide-react';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Button, Card, CardContent } from '@endora-commerce/admin-kit/ui';
+import { Button, Card, CardContent, Checkbox } from '@endora-commerce/admin-kit/ui';
 import { usePriceBooksApi } from '../lib/use-price-books-api.js';
 
 /**
@@ -85,10 +85,9 @@ export function ShowListPriceSwitch(): ReactNode {
             </p>
           ) : mayWrite ? (
             <label className="flex min-h-11 cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
+              <Checkbox
                 role="switch"
-                className="b2b-cbx mt-0.5"
+                className="mt-0.5"
                 checked={value}
                 aria-checked={value}
                 aria-busy={saving}

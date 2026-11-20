@@ -85,7 +85,7 @@ export function FeedTemplateStartFromPage(): ReactNode {
           <CardTitle>{t('templates.startFrom.copy')}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <p className="b2b-help">{t('templates.startFrom.copy.hint')}</p>
+          <p className="m-0 text-xs text-muted-foreground">{t('templates.startFrom.copy.hint')}</p>
 
           <div className="flex flex-col gap-1">
             <Label htmlFor="start-from-source">{t('templates.startFrom.copy')}</Label>

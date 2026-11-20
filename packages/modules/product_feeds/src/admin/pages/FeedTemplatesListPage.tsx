@@ -131,12 +131,9 @@ export function FeedTemplatesListPage(): ReactNode {
               filename from `Content-Disposition`, nothing held in memory — is
               the right one. Read-only administrators may export (FR-051 gates
               the *artefact*, which carries prices; a template does not). */}
-          <a
-            href={productFeedsClient.templateExportUrl(row.id)}
-            className="b2b-btn b2b-btn--ghost inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm underline-offset-2 hover:underline"
-          >
-            {t('templates.export')}
-          </a>
+          <Button asChild variant="ghost" size="sm">
+            <a href={productFeedsClient.templateExportUrl(row.id)}>{t('templates.export')}</a>
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -233,7 +230,7 @@ export function FeedTemplatesListPage(): ReactNode {
       <h2 className="mb-2 text-sm font-medium">{t('templates.mine')}</h2>
       <div className="mb-6">
         {loading ? (
-          <p className="b2b-help">{t('feeds.criteria.counting')}</p>
+          <p role="status" className="m-0 text-sm text-muted-foreground">{t('feeds.criteria.counting')}</p>
         ) : mine.length === 0 ? (
           <EmptyState
             icon={<LayoutTemplate size={20} />}

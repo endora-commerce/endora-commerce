@@ -219,7 +219,7 @@ export function FeedCriteriaPanel(props: FeedCriteriaPanelProps): ReactNode {
 
       <div aria-live="polite" className="text-sm text-muted-foreground">
         {counting ? (
-          <span className="b2b-help">{t('feeds.criteria.counting')}</span>
+          <span>{t('feeds.criteria.counting')}</span>
         ) : countError !== null ? (
           <span className="text-destructive">{countError}</span>
         ) : preview ? (

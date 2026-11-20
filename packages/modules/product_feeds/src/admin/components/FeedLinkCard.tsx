@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
-import { Copy, Download, RefreshCw, ShieldOff } from 'lucide-react';
+import { Copy, RefreshCw, ShieldOff } from 'lucide-react';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle } from '@endora-commerce/admin-kit/ui';
+import { DownloadAction } from './DownloadAction.js';
 // Lifted to its own file so token rotation and taxonomy promotion share one
 // dialog rather than growing a second (ux-design §2.12).
 import { ConsequenceDialog } from './ConsequenceDialog.js';
@@ -114,7 +115,7 @@ export function FeedLinkCard(props: FeedLinkCardProps): ReactNode {
                 rotated the token, before the feed has been re-fetched. */}
             {readableUrl !== null ? (
               <div className="flex items-center gap-2">
-                <code className="b2b-code flex-1 truncate rounded border px-2 py-1.5 text-xs">
+                <code className="flex-1 truncate rounded border px-2 py-1.5 text-xs">
                   {readableUrl}
                 </code>
                 <Button
@@ -132,7 +133,7 @@ export function FeedLinkCard(props: FeedLinkCardProps): ReactNode {
               // on this deployment. Showing a masked form is the honest answer;
               // offering to copy it would send the operator to paste a 404.
               <p className="text-sm text-muted-foreground">
-                <code className="b2b-code">…{feed.token.prefix ?? ''}…</code>{' '}
+                <code>…{feed.token.prefix ?? ''}…</code>{' '}
                 {t('feeds.link.masked')}
               </p>
             )}
@@ -141,16 +142,13 @@ export function FeedLinkCard(props: FeedLinkCardProps): ReactNode {
         )}
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <a
+          <DownloadAction
             href={productFeedsClient.artefactUrl(feed.id)}
-            className={`b2b-btn b2b-btn--outline inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm ${
-              canWrite && published ? '' : 'pointer-events-none opacity-50'
-            }`}
+            label={t('feeds.action.download')}
+            enabled={canWrite && published}
             title={writeTitle}
-          >
-            <Download size={14} aria-hidden="true" />
-            {t('feeds.action.download')}
-          </a>
+            size="sm"
+          />
           <Button
             size="sm"
             variant="outline"

@@ -127,7 +127,7 @@ export function RunIssueGroups(props: RunIssueGroupsProps): ReactNode {
                 {shown.map((issue) => (
                   <li key={issue.id} className="b2b-minirow flex flex-wrap gap-2">
                     {/* Deliberately not a link — see the component comment. */}
-                    <code className="b2b-code">{issue.sku ?? '—'}</code>
+                    <code>{issue.sku ?? '—'}</code>
                     {issue.outputName ? (
                       <span className="text-muted-foreground">{issue.outputName}</span>
                     ) : null}
