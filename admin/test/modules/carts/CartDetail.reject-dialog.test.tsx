@@ -4,6 +4,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 
@@ -110,13 +111,16 @@ function serve(cart: Record<string, unknown>): void {
   );
 }
 
-function renderDetail(): void {
+function renderDetail(permissions: readonly string[] = ['carts:read', 'carts:reject']): void {
   renderWithI18n(
-    <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
-      <Routes>
-        <Route path="/carts/:id" element={<CartDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
+        <Routes>
+          <Route path="/carts/:id" element={<CartDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions }) },
+    ),
     BUNDLE,
   );
 }
@@ -219,6 +223,14 @@ describe('CartDetail — rejecting a cart (#1548)', () => {
     const dialog = screen.getByRole('dialog');
     await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('carts.detail.rejectFailed'));
     expect(within(dialog).getByLabelText(/carts\.reject\.reasonLabel/)).toHaveValue('Out of budget');
+  });
+
+  it('offers no Reject, and no "More" menu, to an operator without carts:reject', async () => {
+    renderDetail(['carts:read']);
+    await screen.findByText('Sample');
+    expect(screen.queryByRole('button', { name: 'common.action.more' })).toBeNull();
+    expect(screen.queryByText('carts.reject.open')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('has no axe violations while open', async () => {

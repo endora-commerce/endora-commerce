@@ -157,11 +157,14 @@ describe.each(['en', 'pl'] as const)('Cart detail labels (%s) — issue #1387', 
       Promise.resolve({ data: url.endsWith('/audit') ? audit : cart }),
     );
     renderWithI18n(
-      <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
-        <Routes>
-          <Route path="/carts/:id" element={<CartDetail />} />
-        </Routes>
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
+          <Routes>
+            <Route path="/carts/:id" element={<CartDetail />} />
+          </Routes>
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       CATALOGUES[language],
       { language },
     );
@@ -233,11 +236,14 @@ describe.each(['en', 'pl'] as const)('Cart detail labels (%s) — issue #1387', 
   it('shows the catalogue message when the cart does not load', async () => {
     getSpy.mockRejectedValue(new Error('boom'));
     renderWithI18n(
-      <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
-        <Routes>
-          <Route path="/carts/:id" element={<CartDetail />} />
-        </Routes>
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
+          <Routes>
+            <Route path="/carts/:id" element={<CartDetail />} />
+          </Routes>
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       CATALOGUES[language],
       { language },
     );

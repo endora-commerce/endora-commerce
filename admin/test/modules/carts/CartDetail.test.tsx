@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 
 /**
  * Feature 027 US6 — CartDetail interaction test.
@@ -121,22 +122,28 @@ function activeCartFixture(): unknown {
 
 function renderDetailWithHandle(): ReturnType<typeof renderWithI18n> {
   return renderWithI18n(
-    <MemoryRouter initialEntries={['/carts/00000000-0000-4000-8000-0000000000c1']}>
-      <Routes>
-        <Route path="/carts/:id" element={<CartDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/carts/00000000-0000-4000-8000-0000000000c1']}>
+        <Routes>
+          <Route path="/carts/:id" element={<CartDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
     BUNDLE,
   );
 }
 
 function renderDetail(): void {
   renderWithI18n(
-    <MemoryRouter initialEntries={['/carts/00000000-0000-4000-8000-0000000000c1']}>
-      <Routes>
-        <Route path="/carts/:id" element={<CartDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/carts/00000000-0000-4000-8000-0000000000c1']}>
+        <Routes>
+          <Route path="/carts/:id" element={<CartDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
     BUNDLE,
   );
 }

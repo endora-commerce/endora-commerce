@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, XCircle } from 'lucide-react';
-import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
+import { ApiError, apiClient, formatDateTime, formatMoney, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -98,6 +98,9 @@ type DetailError = { text: string } | { key: 'carts.detail.loadFailed' };
 export default function CartDetail(): ReactNode {
   const { id } = useParams<{ id: string }>();
   const t = useTranslation('carts');
+  // The route enforces `carts:reject`; an operator without it is not offered the action.
+  const { hasPermission } = useAuth();
+  const canReject = hasPermission('carts:reject');
   const [cart, setCart] = useState<AdminCartDetail | null>(null);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,7 +191,7 @@ export default function CartDetail(): ReactNode {
         actions={
           // Issue #1548 — no primary: the screen is read-only, and its one action is destructive.
           <DetailHeaderActions status={actionStatus.props}>
-            {!isTerminal ? (
+            {canReject && !isTerminal ? (
               <RowActionMenuItem
                 destructive
                 onSelect={(): void => {
@@ -328,7 +331,7 @@ export default function CartDetail(): ReactNode {
         </CardContent>
       </Card>
 
-      {rejectOpen ? (
+      {canReject && rejectOpen ? (
         <RejectCartDialog
           onReject={reject}
           onClose={(): void => setRejectOpen(false)}
