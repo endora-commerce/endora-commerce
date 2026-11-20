@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle2, Download } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { Alert, AlertDescription, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { DownloadAction } from '../components/DownloadAction.js';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -80,7 +81,9 @@ export function FeedRunDetailPage(): ReactNode {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         ) : (
-          <p className="b2b-help">{t('feeds.criteria.counting')}</p>
+          <p role="status" className="m-0 text-sm text-muted-foreground">
+            {t('feeds.criteria.counting')}
+          </p>
         )}
       </div>
     );
@@ -113,19 +116,14 @@ export function FeedRunDetailPage(): ReactNode {
         })}`}
         back={{ label: feed.name, to: `/product-feeds/${feed.id}` }}
         actions={
-          <a
+          // Present-but-disabled rather than hidden: a read-only operator has
+          // to learn that the file exists and that they may not have it.
+          <DownloadAction
             href={productFeedsClient.runArtefactUrl(feed.id, run.id)}
-            // Present-but-disabled rather than hidden: a read-only operator has
-            // to learn that the file exists and that they may not have it.
-            className={`b2b-btn b2b-btn--outline inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm ${
-              canWrite && run.artefact ? '' : 'pointer-events-none opacity-50'
-            }`}
+            label={t('runs.detail.download')}
+            enabled={canWrite && Boolean(run.artefact)}
             title={writeTitle}
-            aria-disabled={!canWrite || !run.artefact}
-          >
-            <Download size={14} aria-hidden="true" />
-            {t('runs.detail.download')}
-          </a>
+          />
         }
       />
 

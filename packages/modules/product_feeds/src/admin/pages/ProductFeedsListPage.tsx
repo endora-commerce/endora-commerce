@@ -165,7 +165,7 @@ export function ProductFeedsListPage(): ReactNode {
         <div className="flex flex-col gap-0.5">
           <span>{row.nextRunAt ? formatDateTime(row.nextRunAt) : t('feeds.table.manualOnly')}</span>
           {row.scheduleTooTightWarning && (
-            <span className="text-xs" style={{ color: 'var(--warn)' }}>
+            <span className="text-xs text-[var(--warn)]">
               {t('feeds.table.scheduleTooTight')}
             </span>
           )}
@@ -209,13 +209,13 @@ export function ProductFeedsListPage(): ReactNode {
       )}
 
       {feeds === null && !error ? (
-        <div
-          className="b2b-card p-8 text-center text-sm text-muted-foreground"
-          aria-busy="true"
-          aria-live="polite"
-        >
-          {t('feeds.table.status')}…
-        </div>
+        <Card aria-busy="true">
+          <CardContent>
+            <p role="status" className="m-0 p-8 text-center text-sm text-muted-foreground">
+              {t('feeds.table.status')}…
+            </p>
+          </CardContent>
+        </Card>
       ) : (
         // Card + CardContent is what every other admin list uses (Orders,
         // Customers, Returns…). Bare, the table read as a different product —

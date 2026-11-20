@@ -186,7 +186,7 @@ export function CronBuilderField(props: CronBuilderFieldProps): ReactNode {
         // Said out loud rather than prevented: the 31st is a legitimate choice,
         // it simply skips the months that do not have one, and an operator who
         // discovers that from a missing February run has been misled.
-        <p className="b2b-help" role="status">
+        <p className="m-0 text-xs text-muted-foreground" role="status">
           {t('feeds.schedule.builder.shortMonths', { day: value.dayOfMonth })}
         </p>
       )}
