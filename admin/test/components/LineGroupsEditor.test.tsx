@@ -218,6 +218,23 @@ describe('LineGroupsEditor', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Group Options moved to 1 of 2');
   });
 
+  it('grows every 32 px icon control of a group heading to a 44 × 44 hit area on a coarse pointer (#1567)', () => {
+    // jsdom lays nothing out: the rule is pinned by its classes (ux-laws §Fitts).
+    renderEditor();
+    for (const name of [
+      'Move group Options up',
+      'Move group Options down',
+      'Delete group Options',
+      'Move Washer to group',
+    ]) {
+      const cls = screen.getAllByRole('button', { name })[0]!.className;
+      expect(cls, name).toContain('h-8');
+      expect(cls, name).toContain('relative');
+      expect(cls, name).toContain("pointer-coarse:before:content-['']");
+      expect(cls, name).toContain('pointer-coarse:before:-inset-1.5');
+    }
+  });
+
   it('disables Add group at the limit and says why', () => {
     renderEditor({ maxGroups: 2 });
     const add = screen.getByRole('button', { name: 'Add group' });

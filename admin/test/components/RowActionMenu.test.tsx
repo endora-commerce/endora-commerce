@@ -205,3 +205,23 @@ describe('RowActionMenu — a labelled trigger (181 design review F-21)', () => 
     expect(trigger).not.toHaveAttribute('aria-label');
   });
 });
+
+describe('RowActionMenu — touch target (#1567, Fitts)', () => {
+  // jsdom lays nothing out, so the hit area is pinned by its rule: the 32 px
+  // chrome stays, and on a coarse pointer a transparent pseudo-element centred on
+  // the button grows the target to 44 × 44 (`.claude/skills/ux-laws/SKILL.md` §Fitts).
+  it('keeps the 32 px icon trigger and grows its hit area to 44 × 44 on a coarse pointer', () => {
+    render(
+      <RowActionMenu label="Row actions">
+        <RowActionMenuItem onSelect={() => undefined}>Open</RowActionMenuItem>
+      </RowActionMenu>,
+    );
+    const cls = screen.getByRole('button', { name: 'Row actions' }).className;
+    expect(cls).toContain('h-8');
+    expect(cls).toContain('w-8');
+    expect(cls).toContain('relative');
+    expect(cls).toContain("pointer-coarse:before:content-['']");
+    expect(cls).toContain('pointer-coarse:before:absolute');
+    expect(cls).toContain('pointer-coarse:before:-inset-1.5');
+  });
+});

@@ -642,6 +642,7 @@ Issue #1441 (UX audit 2026-11-17, DS-07). The rule, for every admin screen:
   `ImmediateBadge`. A row's removal is a `ghost size="icon"` `Trash2` button in the destructive
   tone (`text-destructive`), asking before it deletes anything; the product editor's tabs follow
   it (#1489).
+- **A 32 px icon-only trigger keeps a 44 × 44 hit area on touch**: `RowActionMenu`'s ⋮ and `LineGroupsEditor`'s heading buttons grow it with a transparent `pointer-coarse:before:` pseudo-element, not a bigger box (Fitts, #1567).
 - **Destructive actions sit in a menu and are confirmed.** A `RowActionMenuItem destructive` whose
   `onSelect` opens `useConfirmDialog` — never a red button beside the primary (Fitts: distance, not
   proximity).

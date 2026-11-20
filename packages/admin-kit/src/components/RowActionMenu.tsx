@@ -1,6 +1,7 @@
 import { createContext, useContext, useRef, type MutableRefObject, type ReactNode, type RefObject } from 'react';
 import { ChevronDown, MoreVertical } from 'lucide-react';
 import { Button } from '../ui/button.js';
+import { cn } from '../lib/utils.js';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +33,15 @@ import {
  * trigger as its opener and returns focus to it on close. A plain close keeps Radix's own
  * trigger focus; an `asChild` navigation item has no action and is untouched.
  */
+
+/**
+ * The hit area of a 32 px (`h-8 w-8`) icon-only button on a touch screen. The visual chrome
+ * stays 32 px; on a coarse pointer a transparent pseudo-element reaching 6 px past each edge
+ * makes the target 44 × 44 (`.claude/skills/ux-laws/SKILL.md` §Fitts, #1567). Shared with
+ * `LineGroupsEditor`'s heading controls; not part of the barrel.
+ */
+export const COARSE_POINTER_ICON_HIT_AREA =
+  "relative pointer-coarse:before:absolute pointer-coarse:before:-inset-1.5 pointer-coarse:before:content-['']";
 
 /** The action an item chose, run once the menu has let go of focus. */
 const DeferredActionContext = createContext<MutableRefObject<(() => void) | null> | null>(null);
@@ -81,7 +91,7 @@ export function RowActionMenu({
             type="button"
             size="icon"
             variant="ghost"
-            className="h-8 w-8"
+            className={cn('h-8 w-8', COARSE_POINTER_ICON_HIT_AREA)}
             aria-label={label}
             disabled={disabled}
             {...(title === undefined ? {} : { title })}
