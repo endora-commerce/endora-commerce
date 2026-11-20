@@ -11,8 +11,8 @@ import { adminSession, modulePresence, renderWithSession } from '../../helpers/r
  */
 vi.mock('../../../../packages/modules/blog/src/admin/api/blog-client', () => ({
   blogClient: {
-    listPosts: vi.fn(async () => ({ data: [], total: 0, page: 1, pageSize: 20 })),
-    listTags: vi.fn(async () => ({ data: [], total: 0, page: 1, pageSize: 20 })),
+    listPosts: vi.fn(async () => ({ data: [], pagination: { page: 1, perPage: 20, totalPages: 1, totalItems: 0 } })),
+    listTags: vi.fn(async () => ({ data: [], pagination: { page: 1, perPage: 20, totalPages: 1, totalItems: 0 } })),
   },
 }));
 

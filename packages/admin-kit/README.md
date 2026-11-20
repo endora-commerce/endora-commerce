@@ -930,6 +930,46 @@ const pager = useListPagination({ scope: 'customers', maxPageSize: 100 });
   Setting groups) are the pattern's next adopters, API keys and Webhooks with their create form on
   a `/new` route because it ends on a one-time secret.
 
+### Search as you type — `useDebouncedValue`
+
+Issue #1495 (UX audit CONTENT-13). A list's search runs while the operator types, never only on
+Enter or behind a *Search* button (Doherty). One request goes out per pause, not one per keystroke.
+The box shows what was typed, and the request reads the debounced value:
+
+```tsx
+const [q, setQ] = useState('');
+const query = useDebouncedValue(q.trim());        // SEARCH_DEBOUNCE_MS = 300 by default
+useEffect(() => { /* load with `query` */ }, [query]);
+<ListToolbarSearch label={t('list.search')} value={q} onValueChange={setQ} />
+```
+
+- The first render returns the value at once, so the list loads without waiting. Each later change
+  restarts the wait.
+- Decide "nothing matches" from `query`, the value that produced the rows, not from `q`.
+- Pinned in `admin/test/kit/kit-use-debounced-value.test.tsx`. Used by the CMS page list and the
+  blog post and tag lists.
+
+### Focus after a row is deleted — `useRemovalFocus`
+
+Issue #1495 (UX audit CONTENT-13, WCAG 2.4.3). A row's *Delete* is opened from the row's own
+menu, and the menu goes with the row, so focus would otherwise fall to `<body>`.
+`useRemovalFocus(rows, idOf, ready)` gives `useConfirmDialog` a `returnFocusTo` that points at
+the next row, else the previous one. When no row is left, it focuses the list's create action
+once the list has rendered empty:
+
+```tsx
+const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready'); // rowId: stable, module-level
+<Link ref={removalFocus.targetRef(row)} to={`/x/${row.id}`}>{row.name}</Link>
+<Link ref={(el) => { removalFocus.createRef.current = el; }} to="/x/new">…</Link>
+await confirm({ …, action, describeError, returnFocusTo: removalFocus.returnFocusTo(row) });
+```
+
+- Remove the deleted row from the rows **in place** rather than reloading the list. A reload
+  unmounts every row behind the skeleton, including the one that just took focus.
+- The create action is the empty state's own *New …* by the time it is focused, because the
+  header's goes away with the last row. Pass the same `createRef` to whichever is drawn.
+- Used by the CMS, blog and megamenu lists, and pinned in their tests.
+
 ## Board cards — `BoardCardFieldsEditor`
 
 Issue #1506 (UX audit 2026-11-17, WORK-15). It edits which fields a board card shows and in what order. CRM and
