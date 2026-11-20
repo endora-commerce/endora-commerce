@@ -1795,7 +1795,6 @@
   "promotions.edit.save": "Save",
   "promotions.edit.titleEdit": "Edit",
   "promotions.edit.titleNew": "New promotion",
-  "promotions.empty": "No promotions yet.",
   "promotions.error.delete": "Delete failed.",
   "promotions.error.load": "Failed to load.",
   "promotions.error.loadAttributes": "Failed to load attributes.",
