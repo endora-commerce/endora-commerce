@@ -161,6 +161,8 @@ export const PAGE_BUILDER_FIELD_TEXT = {
   'richImage.choose': 'Choose from the library',
   'richImage.change': 'Choose another image',
   'richImage.preview': 'Chosen image',
+  // The rich-text editor's full-screen mode, a dialog named for assistive technology (#1652).
+  'richText.fullscreen': 'Text editor — full screen',
   // A rich-text read-more passage's summary position and reveal above (T173).
   'readMore.position': 'Read more position',
   'readMore.position.start': 'Start',

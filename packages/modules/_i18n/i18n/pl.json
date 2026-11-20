@@ -662,6 +662,7 @@
   "pageBuilder.fieldText.richImage.choose": "Wybierz z biblioteki",
   "pageBuilder.fieldText.richImage.change": "Wybierz inny obraz",
   "pageBuilder.fieldText.richImage.preview": "Wybrany obraz",
+  "pageBuilder.fieldText.richText.fullscreen": "Edytor tekstu — pełny ekran",
   "pageBuilder.fieldText.readMore.position": "Położenie „czytaj więcej”",
   "pageBuilder.fieldText.readMore.position.start": "Początek",
   "pageBuilder.fieldText.readMore.position.center": "Środek",
