@@ -157,7 +157,6 @@
   "carts.column.status": "Status",
   "carts.column.approval": "Approval",
   "carts.column.total": "Total",
-  "carts.filter.all": "All",
   "carts.filter.allStatuses": "All statuses",
   "carts.filter.allApprovals": "All approval states",
   "carts.loading": "Loading carts…",

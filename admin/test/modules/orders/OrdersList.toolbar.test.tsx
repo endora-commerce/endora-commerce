@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { shippedCoreBundle, shippedModuleBundle } from '../../helpers/core-bundle';
 import { expectNoAxeViolations } from '../../helpers/axe';
 
@@ -25,7 +26,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   );
   return {
     ...actual,
-    usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }),
     apiClient: { get: (...args: unknown[]) => getSpy(...args), post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
   };
 });
@@ -59,9 +59,13 @@ beforeEach(() => {
 
 function renderList(): void {
   renderWithI18n(
-    <MemoryRouter>
-      <OrdersList />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter>
+        <OrdersList />
+      </MemoryRouter>,
+      // The kit pager reads the admin's remembered page size, inside the session (issue #1500).
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
     EN,
   );
 }

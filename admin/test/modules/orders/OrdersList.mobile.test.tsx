@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { setMobileViewport } from '../../setup';
 
 const getSpy = vi.fn();
@@ -19,7 +20,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   );
   return {
     ...actual,
-    usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }),
     apiClient: {
       get: (...args: unknown[]) => getSpy(...args),
       post: vi.fn(),
@@ -30,7 +30,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   };
 });
 
-// usePageSizePreference depends on the AuthProvider; stub it for this UI test.
 
 const { OrdersList } = await import('../../../../packages/modules/orders/src/admin/pages/OrdersList');
 
@@ -79,9 +78,13 @@ beforeEach(() => {
 describe('OrdersList mobile', () => {
   it('renders card layout without table column headers', async () => {
     renderWithI18n(
+      withSession(
       <MemoryRouter>
-        <OrdersList />
-      </MemoryRouter>,
+          <OrdersList />
+        </MemoryRouter>,
+      // The kit pager reads the admin's remembered page size, inside the session (issue #1500).
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
       BUNDLE,
     );
     await waitFor(() => {

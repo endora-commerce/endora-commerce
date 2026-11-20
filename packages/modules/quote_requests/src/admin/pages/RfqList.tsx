@@ -205,6 +205,8 @@ export function RfqList(): ReactNode {
   const customFieldParam = toCustomFieldFiltersParam(customFieldFilters);
   /** The results region, focused once a refused filter is removed. */
   const resultsRef = useRef<HTMLDivElement | null>(null);
+  /** Set when a refused filter is removed: focus the results once they are back. */
+  const focusResultsOnLoad = useRef(false);
   /** Numbers each list request, so a slower, older answer cannot land last. */
   const requestSequence = useRef(0);
   /**
@@ -338,6 +340,12 @@ export function RfqList(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (loading || !focusResultsOnLoad.current) return;
+    focusResultsOnLoad.current = false;
+    resultsRef.current?.focus();
+  }, [loading]);
+
   const statusOptions: MultiSelectOption[] = rfqStatusLabels.options(t);
   const columnOptions: MultiSelectOption[] = COLUMN_IDS.map((id) => ({
     value: id,
@@ -465,8 +473,10 @@ export function RfqList(): ReactNode {
     if (refusedCustomField === null) return;
     changeCustomFieldFilters(withCustomFieldFilter(customFieldFilters, refusedCustomField, null));
     setRefusedCustomField(null);
-    // Focus follows the operator to what they are waiting for: the results.
-    resultsRef.current?.focus();
+    // Focus follows the operator to what they are waiting for: the results,
+    // once they are read again — the list page draws its skeleton meanwhile,
+    // and the region it would have focused now is gone with it.
+    focusResultsOnLoad.current = true;
   };
 
   const columnDefs: Record<ColumnId, ResponsiveColumn<AdminRfqRow>> = {

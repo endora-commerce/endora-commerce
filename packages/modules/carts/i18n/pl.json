@@ -157,7 +157,6 @@
   "carts.column.status": "Status",
   "carts.column.approval": "Akceptacja",
   "carts.column.total": "Suma",
-  "carts.filter.all": "Wszystkie",
   "carts.filter.allStatuses": "Wszystkie statusy",
   "carts.filter.allApprovals": "Wszystkie stany akceptacji",
   "carts.loading": "Ładowanie koszyków…",

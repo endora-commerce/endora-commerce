@@ -62,10 +62,12 @@ const BUNDLE = passthroughBundle('carts', [
   'carts.column.org',
   'carts.column.items',
   'carts.column.total',
-  'carts.filter.all',
+  'carts.filter.allStatuses',
+  'carts.filter.allApprovals',
+  'carts.toolbar.label',
   'carts.empty',
   'carts.emptyFiltered',
-  'carts.clearFilters',
+  'carts.emptyTitle',
   'carts.count',
   'carts.status.active',
   'carts.status.abandoned',
@@ -300,11 +302,11 @@ describe('CartsList', () => {
       BUNDLE,
     );
     await screen.findByText('carts.empty');
-    expect(screen.queryByRole('button', { name: 'carts.clearFilters' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /emptyState\.clearFilters/ })).toBeNull();
 
     await u.selectOptions(screen.getByLabelText('carts.column.status'), 'abandoned');
     await screen.findByText('carts.emptyFiltered');
-    await u.click(screen.getByRole('button', { name: 'carts.clearFilters' }));
+    await u.click(screen.getByRole('button', { name: /emptyState\.clearFilters/ }));
     await screen.findByText('carts.empty');
     expect(screen.getByLabelText('carts.column.status')).toHaveValue('');
     expect(getSpy).toHaveBeenLastCalledWith(FIRST_PAGE);

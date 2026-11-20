@@ -115,7 +115,7 @@ describe('Organizations list — paging (#1473)', () => {
     await screen.findByText(en.organizations!['list.emptyFiltered']!);
     expect(getSpy).toHaveBeenLastCalledWith('/api/v1/admin/organizations?filter%5Bstatus%5D=blocked&page=1&pageSize=20');
 
-    await userEvent.click(screen.getByRole('button', { name: en.organizations!['list.clearFilters']! }));
+    await userEvent.click(screen.getByRole('button', { name: en.core!['common.emptyState.clearFilters']! }));
     await screen.findByRole('link', { name: 'Firma 1' });
   });
 

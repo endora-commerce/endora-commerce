@@ -127,9 +127,13 @@ describe.each(['en', 'pl'] as const)('quote request status labels (%s)', (langua
         : { data: [rfqRow(status)] },
     );
     renderWithI18n(
-      <MemoryRouter>
-        <RfqList />
-      </MemoryRouter>,
+      // The kit pager reads the admin's remembered page size, inside the session (issue #1500).
+      withSession(
+        <MemoryRouter>
+          <RfqList />
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       CATALOGUES[language],
       { language },
     );

@@ -11,7 +11,6 @@
   "list.title": "Zwroty",
   "list.search.placeholder": "Numer RMA, numer zgłoszenia lub pełny e-mail",
   "list.search.label": "Szukaj zwrotów i reklamacji",
-  "list.search.chip": "Szukaj: {q}",
   "list.selection.selectAll": "Zaznacz wszystkie zwroty na tej stronie",
   "list.selection.selectRow": "Zaznacz zwrot {number}",
   "statusConfig.title": "Konfiguracja statusów zwrotu",

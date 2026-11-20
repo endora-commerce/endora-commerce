@@ -204,6 +204,8 @@ export function OrdersList(): ReactNode {
   const [droppedCustomFields, setDroppedCustomFields] = useState<string[]>([]);
   /** The results region, focused once a refused filter is removed. */
   const resultsRef = useRef<HTMLDivElement | null>(null);
+  /** Set when a refused filter is removed: focus the results once they are back. */
+  const focusResultsOnLoad = useRef(false);
   /** Numbers each list request, so a slower, older answer cannot land last. */
   const requestSequence = useRef(0);
 
@@ -352,6 +354,12 @@ export function OrdersList(): ReactNode {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (loading || !focusResultsOnLoad.current) return;
+    focusResultsOnLoad.current = false;
+    resultsRef.current?.focus();
+  }, [loading]);
 
   // Reset to the first page whenever a filter narrows the result set (the
   // kit pager goes back to the first page on a page-size change itself).
@@ -596,8 +604,10 @@ export function OrdersList(): ReactNode {
     if (refusedCustomField === null) return;
     changeCustomFieldFilters(withCustomFieldFilter(customFieldFilters, refusedCustomField, null));
     setRefusedCustomField(null);
-    // Focus follows the operator to what they are waiting for: the results.
-    resultsRef.current?.focus();
+    // Focus follows the operator to what they are waiting for: the results,
+    // once they are read again — the list page draws its skeleton meanwhile,
+    // and the region it would have focused now is gone with it.
+    focusResultsOnLoad.current = true;
   };
 
   // Build the visible columns in canonical order.

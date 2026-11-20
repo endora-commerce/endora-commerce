@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { SavedListView } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import en from '../../../../packages/modules/_i18n/i18n/en.json';
 
@@ -46,7 +47,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   return {
     ...actual,
     useAuth: () => ({ me: { role: { code: auth.role } } }),
-    usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }),
     apiClient: {
       get: (...args: unknown[]) => api.get(...args),
       post: (...args: unknown[]) => api.post(...args),
@@ -212,9 +212,13 @@ async function renderList(): Promise<ReturnType<typeof userEvent.setup>> {
   const user = userEvent.setup();
   renderWithI18n(
     <StrictMode>
+      {withSession(
       <MemoryRouter>
-        <RfqList />
-      </MemoryRouter>
+          <RfqList />
+        </MemoryRouter>,
+      // The kit pager reads the admin's remembered page size, inside the session (issue #1500).
+      { session: adminSession({ permissions: ['*'] }) },
+    )}
     </StrictMode>,
     { core: en as Record<string, string> },
   );
@@ -233,7 +237,7 @@ function sortSelect(): HTMLSelectElement {
 }
 
 function searchBox(): HTMLInputElement {
-  return screen.getByRole('textbox', { name: 'Search' }) as HTMLInputElement;
+  return screen.getByRole('searchbox', { name: 'Search' }) as HTMLInputElement;
 }
 
 /** Opens a `MultiSelect` by its trigger's name and returns its option panel. */
@@ -286,7 +290,7 @@ describe('RfqList — saved views (feature 147, #290)', () => {
   it('saves scope, organization, status, search, sort and columns (US3-1)', async () => {
     const user = await renderList();
 
-    await user.click(screen.getByRole('button', { name: /Filters/ }));
+    await user.click(screen.getByRole('button', { name: /^More filters/ }));
     await user.selectOptions(screen.getByLabelText('Visibility'), 'unassigned');
     await user.click(screen.getByRole('combobox', { name: 'Select organization' }));
     await user.click(await screen.findByRole('option', { name: /^Acme/ }));
@@ -407,7 +411,7 @@ describe('RfqList — saved views (feature 147, #290)', () => {
 
     // Open the advanced filters so the organization picker mounts and queries.
     const organizationCalls = getPaths().filter((p) => p.startsWith(ORGANIZATIONS)).length;
-    await user.click(screen.getByRole('button', { name: /Filters/ }));
+    await user.click(screen.getByRole('button', { name: /^More filters/ }));
     await waitFor(() =>
       expect(getPaths().filter((p) => p.startsWith(ORGANIZATIONS)).length).toBeGreaterThan(organizationCalls),
     );

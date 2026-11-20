@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, withSession } from '../../helpers/render-with-session';
 import { installOffsetParentShim } from '../../helpers/layout-shim';
 import en from '../../../../packages/modules/_i18n/i18n/en.json';
 
@@ -20,7 +21,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/lib')>('@endora-commerce/admin-kit/lib');
   return {
     ...actual,
-    usePageSizePreference: () => ({ pageSize: 20 as const, setPageSize: vi.fn() }),
     apiClient: {
       get: (...args: unknown[]) => api.get(...args),
       post: (...args: unknown[]) => api.post(...args),
@@ -97,10 +97,14 @@ function LocationProbe() {
 async function renderList() {
   const user = userEvent.setup();
   renderWithI18n(
-    <MemoryRouter initialEntries={['/returns']}>
-      <ReturnsList />
-      <LocationProbe />
-    </MemoryRouter>,
+    withSession(
+      <MemoryRouter initialEntries={['/returns']}>
+        <ReturnsList />
+        <LocationProbe />
+      </MemoryRouter>,
+      // The kit pager reads the admin's remembered page size, inside the session (issue #1500).
+      { session: adminSession({ permissions: ['*'] }) },
+    ),
     BUNDLE,
   );
   await screen.findAllByRole('link', { name: '#AAAAAAAA' });
