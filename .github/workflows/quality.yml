@@ -168,6 +168,7 @@ jobs:
           pnpm --filter backend run check:docs-translations
           pnpm --filter backend run check:error-translations
           pnpm --filter backend run check:bundle-pairing
+          pnpm --filter backend run check:text-budget
           pnpm --filter backend run check:env-inputs
           pnpm --filter backend run check:block-names
           pnpm --filter backend run check:block-renderers

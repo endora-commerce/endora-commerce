@@ -70,6 +70,18 @@ for. When a description is cut, its key is deleted from **both** bundles in the 
 key left behind with no reader is copy a translator keeps paying for. The same budget holds for
 `FormField`'s `hint`, which is clamped to one line by the same reasoning; its `help` takes the rest.
 
+**The budget is a table, and it has an instrument** (issue #1451, DS-23; DEC-01 *"the rule now,
+the check after the first text pass"*). Measured in characters of the **English** bundle:
+`*.page.description` and `*.subtitle` ≤ 80, `*.hint` and `*.help` ≤ 80 — a `help` popover is read
+at a glance too, so an explanation that outgrows it goes to the module's documentation page —
+and `settingLabels.*.description` ≤ 120, the full explanation linked from the docs. Only English
+is measured because it is the source language: the Polish is rewritten from it in the same
+change, and runs longer than its source by a margin no author can remove. `pnpm --filter backend
+run check:text-budget` holds it as a two-way ratchet over the copy that stood when it landed
+(`TEXT_BUDGET_BASELINE`): a new over-budget key fails, a ledgered key may not grow, and an entry
+whose copy was shortened or removed fails until it is re-measured with `--print-baseline` and
+lowered or deleted.
+
 **The storefront is in the same run since issue #85**, with its own ledger,
 `STOREFRONT_HARDCODED_STRINGS_BASELINE`, ratcheted the same two ways. Its walk is the `storefront`
 workspace member's `.ts` **and** `.tsx` sources (tests, `test/`, `scripts/` and `public/` excepted),

@@ -174,6 +174,11 @@ Two hard framing rules before anything else:
 - Anything that looks like an ad gets ignored (banner blindness). Do not style a genuine
   system message like a promo banner.
 - Every element on screen either serves the current goal or competes with it.
+- **Copy under a title or beside a field is read in passing, so it has a length budget**
+  (English, in characters): a page description or a subtitle ≤ 80, a field `hint` or `help`
+  ≤ 80, a setting description (`settingLabels.*.description`) ≤ 120. What does not fit goes to
+  the module's documentation page, linked. `check:text-budget` holds it, as a ratchet over the
+  copy that stood when it landed; the rule itself is `specs/conventions/module-i18n.md`'s.
 
 ---
 

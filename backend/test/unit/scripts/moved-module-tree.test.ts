@@ -87,6 +87,12 @@ const CHECKS: readonly MovedTreeCheck[] = [
   // refuses first, before a finding count can be printed.
   { script: 'check-block-names.ts', args: [], prefix: '[block-names]' },
   { script: 'check-bundle-pairing.ts', args: [], prefix: '[bundle-pairing]' },
+  // Issue #1451. `check:bundle-pairing`'s walk — each registered module's own
+  // directory, its English bundle read there — so the residue shape is the same:
+  // over a moved tree the index still answers for every module and none of the
+  // directories is there, and a check asking "did I read a bundle?" would judge
+  // whatever the fixture keeps and print a clean line. The floor refuses first.
+  { script: 'check-text-budget.ts', args: [], prefix: '[text-budget]' },
   // `specs/110-instance-repository/` T129b (owner ruling D-219). Its render walk
   // is `layout.moduleWalkRoots` plus the non-module packages that declare
   // `./tailwind.css` plus the admin's own roots — so over a moved tree it comes

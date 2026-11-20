@@ -138,6 +138,10 @@ import {
   type BundlePairingFindingKind,
 } from '../../../scripts/check-bundle-pairing.js';
 import {
+  checkTextBudget,
+  type TextBudgetFindingKind,
+} from '../../../scripts/check-text-budget.js';
+import {
   checkClassVocabulary,
   classAttributeSites,
   undefinedRenderKey,
@@ -705,6 +709,21 @@ function applicationReachInput(sources: Record<string, string>): ApplicationReac
 
 /** The fixture enters the check where a real run does: source text in, findings out. */
 const top = (prove: () => number): RedProof => ({ enters: 'top', prove });
+
+/**
+ * `check-text-budget` over one module's English bundle **as source text** —
+ * what a real run reads — counting the findings of one kind.
+ */
+function textBudgetFindings(
+  entries: Record<string, string>,
+  baseline: Readonly<Record<string, number>>,
+  kind: TextBudgetFindingKind,
+): number {
+  return checkTextBudget({
+    bundles: [{ moduleId: 'orders', path: 'orders/i18n/en.json', text: JSON.stringify(entries) }],
+    baseline,
+  }).findings.filter((finding) => finding.kind === kind).length;
+}
 
 /**
  * `check:test-ownership` — a sound §7 record: every member of the
@@ -5162,6 +5181,73 @@ const CHECKS: readonly CheckEntry[] = [
       // universal, and seven correct modules would each be a finding.
       'conditional-exempts-a-module-shipping-nothing': top(() =>
         bundlePairingReadRefusals([{ id: 'catalog' }, { id: 'auth' }]),
+      ),
+    },
+  },
+  {
+    // Issue #1451 (UX audit 2026-11-17, DS-23) — copy read in passing has a
+    // length budget, held as a two-way ratchet over the copy that stood when it
+    // landed (DEC-01: the rule now, the check after the first text pass). Each
+    // proof enters as **bundle source text**, the bytes a real run reads off a
+    // module's English bundle, so the parse, the key grammar, the character
+    // count and the ledger comparison all run; the discriminations are proven
+    // beside the reds, each as a red that does not fire.
+    script: 'backend/scripts/check-text-budget.ts',
+    npmScript: 'check:text-budget',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-text-budget.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // `check:bundle-pairing`'s population and its floor: every registered
+    // module's own directory under `refuseVacuousModulePopulation`, so a moved
+    // module tree is refused rather than reported clean.
+    residueGuard: 'derived-population',
+    red: {
+      'over-budget': top(() =>
+        textBudgetFindings({ 'orders.page.description': 'x'.repeat(81) }, {}, 'over-budget'),
+      ),
+      'ledger-grew': top(() =>
+        textBudgetFindings(
+          { 'orders.hint': 'x'.repeat(95) },
+          { 'orders:orders.hint': 90 },
+          'ledger-grew',
+        ),
+      ),
+      'ledger-stale': top(() =>
+        textBudgetFindings(
+          { 'orders.hint': 'Short.' },
+          { 'orders:orders.hint': 90 },
+          'ledger-stale',
+        ),
+      ),
+      'unparseable-bundle': top(
+        () =>
+          checkTextBudget({
+            bundles: [{ moduleId: 'orders', path: 'orders/i18n/en.json', text: '{ "a": ' }],
+            baseline: {},
+          }).findings.filter((finding) => finding.kind === 'unparseable-bundle').length,
+      ),
+      // A setting description is held to 120, not to the 80 of the families
+      // beside it — a grammar that took the first `description` it saw would
+      // report every one of these.
+      'a-setting-description-at-120-is-not-a-finding': top(() =>
+        textBudgetFindings(
+          { 'settingLabels.orders.auto_cancel.description': 'x'.repeat(120) },
+          {},
+          'over-budget',
+        ) === 0
+          ? 1
+          : 0,
+      ),
+      // A palette entry's description is outside the grammar.
+      'an-action-description-is-not-budgeted': top(() =>
+        textBudgetFindings(
+          { 'actions.newOrder.description': 'x'.repeat(200) },
+          {},
+          'over-budget',
+        ) === 0
+          ? 1
+          : 0,
       ),
     },
   },
@@ -12101,6 +12187,9 @@ describe('every red proof enters at the top of the analysis', () => {
       // it still tells a vocabulary name from a utility.
       'backend/scripts/check-class-vocabulary.ts': 7,
       'backend/scripts/check-bundle-pairing.ts': 5,
+      // Four findings and two discriminations: the 120 budget of a setting
+      // description, and a palette description outside the grammar.
+      'backend/scripts/check-text-budget.ts': 6,
       // Seven findings, one proof each. The discriminations — the allowed
       // imports, a scoped stylesheet, a package with no layer — assert zero
       // findings and are in the companion test, as are the two refusals that
