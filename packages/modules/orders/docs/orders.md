@@ -436,6 +436,12 @@ records the releases through the same follow-up mechanism, attempts them at
 once, and writes one audit entry per page of orders; anything that does not
 complete is retried by the sweep. Running it again finds nothing left.
 
+Orders settled through `POST /api/v1/payments/receive` before this fix can also
+be stranded: paid on a credit limit, with an active reservation but no
+`credit.release` follow-up row. Run the dry run first to find them, then use
+`--apply` to release the reservations. New settlements record their follow-ups
+and do not need this repair.
+
 **Run the dry run once after upgrading**, and read the list before applying it:
 a release changes reserved-stock counters and available credit. The repair
 never runs by itself.

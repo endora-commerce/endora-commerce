@@ -15,6 +15,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { Payment } from '../entities/payment.entity.js';
 import { paymentsErrorCodes } from '../../manifest.js';
 /**
@@ -63,7 +64,7 @@ import { paymentsErrorCodes } from '../../manifest.js';
  * identical read is a port in `shipments`' twin handler), and the transition
  * runs **after** the commit, for the reason the port's own contract gives.
  */
-import type { OrderPaymentStatusApplyPort } from '@endora-commerce/mod-orders/ports';
+import type { OrderPaymentStatusApplyPort, OrderPaymentSettlementEffectsPort } from '@endora-commerce/mod-orders/ports';
 /**
  * Re-exported so `backend.ts` names its own module for the same type. One seam,
  * one ledger entry: a second import specifier in the composition file would be
@@ -71,7 +72,7 @@ import type { OrderPaymentStatusApplyPort } from '@endora-commerce/mod-orders/po
  * and the reason is stated above. `orders` does the same for the two
  * `EntityManager`-taking interfaces it reads.
  */
-export type { OrderPaymentStatusApplyPort };
+export type { OrderPaymentStatusApplyPort, OrderPaymentSettlementEffectsPort };
 
 export interface PaymentEvents extends Record<string, EventBase> {
   'payment.received.v1': EventBase & {
@@ -195,6 +196,17 @@ export class ReceivePaymentHandler {
      * (D-169), and the header above states the constraint in full.
      */
     private readonly orderPaymentStatus: OrderPaymentStatusApplyPort,
+    /**
+     * The post-commit drain for a payment-status settlement (issue #1576).
+     * `orders` records any obligation inside `applyPaymentStatus` on this
+     * handler's transaction; this port attempts the release after it commits.
+     * `orders` owns both the transition-effect ledger and `CreditLimitPort`
+     * access, so `payments` must never reach them directly.
+     *
+     * **Called after the commit for `drainForOrder`**, never inside the
+     * settlement transaction (issue #200).
+     */
+    private readonly orderPaymentSettlementEffects: OrderPaymentSettlementEffectsPort,
     /** Where a refused transition is recorded; see {@link SettlementLogger}. */
     private readonly log: SettlementLogger,
     private readonly events?: PaymentEventBus,
@@ -234,6 +246,7 @@ export class ReceivePaymentHandler {
           emit: false,
           transition: null as { to: string; setting: TransitionTrigger } | null,
           refused: null as { from: string; to: string } | null,
+          owesEffects: false,
         };
       }
 
@@ -299,6 +312,7 @@ export class ReceivePaymentHandler {
         adapter: method?.adapter ?? payment.paymentMethodId,
         transition,
         refused,
+        owesEffects: applied?.owesEffects ?? false,
       };
     });
 
@@ -363,6 +377,23 @@ export class ReceivePaymentHandler {
       // for the transition it applied, with the same actor and the order's
       // business id besides. Announcing again would double every subscriber's
       // reaction to a payment-driven status change.
+    }
+
+    // Issue #1576 — move the order and emit the payment event before attempting
+    // the durable credit-release obligation: an already-paid replay skips those
+    // steps, while the sweep can recover the release. The drain uses its own
+    // `EntityManager` after commit (issue #200). Ordinary failures stay queued;
+    // a module switched off still propagates after the payment follow-ups.
+    if (result.owesEffects) {
+      try {
+        await this.orderPaymentSettlementEffects.drainForOrder(result.payment.orderId);
+      } catch (error) {
+        rethrowIfModuleDisabled(error);
+        this.log?.warn(
+          { orderId: result.payment.orderId, error },
+          'payments: the immediate attempt at a payment-status follow-up failed; the sweep retries it',
+        );
+      }
     }
 
     return {
