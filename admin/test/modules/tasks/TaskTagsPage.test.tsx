@@ -93,6 +93,41 @@ describe('TaskTagsPage — the table', () => {
   });
 });
 
+describe('TaskTagsPage — one place for Add (issue #1562, WORK-13)', () => {
+  it('puts the one filled Add in the page header, with no card title repeating the page title', async () => {
+    await renderPage();
+    const add = screen.getAllByRole('button', { name: en('tags.add') });
+    expect(add).toHaveLength(1);
+    expect(add[0]!.closest('header')).not.toBeNull();
+    expect(add[0]!.className.split(/\s+/)).toContain('bg-primary');
+    // The page title is the only heading; no "Tags" card title under "Task tags".
+    expect(screen.getAllByRole('heading').map((heading) => heading.textContent)).toEqual([en('tags.title')]);
+  });
+
+  it('says in the column header that the count is of the Tasks the operator can see', async () => {
+    await renderPage();
+    expect(screen.getByRole('columnheader', { name: en('tags.col.usage') })).toBeInTheDocument();
+    expect(en('tags.col.usage')).toBe('Tasks (visible to you)');
+  });
+
+  it('hides the header Add while the list is empty, so the empty state carries the one primary', async () => {
+    getSpy.mockResolvedValue({ data: [] });
+    renderTasks(<TaskTagsPage />, { permissions: CONFIGURER });
+    await screen.findByText(en('tags.empty.title'));
+    const add = screen.getByRole('button', { name: en('tags.add') });
+    expect(add.closest('header')).toBeNull();
+  });
+
+  it('gives each row a ghost Edit and a Delete in the destructive tone, both naming the tag', async () => {
+    await renderPage();
+    const row = tagRow('Installation');
+    const remove = within(row).getByRole('button', { name: en('tags.deleteLabel', { name: 'Installation' }) });
+    expect(remove).toHaveClass('text-destructive');
+    expect(remove).not.toHaveClass('bg-destructive');
+    expect(within(row).getByRole('button', { name: en('tags.editLabel', { name: 'Installation' }) })).not.toHaveClass('bg-primary');
+  });
+});
+
 describe('TaskTagsPage — the dialog', () => {
   it('adds a tag with its name and colour', async () => {
     await renderPage();

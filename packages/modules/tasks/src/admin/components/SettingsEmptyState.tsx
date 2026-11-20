@@ -19,8 +19,8 @@ export interface SettingsEmptyStateProps {
  * `EmptyState` (issue #1448) with the Add button the settings lists share.
  *
  * The action is the filled, primary button: while the list is empty it is the
- * only thing the screen is for, so the screen hides its outline *Add* in the
- * card header and this one stands alone (Von Restorff).
+ * only thing the screen is for, so the screen hides the *Add* in its page
+ * header and this one stands alone (Von Restorff, issue #1562).
  */
 export function SettingsEmptyState(props: SettingsEmptyStateProps): ReactNode {
   return (

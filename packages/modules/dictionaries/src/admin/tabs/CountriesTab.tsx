@@ -7,8 +7,9 @@ import {
   useState,
   type FormEvent,
   type ReactNode,
+  type RefObject,
 } from 'react';
-import { Globe, Plus, Star, Trash2 } from 'lucide-react';
+import { Globe, Plus } from 'lucide-react';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import type {
   Country,
@@ -22,9 +23,11 @@ import { normalize } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, EmptyState, FormField, InlineStatus, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { dictionaryClient } from '../api/client.js';
+import { DictionaryRowActions } from '../components/DictionaryRowActions.js';
 import { EntryStatusBadges } from '../components/EntryStatusBadges.js';
 import { RowReorder } from '../components/RowReorder.js';
 import { TranslationsDrawer } from '../components/TranslationsDrawer.js';
+import { useDictionaryTab, type DictionaryTabProps } from '../lib/dictionary-tab.js';
 import { formatDictionaryError } from '../lib/format-error.js';
 import { regionLabels } from '../lib/labels.js';
 
@@ -57,7 +60,7 @@ const emptyCountry: CountryFormState = {
   sortOrder: 1000,
 };
 
-export function CountriesTab(): ReactNode {
+export function CountriesTab({ ref, onEmptyChange }: DictionaryTabProps = {}): ReactNode {
   const t = useTranslation('dictionaries');
   const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<Country[]>([]);
@@ -129,6 +132,19 @@ export function CountriesTab(): ReactNode {
     setSelected(null);
     setForm({ ...emptyCountry, sortOrder: nextSortOrder(rows) });
   };
+
+  const { firstFieldRef, create } = useDictionaryTab({
+    ref,
+    onEmptyChange,
+    empty: !loading && error === null && rows.length === 0,
+    openCreate,
+  });
+  const addButton = (
+    <Button type="button" onClick={create}>
+      <Plus aria-hidden="true" />
+      {t('countries.addCountry')}
+    </Button>
+  );
 
   const openEdit = (row: Country): void => {
     setCreating(false);
@@ -241,8 +257,7 @@ export function CountriesTab(): ReactNode {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
       <Card>
-        <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between md:space-y-0">
-          <CardTitle>{t('countries.title')}</CardTitle>
+        <CardHeader className="gap-3 md:flex-row md:items-center md:space-y-0">
           <div className="flex w-full flex-wrap gap-2 md:w-auto">
             <Label htmlFor={searchId} className="sr-only">
               {t('countries.searchLabel')}
@@ -257,10 +272,6 @@ export function CountriesTab(): ReactNode {
               onChange={(e) => setSearch(e.target.value)}
             />
             <InlineStatus {...actionStatus.props} className="self-center" />
-            <Button type="button" onClick={openCreate}>
-              <Plus />
-              {t('countries.addCountry')}
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -273,8 +284,9 @@ export function CountriesTab(): ReactNode {
             <p className="text-sm text-muted-foreground">{t('countries.loading')}</p>
           ) : filtered.length === 0 ? (
             // "The dictionary holds none" and "the filters hide them all" are
-            // two situations with two next steps (#1448, DS-15). The header
-            // already carries the one create action.
+            // two situations with two next steps (#1448, DS-15). While the
+            // dictionary is empty its Add is here and not in the page header
+            // (#1562): one primary per view.
             search.trim() !== '' ? (
               <EmptyState
                 variant="no-results"
@@ -289,10 +301,11 @@ export function CountriesTab(): ReactNode {
                 icon={<Globe size={20} />}
                 title={t('countries.emptyState.title')}
                 description={t('countries.emptyState.body')}
+                action={addButton}
               />
             )
           ) : (
-            <Table>
+            <Table aria-label={t('countries.title')}>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('column.code')}</TableHead>
@@ -329,39 +342,17 @@ export function CountriesTab(): ReactNode {
                           first={index === 0}
                           last={index === filtered.length - 1}
                         />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
+                        <DictionaryRowActions
+                          code={row.code}
+                          isDefault={row.isDefault}
+                          isActive={row.isActive}
+                          onEdit={() => {
                             actionStatus.clear();
                             openEdit(row);
                           }}
-                        >
-                          {t('action.edit')}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          title={t('action.setDefault')}
-                          aria-label={t('action.setDefault')}
-                          disabled={row.isDefault || !row.isActive}
-                          onClick={() => void setDefault(row.code)}
-                        >
-                          <Star aria-hidden="true" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          title={t('action.delete')}
-                          aria-label={t('action.delete')}
-                          disabled={row.isDefault}
-                          onClick={() => void remove(row.code)}
-                        >
-                          <Trash2 aria-hidden="true" />
-                        </Button>
+                          onSetDefault={() => void setDefault(row.code)}
+                          onDelete={() => void remove(row.code)}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -378,6 +369,7 @@ export function CountriesTab(): ReactNode {
         setForm={setForm}
         currencies={currencies}
         languages={languages}
+        firstFieldRef={firstFieldRef}
         lockedCode={!creating}
         disabled={!creating && !selected}
         saving={saving}
@@ -398,6 +390,7 @@ function CountryEditor({
   setForm,
   currencies,
   languages,
+  firstFieldRef,
   lockedCode,
   disabled,
   saving,
@@ -409,6 +402,8 @@ function CountryEditor({
   setForm: (value: CountryFormState) => void;
   currencies: DictionaryCurrency[];
   languages: DictionaryLanguage[];
+  /** The code field — focused when the header's Add opens the editor (#1562). */
+  firstFieldRef: RefObject<HTMLInputElement | null>;
   lockedCode: boolean;
   disabled: boolean;
   saving: boolean;
@@ -434,6 +429,7 @@ function CountryEditor({
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField label={t('field.code')}>
                 <Input
+                  ref={firstFieldRef}
                   value={form.code}
                   disabled={lockedCode}
                   maxLength={2}

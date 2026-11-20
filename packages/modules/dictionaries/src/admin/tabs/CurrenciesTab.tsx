@@ -7,9 +7,10 @@ import {
   useState,
   type FormEvent,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
-import { Coins, Plus, Star, Trash2 } from 'lucide-react';
+import { Coins, Plus } from 'lucide-react';
 import type {
   CreateDictionaryCurrencyRequest,
   DictionaryCurrency,
@@ -21,9 +22,11 @@ import { normalize } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, EmptyState, FormField, InlineStatus, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { dictionaryClient } from '../api/client.js';
+import { DictionaryRowActions } from '../components/DictionaryRowActions.js';
 import { EntryStatusBadges } from '../components/EntryStatusBadges.js';
 import { RowReorder } from '../components/RowReorder.js';
 import { TranslationsDrawer } from '../components/TranslationsDrawer.js';
+import { useDictionaryTab, type DictionaryTabProps } from '../lib/dictionary-tab.js';
 import { formatDictionaryError } from '../lib/format-error.js';
 import { symbolPositionLabels } from '../lib/labels.js';
 
@@ -47,7 +50,7 @@ const emptyCurrency: CurrencyFormState = {
   sortOrder: 1000,
 };
 
-export function CurrenciesTab(): ReactNode {
+export function CurrenciesTab({ ref, onEmptyChange }: DictionaryTabProps = {}): ReactNode {
   const t = useTranslation('dictionaries');
   const { confirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState<DictionaryCurrency[]>([]);
@@ -113,6 +116,19 @@ export function CurrenciesTab(): ReactNode {
     setSelected(null);
     setForm({ ...emptyCurrency, sortOrder: nextSortOrder(rows) });
   };
+
+  const { firstFieldRef, create } = useDictionaryTab({
+    ref,
+    onEmptyChange,
+    empty: !loading && error === null && rows.length === 0,
+    openCreate,
+  });
+  const addButton = (
+    <Button type="button" onClick={create}>
+      <Plus aria-hidden="true" />
+      {t('currencies.addCurrency')}
+    </Button>
+  );
 
   const openEdit = (row: DictionaryCurrency): void => {
     setCreating(false);
@@ -213,8 +229,7 @@ export function CurrenciesTab(): ReactNode {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <Card>
-        <CardHeader className="gap-3 md:flex-row md:items-center md:justify-between md:space-y-0">
-          <CardTitle>{t('currencies.title')}</CardTitle>
+        <CardHeader className="gap-3 md:flex-row md:items-center md:space-y-0">
           <div className="flex w-full flex-wrap gap-2 md:w-auto">
             <Label htmlFor={searchId} className="sr-only">
               {t('currencies.searchLabel')}
@@ -229,10 +244,6 @@ export function CurrenciesTab(): ReactNode {
               onChange={(e) => setSearch(e.target.value)}
             />
             <InlineStatus {...actionStatus.props} className="self-center" />
-            <Button type="button" onClick={openCreate}>
-              <Plus />
-              {t('currencies.addCurrency')}
-            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -245,8 +256,9 @@ export function CurrenciesTab(): ReactNode {
             <p className="text-sm text-muted-foreground">{t('currencies.loading')}</p>
           ) : filtered.length === 0 ? (
             // "The dictionary holds none" and "the filters hide them all" are
-            // two situations with two next steps (#1448, DS-15). The header
-            // already carries the one create action.
+            // two situations with two next steps (#1448, DS-15). While the
+            // dictionary is empty its Add is here and not in the page header
+            // (#1562): one primary per view.
             search.trim() !== '' ? (
               <EmptyState
                 variant="no-results"
@@ -261,10 +273,11 @@ export function CurrenciesTab(): ReactNode {
                 icon={<Coins size={20} />}
                 title={t('currencies.emptyState.title')}
                 description={t('currencies.emptyState.body')}
+                action={addButton}
               />
             )
           ) : (
-            <Table>
+            <Table aria-label={t('currencies.title')}>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('column.code')}</TableHead>
@@ -303,39 +316,17 @@ export function CurrenciesTab(): ReactNode {
                           first={index === 0}
                           last={index === filtered.length - 1}
                         />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
+                        <DictionaryRowActions
+                          code={row.code}
+                          isDefault={row.isDefault}
+                          isActive={row.isActive}
+                          onEdit={() => {
                             actionStatus.clear();
                             openEdit(row);
                           }}
-                        >
-                          {t('action.edit')}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          title={t('action.setDefault')}
-                          aria-label={t('action.setDefault')}
-                          disabled={row.isDefault || !row.isActive}
-                          onClick={() => void setDefault(row.code)}
-                        >
-                          <Star aria-hidden="true" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          title={t('action.delete')}
-                          aria-label={t('action.delete')}
-                          disabled={row.isDefault}
-                          onClick={() => void remove(row.code)}
-                        >
-                          <Trash2 aria-hidden="true" />
-                        </Button>
+                          onSetDefault={() => void setDefault(row.code)}
+                          onDelete={() => void remove(row.code)}
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -351,6 +342,7 @@ export function CurrenciesTab(): ReactNode {
         form={form}
         setForm={setForm}
         languages={languages}
+        firstFieldRef={firstFieldRef}
         lockedCode={!creating}
         disabled={!creating && !selected}
         saving={saving}
@@ -370,6 +362,7 @@ function CurrencyEditor({
   form,
   setForm,
   languages,
+  firstFieldRef,
   lockedCode,
   disabled,
   saving,
@@ -380,6 +373,8 @@ function CurrencyEditor({
   form: CurrencyFormState;
   setForm: (value: CurrencyFormState) => void;
   languages: DictionaryLanguage[];
+  /** The code field — focused when the header's Add opens the editor (#1562). */
+  firstFieldRef: RefObject<HTMLInputElement | null>;
   lockedCode: boolean;
   disabled: boolean;
   saving: boolean;
@@ -404,6 +399,7 @@ function CurrencyEditor({
           <form className="space-y-4" onSubmit={submit}>
             <FormField label={t('field.code')}>
               <Input
+                ref={firstFieldRef}
                 value={form.code}
                 disabled={lockedCode}
                 maxLength={3}

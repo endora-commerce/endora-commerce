@@ -163,7 +163,8 @@ describe('DictionaryPage — tabs and copy (issue #1456)', () => {
     const firstRow = screen.getByText('Polska').closest('tr')!;
     const CORE_PL = shippedCoreBundle('pl').core!;
     expect(within(firstRow).getAllByRole('button', { name: CORE_PL['reorder.moveDown']! })).toHaveLength(2);
-    expect(within(firstRow).getByRole('button', { name: DICT_PL['action.delete']! })).toBeInTheDocument();
+    // Edit, set default and delete are one menu named after the row (issue #1562).
+    expect(within(firstRow).getByRole('button', { name: DICT_PL['action.rowMenu']!.replace('{code}', 'PL') })).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 
@@ -172,7 +173,8 @@ describe('DictionaryPage — tabs and copy (issue #1456)', () => {
     await screen.findByText('Polski złoty');
     expect(screen.getByRole('searchbox', { name: DICT_PL['currencies.searchLabel']! })).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: DICT_PL['action.edit']! }));
+    await user.click(screen.getByRole('button', { name: DICT_PL['action.rowMenu']!.replace('{code}', 'PLN') }));
+    await user.click(await screen.findByRole('menuitem', { name: DICT_PL['action.edit']! }));
     const position = screen.getByLabelText(DICT_PL['field.symbolPosition']!);
     expect(within(position).getAllByRole('option').map((option) => option.textContent)).toEqual([
       DICT_PL['symbolPosition.prefix'],
