@@ -21,6 +21,7 @@ import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cmsClient } from '../api/cms-client.js';
 import { cmsDeleteErrorMessage, loadErrorMessage } from '../components/list-delete-error.js';
+import { useDuplicateAction } from '../components/duplicate-record.js';
 
 const PAGE_STATUSES: readonly CmsPageStatus[] = ['draft', 'published', 'archived'];
 
@@ -37,7 +38,8 @@ const rowId = (row: { id: string }): string => row.id;
  * one heading, a search that runs as the operator types and a status filter,
  * statuses as badges with text, and a row menu that opens a page or deletes it
  * through the confirmation and `DELETE /api/v1/admin/cms/pages/:id`. The
- * endpoint answers the whole list, so there is no pager.
+ * endpoint answers the whole list, so there is no pager. Duplicate (DEC-17)
+ * makes a draft copy under a `-copy` slug and opens it.
  */
 export function PagesListPage(): ReactNode {
   const t = useTranslation('cms');
@@ -59,6 +61,12 @@ export function PagesListPage(): ReactNode {
   const [notice, setNotice] = useState<string | null>(null);
   // After a delete, focus goes to the next row, or to "New …" once the list is empty (WCAG 2.4.3).
   const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
+  // Issue #1495 (DEC-17) — Duplicate opens the copy's editor, or keeps the list with the reason.
+  const copier = useDuplicateAction<CmsPageSummary>({
+    run: (page, body) => cmsClient.duplicatePage(page.id, body),
+    editorPath: (id) => `/cms/pages/${id}`,
+    t,
+  });
 
   useEffect(() => {
     // A response that lands after a newer request was sent is dropped, so a
@@ -88,6 +96,7 @@ export function PagesListPage(): ReactNode {
 
   const remove = async (page: CmsPageSummary): Promise<void> => {
     setNotice(null);
+    copier.clearError();
     const deleted = await confirm({
       title: t('pagesList.deleteTitle'),
       message: t('pagesList.deleteConfirm', { name: page.name }),
@@ -201,7 +210,11 @@ export function PagesListPage(): ReactNode {
         }
         count={t('pagesList.count', { count: rows.length })}
         notice={
-          notice ? (
+          copier.error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{copier.error}</AlertDescription>
+            </Alert>
+          ) : notice ? (
             <Alert live="polite">
               <AlertDescription>{notice}</AlertDescription>
             </Alert>
@@ -229,15 +242,23 @@ export function PagesListPage(): ReactNode {
           {...(canWrite
             ? {
                 renderActions: (page: CmsPageSummary) => (
-                  <RowActionMenu label={t('listActions.label', { name: page.name })}>
-                    <RowActionMenuItem asChild>
-                      <Link to={`/cms/pages/${page.id}`}>{t('listActions.open')}</Link>
-                    </RowActionMenuItem>
-                    <RowActionMenuSeparator />
-                    <RowActionMenuItem destructive onSelect={() => void remove(page)}>
-                      {t('listActions.delete')}
-                    </RowActionMenuItem>
-                  </RowActionMenu>
+                  <span className="contents" aria-busy={copier.pendingId === page.id}>
+                    <RowActionMenu label={t('listActions.label', { name: page.name })}>
+                      <RowActionMenuItem asChild>
+                        <Link to={`/cms/pages/${page.id}`}>{t('listActions.open')}</Link>
+                      </RowActionMenuItem>
+                      <RowActionMenuItem
+                        disabled={copier.pendingId !== null}
+                        onSelect={() => void copier.duplicate(page)}
+                      >
+                        {t('listActions.duplicate')}
+                      </RowActionMenuItem>
+                      <RowActionMenuSeparator />
+                      <RowActionMenuItem destructive onSelect={() => void remove(page)}>
+                        {t('listActions.delete')}
+                      </RowActionMenuItem>
+                    </RowActionMenu>
+                  </span>
                 ),
               }
             : {})}

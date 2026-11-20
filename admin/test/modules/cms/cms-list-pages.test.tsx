@@ -3,8 +3,8 @@ import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
-import type { ReactElement } from 'react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { adminSession, modulePresence, renderWithSession } from '../../helpers/render-with-session';
 import { answerConfirm } from '../../helpers/confirm-dialog';
@@ -14,7 +14,8 @@ import { answerConfirm } from '../../helpers/confirm-dialog';
  * lists: no card titled with the page's own title, statuses as badges with
  * text, a row action menu that opens and deletes (through the confirmation
  * dialog and the module's own delete endpoint), the kit empty states, and a
- * search that runs as the operator types.
+ * search that runs as the operator types. DEC-17 adds Duplicate to the page,
+ * block and template menus: it runs at once and opens the copy's editor.
  */
 
 const client = vi.hoisted(() => ({
@@ -26,6 +27,9 @@ const client = vi.hoisted(() => ({
   deleteTemplate: vi.fn(),
   listHooks: vi.fn(),
   deleteHook: vi.fn(),
+  duplicatePage: vi.fn(),
+  duplicateBlock: vi.fn(),
+  duplicateTemplate: vi.fn(),
 }));
 
 vi.mock('../../../../packages/modules/cms/src/admin/api/cms-client', () => ({ cmsClient: client }));
@@ -38,6 +42,9 @@ const { PagesListPage } = await import('../../../../packages/modules/cms/src/adm
 const { BlocksListPage } = await import('../../../../packages/modules/cms/src/admin/pages/BlocksListPage');
 const { TemplatesListPage } = await import('../../../../packages/modules/cms/src/admin/pages/TemplatesListPage');
 const { HooksPage } = await import('../../../../packages/modules/cms/src/admin/pages/HooksPage');
+const { useDuplicatedLanding, DUPLICATED_STATE } = await import(
+  '../../../../packages/modules/cms/src/admin/components/duplicate-record'
+);
 
 const read = (path: string): Record<string, string> =>
   JSON.parse(readFileSync(resolve(process.cwd(), path), 'utf8')) as Record<string, string>;
@@ -264,5 +271,163 @@ describe('CMS hooks', () => {
     expect(screen.getAllByText(en['state.active']!).length).toBeGreaterThan(0);
     expect(screen.getByText(en['state.system']!)).toBeInTheDocument();
     expect(screen.getByText(en['state.custom']!)).toBeInTheDocument();
+  });
+});
+
+/** Where a Duplicate lands: the editor route, which here only reports the path and the state. */
+function EditorProbe(): ReactNode {
+  const location = useLocation();
+  return (
+    <p data-testid="editor-probe">
+      {location.pathname} {JSON.stringify(location.state)}
+    </p>
+  );
+}
+
+function mountRouted(element: ReactElement): void {
+  renderWithSession(
+    <MemoryRouter initialEntries={['/list']}>
+      <Routes>
+        <Route path="/list" element={element} />
+        <Route path="/cms/:kind/:id" element={<EditorProbe />} />
+      </Routes>
+    </MemoryRouter>,
+    {
+      session: adminSession({ permissions: ['*'] }),
+      presence: modulePresence({ present: ['cms'] }),
+      bundle: { cms: en, core },
+    },
+  );
+}
+
+const COPY_ID = '00000000-0000-4000-8000-00000000c0c0';
+
+describe.each([
+  ['pages', <PagesListPage key="p" />, 'About', client.duplicatePage, ABOUT],
+  ['blocks', <BlocksListPage key="b" />, 'Footer promo', client.duplicateBlock, '00000000-0000-4000-8000-0000000000b1'],
+  ['templates', <TemplatesListPage key="t" />, 'Landing', client.duplicateTemplate, '00000000-0000-4000-8000-0000000000c1'],
+] as const)('CMS %s list — Duplicate (DEC-17)', (kind, element, name, duplicate, id) => {
+  it('offers Open, Duplicate and Delete, in that order', async () => {
+    mount(element);
+    await openRowMenu(name);
+    const items = await screen.findAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual([
+      en['listActions.open'],
+      en['listActions.duplicate'],
+      en['listActions.delete'],
+    ]);
+  });
+
+  it('duplicates at once under the localized copy name and opens the copy', async () => {
+    duplicate.mockResolvedValue({ id: COPY_ID });
+    mountRouted(element);
+    await openRowMenu(name);
+    await userEvent.click(await screen.findByRole('menuitem', { name: en['listActions.duplicate']! }));
+    await waitFor(() =>
+      expect(duplicate).toHaveBeenCalledWith(id, { name: fill(en['duplicate.copyName']!, { name }) }),
+    );
+    expect(await screen.findByTestId('editor-probe')).toHaveTextContent(
+      `/cms/${kind}/${COPY_ID} ${JSON.stringify(DUPLICATED_STATE)}`,
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('disables Duplicate while a copy is being made, so a second select makes no second copy', async () => {
+    duplicate.mockReturnValue(new Promise(() => undefined));
+    mount(element);
+    await openRowMenu(name);
+    await userEvent.click(await screen.findByRole('menuitem', { name: en['listActions.duplicate']! }));
+    await waitFor(() => expect(duplicate).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: fill(en['listActions.label']!, { name }) }).closest('[aria-busy]'))
+        .toHaveAttribute('aria-busy', 'true'),
+    );
+    await openRowMenu(name);
+    const again = await screen.findByRole('menuitem', { name: en['listActions.duplicate']! });
+    expect(again).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(again);
+    expect(duplicate).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the list and says why, in the operator\'s language, when the copy is refused', async () => {
+    duplicate.mockRejectedValue(
+      kind === 'pages'
+        ? new ApiError(409, {
+            error: { code: 'CMS_SLUG_RESERVED', message: 'reserved', details: { segment: 'o-nas-copy' } },
+          } as never)
+        : new ApiError(409, { error: { code: 'CMS_CODE_CONFLICT', message: 'conflict' } } as never),
+    );
+    mount(element);
+    await openRowMenu(name);
+    await userEvent.click(await screen.findByRole('menuitem', { name: en['listActions.duplicate']! }));
+    const message =
+      kind === 'pages' ? fill(en['duplicate.slugReserved']!, { segment: 'o-nas-copy' }) : en['duplicate.codeConflict']!;
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByText(name)).toBeInTheDocument();
+  });
+
+  it('falls back to the retry line for any other failure', async () => {
+    duplicate.mockRejectedValue(new Error('network'));
+    mount(element);
+    await openRowMenu(name);
+    await userEvent.click(await screen.findByRole('menuitem', { name: en['listActions.duplicate']! }));
+    expect(await screen.findByText(en['duplicate.failed']!)).toBeInTheDocument();
+  });
+});
+
+describe('CMS duplicate — copy', () => {
+  it('ships every duplicate key in English and Polish, with the same placeholders', () => {
+    const keys = Object.keys(en).filter((key) => key.startsWith('duplicate.') || key === 'listActions.duplicate');
+    expect(keys.length).toBeGreaterThanOrEqual(8);
+    for (const key of keys) {
+      expect(pl[key], key).toBeTruthy();
+      const placeholders = (text: string): string[] => (text.match(/\{\w+\}/g) ?? []).sort();
+      expect(placeholders(pl[key]!), key).toEqual(placeholders(en[key]!));
+    }
+  });
+});
+
+describe('CMS editor — landing on a fresh copy (DEC-17)', () => {
+  /** The editor's half of the hook, with a settings panel that starts closed, as an existing record's may. */
+  function Editor({ ready }: { ready: boolean }): ReactNode {
+    const [open, setOpen] = useState(false);
+    const nameRef = useRef<HTMLInputElement>(null);
+    const landed = useDuplicatedLanding({ ready, reveal: () => setOpen(true), open, nameRef });
+    return (
+      <>
+        {landed ? <p role="status">{en['duplicate.created']}</p> : null}
+        <button type="button">Other</button>
+        {open ? <input aria-label="name" ref={nameRef} /> : null}
+      </>
+    );
+  }
+
+  function mountEditor(state: unknown, ready = true): void {
+    renderWithSession(
+      <MemoryRouter initialEntries={[{ pathname: '/cms/blocks/x', state }]}>
+        <Routes>
+          <Route path="/cms/blocks/:id" element={<Editor ready={ready} />} />
+        </Routes>
+      </MemoryRouter>,
+      { session: adminSession({ permissions: ['*'] }), presence: modulePresence({ present: ['cms'] }) },
+    );
+  }
+
+  it('opens the settings, focuses the name and says a copy was made', async () => {
+    mountEditor(DUPLICATED_STATE);
+    const input = await screen.findByRole('textbox', { name: 'name' });
+    await waitFor(() => expect(document.activeElement).toBe(input));
+    expect(screen.getByRole('status')).toHaveTextContent(en['duplicate.created']!);
+  });
+
+  it('does nothing when the editor was opened any other way', () => {
+    mountEditor(null);
+    expect(screen.queryByRole('textbox', { name: 'name' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('waits for the record to load before it moves focus', () => {
+    mountEditor(DUPLICATED_STATE, false);
+    expect(screen.queryByRole('textbox', { name: 'name' })).not.toBeInTheDocument();
   });
 });

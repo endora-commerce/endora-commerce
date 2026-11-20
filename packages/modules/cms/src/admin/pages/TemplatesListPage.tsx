@@ -18,6 +18,7 @@ import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cmsClient } from '../api/cms-client.js';
 import { cmsDeleteErrorMessage, loadErrorMessage } from '../components/list-delete-error.js';
+import { useDuplicateAction } from '../components/duplicate-record.js';
 
 const rowId = (row: { id: string }): string => row.id;
 
@@ -26,7 +27,8 @@ const rowId = (row: { id: string }): string => row.id;
  * CONTENT-13): one heading and a row menu that opens a template or deletes it
  * through the confirmation and `DELETE /api/v1/admin/cms/templates/:id`
  * (refused while a legacy embed still uses it). The endpoint answers the whole
- * list: no pager, no search.
+ * list: no pager, no search. Duplicate (DEC-17) copies the template under a
+ * `-copy` code and opens the copy.
  */
 export function TemplatesListPage(): ReactNode {
   const t = useTranslation('cms');
@@ -41,6 +43,12 @@ export function TemplatesListPage(): ReactNode {
   const [notice, setNotice] = useState<string | null>(null);
   // After a delete, focus goes to the next row, or to "New …" once the list is empty (WCAG 2.4.3).
   const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
+  // Issue #1495 (DEC-17) — Duplicate opens the copy's editor, or keeps the list with the reason.
+  const copier = useDuplicateAction<CmsTemplateSummary>({
+    run: (template, body) => cmsClient.duplicateTemplate(template.id, body),
+    editorPath: (id) => `/cms/templates/${id}`,
+    t,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -62,6 +70,7 @@ export function TemplatesListPage(): ReactNode {
 
   const remove = async (template: CmsTemplateSummary): Promise<void> => {
     setNotice(null);
+    copier.clearError();
     const deleted = await confirm({
       title: t('templatesList.deleteTitle'),
       message: t('templatesList.deleteConfirm', { name: template.name }),
@@ -120,7 +129,11 @@ export function TemplatesListPage(): ReactNode {
         actions={canWrite && !nothingYet ? createLink : null}
         count={t('templatesList.count', { count: rows.length })}
         notice={
-          notice ? (
+          copier.error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{copier.error}</AlertDescription>
+            </Alert>
+          ) : notice ? (
             <Alert live="polite">
               <AlertDescription>{notice}</AlertDescription>
             </Alert>
@@ -144,15 +157,23 @@ export function TemplatesListPage(): ReactNode {
           {...(canWrite
             ? {
                 renderActions: (template: CmsTemplateSummary) => (
-                  <RowActionMenu label={t('listActions.label', { name: template.name })}>
-                    <RowActionMenuItem asChild>
-                      <Link to={`/cms/templates/${template.id}`}>{t('listActions.open')}</Link>
-                    </RowActionMenuItem>
-                    <RowActionMenuSeparator />
-                    <RowActionMenuItem destructive onSelect={() => void remove(template)}>
-                      {t('listActions.delete')}
-                    </RowActionMenuItem>
-                  </RowActionMenu>
+                  <span className="contents" aria-busy={copier.pendingId === template.id}>
+                    <RowActionMenu label={t('listActions.label', { name: template.name })}>
+                      <RowActionMenuItem asChild>
+                        <Link to={`/cms/templates/${template.id}`}>{t('listActions.open')}</Link>
+                      </RowActionMenuItem>
+                      <RowActionMenuItem
+                        disabled={copier.pendingId !== null}
+                        onSelect={() => void copier.duplicate(template)}
+                      >
+                        {t('listActions.duplicate')}
+                      </RowActionMenuItem>
+                      <RowActionMenuSeparator />
+                      <RowActionMenuItem destructive onSelect={() => void remove(template)}>
+                        {t('listActions.delete')}
+                      </RowActionMenuItem>
+                    </RowActionMenu>
+                  </span>
                 ),
               }
             : {})}

@@ -18,6 +18,7 @@ import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { cmsClient } from '../api/cms-client.js';
 import { cmsDeleteErrorMessage, loadErrorMessage } from '../components/list-delete-error.js';
+import { useDuplicateAction } from '../components/duplicate-record.js';
 
 const rowId = (row: { id: string }): string => row.id;
 
@@ -27,6 +28,7 @@ const rowId = (row: { id: string }): string => row.id;
  * that opens a block or deletes it through the confirmation and
  * `DELETE /api/v1/admin/cms/blocks/:id` (refused while a page, a hook or a
  * menu still uses it). The endpoint answers the whole list: no pager, no search.
+ * Duplicate (DEC-17) copies the block under a `-copy` code and opens the copy.
  */
 export function BlocksListPage(): ReactNode {
   const t = useTranslation('cms');
@@ -41,6 +43,12 @@ export function BlocksListPage(): ReactNode {
   const [notice, setNotice] = useState<string | null>(null);
   // After a delete, focus goes to the next row, or to "New …" once the list is empty (WCAG 2.4.3).
   const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
+  // Issue #1495 (DEC-17) — Duplicate opens the copy's editor, or keeps the list with the reason.
+  const copier = useDuplicateAction<CmsBlockSummary>({
+    run: (block, body) => cmsClient.duplicateBlock(block.id, body),
+    editorPath: (id) => `/cms/blocks/${id}`,
+    t,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -62,6 +70,7 @@ export function BlocksListPage(): ReactNode {
 
   const remove = async (block: CmsBlockSummary): Promise<void> => {
     setNotice(null);
+    copier.clearError();
     const deleted = await confirm({
       title: t('blocksList.deleteTitle'),
       message: t('blocksList.deleteConfirm', { name: block.name }),
@@ -129,7 +138,11 @@ export function BlocksListPage(): ReactNode {
         actions={canWrite && !nothingYet ? createLink : null}
         count={t('blocksList.count', { count: rows.length })}
         notice={
-          notice ? (
+          copier.error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{copier.error}</AlertDescription>
+            </Alert>
+          ) : notice ? (
             <Alert live="polite">
               <AlertDescription>{notice}</AlertDescription>
             </Alert>
@@ -153,15 +166,23 @@ export function BlocksListPage(): ReactNode {
           {...(canWrite
             ? {
                 renderActions: (block: CmsBlockSummary) => (
-                  <RowActionMenu label={t('listActions.label', { name: block.name })}>
-                    <RowActionMenuItem asChild>
-                      <Link to={`/cms/blocks/${block.id}`}>{t('listActions.open')}</Link>
-                    </RowActionMenuItem>
-                    <RowActionMenuSeparator />
-                    <RowActionMenuItem destructive onSelect={() => void remove(block)}>
-                      {t('listActions.delete')}
-                    </RowActionMenuItem>
-                  </RowActionMenu>
+                  <span className="contents" aria-busy={copier.pendingId === block.id}>
+                    <RowActionMenu label={t('listActions.label', { name: block.name })}>
+                      <RowActionMenuItem asChild>
+                        <Link to={`/cms/blocks/${block.id}`}>{t('listActions.open')}</Link>
+                      </RowActionMenuItem>
+                      <RowActionMenuItem
+                        disabled={copier.pendingId !== null}
+                        onSelect={() => void copier.duplicate(block)}
+                      >
+                        {t('listActions.duplicate')}
+                      </RowActionMenuItem>
+                      <RowActionMenuSeparator />
+                      <RowActionMenuItem destructive onSelect={() => void remove(block)}>
+                        {t('listActions.delete')}
+                      </RowActionMenuItem>
+                    </RowActionMenu>
+                  </span>
                 ),
               }
             : {})}
