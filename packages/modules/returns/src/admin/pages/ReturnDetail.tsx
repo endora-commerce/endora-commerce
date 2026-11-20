@@ -13,6 +13,7 @@ import { CONSUMER_WITHDRAWAL_PANEL_ID, ConsumerWithdrawalPanel } from './Consume
 
 import type {
   ReturnCaseDetail,
+  ReturnStatusDto,
   ReturnTransitionDto,
   SettlementPrefill,
   SettlementResult,
@@ -98,11 +99,14 @@ export function ReturnDetail(): ReactNode {
   const [statusIsTerminal, setStatusIsTerminal] = useState(false);
   const [shipments, setShipments] = useState<ReturnShipmentRow[]>([]);
   // Issue #1472 — transitions are named by their target status, in the operator's language.
-  const [statusNames, setStatusNames] = useState<Record<string, string>>({});
+  const [statuses, setStatuses] = useState<ReturnStatusDto[]>([]);
   // `undefined` while loading or for a case without an order; `null` when the order cannot be read.
   const [orderNumber, setOrderNumber] = useState<string | null | undefined>(undefined);
   const [prefill, setPrefill] = useState<SettlementPrefill | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The case could not be loaded and the API said nothing: the message is the screen's own,
+  // translated at render so `refresh` does not depend on the bundle.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   // Issue #311 — the rejection reason is asked for in a dialog, not `window.prompt()`.
   const [rejecting, setRejecting] = useState(false);
@@ -140,6 +144,7 @@ export function ReturnDetail(): ReactNode {
 
   const refresh = useCallback(async (): Promise<void> => {
     setError(null);
+    setLoadFailed(false);
     try {
       const [detail, graph, ship] = await Promise.all([
         returnsClient.get(id),
@@ -148,7 +153,7 @@ export function ReturnDetail(): ReactNode {
       ]);
       setRc(detail);
       setTransitions(graph.transitions.filter((t) => t.fromStatusCode === detail.statusCode));
-      setStatusNames(Object.fromEntries(graph.statuses.map((s) => [s.code, returnStatusName(s, language)])));
+      setStatuses(graph.statuses);
       const terminal = graph.statuses.some((s) => s.code === detail.statusCode && s.isTerminal);
       setStatusIsTerminal(terminal);
       setShipments(ship);
@@ -171,9 +176,10 @@ export function ReturnDetail(): ReactNode {
         setPrefill(null);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : tr('detail.loadFailed'));
+      if (err instanceof ApiError) setError(err.envelope.error.message);
+      else setLoadFailed(true);
     }
-  }, [id, language, tr]);
+  }, [id]);
 
   useEffect(() => {
     void refresh();
@@ -231,9 +237,9 @@ export function ReturnDetail(): ReactNode {
     return (
       <div className="space-y-4">
         <PageHeader title={t('returns.detail.title')} />
-        {error && (
+        {(error || loadFailed) && (
           <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error ?? tr('detail.loadFailed')}</AlertDescription>
           </Alert>
         )}
       </div>
@@ -316,9 +322,9 @@ export function ReturnDetail(): ReactNode {
         }
       />
 
-      {error && (
+      {(error || loadFailed) && (
         <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error ?? tr('detail.loadFailed')}</AlertDescription>
         </Alert>
       )}
       {info && (
@@ -342,7 +348,8 @@ export function ReturnDetail(): ReactNode {
             {tr('reject.action')}
           </Button>
           {transitions.map((transition) => {
-            const status = statusNames[transition.toStatusCode] ?? transition.toStatusCode;
+            const target = statuses.find((s) => s.code === transition.toStatusCode);
+            const status = target ? returnStatusName(target, language) : transition.toStatusCode;
             return (
               <Button
                 key={transition.toStatusCode}
