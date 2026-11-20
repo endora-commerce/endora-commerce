@@ -970,7 +970,9 @@ export function OrdersList(): ReactNode {
                   <span className="text-sm text-muted-foreground">
                     {t('orders.bulk.selected', { count: selected.size })}
                   </span>
-                  <Button size="sm" onClick={(): void => setStatusDialogIds([...selected])}>
+                  {/* Outline, as *Print invoices*: *New order* stays the page's one
+                      filled primary while rows are selected (Von Restorff). */}
+                  <Button size="sm" variant="outline" onClick={(): void => setStatusDialogIds([...selected])}>
                     <ListChecks aria-hidden="true" />
                     {t('orders.bulk.changeStatus')}
                   </Button>

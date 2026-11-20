@@ -162,6 +162,19 @@ describe('Orders list (#1500)', () => {
     expect(resultsCard(bulk)).toBe(resultsCard(link));
   });
 
+  it('keeps New order the one filled primary while rows are selected (Von Restorff)', async () => {
+    answerOrders([orderRow('o1', 'ORD-1')]);
+    render(<OrdersList />);
+    await screen.findByRole('link', { name: '#ORD-1' });
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select order ORD-1' }));
+    // The kit's `default` variant is the filled one (`bg-primary`); `outline` draws a border.
+    const filled = [...document.querySelectorAll<HTMLElement>('a, button')].filter((el) =>
+      el.className.split(/\s+/).includes('bg-primary'),
+    );
+    expect(filled.map((el) => el.textContent?.trim())).toEqual([orders['actions.newOrder.label']]);
+    expect(screen.getByRole('button', { name: core['orders.bulk.changeStatus']! }).className).toContain('border-input');
+  });
+
   it('tells "no orders yet" apart from "no order matches", and Clear filters empties the search', async () => {
     answerOrders([]);
     render(<OrdersList />);
