@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, InlineStatus, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { CurrencyPicker, OrganizationPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { moneyDifference, type CreditLimitView } from '@endora-commerce/contracts';
@@ -11,7 +11,9 @@ export function CreditLimitsPage(): ReactNode {
   const [rows, setRows] = useState<CreditLimitView[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — a grant or an adjustment is
+  // said beside the organization's panel, not as a success banner at the top.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
   const [orgIdInput, setOrgIdInput] = useState('');
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
   const [selectedOrgName, setSelectedOrgName] = useState<string | null>(null);
@@ -73,12 +75,14 @@ export function CreditLimitsPage(): ReactNode {
   const handleGrant = useCallback(
     async (input: { grantedAmount: number; currency: string; reason?: string }): Promise<void> => {
       if (!selectedOrgId) return;
+      setError(null);
+      clearStatus();
       try {
         await apiClient.post<{ data: CreditLimitView }>(
           `/api/v1/admin/organizations/${selectedOrgId}/credit-limit`,
           input,
         );
-        setInfo(
+        showStatus(
           t('creditLimits.success.grant', {
             amount: input.grantedAmount,
             currency: input.currency,
@@ -91,7 +95,7 @@ export function CreditLimitsPage(): ReactNode {
         setError(err instanceof ApiError ? err.envelope.error.message : t('creditLimits.error.grant'));
       }
     },
-    [selectedOrgId, selectedOrgName, loadSelected, refreshList, t],
+    [selectedOrgId, selectedOrgName, loadSelected, refreshList, t, showStatus, clearStatus],
   );
 
   const handleAdjust = useCallback(
@@ -101,20 +105,28 @@ export function CreditLimitsPage(): ReactNode {
       allowOverAllocation: boolean;
     }): Promise<void> => {
       if (!selectedOrgId) return;
+      setError(null);
+      clearStatus();
       try {
         await apiClient.patch<{ data: CreditLimitView }>(
           `/api/v1/admin/organizations/${selectedOrgId}/credit-limit`,
           input,
         );
-        setInfo(t('creditLimits.success.adjust', { orgId: selectedOrgName ?? selectedOrgId.slice(0, 8) }));
+        showStatus(t('creditLimits.success.adjust', { orgId: selectedOrgName ?? selectedOrgId.slice(0, 8) }));
         await loadSelected(selectedOrgId);
         await refreshList();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('creditLimits.error.adjust'));
       }
     },
-    [selectedOrgId, selectedOrgName, loadSelected, refreshList, t],
+    [selectedOrgId, selectedOrgName, loadSelected, refreshList, t, showStatus, clearStatus],
   );
+
+  /** Another organization picked by the operator: the previous result no longer applies. */
+  const openOrganization = (orgId: string, knownName?: string | null): void => {
+    clearStatus();
+    void loadSelected(orgId, knownName);
+  };
 
   return (
     <>
@@ -125,11 +137,6 @@ export function CreditLimitsPage(): ReactNode {
       {error ? (
         <Alert variant="destructive" className="mb-4">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -175,7 +182,7 @@ export function CreditLimitsPage(): ReactNode {
                         size="sm"
                         onClick={(): void => {
                           setOrgIdInput(r.organizationId);
-                          void loadSelected(r.organizationId, r.organizationName);
+                          openOrganization(r.organizationId, r.organizationName);
                         }}
                       >
                         {t('creditLimits.action.open')}
@@ -198,7 +205,7 @@ export function CreditLimitsPage(): ReactNode {
             className="flex flex-wrap items-end gap-2"
             onSubmit={(e: FormEvent): void => {
               e.preventDefault();
-              void loadSelected(orgIdInput.trim());
+              openOrganization(orgIdInput.trim());
             }}
           >
             <div className="flex-1 space-y-2">
@@ -215,12 +222,21 @@ export function CreditLimitsPage(): ReactNode {
         </CardContent>
       </Card>
 
-      {selectedOrgId && !selectedLoading ? (
-        selected ? (
-          <ExistingLimitPanel limit={selected} onAdjust={handleAdjust} />
-        ) : (
-          <GrantPanel orgId={selectedOrgId} orgName={selectedOrgName} onGrant={handleGrant} />
-        )
+      {/* The result region stays mounted for as long as an organization is
+          open, outside its panel: a grant swaps the grant form for the adjust
+          form, and a region inside it would be created already carrying its
+          message, which screen readers do not reliably announce (WCAG 4.1.3). */}
+      {selectedOrgId ? (
+        <>
+          {!selectedLoading ? (
+            selected ? (
+              <ExistingLimitPanel limit={selected} onAdjust={handleAdjust} />
+            ) : (
+              <GrantPanel orgId={selectedOrgId} orgName={selectedOrgName} onGrant={handleGrant} />
+            )
+          ) : null}
+          <InlineStatus {...statusProps} className="mt-3" />
+        </>
       ) : null}
     </>
   );
