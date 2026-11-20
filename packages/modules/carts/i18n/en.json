@@ -151,7 +151,6 @@
   "actions.openCarts.description": "Browse customer carts and their approval status",
   "actions.openCarts.keywords": "cart, carts, abandoned",
   "carts.page.title": "Carts",
-  "carts.page.description": "Browse customer carts and their approval status.",
   "carts.column.owner": "Owner",
   "carts.column.org": "Organization",
   "carts.column.status": "Status",

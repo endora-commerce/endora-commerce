@@ -171,7 +171,9 @@ The **Blog posts**, **Blog tags** and **Blog categories** screens follow the adm
 
 An administrator with `blog.write` gets a menu (⋮) at the end of each row.
 
-**Posts: Open and Delete.** **Delete** asks for confirmation and sends the version the list read. A deleted post disappears from the storefront and from every post that lists it as related (detach-on-delete, above). If the delete fails, most likely because someone changed the post since the list was read, the dialog stays open and asks you to reload the list and try again.
+**Posts: Open, Archive or Unarchive, and Delete.** **Archive**, or **Unarchive** for an archived post, does not ask for confirmation, as in the post editor: archiving takes the post off the storefront and can be undone. It sends the version the list read. **Unarchive** makes the post a draft, so it comes back to the storefront only when you publish it again. The row's status badge and version change in place, the result is shown next to **New post**, and focus stays on the row's menu. When the list is filtered by a status the post no longer has, the post leaves the list and focus moves to the next row. If the change fails, most likely because someone changed the post since the list was read, the list says so and asks you to reload it and try again.
+
+**Delete** asks for confirmation and sends the version the list read. A deleted post disappears from the storefront and from every post that lists it as related (detach-on-delete, above). If the delete fails, most likely because someone changed the post since the list was read, the dialog stays open and asks you to reload the list and try again.
 
 **Tags: Edit and Delete.** **New tag** in the header, and **Edit** in a row, open the same dialog with three fields: name, code and description. While you create a tag, its code follows the name (`Buyer guides` → `buyer-guides`) until you type a code of your own. Each problem is shown at its field:
 

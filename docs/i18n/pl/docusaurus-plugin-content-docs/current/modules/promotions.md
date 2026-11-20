@@ -96,6 +96,7 @@ jej nazwy, gdy kuponu nie było — nigdy identyfikator promocji, który trafia 
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET/POST/PUT/DELETE /api/v1/admin/promotions[/:id]` | Zarządzanie promocjami |
+| `GET /api/v1/admin/promotions?page=&pageSize=` | Jedna strona promocji według nazwy, z `meta: { page, pageSize, total }`; bez `pageSize` cała lista (issue #1664) |
 | `GET /api/v1/admin/promotions/action-types` | Katalog akcji dla edytora |
 | `GET /api/v1/admin/promotions/rule-targets/attributes` | Atrybuty, których można używać w promocjach |
 | `GET /api/v1/admin/promotions/rule-targets/{categories,customer-groups,delivery-methods,organizations,payment-methods,sales-channels}` | Pozostałe listy wyboru edytora reguł |

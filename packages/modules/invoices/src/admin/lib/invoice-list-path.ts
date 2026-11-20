@@ -1,5 +1,8 @@
 import type { InvoiceKind, InvoiceStatus } from '@endora-commerce/contracts';
 
+/** The largest page `GET /api/v1/admin/invoices` serves (`paginationSchema`: 1–200). */
+export const INVOICE_LIST_MAX_LIMIT = 200;
+
 /** The admin invoice list's filter bar, as the inputs hold it. */
 export interface InvoiceListFilters {
   status: '' | InvoiceStatus;
@@ -25,9 +28,10 @@ export const NO_INVOICE_FILTERS: InvoiceListFilters = {
 /**
  * The `GET /api/v1/admin/invoices` path for one page of the list. `cursor` is
  * the opaque `pagination.cursor` the previous page answered (issue #1120); the
- * first page passes none.
+ * first page passes none. `limit` is the page size (the endpoint's default,
+ * 50, when absent; at most {@link INVOICE_LIST_MAX_LIMIT}).
  */
-export function invoiceListPath(filters: InvoiceListFilters, cursor?: string | null): string {
+export function invoiceListPath(filters: InvoiceListFilters, cursor?: string | null, limit?: number): string {
   const params = new URLSearchParams();
   if (filters.status) params.set('filter[status]', filters.status);
   if (filters.kind) params.set('filter[kind]', filters.kind);
@@ -37,6 +41,7 @@ export function invoiceListPath(filters: InvoiceListFilters, cursor?: string | n
   if (filters.totalMin.trim()) params.set('filter[totalMin]', filters.totalMin.trim());
   if (filters.totalMax.trim()) params.set('filter[totalMax]', filters.totalMax.trim());
   if (cursor) params.set('cursor', cursor);
+  if (limit !== undefined) params.set('limit', String(limit));
   const query = params.toString();
   return '/api/v1/admin/invoices' + (query ? `?${query}` : '');
 }

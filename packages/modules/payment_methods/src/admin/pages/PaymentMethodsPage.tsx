@@ -208,10 +208,7 @@ export function PaymentMethodsPage(): ReactNode {
 
   return (
     <>
-      <PageHeader
-        title={t('legacyMethods.payment.title')}
-        description={t('legacyMethods.payment.description')}
-      />
+      <PageHeader title={t('legacyMethods.payment.title')} />
 
       {error ? (
         <Alert variant="destructive" className="mb-4">
@@ -225,9 +222,6 @@ export function PaymentMethodsPage(): ReactNode {
             <CardTitle>{t('legacyMethods.integrations.title')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="mb-4 text-sm text-muted-foreground">
-              {t('legacyMethods.integrations.description')}
-            </p>
             <AdminZone name="payment_method.list.integrations" props={{}} />
           </CardContent>
         </Card>

@@ -51,7 +51,6 @@ const { RfqList } = await import('../../../../packages/modules/quote_requests/sr
 
 const BUNDLE = passthroughBundle('core', [
   'rfq.list.title',
-  'rfq.list.description',
   'rfq.list.field.visibility',
   'rfq.list.scope.mine',
   'rfq.list.scope.unassigned',

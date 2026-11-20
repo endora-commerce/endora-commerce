@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { Users } from 'lucide-react';
 import type { ScopeNoticeCode, SubscriberSummary } from '@endora-commerce/contracts';
 import { ScopeNotice, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
-import { Alert, AlertDescription, Button, Card, CardContent, FormField, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, EmptyState, FormField, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { newsletterClient } from '../api/newsletter-client.js';
 import { describeDeleteError } from '../describe-delete-error.js';
 import { subscriberStatusLabels } from '../lib/labels.js';
@@ -23,6 +24,10 @@ export function SubscribersPage(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [tag, setTag] = useState('');
+  // Until the first answer the list is unknown, not empty (#1448).
+  const [loaded, setLoaded] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const filtered = q.trim() !== '' || tag.trim() !== '';
 
   const load = useCallback(() => {
     newsletterClient
@@ -32,7 +37,8 @@ export function SubscribersPage(): React.ReactElement {
         setTotal(res.total);
         setScopeNotice(res.scopeNotice);
       })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setLoaded(true));
   }, [q, tag]);
 
   useEffect(() => {
@@ -89,7 +95,7 @@ export function SubscribersPage(): React.ReactElement {
       ) : null}
       <div className="flex flex-wrap items-end gap-3">
         <FormField label={t('subscribers.search')} className="w-full max-w-xs">
-          <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input ref={searchRef} type="search" value={q} onChange={(e) => setQ(e.target.value)} />
         </FormField>
         <FormField label={t('subscribers.tagFilter')} className="w-full max-w-xs">
           <Input value={tag} onChange={(e) => setTag(e.target.value)} />
@@ -140,10 +146,33 @@ export function SubscribersPage(): React.ReactElement {
                   ) : null}
                 </tr>
               ))}
-              {items.length === 0 ? (
+              {loaded && items.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-muted-foreground" colSpan={canWrite ? 5 : 4}>
-                    {scopeNotice ? <ScopeNotice notice={scopeNotice} /> : t('subscribers.empty')}
+                  <td colSpan={canWrite ? 5 : 4}>
+                    {/* The server's scope notice says why first (feature 087);
+                        otherwise "nobody yet" and "nobody matches" are two
+                        situations with two next steps (#1448, DS-15). */}
+                    {scopeNotice ? (
+                      <div className="p-3">
+                        <ScopeNotice notice={scopeNotice} />
+                      </div>
+                    ) : filtered ? (
+                      <EmptyState
+                        variant="no-results"
+                        title={t('subscribers.empty')}
+                        onClearFilters={() => {
+                          setQ('');
+                          setTag('');
+                        }}
+                        focusAfterClear={searchRef}
+                      />
+                    ) : (
+                      <EmptyState
+                        icon={<Users size={20} />}
+                        title={t('subscribers.emptyState.title')}
+                        description={t('subscribers.emptyState.body')}
+                      />
+                    )}
                   </td>
                 </tr>
               ) : null}
