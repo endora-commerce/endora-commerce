@@ -958,7 +958,7 @@ Przez API `validateTaxId: true` bez `customers:manage` powoduje odrzucenie całe
   VAT. **Jej identyfikator się nie zmienia**, a zamówienia, koszyki, adresy, ceny i kanały
   sprzedaży pozostają przy niej.
 - Jej członek zachowuje rolę *Administrator*, więc może teraz zapraszać współpracowników i
-  zarządzać rolami; strona organizacji pokazuje zakładki członków i ról, a storefront przy
+  zarządzać rolami; zakładka **Członkowie i role** strony organizacji pokazuje role, a storefront przy
   następnej stronie oferuje członkowi ekrany firmowe.
 - **Status jest zachowany** (aktywny klient pozostaje aktywny; zamiana nie wysyła organizacji do
   kolejki moderacji). Jeśli organizacja nigdy nie została zatwierdzona, zostaje oznaczona jako
@@ -1283,9 +1283,9 @@ od jego roli i od rodzaju organizacji:
 
 ### Role w panelu administracyjnym
 
-Ekran szczegółów organizacji ma zakładkę **Role**. Widzi ją operator z uprawnieniem
+Ekran szczegółów organizacji ma sekcję **Role**, na zakładce **Członkowie i role**. Widzi ją operator z uprawnieniem
 `organizations:read-roles` lub `organizations:manage-roles`, i nigdy dla organizacji osobistej.
-Z uprawnieniem do odczytu zakładka jest tylko do odczytu; z `organizations:manage-roles` operator
+Z uprawnieniem do odczytu sekcja jest tylko do odczytu; z `organizations:manage-roles` operator
 tworzy, edytuje i usuwa role według tych samych reguł co w storefroncie — formularz tworzenia
 również otwiera się z odznaczonymi wszystkimi uprawnieniami, a rolę, którą ktoś ma, można usunąć
 tylko ze wskazaniem roli zastępczej. Sekcja *Członkowie* na tym samym ekranie wymienia każdego
@@ -1349,6 +1349,27 @@ i unieważnienie zaproszenia — `organization_invitation.create` /
 `organization_invitation.revoke`. Każde jest audytowane względem organizacji,
 z członkiem lub operatorem, który działał.
 
+## Ekran organizacji
+
+Ekran organizacji (`/organizations/:id`) to jedna karta z zakładkami. Pasek adresu zapamiętuje
+otwartą zakładkę (`?tab=members`, `commerce`, `tax`, `sales`), więc link może otworzyć ją od razu.
+
+| Zakładka | Co zawiera |
+| --- | --- |
+| **Przegląd** | Moderację (status i dozwolone dla niego działania), adres rejestrowy, hierarchię, pola własne |
+| **Członkowie i role** | Członków, **Dodaj członka** i role |
+| **Handel** | Kanały sprzedaży, e-maile z potwierdzeniem zamówienia, ograniczenia, strategię realizacji, obowiązujące cenniki oraz panele dodawane przez inne moduły (tryb wyświetlania cen, domyślne ustawienia zamówień, płatników, negocjację cen, szanse sprzedaży CRM, projekty) |
+| **Podatki** | Numer podatkowy i status VAT z **Zmień numer podatkowy**, **Zmień status VAT…** albo, dla organizacji osobistej, **Zamień na firmę**; dalej weryfikację VAT |
+| **Sprzedaż** | Opiekunów handlowych. Widoczna tylko z `organizations:assign-sales-rep` |
+
+Przełączenie zakładki zachowuje każdą niezapisaną zmianę. Zakładka z niezapisanymi zmianami ma
+kropkę, a czytnik ekranu słyszy przy jej nazwie „niezapisane zmiany”.
+
+**Moderacja** oferuje tylko działania dozwolone dla statusu: **Zatwierdź** i **Odrzuć** dla
+organizacji oczekującej na weryfikację, **Zablokuj** dla aktywnej, **Odblokuj** dla zablokowanej i
+żadnego dla odrzuconej. Oczekująca organizacja, której dane w rejestrze różnią się od podanych,
+pokazuje komunikat; **Otwórz weryfikację VAT** otwiera zakładkę Podatki przy weryfikacji VAT.
+
 ## Jeden przycisk Zapisz na ekranie organizacji
 
 Ekran organizacji (`/organizations/:id`) ma **jeden przycisk Zapisz**, w nagłówku strony. Obejmuje
@@ -1397,7 +1418,7 @@ blokada, odblokowanie), walidacja VAT, kanały sprzedaży, role i opiekunowie ha
   daty i powód oraz powiadamiają klienta. Są dostępne tylko z `customers:manage`; bez niego sekcja
   pokazuje jedynie status i powód.
 - **Status VAT** (czynny podatnik VAT, zwolniony z VAT, odwrotne obciążenie) jest pokazywany w nagłówku
-  strony, po numerze podatkowym. Aby go zmienić, użyj **Zmień status VAT…** w nagłówku, obok
+  strony, po numerze podatkowym. Aby go zmienić, użyj **Zmień status VAT…** na zakładce **Podatki**, obok
   **Zmień numer podatkowy**. Wymaga `customers:manage`, działa od razu i jest zapisywany w dzienniku
   audytu. Status VAT decyduje o podatku w każdym zamówieniu, które organizacja złoży od tej chwili;
   wystawione już zamówienia, faktury i dokumenty ofert zachowują swój. Weryfikacja numeru

@@ -1,16 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { OrganizationSalesChannelsResponse } from '@endora-commerce/contracts';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EditorSection } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { organizationSalesChannelsClient } from '../api/sales-channels.js';
 import { SalesChannelChecklist, channelLabel } from '../components/SalesChannelChecklist.js';
@@ -131,8 +122,10 @@ export function SalesChannelsPanel({ organizationId }: SalesChannelsPanelProps):
     [data, organizationId],
   );
 
-  const titleId = `org-sales-channels-title-${organizationId}`;
-  const descriptionId = `org-sales-channels-description-${organizationId}`;
+  // `EditorSection` names its heading `<id>-title` and its description `<id>-description`.
+  const sectionId = `org-sales-channels-${organizationId}`;
+  const titleId = `${sectionId}-title`;
+  const descriptionId = `${sectionId}-description`;
   const errorId = `org-sales-channels-error-${organizationId}`;
 
   const statusText =
@@ -143,15 +136,18 @@ export function SalesChannelsPanel({ organizationId }: SalesChannelsPanelProps):
         : null;
 
   return (
-    <Card className="mt-4">
-      <CardHeader>
-        <CardTitle id={titleId}>
+    // Issue #1515 — a section of the Commerce tab's card, not a card of its own.
+    <EditorSection
+      id={sectionId}
+      title={
+        <>
           {t('salesChannels.title')}
           <ImmediateBadge className="align-middle" />
-        </CardTitle>
-        <CardDescription id={descriptionId}>{t('salesChannels.description')}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3">
+        </>
+      }
+      description={t('salesChannels.description')}
+      contentClassName="grid gap-3"
+    >
         {loadError ? (
           <Alert variant="destructive">
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
@@ -199,7 +195,6 @@ export function SalesChannelsPanel({ organizationId }: SalesChannelsPanelProps):
             labelledBy={titleId}
           />
         )}
-      </CardContent>
-    </Card>
+    </EditorSection>
   );
 }

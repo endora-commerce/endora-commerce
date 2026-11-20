@@ -184,9 +184,8 @@ export function OrganizationMembersSection(props: OrganizationMembersSectionProp
   ) : null;
 
   return (
+    // Issue #1515 — a section of the Members & roles tab's card, not a card of its own.
     <EditorSection
-      chrome="card"
-      className="mb-4"
       title={
         <>
           {t('organizations.detail.membersCard')}
