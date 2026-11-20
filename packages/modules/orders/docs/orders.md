@@ -436,6 +436,10 @@ records the releases through the same follow-up mechanism, attempts them at
 once, and writes one audit entry per page of orders; anything that does not
 complete is retried by the sweep. Running it again finds nothing left.
 
+The repair also finds paid credit-limit orders with active credit reservations
+but no `credit.release` follow-up row. Run the dry run first to review these
+orders, then use `--apply` to record and attempt the missing releases.
+
 **Run the dry run once after upgrading**, and read the list before applying it:
 a release changes reserved-stock counters and available credit. The repair
 never runs by itself.

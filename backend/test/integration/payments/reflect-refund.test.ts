@@ -10,7 +10,7 @@ import {
   ReceivePaymentHandler,
   type SettlementLogger,
 } from '../../../../packages/modules/payments/src/backend/services/receive-payment-handler.js';
-import type { OrderPaymentStatusApplyPort } from '../../../../packages/modules/orders/src/ports/index.js';
+import type { OrderPaymentStatusApplyPort, OrderPaymentSettlementEffectsPort } from '../../../../packages/modules/orders/src/ports/index.js';
 import { Order } from '../../helpers/package-entities.js';
 import { Payment } from '../../helpers/package-entities.js';
 
@@ -64,6 +64,7 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
       h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
       h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
       h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
+      h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
       { warn: (details, message) => warnings.push({ details, message }) },
     );
     // Answers normally, so the gateway's webhook is acknowledged and not redelivered.
@@ -96,6 +97,7 @@ describe('ReceivePaymentHandler.reflectRefund', () => {
       // status moves to `refunded` on this handler's own transaction, through
       // the port `orders` publishes for it.
       h.container.resolve<OrderPaymentStatusApplyPort>('orderPaymentStatusApplyPort'),
+      h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
       quiet,
     );
 

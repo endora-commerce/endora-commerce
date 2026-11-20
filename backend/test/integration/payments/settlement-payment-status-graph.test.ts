@@ -8,7 +8,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { ReceivePaymentHandler } from '../../../../packages/modules/payments/src/backend/services/receive-payment-handler.js';
-import type { OrderPaymentStatusApplyPort } from '../../../../packages/modules/orders/src/ports/index.js';
+import type { OrderPaymentStatusApplyPort, OrderPaymentSettlementEffectsPort } from '../../../../packages/modules/orders/src/ports/index.js';
 import { PaymentMethod } from '../../helpers/package-entities.js';
 import { Order } from '../../helpers/package-entities.js';
 import { Payment } from '../../helpers/package-entities.js';
@@ -89,6 +89,7 @@ describe('settlement respects the payment-status graph (issue #1574)', () => {
       h.container.resolve<PaymentMethodReadPort>('paymentMethodReadPort'),
       h.container.resolve<OrderTransitionPort>('orderTransitionPort'),
       port(),
+      h.container.resolve<OrderPaymentSettlementEffectsPort>('orderPaymentSettlementEffectsPort'),
       { warn: (details, message) => warnings.push({ details: details as Record<string, unknown>, message }) },
     );
 

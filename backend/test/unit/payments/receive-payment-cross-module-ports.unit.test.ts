@@ -7,7 +7,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 import { ModuleDisabledError } from '../../../src/kernel/lifecycle/plugin-helpers.js';
-import type { OrderPaymentStatusApplyPort } from '@endora-commerce/mod-orders/ports';
+import type { OrderPaymentStatusApplyPort, OrderPaymentSettlementEffectsPort } from '@endora-commerce/mod-orders/ports';
 // `dist`, not `src`, and it is this file's central assertion that depends on it:
 // `PAYMENTS_TRANSACTIONAL_ENTITIES` is a `Set` of entity **classes** and the fake
 // `findOne` below decides membership by identity. `Payment` comes from the
@@ -88,12 +88,20 @@ function transactionalEm(rows: Rows): FakeEm {
     getKnex: () => refuse('knex'),
     getConnection: () => refuse('connection'),
     execute: async () => refuse('raw sql'),
-    // The real `em.transactional` commits when the callback returns and rolls
-    // back when it throws; `committed` is the observable half of that.
+    // Model committed rows: callback success commits its changes; a rejection
+    // restores the snapshots. This is a unit double, not database rollback proof.
     transactional: async <T>(cb: (tx: EntityManager) => Promise<T>): Promise<T> => {
-      const out = await cb(tx as unknown as EntityManager);
-      state.committed = true;
-      return out;
+      const paymentBefore = structuredClone(rows.payment);
+      const orderBefore = structuredClone(rows.order);
+      try {
+        const out = await cb(tx as unknown as EntityManager);
+        state.committed = true;
+        return out;
+      } catch (error) {
+        rows.payment = paymentBefore;
+        rows.order = orderBefore;
+        throw error;
+      }
     },
   };
   return state;
@@ -195,6 +203,7 @@ function paymentStatusPort(
         // The stub applies every move; the graph itself is held by
         // `settlement-payment-status-graph.test.ts` against the real port.
         outcome: 'applied',
+        owesEffects: input.paymentStatus === 'paid',
       };
     },
   };
@@ -203,6 +212,25 @@ function paymentStatusPort(
 /** An order the settlement's payment does not point at — the `null` answer. */
 function noSuchOrder(): OrderPaymentStatusApplyPort {
   return { applyPaymentStatus: async () => null };
+}
+
+/**
+ * `orders`' follow-up seam (issue #1576), as a double that records the order
+ * id for `drainForOrder`. The merged apply port records obligations on the
+ * settlement transaction; this double checks that draining happens after commit.
+ */
+function settlementEffectsPort(
+  em: FakeEm,
+): OrderPaymentSettlementEffectsPort & {
+  drainCalls: Array<{ orderId: string; afterCommit: boolean }>;
+} {
+  const drainCalls: Array<{ orderId: string; afterCommit: boolean }> = [];
+  return {
+    drainCalls,
+    drainForOrder: async (orderId) => {
+      drainCalls.push({ orderId, afterCommit: em.committed });
+    },
+  };
 }
 
 function readPort(record: PaymentMethodRecord | null): PaymentMethodReadPort {
@@ -266,6 +294,41 @@ function recordingLog(): SettlementLogger & {
 }
 
 describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 085 Phase D)', () => {
+  it('moves the order and emits payment received before rethrowing a disabled-module drain error', async () => {
+    const rows = { payment: paymentRow(), order: orderRow() };
+    const em = transactionalEm(rows);
+    const transition = transitionPort(em);
+    const events: string[] = [];
+    const error = new ModuleDisabledError('credit_limits');
+    const effects = settlementEffectsPort(em);
+    effects.drainForOrder = async () => {
+      expect(em.committed).toBe(true);
+      expect(transition.asked).toHaveLength(1);
+      expect(transition.asked[0]).toMatchObject({
+        orderId: 'ord-1',
+        to: 'paid',
+        afterCommit: true,
+      });
+      expect(events).toEqual(['payment.received.v1']);
+      throw error;
+    };
+    const handler = new ReceivePaymentHandler(
+      em.emFactory,
+      readPort(methodRecord()),
+      transition,
+      paymentStatusPort(rows, em),
+      effects,
+      recordingLog(),
+      { emit: (name: string) => { events.push(name); } } as never,
+    );
+
+    await expect(handler.receive({ paymentId: 'pay-1', outcome: 'success' })).rejects.toBe(error);
+    expect(rows.payment.status).toBe('paid');
+    expect(rows.order.paymentStatus).toBe('paid');
+    expect(transition.asked).toHaveLength(1);
+    expect(events).toEqual(['payment.received.v1']);
+  });
+
   it('reads the payment method through the port, never through the EntityManager', async () => {
     const rows = { payment: paymentRow(), order: orderRow() };
     const em = transactionalEm(rows);
@@ -276,6 +339,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       transition,
       applyPort,
+      settlementEffectsPort(em),
       recordingLog(),
     );
 
@@ -303,16 +367,24 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
     const em = transactionalEm(rows);
     const applyPort = paymentStatusPort(rows, em);
     const transition = transitionPort(em);
+    const effects = settlementEffectsPort(em);
     const handler = new ReceivePaymentHandler(
       em.emFactory,
       readPort(methodRecord()),
       transition,
       applyPort,
+      effects,
       recordingLog(),
     );
 
     const res = await handler.receive({ paymentId: 'pay-1', outcome: 'success' });
 
+    expect(applyPort.calls).toEqual([
+      { orderId: 'ord-1', paymentStatus: 'paid', sameTx: true, afterCommit: false },
+    ]);
+    expect(effects.drainCalls).toEqual([
+      { orderId: 'ord-1', afterCommit: true },
+    ]);
     expect(transition.asked).toHaveLength(1);
     expect(transition.asked[0]).toMatchObject({
       orderId: 'ord-1',
@@ -327,6 +399,69 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
     expect(res.orderStatus).toBe('paid');
   });
 
+  it('does not drain when the merged apply port reports no owed effects', async () => {
+    const rows = { payment: paymentRow(), order: orderRow() };
+    const em = transactionalEm(rows);
+    const applyPort = paymentStatusPort(rows, em);
+    const apply = applyPort.applyPaymentStatus;
+    applyPort.applyPaymentStatus = async (tx, input) => {
+      const result = await apply(tx, input);
+      return result && { ...result, owesEffects: false };
+    };
+    const effects = settlementEffectsPort(em);
+    const handler = new ReceivePaymentHandler(
+      em.emFactory,
+      readPort(methodRecord()),
+      transitionPort(em),
+      applyPort,
+      effects,
+      recordingLog(),
+    );
+
+    await handler.receive({ paymentId: 'pay-1', outcome: 'success' });
+
+    expect(effects.drainCalls).toEqual([]);
+  });
+
+  it('rolls back settlement when recording the credit-release obligation throws', async () => {
+    const rows = { payment: paymentRow(), order: orderRow() };
+    rows.payment.status = 'deferred';
+    rows.order.paymentStatus = 'deferred';
+    const before = structuredClone(rows);
+    const em = transactionalEm(rows);
+    const transition = transitionPort(em);
+    const effects = settlementEffectsPort(em);
+    const applyPort = paymentStatusPort(rows, em);
+    const apply = applyPort.applyPaymentStatus;
+    const error = new Error('credit-release obligation recording failed');
+    applyPort.applyPaymentStatus = async (tx, input) => {
+      await apply(tx, input);
+      expect(rows.payment.status).toBe('paid');
+      expect(rows.order.paymentStatus).toBe('paid');
+      throw error;
+    };
+    const events: string[] = [];
+    const handler = new ReceivePaymentHandler(
+      em.emFactory,
+      readPort(methodRecord()),
+      transition,
+      applyPort,
+      effects,
+      recordingLog(),
+      { emit: (name: string) => { events.push(name); } } as never,
+    );
+
+    await expect(handler.receive({ paymentId: 'pay-1', outcome: 'success' })).rejects.toBe(error);
+    expect(applyPort.calls).toEqual([
+      { orderId: 'ord-1', paymentStatus: 'paid', sameTx: true, afterCommit: false },
+    ]);
+    expect(em.committed).toBe(false);
+    expect(rows).toEqual(before);
+    expect(effects.drainCalls).toEqual([]);
+    expect(transition.asked).toEqual([]);
+    expect(events).toEqual([]);
+  });
+
   it('carries the decline reason and the failure target on a failed payment', async () => {
     const rows = { payment: paymentRow(), order: orderRow() };
     const em = transactionalEm(rows);
@@ -337,6 +472,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       transition,
       applyPort,
+      settlementEffectsPort(em),
       recordingLog(),
     );
 
@@ -378,6 +514,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       transition,
       applyPort,
+      settlementEffectsPort(em),
       log,
     );
 
@@ -417,6 +554,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       transition,
       applyPort,
+      settlementEffectsPort(em),
       log,
     );
 
@@ -440,6 +578,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord({ statusOnSuccess: '' })),
       transition,
       applyPort,
+      settlementEffectsPort(em),
       recordingLog(),
     );
 
@@ -459,6 +598,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       switchedOff<PaymentMethodReadPort>('payment_methods'),
       transition,
       applyPort,
+      settlementEffectsPort(em),
       recordingLog(),
     );
 
@@ -487,6 +627,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       switchedOff<OrderTransitionPort>('orders'),
       applyPort,
+      settlementEffectsPort(em),
       recordingLog(),
       { emit: () => {} } as never,
     );
@@ -533,6 +674,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       transition,
       applyPort,
+      settlementEffectsPort(em),
       recordingLog(),
     );
 
@@ -562,6 +704,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       transition,
       noSuchOrder(),
+      settlementEffectsPort(em),
       recordingLog(),
     );
 
@@ -596,6 +739,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       transition,
       switchedOff<OrderPaymentStatusApplyPort>('orders'),
+      switchedOff<OrderPaymentSettlementEffectsPort>('orders'),
       recordingLog(),
     );
 
@@ -638,6 +782,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       transitionPort(partialEm),
       partialPort,
+      settlementEffectsPort(partialEm),
       recordingLog(),
     );
 
@@ -661,6 +806,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
       readPort(methodRecord()),
       fullTransition,
       fullPort,
+      settlementEffectsPort(fullEm),
       recordingLog(),
     );
 
@@ -696,7 +842,7 @@ describe('ReceivePaymentHandler cross-module ports (feature 075 C-W3, feature 08
     const port = paymentStatusPort(rows, em);
     const transition = transitionPort(em);
     const log = recordingLog();
-    const handler = new ReceivePaymentHandler(em.emFactory, readPort(methodRecord()), transition, port, log);
+    const handler = new ReceivePaymentHandler(em.emFactory, readPort(methodRecord()), transition, port, settlementEffectsPort(em), log);
 
     const result = await handler.reflectRefund({
       paymentId: 'pay-1',
