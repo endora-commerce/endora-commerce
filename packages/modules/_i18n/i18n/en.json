@@ -1062,6 +1062,7 @@
   "invoices.fields.totalMax": "Total to",
   "invoices.fields.totalMin": "Total from",
   "invoices.filters.orderNumberPlaceholder": "e.g. ORD-2026-…",
+  "invoices.filters.organization": "Billed organization",
   "invoices.kind.correction": "correction",
   "invoices.kind.invoice": "invoice",
   "invoices.kind.proforma": "proforma",

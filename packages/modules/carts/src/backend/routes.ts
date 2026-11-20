@@ -15,6 +15,8 @@ import {
   cartUpsellsQuerySchema,
   applyCartCouponSchema,
   convertCartToQrSchema,
+  setCartBuyingForRequestSchema,
+  type CartBuyingForResetReason,
   ERROR_CODES,
   OrganizationCannotTransactError,
   organizationPermissionPreHandler,
@@ -42,6 +44,15 @@ import type { CartUpsellService } from './services/cart-upsell-service.js';
 import type { CartCouponService } from './services/cart-coupon-service.js';
 import type { CartConversionService } from './services/cart-conversion-service.js';
 import type { CartPricingRecompute, RecomputeRefusal } from './services/cart-pricing-recompute.js';
+import type { CartBuyingForService } from './services/cart-buying-for.js';
+
+/** What the routes need of *Buying for* (`specs/182-related-payers/`). */
+export interface CartBuyingForRoutes extends Pick<CartBuyingForService, 'set' | 'resetIfUnusable'> {
+  /** Whether a payer can be named now — `related_payers` present. */
+  available(): boolean;
+  /** The payer's name for the cart's `buyingFor`. */
+  payerName(organizationId: string): Promise<string>;
+}
 import { agreementOf } from './services/cart-line-pricing.js';
 import { productMetaOf, type ProductMeta } from './services/cart-line-meta.js';
 import { derivePrimaryCta } from './services/cart-state-machine.js';
@@ -137,6 +148,11 @@ export interface CartsDeps {
    * per rate from it, so a client never derives a gross itself.
    */
   cartTaxRates: ProductTaxRateResolver;
+  /**
+   * `specs/182-related-payers/` FR-110 — *Buying for*. Absent in a composition without it;
+   * `available()` answers whether `related_payers` is present now.
+   */
+  cartBuyingFor?: CartBuyingForRoutes;
   /**
    * Feature 027 US3 — ShoppingListService.convertToCart bridge for the
    * `POST /api/v1/cart/from-shopping-list/:listId` endpoint. Returns the
@@ -394,7 +410,6 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         ? { data: emptyMiniCart() }
         : { data: emptyCart() };
     }
-    const items = await cartService.getItems(cart.id);
 
     // Feature 027 FR-007 — mini-cart payload. Skips re-pricing-on-read,
     // skips coupon re-evaluation, and emits the lightweight serializer
@@ -403,8 +418,90 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
     // hot path (every header render) so the heavy work is intentionally
     // deferred to the full view.
     if (request.query?.view === 'mini') {
-      return { data: serializeCartMini(cart, items) };
+      return { data: serializeCartMini(cart, await cartService.getItems(cart.id)) };
     }
+    return fullCartView(request, actor, cart);
+  });
+
+  /**
+   * `specs/182-related-payers/` FR-110, FR-113 — *Buying for*: set or clear the payer whose
+   * terms price this cart, and answer the repriced cart with what changed. The link decides
+   * the terms; the client names a payer and nothing else (FR-111).
+   */
+  app.put(
+    '/api/v1/cart/buying-for',
+    { preHandler: createsCarts, schema: { body: setCartBuyingForRequestSchema } },
+    async (request) => {
+      const actor = resolveCartActor(request);
+      const body = setCartBuyingForRequestSchema.parse(request.body);
+      const buyingFor = deps.cartBuyingFor;
+      // FR-001 — with `related_payers` absent there is no payer to buy for: not found.
+      if (!buyingFor || (body.payerOrganizationId !== null && !buyingFor.available())) {
+        throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Not found.');
+      }
+      const customer = actor.customer;
+      if (!customer?.organizationId) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Not found.');
+      await guardOrganizationTransact(actor);
+      const cart = await basketFor(actor);
+      if (!cart) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Not found.');
+      // RP-19 (b) — the promotions the switch adds and removes are the cart's own answer before
+      // and after (`fullCartView`: the same totals basis, line VAT included), never a parallel
+      // evaluation that could judge a minimum spend differently.
+      const before = (await fullCartView(request, actor, cart)).data.appliedPromotions;
+      const { repricing } = await buyingFor.set({
+        cartId: cart.id,
+        subject: {
+          buyerOrganizationId: customer.organizationId,
+          customerAccountId: customer.customerAccountId,
+          salesChannelId: actor.salesChannelId,
+        },
+        payerOrganizationId: body.payerOrganizationId,
+      });
+      const fresh = await basketFor(actor);
+      const view = await fullCartView(request, actor, fresh ?? cart);
+      const ids = (list: ReadonlyArray<{ promotionId: string }>) => new Set(list.map((p) => p.promotionId));
+      const [beforeIds, afterIds] = [ids(before), ids(view.data.appliedPromotions)];
+      const named = (p: { promotionId: string }) => ({ promotionId: p.promotionId, name: null });
+      return {
+        data: {
+          ...view.data,
+          repricing: {
+            ...repricing,
+            promotionsAdded: view.data.appliedPromotions.filter((p) => !beforeIds.has(p.promotionId)).map(named),
+            promotionsRemoved: before.filter((p) => !afterIds.has(p.promotionId)).map(named),
+          },
+        },
+      };
+    },
+  );
+
+  /** The full cart view (`GET /api/v1/cart`), shared with the *Buying for* write. */
+  async function fullCartView(
+    request: FastifyRequest,
+    actor: ReturnType<typeof resolveCartActor>,
+    cart: Cart,
+  ): Promise<{ data: CartFullPayload }> {
+    // `specs/182-related-payers/` FR-116 — a cart whose *Buying for* stopped being usable, or
+    // whose link turned to the buyer's terms, returns to the buyer's own context on this read,
+    // repriced, and says why.
+    let buyingForReset: { reason: CartBuyingForResetReason } | null = null;
+    if (cart.buyingForOrganizationId && actor.customer?.organizationId && deps.cartBuyingFor) {
+      const reset = await deps.cartBuyingFor.resetIfUnusable({
+        cartId: cart.id,
+        subject: {
+          buyerOrganizationId: actor.customer.organizationId,
+          customerAccountId: actor.customer.customerAccountId,
+          salesChannelId: actor.salesChannelId,
+        },
+      });
+      if (reset) {
+        buyingForReset = { reason: reset.reason };
+        cart.buyingForOrganizationId = null;
+        cart.buyingForTerms = null;
+      }
+    }
+    const items = await cartService.getItems(cart.id);
+    const payerTerms = cart.buyingForTerms === 'payer' ? (cart.buyingForOrganizationId ?? null) : null;
 
     // Resolve per-line display name + slug so the storefront does not
     // have to fan out one fetch per line. Bulk lookup keyed by
@@ -480,6 +577,8 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
             salesChannelId: actor.salesChannelId,
             // D-287 P0 — the customer's own group, as on the add path.
             customerAccountId: cart.customerAccountId ?? null,
+            // `specs/182-related-payers/` FR-111 — on the payer's terms, priced as the payer.
+            pricingOrganizationId: payerTerms,
           },
           lines,
         );
@@ -565,9 +664,17 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
         minimumViews,
         pricingRefusals,
         taxRates,
+        cart.buyingForOrganizationId && cart.buyingForTerms && deps.cartBuyingFor
+          ? {
+              organizationId: cart.buyingForOrganizationId,
+              name: await deps.cartBuyingFor.payerName(cart.buyingForOrganizationId),
+              terms: cart.buyingForTerms,
+            }
+          : null,
+        buyingForReset,
       ),
     );
-  });
+  }
 
   app.post(
     '/api/v1/cart/items',
@@ -937,6 +1044,8 @@ function emptyCart(): CartFullPayload {
     lastActivityAt: null,
     previousRejection: null,
     vat: null,
+    buyingFor: null,
+    buyingForReset: null,
   };
 }
 
@@ -1013,6 +1122,10 @@ function serializeCart(
    * the mutation answers, which carry no VAT.
    */
   taxRates: Map<string, number> | null = null,
+  /** `specs/182-related-payers/` FR-110 — the cart's *Buying for*, or `null`. */
+  buyingFor: CartFullPayload['buyingFor'] = null,
+  /** FR-116 — set on the one read that dropped the context. */
+  buyingForReset: CartFullPayload['buyingForReset'] = null,
 ): CartFullPayload {
   let currency = items[0]?.currency ?? 'PLN';
   // Each line at the price it is shown at, for the subtotal (issue #417: exact).
@@ -1131,6 +1244,8 @@ function serializeCart(
           grandTotalGross: vat.grandTotalGross,
         }
       : null,
+    buyingFor,
+    buyingForReset,
   };
 }
 
@@ -1163,7 +1278,12 @@ async function lineTaxRates(
     const typeOf = new Map(records.map((p) => [p.id, p.type]));
     const lineTypes = new Map(items.map((it) => [it.id, typeOf.get(it.productId) ?? ('simple' as const)]));
     const byType = await deps.cartTaxRates({
-      organizationId: cart.organizationId ?? null,
+      // `specs/182-related-payers/` RP-14 — on the payer's terms the VAT is the payer's (its
+      // status and country), the rate checkout charges (FR-064).
+      organizationId:
+        cart.buyingForTerms === 'payer' && cart.buyingForOrganizationId
+          ? cart.buyingForOrganizationId
+          : (cart.organizationId ?? null),
       productTypes: [...lineTypes.values()],
     });
     return new Map([...lineTypes].map(([itemId, type]) => [itemId, byType.get(type) ?? 0]));

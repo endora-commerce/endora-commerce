@@ -346,6 +346,21 @@ zgodność kwot koszyka z kwotami zamówienia
 utrzymują `backend/test/unit/carts/cart-vat-equals-order.test.ts` i
 `backend/test/integration/carts/cart-vat-equals-placement.test.ts`.
 
+## Kupowanie dla płatnika powiązanego {#buying-for-a-related-payer}
+
+Gdy moduł *Related payers* jest włączony, a powiązanie kupującego z płatnikiem jest na warunkach
+handlowych **płatnika**, `PUT /api/v1/cart/buying-for` ustawia `buyingFor` aktywnego koszyka na tego
+płatnika (`{ "payerOrganizationId": null }` je czyści). Koszyk jest wtedy przeliczany dla płatnika:
+ceny pozycji, VAT pozycji (status VAT i kraj płatnika) i promocje, a wykorzystanie promocji jest
+zapisywane na płatnika. Odpowiedź zawiera podsumowanie przeliczenia — dla każdej pozycji cenę przed
+i po, pozycje, które zostały bez ceny, oraz dodane i usunięte promocje.
+
+Każdy odczyt koszyka ponownie sprawdza powiązanie. Jeśli nie można go już użyć, jego warunki wróciły
+do warunków kupującego albo moduł jest wyłączony, koszyk wraca do własnych cen kupującego, a
+odpowiedź zawiera `buyingForReset` z powodem. Kontekst koszyka jest czyszczony, gdy koszyk zostaje
+zrealizowany. Bez modułu *Related payers* nie można wybrać płatnika, a koszyk kupowany dla płatnika
+przy następnym odczycie jest wyceniany dla kupującego.
+
 ## Ustawienia
 
 | Klucz | Wartość domyślna | Opis |

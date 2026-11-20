@@ -161,3 +161,11 @@ describe('returnContextFrom — the placement time', () => {
     expect(ctx.placedAt).toEqual(placedAt);
   });
 });
+
+describe('returnContextFrom — the payer (`specs/182-related-payers/` FR-082)', () => {
+  it('publishes the order\'s payer, and null for an order without one', () => {
+    const paid = returnContextFrom({ ...(order(null, '10.00', '2.30') as object), payerOrganizationId: 'payer-y' } as never, []);
+    expect(paid.payerOrganizationId).toBe('payer-y');
+    expect(returnContextFrom(order(null, '10.00', '2.30'), []).payerOrganizationId).toBeNull();
+  });
+});

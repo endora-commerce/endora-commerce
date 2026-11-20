@@ -916,6 +916,7 @@ export class CartService {
       signedIn: actor.customer !== undefined,
       salesChannelId: this.#basketChannelOf(actor),
       customerAccountId: actor.customer?.customerAccountId ?? null,
+      pricingOrganizationId: payerTermsOf(cart),
     });
     if (existing) {
       // The merged line is a line of a new quantity, so it takes the price for
@@ -1200,6 +1201,7 @@ export class CartService {
         signedIn: actor.customer !== undefined,
         salesChannelId: this.#basketChannelOf(actor),
         customerAccountId: actor.customer?.customerAccountId ?? cart.customerAccountId ?? null,
+        pricingOrganizationId: payerTermsOf(cart),
       });
       const price = await this.#orderablePriceOrRefuse(pricingCtx, {
         product,
@@ -1495,11 +1497,20 @@ export class CartService {
   ): Promise<Map<string, 'unpriced' | 'quote_only'>> {
     const refused = new Map<string, 'unpriced' | 'quote_only'>();
     if (items.length === 0) return refused;
+    // `specs/182-related-payers/` FR-111 — the lines take the price of the basket they now sit
+    // in: a basket bought for a payer on its terms prices them for the payer (the sign-in merge
+    // into such a basket, a reorder seeded into it).
+    const basket = await em.findOne(
+      Cart,
+      { id: items[0]!.cartId },
+      { fields: ['id', 'buyingForOrganizationId', 'buyingForTerms'] },
+    );
     const pricingCtx = await this.#linePricing.contextFor(em, {
       organizationId: customer.organizationId,
       signedIn: true,
       salesChannelId: customer.salesChannelId,
       customerAccountId: customer.customerAccountId,
+      pricingOrganizationId: basket ? payerTermsOf(basket) : null,
     });
     const products = await this.catalogProducts.findByIds([
       ...new Set(items.map((it) => it.productId)),
@@ -1623,4 +1634,15 @@ function restoredLineInput(line: CartItem): CartBatchLineInput {
     ...(line.variantId ? { variantId: line.variantId } : {}),
     ...(unit !== null ? { packagingUnitId: line.packagingUnitId!, quantity: Math.max(1, Math.round(line.quantity / unit)) } : { quantity: line.quantity }),
   };
+}
+
+/**
+ * `specs/182-related-payers/` FR-111 — the payer whose commercial terms price this basket, or
+ * `null` for the buyer's own (and for a payer chosen on the buyer's terms, which prices nothing).
+ */
+function payerTermsOf(cart: {
+  buyingForOrganizationId?: string | null | undefined;
+  buyingForTerms?: string | null | undefined;
+}): string | null {
+  return cart.buyingForTerms === 'payer' ? (cart.buyingForOrganizationId ?? null) : null;
 }

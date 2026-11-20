@@ -556,6 +556,25 @@ export const ERROR_CODES = {
   RETURN_GUEST_LIMIT_REACHED: 'RETURN_GUEST_LIMIT_REACHED',
   RETURN_GUEST_DATA_ERASED: 'RETURN_GUEST_DATA_ERASED',
 
+  // Related payers — `specs/182-related-payers/` (contracts/ports.md §5). Each code
+  // lands with its first raise site (check:error-translations P7).
+  /** 422 — the pair already has a non-revoked link (FR-010). */
+  RELATED_PAYER_LINK_EXISTS: 'RELATED_PAYER_LINK_EXISTS',
+  /** 422 — the pair can never be linked: one Organization twice, or a personal one (FR-010). */
+  RELATED_PAYER_INVALID_PAIR: 'RELATED_PAYER_INVALID_PAIR',
+  /**
+   * 422 — the named payer's link is not usable for this buyer, person and channel now
+   * (FR-012, FR-068); `details.reason` names why, for logs — the sentence is one.
+   */
+  RELATED_PAYER_NOT_USABLE: 'RELATED_PAYER_NOT_USABLE',
+  /**
+   * 429 — the sender's Organization reached its daily number of payer requests and
+   * invitations (FR-046). Checked before the tax ID is looked up, so it reveals nothing.
+   */
+  RELATED_PAYER_REQUEST_LIMIT: 'RELATED_PAYER_REQUEST_LIMIT',
+  /** 409 — the request was already decided, or decided concurrently (FR-045). */
+  RELATED_PAYER_REQUEST_DECIDED: 'RELATED_PAYER_REQUEST_DECIDED',
+
   // Credit Limit
   CREDIT_LIMIT_NOT_GRANTED: 'CREDIT_LIMIT_NOT_GRANTED',
   CREDIT_LIMIT_ALREADY_GRANTED: 'CREDIT_LIMIT_ALREADY_GRANTED',

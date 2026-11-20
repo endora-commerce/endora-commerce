@@ -34,6 +34,8 @@ import type {
   OrganizationDetailsPort,
   OrganizationPermissionPort,
   OrganizationRestrictionPort,
+  RelatedPayerPolicyPort,
+  PaidOrderReadPort,
   PaymentEmailRendererPort,
   PaymentMethodReadPort,
   QuoteRequestReadPort,
@@ -92,6 +94,7 @@ import { PurchaseConversionService } from './services/purchase-conversion-servic
 import { emitOrderStatusAfter } from './events/order-status-events.js';
 import { OrderPaymentStatusApplyService } from './services/order-payment-status-apply-port.js';
 import { OrderReadService, toOrderRecord } from './services/order-read-port.js';
+import { PaidOrderReadService } from './services/paid-order-read-port.js';
 import { OrderReturnContextProvider } from './services/order-return-context.js';
 import { OrderExternalReferenceService } from './services/order-external-reference-service.js';
 import { registerOrderSalesChannelAttributions } from './services/sales-channel-attributions.js';
@@ -615,6 +618,9 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'organizationRestrictionPort',
             ),
+            // `specs/182-related-payers/` — read only for an order naming a payer;
+            // `refuses-without` in the manifest (503 while the owner is off).
+            relatedPayerPolicy: lazyPort<RelatedPayerPolicyPort>(ctx, 'relatedPayerPolicyPort'),
             deliveryMethodRead: () =>
               effectiveState.isPresent('delivery_methods')
                 ? lazyPort<DeliveryMethodReadPort>(ctx, 'deliveryMethodReadPort')
@@ -895,6 +901,23 @@ export function registerModule(ctx: ModuleContext): void {
           new OrderCustomFieldCarryReceiver({
             commandBus,
             customFieldCarry: lazyPort<CustomFieldCarryPort>(ctx, 'customFieldCarryPort'),
+          }),
+      )
+      .singleton(),
+  );
+
+  // `specs/182-related-payers/` (FR-070) — the orders a related payer pays for, read under
+  // a system scope by `payer_organization_id`; consumed by `related_payers` only.
+  ctx.di.providePort<PaidOrderReadPort>(
+    'paidOrderReadPort',
+    ctx
+      .asFunction(
+        ({ emFactory }: OrdersCradle) =>
+          new PaidOrderReadService({
+            emFactory,
+            organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            invoiceRead: () =>
+              effectiveState.isPresent('invoices') ? lazyPort<InvoiceReadPort>(ctx, 'invoiceReadPort') : null,
           }),
       )
       .singleton(),

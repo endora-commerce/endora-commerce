@@ -115,6 +115,8 @@ vi.mock('../../lib/server-context', async () => {
 });
 vi.mock('../../lib/api/account', () => ({ getMe: async () => me }));
 vi.mock('../../lib/api/auth', () => ({ logoutCustomer: async () => undefined }));
+// `specs/182-related-payers/` FR-002 — the channel read the account navigation makes; not this test's subject.
+vi.mock('../../lib/api/related-payers', () => ({ getRelatedPayersAvailability: async () => false }));
 vi.mock('../../lib/api/cart', () => ({
   listOrganizationCarts: async (_jar: unknown, filter: unknown) => {
     cartListCalls.push(filter);

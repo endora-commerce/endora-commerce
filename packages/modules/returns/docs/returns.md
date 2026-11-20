@@ -740,6 +740,14 @@ product list and use **Bulk edit → Returnable → Yes — returnable**. Orders
 placed before the release are unaffected: their lines carry no recorded value
 and stay returnable.
 
+## Orders paid by a related payer {#orders-paid-by-a-related-payer}
+
+The order context `returns` reads carries `payerOrganizationId`. A credit resolution on a case
+about an order paid by a related payer (the *Related payers* module) credits the **payer** —
+`payerOrganizationId ?? organizationId` — because the payer was invoiced. Who may open and act on
+the case is unchanged: the buyer's Organization; the payer cannot open a return on an order it
+pays for.
+
 ## In the audit log
 
 A return case is an Organization's record, and the platform-wide audit log is read

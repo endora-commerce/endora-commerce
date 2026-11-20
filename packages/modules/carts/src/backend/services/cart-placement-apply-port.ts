@@ -129,6 +129,9 @@ export class CartPlacementApplyService implements CartPlacementApplyPort {
     cart.status = 'completed';
     // Which order emptied this cart (D-94.1), held by `carts_completed_order_fk`.
     cart.completedOrderId = input.orderId;
+    // `specs/182-related-payers/` T060 — the order now carries the payer and its terms.
+    cart.buyingForOrganizationId = null;
+    cart.buyingForTerms = null;
     // Always null on an authenticated checkout today, but cleared for the edge
     // case where a customer checks out from an anon-derived cart that still
     // carries the token.
@@ -175,7 +178,7 @@ export class CartPlacementApplyService implements CartPlacementApplyPort {
     const cart = await em.findOneOrFail(
       Cart,
       { id: input.cartId },
-      { fields: ['id', 'salesChannelId', 'customerAccountId'] },
+      { fields: ['id', 'salesChannelId', 'customerAccountId', 'buyingForOrganizationId', 'buyingForTerms'] },
     );
     if (!cart.salesChannelId) {
       throw new Error(`[carts] cart ${input.cartId} records no sales channel to price it on.`);
@@ -189,6 +192,8 @@ export class CartPlacementApplyService implements CartPlacementApplyPort {
       signedIn: true,
       salesChannelId: cart.salesChannelId,
       customerAccountId: cart.customerAccountId ?? null,
+      // `specs/182-related-payers/` FR-117 — the drift check prices in the cart's context.
+      pricingOrganizationId: cart.buyingForTerms === 'payer' ? (cart.buyingForOrganizationId ?? null) : null,
     });
     const products = await this.catalogProducts.findByIds([
       ...new Set(items.map((it) => it.productId)),

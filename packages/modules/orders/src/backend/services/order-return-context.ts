@@ -62,6 +62,8 @@ export function returnContextFrom(
     | 'discountTotal'
   > & {
     vatMethod?: 'per_rate' | null | undefined;
+    /** `specs/182-related-payers/` — absent on a caller that predates it: read as no payer. */
+    payerOrganizationId?: string | null | undefined;
     /** Issue #876 — absent on a caller that predates it: read as no delivery. */
     deliveryTotal?: string | undefined;
     paymentMethodSnapshot?: { additionalPrice?: number | string | undefined } | null | undefined;
@@ -82,6 +84,8 @@ export function returnContextFrom(
     salesChannelId: order.salesChannelId,
     customerAccountId: order.placedByCustomerAccountId,
     organizationId: order.organizationId ?? null,
+    // `specs/182-related-payers/` (RP-7, FR-082) — the refund target is the payer.
+    payerOrganizationId: order.payerOrganizationId ?? null,
     currency: order.currency,
     completingStatusEnteredAt: completing ? (order.completedAt ?? null) : null,
     // `specs/177-tax-id-scope/` FR-040 — `returns` compares it with the

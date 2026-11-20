@@ -1048,6 +1048,30 @@ panel likewise prints no tax ID for a personal Organization and labels it
 *Individual customer* instead: the admin order reply carries
 `organization.taxId: null` and `organization.isPersonal: true` for it.
 
+## Orders paid by a related payer {#orders-paid-by-a-related-payer}
+
+When the *Related payers* module is on, a buyer may name another Organization of the store as the
+payer of an order (`payerOrganizationId` on the place and preview requests). Placement then asks
+that module's policy port, inside the transaction, whether the link is usable, and:
+
+- takes the billing address from the payer's addresses the link allows, and the billing company
+  name and tax ID from the payer — the free-text billing override cannot be sent with a payer
+  (`400 VALIDATION_FAILED`, issue `payer_billing_override_conflict`);
+- computes tax from the payer's VAT status and billing country, in the preview as at placement;
+- checks the payment method against the **payer's** allow-list and reserves the **payer's**
+  credit (or its credit owner's);
+- keeps the order on the buyer's Organization, delivery included, and stores `payer_organization_id`,
+  the link, its terms (`buyer` or `payer`) and a snapshot of the payer. The order reply carries it
+  as `payer`, and the admin list accepts `?payerOrganizationId=`.
+
+On a cart bought for the payer on its own terms, the payer must be the cart's, and prices,
+promotions and the minimum order value are those of the cart's payer context. Any refusal refuses
+the whole placement; nothing is written, reserved or emitted. Without the *Related payers* module
+an order naming a payer is refused and every other order is unaffected.
+
+`orders` also publishes `paidOrderReadPort`, the payer's read-only view of the orders it pays for:
+constrained to the payer, without the delivery address, the customer note or the comments.
+
 ## External system references
 
 A module that hands orders over to another system — an ERP, a warehouse system,

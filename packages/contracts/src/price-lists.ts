@@ -470,6 +470,13 @@ export interface ListingPriceViewerContext {
   customerGroupId?: string | null;
   /** D-287 P0 — the customer account whose own group to resolve; see {@link PricingBuyerContext}. */
   customerAccountId?: string | null;
+  /**
+   * `specs/182-related-payers/` RP-14 (research R-4.7) — the Organization whose display mode
+   * applies, when it is not the priced one: the buyer acting on a payer's commercial terms sees
+   * the payer's prices in its own display mode. Absent means `organization`. Not part of any
+   * profile or cache key.
+   */
+  displayModeOrganization?: PriceOrganization | null;
 }
 
 /**
@@ -494,6 +501,13 @@ export interface PricingBuyerContext {
   organization?: PriceOrganization | null;
   customerGroupId?: string | null;
   customerAccountId?: string | null;
+  /**
+   * `specs/182-related-payers/` RP-14 (research R-4.7) — the Organization whose display mode
+   * applies, when it is not the priced one: the buyer acting on a payer's commercial terms sees
+   * the payer's prices in its own display mode. Absent means `organization`. Not part of any
+   * profile or cache key.
+   */
+  displayModeOrganization?: PriceOrganization | null;
 }
 
 /**

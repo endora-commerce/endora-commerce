@@ -66,6 +66,7 @@
 @import "@endora-commerce/mod-pwa/tailwind.css";
 @import "@endora-commerce/mod-quick-order/tailwind.css";
 @import "@endora-commerce/mod-quote-requests/tailwind.css";
+@import "@endora-commerce/mod-related-payers/tailwind.css";
 @import "@endora-commerce/mod-returns/tailwind.css";
 @import "@endora-commerce/mod-sales-channels/tailwind.css";
 @import "@endora-commerce/mod-seo/tailwind.css";

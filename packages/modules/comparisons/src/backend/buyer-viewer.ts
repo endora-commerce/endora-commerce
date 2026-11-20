@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { requestScopeLanguage } from '@endora-commerce/contracts';
-import { productAudienceOf } from '@endora-commerce/platform/http';
+import { pricedAudienceOf } from '@endora-commerce/platform/http';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 import type { ComparisonViewer } from './services/comparison-service.js';
 
@@ -11,11 +11,12 @@ import type { ComparisonViewer } from './services/comparison-service.js';
  * and the share route (final code review C-n1), so they cannot answer the same
  * reader differently.
  */
-export function buyerViewerOf(request: FastifyRequest): ComparisonViewer {
+export async function buyerViewerOf(request: FastifyRequest): Promise<ComparisonViewer> {
   const tag = languageTagOf(request);
   return {
     kind: 'buyer',
-    audience: productAudienceOf(request),
+    // `specs/182-related-payers/` FR-115 — priced for the payer on its terms (research R-4).
+    audience: await pricedAudienceOf(request),
     ...(tag ? { languageTag: tag } : {}),
   };
 }

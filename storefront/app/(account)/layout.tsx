@@ -6,10 +6,13 @@ import { isReturnsEntryPath, signedOutReturnsTarget } from '../../lib/returns/gu
 import { getMe } from '../../lib/api/account';
 import { listOrganizationCarts } from '../../lib/api/cart';
 import { getUnreadNotificationCount } from '../../lib/api/customer-notifications';
+import { getRelatedPayersAvailability } from '../../lib/api/related-payers';
 import { logoutCustomer } from '../../lib/api/auth';
 import { StorefrontApiError } from '../../lib/api/client';
 import { ImpersonationBanner } from '../../components/ImpersonationBanner';
 import { SignOutButton } from '../../components/account/SignOutButton';
+import { showsPaidOrders } from '../../components/account/PaidOrders';
+import { showsPayers } from '../../components/account/Payers';
 import { localeRedirect } from '../../lib/i18n/navigation';
 import { LocalizedLink } from '../../lib/i18n/localized-link';
 import { getServerContext } from '../../lib/server-context';
@@ -69,6 +72,11 @@ export default async function AccountLayout({
   const manages = organizationAreaAccess(me, 'members') === 'allowed';
   const approves = organizationAreaAccess(me, 'carts') === 'allowed';
   const waiting = approves ? await pendingCartCount(session) : null;
+  // `specs/182-related-payers/` FR-002 — off on this channel, the module present, both entries are
+  // as absent as the routes behind them. Read only when one of them would otherwise be offered.
+  const offersPaidOrders = showsPaidOrders(me, modules);
+  const offersPayers = showsPayers(me, modules);
+  const payersOnChannel = offersPaidOrders || offersPayers ? await getRelatedPayersAvailability(session, ctx) : false;
 
   return (
     <section className="b2b-account">
@@ -112,6 +120,12 @@ export default async function AccountLayout({
         {me.organization ? (
           <>
             <LocalizedLink href="/orders">{t('account.nav.orders')}</LocalizedLink>
+            {/* `specs/182-related-payers/` FR-070 — beside the orders this Organization places. */}
+            {offersPaidOrders && payersOnChannel ? (
+              <LocalizedLink href="/paid-orders">{t('account.nav.paidOrders')}</LocalizedLink>
+            ) : null}
+            {/* `specs/182-related-payers/` FR-047 — payers, requests and the buyers we pay for. */}
+            {offersPayers && payersOnChannel ? <LocalizedLink href="/payers">{t('account.nav.payers')}</LocalizedLink> : null}
             {modules.isPresent('returns') ? (
               <LocalizedLink href="/returns">{t('account.nav.returns')}</LocalizedLink>
             ) : null}

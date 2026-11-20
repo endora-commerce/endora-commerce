@@ -212,6 +212,9 @@ importers:
       '@endora-commerce/mod-quote-requests':
         specifier: workspace:*
         version: link:../packages/modules/quote_requests
+      '@endora-commerce/mod-related-payers':
+        specifier: workspace:*
+        version: link:../packages/modules/related_payers
       '@endora-commerce/mod-returns':
         specifier: workspace:*
         version: link:../packages/modules/returns
@@ -540,6 +543,9 @@ importers:
       '@endora-commerce/mod-quote-requests':
         specifier: workspace:*
         version: link:../packages/modules/quote_requests
+      '@endora-commerce/mod-related-payers':
+        specifier: workspace:*
+        version: link:../packages/modules/related_payers
       '@endora-commerce/mod-returns':
         specifier: workspace:*
         version: link:../packages/modules/returns
@@ -3872,6 +3878,60 @@ importers:
       react-router-dom:
         specifier: ^7.18.2
         version: 7.18.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.12
+        version: 4.1.12(@types/node@22.19.17)(happy-dom@21.0.4)(jsdom@29.1.1(@noble/hashes@2.0.1))(vite@8.3.8(@types/node@22.19.17)(esbuild@0.28.2)(jiti@2.6.1)(terser@5.46.2)(tsx@4.23.15)(yaml@2.9.0))
+      zod:
+        specifier: ^4.2.0
+        version: 4.3.6
+
+  packages/modules/related_payers:
+    devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/email-components':
+        specifier: workspace:*
+        version: link:../../email-components
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@endora-commerce/test-kit':
+        specifier: workspace:*
+        version: link:../../test-kit
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.16
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.16(@mikro-orm/core@6.6.16)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.16(@mikro-orm/core@6.6.16)
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.3.0
+      bullmq:
+        specifier: ^5.76.1
+        version: 5.76.1
+      fastify:
+        specifier: ^5.12.8
+        version: 5.12.8
+      ioredis:
+        specifier: ^5.10.1
+        version: 5.10.1
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

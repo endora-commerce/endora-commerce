@@ -98,6 +98,7 @@ import { entities as pwaEntities } from '@endora-commerce/mod-pwa/backend';
 import { entities as quickOrderEntities } from '@endora-commerce/mod-quick-order/backend';
 import { entities as quoteRequestsEntities } from '@endora-commerce/mod-quote-requests/backend';
 import { entities as returnsEntities } from '@endora-commerce/mod-returns/backend';
+import { entities as relatedPayersEntities } from '@endora-commerce/mod-related-payers/backend';
 import { entities as searchEntities } from '@endora-commerce/mod-search/backend';
 import { entities as seoEntities } from '@endora-commerce/mod-seo/backend';
 import { entities as authEntities } from '@endora-commerce/mod-auth/backend';
@@ -170,6 +171,7 @@ export const ALL_ENTITIES = [
   ...(quickOrderEntities as readonly EntityClassLike[]),
   ...(quoteRequestsEntities as readonly EntityClassLike[]),
   ...(returnsEntities as readonly EntityClassLike[]),
+  ...(relatedPayersEntities as readonly EntityClassLike[]),
   ...(searchEntities as readonly EntityClassLike[]),
   ...(seoEntities as readonly EntityClassLike[]),
   ...(authEntities as readonly EntityClassLike[]),

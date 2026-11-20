@@ -60,6 +60,12 @@ export interface CartPricingContext {
    * hand-built context for a guest needs nothing.
    */
   customerAccountId?: string | null;
+  /**
+   * `specs/182-related-payers/` RP-14 — on a payer's commercial terms `organization` is the
+   * **payer** (priced) while `organizationId` stays the buyer, whose display mode applies.
+   * `null` in the buyer's own context.
+   */
+  displayModeOrganizationId?: string | null;
 }
 
 export interface CartLinePriceInput {
@@ -111,6 +117,12 @@ export class CartLinePricing {
       salesChannelId: string;
       /** D-287 P0 — the customer whose own group to price on. */
       customerAccountId?: string | null;
+      /**
+       * `specs/182-related-payers/` FR-111 — the payer whose terms price the cart (its
+       * *Buying for* on the payer's terms), or `null`/absent for the buyer's own. The engine is
+       * then named the payer with no customer account (A-18); the display mode stays the buyer's.
+       */
+      pricingOrganizationId?: string | null;
     },
   ): Promise<CartPricingContext> {
     const channel = await em.findOne(
@@ -118,15 +130,18 @@ export class CartLinePricing {
       { id: input.salesChannelId },
       { fields: ['id', 'defaultCurrency'] },
     );
-    const organization = input.organizationId
-      ? await this.organizations.findById(input.organizationId)
+    const payer = input.pricingOrganizationId && input.pricingOrganizationId !== input.organizationId
+      ? input.pricingOrganizationId
       : null;
+    const pricedId = payer ?? input.organizationId;
+    const organization = pricedId ? await this.organizations.findById(pricedId) : null;
     return {
       channel: channel ? { id: channel.id, defaultCurrency: channel.defaultCurrency } : null,
       organization,
       organizationId: input.organizationId,
       signedIn: input.signedIn,
-      customerAccountId: input.customerAccountId ?? null,
+      customerAccountId: payer ? null : (input.customerAccountId ?? null),
+      displayModeOrganizationId: payer ? input.organizationId : null,
     };
   }
 
@@ -169,6 +184,7 @@ export class CartLinePricing {
             ...(ctx.organization && ctx.customerAccountId
               ? { customerAccountId: ctx.customerAccountId }
               : {}),
+            ...(ctx.displayModeOrganizationId ? { displayModeOrganization: { id: ctx.displayModeOrganizationId } } : {}),
             salesChannel: ctx.channel,
           },
         })

@@ -188,5 +188,9 @@
   "list.rowMenu.changeStatus": "Change status…",
   "list.rowMenu.printInvoice": "Print invoice",
   "list.rowMenu.organization": "Open organization",
-  "detail.tabs.label": "Order sections"
+  "detail.tabs.label": "Order sections",
+  "orderDetail.payer": "Payer",
+  "orderDetail.payerTerms.buyer": "on the buyer's terms",
+  "orderDetail.payerTerms.payer": "on the payer's terms",
+  "list.filter.payer": "Payer"
 }

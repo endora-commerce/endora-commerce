@@ -12,7 +12,7 @@ import {
   type ProductAudience,
 } from '@endora-commerce/contracts';
 import { getResolvedChannel } from '@endora-commerce/platform/kernel';
-import { markPersonalisedPricing, productAudienceOf } from '@endora-commerce/platform/http';
+import { markPersonalisedPricing, pricedAudienceOf } from '@endora-commerce/platform/http';
 
 export interface StorefrontPricingRoutesDeps {
   priceListService: PriceListService;
@@ -65,13 +65,19 @@ interface PricingViewer {
   readonly audience: ProductAudience;
   readonly organization: OrganizationRecord | null;
   readonly customerKind: 'guest' | 'signed_in';
+  /**
+   * `specs/182-related-payers/` RP-14 — whose display mode applies: the viewer's own
+   * Organization, also when `organization` (the priced one) is a payer on its terms.
+   */
+  readonly displayOrganizationId: string | null;
 }
 
 async function pricingViewerOf(
   request: FastifyRequest,
   organizationDetails: OrganizationDetailsPort,
 ): Promise<PricingViewer> {
-  const audience = productAudienceOf(request);
+  // `specs/182-related-payers/` FR-115 — priced for the payer on its terms (research R-4).
+  const audience = await pricedAudienceOf(request);
   // `null` covers three callers whose answers happen to agree: the anonymous
   // visitor, the authenticated caller with no Organization (feature 026's
   // guest-style account, an unbound API key), and the buyer whose Organization
@@ -79,8 +85,13 @@ async function pricingViewerOf(
   const organization =
     audience.organizationId === null
       ? null
-      : await organizationDetails.findById(audience.organizationId);
-  return { audience, organization, customerKind: organization ? 'signed_in' : 'guest' };
+      : await organizationDetails.findById(audience.pricingOrganizationId ?? audience.organizationId);
+  return {
+    audience,
+    organization,
+    customerKind: organization ? 'signed_in' : 'guest',
+    displayOrganizationId: organization ? audience.organizationId : null,
+  };
 }
 
 /**
@@ -178,7 +189,7 @@ export async function registerStorefrontPricingRoutes(
       // already consults — and only the viewer handed to it moved.
       const mode = await priceListService.resolveDisplayMode({
         productId: product.id,
-        organizationId: viewer.organization?.id ?? null,
+        organizationId: viewer.displayOrganizationId,
         salesChannelId: channel.id,
         customerKind: viewer.customerKind,
       });
@@ -229,7 +240,9 @@ export async function registerStorefrontPricingRoutes(
         context: {
           quantity,
           organization: viewer.organization,
-          ...(viewer.organization && viewer.audience.customerAccountId
+          ...(viewer.audience.pricingOrganizationId && viewer.displayOrganizationId
+            ? { displayModeOrganization: { id: viewer.displayOrganizationId } }
+            : viewer.organization && viewer.audience.customerAccountId
             ? { customerAccountId: viewer.audience.customerAccountId }
             : {}),
           salesChannel: channel,

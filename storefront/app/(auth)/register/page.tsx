@@ -8,6 +8,8 @@ import { LocalizedLink } from '../../../lib/i18n/localized-link';
 import { getServerContext } from '../../../lib/server-context';
 import { tForLocale } from '../../../lib/i18n/messages';
 import { lookupCompanyAction, registerFormAction } from './actions';
+import { lookupPayerInvitation } from '../../../lib/api/related-payers';
+import { INITIAL_REGISTER_FORM_STATE } from '../../../lib/auth/register-form-state';
 
 /**
  * Not indexed (`specs/098-storefront-ssr-seo-a11y-suite/`, FR-010): an
@@ -30,7 +32,11 @@ export default async function RegisterPage({
   searchParams,
 }: {
   /** Issue #745 — no `email`: the acknowledgement names no address, so none travels in the URL. */
-  searchParams: Promise<{ status?: string; error?: string }>;
+  /**
+   * `specs/182-related-payers/` FR-044 — `payerInvitation`: the token of an invitation to register;
+   * a live one pre-fills the tax ID it names, anything else is ignored.
+   */
+  searchParams: Promise<{ status?: string; error?: string; payerInvitation?: string }>;
 }): Promise<ReactNode> {
   const params = await searchParams;
   const { locale } = await getServerContext();
@@ -55,10 +61,14 @@ export default async function RegisterPage({
     );
   }
 
-  const [options, customFields] = await Promise.all([
+  const [options, customFields, invitation] = await Promise.all([
     getRegistrationOptions(),
     getRegistrationCustomFields({ locale }),
+    params.payerInvitation ? lookupPayerInvitation(params.payerInvitation, { locale }) : null,
   ]);
+  const initialState = invitation
+    ? { ...INITIAL_REGISTER_FORM_STATE, values: { ...INITIAL_REGISTER_FORM_STATE.values, taxId: invitation.taxId } }
+    : undefined;
 
   return (
     <>
@@ -70,6 +80,7 @@ export default async function RegisterPage({
           locale={locale}
           lookupEnabled={options.enabled}
           customFields={customFields}
+          {...(initialState ? { initialState } : {})}
           action={registerFormAction}
           lookupAction={lookupCompanyAction}
         />

@@ -23,6 +23,7 @@ import type {
   OrderQuoteSourcePort,
   ProductDisplayModePort,
   OrganizationDetailsPort,
+  RelatedPayerPolicyPort,
   OrganizationTaxProfilePort,
   PromotionApplyPort,
   PromotionCodePort,
@@ -34,7 +35,8 @@ import type {
 import type { CartPlacementApplyPort } from '../ports/index.js';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
-import { lazyPort } from '@endora-commerce/platform/kernel';
+import { currentSalesChannel, effectiveState, lazyPort } from '@endora-commerce/platform/kernel';
+import { providePricingSubjectResolver } from '@endora-commerce/platform/http';
 import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory, RequireCustomerGuard } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
@@ -45,6 +47,8 @@ import { CartQueryService } from './services/cart-query-service.js';
 import { CartAnonymizationService } from './services/cart-anonymization-service.js';
 import { CartPlacementApplyService } from './services/cart-placement-apply-port.js';
 import { CartLinePricing } from './services/cart-line-pricing.js';
+import { CartBuyingForService } from './services/cart-buying-for.js';
+import { Cart as CartEntity } from './entities/cart.entity.js';
 import { CartReadService, createCartWritePort } from './services/cart-read-port.js';
 import { CartService } from './services/cart-service.js';
 import { CartUpsellService } from './services/cart-upsell-service.js';
@@ -214,6 +218,14 @@ function refuseShoppingList(): CartShoppingListBridge {
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // `specs/182-related-payers/` research R-4 — the one pricing-subject contributor: a signed-in
+  // buyer whose active basket is on a payer's commercial terms sees the payer's prices on every
+  // catalogue read of that channel (FR-115). Filtered by this module's presence at call time.
+  providePricingSubjectResolver(
+    'carts',
+    (request, audience) => pricingSubjectOf(ctx, request, audience.organizationId),
+    () => effectiveState.isPresent('carts'),
+  );
   ctx.di.register({
     // Contribution point, defaulted to a refusal that names the absent module
     // rather than a 404 that does not.
@@ -428,6 +440,14 @@ export function registerModule(ctx: ModuleContext): void {
     const organizationPermissions = (): OrganizationPermissionPort =>
       lazyPort<OrganizationPermissionPort>(ctx, 'organizationPermissionPort');
 
+    const cartCouponService = new CartCouponService(
+      emFactory,
+      lazyPort<PromotionApplyPort>(ctx, 'promotionService'),
+      lazyPort<PromotionCodePort>(ctx, 'promotionCodePort'),
+      lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
+      lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+      cradle.cartApprovalService,
+    );
     await registerCartRoutes(app, {
       emFactory,
       resolveCartActor,
@@ -444,14 +464,7 @@ export function registerModule(ctx: ModuleContext): void {
         lazyPort<CatalogProductAvailabilityPort>(ctx, 'catalogProductAvailabilityPort'),
         lazyPort<CatalogProductUrlKeyReadPort>(ctx, 'catalogProductUrlKeyReadPort'),
       ),
-      cartCouponService: new CartCouponService(
-        emFactory,
-        lazyPort<PromotionApplyPort>(ctx, 'promotionService'),
-        lazyPort<PromotionCodePort>(ctx, 'promotionCodePort'),
-        lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
-        lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
-        cradle.cartApprovalService,
-      ),
+      cartCouponService,
       cartConversionService: new CartConversionService(
         emFactory,
         cartService,
@@ -473,6 +486,10 @@ export function registerModule(ctx: ModuleContext): void {
       ),
       // Issue #436 — the read answers the cart's VAT per rate, from the rates
       // placement resolves: `organizations`' tax profile and `taxes`' rules.
+      // `specs/182-related-payers/` FR-110 — *Buying for*, through `related_payers`' policy
+      // (`degrades-without`): absent, no payer can be named and a payer's-terms cart returns to
+      // the buyer's own prices on its next read (FR-116).
+      cartBuyingFor: buyingForRoutes(ctx, emFactory, cradle.cartRecomputeCache),
       cartTaxRates: createProductTaxRateResolver({
         taxProfiles: lazyPort<OrganizationTaxProfilePort>(ctx, 'organizationTaxProfilePort'),
         taxes: lazyPort<TaxServicePort>(ctx, 'taxService'),
@@ -611,3 +628,70 @@ export const entities = [
   CartItem,
   Cart,
 ];
+
+/** The policy port while `related_payers` is present, else `null` (`degrades-without`). */
+function relatedPayerPolicy(ctx: ModuleContext): RelatedPayerPolicyPort | null {
+  return effectiveState.isPresent('related_payers')
+    ? lazyPort<RelatedPayerPolicyPort>(ctx, 'relatedPayerPolicyPort')
+    : null;
+}
+
+function buyingForRoutes(
+  ctx: ModuleContext,
+  emFactory: () => EntityManager,
+  cache: { invalidate(cartId: string): Promise<void> },
+) {
+  const service = new CartBuyingForService({
+    emFactory,
+    policy: () => relatedPayerPolicy(ctx),
+    linePricing: new CartLinePricing(
+      lazyPort<LinePricesPort>(ctx, 'pricingService'),
+      lazyPort<ProductDisplayModePort>(ctx, 'productDisplayModePort'),
+      lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+    ),
+    catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+    invalidate: (cartId) => cache.invalidate(cartId),
+  });
+  return {
+    set: service.set.bind(service),
+    resetIfUnusable: service.resetIfUnusable.bind(service),
+    available: () => effectiveState.isPresent('related_payers'),
+    payerName: async (organizationId: string) =>
+      (await lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort').findById(organizationId))?.name ?? '',
+  };
+}
+
+/**
+ * Research R-4 decision 4 — free for an Organization with no payer's-terms link: the policy
+ * answers that from its per-process cache, before any read of the basket. With one, the active
+ * basket's *Buying for* is read and re-vouched by the policy; anything unusable prices as the
+ * buyer (the next cart read resets it, FR-116).
+ */
+async function pricingSubjectOf(
+  ctx: ModuleContext,
+  request: FastifyRequest,
+  buyerOrganizationId: string | null,
+): Promise<string | null> {
+  const actor = request.actor as { kind?: string; customerAccountId?: string } | undefined;
+  const salesChannelId = currentSalesChannel()?.id;
+  if (!buyerOrganizationId || actor?.kind !== 'customer' || !actor.customerAccountId || !salesChannelId) return null;
+  const policy = relatedPayerPolicy(ctx);
+  if (!policy || !(await policy.hasPayerTermsLinks(buyerOrganizationId, salesChannelId))) return null;
+  const em = ctx.cradle<{ emFactory: () => EntityManager }>().emFactory();
+  const cart = await em.findOne(
+    CartEntity,
+    { customerAccountId: actor.customerAccountId, salesChannelId, status: 'active', buyingForTerms: 'payer' },
+    { fields: ['id', 'buyingForOrganizationId'] },
+  );
+  const payer = cart?.buyingForOrganizationId ?? null;
+  if (!payer) return null;
+  try {
+    const priced = await policy.pricingContext(
+      { buyerOrganizationId, customerAccountId: actor.customerAccountId, salesChannelId },
+      payer,
+    );
+    return priced?.organizationId ?? null;
+  } catch {
+    return null;
+  }
+}

@@ -1345,6 +1345,12 @@ export interface OrderReturnContext {
   salesChannelId: string;
   customerAccountId: string;
   organizationId: string | null;
+  /**
+   * `specs/182-related-payers/` (RP-7, FR-082) — the Organization that paid for
+   * and was invoiced for the order, `null` when the buyer paid. A refund that
+   * releases or tops up credit does so for `payerOrganizationId ?? organizationId`.
+   */
+  payerOrganizationId: string | null;
   currency: string;
   /** When the order entered its fulfilment-completing status; null if it has not. */
   completingStatusEnteredAt: Date | null;

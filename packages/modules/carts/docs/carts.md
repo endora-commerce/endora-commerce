@@ -357,6 +357,21 @@ catalogue's `vatRate` uses too, so a product's gross on its page and in the cart
 `backend/test/integration/carts/cart-vat-equals-placement.test.ts` hold the
 cart's figures to the order's.
 
+## Buying for a related payer {#buying-for-a-related-payer}
+
+When the *Related payers* module is on and a buyer's link to a payer is on the **payer's**
+commercial terms, `PUT /api/v1/cart/buying-for` sets the active cart's `buyingFor` to that payer
+(`{ "payerOrganizationId": null }` clears it). The cart is then repriced for the payer: line prices, line VAT (the payer's
+VAT status and country) and promotions, the promotion use recorded against the payer. The reply
+carries a repricing summary — per line before / after, lines left without a price, promotions added
+and removed.
+
+Every cart read checks the link again. If it is no longer usable, its terms went back to the
+buyer's, or the module is off, the cart returns to the buyer's own prices and the reply carries
+`buyingForReset` with the reason. The cart's context is cleared when the cart completes. Without
+the *Related payers* module no payer can be chosen, and a cart bought for one is priced for the
+buyer on its next read.
+
 ## Settings
 
 | Key | Default | Description |

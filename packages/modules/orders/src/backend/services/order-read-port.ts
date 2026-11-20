@@ -132,6 +132,7 @@ export function toOrderRecord(order: Order): OrderRecord {
     id: order.id,
     businessId: order.businessId,
     organizationId: order.organizationId,
+    payerOrganizationId: order.payerOrganizationId ?? null,
     placedByCustomerAccountId: order.placedByCustomerAccountId,
     placedOnBehalfByAdminUserId: order.placedOnBehalfByAdminUserId ?? null,
     salesChannelId: order.salesChannelId,

@@ -92,3 +92,17 @@ describe('ReturnSettlementService — an order it cannot read (#875)', () => {
     expect(prefill.items).toEqual([expect.objectContaining({ defaultRefundAmount: 12.32, approvedRefundAmount: 12.32 })]);
   });
 });
+
+describe('the credit a settlement tops up (`specs/182-related-payers/` FR-082, RP-7)', () => {
+  it('is the payer\'s for an order a related payer paid', async () => {
+    const { creditTopupOrganizationId } = await import('./return-settlement-service.js');
+    expect(creditTopupOrganizationId('buyer-x', { payerOrganizationId: 'payer-y' })).toBe('payer-y');
+  });
+
+  it('is the buyer\'s otherwise, and nobody\'s for a case with no organization', async () => {
+    const { creditTopupOrganizationId } = await import('./return-settlement-service.js');
+    expect(creditTopupOrganizationId('buyer-x', { payerOrganizationId: null })).toBe('buyer-x');
+    expect(creditTopupOrganizationId('buyer-x', null)).toBe('buyer-x');
+    expect(creditTopupOrganizationId(null, { payerOrganizationId: null })).toBeNull();
+  });
+});

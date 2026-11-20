@@ -40,6 +40,8 @@ vi.mock('../../lib/api/organization', () => ({
   listAddresses: async () => [],
   createAddress: async () => ({ id: 'a1' }),
 }));
+// `specs/182-related-payers/` — no related payers: the checkout without a *Paid by* choice.
+vi.mock('../../lib/api/related-payers', () => ({ listCheckoutPayers: async () => [] }));
 vi.mock('../../lib/api/methods', () => ({
   listDeliveryMethods: async () => [],
   listPaymentMethods: async () => [],

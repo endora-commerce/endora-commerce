@@ -219,3 +219,11 @@ usługę przypisań kanałów sprzedaży platformy.
 `organization_payment_methods` to **lista dozwolonych**: pusta ⇒ oferowane są wszystkie aktywne
 metody; niepusta ⇒ tylko wymienione. Służy do ograniczania metod, z których może korzystać dana
 organizacja. Zarządza nią usługa ograniczeń modułu organizacji i odpowiedni ekran w panelu.
+
+## Metody dla płatnika powiązanego {#methods-for-a-related-payer}
+
+`GET /api/v1/payment-methods?payerOrganizationId=` wyświetla metody dla zamówienia opłacanego przez
+płatnika powiązanego (moduł *Related payers*): port zasad modułu najpierw potwierdza, że kupujący może
+użyć tego płatnika, a potem obowiązuje lista dozwolonych **płatnika** zamiast listy kupującego. Gdy
+moduł jest wyłączony, żądanie wskazujące płatnika odpowiada `503 MODULE_DISABLED`; pozostałe listy
+metod działają bez zmian.

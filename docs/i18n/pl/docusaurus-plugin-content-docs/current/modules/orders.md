@@ -979,6 +979,33 @@ również nie pokazuje NIP Organizacji osobistej, tylko etykietę *Klient
 indywidualny*: odpowiedź administracyjna zamówienia zawiera dla niej
 `organization.taxId: null` i `organization.isPersonal: true`.
 
+## Zamówienia opłacane przez płatnika powiązanego {#orders-paid-by-a-related-payer}
+
+Gdy moduł *Related payers* jest włączony, kupujący może wskazać inną organizację sklepu jako płatnika
+zamówienia (`payerOrganizationId` w żądaniach złożenia i podglądu zamówienia). Składanie zamówienia
+pyta wtedy port zasad tego modułu, wewnątrz transakcji, czy powiązania można użyć, i:
+
+- bierze adres rozliczeniowy spośród adresów płatnika dozwolonych przez powiązanie, a nazwę firmy i
+  NIP do rozliczenia od płatnika — ręcznego nadpisania danych firmy nie można wysłać razem z
+  płatnikiem (`400 VALIDATION_FAILED`, problem `payer_billing_override_conflict`);
+- liczy podatek według statusu VAT płatnika i kraju jego adresu rozliczeniowego, tak samo w podglądzie
+  jak przy składaniu;
+- sprawdza metodę płatności według listy dozwolonych **płatnika** i rezerwuje kredyt **płatnika**
+  (albo właściciela jego kredytu);
+- zostawia zamówienie przy organizacji kupującej, łącznie z dostawą, i zapisuje
+  `payer_organization_id`, powiązanie, jego warunki (`buyer` albo `payer`) i migawkę danych
+  płatnika. Odpowiedź z zamówieniem zawiera je jako `payer`, a lista w panelu przyjmuje
+  `?payerOrganizationId=`.
+
+W koszyku kupowanym dla płatnika na jego warunkach płatnik musi być płatnikiem koszyka, a ceny,
+promocje i minimalna wartość zamówienia pochodzą z kontekstu płatnika w koszyku. Każda odmowa
+odrzuca całe zamówienie; nic nie zostaje zapisane, zarezerwowane ani wyemitowane. Bez modułu
+*Related payers* zamówienie wskazujące płatnika jest odrzucane, a pozostałe zamówienia działają bez
+zmian.
+
+`orders` publikuje też `paidOrderReadPort` — widok płatnika na opłacane przez niego zamówienia, tylko
+do odczytu: zawężony do płatnika, bez adresu dostawy, uwagi klienta i komentarzy.
+
 ## Numery z systemów zewnętrznych
 
 Moduł, który przekazuje zamówienia do innego systemu — ERP, systemu magazynowego, integracji

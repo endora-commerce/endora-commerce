@@ -17,7 +17,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { Product } from '../entities/product.entity.js';
 import { ProductLink, type ProductLinkKind } from '../entities/product-link.entity.js';
 import { resolvePrimaryAssetUrls } from './primary-asset-url.js';
-import { viewerOrganizationFor } from './viewer-organization.js';
+import { viewerOrganizationFor, pricingViewerFields } from './viewer-organization.js';
 import { availableAmong, toScopeChannel } from './product-availability.service.js';
 import { loadEffectiveKeys } from './url-key-resolution.service.js';
 import {
@@ -429,10 +429,9 @@ export class ProductLinkService {
             context: {
               ...listingPriceChannelContext(ctx.resolvedChannel, ctx.currency),
               organization: viewerOrganization,
-              // D-287 P0 — the customer's own group, as on the catalogue listing.
-              ...(viewerOrganization && ctx.audience.customerAccountId
-                ? { customerAccountId: ctx.audience.customerAccountId }
-                : {}),
+              // D-287 P0 — the customer's own group, as on the catalogue listing; on a payer's
+              // terms none, and the buyer's display mode (`specs/182-related-payers/` RP-14).
+              ...pricingViewerFields(ctx.audience, viewerOrganization),
             },
           })
         : new Map();

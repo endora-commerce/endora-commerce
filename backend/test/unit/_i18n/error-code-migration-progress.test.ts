@@ -243,6 +243,9 @@ const MIGRATED_MODULES: readonly string[] = [
   // for it.
   'quick_order',
   'quote_requests',
+  // Minted (`specs/182-related-payers/`): the module's codes were created after
+  // the chain was deleted, so `MINTED_ERROR_CODES` accounts for them.
+  'related_payers',
   // Minted (`specs/155-catalog-order-constraints/`): `RETURN_LINE_NOT_RETURNABLE`
   // is this module's first code and was created after the chain was deleted, so
   // the frozen capture holds none and `MINTED_ERROR_CODES` is what accounts for

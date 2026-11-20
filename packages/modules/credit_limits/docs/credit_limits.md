@@ -87,6 +87,13 @@ modules are switched on. The payload is sent whole; the strict schema is
   subscription to it is refused; stored subscriptions are kept and receive
   nothing until it is back on.
 
+## Orders paid by a related payer {#orders-paid-by-a-related-payer}
+
+An order placed with a related payer (the *Related payers* module) reserves the **payer's** credit,
+or its credit owner's when the payer shares a parent's pool; the buyer's credit is untouched.
+`credit_limits` publishes `creditAvailabilityReadPort`, through which the checkout reads the payer's
+available credit to decide whether to offer the credit-limit method.
+
 ## In the audit log
 
 Granting, adjusting and crediting a limit from a return are each one entry in the
