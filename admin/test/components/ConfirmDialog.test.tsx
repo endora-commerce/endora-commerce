@@ -2,7 +2,13 @@ import { StrictMode, useState, type ReactElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ConfirmDialog, useConfirmDialog, type UseConfirmDialog } from '@endora-commerce/admin-kit/components';
+import {
+  ConfirmDialog,
+  MODAL_OVERLAY_Z_INDEX,
+  useConfirmDialog,
+  type UseConfirmDialog,
+  type UseConfirmDialogOptions,
+} from '@endora-commerce/admin-kit/components';
 
 /** Either form `confirm` takes: a bare question, or one that runs its action in the dialog. */
 type ConfirmArgs = Parameters<UseConfirmDialog['confirm']>[0];
@@ -344,5 +350,52 @@ describe('useConfirmDialog — focus after a confirmed answer (returnFocusTo)', 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
     expect(screen.getByRole('button', { name: 'Next row' })).not.toHaveFocus();
+  });
+});
+
+/**
+ * A confirmation asked from inside the fullscreen Page Builder has to open above
+ * Puck's 9999 action bar, as every other builder dialog does — `ModalDialog`'s
+ * `overlay` layer. Opt-in: the default stays the admin's `page` layer (`z-50`).
+ */
+describe('ConfirmDialog / useConfirmDialog — the stacking layer', () => {
+  function LayerHarness(props: { hookOptions?: UseConfirmDialogOptions }): ReactElement {
+    const { confirm, confirmDialog } = useConfirmDialog(props.hookOptions);
+    return (
+      <div>
+        <button type="button" onClick={(): void => void confirm({ message: 'Clear it?', destructive: true })}>
+          Delete thing
+        </button>
+        {confirmDialog}
+      </div>
+    );
+  }
+
+  const layerOf = (dialog: HTMLElement): HTMLElement => dialog.closest('[data-layer]') as HTMLElement;
+
+  it('opens on the page layer by default', async () => {
+    renderWithI18n(<LayerHarness />, CORE);
+    const { dialog } = await open();
+    expect(layerOf(dialog)).toHaveAttribute('data-layer', 'page');
+    expect(layerOf(dialog)).toHaveClass('z-50');
+  });
+
+  it('useConfirmDialog({ layer: "overlay" }) opens above the builder chrome, keeping focus on Cancel and back to the opener', async () => {
+    renderWithI18n(<LayerHarness hookOptions={{ layer: 'overlay' }} />, CORE);
+    const { opener, dialog } = await open();
+    expect(layerOf(dialog)).toHaveAttribute('data-layer', 'overlay');
+    expect(layerOf(dialog).style.zIndex).toBe(String(MODAL_OVERLAY_Z_INDEX));
+    expect(layerOf(dialog)).not.toHaveClass('z-50');
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'common.action.cancel' })).toHaveFocus());
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    await waitFor(() => expect(opener).toHaveFocus());
+  });
+
+  it('the controlled ConfirmDialog takes layer="overlay"', () => {
+    renderWithI18n(<ConfirmDialog layer="overlay" message="Clear it?" onConfirm={vi.fn()} onCancel={vi.fn()} />, CORE);
+    const dialog = screen.getByRole('dialog');
+    expect(layerOf(dialog)).toHaveAttribute('data-layer', 'overlay');
+    expect(layerOf(dialog).style.zIndex).toBe(String(MODAL_OVERLAY_Z_INDEX));
   });
 });
