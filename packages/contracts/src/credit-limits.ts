@@ -66,9 +66,31 @@ export const creditLimitViewSchema = z.object({
 });
 export type CreditLimitView = z.infer<typeof creditLimitViewSchema>;
 
-/** `GET /api/v1/admin/credit-limits` — every granted credit limit (issue #599). */
+/**
+ * `GET /api/v1/admin/credit-limits?page=&pageSize=` — the paging the admin list
+ * asks for (issue #1664). A caller that names no `pageSize` keeps the whole
+ * list on one page, as the endpoint answered before.
+ */
+export const adminCreditLimitListQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
+});
+export type AdminCreditLimitListQuery = z.infer<typeof adminCreditLimitListQuerySchema>;
+
+/**
+ * `GET /api/v1/admin/credit-limits` — one page of granted credit limits, newest
+ * grant first with the limit's id as the tie-break (issue #599). `meta` is the
+ * offset page and the total across every page (issue #1664), in the shape the
+ * Organizations list answers with; without a `pageSize` the page is the whole
+ * list and `meta.pageSize` its length (at least 1).
+ */
 export const creditLimitListResponseSchema = z.object({
   data: z.array(creditLimitViewSchema),
+  meta: z.object({
+    page: z.number().int().positive(),
+    pageSize: z.number().int().positive(),
+    total: z.number().int().nonnegative(),
+  }),
 });
 export type CreditLimitListResponse = z.infer<typeof creditLimitListResponseSchema>;
 

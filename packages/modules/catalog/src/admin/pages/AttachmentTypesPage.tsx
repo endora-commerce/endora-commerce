@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus, type InlineStatusState } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 interface AttachmentType {
@@ -28,7 +28,18 @@ export function AttachmentTypesPage(): ReactNode {
   const [types, setTypes] = useState<AttachmentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a) — a result is said where it was
+  // asked for, in a region mounted before it has text, not as a success banner
+  // above the card: "created" beside Add, and "deleted" in the list's header,
+  // because the deleted row and its button are gone.
+  const createStatus = useInlineStatus();
+  const { show: showCreateStatus, clear: clearCreateStatus } = createStatus;
+  const deleteStatus = useInlineStatus();
+  const { show: showDeleteStatus, clear: clearDeleteStatus } = deleteStatus;
+  const clearStatuses = useCallback((): void => {
+    clearCreateStatus();
+    clearDeleteStatus();
+  }, [clearCreateStatus, clearDeleteStatus]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -51,25 +62,27 @@ export function AttachmentTypesPage(): ReactNode {
 
   const handleCreate = useCallback(
     async (input: { code: string; nameEn: string; namePl: string }): Promise<void> => {
+      clearStatuses();
+      setError(null);
       try {
         await apiClient.post('/api/v1/admin/catalog/attachment-types', {
           code: input.code,
           name: { 'en-US': input.nameEn, 'pl-PL': input.namePl || input.nameEn },
         });
-        setInfo(t('attachmentTypes.success.create', { code: input.code }));
+        showCreateStatus(t('attachmentTypes.success.create', { code: input.code }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('attachmentTypes.error.create'));
       }
     },
-    [refresh, t],
+    [refresh, t, clearStatuses, showCreateStatus],
   );
 
   const handleDelete = useCallback(
     async (id: string, code: string, usage: number): Promise<void> => {
+      clearStatuses();
       if (usage > 0) {
         // Issue #313 — said on the page, not in the browser's `alert()`.
-        setInfo(null);
         setError(t('attachmentTypes.deleteInUse', { code, count: usage }));
         return;
       }
@@ -79,15 +92,16 @@ export function AttachmentTypesPage(): ReactNode {
         destructive: true,
       });
       if (!ok) return;
+      setError(null);
       try {
         await apiClient.delete(`/api/v1/admin/catalog/attachment-types/${id}`);
-        setInfo(t('attachmentTypes.success.delete', { code }));
+        showDeleteStatus(t('attachmentTypes.success.delete', { code }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('attachmentTypes.error.delete'));
       }
     },
-    [refresh, t, tc, confirm],
+    [refresh, t, tc, confirm, clearStatuses, showDeleteStatus],
   );
 
   return (
@@ -102,15 +116,11 @@ export function AttachmentTypesPage(): ReactNode {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {info ? (
-        <Alert variant="success" className="mb-4">
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle>{t('attachmentTypes.list.title')}</CardTitle>
+          <InlineStatus {...deleteStatus.props} />
         </CardHeader>
         <CardContent className="space-y-4">
           {loading ? (
@@ -151,7 +161,7 @@ export function AttachmentTypesPage(): ReactNode {
             </Table>
           )}
 
-          <CreateAttachmentTypeInline onCreate={handleCreate} />
+          <CreateAttachmentTypeInline onCreate={handleCreate} status={createStatus} />
         </CardContent>
       </Card>
       {confirmDialog}
@@ -161,8 +171,11 @@ export function AttachmentTypesPage(): ReactNode {
 
 function CreateAttachmentTypeInline({
   onCreate,
+  status,
 }: {
   onCreate: (input: { code: string; nameEn: string; namePl: string }) => Promise<void>;
+  /** The result of the last create, said beside Add. */
+  status: InlineStatusState;
 }): ReactNode {
   const t = useTranslation('catalog');
   const [code, setCode] = useState('');
@@ -182,6 +195,8 @@ function CreateAttachmentTypeInline({
   return (
     <form
       onSubmit={handleSubmit}
+      // Typing the next type starts a new action: the last "created" no longer applies.
+      onChange={(): void => status.clear()}
       className="grid gap-3 md:grid-cols-4 border-t pt-4"
       aria-label={t('attachmentTypes.create.title')}
     >
@@ -214,8 +229,9 @@ function CreateAttachmentTypeInline({
           placeholder={t('attachmentTypes.field.namePlPlaceholder')}
         />
       </div>
-      <div className="md:col-span-4">
+      <div className="flex flex-wrap items-center gap-3 md:col-span-4">
         <Button type="submit">{t('attachmentTypes.action.add')}</Button>
+        <InlineStatus {...status.props} />
       </div>
     </form>
   );

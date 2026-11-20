@@ -88,7 +88,6 @@ export default function ComparisonDetailPage(): ReactNode {
     <>
       <PageHeader
         title={t('detail.page.title')}
-        description={t('detail.page.description')}
       />
 
       <Alert className="mb-4">

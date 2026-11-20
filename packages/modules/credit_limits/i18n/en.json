@@ -7,5 +7,15 @@
   "actions.openCreditLimits.label": "Credit limits",
   "actions.openCreditLimits.description": "Customer credit limits & balances",
   "actions.openCreditLimits.keywords": "credit limits, balance",
-  "settingGroups.credit_limits.name": "Credit limits"
+  "settingGroups.credit_limits.name": "Credit limits",
+  "list.count": "Credit limits: {count}",
+  "list.grant": "Grant credit limit",
+  "list.emptyTitle": "No credit limits yet",
+  "list.empty": "A credit limit lets an organization order on deferred payment, up to the amount you grant.",
+  "list.rowMenu.label": "Actions for {name}",
+  "list.adjust": "Adjust limit",
+  "list.openOrganization": "Open organization",
+  "dialog.organization": "Organization",
+  "dialog.pickOrganization": "If it already holds a limit, you can adjust it here.",
+  "dialog.checking": "Checking the organization's credit limit…"
 }

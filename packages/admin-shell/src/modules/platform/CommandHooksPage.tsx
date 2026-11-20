@@ -163,7 +163,7 @@ export function CommandHooksPage({ tab }: { tab: Tab }): ReactNode {
 
   return (
     <>
-      <PageHeader title={t('platform.commandHooks.title')} description={t('platform.commandHooks.description')} />
+      <PageHeader title={t('platform.commandHooks.title')} />
       {/* A strip of one tab is not a choice, so it is only drawn for two. */}
       {tabs.length > 1 && <RouteTabs tabs={tabs} className="mb-4" />}
       {tab === 'plan' ? (

@@ -215,7 +215,6 @@ export function TemplateEditor(): ReactNode {
           <PageHeader
             back={{ label: t('common.back'), to: '/cms/templates' }}
             title={isNew ? t('templateEditor.title.new') : form.name || t('templateEditor.title.edit')}
-            description={t('templateEditor.description')}
             actions={
               <div className="flex items-center gap-2">
                 <UnsavedChangesHint dirty={dirty} />

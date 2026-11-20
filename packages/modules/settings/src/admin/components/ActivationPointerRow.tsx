@@ -27,7 +27,7 @@ export function ActivationPointerRow({ setting }: { setting: SettingDto }): Reac
   // Presence is not read here on purpose: this row states where the switch is,
   // not what position it is in. The screen that owns the switch shows that.
   return (
-    <div className="space-y-2 rounded-md border border-dashed px-4 py-3">
+    <div className="space-y-2 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium">{labels.settingName(setting)}</span>
         <Badge variant="outline" className="text-[10px] text-muted-foreground">

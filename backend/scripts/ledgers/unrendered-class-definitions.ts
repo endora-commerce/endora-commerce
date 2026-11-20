@@ -52,6 +52,8 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
     'rendered only by the price-list screens feature 160 deleted with the old model; P2\'s price-book editor, released together, is its next renderer',
   'b2b-badge--solid': 'a badge variant no screen renders; drains with the badge vocabulary',
   'b2b-btn--lg': 'a button size no screen renders; the tree uses the default and `--sm`',
+  'b2b-grid--cols-2':
+    'the two-column form grid the profile screen rendered until issue #1437 moved it to a Tailwind `grid`; no other screen renders it',
   'b2b-locale-strip':
     'the language switcher this styled is not in the admin; its `button` child rule goes with it',
   'b2b-matrix': 'a price-matrix block with no renderer; `b2b-matrix-wrap` and `cell-input` are its parts',

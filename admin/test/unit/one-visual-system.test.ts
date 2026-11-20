@@ -46,6 +46,8 @@ const MIGRATED = [
   'packages/modules/inventory/src/admin/pages/WarehousesList.tsx',
   'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx',
   'packages/modules/price_lists/src/admin/pages/DisplayModeOverridesPage.tsx',
+  // Issue #1437 (DS-03): one form card of sections and a language card, on kit primitives.
+  'packages/admin-shell/src/modules/profile/ProfilePage.tsx',
 ] as const;
 
 /**

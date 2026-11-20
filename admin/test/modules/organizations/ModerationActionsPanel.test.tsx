@@ -262,7 +262,9 @@ describe('ModerationActionsPanel — registry divergence notice (feature 173, T0
       NOTICE_BUNDLE,
     );
     // It arrives after the VAT history loads, so it must not interrupt (role="alert").
-    const notice = screen.getByRole('status');
+    // Not `getByRole('status')`: the action-result region beside the buttons is a status too (#1499).
+    const notice = document.querySelector<HTMLElement>('[data-notice="registry-divergence"]')!;
+    expect(notice).toHaveAttribute('role', 'status');
     expect(notice).toHaveTextContent('Fields differing from the registry: 2.');
     expect(notice.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
     expect(screen.getByRole('link', { name: 'Go to VAT validation' })).toHaveAttribute(

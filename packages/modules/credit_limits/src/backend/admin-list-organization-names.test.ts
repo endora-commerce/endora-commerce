@@ -43,9 +43,11 @@ function organizationRecord(id: string, name: string): OrganizationRecord {
 describe('GET /api/v1/admin/credit-limits — the organisation name', () => {
   let app: FastifyInstance;
   let askedFor: readonly string[][] = [];
+  let pagesAsked: Array<{ offset: number; limit?: number }> = [];
 
   beforeEach(async () => {
     askedFor = [];
+    pagesAsked = [];
     const organizationDetailsPort: OrganizationDetailsPort = {
       findById: async () => null,
       findByIds: async (ids) => {
@@ -60,7 +62,10 @@ describe('GET /api/v1/admin/credit-limits — the organisation name', () => {
     };
 
     const creditLimitService = {
-      listAll: async () => [LIMIT],
+      listPage: async (page: { offset: number; limit?: number }) => {
+        pagesAsked = [...pagesAsked, page];
+        return { rows: [LIMIT], total: 41 };
+      },
       listActiveReservations: async () => [],
       getForOrganization: async () => null,
     } as unknown as CreditLimitService;
@@ -100,5 +105,20 @@ describe('GET /api/v1/admin/credit-limits — the organisation name', () => {
     expect(body.data).toHaveLength(1);
     expect(body.data[0]!.organizationName).toBe('Nowa Firma');
     expect(askedFor).toEqual([[ORG_ID]]);
+  });
+
+  it('reads the page the caller names, and answers its meta (issue #1664)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/admin/credit-limits?page=3&pageSize=20' });
+
+    expect(res.statusCode).toBe(200);
+    expect(pagesAsked).toEqual([{ offset: 40, limit: 20 }]);
+    expect((res.json() as { meta: unknown }).meta).toEqual({ page: 3, pageSize: 20, total: 41 });
+  });
+
+  it('keeps the whole list for a caller naming no page size', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/admin/credit-limits' });
+
+    expect(pagesAsked).toEqual([{ offset: 0 }]);
+    expect((res.json() as { meta: unknown }).meta).toEqual({ page: 1, pageSize: 41, total: 41 });
   });
 });

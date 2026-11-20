@@ -30,9 +30,9 @@ import { adminSession, modulePresence, withSession } from '../../helpers/render-
  * `organizations`' detail screen — the `DisplayModeOverrideRow` key of
  * `cross-module-imports/organizations.ts`, whose shard is deleted with it. It
  * is a contribution to a member of its own rather than a `match` on the
- * category one, because two hosts with a place each are two members (Z13), and
- * it is the one wrapper in this module that renders a `Card`: the zone it joins
- * is a stack of panels and the other three contributors each render one.
+ * category one, because two hosts with a place each are two members (Z13). It
+ * is a titled `EditorSection` (issue #1437, DS-03): a card under the host's
+ * page-level `chrome="card"` mount, a section inside a card.
  *
  * ## Why the registry is real and the declarations are imported
  *
@@ -91,7 +91,7 @@ const BUNDLE = {
   ]),
   // The base-price panel is a feature-161 screen and speaks in this module's
   // own namespace, not in `core`.
-  ...passthroughBundle('price_lists', ['basePrices.title', 'basePrices.description']),
+  ...passthroughBundle('price_lists', ['basePrices.title', 'basePrices.description', 'organizationPanel.title']),
 };
 
 function renderZone(options: {
@@ -99,6 +99,7 @@ function renderZone(options: {
   readonly props: Record<string, unknown>;
   readonly permissions?: readonly string[];
   readonly present?: boolean;
+  readonly chrome?: 'card';
 }): HTMLElement {
   const { container } = renderWithI18n(
     withSession(
@@ -109,6 +110,7 @@ function renderZone(options: {
         <AdminZone
           name={options.name as 'category.editor.after'}
           props={{ ...(options.props as { categoryId: string }), saveSession: INERT_SAVE_SESSION }}
+          {...(options.chrome ? { chrome: options.chrome } : {})}
         />
       </MemoryRouter>,
       {
@@ -213,6 +215,30 @@ describe('price_lists contributes the category, organization and product-pricing
     expect(getSpy).toHaveBeenCalledWith(
       `/api/v1/admin/pricing/display-mode-overrides/organization/${ORGANIZATION_ID}`,
     );
+  });
+
+  it('renders the organization panel as a titled section of its mount, not a header-less card (#1437)', async () => {
+    // DS-03: inside a host card the panel is a section; at page level, where
+    // the organization detail mounts the zone with `chrome="card"`, it is one
+    // titled card. It used to be a `Card` with no heading in both places.
+    const inside = renderZone({ name: 'organization.detail.after', props: { organizationId: ORGANIZATION_ID } });
+    await waitFor(() => expect(inside.textContent).toContain('priceLists.displayMode.rowLabel'));
+    const section = inside.querySelector('[data-slot="editor-section"]');
+    expect(section?.querySelector('h2')?.textContent).toBe('organizationPanel.title');
+    expect(inside.querySelector('[data-slot="card"]')).toBeNull();
+  });
+
+  it('renders the organization panel as one titled card under a page-level mount (#1437)', async () => {
+    const page = renderZone({
+      name: 'organization.detail.after',
+      props: { organizationId: ORGANIZATION_ID },
+      chrome: 'card',
+    });
+    await waitFor(() => expect(page.textContent).toContain('priceLists.displayMode.rowLabel'));
+    const cards = page.querySelectorAll('[data-slot="card"]');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]!.getAttribute('role')).toBe('region');
+    expect(cards[0]!.querySelector('h2')?.textContent).toBe('organizationPanel.title');
   });
 
   it('leaves the organization host naming neither this module nor its control', async () => {

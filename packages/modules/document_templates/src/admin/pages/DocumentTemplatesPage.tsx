@@ -172,7 +172,7 @@ export function DocumentTemplatesPage(): ReactNode {
 
   return (
     <>
-      <PageHeader title={t('page.title')} description={t('page.description')} />
+      <PageHeader title={t('page.title')} description={t('page.description')} help={t('page.help')} />
       {actionError ? (
         <Alert variant="destructive" className="mb-4" role="alert">
           <AlertDescription>{actionError}</AlertDescription>

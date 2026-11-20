@@ -47,7 +47,6 @@ const { SettingRowEditor } = await import(
 
 const CHROME_KEYS = [
   'page.title',
-  'page.description',
   'search.placeholder',
   'search.shortcut',
   'search.noResults',

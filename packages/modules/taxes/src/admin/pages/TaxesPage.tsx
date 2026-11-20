@@ -147,7 +147,6 @@ export function TaxesPage(): ReactNode {
     <>
       <ListPage
         title={t('taxes.page.title')}
-        description={t('taxes.page.description')}
         actions={
           canWrite ? (
             <div className="flex items-center gap-3">

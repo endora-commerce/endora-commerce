@@ -364,7 +364,7 @@ export function BlogCategoryEditor(): ReactNode {
                 ? t('categoryEditor.description.new')
                 : category?.isSystem
                   ? t('categoryEditor.description.system')
-                  : t('categoryEditor.description.default')
+                  : undefined
             }
             actions={
               <div className="flex flex-wrap items-center gap-2">

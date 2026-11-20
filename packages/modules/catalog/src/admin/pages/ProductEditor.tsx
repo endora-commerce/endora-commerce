@@ -39,6 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   EditorSection,
+  InlineStatus,
   Input,
   Label,
   PageHeader,
@@ -50,6 +51,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog, ProductPicker, SaveSessionSummary } from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -271,7 +273,11 @@ function ScopedProductEditor({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<FormError | null>(null);
   const [gateWarning, setGateWarning] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1499 (UX audit SALES-17, DEC-12 a; CAT-09) — "Saved N changes" is said beside Save,
+  // and "Archived" / "Restored" beside the Product menu, each in a region mounted before it has
+  // text, not as a success banner between the header and the tabs that pushes the form down.
+  const saveStatus = useInlineStatus();
+  const wholeStatus = useInlineStatus();
   const [guard, setGuard] = useState<Guard | null>(null);
   const [saving, setSaving] = useState(false);
   const [takeovers, setTakeovers] = useState<UrlKeyRedirectTakeoverRequiredDetails['takeovers'] | null>(null);
@@ -457,19 +463,20 @@ function ScopedProductEditor({
   }, [state.dropped, t, announce]);
 
   const totalUnsaved = state.staged.size + session.dirtyCount;
+  const { show: showSaveStatus, clear: clearSaveStatus } = saveStatus;
   useUnsavedChangesPrompt(totalUnsaved > 0);
 
   // "Saved N changes" belongs to the last save: a new staged edit clears it, and the summary of
   // the last save with it (FR-016; a participant's edit clears the summary itself).
   useEffect(() => {
     if (state.staged.size > 0) {
-      setInfo(null);
+      clearSaveStatus();
       sessionRef.current.clearOutcome();
     }
-  }, [state.staged]);
+  }, [state.staged, clearSaveStatus]);
   useEffect(() => {
-    if (session.dirtyCount > 0) setInfo(null);
-  }, [session.dirtyCount]);
+    if (session.dirtyCount > 0) clearSaveStatus();
+  }, [session.dirtyCount, clearSaveStatus]);
 
   const go = useCallback(
     (next: ScopeRef, note?: string, field?: string, tab?: string): void => {
@@ -618,11 +625,12 @@ function ScopedProductEditor({
       setSaving(true);
       setFormError(null);
       setGateWarning(null);
-      setInfo(null);
+      clearSaveStatus();
+      wholeStatus.clear();
       try {
         const outcome: SaveOutcome = await current.run(host);
         if (outcome.result === 'saved') {
-          if (!gateWarnedRef.current) setInfo(plural('productEditor.save.saved', total, { scope: scopeInWords(s.scope, s.data.validScopes, t, adminLanguage) }));
+          if (!gateWarnedRef.current) showSaveStatus(plural('productEditor.save.saved', total, { scope: scopeInWords(s.scope, s.data.validScopes, t, adminLanguage) }));
           return true;
         }
         return false;
@@ -806,10 +814,11 @@ function ScopedProductEditor({
     if (archiveDialog === null || archiving) return;
     setArchiving(true);
     setArchiveError(null);
+    wholeStatus.clear();
     try {
       const res = await apiClient.post<{ data: { archivedAt?: string | null } }>(`${PRODUCT_PATH(productId)}/${archiveDialog}`, {});
       setArchivedOverride(res.data.archivedAt ?? null);
-      setInfo(t(archiveDialog === 'archive' ? 'productEditor.archive.done' : 'productEditor.restore.done'));
+      wholeStatus.show(t(archiveDialog === 'archive' ? 'productEditor.archive.done' : 'productEditor.restore.done'));
       setArchiveDialog(null);
     } catch (err) {
       setArchiveError(
@@ -1234,6 +1243,8 @@ function ScopedProductEditor({
           actions={
             canWrite ? (
             <div className="flex items-start gap-2">
+              {/* "Archived" / "Restored" — the dialog and the archived notice that asked are gone. */}
+              <InlineStatus {...wholeStatus.props} className="self-center" data-testid="product-whole-status" />
               {/* The whole-product actions (FR-084, §11): one menu, captioned; each applies at once. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -1291,6 +1302,7 @@ function ScopedProductEditor({
                 saving={saving || session.saving}
                 ready={Boolean(data)}
                 scopeWords={words(state.scope)}
+                status={saveStatus.props}
                 onSave={(): void => void save()}
               />
             ) : null
@@ -1335,13 +1347,6 @@ function ScopedProductEditor({
             />
           </div>
         ) : null}
-        <div role="status">
-          {info ? (
-            <Alert variant="success" role="none" className="mb-4" data-testid="product-save-info">
-              <AlertDescription>{info}</AlertDescription>
-            </Alert>
-          ) : null}
-        </div>
         <div role="status">
           {gateWarning ? (
             <Alert variant="warning" role="none" className="mb-4" data-testid="product-gate-warning">

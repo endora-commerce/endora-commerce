@@ -3,7 +3,14 @@
 import { type Editor, type JSONContent } from '@tiptap/core';
 import { EditorContent, useEditor } from '@tiptap/react';
 import { useId, useRef, useState, type ReactNode, type Ref } from 'react';
-import { EMPHASIS_VARIANTS, normalizeAnchor, useFieldText, useImagePicker, type EmphasisVariant } from '@endora-commerce/page-builder-core';
+import {
+  EMPHASIS_VARIANTS,
+  normalizeAnchor,
+  PAGE_BUILDER_FIELD_TEXT,
+  useFieldText,
+  useImagePicker,
+  type EmphasisVariant,
+} from '@endora-commerce/page-builder-core';
 import {
   LIST_MARKERS,
   READ_MORE_POSITIONS,
@@ -20,25 +27,38 @@ import {
 } from './rich-content-shared.js';
 import { CmsModalDialog } from './CmsModalDialog.js';
 
-/** The emphasis variants' names, shared by the inline and the rich text toolbar (R-10, R-14). */
+/**
+ * What a link can be shown as (R-14): a plain link, or a button in one of the
+ * button styles (`cmsc-btn--<style>-<fill>`). Each is named by the field text
+ * `richLink.display.<style>` (#1680); a plain link stores no variant.
+ */
+export const LINK_DISPLAY_VARIANTS = [
+  'primary-solid',
+  'primary-outline',
+  'secondary-solid',
+  'secondary-outline',
+  'dark-solid',
+  'light-solid',
+] as const;
+
+/**
+ * @deprecated The English names only, kept for importers of this subpath; the
+ * toolbars read `emphasis.<variant>` through {@link useFieldText} (#1680).
+ */
 export const EMPHASIS_LABELS: Record<EmphasisVariant, string> = {
-  gradient: 'Gradient highlight',
-  accent: 'Accent highlight',
-  muted: 'Muted highlight',
+  gradient: PAGE_BUILDER_FIELD_TEXT['emphasis.gradient'],
+  accent: PAGE_BUILDER_FIELD_TEXT['emphasis.accent'],
+  muted: PAGE_BUILDER_FIELD_TEXT['emphasis.muted'],
 };
 
 /**
- * What a link can be shown as (R-14): a plain link, or a button in one of the
- * button styles (`cmsc-btn--<style>-<fill>`).
+ * @deprecated The English names only, kept for importers of this subpath; the
+ * toolbar names each choice by `richLink.display.<style>` through
+ * {@link useFieldText} (#1680).
  */
 export const LINK_DISPLAY_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: '', label: 'Link' },
-  { value: 'primary-solid', label: 'Primary button' },
-  { value: 'primary-outline', label: 'Primary outline button' },
-  { value: 'secondary-solid', label: 'Secondary button' },
-  { value: 'secondary-outline', label: 'Secondary outline button' },
-  { value: 'dark-solid', label: 'Dark button' },
-  { value: 'light-solid', label: 'Light button' },
+  { value: '', label: PAGE_BUILDER_FIELD_TEXT['richLink.display.link'] },
+  ...LINK_DISPLAY_VARIANTS.map((value) => ({ value, label: PAGE_BUILDER_FIELD_TEXT[`richLink.display.${value}`] })),
 ];
 
 export function ToolbarButton({
@@ -81,13 +101,13 @@ export function Divider() {
   return <span className="cmsc:self-stretch cmsc:w-px cmsc:my-[3px] cmsc:bg-[#d9e0e7]" />;
 }
 
-const BLOCK_OPTIONS = [
-  { value: 'p', label: 'Paragraph' },
-  { value: 'h1', label: 'Heading 1' },
-  { value: 'h2', label: 'Heading 2' },
-  { value: 'h3', label: 'Heading 3' },
-  { value: 'h4', label: 'Heading 4' },
-] as const;
+/** The block types, each named by the field text `richText.block.<value>` (#1680). */
+const BLOCK_OPTIONS = ['p', 'h1', 'h2', 'h3', 'h4'] as const;
+
+/** A translated word set into markup: the host's copy is text, never HTML. */
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
 
 function currentBlock(editor: Editor): string {
   for (const level of [1, 2, 3, 4] as const) {
@@ -113,15 +133,16 @@ export function LinkDialog({
   onApply: (url: string, openInNewTab: boolean, variant: string | null) => void;
   onCancel: () => void;
 }) {
+  const text = useFieldText();
   const [url, setUrl] = useState(initialUrl);
   const [openInNewTab, setOpenInNewTab] = useState(initialBlank);
   const [variant, setVariant] = useState(initialVariant ?? '');
   const apply = () => onApply(url, openInNewTab, variant === '' ? null : variant);
 
   return (
-    <CmsModalDialog title="Link" onClose={onCancel}>
+    <CmsModalDialog title={text('richLink.title')} onClose={onCancel}>
       <label className="cmsc:block cmsc:mb-[10px]">
-        <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">URL</span>
+        <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">{text('richLink.url')}</span>
         <input
           className="cmsc:box-border cmsc:w-full cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:px-[10px] cmsc:py-[8px] cmsc:text-[14px]"
           value={url}
@@ -135,7 +156,7 @@ export function LinkDialog({
       </label>
       {displayOptions ? (
         <label className="cmsc:block cmsc:mb-[10px]">
-          <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">Show as</span>
+          <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">{text('richLink.showAs')}</span>
           <select
             className="cmsc:box-border cmsc:w-full cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[8px] cmsc:py-[7px] cmsc:text-[14px]"
             value={variant}
@@ -155,7 +176,7 @@ export function LinkDialog({
           checked={openInNewTab}
           onChange={(event) => setOpenInNewTab(event.target.checked)}
         />
-        Open in new tab
+        {text('richLink.newTab')}
       </label>
       <div className="cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
         <button
@@ -163,14 +184,14 @@ export function LinkDialog({
           className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
           onClick={onCancel}
         >
-          Cancel
+          {text('richLink.cancel')}
         </button>
         <button
           type="button"
           className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white"
           onClick={apply}
         >
-          {url.trim() ? 'Apply' : 'Remove link'}
+          {url.trim() ? text('richLink.apply') : text('richLink.remove')}
         </button>
       </div>
     </CmsModalDialog>
@@ -191,19 +212,20 @@ export function AnchorDialog({
   onApply: (anchor: string | null) => void;
   onCancel: () => void;
 }) {
+  const text = useFieldText();
   const [raw, setRaw] = useState(initialAnchor);
   const previewId = useId();
   const anchor = normalizeAnchor(raw);
   const apply = () => onApply(anchor === '' ? null : anchor);
 
   return (
-    <CmsModalDialog title="Heading anchor" onClose={onCancel}>
+    <CmsModalDialog title={text('richAnchor.title')} onClose={onCancel}>
       <label className="cmsc:block cmsc:mb-[6px]">
-        <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">Anchor</span>
+        <span className="cmsc:mb-[4px] cmsc:block cmsc:text-[12px] cmsc:text-[#64748b]">{text('richAnchor.label')}</span>
         <input
           className="cmsc:box-border cmsc:w-full cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:px-[10px] cmsc:py-[8px] cmsc:text-[14px]"
           value={raw}
-          placeholder="pricing"
+          placeholder={text('richAnchor.placeholder')}
           autoFocus
           aria-describedby={previewId}
           onChange={(event) => setRaw(event.target.value)}
@@ -213,7 +235,7 @@ export function AnchorDialog({
         />
       </label>
       <p id={previewId} className="cmsc:m-0 cmsc:mb-[14px] cmsc:text-[12px] cmsc:text-[#64748b]" aria-live="polite">
-        {anchor === '' ? 'No anchor' : `Link to it with #${anchor}`}
+        {anchor === '' ? text('richAnchor.none') : text('richAnchor.hint', { anchor })}
       </p>
       <div className="cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
         <button
@@ -221,14 +243,14 @@ export function AnchorDialog({
           className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
           onClick={onCancel}
         >
-          Cancel
+          {text('richAnchor.cancel')}
         </button>
         <button
           type="button"
           className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#15202b] cmsc:bg-[#15202b] cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px] cmsc:text-white"
           onClick={apply}
         >
-          {anchor === '' ? 'Remove anchor' : 'Apply'}
+          {anchor === '' ? text('richAnchor.remove') : text('richAnchor.apply')}
         </button>
       </div>
     </CmsModalDialog>
@@ -306,7 +328,7 @@ export function ImageDialog({
   };
 
   return (
-    <CmsModalDialog title={editing ? 'Edit image' : 'Insert image'} onClose={onCancel}>
+    <CmsModalDialog title={text(editing ? 'richImage.edit' : 'richImage.insert')} onClose={onCancel}>
       {Picker !== null ? (
         <label className="cmsc:block cmsc:mb-[10px]">
           <span className={DIALOG_LABEL_CLASS}>{text('richImage.source')}</span>
@@ -343,7 +365,7 @@ export function ImageDialog({
         </div>
       ) : (
         <label className="cmsc:block cmsc:mb-[10px]">
-          <span className={DIALOG_LABEL_CLASS}>Image URL</span>
+          <span className={DIALOG_LABEL_CLASS}>{text('richImage.url')}</span>
           <input
             className={DIALOG_INPUT_CLASS}
             value={url}
@@ -354,25 +376,25 @@ export function ImageDialog({
         </label>
       )}
       <label className="cmsc:block cmsc:mb-[10px]">
-        <span className={DIALOG_LABEL_CLASS}>Alt text</span>
+        <span className={DIALOG_LABEL_CLASS}>{text('richImage.alt')}</span>
         <input className={DIALOG_INPUT_CLASS} value={alt} onChange={(event) => setAlt(event.target.value)} />
       </label>
       <div className="cmsc:mb-[10px] cmsc:flex cmsc:items-end cmsc:gap-[8px]">
         <label className="cmsc:block cmsc:min-w-0 cmsc:flex-1">
-          <span className={DIALOG_LABEL_CLASS}>Width</span>
+          <span className={DIALOG_LABEL_CLASS}>{text('richImage.width')}</span>
           <input
             className={DIALOG_INPUT_CLASS}
             type="number"
             min={1}
             max={unit === '%' ? 100 : 9999}
             inputMode="numeric"
-            placeholder="Auto"
+            placeholder={text('richImage.widthAuto')}
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
           />
         </label>
         <select
-          aria-label="Width unit"
+          aria-label={text('richImage.widthUnit')}
           className={`${DIALOG_CONTROL_CLASS} cmsc:w-[76px] cmsc:flex-none`}
           value={unit}
           onChange={(event) => setUnit(event.target.value as 'px' | '%')}
@@ -382,22 +404,24 @@ export function ImageDialog({
         </select>
       </div>
       <label className="cmsc:block cmsc:mb-[10px]">
-        <span className={DIALOG_LABEL_CLASS}>Alignment</span>
+        <span className={DIALOG_LABEL_CLASS}>{text('richImage.align')}</span>
         <select
           className={DIALOG_INPUT_CLASS}
           value={inline ? '' : align}
           disabled={inline}
           onChange={(event) => setAlign(event.target.value)}
         >
-          <option value="">Default</option>
-          <option value="left">Left</option>
-          <option value="center">Center</option>
-          <option value="right">Right</option>
+          <option value="">{text('richImage.align.default')}</option>
+          {RICH_IMAGE_ALIGNS.map((option) => (
+            <option key={option} value={option}>
+              {text(`richImage.align.${option}`)}
+            </option>
+          ))}
         </select>
       </label>
       <label className="cmsc:mb-[14px] cmsc:flex cmsc:min-h-[24px] cmsc:items-center cmsc:gap-[8px] cmsc:text-[13px] cmsc:text-[#334155]">
         <input type="checkbox" checked={inline} onChange={(event) => setInline(event.target.checked)} />
-        In the line of text
+        {text('richImage.inline')}
       </label>
       <div className="cmsc:flex cmsc:justify-end cmsc:gap-[8px]">
         <button
@@ -405,7 +429,7 @@ export function ImageDialog({
           className="cmsc:cursor-pointer cmsc:rounded-[6px] cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:bg-white cmsc:px-[12px] cmsc:py-[7px] cmsc:text-[13px]"
           onClick={onCancel}
         >
-          Cancel
+          {text('richImage.cancel')}
         </button>
         <button
           type="button"
@@ -414,7 +438,7 @@ export function ImageDialog({
           disabled={!url.trim()}
           onClick={apply}
         >
-          {editing ? 'Apply' : 'Insert'}
+          {editing ? text('richImage.apply') : text('richImage.insertAction')}
         </button>
       </div>
       {Picker !== null && picking ? (
@@ -523,39 +547,39 @@ function Toolbar({
         <select
           value={currentBlock(editor)}
           onChange={(event) => applyBlock(event.target.value)}
-          title="Block type"
-          aria-label="Block type"
+          title={text('richText.blockType')}
+          aria-label={text('richText.blockType')}
           className="cmsc:font-sans cmsc:h-[30px] cmsc:text-[13px] cmsc:text-[#334155] cmsc:bg-white cmsc:border cmsc:border-solid cmsc:border-[#d9e0e7] cmsc:rounded-[6px] cmsc:px-[6px] cmsc:cursor-pointer"
         >
-          {BLOCK_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
+          {BLOCK_OPTIONS.map((block) => (
+            <option key={block} value={block}>
+              {text(`richText.block.${block}`)}
             </option>
           ))}
         </select>
 
         <Divider />
 
-        <ToolbarButton title="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
+        <ToolbarButton title={text('richText.bold')} active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}>
           <strong>B</strong>
         </ToolbarButton>
-        <ToolbarButton title="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
+        <ToolbarButton title={text('richText.italic')} active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}>
           <em>I</em>
         </ToolbarButton>
-        <ToolbarButton title="Underline" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+        <ToolbarButton title={text('richText.underline')} active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}>
           <span className="cmsc:underline">U</span>
         </ToolbarButton>
-        <ToolbarButton title="Strikethrough" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}>
+        <ToolbarButton title={text('richText.strike')} active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()}>
           <span className="cmsc:line-through">S</span>
         </ToolbarButton>
-        <ToolbarButton title="Inline code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}>
+        <ToolbarButton title={text('richText.code')} active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()}>
           {'</>'}
         </ToolbarButton>
-        <ToolbarButton title="Link" active={editor.isActive('link')} onClick={() => setLinkOpen(true)}>
+        <ToolbarButton title={text('richText.link')} active={editor.isActive('link')} onClick={() => setLinkOpen(true)}>
           🔗
         </ToolbarButton>
         <ToolbarButton
-          title={selectedImage(editor) ? 'Edit image' : 'Insert image'}
+          title={text(selectedImage(editor) ? 'richImage.edit' : 'richImage.insert')}
           active={selectedImage(editor) !== undefined}
           onClick={() => setImageOpen(true)}
         >
@@ -564,7 +588,7 @@ function Toolbar({
         {EMPHASIS_VARIANTS.map((variant) => (
           <ToolbarButton
             key={variant}
-            title={EMPHASIS_LABELS[variant]}
+            title={text(`emphasis.${variant}`)}
             active={editor.isActive('emphasis', { variant })}
             onClick={() => editor.chain().focus().toggleEmphasis(variant).run()}
           >
@@ -574,11 +598,11 @@ function Toolbar({
 
         <Divider />
 
-        <ToolbarButton title="Heading anchor" active={Boolean(headingAttrs.anchor)} disabled={!inHeading} onClick={() => setAnchorOpen(true)}>
+        <ToolbarButton title={text('richText.anchor')} active={Boolean(headingAttrs.anchor)} disabled={!inHeading} onClick={() => setAnchorOpen(true)}>
           #
         </ToolbarButton>
         <ToolbarButton
-          title="Visually hidden heading"
+          title={text('richText.srOnly')}
           active={inHeading && headingAttrs.srOnly === true}
           disabled={!inHeading}
           onClick={() => editor.chain().focus().updateAttributes('heading', { srOnly: headingAttrs.srOnly !== true }).run()}
@@ -603,7 +627,7 @@ function Toolbar({
           ))}
         </select>
         <label
-          title="Text color"
+          title={text('richText.textColor')}
           className="cmsc:inline-flex cmsc:h-[30px] cmsc:items-center cmsc:gap-[4px] cmsc:rounded-[6px] cmsc:px-[4px] cmsc:text-[12px] cmsc:text-[#64748b]"
         >
           A
@@ -615,7 +639,7 @@ function Toolbar({
           />
         </label>
         <label
-          title="Highlight color"
+          title={text('richText.highlightColor')}
           className="cmsc:inline-flex cmsc:h-[30px] cmsc:items-center cmsc:gap-[4px] cmsc:rounded-[6px] cmsc:px-[4px] cmsc:text-[12px] cmsc:text-[#64748b]"
         >
           ▮
@@ -631,10 +655,10 @@ function Toolbar({
 
         <Divider />
 
-        <ToolbarButton title="Bullet list" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}>
+        <ToolbarButton title={text('richText.bulletList')} active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}>
           •—
         </ToolbarButton>
-        <ToolbarButton title="Check list" active={editor.isActive('bulletList', { listStyle: 'check' })} onClick={toggleCheckList}>
+        <ToolbarButton title={text('richText.checkList')} active={editor.isActive('bulletList', { listStyle: 'check' })} onClick={toggleCheckList}>
           ✓
         </ToolbarButton>
         <select
@@ -657,18 +681,18 @@ function Toolbar({
             </option>
           ))}
         </select>
-        <ToolbarButton title="Numbered list" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
+        <ToolbarButton title={text('richText.orderedList')} active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}>
           1.
         </ToolbarButton>
         <ToolbarButton
-          title="Read more passage"
+          title={text('richText.readMore')}
           active={editor.isActive('readMore')}
           onClick={() => editor.chain().focus().insertContent(readMoreContent('Read more')).run()}
         >
           ⋯
         </ToolbarButton>
         <ToolbarButton
-          title="Read more as a chevron"
+          title={text('richText.readMoreChevron')}
           active={editor.isActive('readMore', { summaryStyle: 'chevron' })}
           disabled={!editor.isActive('readMore')}
           onClick={() =>
@@ -705,40 +729,40 @@ function Toolbar({
         >
           ⤒
         </ToolbarButton>
-        <ToolbarButton title="Quote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
+        <ToolbarButton title={text('richText.quote')} active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()}>
           ❝
         </ToolbarButton>
-        <ToolbarButton title="Code block" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
+        <ToolbarButton title={text('richText.codeBlock')} active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()}>
           {'{ }'}
         </ToolbarButton>
-        <ToolbarButton title="Horizontal rule" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
+        <ToolbarButton title={text('richText.horizontalRule')} onClick={() => editor.chain().focus().setHorizontalRule().run()}>
           ―
         </ToolbarButton>
 
         <Divider />
 
-        <ToolbarButton title="Align left" active={editor.isActive({ textAlign: 'left' })} onClick={() => editor.chain().focus().setTextAlign('left').run()}>
+        <ToolbarButton title={text('richText.alignLeft')} active={editor.isActive({ textAlign: 'left' })} onClick={() => editor.chain().focus().setTextAlign('left').run()}>
           ⫷
         </ToolbarButton>
-        <ToolbarButton title="Align center" active={editor.isActive({ textAlign: 'center' })} onClick={() => editor.chain().focus().setTextAlign('center').run()}>
+        <ToolbarButton title={text('richText.alignCenter')} active={editor.isActive({ textAlign: 'center' })} onClick={() => editor.chain().focus().setTextAlign('center').run()}>
           ☰
         </ToolbarButton>
-        <ToolbarButton title="Align right" active={editor.isActive({ textAlign: 'right' })} onClick={() => editor.chain().focus().setTextAlign('right').run()}>
+        <ToolbarButton title={text('richText.alignRight')} active={editor.isActive({ textAlign: 'right' })} onClick={() => editor.chain().focus().setTextAlign('right').run()}>
           ⫸
         </ToolbarButton>
-        <ToolbarButton title="Justify" active={editor.isActive({ textAlign: 'justify' })} onClick={() => editor.chain().focus().setTextAlign('justify').run()}>
+        <ToolbarButton title={text('richText.justify')} active={editor.isActive({ textAlign: 'justify' })} onClick={() => editor.chain().focus().setTextAlign('justify').run()}>
           ▤
         </ToolbarButton>
 
         <Divider />
 
-        <ToolbarButton title="Clear formatting" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
+        <ToolbarButton title={text('richText.clearFormatting')} onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
           ⌫
         </ToolbarButton>
-        <ToolbarButton title="Undo" disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}>
+        <ToolbarButton title={text('richText.undo')} disabled={!editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}>
           ↶
         </ToolbarButton>
-        <ToolbarButton title="Redo" disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}>
+        <ToolbarButton title={text('richText.redo')} disabled={!editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}>
           ↷
         </ToolbarButton>
 
@@ -752,7 +776,7 @@ function Toolbar({
         <span className="cmsc:ml-auto" />
         <ToolbarButton
           ref={expandButtonRef}
-          title={expanded ? 'Collapse editor' : 'Expand editor to full screen'}
+          title={text(expanded ? 'richText.collapse' : 'richText.expand')}
           active={expanded}
           onClick={onToggleExpand}
         >
@@ -765,7 +789,10 @@ function Toolbar({
           initialUrl={(editor.getAttributes('link').href as string | undefined) ?? ''}
           initialBlank={(editor.getAttributes('link').target as string | undefined) === '_blank'}
           initialVariant={(editor.getAttributes('link').variant as string | null | undefined) ?? null}
-          displayOptions={LINK_DISPLAY_OPTIONS}
+          displayOptions={[
+            { value: '', label: text('richLink.display.link') },
+            ...LINK_DISPLAY_VARIANTS.map((value) => ({ value, label: text(`richLink.display.${value}`) })),
+          ]}
           onCancel={() => setLinkOpen(false)}
           onApply={(url, openInNewTab, variant) => {
             const range = editor.chain().focus().extendMarkRange('link');
@@ -850,7 +877,7 @@ export function RichContentEditorField({
         <span
           className="cmsc:font-sans cmsc:text-[#334155] cmsc:text-[14px]"
           dangerouslySetInnerHTML={{
-            __html: htmlFromTiptap(value) || sanitizeRichHtml('') || '<p>No content</p>',
+            __html: htmlFromTiptap(value) || sanitizeRichHtml('') || `<p>${escapeHtml(text('richText.empty'))}</p>`,
           }}
         />
       </div>

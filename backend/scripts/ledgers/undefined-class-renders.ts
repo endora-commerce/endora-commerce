@@ -50,8 +50,6 @@ export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
   // -- a block that was never in the vocabulary --------------------------
   'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx::b2b-input':
     'no `b2b-input` block exists; the kit publishes `ui/input`',
-  'packages/admin-shell/src/modules/profile/ProfilePage.tsx::b2b-grid':
-    'no `b2b-grid` block exists; the tree lays out with Tailwind utilities',
 
   // -- a CMS block name --------------------------------------------------
   'packages/modules/cms/src/admin/components/PageBuilderEditor.tsx::cms-page-builder__canvas':
