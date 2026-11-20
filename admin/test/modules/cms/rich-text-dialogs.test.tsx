@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StrictMode, Suspense, useState, type ReactElement, type ReactNode } from 'react';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { JSONContent } from '@tiptap/core';
 import { createInlineRichTextField, RichContentEditorField } from '@endora-commerce/cms-components';
 import { PAGE_BUILDER_FIELD_TEXT } from '@endora-commerce/page-builder-core';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
@@ -105,15 +104,16 @@ describe('CmsModalDialog (#1652)', () => {
   });
 });
 
-const HEADING: JSONContent = {
+/** One level-2 heading, so the anchor button is on with the caret at its start. */
+const HEADING = {
   type: 'doc',
   content: [{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Pricing' }] }],
 };
 
-function renderRichText(value: JSONContent = HEADING): void {
+function renderRichText(value: unknown = HEADING): void {
   renderWithI18n(
     <StrictMode>
-      <RichContentEditorField value={value} onChange={vi.fn()} />
+      <RichContentEditorField value={value as never} onChange={vi.fn()} />
     </StrictMode>,
   );
 }
