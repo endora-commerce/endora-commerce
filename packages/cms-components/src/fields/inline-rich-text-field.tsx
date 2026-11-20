@@ -3,6 +3,7 @@
 import { lazy, Suspense, type ReactElement } from 'react';
 import { FieldLabel, type CustomField } from '@puckeditor/core';
 import type { InlineRichText } from '@endora-commerce/page-builder-core';
+import { EditorLoading } from './editor-loading.js';
 
 /**
  * The TipTap editor is loaded on demand: a block's field map is imported
@@ -46,7 +47,7 @@ export function createInlineRichTextField(options: InlineRichTextFieldOptions): 
       const label = field.label ?? options.label;
       return (
         <FieldLabel label={label} el="div" {...(readOnly === true ? { readOnly: true } : {})}>
-          <Suspense fallback={<p className="cmsc:font-sans cmsc:text-[13px] cmsc:opacity-70">Loading editor…</p>}>
+          <Suspense fallback={<EditorLoading />}>
             <LazyInlineRichTextEditor
               value={value}
               onChange={onChange}
