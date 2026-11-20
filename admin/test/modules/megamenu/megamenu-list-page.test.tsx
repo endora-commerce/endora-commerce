@@ -87,7 +87,7 @@ describe('megamenu list', () => {
 
   it('draws "active in n scopes" and "staged" as badges with text', async () => {
     mount();
-    expect(await screen.findByText(fill(en['list.activeScopes']!, { count: 2 }))).toBeInTheDocument();
+    expect(await screen.findByText(fill(en['list.activeScopes.other']!, { count: 2 }))).toBeInTheDocument();
     expect(screen.getByText(en['state.staged']!)).toBeInTheDocument();
   });
 

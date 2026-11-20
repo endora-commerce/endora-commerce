@@ -16,7 +16,7 @@ import {
   type ResponsiveColumn,
 } from '@endora-commerce/admin-kit/components';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
-import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 
 import { megamenuClient } from '../api/megamenu-client.js';
 
@@ -106,6 +106,7 @@ function CreateMegamenuDialog({ onClose }: { onClose: () => void }): ReactNode {
  */
 export function MegamenuListPage(): ReactNode {
   const t = useTranslation('megamenu');
+  const { language } = useTranslationContext();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('megamenu.write');
   const { confirm, confirmDialog } = useConfirmDialog();
@@ -190,7 +191,7 @@ export function MegamenuListPage(): ReactNode {
       header: t('columns.active'),
       render: (row) =>
         row.activeIn > 0 ? (
-          <Badge variant="success">{t('list.activeScopes', { count: row.activeIn })}</Badge>
+          <Badge variant="success">{t(`list.activeScopes.${new Intl.PluralRules(language).select(row.activeIn)}`, { count: new Intl.NumberFormat(language).format(row.activeIn) })}</Badge>
         ) : (
           <Badge variant="outline">{t('state.staged')}</Badge>
         ),
