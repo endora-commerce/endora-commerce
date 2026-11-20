@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Power, PowerOff } from 'lucide-react';
+import { Lock, Mail, Power, PowerOff } from 'lucide-react';
 import type { TransactionalEmailSummary } from '@endora-commerce/contracts';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ApiError, normalize, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, EmptyState, Input, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
 
 type Translate = (key: string, params?: Record<string, string | number>) => string;
@@ -89,6 +89,10 @@ export function EmailsList(): React.ReactElement {
   const [items, setItems] = useState<TransactionalEmailSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  // Until the first answer the list is unknown, not empty: no empty state may
+  // claim either "no e-mails" or "no match" before it arrives (#1448).
+  const [loaded, setLoaded] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let live = true;
@@ -99,6 +103,9 @@ export function EmailsList(): React.ReactElement {
       })
       .catch((err: unknown) => {
         if (live) setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (live) setLoaded(true);
       });
     return () => {
       live = false;
@@ -137,6 +144,7 @@ export function EmailsList(): React.ReactElement {
         </Alert>
       ) : null}
       <Input
+        ref={searchRef}
         type="search"
         aria-label={t('list.searchLabel')}
         placeholder={t('list.search')}
@@ -180,10 +188,26 @@ export function EmailsList(): React.ReactElement {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 ? (
+              {loaded && filtered.length === 0 ? (
                 <tr>
-                  <td className="p-3 text-muted-foreground" colSpan={5}>
-                    {t('list.empty')}
+                  <td colSpan={5}>
+                    {/* "No e-mails" and "no e-mail matches the search" are two
+                        situations (#1448, DS-15). E-mails are declared by the
+                        modules, so the no-data state offers no create action. */}
+                    {items.length > 0 ? (
+                      <EmptyState
+                        variant="no-results"
+                        title={t('list.emptyFiltered')}
+                        onClearFilters={() => setQ('')}
+                        focusAfterClear={searchRef}
+                      />
+                    ) : (
+                      <EmptyState
+                        icon={<Mail size={20} />}
+                        title={t('list.emptyState.title')}
+                        description={t('list.emptyState.body')}
+                      />
+                    )}
                   </td>
                 </tr>
               ) : null}

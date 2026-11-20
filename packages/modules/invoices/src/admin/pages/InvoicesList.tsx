@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FileDown, Mail } from 'lucide-react';
+import { FileDown, FileText, Mail } from 'lucide-react';
 import { apiBaseUrl, apiClient, ApiError, formatDateTime, formatMoney, sendInvoiceEmailMessage } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, EmptyState, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { InvoiceSectionTabs } from '../components/InvoiceSectionTabs.js';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -53,6 +53,9 @@ export function InvoicesList(): ReactNode {
     issuedTo !== '' ||
     totalMin !== '' ||
     totalMax !== '';
+
+  // Where focus returns after the empty state's "Clear filters" (WCAG 2.2 SC 2.4.3).
+  const firstFilterRef = useRef<HTMLInputElement>(null);
 
   const clearFilters = useCallback((): void => {
     setStatus('');
@@ -166,6 +169,7 @@ export function InvoicesList(): ReactNode {
             <div className="space-y-2">
               <Label htmlFor="iorder">{t('invoices.fields.orderNumber')}</Label>
               <Input
+                ref={firstFilterRef}
                 id="iorder"
                 value={orderNumber}
                 onChange={(e): void => setOrderNumber(e.target.value)}
@@ -256,7 +260,23 @@ export function InvoicesList(): ReactNode {
           {loading ? (
             <p className="text-sm text-muted-foreground">{t('common.state.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('invoices.empty')}</p>
+            // "No invoices yet" and "these filters match nothing" are two
+            // situations (#1448, DS-15). Invoices are issued from orders, so
+            // the no-data state offers no create action.
+            hasFilters ? (
+              <EmptyState
+                variant="no-results"
+                title={t('invoices.empty')}
+                onClearFilters={clearFilters}
+                focusAfterClear={firstFilterRef}
+              />
+            ) : (
+              <EmptyState
+                icon={<FileText size={20} />}
+                title={t('invoices.emptyState.title')}
+                description={t('invoices.emptyState.body')}
+              />
+            )
           ) : (
             <Table>
               <TableHeader>
