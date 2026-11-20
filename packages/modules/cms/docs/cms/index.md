@@ -59,6 +59,8 @@ When the delete is refused, the dialog stays open, says why and tells you what t
 | `409 CMS_HOOK_SYSTEM_PROTECTED` | A system hook cannot be deleted. | Nothing. System hooks have no **Delete** in their menu. |
 | Any other failure | The delete did not go through. | Check the connection and choose **Delete** again, or *Cancel*. |
 
+On the page list the menu also holds **Archive**, or **Unarchive** for an archived page, before **Delete**. Neither asks for confirmation, as in the page editor: archiving takes the page off the storefront and can be undone. **Unarchive** makes the page a draft, so it comes back to the storefront only when you publish it again. The row's status badge changes in place, the result is shown next to **New page**, and focus stays on the row's menu. When the list is filtered by a status the page no longer has, the page leaves the list and focus moves to the next row. If the change does not go through, the list says so and the page keeps its status.
+
 Without `cms.write` the lists are read-only: no row menu and no **New** button. A list with no records shows what it is for and, for an administrator who may create one, the **New** button.
 
 ## Page Builder authoring

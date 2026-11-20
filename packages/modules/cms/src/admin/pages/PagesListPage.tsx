@@ -2,7 +2,16 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom';
 import { FileText, Plus } from 'lucide-react';
 import type { CmsPageStatus, CmsPageSummary } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Badge, Button, EmptyState, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  EmptyState,
+  InlineStatus,
+  Select,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import {
   ListPage,
   ListToolbar,
@@ -38,6 +47,12 @@ const rowId = (row: { id: string }): string => row.id;
  * statuses as badges with text, and a row menu that opens a page or deletes it
  * through the confirmation and `DELETE /api/v1/admin/cms/pages/:id`. The
  * endpoint answers the whole list, so there is no pager.
+ *
+ * Archive / Unarchive sit between them. Archiving is reversible and the page
+ * editor does it without asking, so the menu does too: the row's badge changes
+ * in place, the result is said beside "New page" (DEC-12 a) and focus stays on
+ * the row's menu trigger; a row the status filter no longer matches leaves the
+ * list, and focus moves to its neighbour.
  */
 export function PagesListPage(): ReactNode {
   const t = useTranslation('cms');
@@ -59,6 +74,9 @@ export function PagesListPage(): ReactNode {
   const [notice, setNotice] = useState<string | null>(null);
   // After a delete, focus goes to the next row, or to "New …" once the list is empty (WCAG 2.4.3).
   const removalFocus = useRemovalFocus(rows, rowId, load.kind === 'ready');
+  // The result of Archive / Unarchive, in a region mounted before it has text (SC 4.1.3).
+  const archiveStatus = useInlineStatus();
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
   useEffect(() => {
     // A response that lands after a newer request was sent is dropped, so a
@@ -98,8 +116,31 @@ export function PagesListPage(): ReactNode {
       returnFocusTo: removalFocus.returnFocusTo(page),
     });
     if (!deleted) return;
+    archiveStatus.clear();
     setRows((current) => current.filter((row) => row.id !== page.id));
     setNotice(t('pagesList.deleted', { name: page.name }));
+  };
+
+  const toggleArchive = async (page: CmsPageSummary): Promise<void> => {
+    const archiving = page.status !== 'archived';
+    setNotice(null);
+    archiveStatus.clear();
+    setArchivingId(page.id);
+    try {
+      const updated = archiving ? await cmsClient.archivePage(page.id) : await cmsClient.unarchivePage(page.id);
+      if (status !== '' && updated.status !== status) {
+        // The row leaves the filtered list; its menu goes with it, so focus moves first.
+        removalFocus.returnFocusTo(page)()?.focus();
+        setRows((current) => current.filter((row) => row.id !== page.id));
+      } else {
+        setRows((current) => current.map((row) => (row.id === page.id ? { ...row, status: updated.status } : row)));
+      }
+      archiveStatus.show(t(archiving ? 'pagesList.archived' : 'pagesList.unarchived', { name: page.name }));
+    } catch {
+      archiveStatus.show(t(archiving ? 'pagesList.archiveFailed' : 'pagesList.unarchiveFailed', { name: page.name }), 'error');
+    } finally {
+      setArchivingId(null);
+    }
   };
 
   const createLink = (
@@ -166,7 +207,14 @@ export function PagesListPage(): ReactNode {
     <div className="b2b-page b2b-page--wide">
       <ListPage
         title={t('pagesList.title')}
-        actions={canWrite && !nothingYet ? createLink : null}
+        actions={
+          canWrite ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <InlineStatus {...archiveStatus.props} />
+              {nothingYet ? null : createLink}
+            </div>
+          ) : null
+        }
         toolbar={
           <ListToolbar
             className="flex-1"
@@ -232,6 +280,9 @@ export function PagesListPage(): ReactNode {
                   <RowActionMenu label={t('listActions.label', { name: page.name })}>
                     <RowActionMenuItem asChild>
                       <Link to={`/cms/pages/${page.id}`}>{t('listActions.open')}</Link>
+                    </RowActionMenuItem>
+                    <RowActionMenuItem disabled={archivingId !== null} onSelect={() => void toggleArchive(page)}>
+                      {t(page.status === 'archived' ? 'pagesList.unarchive' : 'pagesList.archive')}
                     </RowActionMenuItem>
                     <RowActionMenuSeparator />
                     <RowActionMenuItem destructive onSelect={() => void remove(page)}>
