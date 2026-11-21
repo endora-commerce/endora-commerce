@@ -140,6 +140,11 @@ describe('ReturnClausesPage (180 T074)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Add clause' }));
     const dialog = await screen.findByRole('dialog', { name: 'New clause' });
     expect(within(dialog).getAllByRole('tab').map((t) => t.textContent)).toEqual(['en', 'pl']);
+    // The per-language fields are the strip's panel; the channel and the kinds are not (issue #1445).
+    const panel = within(dialog).getByRole('tabpanel');
+    expect(within(dialog).getByRole('tab', { name: 'en' })).toHaveAttribute('aria-controls', panel.id);
+    expect(panel).toContainElement(within(dialog).getByLabelText('Label'));
+    expect(panel).not.toContainElement(within(dialog).getByLabelText('Mode'));
     await userEvent.type(within(dialog).getByLabelText('Label'), 'Terms');
     await userEvent.type(within(dialog).getByLabelText('Text'), 'Read me');
     expect(within(dialog).getByText('7 / 5000')).toBeInTheDocument();

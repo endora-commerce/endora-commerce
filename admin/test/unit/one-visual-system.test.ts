@@ -53,6 +53,10 @@ const MIGRATED = [
   // The command palette's prompt mode (#1492). `AppShell.tsx` is still to come.
   'packages/admin-shell/src/components/prompt-actions/PromptModePanel.tsx',
   'packages/admin-shell/src/components/prompt-actions/PromptPlanPreview.tsx',
+  // The catalog bulk operations (#1492, UX audit slice S14): the bulk edit dialog and both pages.
+  'packages/modules/catalog/src/admin/components/ProductsBulkEditDialog.tsx',
+  'packages/modules/catalog/src/admin/pages/BulkOperationsPage.tsx',
+  'packages/modules/catalog/src/admin/pages/BulkOperationDetailPage.tsx',
 ] as const;
 
 /**

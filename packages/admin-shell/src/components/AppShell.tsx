@@ -1779,6 +1779,13 @@ const ALT_ENTER_GLYPH =
  *  instead of navigating (feature 043; module_actions are navigation-only). */
 const PROMPT_MODE_SENTINEL = '__prompt_actions_mode__';
 
+/** Sentinel route for the "a confirmed prompt has finished" row (FR-018,
+ *  issue #1404) — opens prompt mode on the oldest unseen result. */
+const PROMPT_UNSEEN_SENTINEL = '__prompt_actions_unseen__';
+
+/** Words the assistant rows are matched on while typing, in both languages. */
+const ASSISTANT_KEYWORDS = 'assistant ai prompt ask asystent zapytaj';
+
 /**
  * The last answer the capability probe gave, kept at module level so a palette
  * that mounts again paints the assistant row at once instead of one round trip
@@ -1915,10 +1922,30 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
         sub: tp('palette.entry.description'),
         icon: Sparkles,
         to: PROMPT_MODE_SENTINEL,
-        keywords: 'assistant ai prompt ask asystent zapytaj',
+        keywords: ASSISTANT_KEYWORDS,
       },
     ];
   }, [mayUseAssistant, assistantReady, tp]);
+
+  // FR-018 / issue #1404 — a prompt that finished while the palette was closed
+  // is an `option` of the listbox, listed first, so the arrow keys reach it,
+  // Enter opens it and a screen reader hears it as the highlighted row. It
+  // used to be a clickable `div` above the listbox that only a mouse could
+  // use.
+  const unseenItems = useMemo<PaletteItem[]>(() => {
+    if (unseen.length === 0) return [];
+    return [
+      {
+        group: 'Assistant',
+        labelMode: 'literal',
+        label: tp('panel.unseenNotice'),
+        sub: '',
+        icon: Sparkles,
+        to: PROMPT_UNSEEN_SENTINEL,
+        keywords: ASSISTANT_KEYWORDS,
+      },
+    ];
+  }, [unseen.length, tp]);
 
   // Global search's rows. Only selectable rows enter `items`, so the one
   // Arrow/Enter loop walks screens, actions and records as one list (FR-006);
@@ -1964,10 +1991,10 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   }, [records.available, records.minimumQueryLength, query, t]);
 
   const itemsBeforeSeeAll = useMemo(() => {
-    if (!query.trim()) return [...assistantItems, ...navigateItems, ...actionItems];
+    if (!query.trim()) return [...unseenItems, ...assistantItems, ...navigateItems, ...actionItems];
     // Folded once here, then compared against every row — see `matchesQuery`.
     const q = searchTerms(query);
-    const filteredAssistant = assistantItems.filter((i) =>
+    const filteredAssistant = [...unseenItems, ...assistantItems].filter((i) =>
       matchesQuery(q, i.label, i.sub, i.keywords),
     );
     // Navigate group: filter against the *translated* label + sub plus
@@ -1980,7 +2007,7 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
     // `resolveLabel` / `resolveSub` are render-scoped closures over `t`; the
     // list re-derives on every language change through the parent re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, actionItems, assistantItems, navigateItems, recordItems]);
+  }, [query, actionItems, unseenItems, assistantItems, navigateItems, recordItems]);
 
   const items = useMemo(
     () => (seeAllItem ? [...itemsBeforeSeeAll, seeAllItem] : itemsBeforeSeeAll),
@@ -1992,7 +2019,9 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   // match a destination, so they never carry the control.
   const pinTargetOf = useCallback(
     (it: PaletteItem): VisibleDestination | undefined =>
-      it.to === PROMPT_MODE_SENTINEL ? undefined : pinTargets.get(it.to),
+      it.to === PROMPT_MODE_SENTINEL || it.to === PROMPT_UNSEEN_SENTINEL
+        ? undefined
+        : pinTargets.get(it.to),
     [pinTargets],
   );
   const togglePinOf = useCallback(
@@ -2014,9 +2043,18 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
         setMode('prompt');
         return;
       }
+      if (to === PROMPT_UNSEEN_SENTINEL) {
+        const [next, ...rest] = unseen;
+        if (!next) return;
+        setInitialRequest(next);
+        setUnseen(rest);
+        setInitialPrompt('');
+        setMode('prompt');
+        return;
+      }
       onNavigate(to);
     },
-    [onNavigate],
+    [onNavigate, unseen],
   );
 
   // `/ai` shortcut: typing `/ai` (optionally followed by a command) in the
@@ -2040,6 +2078,18 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   useEffect(() => {
     setCursor(0);
   }, [query, open]);
+
+  // Issue #1404 — the highlighted option is kept in view as the arrow keys
+  // walk past the visible part of the list. DOM focus stays in the input, so
+  // the browser would not scroll for it. `block: 'nearest'` moves the list
+  // only when the row is outside it, and without smooth scrolling, so a
+  // reduced-motion preference has no animation to opt out of.
+  useEffect(() => {
+    if (!open || mode !== 'search') return;
+    const row = document.getElementById(`${listboxId}-option-${cursor}`);
+    // `scrollIntoView` is absent from some non-browser DOMs (jsdom).
+    if (row && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block: 'nearest' });
+  }, [open, mode, cursor, items, listboxId]);
 
   useEffect(() => {
     if (!open) {
@@ -2281,24 +2331,13 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
             ? t('appShell.palette.records.announce', { count: recordCount })
             : ''}
         </div>
+        {/* FR-018 / issue #1404 — the finished-prompt row arrives after the
+            palette opens (it is fetched), so its arrival is announced here;
+            the region is mounted before it has text. */}
+        <div role="status" aria-live="polite" className="sr-only" data-testid="palette-unseen-status">
+          {unseenItems.length > 0 ? tp('panel.unseenNotice') : ''}
+        </div>
         <div className="b2b-palette__list" aria-busy={recordsLoading}>
-          {unseen.length > 0 ? (
-            <div
-              data-testid="prompt-unseen-notice"
-              className="b2b-palette__item"
-              style={{ cursor: 'pointer' }}
-              onClick={(): void => {
-                setInitialRequest(unseen[0]);
-                setUnseen((u) => u.slice(1));
-                setMode('prompt');
-              }}
-            >
-              <Sparkles size={16} />
-              <div>
-                <div>{tp('panel.unseenNotice')}</div>
-              </div>
-            </div>
-          ) : null}
           {nothingAtAll ? (
             <div style={{ padding: 32, textAlign: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>
               {t('appShell.search.noMatches')}

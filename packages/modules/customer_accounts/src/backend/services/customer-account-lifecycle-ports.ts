@@ -710,7 +710,7 @@ export class CustomerAccountAdminSearchService implements CustomerAccountAdminSe
     // `specs/150-admin-global-search/` — a field selection makes the match
     // literal and the order relevance-first; without one, nothing changes.
     const fields = criteria.qFields === undefined ? null : new Set(criteria.qFields);
-    let orderBy: unknown = { createdAt: 'desc' };
+    let orderBy: unknown = { createdAt: 'desc', id: 'desc' };
     if (q && fields === null) {
       const like = `%${q}%`;
       and.push({

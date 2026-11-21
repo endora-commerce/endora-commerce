@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { KeyRound } from 'lucide-react';
 import type {
   ConfigurationDto,
   ConfigurationTypeDescriptor,
   CreateConfiguration,
   UpdateConfiguration,
 } from '@endora-commerce/contracts';
-import { Badge, Button, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Badge, Button, EmptyState, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable, type ResponsiveColumn, useConfirmDialog } from '@endora-commerce/admin-kit/components';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -167,23 +168,26 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
     );
   }
 
+  const newButton = (
+    <Button
+      onClick={() => {
+        setEditing(null);
+        setFormError(null);
+        setMode('new');
+      }}
+      disabled={types.length === 0}
+    >
+      {t('page.new')}
+    </Button>
+  );
+  // Issue #1448 (DS-15): while there is no configuration, the empty state's
+  // New configuration is the view's one primary; the header does not repeat it
+  // (Von Restorff). With no type to create, the empty state says why instead.
+  const noData = !loading && listError === null && items.length === 0;
+
   return (
     <div>
-      <PageHeader
-        title={t('page.title')}
-        actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setFormError(null);
-              setMode('new');
-            }}
-            disabled={types.length === 0}
-          >
-            {t('page.new')}
-          </Button>
-        }
-      />
+      <PageHeader title={t('page.title')} actions={noData ? null : newButton} />
 
       {listError ? <p className="mb-3 text-sm text-destructive">{listError}</p> : null}
 
@@ -192,7 +196,14 @@ export function CredentialsPage({ initialMode = 'list' }: CredentialsPageProps =
           columns={columns}
           data={items}
           keyExtractor={(r) => r.id}
-          emptyState={<p className="text-sm text-muted-foreground">{t('page.empty')}</p>}
+          emptyState={
+            <EmptyState
+              icon={<KeyRound size={20} />}
+              title={t('page.empty')}
+              description={types.length === 0 ? t('page.emptyNoTypes') : t('page.emptyBody')}
+              action={types.length === 0 ? null : newButton}
+            />
+          }
           renderActions={(r) => (
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => setPreview(r)}>

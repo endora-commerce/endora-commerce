@@ -79,13 +79,15 @@ ceny bazowe zapisuje Zapisz.
 
 ## Zmiana zakresu z niezapisanymi zmianami
 
-Zmiany zapisuje się osobno dla każdego zakresu, więc zmiana zakresu (albo opuszczenie produktu, albo przycisk
-„Wstecz” przeglądarki) z niezapisanymi zmianami — także w cenach bazowych — otwiera okno z trzema wyborami:
+Zmiany zapisuje się osobno dla każdego zakresu, więc zmiana zakresu (albo opuszczenie produktu linkiem powrotu lub
+dowolnym innym linkiem w panelu, albo przycisk „Wstecz” przeglądarki między zakresami) z niezapisanymi zmianami — także
+w cenach bazowych — otwiera okno z trzema wyborami:
 
 - **Zapisz i kontynuuj** — zapisuje zmiany w zakresie, który opuszczasz, a potem przełącza zakres; jeśli którakolwiek
   część nie zostanie zapisana, zostajesz na miejscu;
 - **Odrzuć zmiany** — porzuca wszystkie niezapisane zmiany na stronie i przełącza zakres;
-- **Zostań tutaj** — zamyka okno i pozwala edytować dalej.
+- **Zostań tutaj** — zamyka okno i pozwala edytować dalej; po przycisku „Wstecz” przeglądarki adres wraca do zakresu,
+  w którym zostajesz.
 
 Jeśli zapis zostanie odrzucony, zostajesz na miejscu, a powód widać przy polu. Jeśli ktoś inny zapisał produkt w
 międzyczasie, edytor zgłasza konflikt wersji; **Wczytaj ponownie** porzuca Twoje niezapisane zmiany i czyta produkt

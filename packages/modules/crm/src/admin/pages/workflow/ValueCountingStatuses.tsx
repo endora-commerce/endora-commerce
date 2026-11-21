@@ -5,7 +5,8 @@ import {
   type SetValueCountingStatusesRequest,
 } from '@endora-commerce/contracts';
 import { useModulePresence } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Checkbox } from '@endora-commerce/admin-kit/ui';
+import { Button, Checkbox, EditorSection } from '@endora-commerce/admin-kit/ui';
+import { StickyFormActions, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { OrderStatusOption } from '../../api.js';
 import { quoteRequestStatusKey } from '../../components/LinkedQuoteRequests.js';
@@ -45,6 +46,9 @@ function sorted(values: Iterable<string>): string[] {
  * screen, marked, so unticking it is possible; the Quote Request group is not
  * offered while that module is off, and what was saved for it is sent back
  * untouched.
+ *
+ * It is the *Value* tab's one draft (issue #1559): one card, one Save in the
+ * kit's `StickyFormActions`, and leaving with unsaved ticks asks first.
  */
 export function ValueCountingStatuses(props: ValueCountingStatusesProps): ReactNode {
   const { workflow, orderStatuses, language, onSave } = props;
@@ -67,7 +71,7 @@ export function ValueCountingStatuses(props: ValueCountingStatusesProps): ReactN
   const [quoteRequest, setQuoteRequest] = useState<Set<string>>(saved.quoteRequest);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setOrder(saved.order);
@@ -84,8 +88,7 @@ export function ValueCountingStatuses(props: ValueCountingStatusesProps): ReactN
     return [...known, ...orphans];
   }, [orderStatuses, saved.order]);
 
-  const dirty =
-    JSON.stringify([sorted(order), sorted(quoteRequest)]) !== savedKey;
+  const dirty = JSON.stringify([sorted(order), sorted(quoteRequest)]) !== savedKey;
 
   const toggle = (
     set: Set<string>,
@@ -97,133 +100,148 @@ export function ValueCountingStatuses(props: ValueCountingStatusesProps): ReactN
     if (checked) next.add(code);
     else next.delete(code);
     apply(next);
-    setNotice('');
+    setNotice(null);
   };
 
   const tickFrom = (index: number): void => {
     const next = new Set(order);
     for (const row of orderRows.slice(index)) if (row.known) next.add(row.code);
     setOrder(next);
-    setNotice('');
+    setNotice(null);
   };
 
-  const save = async (): Promise<void> => {
+  const save = async (): Promise<boolean> => {
     setBusy(true);
     setError(null);
-    setNotice('');
+    setNotice(null);
     try {
       await onSave({
         order: sorted(order),
         quoteRequest: sorted(quoteRequest) as QuoteRequestStatusValue[],
       });
       setNotice(t('value.counting.accepted'));
+      return true;
     } catch (failure) {
       setError(errorMessage(failure, t('workflow.error.save')));
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
-  return (
-    <div className="space-y-5" aria-busy={busy}>
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
+  const guard = useUnsavedChangesGuard({
+    dirty,
+    onSave: save,
+    onDiscard: (): void => {
+      setOrder(saved.order);
+      setQuoteRequest(saved.quoteRequest);
+    },
+  });
 
-      <fieldset aria-labelledby={orderLegendId} className="space-y-2">
-        <legend id={orderLegendId} className="text-sm font-medium">
-          {t('value.counting.order.legend')}
-        </legend>
-        {orderStatuses === null ? (
-          <p className="text-sm text-muted-foreground">{t('value.counting.order.unreadable')}</p>
-        ) : null}
-        {orderRows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('value.counting.order.none')}</p>
-        ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
-            {orderRows.map((row, index) => {
-              const name = orderStatusLabel(row.code, orderStatuses ?? [], language);
-              return (
-                <li
-                  key={row.code}
-                  className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-1"
-                >
-                  <label className="flex min-h-11 flex-1 items-center gap-2 text-sm">
+  return (
+    <>
+      <EditorSection
+        chrome="card"
+        title={t('value.counting.title')}
+        description={t('value.counting.description')}
+        contentClassName="space-y-5"
+        aria-busy={busy}
+      >
+        <fieldset aria-labelledby={orderLegendId} className="space-y-2">
+          <legend id={orderLegendId} className="text-sm font-medium">
+            {t('value.counting.order.legend')}
+          </legend>
+          {orderStatuses === null ? (
+            <p className="text-sm text-muted-foreground">{t('value.counting.order.unreadable')}</p>
+          ) : null}
+          {orderRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('value.counting.order.none')}</p>
+          ) : (
+            <ul className="divide-y divide-border rounded-md border border-border">
+              {orderRows.map((row, index) => {
+                const name = orderStatusLabel(row.code, orderStatuses ?? [], language);
+                return (
+                  <li
+                    key={row.code}
+                    className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-1"
+                  >
+                    <label className="flex min-h-11 flex-1 items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={order.has(row.code)}
+                        disabled={busy}
+                        onChange={(event): void =>
+                          toggle(order, setOrder, row.code, event.target.checked)
+                        }
+                      />
+                      <span>{name}</span>
+                      {row.known ? null : (
+                        <span className="text-xs text-muted-foreground">
+                          {t('value.counting.order.gone')}
+                        </span>
+                      )}
+                    </label>
+                    {row.known && index < orderRows.length - 1 ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="min-h-11 sm:min-h-9"
+                        disabled={busy}
+                        aria-label={t('value.counting.order.andLaterLabel', { status: name })}
+                        onClick={(): void => tickFrom(index)}
+                      >
+                        {t('value.counting.order.andLater')}
+                      </Button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </fieldset>
+
+        {quotesPresent ? (
+          <fieldset aria-labelledby={quoteLegendId} className="space-y-2">
+            <legend id={quoteLegendId} className="text-sm font-medium">
+              {t('value.counting.quote.legend')}
+            </legend>
+            <ul className="grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
+              {QUOTE_REQUEST_STATUS_VALUES.map((status) => (
+                <li key={status}>
+                  <label className="flex min-h-11 items-center gap-2 text-sm">
                     <Checkbox
-                      checked={order.has(row.code)}
+                      checked={quoteRequest.has(status)}
                       disabled={busy}
                       onChange={(event): void =>
-                        toggle(order, setOrder, row.code, event.target.checked)
+                        toggle(quoteRequest, setQuoteRequest, status, event.target.checked)
                       }
                     />
-                    <span>{name}</span>
-                    {row.known ? null : (
-                      <span className="text-xs text-muted-foreground">
-                        {t('value.counting.order.gone')}
-                      </span>
-                    )}
+                    <span>{t(quoteRequestStatusKey(status))}</span>
                   </label>
-                  {row.known && index < orderRows.length - 1 ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="min-h-11 sm:min-h-9"
-                      disabled={busy}
-                      aria-label={t('value.counting.order.andLaterLabel', { status: name })}
-                      onClick={(): void => tickFrom(index)}
-                    >
-                      {t('value.counting.order.andLater')}
-                    </Button>
-                  ) : null}
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          </fieldset>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('value.counting.quote.moduleOff')}</p>
         )}
-      </fieldset>
-
-      {quotesPresent ? (
-        <fieldset aria-labelledby={quoteLegendId} className="space-y-2">
-          <legend id={quoteLegendId} className="text-sm font-medium">
-            {t('value.counting.quote.legend')}
-          </legend>
-          <ul className="grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
-            {QUOTE_REQUEST_STATUS_VALUES.map((status) => (
-              <li key={status}>
-                <label className="flex min-h-11 items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={quoteRequest.has(status)}
-                    disabled={busy}
-                    onChange={(event): void =>
-                      toggle(quoteRequest, setQuoteRequest, status, event.target.checked)
-                    }
-                  />
-                  <span>{t(quoteRequestStatusKey(status))}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </fieldset>
-      ) : (
-        <p className="text-sm text-muted-foreground">{t('value.counting.quote.moduleOff')}</p>
-      )}
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Mounted before it has text, so the announcement is reliable. */}
-        <p role="status" className="max-w-prose text-sm text-muted-foreground">
-          {notice}
-        </p>
-        <Button
-          className="min-h-11 sm:min-h-9"
-          disabled={!dirty || busy}
-          aria-busy={busy}
-          onClick={(): void => void save()}
-        >
-          {t('value.counting.save')}
-        </Button>
-      </div>
-    </div>
+      </EditorSection>
+      <StickyFormActions
+        desktop="sticky"
+        dirty={dirty}
+        error={error}
+        status={notice}
+        primary={
+          <Button
+            className="min-h-11 sm:min-h-9"
+            disabled={!dirty || busy}
+            aria-busy={busy}
+            onClick={(): void => void save()}
+          >
+            {t('value.counting.save')}
+          </Button>
+        }
+      />
+      {guard.dialog}
+    </>
   );
 }

@@ -219,7 +219,7 @@ export class SalesChannelsService {
     if (options.activeOnly) where['active'] = true;
 
     const [items, total] = await em.findAndCount(SalesChannel, where, {
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'asc', id: 'asc' },
       offset: page * pageSize,
       limit: pageSize,
     });

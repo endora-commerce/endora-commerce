@@ -56,6 +56,8 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
   'b2b-btn--default':
     'the outline button the last screens rendered until issue #1492 moved them to the kit `Button variant="outline"`',
   'b2b-btn--lg': 'a button size no screen renders; the tree uses the default and `--sm`',
+  'b2b-btn--sm':
+    'the small button the bulk operations screens rendered until issue #1492 (UX audit slice S14) moved them to the kit `Button size="sm"`',
   'b2b-card--clickable':
     'the whole-card link the Home KPI tiles rendered until issue #1492 moved them to the kit `Card` with a `Link` inside',
   'b2b-card__body--flush':
@@ -68,6 +70,8 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
     'the card subtitle the Home activity card rendered until issue #1492; the kit `CardDescription` replaces it',
   'b2b-card__title':
     'the card title the Home cards rendered until issue #1492; the kit `CardTitle` (an `h2`) replaces it',
+  'b2b-cbx':
+    'the checkbox skin the bulk edit dialog rendered until issue #1492 (UX audit slice S14) moved it to the kit `Checkbox`',
   'b2b-field--addon':
     'the search field with a leading icon the product browser rendered until issue #1492; the toolbar\'s `ListToolbarSearch` replaces it',
   'b2b-filterbar':
@@ -85,6 +89,8 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
     'the language switcher this styled is not in the admin; its `button` child rule goes with it',
   'b2b-matrix': 'a price-matrix block with no renderer; `b2b-matrix-wrap` and `cell-input` are its parts',
   'b2b-matrix-wrap': 'the scroll wrapper of `b2b-matrix`, which nothing renders',
+  'b2b-muted':
+    'the muted text helper the bulk edit dialog rendered until issue #1492 (UX audit slice S14); Tailwind `text-muted-foreground` replaces it',
   'b2b-nav-badge': 'a sidebar counter badge no nav item renders',
   'b2b-savebar': 'a sticky save bar superseded by `b2b-sticky-form-actions`',
   'b2b-savebar__msg': 'the message slot of `b2b-savebar`, which nothing renders',

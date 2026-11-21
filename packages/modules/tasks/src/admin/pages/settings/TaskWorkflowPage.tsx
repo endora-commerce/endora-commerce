@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import type { TaskBoardCardConfig, TaskStatusConfig, TaskWorkflow } from '@endora-commerce/contracts';
+import type {
+  TaskBoardCardConfig,
+  TaskStatusConfig,
+  TaskWorkflow,
+} from '@endora-commerce/contracts';
 import {
   Alert,
   AlertDescription,
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+  EditorSection,
   PageHeader,
 } from '@endora-commerce/admin-kit/ui';
 import {
   BoardCardFieldsEditor,
+  ImmediateBadge,
   StatusTransitionGraph,
   type StatusTransitionGraphStatus,
 } from '@endora-commerce/admin-kit/components';
@@ -24,7 +27,10 @@ import { BOARD_CARD_ANCHOR } from '../../lib/settings-paths.js';
 import { TaskConfigurationTabs } from '../../components/TaskConfigurationTabs.js';
 import { TaskStatusDeleteDialog } from '../../components/workflow/TaskStatusDeleteDialog.js';
 import { boardFieldLabel } from '../../components/TaskCard.js';
-import { TaskStatusDialog, type TaskStatusDialogSubmit } from '../../components/workflow/TaskStatusDialog.js';
+import {
+  TaskStatusDialog,
+  type TaskStatusDialogSubmit,
+} from '../../components/workflow/TaskStatusDialog.js';
 import { TaskStatusesTable } from '../../components/workflow/TaskStatusesTable.js';
 import { errorMessage, workflowStatusName } from '../../lib/labels.js';
 import { useServerReorder } from '../../lib/use-server-reorder.js';
@@ -47,6 +53,11 @@ type DialogState = { kind: 'create' } | { kind: 'edit'; status: TaskStatusConfig
  * fields a card on the Task board shows (`BoardCardFieldsEditor`). The header
  * links to the other configuration screens — priorities, tags (User Story 9)
  * and the general settings.
+ *
+ * **One save model per card** (issue #1559, UX audit WORK-08): the statuses and
+ * the moves write every change at once, so they are two sections of one card
+ * under the kit's `ImmediateBadge`; the board card is one draft with its own
+ * Save, so it stands in a card of its own.
  */
 export function TaskWorkflowPage(): ReactNode {
   const t = useTranslation('tasks');
@@ -79,14 +90,17 @@ export function TaskWorkflowPage(): ReactNode {
   // client-side navigation does not scroll to a hash, and the section exists
   // only once the workflow has loaded — so scroll then, as CRM's workflow screen does.
   const { hash } = useLocation();
-  const boardCardSection = useRef<HTMLElement>(null);
+  const boardCardSection = useRef<HTMLDivElement>(null);
   const loaded = workflow !== null;
   useEffect(() => {
     if (loaded && hash === `#${BOARD_CARD_ANCHOR}`) boardCardSection.current?.scrollIntoView?.();
   }, [loaded, hash]);
 
   const orderedStatuses = useMemo(
-    () => [...(workflow?.statuses ?? [])].sort((a, b) => a.weight - b.weight || a.code.localeCompare(b.code)),
+    () =>
+      [...(workflow?.statuses ?? [])].sort(
+        (a, b) => a.weight - b.weight || a.code.localeCompare(b.code),
+      ),
     [workflow],
   );
   const reorder = useServerReorder({
@@ -173,7 +187,12 @@ export function TaskWorkflowPage(): ReactNode {
           <Alert variant="destructive">
             <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
               <span>{loadError ?? t('workflow.error.load')}</span>
-              <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
+              <Button
+                className="min-h-11 sm:min-h-8"
+                variant="outline"
+                size="sm"
+                onClick={(): void => void load()}
+              >
                 {tCore('common.action.retry')}
               </Button>
             </AlertDescription>
@@ -183,46 +202,53 @@ export function TaskWorkflowPage(): ReactNode {
     );
   }
 
-  const nextWeight = workflow.statuses.reduce((max, status) => Math.max(max, status.weight), 0) + 10;
+  const nextWeight =
+    workflow.statuses.reduce((max, status) => Math.max(max, status.weight), 0) + 10;
 
   return (
     <>
       {header}
 
       <Card className="mb-4">
-        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1.5">
-            <CardTitle>{t('workflow.statuses.title')}</CardTitle>
-          </div>
-          <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
-            <Plus aria-hidden="true" />
-            {t('workflow.status.add')}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {reorder.notice ? (
-            <Alert variant={reorder.notice.kind === 'stale' ? 'warning' : 'destructive'} live="assertive">
-              <AlertDescription>{reorder.notice.message}</AlertDescription>
-            </Alert>
-          ) : null}
-          <TaskStatusesTable
-            statuses={orderedStatuses}
-            language={language}
-            onEdit={(status): void => setDialog({ kind: 'edit', status })}
-            onDelete={setPendingDelete}
-            onMove={(status, delta): void => reorder.move(status.code, delta)}
-            reordering={reorder.busy}
-          />
-        </CardContent>
-      </Card>
-
-      <section aria-labelledby="tasks-workflow-transitions-title" className="mb-4">
-        <Card>
-          <CardHeader>
-            <CardTitle id="tasks-workflow-transitions-title">{t('workflow.transitions.title')}</CardTitle>
-            <CardDescription>{t('workflow.transitions.description')}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <CardContent className="space-y-(--section-gap)">
+          <EditorSection
+            title={t('workflow.statuses.title')}
+            action={
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <ImmediateBadge className="ml-0" />
+                <Button
+                  className="min-h-11 sm:min-h-9"
+                  variant="outline"
+                  onClick={(): void => setDialog({ kind: 'create' })}
+                >
+                  <Plus aria-hidden="true" />
+                  {t('workflow.status.add')}
+                </Button>
+              </div>
+            }
+          >
+            {reorder.notice ? (
+              <Alert
+                variant={reorder.notice.kind === 'stale' ? 'warning' : 'destructive'}
+                live="assertive"
+              >
+                <AlertDescription>{reorder.notice.message}</AlertDescription>
+              </Alert>
+            ) : null}
+            <TaskStatusesTable
+              statuses={orderedStatuses}
+              language={language}
+              onEdit={(status): void => setDialog({ kind: 'edit', status })}
+              onDelete={setPendingDelete}
+              onMove={(status, delta): void => reorder.move(status.code, delta)}
+              reordering={reorder.busy}
+            />
+          </EditorSection>
+          <EditorSection
+            title={t('workflow.transitions.title')}
+            description={t('workflow.transitions.description')}
+            action={<ImmediateBadge className="ml-0" />}
+          >
             {/* A refused change of the moves is said beside the graph it is about. */}
             {actionError ? (
               <Alert variant="destructive">
@@ -236,29 +262,24 @@ export function TaskWorkflowPage(): ReactNode {
               onAdd={(from, to): void => changeTransitions('add', from, to)}
               onRemove={(from, to): void => changeTransitions('remove', from, to)}
             />
-          </CardContent>
-        </Card>
-      </section>
+          </EditorSection>
+        </CardContent>
+      </Card>
 
-      <section ref={boardCardSection} id={BOARD_CARD_ANCHOR} aria-labelledby="tasks-board-card-title" className="mb-4">
-        <Card>
-          <CardHeader>
-            <CardTitle id="tasks-board-card-title">{t('boardCard.title')}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <BoardCardFieldsEditor
-              load={(): Promise<TaskBoardCardConfig> => tasksApi.boardCardFields()}
-              save={(refs): Promise<TaskBoardCardConfig> => tasksApi.setBoardCardFields(refs)}
-              fieldLabel={(field): string => boardFieldLabel(field, language, t)}
-              copy={{
-                titleAlways: t('boardCard.shown.titleAlways'),
-                builtinGroup: t('boardCard.available.builtin'),
-                noCustom: t('boardCard.available.noCustom'),
-              }}
-            />
-          </CardContent>
-        </Card>
-      </section>
+      <div ref={boardCardSection} id={BOARD_CARD_ANCHOR} className="mb-4 scroll-mt-4">
+        <EditorSection chrome="card" title={t('boardCard.title')}>
+          <BoardCardFieldsEditor
+            load={(): Promise<TaskBoardCardConfig> => tasksApi.boardCardFields()}
+            save={(refs): Promise<TaskBoardCardConfig> => tasksApi.setBoardCardFields(refs)}
+            fieldLabel={(field): string => boardFieldLabel(field, language, t)}
+            copy={{
+              titleAlways: t('boardCard.shown.titleAlways'),
+              builtinGroup: t('boardCard.available.builtin'),
+              noCustom: t('boardCard.available.noCustom'),
+            }}
+          />
+        </EditorSection>
+      </div>
 
       {dialog ? (
         <TaskStatusDialog

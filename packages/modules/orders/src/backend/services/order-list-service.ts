@@ -267,7 +267,9 @@ export class OrderListService {
     const { field, dir } = parseSort(query.sort);
     const offset = (query.page - 1) * query.pageSize;
     const [orders, total] = await em.findAndCount(Order, where, {
-      orderBy: { [field]: dir },
+      // `id` breaks ties in the key's direction so offset pages never repeat
+      // or skip an order sharing the sort key (issue #1760).
+      orderBy: { [field]: dir, id: dir },
       limit: query.pageSize,
       offset,
     });

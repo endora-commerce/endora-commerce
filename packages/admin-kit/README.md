@@ -311,6 +311,11 @@ const guard = useUnsavedChangesGuard({ dirty, onSave: save, onDiscard: reset });
   *Discard changes* (`onDiscard`, then the navigation), *Stay here* (the initial focus, so an Enter
   pressed by accident keeps the work). Without `onSave` — no permission, nothing valid to send — the
   choice is Discard or Stay. Copy is `core`'s `form.unsavedChanges.*`; `title` and `message` override it.
+- **One guard, several questions** (#1606): `confirm(action, { title, message, onStay })` words that
+  one ask — a scope switch says it is a switch, while a link keeps the guard's `title` / `message` —
+  and `onStay` runs on *Stay here* or Escape, for undoing what the switch already moved (the product
+  editor puts back the address the browser's Back / Forward changed). Do not arm a second guard or
+  draw a second dialog for the switch.
 - **The blocked link or tab is replayed**, not re-routed: the same element is clicked again with the
   guard stood down, so the guard needs no router and keeps whatever the link does.
 - **Not interceptable here**: Back / Forward. The admin mounts a component `<BrowserRouter>`, not a
@@ -576,9 +581,18 @@ whose tabs are routes. Both draw `.b2b-tabs` / `.b2b-tab`, so an operator cannot
   the keyboard two strips with the same keys: make the second level `Section`s. In development a
   `Tabs` rendered inside a `TabPanel` logs a warning; a `ModalDialog` opened from a panel is a new
   context and does not.
+- **A strip with no one panel** — page state spread over the screen — passes
+  `controlsPanel={false}`, and its tabs carry no `aria-controls` naming a panel that is not there.
 
 The behaviour is pinned in `admin/test/kit/kit-tabs.test.tsx`, including the keyboard path and an
 axe pass.
+
+**`ContentLanguageTabs`** (`./components`) is this strip over content language codes. The screen
+owns the panel, because the strip sits in a card header or a canvas bar: pass `idBase` and wrap the
+per-language fields in `<TabPanel idBase={idBase} value={activeLanguage} tabIndex={-1}>`. Leave
+`idBase` out where the language drives several regions — a Page Builder editor, where it switches
+the canvas and the settings fields, and the canvas carries the builder's own tablists. With no language to offer it draws an
+`EmptyState` with the reason. Pinned in `admin/test/kit/kit-content-language-tabs.test.tsx`.
 
 **A view that is none of the tabs.** The product browser's status strip is a `Tabs` over one
 `TabPanel` (the list). Its *Show selected only* review lists the selection across every status,
@@ -594,6 +608,11 @@ nothing to show: a decorative icon, a title, at most one line and at most one ac
 bare grey sentence (Picture Superiority). It draws the `.b2b-empty` classes, so do not write
 them out by hand. Two variants, because "nothing here yet" and "your filters match nothing" call
 for different next steps:
+
+It belongs where the empty area is the page's or the tab's primary region — a list or table page,
+a tab whose body is one collection, a top-level record panel. A picker's or combobox's results, an
+inline sub-list in a form section and a side or summary widget keep a one-line muted sentence
+(architect ruling on #1448).
 
 ```tsx
 filtered ? (

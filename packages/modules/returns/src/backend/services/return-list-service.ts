@@ -44,7 +44,9 @@ export class ReturnListService {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const [field, dir] = (query.sort ?? 'submittedAt:desc').split(':') as [string, 'asc' | 'desc'];
-    const orderBy = field === 'rmaNumber' ? { rmaNumber: dir } : { submittedAt: dir };
+    // `id` breaks ties in the key's direction so offset pages never repeat or
+    // skip a case sharing the sort key (issue #1760).
+    const orderBy = field === 'rmaNumber' ? { rmaNumber: dir, id: dir } : { submittedAt: dir, id: dir };
 
     const [cases, total] = await em.findAndCount(ReturnCase, where, {
       orderBy,

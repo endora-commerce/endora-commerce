@@ -308,7 +308,7 @@ export class BulkOperationService {
     const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
     const offset = Math.max(input.offset ?? 0, 0);
     const [rows, total] = await em.findAndCount(BulkOperation, where, {
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc', id: 'desc' },
       limit,
       offset,
     });

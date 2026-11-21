@@ -2,12 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
-import {
-  useAppLanguage,
-  setPreferredLanguage,
-  useTranslation,
-} from '@endora-commerce/admin-kit/i18n';
-import type { SupportedAdminLanguage } from '@endora-commerce/admin-kit/i18n';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AssetFieldPicker, ContentLanguageTabs, StickyFormActions } from '@endora-commerce/admin-kit/components';
 import {
   Button,
@@ -15,14 +10,11 @@ import {
   CardContent,
   EditorSection,
   FormField,
-  InlineStatus,
   Input,
   Label,
   PageHeader,
   RouteTabs,
-  Select,
   Textarea,
-  useInlineStatus,
 } from '@endora-commerce/admin-kit/ui';
 
 export type ProfileTab = 'profile' | 'security';
@@ -34,8 +26,8 @@ const SECURITY_ZONE_PROPS = {};
 
 /**
  * The signed-in admin's own account, as two tabs (issue #1519, UX audit
- * SHELL-11, owner decision DEC-02): *Profile* — this screen's form and the
- * language preference — and *Security*, whose body is the `profile.security`
+ * SHELL-11, owner decision DEC-02): *Profile* — this screen's form — and
+ * *Security*, whose body is the `profile.security`
  * zone. Two-step verification used to be a row in the sidebar's *System*
  * section; it is about the account, not the platform, so it lives beside the
  * account's other settings now, reached from the avatar and from ⌘K.
@@ -87,9 +79,13 @@ export function ProfilePage({ tab = 'profile' }: { tab?: ProfileTab }): ReactNod
  *
  * Issue #1437 (UX audit 2026-11-17, DS-03) — the form is one card whose parts
  * (identity, author profile, password) are `EditorSection`s, because they are
- * saved together by one Save; the language preference, saved on its own, is
- * the one card beside it (Common Region). Kit primitives throughout, so the
+ * saved together by one Save (Common Region). Kit primitives throughout, so the
  * screen is held by `one-visual-system.test.ts`.
+ *
+ * Issue #1553 (SHELL-17) — the UI language is not set here. It had a card and a
+ * second filled Save of its own, which competed with the form's (Von Restorff)
+ * and repeated the top-bar `LanguagePicker`, the conventional place for it
+ * (Jakob). One muted line in the identity section says where it went.
  */
 function ProfileDetails(): ReactNode {
   const t = useTranslation('core');
@@ -190,220 +186,132 @@ function ProfileDetails(): ReactNode {
   };
 
   return (
-    <>
-      <form onSubmit={(e): void => { void handleSubmit(e); }}>
-        <Card>
-          <CardContent className="space-y-(--section-gap)">
-            <EditorSection title={t('profile.identityTitle')}>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <FormField label={t('profile.field.email')} hint={t('profile.emailHelp')}>
-                  <Input id="me-email" value={me.adminUser.email} disabled />
-                </FormField>
-                <FormField label={t('profile.field.role')}>
-                  <Input id="me-role" value={me.role?.name ?? '—'} disabled />
-                </FormField>
-                <FormField label={t('profile.field.firstName')}>
-                  <Input
-                    id="me-first"
-                    value={firstName}
-                    onChange={(e): void => setFirstName(e.target.value)}
-                    required
-                    maxLength={120}
-                  />
-                </FormField>
-                <FormField label={t('profile.field.lastName')}>
-                  <Input
-                    id="me-last"
-                    value={lastName}
-                    onChange={(e): void => setLastName(e.target.value)}
-                    required
-                    maxLength={120}
-                  />
-                </FormField>
-              </div>
-            </EditorSection>
-
-            <EditorSection title={t('profile.authorTitle')} description={t('profile.authorHelp')}>
-              <div className="space-y-1.5">
-                <Label htmlFor="me-avatar">{t('profile.field.avatar')}</Label>
-                <AssetFieldPicker
-                  id="me-avatar"
-                  value={avatarAssetId ?? ''}
-                  // The picker answers '' when the image is cleared: no avatar.
-                  onChange={(assetId): void => setAvatarAssetId(assetId === '' ? null : assetId)}
-                  acceptMimePrefix="image/"
-                  allowUpload
-                />
-              </div>
-              <ContentLanguageTabs
-                languages={contentLanguages.map((language) => language.code)}
-                activeLanguage={bioLanguage}
-                onChange={setBioLanguage}
-              />
-              {bioLanguage !== null ? (
-                <FormField
-                  label={t('profile.field.bio', {
-                    language: contentLanguages.find((language) => language.code === bioLanguage)?.label ?? bioLanguage,
-                  })}
-                >
-                  <Textarea
-                    id="me-bio"
-                    rows={5}
-                    maxLength={2000}
-                    value={bio[bioLanguage] ?? ''}
-                    onChange={(e): void => setBio((current) => ({ ...current, [bioLanguage]: e.target.value }))}
-                  />
-                </FormField>
-              ) : null}
-            </EditorSection>
-
-            <EditorSection title={t('profile.changePassword')}>
-              {/* Wired by hand rather than through `FormField`: the field names one
-                  description at a time — the refusal, else the help — and the refusal
-                  interrupts (`role="alert"`), because it is why the Save did nothing. */}
-              <div className="space-y-1.5">
-                <Label htmlFor="me-current-pwd">{t('profile.field.currentPassword')}</Label>
+    <form onSubmit={(e): void => { void handleSubmit(e); }}>
+      <Card>
+        <CardContent className="space-y-(--section-gap)">
+          <EditorSection title={t('profile.identityTitle')}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label={t('profile.field.email')} hint={t('profile.emailHelp')}>
+                <Input id="me-email" value={me.adminUser.email} disabled />
+              </FormField>
+              <FormField label={t('profile.field.role')}>
+                <Input id="me-role" value={me.role?.name ?? '—'} disabled />
+              </FormField>
+              <FormField label={t('profile.field.firstName')}>
                 <Input
-                  id="me-current-pwd"
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e): void => {
-                    setCurrentPassword(e.target.value);
-                    setCurrentPasswordError(null);
-                  }}
-                  maxLength={256}
-                  autoComplete="current-password"
-                  aria-invalid={currentPasswordError ? true : undefined}
-                  aria-describedby={currentPasswordError ? 'me-current-pwd-error' : 'me-current-pwd-help'}
-                />
-                {currentPasswordError ? (
-                  <p id="me-current-pwd-error" className="text-xs text-destructive" role="alert">
-                    {currentPasswordError}
-                  </p>
-                ) : (
-                  <p id="me-current-pwd-help" className="text-xs text-muted-foreground">
-                    {t('profile.field.currentPasswordHelp')}
-                  </p>
-                )}
-              </div>
-              <FormField label={t('profile.field.newPassword')} hint={t('profile.field.newPasswordHelp')}>
-                <Input
-                  id="me-pwd"
-                  type="password"
-                  value={password}
-                  onChange={(e): void => setPassword(e.target.value)}
-                  minLength={12}
+                  id="me-first"
+                  value={firstName}
+                  onChange={(e): void => setFirstName(e.target.value)}
+                  required
                   maxLength={120}
-                  autoComplete="new-password"
-                  placeholder={t('profile.field.newPasswordPlaceholder')}
                 />
               </FormField>
-            </EditorSection>
-          </CardContent>
-        </Card>
+              <FormField label={t('profile.field.lastName')}>
+                <Input
+                  id="me-last"
+                  value={lastName}
+                  onChange={(e): void => setLastName(e.target.value)}
+                  required
+                  maxLength={120}
+                />
+              </FormField>
+            </div>
+            <p className="text-xs text-muted-foreground">{t('profile.languageHelp')}</p>
+          </EditorSection>
 
-        {/* Issue #1449 (DS-19) — the one Save, in view at the end of the form, with what it
-            answered said beside it rather than in a banner at the top of the page. */}
-        <StickyFormActions
-          desktop="sticky"
-          dirty={dirty}
-          error={error}
-          status={info}
-          primary={
-            <Button type="submit" disabled={submitting} aria-busy={submitting || undefined}>
-              {submitting ? t('profile.saving') : t('profile.saveChanges')}
-            </Button>
-          }
-        />
-      </form>
+          <EditorSection title={t('profile.authorTitle')} description={t('profile.authorHelp')}>
+            <div className="space-y-1.5">
+              <Label htmlFor="me-avatar">{t('profile.field.avatar')}</Label>
+              <AssetFieldPicker
+                id="me-avatar"
+                value={avatarAssetId ?? ''}
+                // The picker answers '' when the image is cleared: no avatar.
+                onChange={(assetId): void => setAvatarAssetId(assetId === '' ? null : assetId)}
+                acceptMimePrefix="image/"
+                allowUpload
+              />
+            </div>
+            <ContentLanguageTabs
+              languages={contentLanguages.map((language) => language.code)}
+              activeLanguage={bioLanguage}
+              onChange={setBioLanguage}
+            />
+            {bioLanguage !== null ? (
+              <FormField
+                label={t('profile.field.bio', {
+                  language: contentLanguages.find((language) => language.code === bioLanguage)?.label ?? bioLanguage,
+                })}
+              >
+                <Textarea
+                  id="me-bio"
+                  rows={5}
+                  maxLength={2000}
+                  value={bio[bioLanguage] ?? ''}
+                  onChange={(e): void => setBio((current) => ({ ...current, [bioLanguage]: e.target.value }))}
+                />
+              </FormField>
+            ) : null}
+          </EditorSection>
 
-      <LanguageSection />
-    </>
-  );
-}
+          <EditorSection title={t('profile.changePassword')}>
+            {/* Wired by hand rather than through `FormField`: the field names one
+                description at a time — the refusal, else the help — and the refusal
+                interrupts (`role="alert"`), because it is why the Save did nothing. */}
+            <div className="space-y-1.5">
+              <Label htmlFor="me-current-pwd">{t('profile.field.currentPassword')}</Label>
+              <Input
+                id="me-current-pwd"
+                type="password"
+                value={currentPassword}
+                onChange={(e): void => {
+                  setCurrentPassword(e.target.value);
+                  setCurrentPasswordError(null);
+                }}
+                maxLength={256}
+                autoComplete="current-password"
+                aria-invalid={currentPasswordError ? true : undefined}
+                aria-describedby={currentPasswordError ? 'me-current-pwd-error' : 'me-current-pwd-help'}
+              />
+              {currentPasswordError ? (
+                <p id="me-current-pwd-error" className="text-xs text-destructive" role="alert">
+                  {currentPasswordError}
+                </p>
+              ) : (
+                <p id="me-current-pwd-help" className="text-xs text-muted-foreground">
+                  {t('profile.field.currentPasswordHelp')}
+                </p>
+              )}
+            </div>
+            <FormField label={t('profile.field.newPassword')} hint={t('profile.field.newPasswordHelp')}>
+              <Input
+                id="me-pwd"
+                type="password"
+                value={password}
+                onChange={(e): void => setPassword(e.target.value)}
+                minLength={12}
+                maxLength={120}
+                autoComplete="new-password"
+                placeholder={t('profile.field.newPasswordPlaceholder')}
+              />
+            </FormField>
+          </EditorSection>
+        </CardContent>
+      </Card>
 
-/**
- * Language section — feature 019 / FR-002, FR-004, FR-005, FR-006.
- *
- * Self-service language picker. Calls
- * `PATCH /api/v1/admin/me/preferred-language` and flips the
- * `<TranslationProvider>` language at the App scope so every screen
- * re-renders without sign-out.
- */
-function LanguageSection(): ReactNode {
-  const t = useTranslation('core');
-  const { language, setLanguage } = useAppLanguage();
-  const { refresh } = useAuth();
-  const [pending, setPending] = useState<SupportedAdminLanguage>(language);
-  const [submitting, setSubmitting] = useState(false);
-  // Issue #1437 — what the Save answered, beside it, in a region mounted before it has text
-  // (WCAG 2.2 SC 4.1.3); an icon goes with the colour (SC 1.4.1).
-  const status = useInlineStatus();
-
-  useEffect(() => {
-    setPending(language);
-  }, [language]);
-
-  const handleSave = async (): Promise<void> => {
-    if (pending === language) return;
-    setSubmitting(true);
-    status.clear();
-    const previous = language;
-    setLanguage(pending);
-    try {
-      await setPreferredLanguage(pending);
-      await refresh();
-      status.show(t('profilePage.language.saved'));
-    } catch (err) {
-      setLanguage(previous);
-      setPending(previous);
-      const message =
-        err instanceof ApiError
-          ? err.envelope.error.message
-          : t('profilePage.language.failed');
-      status.show(message, 'error');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <EditorSection
-      id="profile-language"
-      chrome="card"
-      className="mt-4"
-      title={t('profilePage.section.language')}
-      description={t('profilePage.section.language.help')}
-    >
-      <div className="flex flex-wrap items-center gap-3">
-        <Select
-          // Named by the section's heading: a second "Language" label would say it twice.
-          aria-labelledby="profile-language-title"
-          className="max-w-60"
-          value={pending}
-          onChange={(e): void => {
-            setPending(e.target.value as SupportedAdminLanguage);
-            status.clear();
-          }}
-        >
-          <option value="en">{t('profilePage.language.option.en')}</option>
-          <option value="pl">{t('profilePage.language.option.pl')}</option>
-        </Select>
-        <Button
-          type="button"
-          disabled={submitting || pending === language}
-          aria-busy={submitting || undefined}
-          onClick={(): void => {
-            void handleSave();
-          }}
-        >
-          {submitting
-            ? t('common.state.loading')
-            : t('profilePage.language.action.save')}
-        </Button>
-        <InlineStatus {...status.props} />
-      </div>
-    </EditorSection>
+      {/* Issue #1449 (DS-19) — the one Save, in view at the end of the form, with what it
+          answered said beside it rather than in a banner at the top of the page. */}
+      <StickyFormActions
+        desktop="sticky"
+        dirty={dirty}
+        error={error}
+        status={info}
+        primary={
+          <Button type="submit" disabled={submitting} aria-busy={submitting || undefined}>
+            {submitting ? t('profile.saving') : t('profile.saveChanges')}
+          </Button>
+        }
+      />
+    </form>
   );
 }
 
