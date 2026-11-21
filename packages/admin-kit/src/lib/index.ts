@@ -38,7 +38,7 @@ export { deriveKey, useDerivedKey } from './derive-key.js';
 export type { DerivedKeyField, DeriveKeyOptions, UseDerivedKeyOptions } from './derive-key.js';
 export { defineEnumLabels } from './enum-labels.js';
 export type { EnumLabels, EnumTranslate } from './enum-labels.js';
-export { formatDateTime } from './format.js';
+export { formatDate, formatDateTime } from './format.js';
 export { RANGE_PRESETS, isDayRange, presetRange } from './range-presets.js';
 export type { DayRange, RangePreset } from './range-presets.js';
 export { formatMoney, localeForCurrency, type FormatMoneyOptions } from './money.js';

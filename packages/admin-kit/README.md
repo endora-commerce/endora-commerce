@@ -1125,3 +1125,15 @@ Tasks used to keep their own copies, and a fix to one (#512) had to be ported to
 
 Pinned in `admin/test/kit/kit-board-card-fields.test.tsx`. Each module's endpoint and copy are
 pinned in its configuration screen's test.
+
+## Dates — `formatDate` and `formatDateTime`
+
+Every admin date is written one way, in the admin UI language — pass `useAppLanguage().language`,
+never rely on the browser's locale (#1567: one sidebar showed `17.11.2026`, `11/25/2026` and
+`Nov 22, 2026` side by side).
+
+- `formatDate(value, language)` — the language's medium date (*Nov 25, 2026*, *25 lis 2026*). A
+  `YYYY-MM-DD` calendar date is read without a time-zone shift; an ISO instant gives its day.
+- `formatDateTime(iso, language)` — that date and the short time, never seconds.
+- Both write `—` for nothing and give back what is not a date. `formatDateTime` without a language
+  still falls back to the browser's `toLocaleString()` for callers not yet migrated.
