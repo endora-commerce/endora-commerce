@@ -67,7 +67,16 @@ const PALETTE_EXEMPTIONS: PaletteLedger = {
     '/product-feeds/templates/new': 'Create form opened from the feed-template list header.',
   },
   projects: {
-    '/projects/templates/new': 'Create form opened from the project-template list header.',
+    '/projects/settings/templates/new': 'Create form opened from the project-template list header.',
+    // Issue #1557: the configuration's addresses before it became one row with tabs.
+    '/projects/templates':
+      'Redirect to the Templates tab at /projects/settings (issue #1557), kept so old bookmarks resolve; open-project-templates advertises the destination.',
+    '/projects/templates/new':
+      'Redirect to /projects/settings/templates/new (issue #1557), kept so old bookmarks resolve.',
+    '/projects/roles':
+      'Redirect to the Roles tab (issue #1557), kept so old bookmarks resolve; open-project-roles advertises the destination.',
+    '/projects/loss-reasons':
+      'Redirect to the Loss reasons tab (issue #1557), kept so old bookmarks resolve; open-project-loss-reasons advertises the destination.',
   },
   quote_requests: {
     '/quote-requests/new':
@@ -77,6 +86,10 @@ const PALETTE_EXEMPTIONS: PaletteLedger = {
     '/returns/reasons': 'Configuration sub-screen reached from the returns list, by the module’s own design.',
     '/returns/delivery-methods':
       'Configuration sub-screen reached from the returns list, by the module’s own design.',
+  },
+  tasks: {
+    '/tasks/settings/workflow':
+      'Redirect to the Workflow tab at /tasks/settings (issue #1557), kept so old bookmarks resolve; open-task-workflow advertises the destination.',
   },
   webhooks: {
     '/webhooks/new': 'Create form opened from the webhook list header (issue #1501); the palette carries the list.',

@@ -23,7 +23,7 @@ import { TaskTagDeleteDialog } from '../../components/tags/TaskTagDeleteDialog.j
 import { TaskTagDialog, type TaskTagDialogSubmit } from '../../components/tags/TaskTagDialog.js';
 import { SettingsEmptyState } from '../../components/SettingsEmptyState.js';
 import { errorMessage } from '../../lib/labels.js';
-import { TASK_WORKFLOW_PATH } from '../../lib/settings-paths.js';
+import { TaskConfigurationTabs } from '../../components/TaskConfigurationTabs.js';
 
 type DialogState = { kind: 'create' } | { kind: 'edit'; tag: TaskTag } | null;
 
@@ -81,18 +81,20 @@ export function TaskTagsPage(): ReactNode {
   // as on the CRM and Projects dictionaries — hidden while the list is empty,
   // where the empty state's own Add is the view's one primary (Von Restorff).
   const header = (
-    <PageHeader
-      title={t('tags.title')}
-      back={{ label: t('settings.back'), to: TASK_WORKFLOW_PATH }}
-      actions={
-        tags !== null && tags.length > 0 ? (
-          <Button className="min-h-11 sm:min-h-9" onClick={openCreate}>
-            <Plus aria-hidden="true" />
-            {t('tags.add')}
-          </Button>
-        ) : undefined
-      }
-    />
+    <>
+      <PageHeader
+        title={t('tags.title')}
+        actions={
+          tags !== null && tags.length > 0 ? (
+            <Button className="min-h-11 sm:min-h-9" onClick={openCreate}>
+              <Plus aria-hidden="true" />
+              {t('tags.add')}
+            </Button>
+          ) : undefined
+        }
+      />
+      <TaskConfigurationTabs />
+    </>
   );
 
   if (tags === null) {

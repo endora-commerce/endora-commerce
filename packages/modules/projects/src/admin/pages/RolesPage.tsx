@@ -3,7 +3,7 @@ import { DictionaryScreen } from '../components/DictionaryScreen.js';
 
 /**
  * The Project Roles (`specs/163-projects-and-tasks/`, User Story 4;
- * `contracts/admin-surfaces.md` §2, `/projects/roles`): *Sales Rep* and
+ * `contracts/admin-surfaces.md` §2, `/projects/settings/roles` since #1557): *Sales Rep* and
  * *Project Manager* from installation, any the operator adds. A Role is a
  * label a Member holds on a Project — it grants no permission (FR-009), and
  * the screen says so. The route is `projects:configure`.

@@ -151,11 +151,12 @@ const concreteUrl = (pattern: string): string => pattern.replace(/:[A-Za-z]+/g, 
 const READ_AND_WRITE = ['tasks:read', 'tasks:write'];
 
 describe('tasks admin surface', () => {
-  it('is registered: the list, My Tasks, the create screen, the four settings screens (165) and one Task', () => {
+  it('is registered: the list, My Tasks, the create screen, the configuration’s four tabs and the workflow’s old address (165, #1557) and one Task', () => {
     expect(routes.map((route) => route.path)).toEqual([
       '/tasks',
       '/tasks/mine',
       '/tasks/new',
+      '/tasks/settings',
       '/tasks/settings/workflow',
       '/tasks/settings/priorities',
       '/tasks/settings/tags',
@@ -168,7 +169,7 @@ describe('tasks admin surface', () => {
     presentModules = new Set(['tasks']);
     permissions = new Set([...READ_AND_WRITE, 'tasks:configure']);
     const shell = renderAt('/');
-    expect(sidebarHrefs()).toEqual(expect.arrayContaining(['/tasks/mine', '/tasks', '/tasks/settings/workflow']));
+    expect(sidebarHrefs()).toEqual(expect.arrayContaining(['/tasks/mine', '/tasks', '/tasks/settings']));
     shell.unmount();
     for (const route of routes) {
       const rendered = renderAt(concreteUrl(route.path));
@@ -183,7 +184,7 @@ describe('tasks admin surface', () => {
     const shell = renderAt('/');
     expect(sidebarHrefs()).not.toContain('/tasks');
     expect(sidebarHrefs()).not.toContain('/tasks/mine');
-    expect(sidebarHrefs()).not.toContain('/tasks/settings/workflow');
+    expect(sidebarHrefs()).not.toContain('/tasks/settings');
     shell.unmount();
     for (const route of routes) {
       const deepLink = renderAt(concreteUrl(route.path));
@@ -201,12 +202,12 @@ describe('tasks admin surface', () => {
 
     permissions = new Set(READ_AND_WRITE);
     const writerShell = renderAt('/');
-    expect(sidebarHrefs()).not.toContain('/tasks/settings/workflow');
+    expect(sidebarHrefs()).not.toContain('/tasks/settings');
     writerShell.unmount();
-    const writer = renderAt('/tasks/settings/workflow');
+    const writer = renderAt('/tasks/settings');
     await waitFor(() => expect(notFoundIsRendered()).toBe(true));
     writer.unmount();
-    for (const path of ['/tasks/settings/priorities', '/tasks/settings/tags', '/tasks/settings/general']) {
+    for (const path of ['/tasks/settings/workflow', '/tasks/settings/priorities', '/tasks/settings/tags', '/tasks/settings/general']) {
       const settings = renderAt(path);
       await waitFor(() => expect(notFoundIsRendered(), path).toBe(true));
       settings.unmount();

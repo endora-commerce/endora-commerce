@@ -90,7 +90,7 @@ beforeEach(() => {
 });
 
 function renderRoles(): void {
-  renderProjects(<RolesPage />, { permissions: ['projects:read', 'projects:configure'], path: '/projects/roles' });
+  renderProjects(<RolesPage />, { permissions: ['projects:read', 'projects:configure'], path: '/projects/settings/roles' });
 }
 
 /** Open the row menu of `name` and pick `item`. */
@@ -248,7 +248,7 @@ describe('LossReasonsPage', () => {
   it('is the same screen over the loss reasons', async () => {
     renderProjects(<LossReasonsPage />, {
       permissions: ['projects:read', 'projects:configure'],
-      path: '/projects/loss-reasons',
+      path: '/projects/settings/loss-reasons',
     });
     expect(await screen.findByRole('heading', { name: en('lossReasons.title') })).toBeTruthy();
     const price = (await screen.findByText('Price')).closest('tr') as HTMLElement;

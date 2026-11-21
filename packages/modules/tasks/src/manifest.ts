@@ -328,7 +328,7 @@ export const manifest = defineModuleManifest({
       labelKey: 'actions.openTaskWorkflow.label',
       descriptionKey: 'actions.openTaskWorkflow.description',
       icon: 'Settings',
-      targetRoute: '/tasks/settings/workflow',
+      targetRoute: '/tasks/settings',
       requiredPermission: 'tasks:configure',
       keywords: ['task statuses', 'workflow', 'transitions'],
       keywordsKey: 'actions.openTaskWorkflow.keywords',

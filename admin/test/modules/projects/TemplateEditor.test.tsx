@@ -9,7 +9,7 @@ import { ROLES, ROLE_MANAGER, ROLE_SALES_REP, core, en, renderProjects } from '.
 
 /**
  * The Template editor (`specs/163-projects-and-tasks/`, User Story 3 — tasks
- * T075 and T078; `contracts/admin-surfaces.md` §2, `/projects/templates/:id`).
+ * T075 and T078; `contracts/admin-surfaces.md` §2, `/projects/settings/templates/:id`).
  *
  * A Template is edited as a whole and saved in **one** request — `POST` for a
  * new one, `PUT` for an existing one, the whole graph in the body — with the
@@ -140,12 +140,12 @@ async function open(options: { id?: string; present?: readonly string[]; listRou
     </>,
     {
       permissions: PERMISSIONS,
-      path: id === 'new' ? '/projects/templates/new' : `/projects/templates/${id}`,
+      path: id === 'new' ? '/projects/settings/templates/new' : `/projects/settings/templates/${id}`,
       // A new Template is at an address with no id; the catch-all keeps the probe mounted after it is saved.
-      ...(id === 'new' ? {} : { pattern: '/projects/templates/:id' }),
+      ...(id === 'new' ? {} : { pattern: '/projects/settings/templates/:id' }),
       present: options.present ?? ['projects', 'tasks'],
       // The list the editor leaves for, so the address can still be read once it has.
-      ...(options.listRoute ? { routes: <Route path="/projects/templates" element={<AddressProbe />} /> } : {}),
+      ...(options.listRoute ? { routes: <Route path="/projects/settings" element={<AddressProbe />} /> } : {}),
     },
   );
   if (id === 'new') await screen.findByRole('heading', { name: en('templates.editor.titleNew') });
@@ -260,7 +260,7 @@ describe('TemplateEditor', () => {
     expect(path).toBe(TEMPLATES);
     expect(body).toMatchObject({ name: 'Kiosk', roleIds: [], moves: [] });
     expect((body['stages'] as Array<Record<string, unknown>>).map((stage) => stage['name'])).toEqual(['Plan']);
-    await waitFor(() => expect(screen.getByTestId('address').textContent).toBe(`/projects/templates/${TEMPLATE_ID}`));
+    await waitFor(() => expect(screen.getByTestId('address').textContent).toBe(`/projects/settings/templates/${TEMPLATE_ID}`));
   });
 
   it('archives and restores the Template, saying it is no longer offered', async () => {
@@ -289,7 +289,7 @@ describe('TemplateEditor', () => {
     await waitFor(() =>
       expect(postSpy.mock.calls.map(([path]) => path)).toEqual([`${TEMPLATES}/${TEMPLATE_ID}/duplicate`]),
     );
-    await waitFor(() => expect(screen.getByTestId('address').textContent).toBe(`/projects/templates/${COPY_ID}`));
+    await waitFor(() => expect(screen.getByTestId('address').textContent).toBe(`/projects/settings/templates/${COPY_ID}`));
   });
 
   describe('unsaved edits (issue #452)', () => {
@@ -307,7 +307,7 @@ describe('TemplateEditor', () => {
         await rename('Showroom fit-out v2');
         await userEvent.click(backLink());
         expect(confirm).toHaveBeenCalledTimes(1);
-        expect(screen.getByTestId('address').textContent).toBe(`/projects/templates/${TEMPLATE_ID}`);
+        expect(screen.getByTestId('address').textContent).toBe(`/projects/settings/templates/${TEMPLATE_ID}`);
         expect(screen.getByDisplayValue('Showroom fit-out v2')).toBeTruthy();
       } finally {
         confirm.mockRestore();
@@ -335,13 +335,13 @@ describe('TemplateEditor', () => {
       await userEvent.click(screen.getByRole('button', { name: core('common.action.cancel') }));
       const dialog = await screen.findByRole('dialog', { name: en('templates.editor.unsaved.title') });
       await userEvent.click(within(dialog).getByRole('button', { name: en('templates.editor.unsaved.stay') }));
-      expect(screen.getByTestId('address').textContent).toBe(`/projects/templates/${TEMPLATE_ID}`);
+      expect(screen.getByTestId('address').textContent).toBe(`/projects/settings/templates/${TEMPLATE_ID}`);
       expect(screen.getByDisplayValue('Showroom fit-out v2')).toBeTruthy();
 
       await userEvent.click(screen.getByRole('button', { name: core('common.action.cancel') }));
       const again = await screen.findByRole('dialog', { name: en('templates.editor.unsaved.title') });
       await userEvent.click(within(again).getByRole('button', { name: en('templates.editor.unsaved.discard') }));
-      await waitFor(() => expect(screen.getByTestId('address').textContent).toBe('/projects/templates'));
+      await waitFor(() => expect(screen.getByTestId('address').textContent).toBe('/projects/settings'));
     });
 
     it('Duplicate with unsaved edits says it copies the saved version, and copies nothing until told to', async () => {
@@ -360,7 +360,7 @@ describe('TemplateEditor', () => {
       await waitFor(() =>
         expect(postSpy.mock.calls.map(([path]) => path)).toEqual([`${TEMPLATES}/${TEMPLATE_ID}/duplicate`]),
       );
-      await waitFor(() => expect(screen.getByTestId('address').textContent).toBe(`/projects/templates/${COPY_ID}`));
+      await waitFor(() => expect(screen.getByTestId('address').textContent).toBe(`/projects/settings/templates/${COPY_ID}`));
     });
 
     it('a new Template with nothing typed is not unsaved; one with a name is', async () => {
@@ -393,8 +393,8 @@ describe('TemplateEditor', () => {
     });
     renderProjects(<TemplateEditor />, {
       permissions: PERMISSIONS,
-      path: `/projects/templates/${TEMPLATE_ID}`,
-      pattern: '/projects/templates/:id',
+      path: `/projects/settings/templates/${TEMPLATE_ID}`,
+      pattern: '/projects/settings/templates/:id',
     });
     expect(await screen.findByText('No such project template.')).toBeTruthy();
     expect(screen.getByRole('link', { name: new RegExp(en('templates.editor.back')) })).toBeTruthy();

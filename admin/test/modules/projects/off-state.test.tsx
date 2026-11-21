@@ -116,10 +116,16 @@ const concreteUrl = (pattern: string): string => pattern.replace(/:[A-Za-z]+/g, 
 const READ_AND_WRITE = ['projects:read', 'projects:write', 'projects:configure', 'projects:analytics'];
 
 describe('projects admin surface', () => {
-  it('is registered: the list, the create screen, the Templates screens, Roles, loss reasons, analytics and one Project', () => {
+  it('is registered: the list, the create screen, the configuration (Templates, Roles, loss reasons) and its old addresses, analytics and one Project', () => {
     expect(routes.map((route) => route.path)).toEqual([
       '/projects',
       '/projects/new',
+      // The configuration and its tabs (issue #1557), then their old addresses.
+      '/projects/settings',
+      '/projects/settings/templates/new',
+      '/projects/settings/templates/:id',
+      '/projects/settings/roles',
+      '/projects/settings/loss-reasons',
       '/projects/templates',
       '/projects/templates/new',
       '/projects/templates/:id',
@@ -135,9 +141,7 @@ describe('projects admin surface', () => {
     permissions = new Set(READ_AND_WRITE);
     const shell = renderAt('/');
     expect(sidebarHrefs()).toContain('/projects');
-    expect(sidebarHrefs()).toContain('/projects/templates');
-    expect(sidebarHrefs()).toContain('/projects/roles');
-    expect(sidebarHrefs()).toContain('/projects/loss-reasons');
+    expect(sidebarHrefs()).toContain('/projects/settings');
     expect(sidebarHrefs()).toContain('/projects/analytics');
     shell.unmount();
     for (const route of routes) {
@@ -152,9 +156,7 @@ describe('projects admin surface', () => {
     permissions = new Set(READ_AND_WRITE);
     const shell = renderAt('/');
     expect(sidebarHrefs()).not.toContain('/projects');
-    expect(sidebarHrefs()).not.toContain('/projects/templates');
-    expect(sidebarHrefs()).not.toContain('/projects/roles');
-    expect(sidebarHrefs()).not.toContain('/projects/loss-reasons');
+    expect(sidebarHrefs()).not.toContain('/projects/settings');
     expect(sidebarHrefs()).not.toContain('/projects/analytics');
     shell.unmount();
     for (const route of routes) {
@@ -175,17 +177,17 @@ describe('projects admin surface', () => {
     permissions = new Set(['projects:read', 'projects:write']);
     const writer = renderAt('/');
     expect(sidebarHrefs()).toContain('/projects');
-    expect(sidebarHrefs()).not.toContain('/projects/templates');
-    expect(sidebarHrefs()).not.toContain('/projects/roles');
-    expect(sidebarHrefs()).not.toContain('/projects/loss-reasons');
+    expect(sidebarHrefs()).not.toContain('/projects/settings');
     expect(sidebarHrefs()).not.toContain('/projects/analytics');
     writer.unmount();
     for (const path of [
+      '/projects/settings',
+      '/projects/settings/templates/new',
+      concreteUrl('/projects/settings/templates/:id'),
+      '/projects/settings/roles',
+      '/projects/settings/loss-reasons',
       '/projects/templates',
-      '/projects/templates/new',
-      concreteUrl('/projects/templates/:id'),
       '/projects/roles',
-      '/projects/loss-reasons',
       '/projects/analytics',
     ]) {
       const screen = renderAt(path);
