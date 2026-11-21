@@ -6,5 +6,8 @@
   "actions.openWebhooks.description": "Event subscriptions & deliveries",
   "subscription.eventType.notDelivered": "Not delivered: nothing sends this event to webhooks. The subscription keeps it until you remove it.",
   "actions.openWebhooks.keywords": "webhooks, events, integration",
-  "settingGroups.webhooks.name": "Webhooks"
+  "settingGroups.webhooks.name": "Webhooks",
+  "settingLabels.webhooks.enabled.name": "Webhooks enabled",
+  "settingLabels.webhooks.delivery_retention_days.name": "Delivery history retention (days)",
+  "settingLabels.webhooks.delivery_retention_days.description": "Days a finished webhook delivery is kept before deletion (1–3650). Default 365."
 }

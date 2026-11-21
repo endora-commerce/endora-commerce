@@ -2,5 +2,6 @@
   "palette.actionsHeader": "Akcje",
   "palette.empty": "Brak dostępnych akcji",
   "palette.searchPlaceholder": "Wpisz, aby wyszukać akcje…",
-  "settingGroups.admin_actions.name": "Paleta poleceń"
+  "settingGroups.admin_actions.name": "Paleta poleceń",
+  "settingLabels.admin_actions.enabled.name": "Paleta poleceń włączona"
 }

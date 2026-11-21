@@ -30,5 +30,6 @@
   "methods.fields.statusOnFailure": "Order status on shipment failure",
   "methods.fields.statusDefault": "Default ({status})",
   "methods.columns.statuses": "Order status on success / failure",
-  "methods.statusGroup": "Order status changes"
+  "methods.statusGroup": "Order status changes",
+  "settingLabels.delivery_methods.enabled.name": "Delivery methods enabled"
 }

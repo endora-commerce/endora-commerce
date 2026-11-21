@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CreditCard, Loader2, Plus } from 'lucide-react';
 import { ApiError, apiClient, formatDateTime, formatMoney } from '@endora-commerce/admin-kit/lib';
 import {
@@ -33,6 +33,7 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { moneyDifference, type CreditLimitListResponse, type CreditLimitView } from '@endora-commerce/contracts';
+import { DEEP_LINK_PARAM, deepLinkedOrganization } from '../deep-link.js';
 
 /** `GET /api/v1/admin/credit-limits` serves at most 200 rows a page (issue #1664). */
 const MAX_PAGE_SIZE = 200;
@@ -63,7 +64,28 @@ export function CreditLimitsPage(): ReactNode {
   const [loading, setLoading] = useState(true);
   /** Why the list could not be read; `undefined` inside is the kit's generic copy. */
   const [loadError, setLoadError] = useState<{ message: string | undefined } | null>(null);
-  const [dialog, setDialog] = useState<DialogTarget | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linked = deepLinkedOrganization(searchParams);
+  // Issue #1544 — the Organization screen's credit-limit panel links here with
+  // `?organizationId=`, which opens that organization's dialog straight away.
+  const [dialog, setDialog] = useState<DialogTarget | null>(() =>
+    linked ? { kind: 'organization', organizationId: linked, name: null } : null,
+  );
+
+  /** Closing the dialog drops the deep link, so Back and a reload do not open it again. */
+  const closeDialog = useCallback((): void => {
+    setDialog(null);
+    if (searchParams.has(DEEP_LINK_PARAM)) {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete(DEEP_LINK_PARAM);
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  }, [searchParams, setSearchParams]);
 
   const { page, pageSize } = pager.query;
   const refresh = useCallback(async (): Promise<void> => {
@@ -97,11 +119,11 @@ export function CreditLimitsPage(): ReactNode {
 
   const done = useCallback(
     (message: string): void => {
-      setDialog(null);
+      closeDialog();
       showStatus(message);
       void refresh();
     },
-    [showStatus, refresh],
+    [closeDialog, showStatus, refresh],
   );
 
   const columns: ResponsiveColumn<CreditLimitView>[] = [
@@ -199,7 +221,7 @@ export function CreditLimitsPage(): ReactNode {
           )}
         />
       </ListPage>
-      {dialog ? <CreditLimitDialog target={dialog} onClose={(): void => setDialog(null)} onDone={done} /> : null}
+      {dialog ? <CreditLimitDialog target={dialog} onClose={closeDialog} onDone={done} /> : null}
     </>
   );
 }

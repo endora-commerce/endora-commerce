@@ -61,7 +61,7 @@ const settings = defineModuleSettingsManifest({
       code: PROJECTS_SETTING_CODES.ALERTS_TIME_ZONE,
       name: 'Time zone of Stage dates and deadline alerts',
       description:
-        'The time zone, as an IANA name such as Europe/Warsaw, in which "today" is counted for Projects: the day a Stage starts, whether its deadline has passed, and the day a deadline alert is sent — from 08:00 in this zone.',
+        'The IANA time zone (e.g. Europe/Warsaw) of “today” in Projects: stage starts, deadlines, alerts from 08:00.',
       groupCode: 'projects',
       valueType: 'string',
       defaultValue: 'Europe/Warsaw',

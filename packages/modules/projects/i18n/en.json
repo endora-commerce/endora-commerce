@@ -36,7 +36,7 @@
   "settingLabels.projects.visibility.options.everyone": "Every administrator",
   "settingLabels.projects.visibility.options.members": "Members and listed people",
   "settingLabels.projects.alerts_time_zone.name": "Time zone of Stage dates and deadline alerts",
-  "settingLabels.projects.alerts_time_zone.description": "The time zone, as an IANA name such as Europe/Warsaw, in which \"today\" is counted for Projects: the day a Stage starts, whether its deadline has passed, and the day a deadline alert is sent — from 08:00 in this zone.",
+  "settingLabels.projects.alerts_time_zone.description": "The IANA time zone (e.g. Europe/Warsaw) of “today” in Projects: stage starts, deadlines, alerts from 08:00.",
   "nav.projects.label": "Projects",
   "state.open": "Open",
   "state.completed": "Completed",

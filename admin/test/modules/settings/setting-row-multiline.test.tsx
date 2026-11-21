@@ -214,35 +214,38 @@ describe('SettingRowEditor — multi-line string settings', () => {
     expect(screen.getByRole('textbox', { name: 'Notatki' })).toBe(textarea());
   });
 
-  it('keeps the value previews under the field to one short line', () => {
+  // Issue #1518 (SHELL-09) — the line under the field names the default only
+  // once the value in force differs from it; in "All channels" the field
+  // already shows the global value, so it is not repeated there.
+  it('keeps the value preview under the field to one short line', () => {
     const long = `${'x'.repeat(200)}\nsecond line`;
-    renderRow(stringSetting({ multiline: true, defaultValue: THREE_LINES, globalValue: long }));
+    renderRow(stringSetting({ multiline: true, defaultValue: long, globalValue: THREE_LINES }));
     const previews = [...document.querySelectorAll('code')].map((el) => el.textContent ?? '');
-    expect(previews).toHaveLength(2);
-    for (const preview of previews) {
-      expect(preview).not.toContain('\n');
-      expect(preview.length).toBeLessThanOrEqual(61);
-      // Cut short, and says so.
-      expect(preview.endsWith('…')).toBe(true);
-    }
-    // The first line that has text, without its indentation.
-    expect(previews[0]).toBe('User-agent: *…');
-    expect(previews[1]).toBe(`${'x'.repeat(60)}…`);
+    expect(previews).toHaveLength(1);
+    expect(previews[0]).not.toContain('\n');
+    // Cut short, and says so.
+    expect(previews[0]).toBe(`${'x'.repeat(60)}…`);
     // The field itself still holds everything.
-    expect(textarea()!.value).toBe(long);
+    expect(textarea()!.value).toBe(THREE_LINES);
   });
 
-  it('previews a short one-line value of a multi-line setting whole, and an empty one as ""', () => {
+  it('previews the first line that has text, without its indentation', () => {
+    renderRow(stringSetting({ multiline: true, defaultValue: THREE_LINES, globalValue: 'Allow: /' }));
+    const previews = [...document.querySelectorAll('code')].map((el) => el.textContent ?? '');
+    expect(previews).toEqual(['User-agent: *…']);
+  });
+
+  it('previews an empty default of a multi-line setting as ""', () => {
     renderRow(stringSetting({ multiline: true, defaultValue: '', globalValue: 'Allow: /' }));
     const previews = [...document.querySelectorAll('code')].map((el) => el.textContent ?? '');
-    expect(previews).toEqual(['""', 'Allow: /']);
+    expect(previews).toEqual(['""']);
   });
 
   it('leaves the preview of a single-line setting as it was', () => {
     const long = 'y'.repeat(200);
-    renderRow(stringSetting({ globalValue: long }));
+    renderRow(stringSetting({ defaultValue: long, globalValue: 'z' }));
     const previews = [...document.querySelectorAll('code')].map((el) => el.textContent ?? '');
-    expect(previews).toEqual(['""', long]);
+    expect(previews).toEqual([long]);
   });
 
   it('reports what was typed, Enter included, as a line break in the draft', async () => {
@@ -259,6 +262,7 @@ describe('SettingRowEditor — multi-line string settings', () => {
   it('marks the row dirty when the text differs from the baseline, as other rows do', () => {
     renderRow(stringSetting({ multiline: true }), { text: 'a\nb', initialText: 'a' });
     expect(screen.getByText('editor.dirty')).toBeTruthy();
+    expect(document.querySelector('[data-dirty="true"]')).not.toBeNull();
   });
 
   it('read-only: the field is disabled and edits are dropped', () => {
@@ -270,7 +274,8 @@ describe('SettingRowEditor — multi-line string settings', () => {
     expect(textarea()!.value).toBe(THREE_LINES);
     fireEvent.change(textarea()!, { target: { value: 'x' } });
     expect(onChange).not.toHaveBeenCalled();
-    expect(screen.getByText('editor.readOnly')).toBeTruthy();
+    // Issue #1518 (SHELL-09) — no per-row badge: the group says it once.
+    expect(screen.queryByText('editor.readOnly')).toBeNull();
   });
 
   it('reset is offered when a global value is set and withheld when it is not', async () => {

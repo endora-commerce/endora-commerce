@@ -7761,9 +7761,16 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     run: { kind: 'tsx', path: 'scripts/check-text-budget.ts', args: [] },
     // Issue #1451: English bundles opened, one per module declaring
     // `i18n.bundlesDir`. Measured on a fresh worktree of `origin/master`, 2026-11-20.
-    files: 65,
+    // **Issue #1522 (`fix/1518-settings-screen`): files 65 -> 66, sites 196 -> 355.** The
+    // branch means to move the population: every module that declares settings now
+    // ships `settingLabels.<code>.description` for each setting its manifest describes
+    // (159 new budgeted keys), which the +50% band refuses. Measured on a fresh
+    // detached worktree of the branch commit after `setup-worktree.sh` and
+    // `build:packages`, 2026-11-21; the extra file is a module `master` gained since
+    // the first record, not this branch. Not computed from a delta.
+    files: 66,
     // Budgeted keys judged — the five families' keys across those bundles.
-    sites: 196,
+    sites: 355,
     sources: ['manifest-index', 'en-bundles'],
   },
   'backend/scripts/check-module-docs.ts': {

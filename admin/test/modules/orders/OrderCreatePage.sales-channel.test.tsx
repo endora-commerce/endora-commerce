@@ -83,6 +83,7 @@ let assigned: string[] | null;
 
 const BUNDLE = passthroughBundle('core', [
   'common.action.back',
+  'orders.page.title',
   'common.action.retry',
   'orderCreate.items.quickSearch',
   'orderCreate.submit',
@@ -197,7 +198,7 @@ describe('OrderCreatePage — the sales channel (#515)', () => {
     // Nothing the operator chose changed: leaving asks nothing.
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     try {
-      await userEvent.click(screen.getByRole('link', { name: 'common.action.back' }));
+      await userEvent.click(screen.getByRole('link', { name: 'orders.page.title' }));
       expect(confirm).not.toHaveBeenCalled();
     } finally {
       confirm.mockRestore();

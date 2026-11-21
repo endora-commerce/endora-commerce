@@ -51,5 +51,20 @@
   "customEvents.removeField": "Usuń pole {n}",
   "error.generic": "Coś poszło nie tak.",
   "error.notFound": "Nie znaleziono zdarzenia własnego.",
-  "error.versionConflict": "Ktoś inny zmienił to zdarzenie. Odśwież stronę i ponów zmianę."
+  "error.versionConflict": "Ktoś inny zmienił to zdarzenie. Odśwież stronę i ponów zmianę.",
+  "settingLabels.google_analytics.module_enabled.name": "Moduł Google Analytics włączony",
+  "settingLabels.google_analytics.enabled.name": "Włącz Google Analytics",
+  "settingLabels.google_analytics.enabled.description": "Wczytuje Google Analytics w tym kanale sprzedaży.",
+  "settingLabels.google_analytics.measurement_id.name": "Identyfikator pomiaru",
+  "settingLabels.google_analytics.measurement_id.description": "Identyfikator pomiaru GA4 (G-XXXXXXXXXX). Pusty: kanał nie jest śledzony.",
+  "settingLabels.google_analytics.enhanced_ecommerce_enabled.name": "Rozszerzony e-commerce",
+  "settingLabels.google_analytics.enhanced_ecommerce_enabled.description": "Wysyła zdarzenia e-commerce GA4: view_item, add_to_cart, begin_checkout, purchase.",
+  "settingLabels.google_analytics.server_side_enabled.name": "Tagowanie po stronie serwera",
+  "settingLabels.google_analytics.server_side_enabled.description": "Wysyła zdarzenia kanału z serwera zamiast z przeglądarki.",
+  "settingLabels.google_analytics.server_side_endpoint.name": "Endpoint po stronie serwera",
+  "settingLabels.google_analytics.server_side_endpoint.description": "Adres kontenera GTM po stronie serwera. Pusty: endpoint GA4 Measurement Protocol.",
+  "settingLabels.google_analytics.server_side_api_secret.name": "Sekret API Measurement Protocol",
+  "settingLabels.google_analytics.server_side_api_secret.description": "Sekret API GA4 Measurement Protocol, z Administracja → Strumienie danych. Zaszyfrowany; tylko do zapisu.",
+  "settingLabels.google_analytics.require_consent.name": "Wymagaj zgody na analitykę",
+  "settingLabels.google_analytics.require_consent.description": "Google Analytics czeka w trybie Consent Mode v2, aż odwiedzający wyrazi zgodę."
 }

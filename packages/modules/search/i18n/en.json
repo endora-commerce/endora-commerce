@@ -11,5 +11,14 @@
   "settingLabels.search.llm.enabled.name": "LLM-augmented search — enabled",
   "settingLabels.search.llm.enabled.description": "Adds meaning-based matches to search. Needs the embedder credentials setting below to name an LLM credential.",
   "settingLabels.search.llm.embedder_credentials.name": "LLM-augmented search — embedder credentials",
-  "settingLabels.search.llm.embedder_credentials.description": "Reference a reusable LLM credential configuration (Credentials screen). Its Base URL, API Key and Model provide the embedder endpoint, credential and model. Required to enable LLM-augmented search."
+  "settingLabels.search.llm.embedder_credentials.description": "The LLM configuration (Credentials screen) that provides the embedder. Required for LLM-augmented search.",
+  "settingLabels.search.enabled.name": "Search enabled",
+  "settingLabels.search.popup.suggestion_count.name": "Suggestion popup — result count",
+  "settingLabels.search.popup.suggestion_count.description": "Products shown in the storefront typeahead popup. 0 hides the popup.",
+  "settingLabels.search.popup.minimum_query_length.name": "Suggestion popup — minimum query length",
+  "settingLabels.search.popup.minimum_query_length.description": "Characters a customer must type before suggestions are requested.",
+  "settingLabels.search.reindex_interval_minutes.name": "Product reindex interval (minutes)",
+  "settingLabels.search.reindex_interval_minutes.description": "How often every sales-channel search index is rebuilt. 0 stops the periodic rebuild.",
+  "settingLabels.search.index_task_timeout_seconds.name": "Index task timeout (seconds)",
+  "settingLabels.search.index_task_timeout_seconds.description": "How long to wait for one indexing task before reporting it still running. Raise it for large catalogues."
 }

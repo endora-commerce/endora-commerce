@@ -2,7 +2,6 @@ import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import type { SettingDto } from '@endora-commerce/contracts';
-import { Badge } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useSettingLabels } from './setting-label.js';
 /**
@@ -26,22 +25,21 @@ export function ActivationPointerRow({ setting }: { setting: SettingDto }): Reac
   const labels = useSettingLabels();
   // Presence is not read here on purpose: this row states where the switch is,
   // not what position it is in. The screen that owns the switch shows that.
+  // Issue #1518 (SHELL-09) — the settings row's shape: what it is on the
+  // left, where to act on the right; no badge restating the sentence below it.
   return (
-    <div className="space-y-2 py-3">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 py-3">
+      <div className="min-w-0 flex-1 basis-48">
         <span className="text-sm font-medium">{labels.settingName(setting)}</span>
-        <Badge variant="outline" className="text-[10px] text-muted-foreground">
-          {t('activation.title')}
-        </Badge>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t('activation.managedOnPlatformScreen')}
+        </p>
       </div>
-      <p className="text-xs text-muted-foreground">
-        {t('activation.managedOnPlatformScreen')}
-      </p>
       <Link
         to="/platform/modules"
-        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+        className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
       >
-        <ExternalLink className="size-3" aria-hidden="true" />
+        <ExternalLink className="size-3.5" aria-hidden="true" />
         {t('activation.openPlatformScreen')}
       </Link>
     </div>

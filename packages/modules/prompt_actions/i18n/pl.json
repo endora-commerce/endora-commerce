@@ -38,5 +38,12 @@
   "capability.notConfigured": "Asystent promptów nie jest jeszcze skonfigurowany — ustaw dostawcę i klucz API w Ustawieniach.",
   "palette.group.label": "Asystent",
   "activity.verb.prompt_action.execute": "wykonał akcję asystenta",
-  "settingGroups.prompt_actions.name": "Akcje promptów (asystent AI)"
+  "settingGroups.prompt_actions.name": "Akcje promptów (asystent AI)",
+  "settingLabels.prompt_actions.activation.name": "Akcje z poleceń włączone",
+  "settingLabels.prompt_actions.enabled.name": "Asystent włączony",
+  "settingLabels.prompt_actions.enabled.description": "Włącza polecenia w języku naturalnym w palecie poleceń panelu.",
+  "settingLabels.prompt_actions.llm_credentials.name": "Dane dostępowe LLM",
+  "settingLabels.prompt_actions.llm_credentials.description": "Konfiguracja LLM (ekran Dane dostępowe), której używa asystent. Wymagana do jego włączenia.",
+  "settingLabels.prompt_actions.bulk_limit.name": "Limit operacji zbiorczej",
+  "settingLabels.prompt_actions.bulk_limit.description": "Najwięcej rekordów, które może zmienić jedno polecenie. Większe plany są blokowane."
 }

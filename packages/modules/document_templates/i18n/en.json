@@ -193,5 +193,6 @@
   "itemsTable.style.stripeColor": "Stripe colour",
   "itemsTable.columns.editShort": "Edit",
   "actions.openDocumentTemplates.keywords": "pdf template, invoice template, comparison, offer template, request for quotation pdf",
-  "settingGroups.document_templates.name": "Document templates"
+  "settingGroups.document_templates.name": "Document templates",
+  "settingLabels.document_templates.enabled.name": "Document templates enabled"
 }

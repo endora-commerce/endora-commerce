@@ -138,5 +138,11 @@
   "list.toolbar.label": "Filtruj klientów",
   "list.emptyTitle": "Nie ma jeszcze kont klientów",
   "list.rowMenu.label": "Akcje: {name}",
-  "list.rowMenu.organization": "Otwórz organizację"
+  "list.rowMenu.organization": "Otwórz organizację",
+  "settingLabels.customers.allow_registration_without_organization.name": "Zezwalaj na rejestrację bez organizacji",
+  "settingLabels.customers.allow_registration_without_organization.description": "Odwiedzający mogą założyć konto niepowiązane z żadną organizacją.",
+  "settingLabels.customers.deletion_retention_days.name": "Okno przywracania usuniętego klienta (dni)",
+  "settingLabels.customers.deletion_retention_days.description": "Przez ile dni usunięte konto klienta można przywrócić, zanim dane zostaną zanonimizowane. Domyślnie 365.",
+  "settingLabels.customers.presence_freshness_minutes.name": "Aktywność klientów online (minuty)",
+  "settingLabels.customers.presence_freshness_minutes.description": "Klient jest online, jeśli jego sesja była aktywna w ciągu tylu minut. Domyślnie 10."
 }

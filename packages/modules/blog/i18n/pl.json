@@ -473,5 +473,16 @@
   "tagList.validation.codeTaken": "Inny tag używa już tego kodu.",
   "categoryTree.defaultNote": "Kategoria Default jest wbudowana i nie można jej usunąć.",
   "categoryTree.emptyTitle": "Nie ma jeszcze kategorii",
-  "categoryTree.emptyBody": "Kategorie grupują wpisy w sklepie."
+  "categoryTree.emptyBody": "Kategorie grupują wpisy w sklepie.",
+  "settingLabels.blog.activation.name": "Blog włączony",
+  "settingLabels.blog.enabled.name": "Blog w sklepie włączony",
+  "settingLabels.blog.enabled.description": "Gdy wyłączone, każdy adres bloga w sklepie zwraca 404. Można wyłączyć dla kanału sprzedaży.",
+  "settingLabels.blog.url_prefix.name": "Prefiks adresu bloga",
+  "settingLabels.blog.url_prefix.description": "Segment adresu, pod którym działa blog, np. blog → /blog. Małe litery, cyfry i myślniki.",
+  "settingLabels.blog.url_prefix_by_language.name": "Prefiks adresu bloga dla języka",
+  "settingLabels.blog.url_prefix_by_language.description": "Segment adresu bloga dla języka, jako JSON, np. {\"pl-PL\": \"aktualnosci\"}. Pozostałe używają prefiksu.",
+  "settingLabels.blog.latest_count.name": "Najnowsze wpisy na stronie głównej bloga",
+  "settingLabels.blog.latest_count.description": "Ile najnowszych wpisów pokazuje strona główna bloga (1–20).",
+  "settingLabels.blog.posts_per_page.name": "Wpisy na stronę w widokach kategorii i tagów",
+  "settingLabels.blog.posts_per_page.description": "Liczba wpisów na stronę w widokach kategorii i tagów (1–100)."
 }

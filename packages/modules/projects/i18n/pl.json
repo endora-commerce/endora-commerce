@@ -36,7 +36,7 @@
   "settingLabels.projects.visibility.options.everyone": "Każdy administrator",
   "settingLabels.projects.visibility.options.members": "Członkowie i osoby dopisane",
   "settingLabels.projects.alerts_time_zone.name": "Strefa czasowa dat etapów i powiadomień o terminach",
-  "settingLabels.projects.alerts_time_zone.description": "Strefa czasowa (nazwa IANA, np. Europe/Warsaw), w której liczony jest „dzisiejszy” dzień projektów: dzień rozpoczęcia etapu, przekroczenie terminu i dzień wysłania powiadomienia o terminie — od 8:00 w tej strefie.",
+  "settingLabels.projects.alerts_time_zone.description": "Strefa czasowa IANA (np. Europe/Warsaw) „dzisiaj” w projektach: start etapu, terminy, alerty od 8:00.",
   "nav.projects.label": "Projekty",
   "state.open": "Otwarty",
   "state.completed": "Zrealizowany",

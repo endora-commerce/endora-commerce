@@ -1,7 +1,8 @@
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import type { CreditLimitView } from '@endora-commerce/contracts';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
@@ -117,11 +118,17 @@ const listCalls = (): URLSearchParams[] =>
     .filter((p) => p.startsWith('/api/v1/admin/credit-limits'))
     .map((p) => new URLSearchParams(p.split('?')[1] ?? ''));
 
-function render(): void {
+/** Prints the router's search, so a test can see the deep link dropped. */
+function SearchProbe(): ReactNode {
+  return <output data-testid="search">{useLocation().search}</output>;
+}
+
+function render(entry = '/credit-limits'): void {
   renderWithI18n(
     withSession(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <CreditLimitsPage />
+        <SearchProbe />
       </MemoryRouter>,
       { session: adminSession({ permissions: ['*'] }) },
     ),
@@ -273,5 +280,31 @@ describe('CreditLimitsPage (issue #1664)', () => {
     expect(alert).toHaveTextContent(core['common.list.loadError']!);
     await userEvent.click(within(alert).getByRole('button', { name: core['common.action.retry']! }));
     expect(await screen.findByText('Org 1')).toBeInTheDocument();
+  });
+
+  it('opens the dialog for the organization a deep link names, and drops the link when it closes (issue #1544)', async () => {
+    answer([limit(1)]);
+    render('/credit-limits?organizationId=00000000-0000-4000-8000-000000000001');
+    const dialog = await screen.findByRole('dialog', {
+      name: fill(core['creditLimits.adjust.title']!, { orgId: 'Org 1', currency: 'PLN' }),
+    });
+    expect(within(dialog).queryByRole('button', { name: 'pick organization' })).toBeNull();
+    await userEvent.click(within(dialog).getByRole('button', { name: core['common.action.cancel']! }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByTestId('search')).toHaveTextContent('');
+  });
+
+  it('offers the grant form through a deep link to an organization holding no limit', async () => {
+    answer([limit(1)]);
+    render(`/credit-limits?organizationId=${NEW_ORG}`);
+    const dialog = await screen.findByRole('dialog', { name: fill(core['creditLimits.grant.title']!, { orgId: 'Fresh Org' }) });
+    expect(within(dialog).getByRole('button', { name: core['creditLimits.action.grant']! })).toBeInTheDocument();
+  });
+
+  it('ignores a deep link that does not name an organization id', async () => {
+    answer([limit(1)]);
+    render('/credit-limits?organizationId=not-a-uuid');
+    await screen.findByText('Org 1');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

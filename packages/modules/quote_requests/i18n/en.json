@@ -203,5 +203,16 @@
   "list.empty": "A quote request appears here once a customer sends it or you create one.",
   "list.rowMenu.label": "Actions for quote request {number}",
   "list.rowMenu.organization": "Open organization",
-  "detail.tabs.label": "Quote request sections"
+  "detail.tabs.label": "Quote request sections",
+  "settingLabels.quote_requests.enabled.name": "Quote requests enabled",
+  "settingLabels.quote_requests.expiry_days.name": "Auto-expire pending after (days)",
+  "settingLabels.quote_requests.expiry_days.description": "Days without activity before a pending quote request expires. 0: never.",
+  "settingLabels.quote_requests.show_add_to_quote_on_card.name": "Show \"Add to quote\" on product card",
+  "settingLabels.quote_requests.show_add_to_quote_on_card.description": "Shows the “Add to quote” button on product cards.",
+  "settingLabels.quote_requests.show_add_to_quote_on_pdp.name": "Show \"Add to quote\" on product detail",
+  "settingLabels.quote_requests.show_add_to_quote_on_pdp.description": "Shows the “Add to quote” button on product pages.",
+  "settingLabels.quote_requests.business_id.prefix.name": "Business Quote Request ID prefix",
+  "settingLabels.quote_requests.business_id.prefix.description": "Text before the quote request number shown to the customer, e.g. QR-. Empty: no prefix.",
+  "settingLabels.quote_requests.business_id.suffix.name": "Business Quote Request ID suffix",
+  "settingLabels.quote_requests.business_id.suffix.description": "Text after the quote request number shown to the customer, e.g. -2026. Empty: no suffix."
 }

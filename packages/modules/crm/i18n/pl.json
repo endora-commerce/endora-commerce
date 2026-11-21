@@ -4,7 +4,6 @@
   "nav.calendar.label": "Kalendarz",
   "nav.analytics.label": "Analityka",
   "nav.configuration.label": "Konfiguracja",
-  "configuration.tab.workflow": "Statusy i przepływ",
   "configuration.tab.tags": "Etykiety",
   "actions.openOpportunities.label": "Szanse sprzedażowe",
   "actions.openOpportunities.description": "Otwórz listę szans sprzedażowych",
@@ -284,6 +283,10 @@
   "board.announce.moveFailed": "„{title}” wraca do statusu „{status}”. {reason}",
   "workflow.title": "Statusy i przepływ szans sprzedażowych",
   "workflow.statuses.title": "Statusy",
+  "workflow.tab.statuses": "Statusy i przejścia",
+  "workflow.tab.orderSync": "Synchronizacja zamówień",
+  "workflow.tab.value": "Wartość",
+  "workflow.tab.boardCard": "Karta na tablicy",
   "workflow.col.name": "Nazwa",
   "workflow.col.code": "Kod",
   "workflow.col.kind": "Rodzaj",
@@ -799,5 +802,12 @@
   "actions.openCrmCalendar.keywords": "kalendarz, wydarzenia, przypomnienie, terminy",
   "actions.openCrmTags.keywords": "etykieta, etykiety",
   "actions.openCrmWorkflow.keywords": "przepływ, statusy, lejek",
-  "settingGroups.crm.name": "CRM"
+  "settingGroups.crm.name": "CRM",
+  "settingLabels.crm.enabled.name": "CRM włączony",
+  "settingLabels.crm.auto_create_from_orders.name": "Twórz szansę sprzedaży dla każdego nowego zamówienia",
+  "settingLabels.crm.auto_create_from_orders.description": "Każde nowe zamówienie dostaje powiązaną szansę sprzedaży, chyba że już ma powiązaną. Domyślnie wyłączone.",
+  "settingLabels.crm.auto_create_from_quote_requests.name": "Twórz szansę sprzedaży dla każdego nowego zapytania ofertowego",
+  "settingLabels.crm.auto_create_from_quote_requests.description": "Każde nowe zapytanie ofertowe dostaje powiązaną szansę sprzedaży. Wymaga zapytań ofertowych. Domyślnie wyłączone.",
+  "settingLabels.crm.board_card_fields.name": "Pola na karcie tablicy",
+  "settingLabels.crm.board_card_fields.description": "Pola pokazywane na karcie tablicy szans sprzedaży, najwyżej sześć. Edytowane na ekranie procesu CRM."
 }

@@ -2,5 +2,18 @@
   "actions.openGoogleTagManager.label": "Google Tag Manager",
   "actions.openGoogleTagManager.description": "Configure the GTM container and server-side tagging per sales channel",
   "actions.openGoogleTagManager.keywords": "tags, container",
-  "settingGroups.google_tag_manager.name": "Google Tag Manager"
+  "settingGroups.google_tag_manager.name": "Google Tag Manager",
+  "settingLabels.google_tag_manager.module_enabled.name": "Google Tag Manager module enabled",
+  "settingLabels.google_tag_manager.enabled.name": "Enable Google Tag Manager",
+  "settingLabels.google_tag_manager.enabled.description": "Loads the GTM container on this sales channel. Do not also load Google Analytics for it.",
+  "settingLabels.google_tag_manager.container_id.name": "Container ID",
+  "settingLabels.google_tag_manager.container_id.description": "GTM container ID (GTM-XXXXXXX). Empty: the channel is not tracked.",
+  "settingLabels.google_tag_manager.require_consent.name": "Require analytics consent",
+  "settingLabels.google_tag_manager.require_consent.description": "The container starts with consent denied and no event is sent until the visitor accepts cookies.",
+  "settingLabels.google_tag_manager.server_side_enabled.name": "Server-side tagging",
+  "settingLabels.google_tag_manager.server_side_enabled.description": "Sends commerce events to your server-side GTM container from the backend instead of the browser.",
+  "settingLabels.google_tag_manager.server_container_url.name": "Server container URL",
+  "settingLabels.google_tag_manager.server_container_url.description": "Base URL of your server-side GTM container. Empty keeps the channel on the browser path.",
+  "settingLabels.google_tag_manager.server_ingest_path.name": "Server container ingest path",
+  "settingLabels.google_tag_manager.server_ingest_path.description": "The path your server container's client listens on. Default /data matches Google's Data Client."
 }
