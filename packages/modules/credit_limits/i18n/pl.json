@@ -17,5 +17,15 @@
   "list.openOrganization": "Otwórz organizację",
   "dialog.organization": "Organizacja",
   "dialog.pickOrganization": "Jeśli ma już limit, możesz go tu skorygować.",
-  "dialog.checking": "Sprawdzanie limitu kredytowego organizacji…"
+  "dialog.checking": "Sprawdzanie limitu kredytowego organizacji…",
+  "organizationPanel.title": "Limit kredytowy",
+  "organizationPanel.description": "Limit płatności odroczonej, który rezerwują zamówienia tej organizacji.",
+  "organizationPanel.loading": "Wczytywanie limitu kredytowego…",
+  "organizationPanel.error": "Nie udało się wczytać limitu kredytowego. Odśwież stronę, aby spróbować ponownie.",
+  "organizationPanel.none": "Nie przyznano limitu kredytowego. Ta organizacja nie może zamawiać z płatnością odroczoną.",
+  "organizationPanel.granted": "Przyznano",
+  "organizationPanel.reserved": "Zarezerwowano",
+  "organizationPanel.available": "Dostępne",
+  "organizationPanel.reservations": "Aktywne rezerwacje",
+  "organizationPanel.overdrawn": "Rezerwacje przekraczają limit o {amount}. Nowe zamówienia z płatnością odroczoną są odrzucane."
 }

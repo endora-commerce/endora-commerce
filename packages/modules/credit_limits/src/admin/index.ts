@@ -1,6 +1,6 @@
 /**
- * `credit_limits`' admin surface — one route, one sidebar entry and, through
- * the manifest, one command-palette action (feature 091, Phase 4, batch 8;
+ * `credit_limits`' admin surface — one route, one sidebar entry, one panel on
+ * the Organization screen and, through the manifest, one command-palette action (feature 091, Phase 4, batch 8;
  * `specs/091-module-owned-admin-surfaces/contracts/admin-contribution.md`).
  *
  * **Its one drain was `dictionaries`' currency picker**, which the screen
@@ -26,7 +26,7 @@
  * **This entry exports data and nothing else** (R2); the component is a
  * dynamic-import factory (R6).
  */
-import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
 
 /** The module's only route: limits, balances and active reservations. */
 const ROUTE_PATH = '/credit-limits';
@@ -59,5 +59,15 @@ export const contributions: AdminContributions = {
       weight: 400,
       requiredPermission: CREDIT_LIMITS_PERMISSION,
     },
+  ],
+  // Issue #1544 (UX audit SALES-19) — a read-only summary of the organization's
+  // limit on the Organization screen's Commerce tab, linking to the dialog on
+  // this module's screen. 450: after the ordering defaults (`quick_order` 300),
+  // before the payers and the price negotiation (500), the other money terms.
+  zones: [
+    zoneComponent('organization.detail.after', () => import('./zones/OrganizationCreditLimit.js'), {
+      weight: 450,
+      requiredPermission: CREDIT_LIMITS_PERMISSION,
+    }),
   ],
 };

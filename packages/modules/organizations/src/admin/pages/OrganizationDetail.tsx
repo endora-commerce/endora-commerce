@@ -715,7 +715,7 @@ function OrganizationDetailScreen({ id }: { id: string }): ReactNode {
               organization says it. **One mount, and that is a rule rather than a layout
               choice**: this member carries no prop that could tell two mounts apart, so a
               second one would render every contribution twice. Contributions arrive ordered by
-              their declared weight (`price_lists` 200, `quick_order` 300, `related_payers` and
+              their declared weight (`price_lists` 200, `quick_order` 300, `credit_limits` 450, `related_payers` and
               `quote_requests` 500, `crm` 600, `projects` 650).
 
               Issue #1515 — inside the Commerce tab's card, so its sections are sections, not

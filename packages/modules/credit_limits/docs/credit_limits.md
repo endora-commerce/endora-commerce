@@ -27,6 +27,14 @@ the limit exists; `credit_limit`-kind payment methods are filtered out
 of Checkout when no limit is granted or the cart total exceeds the
 available credit.
 
+Admin UX: the **Credit limits** screen lists every granted limit; *Grant credit limit* and each
+row's *Adjust limit* open one dialog. The Organization screen's **Commerce** tab carries a
+read-only *Credit limit* summary — granted, reserved and available amounts and the number of
+active reservations, or a note that no limit is granted — whose *Adjust limit* / *Grant credit
+limit* link opens that dialog for the organization (`/credit-limits?organizationId=<id>`). The
+summary is shown only to someone holding `credit_limits:manage`, and not at all while the module
+is off (issue #1544).
+
 Which reservations a customer sees: the limit is shared, so the granted
 amount, the available amount and `activeReservationCount` are always the
 Organization's figures. The `activeReservations` list holds only the
