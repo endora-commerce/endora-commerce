@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { passthroughBundle } from '../../helpers/render-with-i18n';
 import {
@@ -47,6 +48,7 @@ const BUNDLE = passthroughBundle('catalog', [
   'categories.page.title',
   'categories.action.edit',
   'categories.action.content',
+  'categories.action.menu',
 ]);
 
 const EDITOR_CONTRIBUTION = {
@@ -96,9 +98,10 @@ describe('CategoriesTree — the Content link', () => {
 
   it('links each row to its content screen when an editor is contributed', async () => {
     renderTree([EDITOR_CONTRIBUTION]);
-    const link = await waitFor(() =>
-      screen.getByRole('link', { name: 'categories.action.content' }),
-    );
+    // The link is an entry of the row's actions menu (#1507).
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'categories.action.menu' }));
+    const link = await screen.findByRole('menuitem', { name: 'categories.action.content' });
     expect(link.getAttribute('href')).toBe(`/catalog/categories/${CATEGORY_ID}/content`);
   });
 
@@ -106,6 +109,9 @@ describe('CategoriesTree — the Content link', () => {
     renderTree([]);
     // The row has to have rendered, or the absence proves nothing.
     await waitFor(() => expect(screen.getByText('Hand tools')).toBeTruthy());
-    expect(screen.queryByRole('link', { name: 'categories.action.content' })).toBeNull();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'categories.action.menu' }));
+    await screen.findAllByRole('menuitem');
+    expect(screen.queryByRole('menuitem', { name: 'categories.action.content' })).toBeNull();
   });
 });

@@ -10,7 +10,7 @@ zawierać wszystko, co oferuje Page Builder, w tym tekst formatowany w bloku tek
 
 ## Dla operatorów
 
-Otwórz **Katalog → Kategorie** i w wierszu kategorii wybierz **Treść**. Ekran treści zawiera:
+Otwórz **Katalog → Kategorie** i w menu akcji wiersza kategorii wybierz **Treść**. Ekran treści zawiera:
 
 - przełącznik **języka** — treść jest przechowywana osobno dla każdego języka, tak jak nazwa
   kategorii. Każdy język ma własny dokument, a dla języka pozostawionego bez treści sklep pokazuje
