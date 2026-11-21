@@ -242,13 +242,22 @@ describe.each(['en', 'pl'] as const)('newsletter screens in %s (#1463)', (langua
   it('tags and custom fields label every input and name each field type', async () => {
     const container = mount('/newsletter/tags', '/newsletter/tags', <TagsPage />);
     await waitFor(() => expect(newsletterClient.listTags).toHaveBeenCalled());
-    expect(screen.getByRole('textbox', { name: key('tags.field.name') })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: key('tags.field.code') })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: key('fields.field.label') })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: key('fields.field.key') })).toBeInTheDocument();
-    const type = screen.getByRole('combobox', { name: key('fields.field.type') });
+    // The add forms are dialogs opened from each section's header (issue #1439, DS-05).
+    fireEvent.click(await screen.findByRole('button', { name: key('tags.add') }));
+    let dialog = screen.getByRole('dialog', { name: key('tags.dialog.title') });
+    expect(within(dialog).getByRole('textbox', { name: key('tags.field.name') })).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: key('tags.field.code') })).toBeInTheDocument();
+    expect(orphanLabels(dialog)).toEqual([]);
+    fireEvent.click(within(dialog).getByRole('button', { name: core['common.action.cancel']! }));
+
+    fireEvent.click(screen.getByRole('button', { name: key('fields.add') }));
+    dialog = screen.getByRole('dialog', { name: key('fields.dialog.title') });
+    expect(within(dialog).getByRole('textbox', { name: key('fields.field.label') })).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: key('fields.field.key') })).toBeInTheDocument();
+    const type = within(dialog).getByRole('combobox', { name: key('fields.field.type') });
     expect(within(type).getByRole('option', { name: key('fieldType.boolean') })).toBeInTheDocument();
     expect(within(type).queryByRole('option', { name: 'boolean' })).toBeNull();
+    expect(orphanLabels(dialog)).toEqual([]);
     expect(orphanLabels(container)).toEqual([]);
   });
 

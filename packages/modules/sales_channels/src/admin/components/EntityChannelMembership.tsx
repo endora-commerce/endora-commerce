@@ -262,7 +262,7 @@ export function EntityChannelMembership({
                   </option>
                 ))}
               </Select>
-              <Button onClick={() => void handleAdd()} disabled={busy || !pickerCode}>
+              <Button variant="outline" onClick={() => void handleAdd()} disabled={busy || !pickerCode}>
                 {t('membership.action.add')}
               </Button>
             </div>

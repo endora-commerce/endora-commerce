@@ -89,7 +89,7 @@ beforeEach(() => {
 });
 
 const BUNDLE = {
-  ...passthroughBundle('core', ['common.action.delete', 'orders.page.title']),
+  ...passthroughBundle('core', ['common.action.delete', 'common.action.cancel', 'orders.page.title']),
   ...shippedModuleBundle('orders', 'en'),
 };
 
@@ -205,24 +205,75 @@ describe('OrderStatusConfigPage', () => {
 });
 
 /**
- * Issue #1437 (UX audit 2026-11-17, DS-03) — the new-status form is a titled
- * section of the statuses card, separated by the section's own rule, not a row
- * fenced off with a hand-drawn top border; its fields are the kit's.
+ * Issues #1439 (DS-05) and #1441 (DS-07), UX audit 2026-11-17 — no create form
+ * drawn open under the list. *Add status* sits in the statuses card's header as
+ * an outline button and opens the kit's dialog, whose submit is the one filled
+ * button while it is open. The graph's in-editor *Add transition* is outline too.
  */
-describe('OrderStatusConfigPage — the new-status form is a section of the statuses card (DS-03)', () => {
-  it('renders the add form as an h3 section inside the statuses card, on kit inputs', async () => {
+describe('OrderStatusConfigPage — Add status opens a dialog (DS-05, DS-07)', () => {
+  const classes = (el: HTMLElement): string[] => el.className.split(/\s+/);
+
+  it('draws no add form on the page, only an outline Add status in the statuses card header', async () => {
     renderPage();
-    const section = await screen.findByRole('region', { name: 'New status' });
-    expect(section.getAttribute('data-slot')).toBe('editor-section');
-    expect(section.querySelector('h3')?.textContent).toBe('New status');
-    const card = section.closest('[data-slot="card"]');
-    expect(card).not.toBeNull();
-    expect(within(card as HTMLElement).getByRole('table')).toBeTruthy();
-    expect(within(section).getByRole('button', { name: /core\.orderStatusConfig\.addStatus/ })).toBeTruthy();
-    // No raw, hand-styled inputs: every text field of the form is the kit's `Input`.
-    const raw = [...section.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="hidden"])')].filter(
+    await screen.findByRole('button', { name: 'Delete status New' });
+    expect(screen.queryByRole('region', { name: 'New status' })).toBeNull();
+    expect(screen.queryByLabelText('core.orderStatusConfig.col.code')).toBeNull();
+    const add = screen.getByRole('button', { name: 'core.orderStatusConfig.addStatus' });
+    expect(add.closest('[data-slot="card-header"]')).not.toBeNull();
+    expect(classes(add)).not.toContain('bg-primary');
+    expect(classes(add)).toContain('border-input');
+  });
+
+  it('draws the graph\'s Add transition as outline, not filled', async () => {
+    renderPage();
+    const add = await screen.findByRole('button', { name: 'core.orderStatusConfig.addTransition' });
+    expect(classes(add)).not.toContain('bg-primary');
+    expect(classes(add)).toContain('border-input');
+  });
+
+  it('creates a status from the dialog and closes it', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'core.orderStatusConfig.addStatus' }));
+    const dialog = screen.getByRole('dialog', { name: 'New status' });
+    const submit = within(dialog).getByRole('button', { name: 'core.orderStatusConfig.addStatus' });
+    expect(submit).toBeDisabled();
+    // Every text field of the form is the kit's `Input`.
+    const raw = [...dialog.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="hidden"])')].filter(
       (input) => !/\bborder-input\b/.test(input.className),
     );
     expect(raw).toEqual([]);
+    await userEvent.type(within(dialog).getByLabelText('core.orderStatusConfig.col.code'), ' awaiting_stock ');
+    await userEvent.type(within(dialog).getByLabelText('core.orderStatusConfig.field.defaultName'), 'Awaiting stock');
+    await userEvent.click(within(dialog).getByRole('checkbox'));
+    await userEvent.click(submit);
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/admin/orders/statuses',
+      expect.objectContaining({ code: 'awaiting_stock', defaultName: 'Awaiting stock', isTerminal: true, name: {} }),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(getSpy.mock.calls.filter(([url]) => url === '/api/v1/admin/orders/statuses').length).toBeGreaterThan(1);
+  });
+
+  it('keeps the dialog open and says why when the server refuses the status', async () => {
+    const { ApiError } = await import('@endora-commerce/admin-kit/lib');
+    postSpy.mockRejectedValueOnce(
+      new ApiError(409, { error: { code: 'ORDER_STATUS_EXISTS', message: 'Status "pending" already exists.' } } as never),
+    );
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'core.orderStatusConfig.addStatus' }));
+    const dialog = screen.getByRole('dialog', { name: 'New status' });
+    await userEvent.type(within(dialog).getByLabelText('core.orderStatusConfig.col.code'), 'pending');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'core.orderStatusConfig.addStatus' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Status "pending" already exists.');
+    expect(screen.getByRole('dialog', { name: 'New status' })).toBeInTheDocument();
+  });
+
+  it('closes on Cancel without a request', async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'core.orderStatusConfig.addStatus' }));
+    const dialog = screen.getByRole('dialog', { name: 'New status' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'common.action.cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(postSpy).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { shippedModuleBundle } from '../../helpers/core-bundle';
 
@@ -53,15 +53,22 @@ const bundle = shippedModuleBundle('newsletter', 'en');
 const copy = bundle.newsletter as Record<string, string>;
 const label = (key: string): string => copy[key]!;
 
-function fill(labelKey: string, value: string): void {
-  fireEvent.change(screen.getByRole('textbox', { name: label(labelKey) }), { target: { value } });
+/** The add forms are dialogs opened from each section's header (issue #1439, DS-05). */
+async function openDialog(addKey: string): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole('button', { name: label(addKey) }));
+  return screen.getByRole('dialog');
+}
+
+function fill(dialog: HTMLElement, labelKey: string, value: string): void {
+  fireEvent.change(within(dialog).getByRole('textbox', { name: label(labelKey) }), { target: { value } });
 }
 
 describe('Newsletter TagsPage — code derived from a Polish name (issue #239)', () => {
   it('folds ł to l when deriving a tag code from its name', async () => {
     renderWithI18n(<TagsPage />, bundle);
-    fill('tags.field.name', 'Metody płatności');
-    fireEvent.click(screen.getByRole('button', { name: label('tags.add') }));
+    const dialog = await openDialog('tags.add');
+    fill(dialog, 'tags.field.name', 'Metody płatności');
+    fireEvent.click(within(dialog).getByRole('button', { name: label('tags.add') }));
 
     await waitFor(() => expect(createTag).toHaveBeenCalledTimes(1));
     expect(createTag).toHaveBeenCalledWith({
@@ -72,8 +79,9 @@ describe('Newsletter TagsPage — code derived from a Polish name (issue #239)',
 
   it('folds ł when deriving a custom field key from its label', async () => {
     renderWithI18n(<TagsPage />, bundle);
-    fill('fields.field.label', 'Usługa wysyłki');
-    fireEvent.click(screen.getByRole('button', { name: label('fields.add') }));
+    const dialog = await openDialog('fields.add');
+    fill(dialog, 'fields.field.label', 'Usługa wysyłki');
+    fireEvent.click(within(dialog).getByRole('button', { name: label('fields.add') }));
 
     await waitFor(() => expect(createCustomField).toHaveBeenCalledTimes(1));
     expect(createCustomField).toHaveBeenCalledWith({
