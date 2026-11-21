@@ -104,11 +104,10 @@ const CASES: { tab: string; type: ProductType; ready: () => Promise<unknown> }[]
   { tab: 'details', type: 'simple', ready: () => screen.findByRole('heading', { name: en['productEditor.section.identity']! }) },
   { tab: 'variants', type: 'configurable', ready: () => screen.findByRole('heading', { name: new RegExp(`^${en['productEditor.variants.title']!}`) }) },
   { tab: 'composite', type: 'bundle', ready: () => screen.findByRole('heading', { name: /^Battery/ }) },
-  { tab: 'media', type: 'simple', ready: () => screen.findByRole('heading', { name: new RegExp(`^${en['productEditor.gallery.title']!}`) }) },
+  // Issue #1510 (CAT-10): "Media & files" holds the gallery and the attachments, both h2 sections.
+  { tab: 'media', type: 'simple', ready: () => Promise.all([screen.findByRole('heading', { name: new RegExp(`^${en['productEditor.gallery.title']!}`) }), screen.findByText('manual.pdf')]) },
   { tab: 'inventory', type: 'simple', ready: () => screen.findByText('Warsaw') },
-  { tab: 'attachments', type: 'simple', ready: () => screen.findByText('manual.pdf') },
   { tab: 'links', type: 'simple', ready: () => screen.findByRole('heading', { name: new RegExp(`^${en['productEditor.links.title']!}`) }) },
-  { tab: 'scopes', type: 'simple', ready: () => screen.findByRole('table') },
 ];
 
 describe('the product editor has one heading outline (issue #1490, CAT-11)', () => {
@@ -122,16 +121,19 @@ describe('the product editor has one heading outline (issue #1490, CAT-11)', () 
     });
   }
 
-  it('Scope map: no heading repeats the tab name; the map and its orphans are two h2 sections', async () => {
+  it('Scope map drawer (#1510): its title is the h2, the map and its orphans two h3 sections below it', async () => {
     setUp('simple', [ORPHAN]);
-    renderEditor(ProductEditor, { url: at('scopes') });
-    await screen.findByRole('table');
-    expectNoSkippedLevel();
-    const panel = outline().slice(1);
-    expect(panel.map((h) => h.text)).not.toContain(en['productEditor.tab.scopes']!);
-    expect(panel).toEqual([
-      { level: 2, text: en['productEditor.scopeOverview.matrix.title']! },
-      { level: 2, text: en['productEditor.scopeOverview.orphans.title']! },
+    renderEditor(ProductEditor, { url: `/catalog/products/${PRODUCT_ID}?scope=global&scopeMap=1` });
+    const drawer = await screen.findByRole('dialog', { name: en['productEditor.scope.scopeMap']! });
+    await within(drawer).findByRole('table');
+    const headings = [...drawer.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6')].map((h) => ({
+      level: Number(h.tagName.slice(1)),
+      text: (h.textContent ?? '').trim(),
+    }));
+    expect(headings).toEqual([
+      { level: 2, text: en['productEditor.scope.scopeMap']! },
+      { level: 3, text: en['productEditor.scopeOverview.matrix.title']! },
+      { level: 3, text: en['productEditor.scopeOverview.orphans.title']! },
     ]);
     // The map's one-line help describes its section.
     expect(screen.getByRole('region', { name: en['productEditor.scopeOverview.matrix.title']! })).toHaveAccessibleDescription(

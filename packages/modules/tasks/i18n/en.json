@@ -336,6 +336,8 @@
   "digest.off": "Daily digest off.",
   "digest.error": "The daily digest setting could not be loaded.",
   "digest.saveError": "The daily digest setting could not be saved.",
+  "digest.summary.off": "Daily digest: off",
+  "digest.summary.on": "Daily digest: on, {hour}",
   "settings.title": "General task settings",
   "settings.description": "The calendar tasks are counted in.",
   "settings.link": "General settings",

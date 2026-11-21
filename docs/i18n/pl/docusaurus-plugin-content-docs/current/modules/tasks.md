@@ -121,8 +121,10 @@ ustawione przed przełączeniem zostają.
 przypisane do ciebie, które nie są zamknięte, najpierw te z najbliższym
 terminem, na końcu te bez terminu, jako lista albo tablica, z tymi samymi
 filtrami. Twoich szkiców tu nie ma — znajdziesz je filtrem *Tylko moje
-szkice* na ekranie **Zadania**. Pole **Dzienne podsumowanie** u góry włącza
-i wyłącza twoje podsumowanie oraz ustawia jego godzinę.
+szkice* na ekranie **Zadania**. Przycisk **Dzienne podsumowanie** w nagłówku
+strony mówi, czy twoje podsumowanie jest włączone i o której godzinie; naciśnij
+go, aby otworzyć pole, które włącza i wyłącza podsumowanie oraz ustawia jego
+godzinę.
 
 **Nowe zadanie** (`/tasks/new`) wymaga tytułu, a opcjonalnie opisu, osób
 przypisanych — wybieranych po nazwisku spośród aktywnych administratorów, którzy

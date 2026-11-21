@@ -33,9 +33,9 @@ describe('one vocabulary on the 174 surfaces (owner, 2026-11-04)', () => {
   });
 
   it('the place is the Scope map in both languages', () => {
-    expect(catalogEn['productEditor.tab.scopes']).toBe('Scope map');
+    // Issue #1510 (CAT-10): the Scope map is a drawer named by `productEditor.scope.scopeMap`, no tab.
+    expect(catalogEn['productEditor.scope.scopeMap']).toBe('Scope map');
     expect(catalogEn['productEditor.scopeOverview.title']).toBe('Scope map');
-    expect(catalogPl['productEditor.tab.scopes']).toBe(catalogPl['productEditor.scope.scopeMap']);
     expect(catalogPl['productEditor.scopeOverview.title']).toBe(catalogPl['productEditor.scope.scopeMap']);
   });
 

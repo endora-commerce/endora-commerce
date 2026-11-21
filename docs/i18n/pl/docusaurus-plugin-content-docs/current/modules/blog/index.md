@@ -249,7 +249,8 @@ każdym zapisie.
 
 Wpis lub kategoria może mieć **klucz adresu w każdym języku** — `jak-wybrac-wiertarke` po
 polsku, `how-to-choose-a-drill` po angielsku — ustawiany w karcie **Adres** edytora dla
-edytowanego języka. Język bez klucza używa bazowego sluga. Klucz:
+edytowanego języka. Karta zapisuje się sama, przyciskiem *Zapisz adres*, a nie przyciskiem
+Zapisz edytora, i jest oznaczona jako *Działa od razu*. Język bez klucza używa bazowego sluga. Klucz:
 
 - działa tylko we własnym języku;
 - jest unikalny w kanale sprzedaży i języku wśród wpisów **i** kategorii
@@ -270,7 +271,8 @@ języka. Każdy zapis kluczy to jedno audytowane polecenie (`blog.url_keys.updat
 
 Wpis może wskazać jednego **autora**: administratora wybieranego w edytorze spośród aktywnych
 (`GET /api/v1/admin/blog/author-candidates`, `blog.write` — bez uprawnień administratora;
-odpowiada tylko imionami i avatarami). Storefront pokazuje imię i nazwisko autora, avatar oraz
+odpowiada tylko imionami i avatarami). Tak jak tagi oraz powiązane wpisy i produkty, autor jest
+zapisywany jednym przyciskiem **Zapisz** edytora, a nie w chwili wyboru. Storefront pokazuje imię i nazwisko autora, avatar oraz
 *o mnie* w języku strony (a gdy go brak — w domyślnym języku kanału) na stronie wpisu, imię i
 nazwisko na kartach, a w danych strukturalnych wpisu — autora jako `Person`. Avatar i *o mnie*
 edytuje się na stronie własnego profilu administratora (zobacz moduł `admin_users`).

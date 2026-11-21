@@ -17,6 +17,7 @@ import {
   CardContent,
   Checkbox,
   ColorPicker,
+  FormField,
   Input,
   Label,
   PageHeader,
@@ -315,6 +316,7 @@ export function ProjectCreate(): ReactNode {
     }
   };
 
+  /** The Stage list's legend keeps its own asterisk; every field marks itself through `FormField`. */
   const required = (
     <span aria-hidden="true" className="text-destructive">
       {' *'}
@@ -343,63 +345,55 @@ export function ProjectCreate(): ReactNode {
           </Alert>
         ) : null}
 
-        <Card>
-          <CardContent className="space-y-1">
-            <Label htmlFor="project-create-template">{t('create.template.label')}</Label>
-            <Select
-              id="project-create-template"
-              value={templateId}
-              disabled={busy}
-              aria-describedby="project-create-template-hint"
-              onChange={(event): void => void chooseTemplate(event.target.value)}
-            >
-              <option value="">{t('create.template.none')}</option>
-              {templates.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.name}
-                </option>
-              ))}
-            </Select>
-            <p id="project-create-template-hint" className="text-xs text-muted-foreground">
-              {t('create.template.hint')}
-            </p>
-            {templatesFailed ? (
-              <p role="alert" className="text-xs text-destructive">
-                {t('create.template.loadError')}
-              </p>
-            ) : null}
-            {templateState === 'loading' ? (
-              <p role="status" className="text-xs text-muted-foreground">
-                {t('create.template.loading')}
-              </p>
-            ) : null}
-            {templateState === 'failed' ? (
-              <p role="alert" className="text-xs text-destructive">
-                {t('create.template.detailError')}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-
+        {/* Issue #1564 (WORK-16): the Template is the first field of the first card, not a card of
+            its own (Common Region), and required is the kit FormField's asterisk and aria-required. */}
         <Card>
           <CardContent className="space-y-5">
-            <div className="space-y-1">
-              <Label htmlFor="project-create-title">
-                {t('field.title')}
-                {required}
-              </Label>
+            <FormField id="project-create-template" label={t('create.template.label')} hint={t('create.template.hint')}>
+              {(control): ReactNode => (
+                <>
+                  <Select
+                    {...control}
+                    value={templateId}
+                    disabled={busy}
+                    onChange={(event): void => void chooseTemplate(event.target.value)}
+                  >
+                    <option value="">{t('create.template.none')}</option>
+                    {templates.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </Select>
+                  {templatesFailed ? (
+                    <p role="alert" className="mt-1 text-xs text-destructive">
+                      {t('create.template.loadError')}
+                    </p>
+                  ) : null}
+                  {templateState === 'loading' ? (
+                    <p role="status" className="mt-1 text-xs text-muted-foreground">
+                      {t('create.template.loading')}
+                    </p>
+                  ) : null}
+                  {templateState === 'failed' ? (
+                    <p role="alert" className="mt-1 text-xs text-destructive">
+                      {t('create.template.detailError')}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </FormField>
+
+            <FormField label={t('field.title')} error={errors.title} required>
               <Input
                 id="project-create-title"
                 ref={titleRef}
                 value={title}
                 maxLength={200}
                 required
-                aria-invalid={errors.title !== undefined}
-                aria-describedby={errors.title ? 'project-create-title-error' : undefined}
                 onChange={(event): void => setTitle(event.target.value)}
               />
-              {fieldError('project-create-title-error', errors.title)}
-            </div>
+            </FormField>
 
             <div className="space-y-1">
               <Label htmlFor="project-create-organizations">{t('field.organizations')}</Label>

@@ -281,3 +281,28 @@ describe('ModalDialog — the admin-wide dialog rule (#1444, DS-11)', () => {
     expect(screen.getByRole('dialog', { name: 'Read only' })).toHaveFocus();
   });
 });
+
+describe('ModalDialog — placement="end", the side drawer (#1510, CAT-10)', () => {
+  it('centres by default and docks a full-height panel to the inline end with placement="end"', () => {
+    const { unmount } = render(
+      <ModalDialog title="Centred" onClose={(): void => undefined}>
+        <p>Body</p>
+      </ModalDialog>,
+    );
+    const centred = screen.getByRole('dialog', { name: 'Centred' });
+    expect(centred.parentElement).toHaveAttribute('data-placement', 'center');
+    expect(centred.parentElement!.className).toContain('justify-center');
+    unmount();
+
+    render(
+      <ModalDialog title="Drawer" placement="end" onClose={(): void => undefined}>
+        <p>Body</p>
+      </ModalDialog>,
+    );
+    const drawer = screen.getByRole('dialog', { name: 'Drawer' });
+    expect(drawer.parentElement).toHaveAttribute('data-placement', 'end');
+    expect(drawer.parentElement!.className).toContain('justify-end');
+    expect(drawer.className).toContain('h-full');
+    expect(drawer).toHaveAttribute('aria-modal', 'true');
+  });
+});

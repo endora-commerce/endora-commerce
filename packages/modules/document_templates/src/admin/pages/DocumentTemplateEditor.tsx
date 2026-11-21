@@ -26,6 +26,7 @@ import { useBlockContributions } from '@endora-commerce/admin-kit/zones';
 import {
   PageBuilderEditorLayout,
   PageBuilderHeaderActions,
+  PageBuilderLoadingSkeleton,
   PageBuilderOverlayBridge,
 } from '@endora-commerce/page-builder-admin';
 import { countComponentNames, createColorField } from '@endora-commerce/page-builder-core';
@@ -483,13 +484,8 @@ export function DocumentTemplateEditor(): ReactNode {
         </div>
       </div>
     ) : error ? null : (
-      <div
-        className="flex min-h-[560px] items-center justify-center rounded-md border text-sm text-muted-foreground"
-        role="status"
-        aria-busy="true"
-      >
-        {t('editor.loading')}
-      </div>
+      // Issue #1540 (CONTENT-23): the builder's shape while it loads, not a sentence.
+      <PageBuilderLoadingSkeleton label={t('editor.loading')} className="min-h-[560px]" />
     );
 
   return (

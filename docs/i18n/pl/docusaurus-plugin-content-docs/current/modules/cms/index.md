@@ -411,13 +411,23 @@ nawigacji w storefroncie, link kanoniczny, `og:url` i mapa witryny używają
 
 ### Nazwa, slug i opis w każdym języku
 
-**Nazwa**, **Slug** i **Opis** strony w karcie *Metadane strony* to jej
-wartości domyślne. Karta **Wersja językowa** daje każdemu językowi strony
-własną nazwę, slug i opis, obok tytułu, opisu i słów kluczowych meta w tym
-języku. Puste pole oznacza wartość strony, którą karta pokazuje na szaro jako
-podpowiedź. Karta edytuje język widoczny na płótnie: zakładki języków w karcie
-i nad płótnem przełączają oba. Dopóki slug języka nie został wpisany, podąża
-za nazwą w tym języku, tak jak slug nowej strony podąża za jej nazwą.
+Karta *Metadane strony* edytuje język widoczny na płótnie, przełączany
+zakładkami języków nad płótnem. Własne pola strony **Nazwa**, **Slug** i
+**Opis** nie należą do żadnego języka: każdy język używa ich w każdym polu,
+którego nie ustawia sam. Karta edytuje je w pierwszym języku strony, dopóki
+ten język nie ma własnej nazwy, sluga ani opisu. W pozostałych językach, a w
+pierwszym, gdy ma już własne wartości, pola nazywają się *Nazwa (pl-PL)* i
+tak dalej: puste pole oznacza własną wartość strony, którą karta pokazuje na
+szaro jako podpowiedź. Tytuł, opis i słowa kluczowe meta w danym języku są w
+zwiniętej sekcji **Pozycjonowanie (SEO)** tej karty. Status strony to
+plakietka obok jej tytułu; zmieniają go tylko przyciski **Opublikuj**,
+**Archiwizuj** i **Przywróć z archiwum**.
+
+Slug nowej strony podąża za jej nazwą, dopóki nie wpiszesz własnego, a slug
+języka podąża za nazwą w tym języku, dopóki język nie ma zapisanej nazwy ani
+sluga. Taki slug, wpisany ręcznie, jest normalizowany po opuszczeniu pola,
+więc `Mój Slug` staje się `moj-slug`. Zapisana strona zachowuje swój adres po
+zmianie nazwy.
 
 Nadpisania są zapisane w `cms_pages.translations`
 (`{ "<lang>": { "name", "slug", "description" } }`, `{}` dla strony, która

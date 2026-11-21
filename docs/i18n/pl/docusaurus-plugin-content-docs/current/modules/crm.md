@@ -47,7 +47,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | --- | --- | --- | --- |
 | Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, jako lista albo — przełącznikiem **Lista / Tablica** w nagłówku — jako tablica. Lista ma wyszukiwanie i filtry: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży, data utworzenia i pola niestandardowe oznaczone jako filtry listy. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
-| Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Nagłówek, pasek etapów z obecnym statusem i dozwolonymi z niego zmianami — wstecz i dalej — panel informacji po prawej oraz karty: *Przegląd*, **Powiązania** (zamówienia i zapytania ofertowe szansy), **Wydarzenia** (to, co dla niej zaplanowano, z przypomnieniami), *Notatki*, *Wiadomości*, *Załączniki* i **Historia zmian**. Zobacz *Ekran szansy sprzedażowej*. |
+| Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Nagłówek ze statusem obok tytułu, pasek etapów z dozwolonymi z tego statusu zmianami — wstecz i dalej — panel informacji po prawej oraz karty: *Przegląd*, **Powiązania** (zamówienia i zapytania ofertowe szansy), **Wydarzenia** (to, co dla niej zaplanowano, z przypomnieniami), *Notatki*, *Wiadomości*, *Załączniki* i **Historia zmian**. Zobacz *Ekran szansy sprzedażowej*. |
 | Tablica | **Tablica** w przełączniku *Lista / Tablica* ekranu **CRM → Szanse sprzedażowe** (`/crm/opportunities?view=board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. Dawny adres `/crm/board` nadal ją otwiera. |
 | Kalendarz | **CRM → Kalendarz** (`/crm/calendar`) | `crm:read` | Wydarzenia zaplanowane w otwartych szansach, które możesz zobaczyć — w miesiącu, tygodniu, dniu albo jako lista. Każde wydarzenie otwiera swoją szansę. Zobacz *Kalendarz*. |
 | Analityka | **CRM → Analityka** (`/crm/analytics`) | `crm:analytics` | Pięć wskaźników dla wybranego zakresu dni: czas obsługi, czas w każdym statusie, najskuteczniejsi handlowcy, najcenniejsze szanse i średnia wartość. |
@@ -94,8 +94,9 @@ sprzedaży, jeśli jest ustawiony. Po prawej jest przycisk **Usuń**
 każde pole, które można zmienić, zmienia się tam, gdzie jest pokazane (zob.
 *Edycja i usuwanie szansy*). Tytuł ma swój ołówek obok nagłówka.
 
-**Pasek etapów**, na górze lewej kolumny, podaje **obecny status** i pokazuje,
-dokąd szansa może z niego przejść — i nic więcej. Przepływ nie jest prostą
+**Pasek etapów**, na górze lewej kolumny, pokazuje pod etykietą **Przenieś do…**,
+dokąd szansa może przejść ze swojego statusu — i nic więcej. Sam status to
+plakietka obok tytułu; pasek go nie powtarza. Przepływ nie jest prostą
 linią, więc pasek jej nie rysuje: statusu, na który Twój przepływ nie pozwala
 z obecnego miejsca, nie ma na ekranie.
 
@@ -110,8 +111,8 @@ z obecnego miejsca, nie ma na ekranie.
   też, jak i kiedy została zamknięta.
 - Dla posiadacza uprawnienia `crm:write` **każda zmiana jest przyciskiem**,
   a jego naciśnięcie to ta sama zmiana statusu, z tymi samymi regułami, co
-  w pozostałych miejscach modułu. Opcjonalny **powód** wpisuje się w polu pod
-  paskiem. Osoba mająca tylko `crm:read` widzi te same zmiany jako zwykły tekst.
+  w pozostałych miejscach modułu. Opcjonalny **powód** dodaje się przyciskiem
+  **Dodaj powód** pod zmianami. Osoba mająca tylko `crm:read` widzi te same zmiany jako zwykły tekst.
 - **Pasek nie udaje historii i nie liczy etapów.** Mówi, gdzie szansa jest
   i dokąd może przejść; gdzie była, mówi karta *Historia zmian*.
 - Jeśli nie uda się wczytać kolejności statusów, wszystkie zmiany nadal są
@@ -292,9 +293,9 @@ miałeś przed sobą (`If-Match`). Co dalej:
 - **Odmowa z innego powodu** — na przykład pusty tytuł — pole pokazuje
   komunikat serwera i zachowuje to, co wpisałeś.
 
-Zmiana statusu może mieć **powód**: wpisz go w polu pod paskiem etapów,
-zanim naciśniesz status. Powód jest opcjonalny i zostaje zapisany razem
-ze zmianą.
+Zmiana statusu może mieć **powód**: naciśnij **Dodaj powód** pod zmianami,
+wpisz go, a potem naciśnij status. Powód jest opcjonalny, zostaje zapisany
+razem ze zmianą, a po zmianie pole znów się zwija.
 
 **Usuń**, w nagłówku ekranu, jest dla posiadacza uprawnienia `crm:configure`.
 Najpierw pyta o potwierdzenie, a następnie usuwa szansę razem z historią

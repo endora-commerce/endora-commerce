@@ -1,0 +1,6 @@
+---
+'@endora-commerce/mod-blog': patch
+'@endora-commerce/mod-megamenu': patch
+---
+
+The blog post and megamenu editors each have one Save and say which parts apply at once (issues #1512 and #1534). In the blog post editor the author, the tags and the related posts and products are no longer written the moment they are picked: they are part of the draft, mark the post unsaved and are saved with the header Save (or discarded with the rest). The Address card, which still saves on its own, carries the "Applies immediately" badge and shows its result beside *Save address*; the result of a post or category save appears beside the Save button instead of a banner under the header, and clears on the next edit. The megamenu editor replaces "Save metadata" and "Save tree" with one Save and *Save and exit* in the header, which saves the name and description and then the item tree, each only when changed. The Bindings section is marked "Applies immediately", its buttons are no longer filled, its remove button is named after the binding and asks for confirmation before removing it, and each binding change is announced in the section. The editor's columns now start at wide screens and stack below: the name and description beside the bindings, and the item tree beside the panel that edits the selected item.

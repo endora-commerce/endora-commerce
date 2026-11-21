@@ -894,6 +894,9 @@ what a hand-drawn scrim leaves out:
   `ConfirmDialog` takes the same `layer` prop, and `useConfirmDialog({ layer: 'overlay' })` opens
   every question the screen asks on that layer. The Page Builder's *Clear canvas* question uses it.
   The default is `page`.
+- `placement` — `center` (default) or `end`, a full-height panel docked to the inline end: a side
+  drawer for a meta view opened over an editor, e.g. the product editor's Scope map (#1510). Same
+  modal semantics; give it a `widthClassName` such as `max-w-3xl` and a Close button in `footer`.
 
 ```tsx
 <ModalDialog title={t('x.dialog.title')} onClose={close} busy={busy} footer={<>{cancel}{apply}</>}>

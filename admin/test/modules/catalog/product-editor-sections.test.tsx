@@ -211,14 +211,22 @@ describe('product editor tabs are sections, not cards in the card (issue #1488, 
     expect(topSections(panel)[0]!.querySelector('h2')).toHaveTextContent(en['productEditor.gallery.title']!);
   });
 
-  it('Attachments: one row per file, divided by a rule, not a bordered box per file', async () => {
+  // Issue #1510 (CAT-10): the attachments are the second section of the "Media & files" tab.
+  it('Attachments: one row per file, divided by a rule, the second section of Media & files', async () => {
     setUp('simple');
-    renderEditor(ProductEditor, { url: at('attachments') });
+    renderEditor(ProductEditor, { url: at('media') });
     const panel = await panelWith(en['productEditor.attachments.title']!);
     expect(cards(panel)).toEqual([]);
+    await within(panel).findByText('manual.pdf');
     const item = panel.querySelector<HTMLElement>(`[data-attachment="${ATT}"]`)!;
     expect(item.className.split(/\s+/)).not.toContain('border');
     expect(item.parentElement!.className).toMatch(/\bdivide-y\b/);
-    expect(topSections(panel)[0]!.querySelector('h2')).toHaveTextContent(en['productEditor.attachments.title']!);
+    const sections = topSections(panel);
+    expect(sections.map((section) => section.querySelector('h2')?.textContent)).toEqual([
+      expect.stringContaining(en['productEditor.gallery.title']!),
+      expect.stringContaining(en['productEditor.attachments.title']!),
+    ]);
+    // Siblings, so the kit's rule divides them.
+    expect(sections[0]!.nextElementSibling).toBe(sections[1]);
   });
 });

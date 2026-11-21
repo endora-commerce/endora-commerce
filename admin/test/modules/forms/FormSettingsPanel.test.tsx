@@ -264,7 +264,7 @@ describe('FormSettingsPanel — retention (User Story 9, FR-054)', () => {
     getSpy.mockImplementation(async (url: string) =>
       url.includes('/retention-impact') ? { data: { entriesToDelete } } : { data: [], nextCursor: null },
     );
-  const section = () => screen.getByRole('region', { name: en('settings.retention.title') });
+  const section = () => screen.getByRole('region', { name: new RegExp(`^${en('settings.retention.title')}\\b`) });
 
   it('shows the saved period and saves a new one live, after asking how many entries it would delete', async () => {
     impact(0);

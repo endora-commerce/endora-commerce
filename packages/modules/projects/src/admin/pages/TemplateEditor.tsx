@@ -19,6 +19,7 @@ import {
   Card,
   CardContent,
   Checkbox,
+  FormField,
   Input,
   Label,
   PageHeader,
@@ -493,27 +494,21 @@ export function TemplateEditor(): ReactNode {
 
         <Card>
           <CardContent className="space-y-5">
-            <div className="space-y-1">
-              <Label htmlFor="template-name">
-                {t('templates.editor.name')}
-                {required}
-              </Label>
+            {/* Issue #1564 (WORK-16): required is the kit FormField's asterisk and aria-required. */}
+            <FormField
+              label={t('templates.editor.name')}
+              error={nameInvalid ? t('templates.editor.error.name') : undefined}
+              required
+            >
               <Input
                 id="template-name"
                 ref={nameRef}
                 value={graph.name}
                 maxLength={120}
                 required
-                aria-invalid={nameInvalid}
-                aria-describedby={nameInvalid ? 'template-name-error' : undefined}
                 onChange={(event): void => update({ name: event.target.value })}
               />
-              {nameInvalid ? (
-                <p id="template-name-error" className="text-xs text-destructive">
-                  {t('templates.editor.error.name')}
-                </p>
-              ) : null}
-            </div>
+            </FormField>
             <div className="space-y-1">
               <Label htmlFor="template-description">{t('templates.editor.description')}</Label>
               <Textarea

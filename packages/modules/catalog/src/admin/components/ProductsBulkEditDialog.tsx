@@ -1268,7 +1268,7 @@ function BulkEditSummary(props: BulkEditSummaryProps): ReactNode {
                     <td>
                       {/* A scoped-status row opens where the product's scopes are edited. */}
                       <Link
-                        to={`/catalog/products/${r.productId}${props.scope ? '?tab=scopes' : ''}`}
+                        to={`/catalog/products/${r.productId}${props.scope ? '?scopeMap=1' : ''}`}
                         style={{ color: 'var(--primary-color)' }}
                       >
                         {props.labels[r.productId]?.name || `${r.productId.slice(0, 8)}…`}

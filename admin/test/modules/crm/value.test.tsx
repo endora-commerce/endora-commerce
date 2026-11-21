@@ -192,6 +192,25 @@ describe('the value of an Opportunity', () => {
     expect(items[1]).not.toHaveTextContent('something_new');
   });
 
+  it('says in one line where a computed value comes from, and links to the statuses that count (issue #1561)', async () => {
+    current = detail({ valueMode: 'computed', computedValue: '990.00' });
+    await openOpportunity();
+    const value = await section(en('value.title'));
+    expect(within(value).getByText(en('value.hint.computed'))).toBeInTheDocument();
+    expect(within(value).getByRole('link', { name: en('value.hint.configure') })).toHaveAttribute(
+      'href',
+      '/crm/workflow#value-counting',
+    );
+  });
+
+  it('offers the link to the counting statuses only to somebody who may change them', async () => {
+    current = detail({ valueMode: 'computed', computedValue: '990.00' });
+    await openOpportunity({ permissions: ['crm:read', 'crm:write', 'orders:read'] });
+    const value = await section(en('value.title'));
+    expect(within(value).getByText(en('value.hint.computed'))).toBeInTheDocument();
+    expect(within(value).queryByRole('link', { name: en('value.hint.configure') })).toBeNull();
+  });
+
   it('offers no switch to a reader', async () => {
     await openOpportunity({ permissions: ['crm:read', 'orders:read'] });
     const value = await section(en('value.title'));

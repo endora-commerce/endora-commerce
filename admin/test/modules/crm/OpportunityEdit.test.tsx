@@ -394,6 +394,7 @@ describe('OpportunityDetail — the reason of a status change', () => {
   it('sends the reason the operator wrote with the move, and then forgets it', async () => {
     postSpy.mockResolvedValue(moved);
     await renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: en('opportunity.status.addReason') }));
     await userEvent.type(
       screen.getByLabelText(en('opportunity.status.reason')),
       '  Chose a competitor.  ',

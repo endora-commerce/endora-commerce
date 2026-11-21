@@ -5,7 +5,18 @@ import { CmsPagePicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAuth, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import { Lock } from 'lucide-react';
-import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, Input, Label } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  Checkbox,
+  InlineStatus,
+  Input,
+  Label,
+  useInlineStatus,
+} from '@endora-commerce/admin-kit/ui';
 import { formsApi } from '../api.js';
 import { errorMessage } from '../lib/errors.js';
 import { PanelSection } from './PanelSection.js';
@@ -30,7 +41,9 @@ import { TranslatableText } from './TranslatableText.js';
  *
  * - **Retention** (User Story 9, FR-054) — how long entries are kept. Unlike the rest of the tab it
  *   is **live** and saved on its own (`PUT …/retention`), like the recipients: the next maintenance
- *   run deletes by it, without a publish. Before a period is saved the panel asks how many entries
+ *   run deletes by it, without a publish. Its heading carries the kit's `ImmediateBadge` and its
+ *   result is an `InlineStatus` beside its button, so the save model is said on the section rather
+ *   than in its description (issue #1512, CONTENT-09; DEC-08). Before a period is saved the panel asks how many entries
  *   it would delete and, if any, says so and saves only once that is confirmed — the deletion cannot
  *   be undone. It needs `forms:entries_write` (else read-only with a note), and the server refuses a
  *   scoped administrator with `FORM_SCOPE_REQUIRED`, whose sentence is shown as it arrives.
@@ -393,7 +406,7 @@ function RetentionSettings(props: {
   const [days, setDays] = useState(form.retentionDays === null ? '' : String(form.retentionDays));
   const [pending, setPending] = useState<{ readonly retentionDays: number; readonly count: number } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const status = useInlineStatus();
   const [failure, setFailure] = useState<string | null>(null);
 
   const daysValue = enabled ? parseRetentionDays(days) : null;
@@ -406,7 +419,7 @@ function RetentionSettings(props: {
       const saved = await formsApi.retention(form.id, form.revision, retentionDays);
       setPending(null);
       props.onSaved(saved);
-      setStatus(t('settings.retention.saved'));
+      status.show(t('settings.retention.saved'));
     } catch (error) {
       setFailure(errorMessage(error, t('builder.error')));
     } finally {
@@ -415,7 +428,7 @@ function RetentionSettings(props: {
   };
 
   const save = async (): Promise<void> => {
-    setStatus(null);
+    status.clear();
     setFailure(null);
     setPending(null);
     if (daysValue === undefined) return;
@@ -436,7 +449,12 @@ function RetentionSettings(props: {
   };
 
   return (
-    <PanelSection titleId={`${id}-retention`} title={t('settings.retention.title')} description={t('settings.retention.description')}>
+    <PanelSection
+      titleId={`${id}-retention`}
+      title={t('settings.retention.title')}
+      description={t('settings.retention.description')}
+      immediate
+    >
       <div className="max-w-2xl space-y-3">
         <div className="flex min-h-9 items-center gap-2">
           <Checkbox
@@ -446,7 +464,7 @@ function RetentionSettings(props: {
             onChange={(event) => {
               setEnabled(event.target.checked);
               setPending(null);
-              setStatus(null);
+              status.clear();
             }}
           />
           <Label htmlFor={`${id}-retention-enabled`} className="font-normal">
@@ -466,7 +484,7 @@ function RetentionSettings(props: {
               onChange={(event) => {
                 setDays(event.target.value);
                 setPending(null);
-                setStatus(null);
+                status.clear();
               }}
             />
             <p id={`${id}-retention-hint`} className="text-xs text-muted-foreground">
@@ -506,9 +524,7 @@ function RetentionSettings(props: {
               {saving ? t('settings.retention.saving') : t('settings.retention.save')}
             </Button>
           )}
-          <p role="status" className="text-sm text-muted-foreground">
-            {status}
-          </p>
+          <InlineStatus {...status.props} />
         </div>
       </div>
     </PanelSection>
