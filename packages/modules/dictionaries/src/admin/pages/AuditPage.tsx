@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { ClipboardCopy, RefreshCw } from 'lucide-react';
+import { CheckCircle2, ClipboardCopy, RefreshCw } from 'lucide-react';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { DictionaryOrphanRow } from '@endora-commerce/contracts';
 import { dictionaryClient } from '../api/client.js';
@@ -99,26 +99,23 @@ export function DictionaryAuditPage(): ReactNode {
           </Badge>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('audit.column.dictionary')}</TableHead>
-                <TableHead>{t('audit.column.consumer')}</TableHead>
-                <TableHead>{t('audit.column.table')}</TableHead>
-                <TableHead>{t('audit.column.column')}</TableHead>
-                <TableHead>{t('audit.column.code')}</TableHead>
-                <TableHead className="text-right">{t('audit.column.rows')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.length === 0 ? (
+          {/* Issue #1448 (DS-15): a clean report is the card's whole body, so it is
+              the kit block — not an empty table with one grey row. It is claimed
+              only for a report that loaded: a failed load says so in the alert. */}
+          {rows.length > 0 ? (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="text-muted-foreground">
-                    {loading ? t('audit.loadingReport') : t('audit.empty')}
-                  </TableCell>
+                  <TableHead>{t('audit.column.dictionary')}</TableHead>
+                  <TableHead>{t('audit.column.consumer')}</TableHead>
+                  <TableHead>{t('audit.column.table')}</TableHead>
+                  <TableHead>{t('audit.column.column')}</TableHead>
+                  <TableHead>{t('audit.column.code')}</TableHead>
+                  <TableHead className="text-right">{t('audit.column.rows')}</TableHead>
                 </TableRow>
-              ) : (
-                rows.map((row) => (
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
                   <TableRow key={`${row.dictionary}:${row.tableName}:${row.columnName}:${row.code}`}>
                     <TableCell>{row.dictionary}</TableCell>
                     <TableCell>{row.consumer}</TableCell>
@@ -127,10 +124,20 @@ export function DictionaryAuditPage(): ReactNode {
                     <TableCell className="font-mono text-xs">{row.code}</TableCell>
                     <TableCell className="text-right">{row.count}</TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ))}
+              </TableBody>
+            </Table>
+          ) : loading ? (
+            <p role="status" className="text-sm text-muted-foreground">
+              {t('audit.loadingReport')}
+            </p>
+          ) : generatedAt !== null ? (
+            <EmptyState
+              icon={<CheckCircle2 size={20} />}
+              title={t('audit.empty')}
+              description={t('audit.emptyBody')}
+            />
+          ) : null}
         </CardContent>
       </Card>
     </>

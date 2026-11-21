@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Eye, EyeOff, Filter, Save, Settings as SettingsIcon, Trash2 } from 'lucide-react';
 import type { DisplayMode } from '@endora-commerce/contracts';
 import { ApiError, apiClient, normalize, useAuth } from '@endora-commerce/admin-kit/lib';
@@ -105,6 +105,9 @@ export function DisplayModeOverridesPage(): ReactNode {
   const [info, setInfo] = useState<string | null>(null);
   const [picker, setPicker] = useState(false);
   const [search, setSearch] = useState('');
+  // Issue #1448 (DS-15): a search that finds nothing is "no results", with
+  // Clear filters, which hands focus back here; an empty scope is "no overrides yet".
+  const searchRef = useRef<HTMLInputElement>(null);
   const [orgs, setOrgs] = useState<Record<string, OrganizationRow>>({});
   const [cats, setCats] = useState<Record<string, CategoryRow>>({});
   const [products, setProducts] = useState<Record<string, ProductRow>>({});
@@ -240,6 +243,7 @@ export function DisplayModeOverridesPage(): ReactNode {
               className="border-b border-border px-3 py-2.5"
               search={
                 <ListToolbarSearch
+                  ref={searchRef}
                   label={t('priceLists.displayModes.searchPlaceholder', { scope: scopeName })}
                   placeholder={t('priceLists.displayModes.searchPlaceholder', { scope: scopeName })}
                   value={search}
@@ -260,15 +264,20 @@ export function DisplayModeOverridesPage(): ReactNode {
                 {t('priceLists.loading')}
               </p>
             ) : filtered.length === 0 ? (
-              <EmptyState
-                icon={<Eye size={20} />}
-                title={
-                  search.trim()
-                    ? t('priceLists.displayModes.empty.filtered', { scope: scopeName })
-                    : t('priceLists.displayModes.empty.none', { scope: scopeName })
-                }
-                description={t('priceLists.displayModes.empty.subtitle')}
-              />
+              search.trim() ? (
+                <EmptyState
+                  variant="no-results"
+                  title={t('priceLists.displayModes.empty.filtered', { scope: scopeName })}
+                  onClearFilters={(): void => setSearch('')}
+                  focusAfterClear={searchRef}
+                />
+              ) : (
+                <EmptyState
+                  icon={<Eye size={20} />}
+                  title={t('priceLists.displayModes.empty.none', { scope: scopeName })}
+                  description={t('priceLists.displayModes.empty.subtitle')}
+                />
+              )
             ) : (
               <Table>
                 <TableHeader>

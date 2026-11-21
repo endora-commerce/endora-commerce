@@ -298,8 +298,28 @@ describe('ProductsList — the Archived filter (FR-113)', () => {
       return path.startsWith(LIST) ? { ...answer, data: [], pagination: { page: 0, pageSize: 20, total: 0 } } : answer;
     });
     renderList();
-    expect(await screen.findByText(t('productsList.empty.title'))).toBeInTheDocument();
+    // Issue #1448 (DS-15): nothing narrows the list, so it is "no products yet".
+    const title = await screen.findByText(t('productsList.empty.noData.title'));
+    expect(title.closest('[data-empty-state="no-data"]')).not.toBeNull();
+    expect(screen.queryByText(t('productsList.empty.title'))).toBeNull();
     expect(screen.queryByRole('button', { name: t('productsList.empty.searchArchived') })).toBeNull();
+  });
+
+  // Issue #1448 (DS-15): a search that matches nothing is "no results", and
+  // Clear filters empties the search, keeps the tab, and hands focus back to the box.
+  it('a search that matches nothing offers Clear filters, which brings the rows back', async () => {
+    const user = renderList();
+    await screen.findByText('Oak chair');
+    const search = screen.getByPlaceholderText(t('productsList.search.placeholder'));
+    await user.type(search, 'zzz');
+    const title = await screen.findByText(t('productsList.empty.title'));
+    const block = title.closest('[data-empty-state="no-results"]') as HTMLElement;
+    expect(block).not.toBeNull();
+    await user.click(within(block).getByRole('button', { name: core['common.emptyState.clearFilters'] }));
+    expect(await screen.findByText('Oak chair')).toBeInTheDocument();
+    expect(search).toHaveValue('');
+    expect(tab('All')).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(document.activeElement).toBe(search));
   });
 
   // Issue #1491: the kit's strip, one tab stop and the arrows between tabs (WAI-ARIA tabs).

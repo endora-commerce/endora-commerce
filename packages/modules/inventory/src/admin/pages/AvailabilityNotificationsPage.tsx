@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Bell } from 'lucide-react';
 import { scopeNoticeOf, type ScopeNoticeCode } from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime, cn, useSurfaceVisibility, normalize } from '@endora-commerce/admin-kit/lib';
@@ -110,6 +110,16 @@ export function AvailabilityNotificationsPage(): ReactNode {
     );
   }, [rows, query]);
 
+  // Issue #1448 (DS-15): the default view is Queued. Nothing queued — or
+  // nothing at all, on All — is "no one is waiting"; a search or a Notified /
+  // Cancelled view that finds nothing is "these filters match nothing", and
+  // Clear filters returns to the default view.
+  const searchRef = useRef<HTMLInputElement>(null);
+  const filtersActive = query.trim() !== '' || statusFilter === 'notified' || statusFilter === 'cancelled';
+  const clearFilters = (): void => {
+    setQuery('');
+    setStatusFilter('queued');
+  };
 
   const handleCancel = async (id: string): Promise<void> => {
     const ok = await confirm({
@@ -162,6 +172,7 @@ export function AvailabilityNotificationsPage(): ReactNode {
           className="border-b border-border px-3 py-2.5"
           search={
             <ListToolbarSearch
+              ref={searchRef}
               label={t('inventory.availability.searchLabel')}
               placeholder={t('inventory.availability.searchPlaceholder')}
               value={query}
@@ -191,8 +202,19 @@ export function AvailabilityNotificationsPage(): ReactNode {
             <div className="p-4">
               <ScopeNotice notice={scopeNotice} />
             </div>
+          ) : filtersActive ? (
+            <EmptyState
+              variant="no-results"
+              title={t('inventory.availability.empty')}
+              onClearFilters={clearFilters}
+              focusAfterClear={searchRef}
+            />
           ) : (
-            <EmptyState icon={<Bell size={20} />} title={t('inventory.availability.empty')} />
+            <EmptyState
+              icon={<Bell size={20} />}
+              title={t('inventory.availability.noData.title')}
+              description={t('inventory.availability.noData.body')}
+            />
           )
         ) : (
           <Table>
