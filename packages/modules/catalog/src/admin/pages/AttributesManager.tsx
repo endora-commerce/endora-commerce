@@ -1,5 +1,5 @@
-import { useCallback, useContext, useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { Plus, SlidersHorizontal } from 'lucide-react';
 import {
   getAttributeScope,
   isSystemAttributeKey,
@@ -7,21 +7,42 @@ import {
   type CustomFieldAdminAccess as AdminAccess,
 } from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, InlineStatus, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
-import { ModalDialog } from '@endora-commerce/admin-kit/components';
+import { Alert, AlertDescription, Badge, Button, Checkbox, EmptyState, InlineStatus, Input, Label, Select, useInlineStatus } from '@endora-commerce/admin-kit/ui';
+import {
+  ImmediateBadge,
+  ListPage,
+  ListToolbar,
+  ListToolbarSearch,
+  ModalDialog,
+  ResponsiveTable,
+  RowActionMenu,
+  RowActionMenuItem,
+  RowActionMenuSeparator,
+  useRemovalFocus,
+  type ListPageLoad,
+  type ResponsiveColumn,
+} from '@endora-commerce/admin-kit/components';
 import { AppLanguageContext, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { isScopeNarrowing, previewAttributeScopeChange, scopableOf, type AttributeScopePreview } from '../lib/attribute-scope.js';
+import {
+  ATTRIBUTE_CAPABILITIES,
+  CAPABILITY_LABEL_KEYS,
+  VALUE_TYPES,
+  attributeMatches,
+  enabledCapabilities,
+  valueTypeLabelKey,
+  type AttributeCapability,
+  type ValueType,
+} from '../lib/attribute-list.js';
 import { pickLocalized } from '../lib/scope-overview.js';
 
-// Feature 002 (T035) — DB-level value types. Foundation 001 had
-// the original 5 (string, number, boolean, enum, date); 002 adds
-// `multiselect` and `price`; 061 keeps the legacy `select` (dropdown
-// single-select, vs `enum` = pill). The presentation hint
-// `displayAsSlider` is honored only when valueType ∈ (number, price).
-// Feature 172 adds `page_builder` — a Page Builder document per language,
-// authored on the product content screen and never an ordinary value.
-const VALUE_TYPES = ['string', 'number', 'boolean', 'enum', 'select', 'multiselect', 'price', 'page_builder'] as const;
-type ValueType = (typeof VALUE_TYPES)[number];
+// Feature 002 (T035) — DB-level value types (`VALUE_TYPES`, `../lib/attribute-list`).
+// Foundation 001 had the original 5 (string, number, boolean, enum, date); 002
+// adds `multiselect` and `price`; 061 keeps the legacy `select` (dropdown
+// single-select, vs `enum` = pill). The presentation hint `displayAsSlider` is
+// honored only when valueType ∈ (number, price). Feature 172 adds
+// `page_builder` — a Page Builder document per language, authored on the
+// product content screen and never an ordinary value.
 
 /**
  * Feature 172 (research R-6) — a content attribute holds every capability off
@@ -86,78 +107,57 @@ interface PendingNarrowing {
   channelNames: Record<string, string>;
 }
 
-// Boolean flags surfaced as togglable checkbox columns in the list.
-const FLAG_KEYS = [
-  'isSearchable',
-  'isFilterable',
-  'isVariantAxis',
-  'isComparable',
-  'massEditable',
-  'quickSearchable',
-  'isPromoRule',
-  'isPriceRule',
-] as const;
-type FlagKey = (typeof FLAG_KEYS)[number];
-type FlagSet = Record<FlagKey, boolean>;
+/** What the editor dialog holds: a blank attribute, or the id of the one being edited. */
+type Editing = { mode: 'create' } | { mode: 'edit'; id: string };
 
-function flagsOf(a: AdminAttribute): FlagSet {
-  return {
-    isSearchable: a.isSearchable,
-    isFilterable: a.isFilterable,
-    isVariantAxis: a.isVariantAxis,
-    isComparable: a.isComparable,
-    massEditable: a.massEditable,
-    quickSearchable: a.quickSearchable,
-    isPromoRule: a.isPromoRule,
-    isPriceRule: a.isPriceRule,
-  };
-}
-function flagsEqual(a: FlagSet, b: FlagSet): boolean {
-  return FLAG_KEYS.every((k) => a[k] === b[k]);
-}
+const rowId = (attribute: AdminAttribute): string => attribute.id;
 
+const messageOf = (err: unknown, fallback: string): string =>
+  err instanceof ApiError ? err.envelope.error.message : fallback;
+
+/**
+ * The attribute list (issue #1527, UX audit CAT-12): the kit's `ListPage` with
+ * the list first, a search and a type filter, and *New attribute* in the
+ * header. Create and edit open one editor dialog, whose Save is the only save
+ * on the screen — the capabilities used to be a grid of eight checkbox columns
+ * staged behind a second Save bar; they are edited in the dialog now and read
+ * in the list as badges.
+ */
 export function AttributesManager(): ReactNode {
   const t = useTranslation('catalog');
+  const language = useContext(AppLanguageContext)?.language ?? 'en';
+  const { hasPermission } = useAuth();
+  const canWrite = hasPermission('catalog:write');
   const [attrs, setAttrs] = useState<AdminAttribute[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  // Issue #1499 (UX audit SALES-17, DEC-12 a) — a result is said where it was
-  // asked for, in a region mounted before it has text, not as a success banner
-  // above the page: "created" / "updated" in the attribute form's header (the
-  // edit form gives way to the create form on save, the card stays), "flags
-  // saved" above the table (the unsaved-flags bar is gone once they are saved).
-  const formStatus = useInlineStatus();
-  const { show: showFormStatus, clear: clearFormStatus } = formStatus;
-  const flagsStatus = useInlineStatus();
-  const { show: showFlagsStatus, clear: clearFlagsStatus } = flagsStatus;
-  const clearStatuses = useCallback((): void => {
-    clearFormStatus();
-    clearFlagsStatus();
-  }, [clearFormStatus, clearFlagsStatus]);
-  // Per-attribute local flag drafts; only flushed to the API on Save.
-  const [flagDrafts, setFlagDrafts] = useState<Record<string, FlagSet>>({});
-  const [saving, setSaving] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [load, setLoad] = useState<ListPageLoad>({ kind: 'loading' });
+  const [q, setQ] = useState('');
+  const [typeFilter, setTypeFilter] = useState<ValueType | ''>('');
+  const searchRef = useRef<HTMLInputElement>(null);
+  // Issue #1499 (DEC-12 a) — a result is said beside *New attribute*, where the
+  // editor and the delete dialogs hand focus back, in a region mounted before it
+  // has text, not as a success banner above the page.
+  const status = useInlineStatus();
+  const { show: showStatus, clear: clearStatus } = status;
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [pendingNarrowing, setPendingNarrowing] = useState<PendingNarrowing | null>(null);
   const [narrowing, setNarrowing] = useState(false);
-  const language = useContext(AppLanguageContext)?.language ?? 'en';
   const narrowingBodyId = useId();
   // Feature 172 (OR-5) — the attribute whose Delete confirmation is open.
   const [deleting, setDeleting] = useState<AdminAttribute | null>(null);
+  // Where focus goes once a deleted row — and with it the menu that opened the
+  // dialog — is gone (WCAG 2.4.3).
+  const deleteFocusRef = useRef<HTMLElement | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
-    setError(null);
+    // A reload after a write keeps the rows on screen rather than flashing the skeleton.
+    setLoad((prev) => (prev.kind === 'ready' ? prev : { kind: 'loading' }));
     try {
-      const res = await apiClient.get<{ data: AdminAttribute[] }>(
-        '/api/v1/admin/catalog/attributes',
-      );
+      const res = await apiClient.get<{ data: AdminAttribute[] }>('/api/v1/admin/catalog/attributes');
       setAttrs(res.data);
-      setFlagDrafts(Object.fromEntries(res.data.map((a) => [a.id, flagsOf(a)])));
+      setLoad({ kind: 'ready' });
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.load'));
-    } finally {
-      setLoading(false);
+      setLoad({ kind: 'error', message: messageOf(err, t('attributes.error.load')) });
     }
   }, [t]);
 
@@ -165,21 +165,42 @@ export function AttributesManager(): ReactNode {
     void refresh();
   }, [refresh]);
 
+  // The endpoint answers every attribute, so the search and the type filter run
+  // here, on what is already loaded.
+  const visible = useMemo(
+    () => attrs.filter((a) => attributeMatches(a, { query: q, valueType: typeFilter })),
+    [attrs, q, typeFilter],
+  );
+  const filtered = q.trim() !== '' || typeFilter !== '';
+  const clearFilters = useCallback((): void => {
+    setQ('');
+    setTypeFilter('');
+  }, []);
+  const removalFocus = useRemovalFocus(visible, rowId, load.kind === 'ready');
+
   const editingAttr = useMemo(
-    () => attrs.find((a) => a.id === editingId) ?? null,
-    [attrs, editingId],
+    () => (editing?.mode === 'edit' ? (attrs.find((a) => a.id === editing.id) ?? null) : null),
+    [attrs, editing],
   );
 
-  // Attributes whose checkbox draft differs from the persisted flags.
-  const dirtyIds = useMemo(
-    () => attrs.filter((a) => flagDrafts[a.id] && !flagsEqual(flagDrafts[a.id]!, flagsOf(a))).map((a) => a.id),
-    [attrs, flagDrafts],
+  const nameOf = useCallback(
+    (a: AdminAttribute): string => pickLocalized(a.label, language) || a.labelDefault || a.key,
+    [language],
   );
 
-  const toggleFlag = useCallback((id: string, key: FlagKey, value: boolean): void => {
-    clearFlagsStatus();
-    setFlagDrafts((prev) => ({ ...prev, [id]: { ...prev[id]!, [key]: value } }));
-  }, [clearFlagsStatus]);
+  const openEditor = useCallback(
+    (next: Editing): void => {
+      clearStatus();
+      setDialogError(null);
+      setEditing(next);
+    },
+    [clearStatus],
+  );
+
+  const closeEditor = useCallback((): void => {
+    setEditing(null);
+    setDialogError(null);
+  }, []);
 
   const buildAttributePayload = (input: AttributeFormValues): Record<string, unknown> => {
     const label: Record<string, string> = {};
@@ -203,143 +224,265 @@ export function AttributesManager(): ReactNode {
     };
   };
 
-  const handleCreate = useCallback(
-    async (input: AttributeFormValues): Promise<void> => {
-      // enumValues required for `enum` / `select` (single-select) and `multiselect`.
-      const enumValues =
-        isOptionType(input.valueType)
-          ? input.enumValues
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean)
-          : undefined;
-      clearStatuses();
-      setError(null);
-      try {
-        await apiClient.post<{ data: AdminAttribute }>('/api/v1/admin/catalog/attributes', {
-          key: input.key,
-          valueType: input.valueType,
-          ...buildAttributePayload(input),
-          ...(enumValues !== undefined ? { enumValues } : {}),
-        });
-        showFormStatus(t('attributes.success.create', { key: input.key }));
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.create'));
-      }
-    },
-    [refresh, t, clearStatuses, showFormStatus],
-  );
+  /** A refused create keeps the dialog open with the server's message and the typed values. */
+  const handleCreate = async (input: AttributeFormValues): Promise<void> => {
+    // enumValues required for `enum` / `select` (single-select) and `multiselect`.
+    const enumValues = isOptionType(input.valueType)
+      ? input.enumValues
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : undefined;
+    setDialogError(null);
+    try {
+      await apiClient.post<{ data: AdminAttribute }>('/api/v1/admin/catalog/attributes', {
+        key: input.key,
+        valueType: input.valueType,
+        ...buildAttributePayload(input),
+        ...(enumValues !== undefined ? { enumValues } : {}),
+      });
+      closeEditor();
+      showStatus(t('attributes.success.create', { key: input.key }));
+      await refresh();
+    } catch (err) {
+      setDialogError(messageOf(err, t('attributes.error.create')));
+    }
+  };
 
-  const saveEdit = useCallback(
-    async (attr: AdminAttribute, input: AttributeFormValues): Promise<void> => {
-      clearStatuses();
-      setError(null);
-      try {
-        await apiClient.patch<{ data: AdminAttribute }>(
-          `/api/v1/admin/catalog/attributes/${attr.key}`,
-          buildAttributePayload(input),
-        );
-        showFormStatus(t('attributes.success.update', { key: attr.key }));
-        setEditingId(null);
-        await refresh();
-      } catch (err) {
-        setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.update'));
-      }
-    },
-    [refresh, t, clearStatuses, showFormStatus],
-  );
+  const saveEdit = async (attr: AdminAttribute, input: AttributeFormValues): Promise<void> => {
+    setDialogError(null);
+    try {
+      await apiClient.patch<{ data: AdminAttribute }>(
+        `/api/v1/admin/catalog/attributes/${attr.key}`,
+        buildAttributePayload(input),
+      );
+      closeEditor();
+      showStatus(t('attributes.success.update', { key: attr.key }));
+      await refresh();
+    } catch (err) {
+      setDialogError(messageOf(err, t('attributes.error.update')));
+    }
+  };
 
   // Feature 163 (FR-090) — narrowing a scope flag leaves values set at that level
   // unused, so the count is shown and confirmed before anything is sent.
-  const handleEditSave = useCallback(
-    async (attr: AdminAttribute, input: AttributeFormValues): Promise<void> => {
-      const stored = scopableOf(attr);
-      const current = stored === null ? null : { scopable: stored, valueType: attr.valueType };
-      const next = input.scopable === null ? null : { scopable: input.scopable, valueType: input.valueType };
-      if (!current || !next || !isScopeNarrowing(current, next)) {
-        await saveEdit(attr, input);
-        return;
-      }
-      setError(null);
-      try {
-        const [preview, channels] = await Promise.all([
-          previewAttributeScopeChange(attr.key, next),
-          apiClient
-            .get<{ items?: Array<{ id: string; code: string; name: Record<string, string> | string }> }>(
-              '/api/v1/admin/sales-channels',
-            )
-            .catch(() => ({ items: [] })),
-        ]);
-        const channelNames = Object.fromEntries(
-          (channels.items ?? []).map((c) => [
-            c.id,
-            typeof c.name === 'string' ? c.name : pickLocalized(c.name, language) || c.code,
-          ]),
-        );
-        setPendingNarrowing({ attribute: attr, input, preview, channelNames });
-      } catch {
-        setError(t('attributes.scope.previewFailed'));
-      }
-    },
-    [saveEdit, language, t],
-  );
+  const handleEditSave = async (attr: AdminAttribute, input: AttributeFormValues): Promise<void> => {
+    const stored = scopableOf(attr);
+    const current = stored === null ? null : { scopable: stored, valueType: attr.valueType };
+    const next = input.scopable === null ? null : { scopable: input.scopable, valueType: input.valueType };
+    if (!current || !next || !isScopeNarrowing(current, next)) {
+      await saveEdit(attr, input);
+      return;
+    }
+    setDialogError(null);
+    try {
+      const [preview, channels] = await Promise.all([
+        previewAttributeScopeChange(attr.key, next),
+        apiClient
+          .get<{ items?: Array<{ id: string; code: string; name: Record<string, string> | string }> }>(
+            '/api/v1/admin/sales-channels',
+          )
+          .catch(() => ({ items: [] })),
+      ]);
+      const channelNames = Object.fromEntries(
+        (channels.items ?? []).map((c) => [
+          c.id,
+          typeof c.name === 'string' ? c.name : pickLocalized(c.name, language) || c.code,
+        ]),
+      );
+      setPendingNarrowing({ attribute: attr, input, preview, channelNames });
+    } catch {
+      setDialogError(t('attributes.scope.previewFailed'));
+    }
+  };
 
-  const confirmNarrowing = useCallback(async (): Promise<void> => {
+  const confirmNarrowing = async (): Promise<void> => {
     if (!pendingNarrowing || narrowing) return;
     setNarrowing(true);
     try {
+      // A refusal is said in the editor, which stays open under this dialog.
       await saveEdit(pendingNarrowing.attribute, pendingNarrowing.input);
     } finally {
       setNarrowing(false);
       setPendingNarrowing(null);
     }
-  }, [pendingNarrowing, narrowing, saveEdit]);
+  };
 
-  // Flush every dirty row's flags in one batch, then refresh once.
-  const saveFlags = useCallback(async (): Promise<void> => {
-    if (dirtyIds.length === 0) return;
-    setSaving(true);
-    setError(null);
-    clearStatuses();
-    try {
-      for (const id of dirtyIds) {
-        const attr = attrs.find((a) => a.id === id);
-        if (!attr) continue;
-        await apiClient.patch(`/api/v1/admin/catalog/attributes/${attr.key}`, flagDrafts[id]!);
-      }
-      showFlagsStatus(t('attributes.success.flagsSaved', { count: dirtyIds.length }));
-      await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.update'));
-    } finally {
-      setSaving(false);
-    }
-  }, [attrs, dirtyIds, flagDrafts, refresh, t, clearStatuses, showFlagsStatus]);
+  const newAttributeButton = (
+    <Button
+      ref={(element): void => {
+        removalFocus.createRef.current = element;
+      }}
+      type="button"
+      onClick={(): void => openEditor({ mode: 'create' })}
+    >
+      <Plus aria-hidden="true" />
+      {t('attributes.action.new')}
+    </Button>
+  );
+  // While the list is empty the empty state's *New attribute* is the one primary (Von Restorff).
+  const nothingYet = load.kind === 'ready' && attrs.length === 0;
 
-  const resetFlags = useCallback((): void => {
-    setFlagDrafts(Object.fromEntries(attrs.map((a) => [a.id, flagsOf(a)])));
-  }, [attrs]);
+  const columns: ResponsiveColumn<AdminAttribute>[] = [
+    {
+      id: 'label',
+      header: t('attributes.column.label'),
+      primary: true,
+      // The name opens the editor: no *Edit* button repeating it in every row.
+      render: (a) => (
+        <button
+          ref={removalFocus.targetRef(a)}
+          type="button"
+          className="text-left font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+          onClick={(): void => openEditor({ mode: 'edit', id: a.id })}
+        >
+          {nameOf(a)}
+        </button>
+      ),
+      meta: (a) => <code className="font-mono text-xs">{a.key}</code>,
+    },
+    {
+      id: 'key',
+      header: t('attributes.column.key'),
+      hideOnMobile: true,
+      render: (a) => <code className="font-mono text-xs">{a.key}</code>,
+    },
+    {
+      id: 'type',
+      header: t('attributes.column.type'),
+      render: (a) => t(valueTypeLabelKey(a.valueType)),
+    },
+    {
+      id: 'options',
+      header: t('attributes.options.title'),
+      hideOnMobile: true,
+      render: (a) =>
+        a.enumValues && a.enumValues.length > 0 ? (
+          <span className="block max-w-xs truncate text-muted-foreground" title={a.enumValues.join(', ')}>
+            {a.enumValues.join(', ')}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      id: 'capabilities',
+      header: t('attributes.column.capabilities'),
+      hideOnMobile: true,
+      render: (a) => <CapabilityBadges attribute={a} />,
+    },
+  ];
 
   return (
     <>
-      <PageHeader
+      <ListPage
         title={t('attributes.page.title')}
         description={t('attributes.page.description')}
-      />
+        actions={
+          <div className="flex items-center gap-3">
+            <InlineStatus {...status.props} />
+            {canWrite && !nothingYet ? newAttributeButton : null}
+          </div>
+        }
+        toolbar={
+          <ListToolbar
+            className="min-w-0 flex-1"
+            label={t('attributes.toolbar.label')}
+            search={
+              <ListToolbarSearch
+                ref={searchRef}
+                label={t('attributes.search.label')}
+                placeholder={t('attributes.search.placeholder')}
+                value={q}
+                onValueChange={setQ}
+              />
+            }
+            filters={
+              <Select
+                aria-label={t('attributes.filter.type')}
+                value={typeFilter}
+                onChange={(e): void => setTypeFilter(e.target.value as ValueType | '')}
+                className="w-auto"
+              >
+                <option value="">{t('attributes.filter.allTypes')}</option>
+                {VALUE_TYPES.map((v) => (
+                  <option key={v} value={v}>
+                    {t(valueTypeLabelKey(v))}
+                  </option>
+                ))}
+              </Select>
+            }
+            filtersActive={filtered}
+            onClearFilters={clearFilters}
+          />
+        }
+        count={t('attributes.count', { count: String(visible.length) })}
+        load={load}
+        onRetry={(): void => void refresh()}
+      >
+        <ResponsiveTable
+          columns={columns}
+          data={visible}
+          keyExtractor={rowId}
+          emptyState={
+            filtered ? (
+              <EmptyState
+                variant="no-results"
+                title={t('attributes.emptyFiltered')}
+                onClearFilters={clearFilters}
+                focusAfterClear={searchRef}
+              />
+            ) : (
+              <EmptyState
+                icon={<SlidersHorizontal size={20} />}
+                title={t('attributes.empty')}
+                description={canWrite ? t('attributes.empty.body') : t('attributes.empty.bodyReadOnly')}
+                action={canWrite ? newAttributeButton : null}
+              />
+            )
+          }
+          renderActions={(a): ReactNode => (
+            <RowActionMenu label={t('attributes.rowActions', { attribute: nameOf(a) })}>
+              <RowActionMenuItem onSelect={(): void => openEditor({ mode: 'edit', id: a.id })}>
+                {canWrite ? t('attributes.action.edit') : t('attributes.action.view')}
+              </RowActionMenuItem>
+              {canWrite ? (
+                <>
+                  <RowActionMenuSeparator />
+                  <RowActionMenuItem
+                    destructive
+                    onSelect={(): void => {
+                      clearStatus();
+                      setDeleting(a);
+                    }}
+                  >
+                    {t('attributes.delete.action')}
+                  </RowActionMenuItem>
+                </>
+              ) : null}
+            </RowActionMenu>
+          )}
+        />
+      </ListPage>
 
-      {error ? (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+      {editing !== null && (editing.mode === 'create' || editingAttr) ? (
+        <AttributeEditorDialog
+          key={editing.mode === 'create' ? 'create' : editing.id}
+          {...(editingAttr ? { attribute: editingAttr } : {})}
+          canWrite={canWrite}
+          error={dialogError}
+          onError={setDialogError}
+          onClose={closeEditor}
+          onSubmit={(input): Promise<void> =>
+            editingAttr ? handleEditSave(editingAttr, input) : handleCreate(input)
+          }
+          onOptionsChanged={(): void => void refresh()}
+        />
       ) : null}
 
       {pendingNarrowing ? (
         <ModalDialog
-          title={t('attributes.scope.confirmTitle', {
-            attribute:
-              pickLocalized(pendingNarrowing.attribute.label, language) || pendingNarrowing.attribute.key,
-          })}
+          title={t('attributes.scope.confirmTitle', { attribute: nameOf(pendingNarrowing.attribute) })}
           onClose={(): void => setPendingNarrowing(null)}
           busy={narrowing}
           aria-describedby={narrowingBodyId}
@@ -388,159 +531,144 @@ export function AttributesManager(): ReactNode {
       {deleting ? (
         <DeleteAttributeDialog
           attribute={deleting}
+          finalFocusRef={deleteFocusRef}
           onClose={(): void => setDeleting(null)}
-          onDeleted={async (): Promise<void> => {
+          onDeleted={(): void => {
+            const gone = deleting;
+            // Resolved while the row is still on screen; the next row's name, else
+            // the previous one's, else the empty state's *New attribute*.
+            deleteFocusRef.current = removalFocus.returnFocusTo(gone)();
+            setAttrs((current) => current.filter((a) => a.id !== gone.id));
             setDeleting(null);
-            if (editingId === deleting.id) setEditingId(null);
-            await refresh();
+            if (editing?.mode === 'edit' && editing.id === gone.id) closeEditor();
+            showStatus(t('attributes.success.delete', { key: gone.key }));
           }}
         />
       ) : null}
+    </>
+  );
+}
 
-      {/* One card for the create and the edit form, so its header — and the
-          result said in it — stays mounted when a saved edit gives way to the
-          create form. */}
-      <Card className="mb-4">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-          <CardTitle>
-            {editingAttr ? t('attributes.edit.title', { key: editingAttr.key }) : t('attributes.create.title')}
-          </CardTitle>
-          <InlineStatus {...formStatus.props} />
-        </CardHeader>
-        {editingAttr ? (
-          <CardContent className="space-y-6">
-            {/* Keyed so opening an attribute starts from its stored values, not the
-                previous form's state (same element type at the same position). */}
-            <AttributeForm
-              key={editingAttr.id}
-              mode="edit"
-              attribute={editingAttr}
-              onSubmit={(input): Promise<void> => handleEditSave(editingAttr, input)}
-              onCancel={(): void => setEditingId(null)}
-            />
-            {isOptionType(editingAttr.valueType) ? (
-              <AttributeOptionsEditor
-                attribute={editingAttr}
-                onError={setError}
-                onChanged={(): void => void refresh()}
-              />
-            ) : null}
-          </CardContent>
-        ) : (
-          <CardContent>
-            <AttributeForm key="create" mode="create" onSubmit={handleCreate} />
-          </CardContent>
-        )}
-      </Card>
+/**
+ * The capabilities switched on, as one badge each — read at a glance down the
+ * column instead of across eight checkbox columns. A content attribute has none
+ * by construction, and says so.
+ */
+function CapabilityBadges({ attribute }: { attribute: AdminAttribute }): ReactNode {
+  const t = useTranslation('catalog');
+  if (isContentType(attribute.valueType)) {
+    return <span className="text-xs text-muted-foreground">{t('attributes.pageBuilder.flagsLocked')}</span>;
+  }
+  const on = enabledCapabilities(attribute);
+  if (on.length === 0) {
+    return <span className="text-xs text-muted-foreground">{t('attributes.capabilities.none')}</span>;
+  }
+  return (
+    <ul className="flex flex-wrap gap-1" aria-label={t('attributes.column.capabilities')}>
+      {on.map((capability) => (
+        <li key={capability}>
+          <Badge variant="outline" className="font-normal">
+            {t(CAPABILITY_LABEL_KEYS[capability])}
+          </Badge>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-      {dirtyIds.length > 0 ? (
-        <Card className="mb-4">
-          <CardContent className="flex flex-wrap items-center gap-3">
-            <span className="text-sm text-muted-foreground">
-              {t('attributes.batch.unsaved', { count: dirtyIds.length })}
-            </span>
-            <Button size="sm" disabled={saving} onClick={(): void => void saveFlags()}>
-              {t('attributes.action.save')}
-            </Button>
-            <Button size="sm" variant="ghost" disabled={saving} onClick={resetFlags}>
+/**
+ * The one editor (issue #1527): create and edit share it, its Save in the
+ * footer is the screen's only save, and the options of a select-style
+ * attribute are edited inside it — under the *Applies immediately* badge,
+ * because each option change is its own request. Without `catalog:write` it
+ * shows the attribute and offers no Save.
+ */
+function AttributeEditorDialog({
+  attribute,
+  canWrite,
+  error,
+  onError,
+  onClose,
+  onSubmit,
+  onOptionsChanged,
+}: {
+  attribute?: AdminAttribute;
+  canWrite: boolean;
+  error: string | null;
+  onError: (message: string) => void;
+  onClose: () => void;
+  onSubmit: (input: AttributeFormValues) => Promise<void>;
+  onOptionsChanged: () => void;
+}): ReactNode {
+  const t = useTranslation('catalog');
+  const formId = useId();
+  const [busy, setBusy] = useState(false);
+  const isEdit = attribute !== undefined;
+  const title = !isEdit
+    ? t('attributes.create.title')
+    : canWrite
+      ? t('attributes.edit.title', { key: attribute.key })
+      : t('attributes.view.title', { key: attribute.key });
+
+  const submit = async (input: AttributeFormValues): Promise<void> => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onSubmit(input);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ModalDialog
+      title={title}
+      onClose={onClose}
+      busy={busy}
+      // A stray click must not throw away what was typed.
+      dismissOnScrim={false}
+      widthClassName="max-w-3xl"
+      footer={
+        canWrite ? (
+          <>
+            <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
               {t('attributes.action.cancel')}
             </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardContent>
-          {/* "Flags saved" — the bar that saved them is gone, the table stays. */}
-          <div className="flex">
-            <InlineStatus {...flagsStatus.props} className="mb-4 empty:mb-0" />
-          </div>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">{t('attributes.loading')}</p>
-          ) : attrs.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('attributes.empty')}</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('attributes.column.key')}</TableHead>
-                  <TableHead>{t('attributes.column.label')}</TableHead>
-                  <TableHead>{t('attributes.column.type')}</TableHead>
-                  <TableHead>{t('attributes.column.enumValues')}</TableHead>
-                  <TableHead>{t('attributes.column.searchable')}</TableHead>
-                  <TableHead>{t('attributes.column.filterable')}</TableHead>
-                  <TableHead>{t('attributes.column.variantAxis')}</TableHead>
-                  <TableHead>{t('attributes.column.comparable')}</TableHead>
-                  <TableHead>{t('attributes.column.massEditable')}</TableHead>
-                  <TableHead>{t('attributes.column.quickSearchable')}</TableHead>
-                  <TableHead>{t('attributes.column.promoRule')}</TableHead>
-                  <TableHead>{t('attributes.column.priceRule')}</TableHead>
-                  <TableHead className="text-right">{t('attributes.column.actions')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {attrs.map((a) => {
-                  const draft = flagDrafts[a.id] ?? flagsOf(a);
-                  return (
-                    <TableRow key={a.id}>
-                      <TableCell>
-                        <code className="font-mono text-xs">{a.key}</code>
-                      </TableCell>
-                      <TableCell>{a.label['en-US'] ?? Object.values(a.label)[0] ?? ''}</TableCell>
-                      <TableCell>
-                        {isContentType(a.valueType) ? t('attributes.type.pageBuilder') : a.valueType}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {a.enumValues && a.enumValues.length ? a.enumValues.join(', ') : '—'}
-                      </TableCell>
-                      {FLAG_KEYS.map((key) => (
-                        <TableCell
-                          key={key}
-                          title={isContentType(a.valueType) ? t('attributes.pageBuilder.flagsLocked') : undefined}
-                        >
-                          <Checkbox
-                            checked={draft[key]}
-                            // eslint-disable-next-line no-restricted-syntax -- debt: a developer id as the name, #1590
-                            aria-label={`${a.key}-${key}`}
-                            disabled={isContentType(a.valueType)}
-                            onChange={(e): void => toggleFlag(a.id, key, e.target.checked)}
-                          />
-                        </TableCell>
-                      ))}
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(): void => {
-                            setEditingId(a.id);
-                            clearStatuses();
-                          }}
-                        >
-                          <Pencil />
-                          {t('attributes.action.edit')}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="ml-2"
-                          onClick={(): void => {
-                            setDeleting(a);
-                            clearStatuses();
-                          }}
-                        >
-                          <Trash2 />
-                          {t('attributes.delete.action')}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </>
+            {/* Disabled and announced as busy while the save — or a narrowing's preview — runs (D18). */}
+            <Button type="submit" form={formId} disabled={busy} aria-busy={busy || undefined}>
+              {isEdit ? t('attributes.action.saveEdit') : t('attributes.action.create')}
+            </Button>
+          </>
+        ) : (
+          <Button type="button" variant="outline" onClick={onClose}>
+            {t('attributes.action.close')}
+          </Button>
+        )
+      }
+    >
+      <div className="space-y-6">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : null}
+        <AttributeForm
+          id={formId}
+          mode={isEdit ? 'edit' : 'create'}
+          {...(attribute ? { attribute } : {})}
+          readOnly={!canWrite}
+          onSubmit={submit}
+        />
+        {attribute && isOptionType(attribute.valueType) ? (
+          <AttributeOptionsEditor
+            attribute={attribute}
+            readOnly={!canWrite}
+            onError={onError}
+            onChanged={onOptionsChanged}
+          />
+        ) : null}
+      </div>
+    </ModalDialog>
   );
 }
 
@@ -554,12 +682,14 @@ export function AttributesManager(): ReactNode {
  */
 function DeleteAttributeDialog({
   attribute,
+  finalFocusRef,
   onClose,
   onDeleted,
 }: {
   attribute: AdminAttribute;
+  finalFocusRef: RefObject<HTMLElement | null>;
   onClose: () => void;
-  onDeleted: () => Promise<void>;
+  onDeleted: () => void;
 }): ReactNode {
   const t = useTranslation('catalog');
   const language = useContext(AppLanguageContext)?.language ?? 'en';
@@ -577,7 +707,7 @@ function DeleteAttributeDialog({
         if (live) setUsage(res.data);
       })
       .catch((err: unknown) => {
-        if (live) setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.delete.error'));
+        if (live) setError(messageOf(err, t('attributes.delete.error')));
       });
     return (): void => {
       live = false;
@@ -592,11 +722,11 @@ function DeleteAttributeDialog({
     setError(null);
     try {
       await apiClient.delete(path);
-      await onDeleted();
+      onDeleted();
     } catch (err) {
       // A set membership or a value added since the dialog opened: the API's
       // own message says which.
-      setError(err instanceof ApiError ? err.envelope.error.message : t('attributes.delete.error'));
+      setError(messageOf(err, t('attributes.delete.error')));
       setBusy(false);
     }
   };
@@ -606,6 +736,7 @@ function DeleteAttributeDialog({
       title={t('attributes.delete.title', { attribute: pickLocalized(attribute.label, language) || attribute.key })}
       onClose={onClose}
       busy={busy}
+      finalFocusRef={finalFocusRef}
       aria-describedby={bodyId}
       footer={
         <>
@@ -670,18 +801,40 @@ interface AttributeFormValues {
 }
 
 interface AttributeFormProps {
+  /** The dialog footer's Save submits the form through this id. */
+  id: string;
   mode: 'create' | 'edit';
   attribute?: AdminAttribute;
+  readOnly: boolean;
   onSubmit: (input: AttributeFormValues) => Promise<void>;
-  onCancel?: () => void;
+}
+
+/** The long, explanatory label of each capability in the editor. */
+const CAPABILITY_FORM_LABEL_KEYS: Record<AttributeCapability, string> = {
+  isSearchable: 'attributes.flag.searchable',
+  isFilterable: 'attributes.flag.filterable',
+  isVariantAxis: 'attributes.flag.variantAxis',
+  isComparable: 'attributes.flag.comparable',
+  massEditable: 'attributes.flag.massEditable',
+  quickSearchable: 'attributes.column.quickSearchable',
+  isPromoRule: 'attributes.flag.promoRule',
+  isPriceRule: 'attributes.flag.priceRule',
+};
+
+type CapabilitySet = Record<AttributeCapability, boolean>;
+
+function capabilitiesOf(attribute: AdminAttribute | undefined): CapabilitySet {
+  return Object.fromEntries(
+    ATTRIBUTE_CAPABILITIES.map((capability) => [capability, attribute?.[capability] ?? false]),
+  ) as CapabilitySet;
 }
 
 /**
  * Shared create/edit form. In `edit` mode the `key` and `valueType` are locked
- * (immutable server-side) while the label and flags stay editable; enum /
+ * (immutable server-side) while the label and capabilities stay editable; enum /
  * select / multiselect options are managed by the separate {@link AttributeOptionsEditor}.
  */
-function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormProps): ReactNode {
+function AttributeForm({ id, mode, attribute, readOnly, onSubmit }: AttributeFormProps): ReactNode {
   const t = useTranslation('catalog');
   const isEdit = mode === 'edit';
   const [key, setKey] = useState(attribute?.key ?? '');
@@ -693,24 +846,15 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   const [labelPl, setLabelPl] = useState(attribute?.label['pl-PL'] ?? attribute?.label['pl'] ?? '');
   const [valueType, setValueType] = useState<ValueType>(attribute?.valueType ?? 'string');
   const [enumValues, setEnumValues] = useState('');
-  const [isSearchable, setIsSearchable] = useState(attribute?.isSearchable ?? false);
-  const [isFilterable, setIsFilterable] = useState(attribute?.isFilterable ?? false);
-  const [isVariantAxis, setIsVariantAxis] = useState(attribute?.isVariantAxis ?? false);
+  const [capabilities, setCapabilities] = useState<CapabilitySet>(() => capabilitiesOf(attribute));
   const [displayAsSlider, setDisplayAsSlider] = useState(attribute?.displayAsSlider ?? false);
-  const [isComparable, setIsComparable] = useState(attribute?.isComparable ?? false);
-  const [massEditable, setMassEditable] = useState(attribute?.massEditable ?? false);
-  const [quickSearchable, setQuickSearchable] = useState(attribute?.quickSearchable ?? false);
-  const [isPromoRule, setIsPromoRule] = useState(attribute?.isPromoRule ?? false);
-  const [isPriceRule, setIsPriceRule] = useState(attribute?.isPriceRule ?? false);
   const [adminAccess, setAdminAccess] = useState<AdminAccess>(attribute?.adminAccess ?? 'edit');
   // A required attribute stays editable in the admin (SD-2); the form has no
   // required control of its own, so the stored flag decides.
   const accessLocked = attribute?.isRequired ?? false;
   const adminAccessId = useId();
-  const [busy, setBusy] = useState(false);
   const isNumeric = valueType === 'number' || valueType === 'price';
-  const { hasPermission } = useAuth();
-  const canWrite = hasPermission('catalog:write');
+  const canWrite = !readOnly;
   // Feature 174 (FR-012, R15) — one flag, shown on create and on edit when the answer
   // carries it; a system attribute's is fixed (`getAttributeScope`) and read-only.
   const systemAttribute = attribute ? isSystemAttributeKey(attribute.key) : false;
@@ -728,54 +872,34 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   // A capability ticked before Page Builder content was chosen is hidden, so it
   // is not sent either; nor is `scopable` — a content attribute is never
   // scopable (feature 174), its languages being its document's.
+  const capabilityValue = (capability: AttributeCapability): boolean => (isContent ? false : capabilities[capability]);
   const collect = (): AttributeFormValues => ({
     key,
     labelEn,
     labelPl,
     valueType,
     enumValues,
-    isSearchable: isContent ? false : isSearchable,
-    isFilterable: isContent ? false : isFilterable,
-    isVariantAxis: isContent ? false : isVariantAxis,
+    isSearchable: capabilityValue('isSearchable'),
+    isFilterable: capabilityValue('isFilterable'),
+    isVariantAxis: capabilityValue('isVariantAxis'),
     displayAsSlider: isContent ? false : displayAsSlider,
-    isComparable: isContent ? false : isComparable,
-    massEditable: isContent ? false : massEditable,
-    quickSearchable: isContent ? false : quickSearchable,
-    isPromoRule: isContent ? false : isPromoRule,
-    isPriceRule: isContent ? false : isPriceRule,
+    isComparable: capabilityValue('isComparable'),
+    massEditable: capabilityValue('massEditable'),
+    quickSearchable: capabilityValue('quickSearchable'),
+    isPromoRule: capabilityValue('isPromoRule'),
+    isPriceRule: capabilityValue('isPriceRule'),
     scopable: scopeEditable && !isContent ? scopable : null,
     adminAccess,
   });
 
-  const reset = (): void => {
-    setKey('');
-    setLabelEn('');
-    setLabelPl('');
-    setEnumValues('');
-    setIsSearchable(false);
-    setIsFilterable(false);
-    setIsVariantAxis(false);
-    setDisplayAsSlider(false);
-    setIsComparable(false);
-    setMassEditable(false);
-    setQuickSearchable(false);
-    setIsPromoRule(false);
-    setIsPriceRule(false);
-    setScopable(false);
-    setAdminAccess('edit');
-  };
-
   return (
     <form
-      className="space-y-4"
+      id={id}
+      className="space-y-5"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
-        setBusy(true);
-        void onSubmit(collect())
-          .then(() => {
-            if (!isEdit) reset();
-          })
-          .finally(() => setBusy(false));
+        if (readOnly) return;
+        void onSubmit(collect());
       }}
     >
       <div className="grid gap-4 md:grid-cols-2">
@@ -784,11 +908,12 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
           <Input
             id="akey"
             value={key}
-            onChange={(e): void => setKey(e.target.value)}
+            onChange={(e): void => setKey(e.target.value.trim())}
             pattern="[a-z][a-z0-9_]*"
             required
             maxLength={64}
-            disabled={isEdit}
+            disabled={isEdit || readOnly}
+            className="font-mono"
           />
         </div>
         <div className="space-y-2">
@@ -797,22 +922,22 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
             id="atype"
             value={valueType}
             onChange={(e): void => setValueType(e.target.value as ValueType)}
-            disabled={isEdit}
+            disabled={isEdit || readOnly}
           >
             {VALUE_TYPES.map((v) => (
               <option key={v} value={v}>
-                {isContentType(v) ? t('attributes.type.pageBuilder') : v}
+                {t(valueTypeLabelKey(v))}
               </option>
             ))}
           </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="alen">{t('attributes.field.labelEn')}</Label>
-          <Input id="alen" value={labelEn} onChange={(e): void => setLabelEn(e.target.value)} />
+          <Input id="alen" value={labelEn} disabled={readOnly} onChange={(e): void => setLabelEn(e.target.value)} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="alpl">{t('attributes.field.labelPl')}</Label>
-          <Input id="alpl" value={labelPl} onChange={(e): void => setLabelPl(e.target.value)} />
+          <Input id="alpl" value={labelPl} disabled={readOnly} onChange={(e): void => setLabelPl(e.target.value)} />
         </div>
       </div>
       {isEdit ? (
@@ -834,67 +959,51 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
             value={enumValues}
             onChange={(e): void => setEnumValues(e.target.value)}
             placeholder={t('attributes.field.enumValuesPlaceholder')}
+            aria-describedby="aenum-help"
             required
           />
-          <p className="text-xs text-muted-foreground">
+          <p id="aenum-help" className="text-xs text-muted-foreground">
             {valueType === 'multiselect'
               ? t('attributes.field.enumValues.help.multiselect')
               : t('attributes.field.enumValues.help.enum')}
           </p>
         </div>
       ) : null}
-      {isNumeric ? (
-        <div>
-          <label className="inline-flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={displayAsSlider}
-              onChange={(e): void => setDisplayAsSlider(e.target.checked)}
-            />
-            {t('attributes.flag.displayAsSlider')}
-          </label>
-        </div>
-      ) : null}
       {isContent ? (
         <p className="text-sm text-muted-foreground">{t('attributes.pageBuilder.languageNote')}</p>
-      ) : null}
-      {isContent ? null : (
-        <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={isSearchable} onChange={(e): void => setIsSearchable(e.target.checked)} />
-            {t('attributes.flag.searchable')}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={isFilterable} onChange={(e): void => setIsFilterable(e.target.checked)} />
-            {t('attributes.flag.filterable')}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={isVariantAxis} onChange={(e): void => setIsVariantAxis(e.target.checked)} />
-            {t('attributes.flag.variantAxis')}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={isComparable} onChange={(e): void => setIsComparable(e.target.checked)} />
-            {t('attributes.flag.comparable')}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={massEditable} onChange={(e): void => setMassEditable(e.target.checked)} />
-            {t('attributes.flag.massEditable')}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={quickSearchable}
-              onChange={(e): void => setQuickSearchable(e.target.checked)}
-            />
-            {t('attributes.column.quickSearchable')}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={isPromoRule} onChange={(e): void => setIsPromoRule(e.target.checked)} />
-            {t('attributes.flag.promoRule')}
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={isPriceRule} onChange={(e): void => setIsPriceRule(e.target.checked)} />
-            {t('attributes.flag.priceRule')}
-          </label>
-        </div>
+      ) : (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">
+            {t('attributes.column.capabilities')}
+          </legend>
+          <div className="grid gap-x-6 gap-y-2 md:grid-cols-2">
+            {ATTRIBUTE_CAPABILITIES.map((capability) => (
+              <label key={capability} className="flex min-h-9 items-start gap-2 text-sm">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={capabilities[capability]}
+                  disabled={readOnly}
+                  onChange={(e): void => {
+                    const checked = e.target.checked;
+                    setCapabilities((prev) => ({ ...prev, [capability]: checked }));
+                  }}
+                />
+                {t(CAPABILITY_FORM_LABEL_KEYS[capability])}
+              </label>
+            ))}
+            {isNumeric ? (
+              <label className="flex min-h-9 items-start gap-2 text-sm">
+                <Checkbox
+                  className="mt-0.5"
+                  checked={displayAsSlider}
+                  disabled={readOnly}
+                  onChange={(e): void => setDisplayAsSlider(e.target.checked)}
+                />
+                {t('attributes.flag.displayAsSlider')}
+              </label>
+            ) : null}
+          </div>
+        </fieldset>
       )}
       {showScope && !isContent ? (
         <fieldset className="space-y-2" aria-describedby={scopeHelpId}>
@@ -936,17 +1045,6 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
           </p>
         ) : null}
       </div>
-      <div className="flex gap-2">
-        {/* Disabled and announced as busy while the save — or a narrowing's preview — runs (D18). */}
-        <Button type="submit" disabled={busy} aria-busy={busy || undefined}>
-          {isEdit ? t('attributes.action.saveEdit') : t('attributes.action.create')}
-        </Button>
-        {onCancel ? (
-          <Button type="button" variant="ghost" disabled={busy} onClick={onCancel}>
-            {t('attributes.action.cancel')}
-          </Button>
-        ) : null}
-      </div>
     </form>
   );
 }
@@ -962,21 +1060,25 @@ interface AttributeOption {
 
 interface OptionsEditorProps {
   attribute: AdminAttribute;
+  readOnly: boolean;
   onError: (message: string) => void;
   onChanged: () => void;
 }
 
 /**
  * Add / rename / remove the selectable options of an enum, select or multiselect
- * attribute. Each mutation hits the per-option endpoints and reloads the local
- * list; `onChanged` lets the parent refresh the attribute's `enumValues` cell.
+ * attribute. Each mutation hits the per-option endpoints at once — hence the
+ * *Applies immediately* badge, so the dialog's Save is not read as covering
+ * them — and reloads the local list; `onChanged` lets the parent refresh the
+ * attribute's options cell.
  */
-function AttributeOptionsEditor({ attribute, onError, onChanged }: OptionsEditorProps): ReactNode {
+function AttributeOptionsEditor({ attribute, readOnly, onError, onChanged }: OptionsEditorProps): ReactNode {
   const t = useTranslation('catalog');
   const [options, setOptions] = useState<AttributeOption[]>([]);
   const [newValue, setNewValue] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [busy, setBusy] = useState(false);
+  const headingId = useId();
   const base = `/api/v1/admin/catalog/attributes/${attribute.id}/options`;
 
   const load = useCallback(async (): Promise<void> => {
@@ -984,7 +1086,7 @@ function AttributeOptionsEditor({ attribute, onError, onChanged }: OptionsEditor
       const res = await apiClient.get<{ data: { items: AttributeOption[] } }>(base);
       setOptions(res.data.items);
     } catch (err) {
-      onError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.load'));
+      onError(messageOf(err, t('attributes.error.load')));
     }
   }, [base, onError, t]);
 
@@ -1005,7 +1107,7 @@ function AttributeOptionsEditor({ attribute, onError, onChanged }: OptionsEditor
       await load();
       onChanged();
     } catch (err) {
-      onError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.update'));
+      onError(messageOf(err, t('attributes.error.update')));
     } finally {
       setBusy(false);
     }
@@ -1017,7 +1119,7 @@ function AttributeOptionsEditor({ attribute, onError, onChanged }: OptionsEditor
       await load();
       onChanged();
     } catch (err) {
-      onError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.update'));
+      onError(messageOf(err, t('attributes.error.update')));
     }
   };
 
@@ -1028,68 +1130,75 @@ function AttributeOptionsEditor({ attribute, onError, onChanged }: OptionsEditor
       await load();
       onChanged();
     } catch (err) {
-      onError(err instanceof ApiError ? err.envelope.error.message : t('attributes.error.update'));
+      onError(messageOf(err, t('attributes.error.update')));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <div className="space-y-3 border-t pt-4">
-      <h3 className="text-sm font-semibold">{t('attributes.options.title')}</h3>
+    <section className="space-y-3 border-t pt-4" aria-labelledby={headingId}>
+      <h3 id={headingId} className="text-sm font-semibold">
+        {t('attributes.options.title')}
+        {readOnly ? null : <ImmediateBadge />}
+      </h3>
       {options.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('attributes.options.empty')}</p>
       ) : (
-        <div className="space-y-2">
+        <ul className="space-y-2">
           {options.map((opt) => (
-            <div key={opt.id} className="flex items-center gap-2">
-              <code className="w-40 shrink-0 font-mono text-xs">{opt.value}</code>
+            <li key={opt.id} className="flex items-center gap-2">
+              <code className="w-40 shrink-0 truncate font-mono text-xs">{opt.value}</code>
               <Input
                 defaultValue={opt.labelDefault}
-                // eslint-disable-next-line no-restricted-syntax -- debt: a developer id as the name, #1590
-                aria-label={`option-label-${opt.value}`}
+                aria-label={t('attributes.options.labelFor', { value: opt.value })}
+                disabled={readOnly}
                 onBlur={(e): void => {
                   const next = e.target.value.trim();
                   if (next && next !== opt.labelDefault) void rename(opt, next);
                 }}
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={busy}
-                onClick={(): void => void remove(opt)}
-              >
-                {t('attributes.options.remove')}
-              </Button>
-            </div>
+              {readOnly ? null : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  aria-label={t('attributes.options.removeFor', { value: opt.value })}
+                  onClick={(): void => void remove(opt)}
+                >
+                  {t('attributes.options.remove')}
+                </Button>
+              )}
+            </li>
           ))}
+        </ul>
+      )}
+      {readOnly ? null : (
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="opt-value">{t('attributes.options.value')}</Label>
+            <Input
+              id="opt-value"
+              value={newValue}
+              onChange={(e): void => setNewValue(e.target.value)}
+              pattern="[a-z0-9_-]+"
+              placeholder={t('attributes.options.valuePlaceholder')}
+              className="font-mono"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="opt-label">{t('attributes.options.labelDefault')}</Label>
+            <Input id="opt-label" value={newLabel} onChange={(e): void => setNewLabel(e.target.value)} />
+          </div>
+          {/* "Add …" inside a section is outline: the dialog's Save stays its one primary. */}
+          <Button type="button" variant="outline" disabled={busy || !newValue.trim()} onClick={(): void => void add()}>
+            <Plus aria-hidden="true" />
+            {t('attributes.options.add')}
+          </Button>
         </div>
       )}
-      <div className="flex items-end gap-2">
-        <div className="space-y-1">
-          <Label htmlFor="opt-value">{t('attributes.options.value')}</Label>
-          <Input
-            id="opt-value"
-            value={newValue}
-            onChange={(e): void => setNewValue(e.target.value)}
-            pattern="[a-z0-9_-]+"
-            placeholder={t('attributes.options.valuePlaceholder')}
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="opt-label">{t('attributes.options.labelDefault')}</Label>
-          <Input
-            id="opt-label"
-            value={newLabel}
-            onChange={(e): void => setNewLabel(e.target.value)}
-          />
-        </div>
-        <Button type="button" disabled={busy || !newValue.trim()} onClick={(): void => void add()}>
-          {t('attributes.options.add')}
-        </Button>
-      </div>
-    </div>
+    </section>
   );
 }
 

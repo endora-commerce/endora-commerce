@@ -14,6 +14,14 @@ Atrybuty są grupowane w [zestawy atrybutów](./attribute-sets.md), które przyp
 aby edytor w panelu pokazywał tylko pola potrzebne danej rodzinie produktów. Ta strona opisuje sam
 atrybut; przypisanie zestawu do produktu opisuje strona o zestawach atrybutów.
 
+Ekran **Atrybuty** otwiera się na liście. Można ją przeszukać po kluczu lub etykiecie albo
+zawęzić według typu; każdy wiersz pokazuje etykietę w języku panelu, typ, opcje oraz, jako
+plakietki, do czego atrybut służy (wyszukiwanie, filtry, oś wariantu, porównanie, edycja
+masowa, szybkie zamówienie, reguły promocyjne i reguły cennika). **Nowy atrybut** w nagłówku
+albo nazwa atrybutu w jego wierszu otwiera edytor atrybutu w oknie dialogowym. Jego przycisk
+**Zapisz** to jedyny zapis na tym ekranie: zastosowania włącza się i wyłącza właśnie tam, a nie
+na liście. Opcje atrybutu wyboru edytuje się w tym samym oknie i obowiązują od razu.
+
 ## Budowa
 
 Każdy atrybut ma:
@@ -77,8 +85,8 @@ edytuje się na osobnym ekranie, a sklep pokazuje ją w zakładce opisu na stron
 - typu nie można zmienić ani zmienić na niego typu innego atrybutu
   (`409 ATTRIBUTE_VALUE_TYPE_LOCKED`, token `page_builder`).
 
-Edytor atrybutu ukrywa te ustawienia dla tego typu, a lista pokazuje flagi wiersza jako
-zablokowane. Typ jest dostępny wyłącznie dla produktów.
+Edytor atrybutu ukrywa te ustawienia dla tego typu, a lista informuje w wierszu, że są
+niedostępne. Typ jest dostępny wyłącznie dla produktów.
 
 ## Listy opcji
 
@@ -121,7 +129,7 @@ kanale sprzedaży i sortuje je według `filterPosition`.
 
 ## Usuwanie atrybutu
 
-Akcja **Usuń** jest dostępna w każdym wierszu listy atrybutów, niezależnie od typu. Okno
+Akcja **Usuń** jest dostępna w menu każdego wiersza listy atrybutów, niezależnie od typu. Okno
 potwierdzenia najpierw odczytuje `GET …/attributes/:idOrKey/usage` i pokazuje, co blokuje usunięcie
 i co zostanie usunięte razem z atrybutem:
 
