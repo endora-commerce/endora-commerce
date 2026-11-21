@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, RefreshCw } from 'lucide-react';
+import { ArrowRight, RefreshCw, Users } from 'lucide-react';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Card, CardContent, Checkbox, EmptyState, Input, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { ResponsiveTable } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
@@ -120,7 +120,9 @@ export function OnlineCustomers(): ReactNode {
           {loading && rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t('online.loading')}</p>
           ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">{t('online.empty')}</p>
+            // Issue #1448 (DS-15): the page's one region, so the kit block; Refresh
+            // is in the header, so the block names it rather than repeating it.
+            <EmptyState icon={<Users size={20} />} title={t('online.empty')} description={t('online.emptyBody')} />
           ) : (
             <ResponsiveTable
               data={rows}

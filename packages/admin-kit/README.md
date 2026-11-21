@@ -588,6 +588,11 @@ bare grey sentence (Picture Superiority). It draws the `.b2b-empty` classes, so 
 them out by hand. Two variants, because "nothing here yet" and "your filters match nothing" call
 for different next steps:
 
+It belongs where the empty area is the page's or the tab's primary region — a list or table page,
+a tab whose body is one collection, a top-level record panel. A picker's or combobox's results, an
+inline sub-list in a form section and a side or summary widget keep a one-line muted sentence
+(architect ruling on #1448).
+
 ```tsx
 filtered ? (
   // The kit's title, line and Clear filters button; name what the list holds if you can.

@@ -12,6 +12,14 @@ import { Button } from './button.js';
  * never a bare grey sentence (Picture Superiority). It draws the design system's
  * `.b2b-empty` classes, which every screen used to write out by hand.
  *
+ * **Where it belongs** (architect ruling on #1448, 2026-11-21): wherever the
+ * empty area is the page's or the tab's **primary region** — a list or table
+ * page, a tab whose body is one collection, a top-level record panel. Keep a
+ * one-line muted sentence instead for a picker's or a combobox's results, an
+ * inline sub-list inside a form section, and a side or summary widget: there
+ * the block's 48 px icon and centred padding would outweigh what it stands in
+ * for (Signal-to-Noise).
+ *
  * Two variants, because "nothing here yet" and "your filters match nothing" are
  * different situations with different next steps, and a list that says the same
  * sentence for both sends the operator to create something that already exists:

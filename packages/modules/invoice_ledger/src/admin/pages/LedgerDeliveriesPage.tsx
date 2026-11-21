@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Send } from 'lucide-react';
 import {
   INVOICE_LEDGER_DELIVERY_STATUSES,
   type InvoiceLedgerDeliveryListItem,
   type InvoiceLedgerDeliveryStatus,
 } from '@endora-commerce/contracts';
-import { Alert, AlertDescription, Button, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, EmptyState, PageHeader, Select } from '@endora-commerce/admin-kit/ui';
 import { RouteTabsZone } from '@endora-commerce/admin-kit/zones';
 import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { ApiError, formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
@@ -20,6 +21,8 @@ export function LedgerDeliveriesPage(): ReactNode {
   const canWrite = hasPermission('invoice_ledger:write');
   const [items, setItems] = useState<InvoiceLedgerDeliveryListItem[]>([]);
   const [status, setStatus] = useState<InvoiceLedgerDeliveryStatus | ''>('');
+  // Where Clear filters hands focus back to once the status filter is reset.
+  const statusRef = useRef<HTMLSelectElement>(null);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -109,7 +112,9 @@ export function LedgerDeliveriesPage(): ReactNode {
       ) : null}
       <div className="mb-4 max-w-xs">
         <Select
+          ref={statusRef}
           id="ledger-delivery-status"
+          aria-label={t('deliveries.filter.status.label')}
           value={status}
           onChange={(e) => {
             setCursor(undefined);
@@ -131,7 +136,23 @@ export function LedgerDeliveriesPage(): ReactNode {
           columns={columns}
           data={items}
           keyExtractor={(row) => row.id}
-          emptyState={<p className="text-sm text-muted-foreground">{t('deliveries.empty')}</p>}
+          emptyState={
+            // Issue #1448 (DS-15): a status that matches nothing is "no results",
+            // with Clear filters; no status chosen and nothing listed is "none yet".
+            status ? (
+              <EmptyState
+                variant="no-results"
+                title={t('deliveries.emptyFiltered')}
+                onClearFilters={(): void => {
+                  setCursor(undefined);
+                  setStatus('');
+                }}
+                focusAfterClear={statusRef}
+              />
+            ) : (
+              <EmptyState icon={<Send size={20} />} title={t('deliveries.empty')} description={t('deliveries.emptyBody')} />
+            )
+          }
           renderActions={(row) =>
             canWrite && RETRYABLE.includes(row.status) ? (
               <Button
