@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { Globe, Languages, LayoutGrid, Lock, TriangleAlert } from 'lucide-react';
+import { LayoutGrid, Lock, TriangleAlert } from 'lucide-react';
 import type { ScopeRef } from '@endora-commerce/contracts';
 import { Combobox, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -8,8 +8,10 @@ import { languageName, type ValidScopes } from '../lib/editor-scope.js';
 /**
  * Feature 174 (T094, `contracts/editor-ui.md` §2 and §11) — the product editor's one scope
  * switcher: a sales-channel select ("All channels" + the member channels, a searchable
- * combobox past eight options), a language select by name, the scope in words with a link to
- * the scope map, the banner of a non-Global scope and the read-only line.
+ * combobox past eight options), a language select by name with the scope-map link beside it, the
+ * banner of a non-Global scope and the read-only line. The scope is not spelled out a third time
+ * in an "Editing: <scope>" column: the two selects say it, and the banner names it outside Global
+ * (issue #1508, UX audit CAT-08).
  *
  * The banner is visual: the editor's own live region announces the new scope after its data
  * has loaded (WCAG 4.1.3), so the switch is not announced twice or before the fields are in. Picking a scope here asks the page (`onRequestScope`), which runs the switch
@@ -130,42 +132,37 @@ export function ProductScopeBar(props: ProductScopeBarProps): ReactNode {
           </div>
           <div className="flex min-w-[12rem] flex-col gap-1">
             <Label htmlFor={languageId}>{t('productEditor.scope.languageSelect')}</Label>
-            <Select
-              id={languageId}
-              className="max-lg:min-h-11"
-              value={currentLanguage}
-              disabled={scope.level === 'global'}
-              aria-describedby={scope.level === 'global' ? `${languageId}-hint` : undefined}
-              onChange={(e): void => pickLanguage(e.target.value)}
-            >
-              <option value="">{t('productEditor.scope.allLanguages')}</option>
-              {(currentChannel?.languages ?? []).map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.name || languageName(validScopes ?? { channels: [] }, currentChannelId, l.code, adminLanguage)}
-                </option>
-              ))}
-            </Select>
+            {/* The scope-map link sits beside the language select, the last of the scope controls. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Select
+                id={languageId}
+                className="min-w-[12rem] flex-1 max-lg:min-h-11"
+                value={currentLanguage}
+                disabled={scope.level === 'global'}
+                aria-describedby={scope.level === 'global' ? `${languageId}-hint` : undefined}
+                onChange={(e): void => pickLanguage(e.target.value)}
+              >
+                <option value="">{t('productEditor.scope.allLanguages')}</option>
+                {(currentChannel?.languages ?? []).map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.name || languageName(validScopes ?? { channels: [] }, currentChannelId, l.code, adminLanguage)}
+                  </option>
+                ))}
+              </Select>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-sm text-primary underline underline-offset-2 max-lg:min-h-11"
+                onClick={onOpenScopeMap}
+              >
+                <LayoutGrid className="size-3.5" aria-hidden="true" />
+                {t('productEditor.scope.scopeMap')}
+              </button>
+            </div>
             {scope.level === 'global' ? (
               <span id={`${languageId}-hint`} className="text-xs text-muted-foreground">
                 {t('productEditor.scope.pickChannelFirst')}
               </span>
             ) : null}
-          </div>
-          <div className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">{t('productEditor.scope.editing')}</span>
-            <span className="inline-flex items-center gap-1 font-medium" data-testid="scope-words">
-              {scope.level === 'global' ? <Globe className="size-4" aria-hidden="true" /> : null}
-              {scope.level === 'channel_language' ? <Languages className="size-4" aria-hidden="true" /> : null}
-              {scopeWords}
-            </span>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 self-start text-sm text-primary underline underline-offset-2 max-lg:min-h-11"
-              onClick={onOpenScopeMap}
-            >
-              <LayoutGrid className="size-3.5" aria-hidden="true" />
-              {t('productEditor.scope.scopeMap')}
-            </button>
           </div>
           {/* Top margin = the select labels' line (text-sm, leading-none: 0.875rem) + gap-1, so
               Save lines up with the selects rather than with their labels. */}

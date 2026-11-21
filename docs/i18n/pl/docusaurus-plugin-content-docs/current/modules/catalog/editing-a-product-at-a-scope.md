@@ -20,8 +20,8 @@ Przełącznik oferuje trzy poziomy, od najszerszego:
 Oferowane są tylko zakresy poprawne dla produktu: produkt musi być w kanale, a kanał musi oferować język. Produkt,
 którego nie ma w żadnym kanale sprzedaży, można edytować tylko w zakresie Global. Jeśli otwarty adres wskazuje
 kanał lub język, który nie jest już poprawny, edytor otwiera się w najbliższym poprawnym zakresie i podaje powód
-(„Otwarto w zakresie …”). Poza zakresem Global widać baner „Zmiany dotyczą tylko zakresu: …”, a edytor mówi słowami,
-gdzie jesteś („Edytujesz”). Obok jest link do karty **Mapa zakresów**.
+(„Otwarto w zakresie …”). Poza zakresem Global widać baner „Zmiany dotyczą tylko zakresu: …”. Obok listy języków jest
+link do karty **Mapa zakresów**.
 
 Zapis dotyczy tylko bieżącego zakresu. Nigdy nie zmienia wartości w żadnym innym zakresie. Przycisk **Zapisz** jest
 na pasku zakresu, obok zakresu, który zapisuje, i pokazuje, ile zmian czeka na zapis („Zapisz 2 zmiany”). Na szerokim
@@ -99,11 +99,16 @@ karty przeglądarki z niezapisanymi zmianami sprawia, że przeglądarka pyta prz
 W zakresach Kanał i Kanał × język każde pole, które można w nim ustawić, pokazuje, skąd pochodzi jego wartość:
 
 - **Dziedziczone** — pole ma zaznaczone „Użyj wartości z zakresu: *zakres nadrzędny*” i pokazuje wartość zakresu
-  nadrzędnego wraz ze źródłem, tylko do odczytu. Pole tekstowe w zakresie Kanał × język pokazuje „Nieprzetłumaczone”;
-  „Brak wartości” pojawia się, gdy nic w łańcuchu jej nie ma;
+  nadrzędnego tylko do odczytu, w polu z przerywaną ramką. Wiersz pod polem dodaje tylko to, czego nie mówi pole
+  wyboru: „Brak wartości w żadnym wyższym zakresie”, gdy nic w łańcuchu jej nie ma, oraz „Dziedziczone z zakresu:
+  Global” w zakresie Kanał × język, gdy kanał też nie ma własnej wartości;
 - **Nadpisane** — pole ma własną wartość w tym zakresie;
 - **Puste w tym zakresie** — pole ma celowo pustą wartość, która zatrzymuje łańcuch: wartość zakresu nadrzędnego nie jest
   używana.
+
+Bez uprawnienia do zmiany produktu pola wyboru nie ma, więc każde pole mówi to słowami: etykieta **Dziedziczone**
+(albo, dla pola tekstowego w zakresie Kanał × język, **Nieprzetłumaczone**) z „Dziedziczone z zakresu: *zakres*” albo
+„Ustawione w tym zakresie”.
 
 Aby ustawić wartość w tym zakresie, odznacz „Użyj wartości z zakresu: *zakres nadrzędny*” i wpisz ją. Aby wrócić do
 wartości zakresu nadrzędnego, zaznacz pole ponownie; własna wartość zostaje usunięta przy zapisie. Pola wymaganego

@@ -1549,7 +1549,6 @@
   "productEditor.scope.channelAllLanguages": "{channel} — wszystkie języki",
   "productEditor.scope.channelLanguage": "{channel} × {language}",
   "productEditor.scope.channelSelect": "Kanał sprzedaży",
-  "productEditor.scope.editing": "Edytujesz",
   "productEditor.scope.global": "Global",
   "productEditor.scope.languageFallback": "{channel} nie oferuje języka: {language}. Pokazano wszystkie języki kanału {channel}.",
   "productEditor.scope.languageSelect": "Język",

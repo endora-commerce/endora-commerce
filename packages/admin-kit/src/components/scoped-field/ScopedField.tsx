@@ -253,16 +253,23 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
     focusAfterUntick.current = true;
   };
 
-  // Source line (the control's description).
+  // Source line (the control's description). With the "Use value from <parent>" checkbox on
+  // screen (`choice`), the checkbox, the dashed control and the badges already say where the value
+  // is set, so the line is kept only for a fact none of them shows (issue #1508, UX audit CAT-08):
+  // nothing at any scope above, a value that comes from further up than the checkbox's parent, a
+  // pending untick (nothing staged yet), what a staged tick will do, and what an own empty means.
+  // Without the checkbox (no write access) the line is the state's carrier and stays in full.
+  const choice = !readOnly;
   const inheritedFrom = view.source === 'inherited_channel' ? parentScopeLabel : t('scopedField.scope.global');
   let source: { icon: ReactNode; text: string } | null = null;
   if (mode === 'global') {
     if (isEmpty(value)) source = { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: t('scopedField.source.noValueAtGlobal') };
   } else if (mode === 'inherit' || mode === 'pending') {
-    source =
-      view.source === 'absent'
-        ? { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: t('scopedField.source.noValueAbove') }
-        : { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.inheritedFrom', { scope: inheritedFrom }) };
+    if (view.source === 'absent') {
+      source = { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: t('scopedField.source.noValueAbove') };
+    } else if (!choice || mode === 'pending' || inheritedFrom !== parentScopeLabel) {
+      source = { icon: <Link2 className="size-3" aria-hidden="true" />, text: t('scopedField.source.inheritedFrom', { scope: inheritedFrom }) };
+    }
   } else if (mode === 'stagedInherit') {
     const parent = view.inheritedValue;
     if (parent?.level === 'G' && isEmpty(parent.value)) {
@@ -274,14 +281,17 @@ export function ScopedField<T>(props: ScopedFieldProps<T>): ReactNode {
     }
   } else if (isEmpty(value)) {
     const base = t('scopedField.source.setEmpty');
-    source = { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: emptyMeaning ? `${base} — ${emptyMeaning}` : base };
-  } else {
+    if (emptyMeaning) source = { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: `${base} — ${emptyMeaning}` };
+    else if (!choice) source = { icon: <CircleSlash className="size-3" aria-hidden="true" />, text: base };
+  } else if (!choice) {
     source = { icon: <Pencil className="size-3" aria-hidden="true" />, text: t('scopedField.source.set') };
   }
 
   const badges: ReactNode[] = [];
   const badgeClass = 'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs';
-  if (mode === 'inherit') {
+  // An inheriting field with the checkbox shown gets no badge: the ticked checkbox and the dashed
+  // control say it (issue #1508). "Overridden", "Empty here", "Unsaved" and "Missing" stay.
+  if (mode === 'inherit' && !choice) {
     const text =
       view.source === 'absent'
         ? t('scopedField.badge.noValue')

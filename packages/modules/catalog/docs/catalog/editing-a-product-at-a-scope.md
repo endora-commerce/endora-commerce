@@ -20,8 +20,8 @@ The switcher offers three levels, narrowest last:
 Only scopes that are valid for the product are offered: the product must be in the channel, and the channel must
 offer the language. A product that is in no sales channel can only be edited at Global. If the address you open names
 a channel or language that is no longer valid, the editor opens at the nearest valid scope and says why ("Opened at
-…"). A banner reading "Changes apply only to *scope*" is shown whenever you are not at Global, and the editor says in
-words where you are ("Editing …"). Next to it is a link to the **Scope map** tab.
+…"). A banner reading "Changes apply only to *scope*" is shown whenever you are not at Global. Next to the language
+select is a link to the **Scope map** tab.
 
 Saving applies to the current scope only. A save never changes a value at any other scope. The **Save** button sits
 in the scope bar, next to the scope it saves, and shows how many changes are waiting ("Save 2 changes"). On a wide
@@ -99,11 +99,16 @@ browser tab with unsaved changes makes the browser ask before it leaves.
 
 At Channel and Channel × language, every field that can be set at that scope shows where its value comes from:
 
-- **Inherited** — the field is ticked "Use value from *parent scope*" and shows the parent's value, with its source,
-  read-only. A text field at Channel × language reads "Not translated"; "No value" appears when nothing in the
-  chain has one;
+- **Inherited** — the field is ticked "Use value from *parent scope*" and shows the parent's value read-only, in a
+  dashed box. A line under the field adds only what the checkbox does not say: "No value at any scope above" when
+  nothing in the chain has one, and "Inherited from Global" at Channel × language when the channel has no value of
+  its own either;
 - **Overridden** — the field holds its own value at this scope;
 - **Empty here** — the field holds a deliberately empty value, which stops the chain: the parent's value is not used.
+
+Without permission to change the product there is no checkbox, so each field says it in words instead: an
+**Inherited** (or, for a text field at Channel × language, **Not translated**) badge with "Inherited from *scope*",
+or "Set at this scope".
 
 To set a value at this scope, untick "Use value from *parent scope*" and type it. To go back to the parent's value,
 tick it again; the own value is removed when you save. A required field (the name, a required attribute) cannot be
