@@ -25,8 +25,9 @@ Platforma udostępnia trzy mechanizmy integracji, każdy należący do osobnego 
 
 ## Uwierzytelnianie kluczem API
 
-Utwórz klucz w **Panel administracyjny → Klucze API → Nowy klucz API**, wybierając zakresy, z których klucz
-może korzystać, i opcjonalnie **powiązanie z organizacją** (zobacz niżej). Pełny token bearer
+Utwórz klucz w **Panel administracyjny → Klucze API → Nowy klucz API**. Najpierw wybierz typ klucza —
+**Klucz platformowy** (niepowiązany) albo **Klucz organizacji** (powiązany, zobacz niżej) — a potem
+zakresy, z których klucz może korzystać; każdy typ oferuje tylko zakresy, które może mieć. Pełny token bearer
 (`sk_live_…`) jest pokazywany **tylko raz**; potem przechowywane są tylko jego cztery ostatnie znaki.
 Platforma przechowuje skrót SHA-256 tokenu, nigdy sam token.
 
