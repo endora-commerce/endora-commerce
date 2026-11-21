@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { ApiError, useAuth, useDerivedKey } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, FormField, InlineStatus, Input, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, useInlineStatus } from '@endora-commerce/admin-kit/ui';
 import { ModalDialog, StatusTransitionGraph, useConfirmDialog, useRemovalFocus } from '@endora-commerce/admin-kit/components';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
 import { returnsClient } from '../api/returns-client.js';
-import { returnStatusName } from '../labels.js';
+import { MissingNames } from '../components/MissingNames.js';
+import { mergeNames, nameDraft, primaryName, returnStatusName, type NameDraft } from '../labels.js';
 
-import type { ReturnNotificationHealth, ReturnStatusDto, ReturnTransitionDto } from '@endora-commerce/contracts';
+import { SUPPORTED_LANGUAGES, type ReturnNotificationHealth, type ReturnStatusDto, type ReturnTransitionDto } from '@endora-commerce/contracts';
 
 /**
  * The statuses whose entry sends a dedicated e-mail of its own, so they never send
@@ -28,7 +29,10 @@ export function ReturnStatusesConfigPage(): ReactNode {
   const [statuses, setStatuses] = useState<Array<ReturnStatusDto & { inUseCount: number }>>([]);
   const [transitions, setTransitions] = useState<ReturnTransitionDto[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  // The dialog open: `status: null` creates, a status edits its names (owner decision 2026-11-21).
+  const [dialog, setDialog] = useState<{ status: ReturnStatusDto | null } | null>(null);
+  // An edit's dialog gives focus back to the row's Edit that opened it.
+  const editReturnRef = useRef<HTMLElement | null>(null);
   // The code every write route enforces (`requireAdmin('returns:write')`): a read-only
   // operator sees the list but is offered no write it would be refused.
   const { hasPermission } = useAuth();
@@ -167,7 +171,7 @@ export function ReturnStatusesConfigPage(): ReactNode {
       className="min-h-11 sm:min-h-9"
       onClick={() => {
         status.clear();
-        setCreating(true);
+        setDialog({ status: null });
       }}
     >
       <Plus size={16} aria-hidden="true" />
@@ -237,7 +241,12 @@ export function ReturnStatusesConfigPage(): ReactNode {
                 return (
                   <TableRow key={s.code} aria-busy={saving === s.code}>
                     <TableCell className="font-mono text-xs">{s.code}</TableCell>
-                    <TableCell>{statusLabel(s)}</TableCell>
+                    <TableCell>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span>{statusLabel(s)}</span>
+                        <MissingNames names={s.name} />
+                      </span>
+                    </TableCell>
                     <TableCell className="flex gap-1">
                       {s.isInitial && <Badge variant="outline">{tr('statusConfig.flag.initial')}</Badge>}
                       {s.isTerminal && <Badge variant="outline">{tr('statusConfig.flag.terminal')}</Badge>}
@@ -267,7 +276,19 @@ export function ReturnStatusesConfigPage(): ReactNode {
                     </TableCell>
                     <TableCell>{s.inUseCount}</TableCell>
                     {canWrite ? (
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label={tr('statusConfig.edit', { status: statusLabel(s) })}
+                          onClick={(event) => {
+                            status.clear();
+                            editReturnRef.current = event.currentTarget;
+                            setDialog({ status: s });
+                          }}
+                        >
+                          <Pencil className="size-4" aria-hidden="true" />
+                        </Button>
                         {!s.isInitial && !s.isSystem && (
                           <Button
                             variant="ghost"
@@ -305,14 +326,16 @@ export function ReturnStatusesConfigPage(): ReactNode {
           />
         </CardContent>
       </Card>
-      {canWrite && creating ? (
-        <NewStatusDialog
-          finalFocusRef={removalFocus.createRef}
-          onClose={() => setCreating(false)}
-          onCreated={async () => {
+      {canWrite && dialog ? (
+        <StatusDialog
+          status={dialog.status}
+          finalFocusRef={dialog.status ? editReturnRef : removalFocus.createRef}
+          onClose={() => setDialog(null)}
+          onSaved={async () => {
+            const created = dialog.status === null;
             await refresh();
-            setCreating(false);
-            status.show(tr('statusConfig.added'));
+            setDialog(null);
+            status.show(tr(created ? 'statusConfig.added' : 'statusConfig.saved'));
           }}
         />
       ) : null}
@@ -320,42 +343,57 @@ export function ReturnStatusesConfigPage(): ReactNode {
     </div>
   );
 }
-interface NewStatusDialogProps {
-  /** Focused when the dialog closes: the header's "New status". */
+interface StatusDialogProps {
+  /** `null` creates a status; a status has its names edited (its code never changes). */
+  status: ReturnStatusDto | null;
+  /** Focused when the dialog closes: the action that opened it. */
   finalFocusRef: RefObject<HTMLElement | null>;
   onClose: () => void;
-  onCreated: () => Promise<void>;
+  onSaved: () => Promise<void>;
 }
 
 /**
- * The new-status form — a name and a code, so a dialog (DS-05). Tesler: the code follows
- * the English name until the operator edits it (DS-22, `useDerivedKey`). Each refusal is
- * said at its field; the server's stays in the dialog with what was typed kept.
+ * The status form — a name per shipped language and, for a new status, its code, so a
+ * dialog (DS-05). One name in either language is enough; it is also the default name
+ * (English, else Polish). Tesler: the code follows that name until the operator edits
+ * it (DS-22, `useDerivedKey`). Each refusal is said at its field; the server's stays in
+ * the dialog with what was typed kept.
  */
-function NewStatusDialog({ finalFocusRef, onClose, onCreated }: NewStatusDialogProps): ReactNode {
+function StatusDialog({ status, finalFocusRef, onClose, onSaved }: StatusDialogProps): ReactNode {
   const t = useTranslation('core');
   const tr = useTranslation('returns');
   const formId = useId();
   const [code, setCode] = useState('');
-  const [name, setName] = useState('');
+  const [names, setNames] = useState<NameDraft>(() => nameDraft(status?.name));
   const [errors, setErrors] = useState<{ name?: string; code?: string }>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const codeField = useDerivedKey({ source: name, value: code, onChange: setCode, separator: '_', maxLength: 64 });
+  const primary = primaryName(names);
+  const codeField = useDerivedKey({
+    source: primary,
+    value: code,
+    onChange: setCode,
+    separator: '_',
+    maxLength: 64,
+    enabled: status === null,
+  });
+  const fieldLabel: NameDraft = { en: tr('statusConfig.field.nameEn'), pl: tr('statusConfig.field.namePl') };
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     setFailure(null);
-    const sent = codeField.commit();
+    const sent = status ? status.code : codeField.commit();
     const found: { name?: string; code?: string } = {};
-    if (!name.trim()) found.name = tr('statusConfig.validation.nameRequired');
+    if (!primary) found.name = tr('statusConfig.validation.nameRequired');
     if (!sent) found.code = tr('statusConfig.validation.codeRequired');
     setErrors(found);
     if (found.name || found.code) return;
     setSaving(true);
     try {
-      await returnsClient.createStatus({ code: sent, name: { en: name.trim() }, defaultName: name.trim() });
-      await onCreated();
+      const name = mergeNames(status?.name, names);
+      if (status) await returnsClient.updateStatus(status.code, { name, defaultName: primary });
+      else await returnsClient.createStatus({ code: sent, name, defaultName: primary });
+      await onSaved();
     } catch (err) {
       setFailure(err instanceof ApiError ? err.envelope.error.message : tr('admin.actionFailed'));
       setSaving(false);
@@ -364,7 +402,7 @@ function NewStatusDialog({ finalFocusRef, onClose, onCreated }: NewStatusDialogP
 
   return (
     <ModalDialog
-      title={tr('statusConfig.newTitle')}
+      title={status ? tr('statusConfig.editTitle') : tr('statusConfig.newTitle')}
       onClose={onClose}
       busy={saving}
       dismissOnScrim={false}
@@ -376,33 +414,45 @@ function NewStatusDialog({ finalFocusRef, onClose, onCreated }: NewStatusDialogP
           </Button>
           <Button type="submit" form={formId} disabled={saving} aria-busy={saving || undefined}>
             {saving ? <Loader2 size={14} aria-hidden="true" className="motion-safe:animate-spin" /> : null}
-            {tr('statusConfig.addStatus')}
+            {status ? t('common.action.save') : tr('statusConfig.addStatus')}
           </Button>
         </>
       }
     >
       <form id={formId} noValidate className="space-y-4" onSubmit={(e) => void submit(e)}>
-        <FormField label={tr('statusConfig.newName')} required error={errors.name}>
-          <Input
-            value={name}
-            maxLength={120}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (errors.name) setErrors(({ code: codeError }) => (codeError ? { code: codeError } : {}));
-            }}
-          />
-        </FormField>
-        <FormField label={tr('statusConfig.newCode')} hint={tr('statusConfig.codeHint')} required error={errors.code}>
-          <Input
-            className="font-mono"
-            spellCheck={false}
-            autoComplete="off"
-            maxLength={64}
-            value={code}
-            onChange={codeField.onChange}
-            onBlur={codeField.onBlur}
-          />
-        </FormField>
+        {SUPPORTED_LANGUAGES.map((lang, index) => (
+          <FormField
+            key={lang}
+            label={fieldLabel[lang]}
+            // The pair is required, not each field: the refusal is said at the first one.
+            error={index === 0 ? errors.name : undefined}
+            {...(index === SUPPORTED_LANGUAGES.length - 1 ? { hint: tr('statusConfig.field.nameHint') } : {})}
+          >
+            <Input
+              lang={lang}
+              value={names[lang]}
+              maxLength={120}
+              onChange={(e) => {
+                const value = e.target.value;
+                setNames((prev) => ({ ...prev, [lang]: value }));
+                if (errors.name) setErrors(({ code: codeError }) => (codeError ? { code: codeError } : {}));
+              }}
+            />
+          </FormField>
+        ))}
+        {status === null ? (
+          <FormField label={tr('statusConfig.newCode')} hint={tr('statusConfig.codeHint')} required error={errors.code}>
+            <Input
+              className="font-mono"
+              spellCheck={false}
+              autoComplete="off"
+              maxLength={64}
+              value={code}
+              onChange={codeField.onChange}
+              onBlur={codeField.onBlur}
+            />
+          </FormField>
+        ) : null}
         {/* Mounted before it has text, so a refusal that arrives is announced. */}
         <p role="alert" className="text-sm text-destructive">
           {failure}

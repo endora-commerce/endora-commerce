@@ -136,7 +136,10 @@ export const returnsClient = {
     unwrap(apiClient.get<Wrap<ReturnStatusGraphResponse>>('/api/v1/admin/returns/statuses')),
   createStatus: (body: { code: string; name: Record<string, string>; defaultName: string; isTerminal?: boolean; weight?: number }): Promise<ReturnStatusGraphResponse> =>
     unwrap(apiClient.post<Wrap<ReturnStatusGraphResponse>>('/api/v1/admin/returns/statuses', body)),
-  updateStatus: (code: string, patch: { notifyCustomerOnEntry?: boolean }): Promise<ReturnStatusGraphResponse> =>
+  updateStatus: (
+    code: string,
+    patch: { name?: Record<string, string>; defaultName?: string; notifyCustomerOnEntry?: boolean },
+  ): Promise<ReturnStatusGraphResponse> =>
     unwrap(apiClient.patch<Wrap<ReturnStatusGraphResponse>>(`/api/v1/admin/returns/statuses/${code}`, patch)),
   deleteStatus: (code: string): Promise<ReturnStatusGraphResponse> =>
     unwrap(apiClient.delete<Wrap<ReturnStatusGraphResponse>>(`/api/v1/admin/returns/statuses/${code}`)),
@@ -169,7 +172,10 @@ export const returnsClient = {
     unwrap(apiClient.get<Wrap<ReturnReasonDto[]>>('/api/v1/admin/returns/reasons')),
   createReason: (body: { label: Record<string, string>; appliesTo: string; weight?: number }): Promise<ReturnReasonDto> =>
     unwrap(apiClient.post<Wrap<ReturnReasonDto>>('/api/v1/admin/returns/reasons', body)),
-  updateReason: (id: string, patch: { isActive?: boolean; weight?: number }): Promise<ReturnReasonDto> =>
+  updateReason: (
+    id: string,
+    patch: { label?: Record<string, string>; appliesTo?: string; isActive?: boolean; weight?: number },
+  ): Promise<ReturnReasonDto> =>
     unwrap(apiClient.patch<Wrap<ReturnReasonDto>>(`/api/v1/admin/returns/reasons/${id}`, patch)),
   deleteReason: (id: string): Promise<unknown> => apiClient.delete(`/api/v1/admin/returns/reasons/${id}`),
 
