@@ -73,6 +73,7 @@ const PRICES: Record<string, number> = { 'prod-1': 10, 'prod-2': 20 };
 const BUNDLE = {
   ...passthroughBundle('core', [
     'common.action.back',
+    'orders.page.title',
     'orderCreate.field.customer',
     'orderCreate.field.salesChannel',
     'orderCreate.field.paymentMethod',
