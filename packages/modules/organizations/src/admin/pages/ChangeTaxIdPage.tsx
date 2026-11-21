@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { ApiError, apiClient, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
@@ -50,12 +50,8 @@ export function ChangeTaxIdPage(): ReactNode {
   return (
     <>
       <PageHeader
+        back={{ label: t('taxIdScope.back'), to: '/organizations' }}
         title={t('changeTaxId.page.title')}
-        actions={
-          <Button asChild variant="outline">
-            <Link to="/organizations">{t('taxIdScope.back')}</Link>
-          </Button>
-        }
       />
       <ol className="mb-4 flex items-center gap-3 text-sm" aria-label={t('changeTaxId.page.steps')}>
         <li className={stepClass(1)} aria-current={step === 1 ? 'step' : undefined}>

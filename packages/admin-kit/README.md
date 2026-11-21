@@ -280,6 +280,10 @@ Issue #1436 (UX audit 2026-11-17, DS-02). Every admin page draws its one `h1` th
   heading and likewise outside it.
 - **`back`** is a link above the title. Its optional `onClick` runs first; call
   `event.preventDefault()` to hold the navigation while an editor asks about unsaved changes.
+  It is **the** way back from a detail, create or settings screen (#1549): no outline *Back*
+  button among the `actions`, no `ArrowLeft` link above the header —
+  `admin/test/unit/no-hand-rolled-back-links.test.ts` refuses both. Give the page its `back` in
+  its loading and error states too, so the way out stays in one place.
 
 The behaviour is pinned in `admin/test/kit/kit-page-header.test.tsx`, including an axe pass.
 

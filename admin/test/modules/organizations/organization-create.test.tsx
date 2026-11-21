@@ -147,6 +147,16 @@ describe('OrganizationCreate', () => {
     expect(hint.parentElement).toContainElement(screen.getByRole('button', { name: en['create.submit']! }));
   });
 
+  // #1549 (SALES-27): the way back is the header's own back link, above the title.
+  it('goes back through the header back link above the title', async () => {
+    renderCreate();
+    const heading = await screen.findByRole('heading', { level: 1, name: en['create.title']! });
+    const back = screen.getByRole('link', { name: en['create.back']! });
+    expect(heading.closest('header')).toContainElement(back);
+    expect(back).toHaveAttribute('href', '/organizations');
+    expect(back.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('creates the Organization with the chosen channels and opens it', async () => {
     postSpy.mockResolvedValue({ data: { id: CREATED } });
     renderCreate();

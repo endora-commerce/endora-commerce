@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import type { DictionaryLanguagesPageResponse } from '@endora-commerce/contracts';
 import { ApiError, apiClient, statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, EditorSection, Input, Label, PageHeader, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
@@ -202,15 +201,8 @@ export function OrderStatusConfigPage(): ReactNode {
   return (
     <>
       <PageHeader
+        back={{ label: t('orders.page.title'), to: '/orders' }}
         title={t('orderStatusConfig.title')}
-        actions={
-          <Button asChild variant="outline">
-            <Link to="/orders">
-              <ArrowLeft />
-              {t('common.action.back')}
-            </Link>
-          </Button>
-        }
       />
 
       {error ? (

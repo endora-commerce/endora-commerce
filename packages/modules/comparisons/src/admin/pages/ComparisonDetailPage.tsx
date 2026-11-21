@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { unitPriceDisplayText, type ComparisonAdminDetail } from '@endora-commerce/contracts';
 import { ApiError } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -7,7 +7,6 @@ import {
   Alert,
   AlertDescription,
   Badge,
-  Button,
   Card,
   CardContent,
   PageHeader,
@@ -39,6 +38,7 @@ import { getComparisonDetail } from '../api/comparisons-client.js';
 export default function ComparisonDetailPage(): ReactNode {
   const t = useTranslation('comparisons');
   const { id } = useParams<{ id: string }>();
+  const back = { label: t('detail.backToList'), to: '/comparisons' };
   const [detail, setDetail] = useState<ComparisonAdminDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,22 +63,17 @@ export default function ComparisonDetailPage(): ReactNode {
   if (error) {
     return (
       <>
-        <PageHeader title={t('detail.page.title')} />
+        <PageHeader title={t('detail.page.title')} back={back} />
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <div className="mt-4">
-          <Button asChild variant="outline">
-            <Link to="/comparisons">{t('detail.backToList')}</Link>
-          </Button>
-        </div>
       </>
     );
   }
   if (!detail) {
     return (
       <>
-        <PageHeader title={t('detail.page.title')} />
+        <PageHeader title={t('detail.page.title')} back={back} />
         <p className="text-sm text-muted-foreground">{t('common.loading')}</p>
       </>
     );
@@ -86,9 +81,7 @@ export default function ComparisonDetailPage(): ReactNode {
 
   return (
     <>
-      <PageHeader
-        title={t('detail.page.title')}
-      />
+      <PageHeader title={t('detail.page.title')} back={back} />
 
       <Alert className="mb-4">
         <AlertDescription>{t('detail.pricesNote')}</AlertDescription>
@@ -166,12 +159,6 @@ export default function ComparisonDetailPage(): ReactNode {
           </Table>
         </CardContent>
       </Card>
-
-      <div className="mt-4">
-        <Button asChild variant="outline">
-            <Link to="/comparisons">{t('detail.backToList')}</Link>
-        </Button>
-      </div>
     </>
   );
 }

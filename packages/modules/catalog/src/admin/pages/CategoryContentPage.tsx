@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import type { AdminCategoryContent, AdminZoneProps } from '@endora-commerce/contracts';
 import { ApiError, apiClient, useAuth, useUnsavedChangesPrompt } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, InlineStatus, PageHeader, useInlineStatus } from '@endora-commerce/admin-kit/ui';
@@ -177,11 +177,7 @@ export function CategoryContentPage(): ReactNode {
       <PageHeader
         title={t('categoryContent.page.title', { name })}
         description={t('categoryContent.page.description')}
-        actions={
-          <Button asChild variant="outline">
-            <Link to="/catalog/categories">{t('categoryContent.action.back')}</Link>
-          </Button>
-        }
+        back={{ label: t('categoryContent.action.back'), to: '/catalog/categories' }}
       />
 
       {error ? (

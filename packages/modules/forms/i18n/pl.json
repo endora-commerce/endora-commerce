@@ -159,6 +159,7 @@
   "entries.actionError": "Nie udało się wprowadzić zmiany.",
   "entry.back": "Wszystkie wpisy",
   "entry.title": "Wpis z formularza {form}",
+  "entry.titleUnknown": "Wpis z formularza",
   "entry.sentAt": "Wysłano {date}",
   "entry.loading": "Wczytywanie wpisu…",
   "entry.loadError": "Nie udało się wczytać wpisu.",

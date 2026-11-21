@@ -113,13 +113,9 @@ export function TaxIdScopePage(): ReactNode {
   return (
     <>
       <PageHeader
+        back={{ label: t('taxIdScope.back'), to: '/organizations' }}
         title={t('taxIdScope.title')}
         description={t('taxIdScope.description')}
-        actions={
-          <Button asChild variant="outline">
-            <Link to="/organizations">{t('taxIdScope.back')}</Link>
-          </Button>
-        }
       />
 
       <div role="status" aria-live="polite" className={announcement ? 'mb-4' : undefined}>

@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button, Card, CardContent, Label, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -28,12 +28,8 @@ export function ConvertToCompanyPage(): ReactNode {
   return (
     <>
       <PageHeader
+        back={{ label: t('taxIdScope.back'), to: '/organizations' }}
         title={t('convertToCompany.page.title')}
-        actions={
-          <Button asChild variant="outline">
-            <Link to="/organizations">{t('taxIdScope.back')}</Link>
-          </Button>
-        }
       />
       <ol className="mb-4 flex items-center gap-3 text-sm" aria-label={t('convertToCompany.page.steps')}>
         <li className={stepClass(1)} aria-current={step === 1 ? 'step' : undefined}>
