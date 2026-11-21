@@ -285,6 +285,9 @@ function ScopedProductEditor({
   const [archiveDialog, setArchiveDialog] = useState<'archive' | 'restore' | null>(null);
   const [archiving, setArchiving] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
+  const productMenuRef = useRef<HTMLButtonElement | null>(null);
+  /** Where focus goes when the archive dialog closes: the Product menu once Restore has gone. */
+  const archiveDialogFinalFocus = useRef<HTMLElement | null>(null);
   const [duplicating, setDuplicating] = useState(false);
   const [wholeProductDialog, setWholeProductDialog] = useState<'duplicate' | 'delete' | null>(null);
   const [wholeProductError, setWholeProductError] = useState<string | null>(null);
@@ -814,9 +817,13 @@ function ScopedProductEditor({
     if (archiveDialog === null || archiving) return;
     setArchiving(true);
     setArchiveError(null);
+    archiveDialogFinalFocus.current = null;
     wholeStatus.clear();
     try {
       const res = await apiClient.post<{ data: { archivedAt?: string | null } }>(`${PRODUCT_PATH(productId)}/${archiveDialog}`, {});
+      // Restore unmounts its own button with the archived state; focus lands on the Product menu,
+      // beside which the result is said.
+      archiveDialogFinalFocus.current = archiveDialog === 'restore' ? productMenuRef.current : null;
       setArchivedOverride(res.data.archivedAt ?? null);
       wholeStatus.show(t(archiveDialog === 'archive' ? 'productEditor.archive.done' : 'productEditor.restore.done'));
       setArchiveDialog(null);
@@ -1243,13 +1250,36 @@ function ScopedProductEditor({
           actions={
             canWrite ? (
             <div className="flex items-start gap-2">
-              {/* "Archived" / "Restored" — the dialog and the archived notice that asked are gone. */}
+              {/* "Archived" / "Restored" — the dialog that asked is gone. */}
               <InlineStatus {...wholeStatus.props} className="self-center" data-testid="product-whole-status" />
+              {/* Issue #1509 (CAT-09): an archived product says so in the header — the Archived
+                  pill beside the title, and Restore here, the one way back — instead of a warning
+                  banner between the header and the tabs. The banner's sentence describes it. */}
+              {archivedAt ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="max-lg:min-h-11"
+                    aria-describedby="product-archived-hint"
+                    onClick={(): void => {
+                      setArchiveError(null);
+                      setArchiveDialog('restore');
+                    }}
+                  >
+                    <ArchiveRestore aria-hidden="true" /> {t('productEditor.action.restore')}
+                  </Button>
+                  <span id="product-archived-hint" className="sr-only">
+                    {t('productEditor.archived.title')} {t('productEditor.archived.body')}
+                  </span>
+                </>
+              ) : null}
               {/* The whole-product actions (FR-084, §11): one menu, captioned; each applies at once. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   {/* Issue #1492 (CAT-17): the kit button, one look with the tabs' Save below it. */}
                   <Button
+                    ref={productMenuRef}
                     type="button"
                     variant="outline"
                     className="max-lg:min-h-11"
@@ -1354,31 +1384,6 @@ function ScopedProductEditor({
             </Alert>
           ) : null}
         </div>
-        {archivedAt ? (
-          <Alert variant="warning" role="status" className="mb-4" data-testid="product-archived-notice">
-            <AlertDescription>
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="flex-1">
-                  <strong>{t('productEditor.archived.title')}</strong> {t('productEditor.archived.body')}
-                </span>
-                {canWrite ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="max-lg:min-h-11"
-                    onClick={(): void => {
-                      setArchiveError(null);
-                      setArchiveDialog('restore');
-                    }}
-                  >
-                    <ArchiveRestore size={13} aria-hidden="true" /> {t('productEditor.action.restore')}
-                  </Button>
-                ) : null}
-              </div>
-            </AlertDescription>
-          </Alert>
-        ) : null}
 
         <RecordTabs
           items={visibleTabs.map((id) => ({ value: id, label: tabLabel(id) }))}
@@ -1526,6 +1531,7 @@ function ScopedProductEditor({
             title={t(archiveDialog === 'archive' ? 'productEditor.archive.confirmTitle' : 'productEditor.restore.confirmTitle')}
             onClose={(): void => setArchiveDialog(null)}
             busy={archiving}
+            finalFocusRef={archiveDialogFinalFocus}
             aria-describedby="product-archive-confirm-body"
             footer={
               <>
@@ -1597,7 +1603,14 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1509 (CAT-09): an add/remove result is said in the panel header's polite region,
+  // mounted before it has text, not as an Alert above the panel's content.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
+  /** Each action starts clean: the last result and the last refusal both go. */
+  const begin = useCallback((): void => {
+    setError(null);
+    clearStatus();
+  }, [clearStatus]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -1647,31 +1660,33 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
 
   const handleCreate = useCallback(
     async (input: { targetProductId: string; kind: LinkKind }): Promise<void> => {
+      begin();
       try {
         await apiClient.post(`/api/v1/admin/catalog/products/${productId}/links`, {
           links: [{ targetProductId: input.targetProductId, kind: input.kind }],
         });
-        setInfo(t('productEditor.links.success.add', { kind: input.kind }));
+        showStatus(t('productEditor.links.success.add', { kind: t(`productEditor.links.kind.${input.kind}`) }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.links.error.add'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, begin, showStatus, t],
   );
 
   const handleDelete = useCallback(
     async (linkId: string): Promise<void> => {
       if (!(await ask(t('productEditor.links.removeConfirm')))) return;
+      begin();
       try {
         await apiClient.delete(`/api/v1/admin/catalog/products/${productId}/links/${linkId}`);
-        setInfo(t('productEditor.links.success.remove'));
+        showStatus(t('productEditor.links.success.remove'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.links.error.delete'));
       }
     },
-    [productId, refresh, ask, t],
+    [productId, refresh, ask, begin, showStatus, t],
   );
 
   const byKind = useMemo(() => {
@@ -1688,15 +1703,13 @@ function ProductLinksSection({ productId, readOnly = false }: { productId: strin
   }, [links]);
 
   return (
-    <EditorSection title={sectionTitle(t('productEditor.links.title'), !readOnly)}>
+    <EditorSection
+      title={sectionTitle(t('productEditor.links.title'), !readOnly)}
+      action={<InlineStatus {...statusProps} data-testid="links-panel-status" />}
+    >
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert live="polite">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -1867,7 +1880,14 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
   const [items, setItems] = useState<AdminGroupedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1509 (CAT-09): an add/remove result is said in the panel header's polite region,
+  // mounted before it has text, not as an Alert above the panel's content.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
+  /** Each action starts clean: the last result and the last refusal both go. */
+  const begin = useCallback((): void => {
+    setError(null);
+    clearStatus();
+  }, [clearStatus]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -1890,6 +1910,7 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
 
   const handleCreate = useCallback(
     async (input: { childProductId: string; quantity: string }): Promise<void> => {
+      begin();
       const qty = Number(input.quantity);
       if (!Number.isFinite(qty) || qty <= 0) {
         setError(t('productEditor.grouped.error.invalidQuantity'));
@@ -1900,41 +1921,40 @@ function GroupedItemsSection({ productId, readOnly = false }: { productId: strin
           `/api/v1/admin/catalog/products/${productId}/grouped-items`,
           { childProductId: input.childProductId, quantity: qty },
         );
-        setInfo(t('productEditor.grouped.success.add'));
+        showStatus(t('productEditor.grouped.success.add'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.grouped.error.add'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, begin, showStatus, t],
   );
 
   const handleDelete = useCallback(
     async (itemId: string): Promise<void> => {
       if (!(await ask(t('productEditor.grouped.removeConfirm')))) return;
+      begin();
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/grouped-items/${itemId}`,
         );
-        setInfo(t('productEditor.grouped.success.remove'));
+        showStatus(t('productEditor.grouped.success.remove'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.grouped.error.delete'));
       }
     },
-    [productId, refresh, ask, t],
+    [productId, refresh, ask, begin, showStatus, t],
   );
 
   return (
-    <EditorSection title={sectionTitle(t('productEditor.grouped.title'), !readOnly)}>
+    <EditorSection
+      title={sectionTitle(t('productEditor.grouped.title'), !readOnly)}
+      action={<InlineStatus {...statusProps} data-testid="grouped-panel-status" />}
+    >
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert live="polite">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -2062,7 +2082,14 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
   const [slots, setSlots] = useState<AdminBundleSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  // Issue #1509 (CAT-09): an add/remove result is said in the panel header's polite region,
+  // mounted before it has text, not as an Alert above the panel's content.
+  const { props: statusProps, show: showStatus, clear: clearStatus } = useInlineStatus();
+  /** Each action starts clean: the last result and the last refusal both go. */
+  const begin = useCallback((): void => {
+    setError(null);
+    clearStatus();
+  }, [clearStatus]);
 
   const refresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -2085,6 +2112,7 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
 
   const handleCreateSlot = useCallback(
     async (input: { name: string; minQuantity: string; maxQuantity: string }): Promise<void> => {
+      begin();
       const min = Number(input.minQuantity);
       const max = Number(input.maxQuantity);
       if (!Number.isFinite(max) || max <= 0) {
@@ -2100,74 +2128,75 @@ function BundleSlotsSection({ productId, readOnly = false }: { productId: string
             maxQuantity: max,
           },
         );
-        setInfo(t('productEditor.bundle.success.addSlot', { name: input.name }));
+        showStatus(t('productEditor.bundle.success.addSlot', { name: input.name }));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.addSlot'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, begin, showStatus, t],
   );
 
   const handleDeleteSlot = useCallback(
     async (slotId: string): Promise<void> => {
       if (!(await ask(t('productEditor.bundle.removeSlotConfirm')))) return;
+      begin();
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}`,
         );
-        setInfo(t('productEditor.bundle.success.removeSlot'));
+        showStatus(t('productEditor.bundle.success.removeSlot'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.deleteSlot'));
       }
     },
-    [productId, refresh, ask, t],
+    [productId, refresh, ask, begin, showStatus, t],
   );
 
   const handleAddOption = useCallback(
     async (slotId: string, optionProductId: string): Promise<void> => {
       if (!optionProductId) return;
+      begin();
       try {
         await apiClient.post(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}/options`,
           { optionProductId },
         );
-        setInfo(t('productEditor.bundle.success.addOption'));
+        showStatus(t('productEditor.bundle.success.addOption'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.addOption'));
       }
     },
-    [productId, refresh, t],
+    [productId, refresh, begin, showStatus, t],
   );
 
   const handleRemoveOption = useCallback(
     async (slotId: string, optionId: string): Promise<void> => {
       if (!(await ask(t('productEditor.bundle.removeOptionConfirm')))) return;
+      begin();
       try {
         await apiClient.delete(
           `/api/v1/admin/catalog/products/${productId}/bundle-slots/${slotId}/options/${optionId}`,
         );
-        setInfo(t('productEditor.bundle.success.removeOption'));
+        showStatus(t('productEditor.bundle.success.removeOption'));
         await refresh();
       } catch (err) {
         setError(err instanceof ApiError ? err.envelope.error.message : t('productEditor.bundle.error.deleteOption'));
       }
     },
-    [productId, refresh, ask, t],
+    [productId, refresh, ask, begin, showStatus, t],
   );
 
   return (
-    <EditorSection title={sectionTitle(t('productEditor.bundle.title'), !readOnly)}>
+    <EditorSection
+      title={sectionTitle(t('productEditor.bundle.title'), !readOnly)}
+      action={<InlineStatus {...statusProps} data-testid="bundle-panel-status" />}
+    >
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert live="polite">
-          <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
 
