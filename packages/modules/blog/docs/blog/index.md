@@ -248,7 +248,8 @@ its languages on every save.
 
 A post or a category can have a **URL key per language** — `jak-wybrac-wiertarke` in Polish,
 `how-to-choose-a-drill` in English — set in the editor's **Address** card of the language
-being edited. A language without a key is served at the base slug. A key:
+being edited. The card saves on its own, with *Save address*, not with the editor's Save, and
+is marked *Applies immediately*. A language without a key is served at the base slug. A key:
 
 - resolves only in its own language;
 - is unique per sales channel and language across posts **and** categories
@@ -269,7 +270,8 @@ language switcher. Every key write is one audited command (`blog.url_keys.update
 
 A post can name one **author**: an administrator, chosen in the editor among the active
 ones (`GET /api/v1/admin/blog/author-candidates`, `blog.write` — no administrator rights
-needed; it answers names and avatars only). The storefront shows the author's name, avatar
+needed; it answers names and avatars only). Like the tags and the related posts and products,
+the author is saved with the editor's one **Save**, not when it is picked. The storefront shows the author's name, avatar
 and *about me* in the page language (else the channel default) on the post page, the name
 on cards, and the author as a `Person` in the post's structured data. The author's avatar
 and *about me* are edited on the administrator's own profile page (see the `admin_users`

@@ -182,11 +182,11 @@ export function MenuItemConfigPanel({
           </p>
         ) : null}
         {languages.map((lang) => (
-          <div key={lang} className="grid grid-cols-12 items-center gap-2">
-            <span id={`${fieldId}-label-${lang}`} className="col-span-2 font-mono text-xs text-muted-foreground">{lang}</span>
+          <div key={lang} className="flex items-center gap-2">
+            <span id={`${fieldId}-label-${lang}`} className="w-14 shrink-0 font-mono text-xs text-muted-foreground">{lang}</span>
             <Input
               aria-labelledby={`${fieldId}-labels ${fieldId}-label-${lang}`}
-              className="col-span-10"
+              className="min-w-0 flex-1"
               value={item.labels[lang] ?? ''}
               onChange={(event) => setLabel(lang, event.target.value)}
               placeholder={
