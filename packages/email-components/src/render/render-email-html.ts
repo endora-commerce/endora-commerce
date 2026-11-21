@@ -212,7 +212,7 @@ function renderImage(p: EmailImageProps): string {
     ? `<a href="${escapeAttr(p.href)}" target="_blank" rel="noreferrer" style="display:inline-block;margin:${margin};">${img}</a>`
     : img;
   // Table cell align is more reliable than text-align + display:block img.
-  return `<tr><td align="${p.align}" style="padding:0 24px;font-family:Arial,Helvetica,sans-serif;">${wrapped}</td></tr>`;
+  return guardLoneVariableHref(p.src, `<tr><td align="${p.align}" style="padding:0 24px;font-family:Arial,Helvetica,sans-serif;">${wrapped}</td></tr>`);
 }
 
 function renderLogo(p: EmailLogoProps): string {
