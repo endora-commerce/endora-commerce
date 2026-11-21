@@ -210,7 +210,8 @@ describe('CreditLimitsPage (issue #1664)', () => {
     const menu = await openRowMenu('Org 1');
     await userEvent.click(within(menu).getByRole('menuitem', { name: cl['list.adjust']! }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: core['creditLimits.action.saveAdjust']! }));
+    // The dialog reads the organization's limit before it shows the adjust form, so wait for Save.
+    await userEvent.click(await within(dialog).findByRole('button', { name: core['creditLimits.action.saveAdjust']! }));
     expect(await within(dialog).findByText('Below active.')).toBeInTheDocument();
   });
 
