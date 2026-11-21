@@ -33,7 +33,6 @@
   "basePrices.books.title": "Cenniki ustalające cenę tego produktu",
   "basePrices.books.variantMatch": "{variant}, od {start}: {price} {kind}",
   "basePrices.description": "Cena dla każdego kupującego, gdy żaden cennik nie ustala ceny produktu.",
-  "basePrices.discard": "Odrzuć zmiany",
   "basePrices.error.ascending": "Każdy próg zaczyna się powyżej poprzedniego.",
   "basePrices.error.fixedOnly": "Cena bazowa to kwota stała, np. 95 albo 95,50.",
   "basePrices.error.load": "Nie udało się wczytać cen bazowych.",

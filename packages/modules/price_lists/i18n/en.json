@@ -33,7 +33,6 @@
   "basePrices.books.title": "Price books pricing this product",
   "basePrices.books.variantMatch": "{variant}, from {start}: {price} {kind}",
   "basePrices.description": "What every buyer pays when no price book prices this product.",
-  "basePrices.discard": "Discard changes",
   "basePrices.error.ascending": "Each tier starts above the one before it.",
   "basePrices.error.fixedOnly": "A base price is a fixed amount, such as 95 or 95,50.",
   "basePrices.error.load": "The base prices could not be loaded.",

@@ -21,7 +21,7 @@ Oferowane są tylko zakresy poprawne dla produktu: produkt musi być w kanale, a
 którego nie ma w żadnym kanale sprzedaży, można edytować tylko w zakresie Global. Jeśli otwarty adres wskazuje
 kanał lub język, który nie jest już poprawny, edytor otwiera się w najbliższym poprawnym zakresie i podaje powód
 („Otwarto w zakresie …”). Poza zakresem Global widać baner „Zmiany dotyczą tylko zakresu: …”. Obok listy języków jest
-link do karty **Mapa zakresów**.
+link **Mapa zakresów**, który otwiera Mapę zakresów w panelu po prawej stronie.
 
 Zapis dotyczy tylko bieżącego zakresu. Nigdy nie zmienia wartości w żadnym innym zakresie. Przycisk **Zapisz** jest
 na pasku zakresu, obok zakresu, który zapisuje, i pokazuje, ile zmian czeka na zapis („Zapisz 2 zmiany”). Na szerokim
@@ -125,13 +125,18 @@ jako obecna, gdy istnieje w zakresie, w kanale albo w zakresie Global — w tej 
 zmienia się w „*N* niekompletnych zakresów” z linkiem do Mapy zakresów. Lista opiera się na **zapisanych**
 wartościach; kontrola przy zapisie liczy razem wartości zapisane i niezapisane.
 
-## Karta Mapa zakresów
+## Mapa zakresów
 
-Karta **Mapa zakresów** to przegląd wszystkich zakresów produktu: jedna komórka to jeden kanał sprzedaży w jednym
+**Mapa zakresów** to przegląd wszystkich zakresów produktu: jedna komórka to jeden kanał sprzedaży w jednym
 języku, kolumna „Cały kanał” zawiera wartości ustawione dla samego kanału, a w każdej komórce widać status (ustawiony
 tutaj, z kanału albo z zakresu Global, oraz czy produkt jest tam teraz widoczny) i braki. **Edytuj w zakresie …**
 otwiera edytor w tym zakresie, a link przy polu ustawia na nim fokus. Wartości zachowane dla kanału lub języka, które
 produkt opuścił, są wymienione w sekcji „Nie obowiązuje już” i można je tam usunąć.
+
+Mapa zakresów otwiera się w panelu po prawej stronie, nad kartą, na której jesteś — z linku obok listy języków oraz
+z wiersza „*N* niekompletnych zakresów”. **Zamknij** albo Escape wraca do tej karty; link **Edytuj w zakresie …**
+zamyka panel i otwiera edytor w tym zakresie. Adres panelu to adres produktu z `?scopeMap=1`; starszy link do
+dawnej karty Mapa zakresów (`?tab=scopes`) również go otwiera.
 
 ## Tryb tylko do odczytu
 

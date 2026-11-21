@@ -256,7 +256,9 @@ moduł. Jest dostępny, gdy produkt już istnieje.
   więc cena, której by odmówił, zatrzymuje cały zapis i jest zgłaszana w panelu. Jeśli produkt
   zostanie zapisany, a ceny bazowe nie, edytor o tym informuje, a kolejny zapis zapisuje już tylko
   ceny bazowe. Błędna wartość jest zgłaszana przy jej polu.
-  **Odrzuć zmiany** w panelu przywraca zapisane ceny bazowe i nie rusza pozostałych zmian produktu.
+  Panel nie ma własnego przycisku odrzucania zmian: pytanie edytora przy opuszczaniu strony lub zmianie
+  zakresu — **Zapisz i kontynuuj**, **Odrzuć zmiany** albo **Zostań tutaj** — zachowuje lub odrzuca ceny bazowe razem z pozostałymi
+  zmianami produktu.
 - **Otwórz ceny bazowe** otwiera siatkę cennika cen bazowych; **Skąd ta cena?** otwiera wyjaśnienie
   ceny dla tego produktu.
 

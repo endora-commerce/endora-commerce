@@ -152,6 +152,7 @@ export function ProductScopeBar(props: ProductScopeBarProps): ReactNode {
               <button
                 type="button"
                 className="inline-flex items-center gap-1 text-sm text-primary underline underline-offset-2 max-lg:min-h-11"
+                aria-haspopup="dialog"
                 onClick={onOpenScopeMap}
               >
                 <LayoutGrid className="size-3.5" aria-hidden="true" />

@@ -21,7 +21,7 @@ Only scopes that are valid for the product are offered: the product must be in t
 offer the language. A product that is in no sales channel can only be edited at Global. If the address you open names
 a channel or language that is no longer valid, the editor opens at the nearest valid scope and says why ("Opened at
 …"). A banner reading "Changes apply only to *scope*" is shown whenever you are not at Global. Next to the language
-select is a link to the **Scope map** tab.
+select is the **Scope map** link, which opens the Scope map in a panel on the right.
 
 Saving applies to the current scope only. A save never changes a value at any other scope. The **Save** button sits
 in the scope bar, next to the scope it saves, and shows how many changes are waiting ("Save 2 changes"). On a wide
@@ -124,13 +124,18 @@ present when it exists at the scope, at the channel, or at Global, in that order
 "*N* incomplete scopes" with a link to the Scope map. The list reflects **saved** values; the check made when you
 save counts saved and staged values together.
 
-## The Scope map tab
+## The Scope map
 
-The **Scope map** tab is the overview of every scope of the product: one cell per sales channel in one language, a
+The **Scope map** is the overview of every scope of the product: one cell per sales channel in one language, a
 "Whole channel" column for values set for the channel itself, the status in each cell (set here, from the channel or
 from Global, and whether the product is live there now), and what is missing. **Edit at *scope*** opens the editor at
 that scope, and a field's link focuses that field. Values kept for a channel or language the product has left are
 listed under "No longer applies" and can be deleted there.
+
+The Scope map opens in a panel on the right, over the tab you were on, from the link next to the language select and
+from the "*N* incomplete scopes" line. **Close** or Escape returns to that tab; following an **Edit at *scope***
+link closes the panel and opens the editor at that scope. Its address is the product's address with `?scopeMap=1`;
+an older link to the former Scope map tab (`?tab=scopes`) opens the panel too.
 
 ## Read-only mode
 

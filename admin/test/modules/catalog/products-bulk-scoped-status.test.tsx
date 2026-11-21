@@ -248,10 +248,10 @@ describe('bulk status in one channel (US5)', () => {
     const table = await screen.findByRole('table');
     const drill = await within(table).findByRole('link', { name: /Drill/ });
     expect(drill.closest('tr')?.textContent).toContain('SKU-1');
-    expect(drill).toHaveAttribute('href', `/catalog/products/${P1}?tab=scopes`);
+    expect(drill).toHaveAttribute('href', `/catalog/products/${P1}?scopeMap=1`);
     const hammer = await within(table).findByRole('link', { name: /Hammer/ });
     expect(hammer.closest('tr')?.textContent).toContain('SKU-2');
-    expect(hammer).toHaveAttribute('href', `/catalog/products/${P2}?tab=scopes`);
+    expect(hammer).toHaveAttribute('href', `/catalog/products/${P2}?scopeMap=1`);
     expect(table.textContent).not.toContain(`${P1.slice(0, 8)}…`);
   });
 
