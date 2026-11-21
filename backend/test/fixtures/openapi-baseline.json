@@ -719,6 +719,15 @@
         }
       }
     },
+    "/api/v1/admin/audit-log/facets": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/audit-log/recent-activity": {
       "get": {
         "responses": {
@@ -4674,6 +4683,13 @@
       }
     },
     "/api/v1/admin/newsletter/campaigns/{id}/group": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
       "put": {
         "responses": {
           "200": {

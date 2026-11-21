@@ -4,6 +4,7 @@ import type {
   AutomationDetail,
   AutomationSummary,
   CampaignDetail,
+  CampaignGroupResponse,
   CampaignStats,
   CampaignSummary,
   CreateAutomationRequest,
@@ -95,6 +96,8 @@ export const newsletterClient = {
     unwrap(apiClient.post<Wrap<CampaignDetail>>(`${BASE}/campaigns`, body)),
   updateCampaign: (id: string, body: UpdateCampaignRequest): Promise<CampaignDetail> =>
     unwrap(apiClient.put<Wrap<CampaignDetail>>(`${BASE}/campaigns/${id}`, body)),
+  getCampaignGroup: (id: string): Promise<CampaignGroupResponse> =>
+    unwrap(apiClient.get<Wrap<CampaignGroupResponse>>(`${BASE}/campaigns/${id}/group`)),
   setCampaignGroup: (id: string, subscriberIds: string[]): Promise<CampaignDetail> =>
     unwrap(apiClient.put<Wrap<CampaignDetail>>(`${BASE}/campaigns/${id}/group`, { subscriberIds })),
   previewCampaign: (id: string, subscriberId?: string): Promise<RenderedEmail> =>

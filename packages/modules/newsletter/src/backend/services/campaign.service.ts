@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   type CampaignDetail,
+  type CampaignGroupResponse,
   type CampaignSummary,
   type CreateCampaignRequest,
   type UpdateCampaignRequest,
@@ -115,6 +116,20 @@ export class NewsletterCampaignService {
     const em = this.deps.emFactory();
     const rows = await em.find(NewsletterCampaign, {}, { orderBy: { createdAt: 'desc' } });
     return { items: rows.map((c) => this.toSummary(c)) };
+  }
+
+  /** The manual group's members, by e-mail (issue #1533). A missing campaign is a 404. */
+  async getGroup(id: string): Promise<CampaignGroupResponse> {
+    const em = this.deps.emFactory();
+    await this.load(em, id);
+    const links = await em.find(NewsletterCampaignSubscriber, { campaignId: id });
+    if (links.length === 0) return { items: [] };
+    const members = await em.find(
+      NewsletterSubscriber,
+      { id: { $in: links.map((link) => link.subscriberId) } },
+      { fields: ['id', 'email'], orderBy: { email: 'asc' } },
+    );
+    return { items: members.map((m) => ({ id: m.id, email: m.email })) };
   }
 
   async setGroup(id: string, subscriberIds: string[]): Promise<CampaignDetail> {
