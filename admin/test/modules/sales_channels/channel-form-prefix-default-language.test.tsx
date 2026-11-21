@@ -8,6 +8,7 @@ import type { SalesChannelDetail } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { adminSession, modulePresence, renderWithSession } from '../../helpers/render-with-session';
 import { expectNoAxeViolations } from '../../helpers/axe';
+import { shippedCoreBundle } from '../../helpers/core-bundle';
 
 /**
  * `specs/167-storefront-locale-path/` US3 (T045) — the operator's switch *Prefix the
@@ -129,7 +130,7 @@ describe('ChannelIdentityForm — Prefix the default language in URLs', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('lists the derived prefix of every channel language and warns that URLs change (US3 #4)', () => {
+  it('lists the derived prefix of every channel language (US3 #4)', () => {
     renderWithI18n(
       <MemoryRouter>
         <ChannelIdentityForm mode="edit" initial={channel()} onSubmit={() => undefined} />
@@ -142,7 +143,67 @@ describe('ChannelIdentityForm — Prefix the default language in URLs', () => {
       'en-US → /en-us',
       'en-GB → /en-gb',
     ]);
-    expect(screen.getByText(en['identity.prefixDefaultLanguage.urlChangeWarning']!)).toBeTruthy();
+  });
+
+  // Issue #1552 (UX audit SHELL-16) — the URL warning is the consequence of a change, so it is
+  // shown once the storefront's URLs would differ from the stored channel's, and never before.
+  describe('the URL-change warning (#1552)', () => {
+    const warning = (): HTMLElement | null =>
+      screen.queryByText(en['identity.prefixDefaultLanguage.urlChangeWarning']!);
+
+    it('is absent while nothing that moves a URL has changed', () => {
+      renderWithI18n(
+        <MemoryRouter>
+          <ChannelIdentityForm mode="edit" initial={channel()} onSubmit={() => undefined} />
+        </MemoryRouter>,
+        bundle,
+      );
+      expect(warning()).toBeNull();
+      expect(prefixSwitch().getAttribute('aria-describedby') ?? '').not.toContain('warning');
+    });
+
+    it('is absent on the create form, which has no URLs yet', () => {
+      renderWithI18n(
+        <MemoryRouter>
+          <ChannelIdentityForm mode="create" onSubmit={() => undefined} />
+        </MemoryRouter>,
+        bundle,
+      );
+      fireEvent.click(prefixSwitch());
+      expect(warning()).toBeNull();
+    });
+
+    it('appears once the switch moves, is announced, describes the switch, and goes when it moves back', () => {
+      renderWithI18n(
+        <MemoryRouter>
+          <ChannelIdentityForm mode="edit" initial={channel()} onSubmit={() => undefined} />
+        </MemoryRouter>,
+        bundle,
+      );
+      fireEvent.click(prefixSwitch());
+      const shown = warning();
+      expect(shown).toBeTruthy();
+      expect(shown!.closest('[role="status"]')).toBeTruthy();
+      const ids = (prefixSwitch().getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean);
+      expect(ids.map((id) => document.getElementById(id)?.textContent)).toContain(
+        en['identity.prefixDefaultLanguage.urlChangeWarning'],
+      );
+      fireEvent.click(prefixSwitch());
+      expect(warning()).toBeNull();
+    });
+
+    it('appears once a channel language is removed', async () => {
+      renderWithI18n(
+        <MemoryRouter>
+          <ChannelIdentityForm mode="edit" initial={channel()} onSubmit={() => undefined} />
+        </MemoryRouter>,
+        // The kit's own copy names the chip's remove button.
+        { ...bundle, ...shippedCoreBundle('en') },
+      );
+      const remove = await screen.findByRole('button', { name: /^Remove en-GB/ });
+      fireEvent.click(remove);
+      expect(warning()).toBeTruthy();
+    });
   });
 
   it('marks the unprefixed default language when the switch is off', () => {

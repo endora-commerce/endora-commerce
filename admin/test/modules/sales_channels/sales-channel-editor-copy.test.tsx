@@ -127,6 +127,8 @@ describe('bundle', () => {
       'identity.theme.help',
       'identity.anonymousAccess.hint',
       'identity.prefixDefaultLanguage.hint',
+      'identity.section.locales',
+      'identity.section.storefront',
     ]) {
       for (const [lang, messages] of [['en', en], ['pl', pl]] as const) {
         expect(messages[key], `${lang} ${key}`).toBeTruthy();
@@ -206,5 +208,42 @@ describe('ChannelIdentityForm — copy', () => {
     expect(ids.map((id) => document.getElementById(id)?.textContent)).toContain(
       en['identity.theme.help'],
     );
+  });
+});
+
+/**
+ * Issue #1552 (UX audit SHELL-16) — the identity card groups its eleven controls into three
+ * sections (Common Region, Chunking) rather than one undivided column of fields and prose.
+ */
+describe('ChannelIdentityForm — sections (#1552)', () => {
+  it('groups the fields into Identity, Languages and currencies, and Storefront sections of one card', () => {
+    renderWithI18n(
+      <MemoryRouter>
+        <ChannelIdentityForm mode="edit" lockCode initial={channel()} onSubmit={() => undefined} />
+      </MemoryRouter>,
+      bundle,
+    );
+    const region = (name: string): HTMLElement => screen.getByRole('region', { name });
+    const identity = region(en['identity.title.edit']!);
+    const locales = region(en['identity.section.locales']!);
+    const storefront = region(en['identity.section.storefront']!);
+    expect(identity.contains(document.getElementById('sc-code'))).toBe(true);
+    expect(identity.contains(document.getElementById('sc-name'))).toBe(true);
+    expect(identity.contains(document.getElementById('sc-theme'))).toBe(true);
+    expect(locales.contains(document.getElementById('sc-languages'))).toBe(true);
+    expect(locales.contains(document.getElementById('sc-default-curr'))).toBe(true);
+    expect(storefront.contains(document.getElementById('sc-active'))).toBe(true);
+    expect(storefront.contains(document.getElementById('sc-anonymous-access'))).toBe(true);
+    expect(storefront.contains(document.getElementById('sc-prefix-default-language'))).toBe(true);
+    // One card around the three: sections are never cards of their own inside it.
+    const card = identity.closest('[data-slot="card"]');
+    expect(card).toBeTruthy();
+    expect(card!.contains(storefront)).toBe(true);
+    expect(card!.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
+  });
+
+  it('ships the section headings in Polish too', () => {
+    expect(pl['identity.section.locales']).toBeTruthy();
+    expect(pl['identity.section.storefront']).toBeTruthy();
   });
 });

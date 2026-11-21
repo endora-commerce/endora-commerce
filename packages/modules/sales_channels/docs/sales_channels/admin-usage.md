@@ -30,7 +30,7 @@ The list page shows every channel registered on the platform. The system-default
 ## Editing an existing channel
 
 1. Click a channel's `code` in the list.
-2. The edit page loads its identity. Make changes; click **Save**. The button counts what is waiting ("Save 2 changes") and does nothing while there is nothing to save.
+2. The edit page loads the channel in one card of three sections — **Identity**, **Languages and currencies** and **Storefront** — with the sections other modules add below it. Make changes; click **Save** in the bar at the bottom of the page, which stays in view as you scroll. The button counts what is waiting ("Save 2 changes") and does nothing while there is nothing to save.
 3. If another administrator changed the same channel between your load and save, the save returns a 412 conflict banner with the current version. Refresh the page to pull the latest state and re-apply your changes.
 
 The edit page has **one Save**. It writes the channel's own fields and, when another module adds a section to the edit page that holds changes of its own, those too: the channel first, then each section. If the channel is refused, no section is written; if the channel is saved and a section is not, a summary at the top of the form names what was saved and what was not, and the next Save writes only what is left. **Cancel** discards the unsaved changes and returns to the list without asking. Following a link elsewhere in the admin, or closing or reloading the browser tab, with unsaved changes asks first.
@@ -75,7 +75,9 @@ On the channel's edit screen, **Prefix the default language in URLs** decides wh
 channel's default language carries its prefix in storefront addresses (`/pl/p/wiertarka`)
 or not (`/p/wiertarka`). Every other language of the channel is always prefixed
 (`/en/p/drill`). Under the switch the screen lists the prefix of every language of the
-channel, recomputed as you change the languages.
+channel, recomputed as you change the languages. Once a change to the languages or to the
+switch would move the storefront's addresses, a warning appears under the list; it goes away
+if you put the value back.
 
 - New channels start with the switch **on**. Channels that existed before the upgrade that
   introduced the switch start **off**, so their addresses did not change.
