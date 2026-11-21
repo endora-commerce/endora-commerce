@@ -10,8 +10,12 @@ import { installOffsetParentShim } from '../helpers/layout-shim';
 
 /**
  * Issue #1464 (UX audit CONTENT-06) — the custom-event editor's Delete sat
- * beside Save and fired on one click. It now lives in its own section below
- * the form and asks first, naming the event; a failure stays in the dialog.
+ * beside Save and fired on one click. It asks first, naming the event; a
+ * failure stays in the dialog. Since #1537 (CONTENT-20) it is an entry of the
+ * header's "More" menu, as in the Meta and LinkedIn editors, rather than a
+ * section of its own below the form — still away from Save, which is in the
+ * sticky bar. The shape the three editors share is asserted in
+ * `event-mapping-screens.test.tsx`.
  */
 
 installOffsetParentShim();
@@ -38,6 +42,7 @@ vi.mock('../../../packages/modules/google_analytics/src/admin/api/google-analyti
     update: vi.fn(),
     create: vi.fn(),
   },
+  listSalesChannels: async () => ({ items: [] }),
 }));
 
 const { default: CustomEventEditPage } = await import(
@@ -51,6 +56,11 @@ function bundle(): Record<string, Record<string, string>> {
     google_analytics: read('../packages/modules/google_analytics/i18n/en.json'),
     core: read('../packages/modules/_i18n/i18n/en.json'),
   };
+}
+
+async function openDelete(): Promise<void> {
+  await userEvent.click(screen.getByRole('button', { name: 'More' }));
+  await userEvent.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Delete' }));
 }
 
 async function mount(): Promise<void> {
@@ -71,17 +81,17 @@ beforeEach(() => {
 });
 
 describe('GA custom event — Delete asks first, away from Save (#1464)', () => {
-  it('puts Delete in its own section, not beside Save', async () => {
+  it('keeps Delete out of the Save bar, in the header menu', async () => {
     await mount();
-    const save = screen.getByRole('button', { name: 'Save' });
-    const del = screen.getByRole('button', { name: 'Delete' });
-    expect(save.parentElement).not.toContainElement(del);
-    expect(del.closest('section')).toHaveTextContent('Delete this event');
+    const bar = document.querySelector('[data-slot="sticky-form-actions"]') as HTMLElement;
+    expect(within(bar).getByRole('button', { name: 'Save' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+    expect(screen.queryByText('Delete this event')).toBeNull();
   });
 
   it('names the event, opens on Cancel, and Cancel deletes nothing', async () => {
     await mount();
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await openDelete();
     const dialog = await screen.findByRole('dialog', { name: 'Delete this custom event?' });
     expect(dialog).toHaveTextContent('“cart_add”');
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
@@ -93,7 +103,7 @@ describe('GA custom event — Delete asks first, away from Save (#1464)', () => 
   it('deletes on confirm and returns to the list', async () => {
     remove.mockResolvedValue(undefined);
     await mount();
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await openDelete();
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete event' }));
     await waitFor(() => expect(remove).toHaveBeenCalledWith(ID));
     expect(await screen.findByText('events list')).toBeInTheDocument();
@@ -102,7 +112,7 @@ describe('GA custom event — Delete asks first, away from Save (#1464)', () => 
   it('keeps a failure in the dialog and stays on the page', async () => {
     remove.mockRejectedValue(new Error('offline'));
     await mount();
-    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await openDelete();
     const dialog = await screen.findByRole('dialog');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Delete event' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('The event could not be deleted');
