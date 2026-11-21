@@ -450,10 +450,10 @@ export function FormBuilderPage(): ReactNode {
         {tab === 'fields' ? (
           <div className="space-y-4">
             <Card role="region" aria-labelledby={`${formTextsId}-title`}>
-              <CardHeader className="p-4 pb-2">
+              <CardHeader>
                 <CardTitle id={`${formTextsId}-title`}>{t('builder.formCard')}</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-4 p-4 pt-0 md:grid-cols-2">
+              <CardContent className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor={nameId}>{t('builder.name')}</Label>
                   <Input
@@ -539,7 +539,7 @@ export function FormBuilderPage(): ReactNode {
                 />
               ) : (
                 <Card className="border-dashed lg:sticky lg:top-4">
-                  <CardContent className="flex flex-col items-center gap-2 p-6 text-center">
+                  <CardContent className="flex flex-col items-center gap-2 text-center">
                     <MousePointerClick size={24} aria-hidden="true" className="text-muted-foreground" />
                     <p className="text-sm text-muted-foreground">{t('inspector.empty')}</p>
                   </CardContent>
@@ -578,13 +578,13 @@ export function FormBuilderPage(): ReactNode {
         ) : (
           <div>
             <Card>
-              <CardHeader className="p-4">
+              <CardHeader>
                 <CardTitle>{t('versions.title')}</CardTitle>
                 <CardDescription>
                   {form.publishedVersionNumber > 0 ? t('builder.liveVersion', { number: form.publishedVersionNumber }) : t('builder.notPublished')}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
+              <CardContent>
                 {versions === null ? null : versions.length === 0 ? (
                   <EmptyState icon={<History size={20} />} title={t('versions.empty')} />
                 ) : (

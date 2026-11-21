@@ -125,6 +125,40 @@ describe('FormsListPage', () => {
   });
 });
 
+describe('FormsListPage — the list page pattern (issues #1440 DS-06, #1439 DS-05)', () => {
+  it('filters in a toolbar row named as a search landmark, not in a card header', async () => {
+    renderForms(<FormsListPage />, { path: '/forms', pattern: '/forms' });
+    await screen.findByRole('link', { name: 'Contact' });
+    const toolbar = screen.getByRole('search', { name: en('list.toolbar') });
+    expect(within(toolbar).getByLabelText(en('list.search'))).toBeTruthy();
+    expect(within(toolbar).getByLabelText(en('list.status'))).toBeTruthy();
+    // A card around the filters reads as a second region competing with the results (Common Region).
+    expect(toolbar.closest('[data-slot="card"]')).toBeNull();
+    expect(screen.getByRole('status').textContent).toBe(en('list.count', { count: 2 }));
+  });
+
+  it('offers Clear all filters in the toolbar while a filter narrows the list, and focuses the search after it', async () => {
+    renderForms(<FormsListPage />, { path: '/forms', pattern: '/forms' });
+    await screen.findByRole('link', { name: 'Contact' });
+    const toolbar = screen.getByRole('search', { name: en('list.toolbar') });
+    expect(within(toolbar).queryByRole('button', { name: 'Clear all filters' })).toBeNull();
+    await userEvent.selectOptions(within(toolbar).getByLabelText(en('list.status')), 'published');
+    await userEvent.click(within(toolbar).getByRole('button', { name: 'Clear all filters' }));
+    expect((within(toolbar).getByLabelText(en('list.status')) as HTMLSelectElement).value).toBe('');
+    expect(document.activeElement).toBe(within(toolbar).getByLabelText(en('list.search')));
+  });
+
+  it('pages through the server with the pager under the results', async () => {
+    getSpy.mockImplementation((path: string) =>
+      path.startsWith('/api/v1/admin/forms') ? Promise.resolve({ data: { items: LIST, total: 60 } }) : Promise.reject(new Error(path)),
+    );
+    renderForms(<FormsListPage />, { path: '/forms', pattern: '/forms' });
+    await screen.findByRole('link', { name: 'Contact' });
+    await userEvent.click(screen.getByRole('button', { name: /next/i }));
+    await waitFor(() => expect(getSpy).toHaveBeenCalledWith(expect.stringMatching(/^\/api\/v1\/admin\/forms\?.*page=2/)));
+  });
+});
+
 describe('FormsListPage — empty states (issue #1448, UX audit DS-15)', () => {
   const answer = (items: unknown[]): void => {
     getSpy.mockImplementation((path: string) =>
