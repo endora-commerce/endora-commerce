@@ -6,7 +6,10 @@ import {
   AlertDescription,
   Badge,
   Button,
+  Card,
+  CardContent,
   Checkbox,
+  EditorSection,
   Select,
   Table,
   TableBody,
@@ -15,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
+import { StickyFormActions, useUnsavedChangesGuard } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { OrderStatusOption } from '../../api.js';
 import { errorMessage, orderStatusLabel, workflowStatusLabel } from '../../lib/labels.js';
@@ -93,7 +97,9 @@ function draftFromKey(key: string): MappingDraft {
  *
  * The set is edited as one draft and saved as a whole — the endpoint replaces
  * the set, both directions together — so a half-edited table never reaches the
- * Orders.
+ * Orders. It is the *Order sync* tab's one draft (issue #1559): one card, one
+ * Save in the kit's `StickyFormActions`, and a tab switch or a link away with
+ * unsaved choices asks first.
  */
 export function OrderStatusMappings(props: OrderStatusMappingsProps): ReactNode {
   const { workflow, orderStatuses, language, onSave } = props;
@@ -106,7 +112,7 @@ export function OrderStatusMappings(props: OrderStatusMappingsProps): ReactNode 
   const [draft, setDraft] = useState<MappingDraft>(saved);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
 
   // The stored mappings changed (a save came back, or a status carrying one was
   // deleted): start again from what is stored.
@@ -115,7 +121,8 @@ export function OrderStatusMappings(props: OrderStatusMappingsProps): ReactNode 
   }, [saved]);
 
   const statuses = useMemo(
-    () => [...workflow.statuses].sort((a, b) => a.weight - b.weight || a.code.localeCompare(b.code)),
+    () =>
+      [...workflow.statuses].sort((a, b) => a.weight - b.weight || a.code.localeCompare(b.code)),
     [workflow.statuses],
   );
 
@@ -157,17 +164,9 @@ export function OrderStatusMappings(props: OrderStatusMappingsProps): ReactNode 
     return [...forward, ...reverse];
   };
 
-  if (orderStatuses === null) {
-    return (
-      <Alert variant="warning">
-        <AlertDescription>{t('workflow.mapping.ordersUnavailable')}</AlertDescription>
-      </Alert>
-    );
-  }
-
   const dirty = savedDraftKey({ ...workflow, orderStatusMappings: toMappings(draft) }) !== savedKey;
 
-  const save = async (): Promise<void> => {
+  const save = async (): Promise<boolean> => {
     const mappings: OrderStatusMapping[] = toMappings(draft).map((mapping) =>
       mapping.direction === FORWARD
         ? {
@@ -184,19 +183,35 @@ export function OrderStatusMappings(props: OrderStatusMappingsProps): ReactNode 
     );
     setBusy(true);
     setError(null);
-    setNotice('');
+    setNotice(null);
     try {
       await onSave(mappings);
       setNotice(t('workflow.mapping.saved'));
+      return true;
     } catch (failure) {
       setError(errorMessage(failure, t('workflow.error.save')));
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
+  const guard = useUnsavedChangesGuard({
+    dirty: orderStatuses !== null && dirty,
+    onSave: save,
+    onDiscard: (): void => setDraft(saved),
+  });
+
+  if (orderStatuses === null) {
+    return (
+      <Alert variant="warning">
+        <AlertDescription>{t('workflow.mapping.ordersUnavailable')}</AlertDescription>
+      </Alert>
+    );
+  }
+
   const setReverseTarget = (orderStatusCode: string, opportunityStatusCode: string): void => {
-    setNotice('');
+    setNotice(null);
     setDraft((previous) => {
       const reverse = { ...previous.reverse };
       if (opportunityStatusCode === '') {
@@ -216,7 +231,7 @@ export function OrderStatusMappings(props: OrderStatusMappingsProps): ReactNode 
   };
 
   const setRequireAll = (orderStatusCode: string, requireAllOrders: boolean): void => {
-    setNotice('');
+    setNotice(null);
     setDraft((previous) => {
       const current = previous.reverse[orderStatusCode];
       if (!current) return previous;
@@ -228,139 +243,155 @@ export function OrderStatusMappings(props: OrderStatusMappingsProps): ReactNode 
   };
 
   return (
-    <div className="space-y-4">
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      <Table aria-label={t('workflow.mapping.title')}>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('workflow.mapping.col.opportunityStatus')}</TableHead>
-            <TableHead>{t('workflow.mapping.col.orderStatus')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {statuses.map((status) => {
-            const name = workflowStatusLabel(status, language);
-            const value = draft.forward[status.code] ?? '';
-            // A mapping whose Order status has since been deleted keeps its row
-            // readable: the stale code stays selectable and says what it is.
-            const stale = value !== '' && !orderStatuses.some((option) => option.code === value);
-            return (
-              <TableRow key={status.code}>
-                <TableCell>
-                  <Badge className="font-medium" style={statusBadgeStyle(status.color)}>
-                    {name}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Select
-                    className="max-w-sm"
-                    value={value}
-                    disabled={busy}
-                    aria-label={t('workflow.mapping.orderStatusFor', { name })}
-                    onChange={(event): void => {
-                      setNotice('');
-                      setDraft((previous) => ({
-                        ...previous,
-                        forward: { ...previous.forward, [status.code]: event.target.value },
-                      }));
-                    }}
-                  >
-                    <option value="">{t('workflow.mapping.none')}</option>
-                    {stale ? (
-                      <option value={value}>{t('workflow.mapping.unknown', { code: value })}</option>
-                    ) : null}
-                    {orderStatuses.map((option) => (
-                      <option key={option.code} value={option.code}>
-                        {orderStatusLabel(option.code, orderStatuses, language)}
-                      </option>
-                    ))}
-                  </Select>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-
-      <div className="space-y-1 pt-4">
-        <h3 className="text-sm font-semibold tracking-tight">{t('workflow.reverse.title')}</h3>
-        <p className="text-sm text-muted-foreground">{t('workflow.reverse.description')}</p>
-      </div>
-      <Table aria-label={t('workflow.reverse.title')}>
-        <TableHeader>
-          <TableRow>
-            <TableHead>{t('workflow.mapping.col.orderStatus')}</TableHead>
-            <TableHead>{t('workflow.mapping.col.opportunityStatus')}</TableHead>
-            <TableHead>{t('workflow.reverse.col.requireAll')}</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {reverseRows.map((row) => {
-            const name = row.known
-              ? orderStatusLabel(row.code, orderStatuses, language)
-              : t('workflow.mapping.unknown', { code: row.code });
-            const choice = draft.reverse[row.code];
-            const checkboxId = `crm-reverse-all-${row.code}`;
-            return (
-              <TableRow key={row.code}>
-                <TableCell>
-                  <span className="font-medium">{name}</span>
-                  {row.known ? null : (
-                    <span className="mt-1 block text-xs text-destructive">
-                      {t('workflow.reverse.unknownStatus')}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Select
-                    className="max-w-sm"
-                    value={choice?.opportunityStatusCode ?? ''}
-                    disabled={busy}
-                    aria-label={t('workflow.reverse.opportunityStatusFor', { name })}
-                    onChange={(event): void => setReverseTarget(row.code, event.target.value)}
-                  >
-                    <option value="">{t('workflow.reverse.none')}</option>
-                    {statuses.map((status) => (
-                      <option key={status.code} value={status.code}>
-                        {workflowStatusLabel(status, language)}
-                      </option>
-                    ))}
-                  </Select>
-                </TableCell>
-                <TableCell>
-                  <label
-                    htmlFor={checkboxId}
-                    className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9"
-                  >
-                    <Checkbox
-                      id={checkboxId}
-                      checked={choice?.requireAllOrders ?? false}
-                      disabled={busy || choice === undefined}
-                      aria-label={t('workflow.reverse.requireAllFor', { name })}
-                      onChange={(event): void => setRequireAll(row.code, event.target.checked)}
-                    />
-                    <span aria-hidden="true">{t('workflow.reverse.requireAll')}</span>
-                  </label>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        {/* Mounted before it has text, so the announcement is reliable. */}
-        <p role="status" className="text-sm text-muted-foreground">
-          {notice}
-        </p>
-        <Button className="min-h-11 sm:min-h-9" disabled={!dirty || busy} aria-busy={busy} onClick={(): void => void save()}>
-          {t('workflow.mapping.save')}
-        </Button>
-      </div>
-    </div>
+    <>
+      <Card>
+        <CardContent className="space-y-(--section-gap)">
+          <EditorSection
+            title={t('workflow.mapping.title')}
+            description={t('workflow.mapping.description')}
+          >
+            <Table aria-label={t('workflow.mapping.title')}>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('workflow.mapping.col.opportunityStatus')}</TableHead>
+                  <TableHead>{t('workflow.mapping.col.orderStatus')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {statuses.map((status) => {
+                  const name = workflowStatusLabel(status, language);
+                  const value = draft.forward[status.code] ?? '';
+                  // A mapping whose Order status has since been deleted keeps its row
+                  // readable: the stale code stays selectable and says what it is.
+                  const stale =
+                    value !== '' && !orderStatuses.some((option) => option.code === value);
+                  return (
+                    <TableRow key={status.code}>
+                      <TableCell>
+                        <Badge className="font-medium" style={statusBadgeStyle(status.color)}>
+                          {name}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          className="max-w-sm"
+                          value={value}
+                          disabled={busy}
+                          aria-label={t('workflow.mapping.orderStatusFor', { name })}
+                          onChange={(event): void => {
+                            setNotice(null);
+                            setDraft((previous) => ({
+                              ...previous,
+                              forward: { ...previous.forward, [status.code]: event.target.value },
+                            }));
+                          }}
+                        >
+                          <option value="">{t('workflow.mapping.none')}</option>
+                          {stale ? (
+                            <option value={value}>
+                              {t('workflow.mapping.unknown', { code: value })}
+                            </option>
+                          ) : null}
+                          {orderStatuses.map((option) => (
+                            <option key={option.code} value={option.code}>
+                              {orderStatusLabel(option.code, orderStatuses, language)}
+                            </option>
+                          ))}
+                        </Select>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </EditorSection>
+          <EditorSection
+            title={t('workflow.reverse.title')}
+            description={t('workflow.reverse.description')}
+          >
+            <Table aria-label={t('workflow.reverse.title')}>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t('workflow.mapping.col.orderStatus')}</TableHead>
+                  <TableHead>{t('workflow.mapping.col.opportunityStatus')}</TableHead>
+                  <TableHead>{t('workflow.reverse.col.requireAll')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {reverseRows.map((row) => {
+                  const name = row.known
+                    ? orderStatusLabel(row.code, orderStatuses, language)
+                    : t('workflow.mapping.unknown', { code: row.code });
+                  const choice = draft.reverse[row.code];
+                  const checkboxId = `crm-reverse-all-${row.code}`;
+                  return (
+                    <TableRow key={row.code}>
+                      <TableCell>
+                        <span className="font-medium">{name}</span>
+                        {row.known ? null : (
+                          <span className="mt-1 block text-xs text-destructive">
+                            {t('workflow.reverse.unknownStatus')}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          className="max-w-sm"
+                          value={choice?.opportunityStatusCode ?? ''}
+                          disabled={busy}
+                          aria-label={t('workflow.reverse.opportunityStatusFor', { name })}
+                          onChange={(event): void => setReverseTarget(row.code, event.target.value)}
+                        >
+                          <option value="">{t('workflow.reverse.none')}</option>
+                          {statuses.map((status) => (
+                            <option key={status.code} value={status.code}>
+                              {workflowStatusLabel(status, language)}
+                            </option>
+                          ))}
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <label
+                          htmlFor={checkboxId}
+                          className="flex min-h-11 items-center gap-2 text-sm sm:min-h-9"
+                        >
+                          <Checkbox
+                            id={checkboxId}
+                            checked={choice?.requireAllOrders ?? false}
+                            disabled={busy || choice === undefined}
+                            aria-label={t('workflow.reverse.requireAllFor', { name })}
+                            onChange={(event): void =>
+                              setRequireAll(row.code, event.target.checked)
+                            }
+                          />
+                          <span aria-hidden="true">{t('workflow.reverse.requireAll')}</span>
+                        </label>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </EditorSection>
+        </CardContent>
+      </Card>
+      <StickyFormActions
+        desktop="sticky"
+        dirty={dirty}
+        error={error}
+        status={notice}
+        primary={
+          <Button
+            className="min-h-11 sm:min-h-9"
+            disabled={!dirty || busy}
+            aria-busy={busy}
+            onClick={(): void => void save()}
+          >
+            {t('workflow.mapping.save')}
+          </Button>
+        }
+      />
+      {guard.dialog}
+    </>
   );
 }
