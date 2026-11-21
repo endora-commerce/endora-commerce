@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { setMobileViewport } from '../../setup';
 import { adminSession, withSession } from '../../helpers/render-with-session';
+import { installOffsetParentShim } from '../../helpers/layout-shim';
 
 /**
  * Issue #1387 — the admin cart detail printed the raw cart status and approval
@@ -42,6 +43,8 @@ vi.mock('@endora-commerce/admin-kit/components', async () => {
   };
   return { ...actual, ResponsiveTable };
 });
+
+installOffsetParentShim();
 
 const { contributions } = await import('@endora-commerce/mod-carts/admin');
 const CartsList = (await contributions.routes![0]!.component()).default as () => ReactNode;
@@ -85,7 +88,7 @@ function detailFixture(overrides: Record<string, unknown> = {}): Record<string, 
     submittedForApprovalAt: null,
     approvedAt: null,
     rejectedAt: null,
-    rejectedByActor: 'admin@example.com',
+    rejectedByActor: 'admin:00000000-0000-4000-8000-0000000000d1',
     rejectedReason: 'Over budget',
     ...overrides,
   };
@@ -154,11 +157,14 @@ describe.each(['en', 'pl'] as const)('Cart detail labels (%s) — issue #1387', 
       Promise.resolve({ data: url.endsWith('/audit') ? audit : cart }),
     );
     renderWithI18n(
-      <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
-        <Routes>
-          <Route path="/carts/:id" element={<CartDetail />} />
-        </Routes>
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
+          <Routes>
+            <Route path="/carts/:id" element={<CartDetail />} />
+          </Routes>
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       CATALOGUES[language],
       { language },
     );
@@ -205,15 +211,24 @@ describe.each(['en', 'pl'] as const)('Cart detail labels (%s) — issue #1387', 
     await screen.findByText('Sample');
     expect(screen.getByText(own['carts.owner.anonymous']!)).toBeInTheDocument();
     expect(screen.getByText(own['carts.column.discount']!)).toBeInTheDocument();
+    // Issue #1548 — who rejected it, by role; the stored `admin:<uuid>` stays off screen.
+    expect(screen.getByText(new RegExp(own['carts.audit.actor.platform_admin']!))).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('0000000000d1');
     expectNoRawKey();
   });
 
-  it('shows no raw catalogue key in the reject form or the empty audit feed', async () => {
+  it('shows no raw catalogue key in the reject dialog or the empty audit feed', async () => {
     renderDetail(detailFixture({ status: 'active', approvalStatus: 'not_required' }), []);
     await screen.findByText('Sample');
     expect(screen.getByText(own['carts.detail.auditEmpty']!)).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('button', { name: own['carts.reject.open']! }));
-    expect(screen.getByLabelText(own['carts.reject.reasonLabel']!)).toBeInTheDocument();
+    // Issue #1548 — an entry of the header's "More" menu, opening a dialog.
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: new RegExp(CATALOGUES[language].core['common.action.more']!) }));
+    await user.click(await screen.findByRole('menuitem', { name: own['carts.reject.open']! }));
+    const dialog = await screen.findByRole('dialog', { name: own['carts.reject.title']! });
+    expect(within(dialog).getByLabelText(new RegExp(own['carts.reject.reasonLabel']!))).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: own['carts.reject.confirm']! }));
+    expect(within(dialog).getByText(own['carts.reject.reasonRequired']!)).toBeInTheDocument();
     expectNoRawKey();
     expect(rawCodesOnScreen()).toEqual([]);
   });
@@ -221,11 +236,14 @@ describe.each(['en', 'pl'] as const)('Cart detail labels (%s) — issue #1387', 
   it('shows the catalogue message when the cart does not load', async () => {
     getSpy.mockRejectedValue(new Error('boom'));
     renderWithI18n(
-      <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
-        <Routes>
-          <Route path="/carts/:id" element={<CartDetail />} />
-        </Routes>
-      </MemoryRouter>,
+      withSession(
+        <MemoryRouter initialEntries={[`/carts/${CART_ID}`]}>
+          <Routes>
+            <Route path="/carts/:id" element={<CartDetail />} />
+          </Routes>
+        </MemoryRouter>,
+        { session: adminSession({ permissions: ['*'] }) },
+      ),
       CATALOGUES[language],
       { language },
     );
