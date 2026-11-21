@@ -43,8 +43,8 @@ export function BrandFontFields(props: {
   };
 
   return (
-    <fieldset className="space-y-3 rounded-md border p-3">
-      <legend className="px-1 text-sm font-semibold">{props.legend}</legend>
+    <fieldset className="space-y-3">
+      <legend className="text-sm font-semibold">{props.legend}</legend>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-kind`}>{t('brand.fonts.kind')}</Label>
@@ -127,11 +127,11 @@ export function BrandFontFields(props: {
       {value.kind === 'asset' ? (
         <div className="space-y-2">
           <p className="text-sm font-medium">{t('brand.fonts.faces')}</p>
-          <ul className="space-y-3">
+          <ul className="divide-y divide-border">
             {value.faces.map((face, index) => {
               const faceId = `${idPrefix}-face-${index}`;
               return (
-                <li key={index} className="grid items-end gap-2 rounded-md border p-2 sm:grid-cols-[8rem_8rem_1fr_auto]">
+                <li key={index} className="grid items-end gap-2 py-3 first:pt-0 last:pb-0 sm:grid-cols-[8rem_8rem_1fr_auto]">
                   <div className="space-y-1.5">
                     <Label htmlFor={`${faceId}-weight`}>{t('brand.fonts.weight')}</Label>
                     <Select
