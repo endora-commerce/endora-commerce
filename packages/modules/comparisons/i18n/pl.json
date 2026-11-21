@@ -64,5 +64,8 @@
   "blocks.comparisonShareLink.description": "Adres strony udostępniania porównania, opcjonalnie jako kod QR.",
   "list.pdfTemplate": "Szablon PDF",
   "actions.openComparisons.keywords": "porównanie, porównania",
-  "settingGroups.compare.name": "Porównania"
+  "settingGroups.compare.name": "Porównania",
+  "settingLabels.comparisons.enabled.name": "Porównywanie produktów włączone",
+  "settingLabels.compare.max_products.name": "Maksymalna liczba produktów w porównaniu",
+  "settingLabels.compare.max_products.description": "Najwięcej produktów, które klient może umieścić w jednym porównaniu (1–16). Domyślnie 4."
 }

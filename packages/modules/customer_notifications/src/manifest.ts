@@ -38,7 +38,7 @@ export const manifest = defineModuleManifest({
         code: 'customer_notifications.enabled',
         name: 'Customer notifications enabled',
         description:
-          "Switches the notification centre in the buyer's storefront account on or off. While off nothing is recorded, the storefront shows neither the notifications page nor the unread count, and its API is gone. Nothing is deleted — entries already recorded are kept and reappear when you switch it back on.",
+          'Switches the notification centre in the buyer\'s account on or off. Nothing is deleted while it is off.',
         groupCode: 'customer_notifications',
         valueType: 'boolean',
         defaultValue: true,

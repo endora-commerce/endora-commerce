@@ -150,11 +150,11 @@
   "organizationRoles.action.view": "View",
   "organizationRoles.action.close": "Close",
   "settingLabels.organizations.registration.registry_lookup_enabled.name": "Registration — company registry lookup",
-  "settingLabels.organizations.registration.registry_lookup_enabled.description": "Lets a business registering on the storefront fetch its company data (legal name, address, VAT status) from the public registry by tax ID: GUS REGON and the Ministry of Finance VAT White List for Polish NIPs, VIES for other EU VAT numbers. The data only pre-fills the form; the customer can change it and registration never depends on it. The registry answer is kept with the new organization for moderation. When off, the storefront shows the manual form and the lookup endpoint is absent.",
+  "settingLabels.organizations.registration.registry_lookup_enabled.description": "Lets a business registering on the storefront pre-fill its company data from public registries by tax ID.",
   "settingLabels.organizations.registration.gus_credentials.name": "Registration — GUS REGON credentials",
-  "settingLabels.organizations.registration.gus_credentials.description": "The GUS REGON (BIR1.1) credential configuration (Credentials screen) whose user key the company lookup uses for Polish NIPs. Optional: without it, or when it cannot be used, Polish lookups use the Ministry of Finance VAT White List alone, whose address is less structured.",
+  "settingLabels.organizations.registration.gus_credentials.description": "Optional GUS REGON key (Credentials screen) for Polish NIPs. Without it, only the VAT White List is asked.",
   "settingLabels.organizations.registration.registry_lookup_pl_sources.name": "Registration — registries for Polish NIPs",
-  "settingLabels.organizations.registration.registry_lookup_pl_sources.description": "Which public registries the company lookup asks for a Polish NIP. gus_mf (default): GUS REGON for the name and the structured address, together with the Ministry of Finance VAT White List for the VAT status; the White List also supplies the data when GUS is not configured or does not answer. gus: GUS REGON only — the White List is never asked, which keeps its daily limit for \"Validate now\" on the organization screen; the VAT status is not checked. Without a working GUS credential, gus means there is no lookup for Polish NIPs at all. mf: the White List only — no GUS key needed, but the address arrives as one line and is split as well as possible; GUS is never asked. EU VAT numbers from other countries always use VIES.",
+  "settingLabels.organizations.registration.registry_lookup_pl_sources.description": "Which public registries the lookup asks for a Polish NIP. Other EU VAT numbers always use VIES.",
   "settingLabels.organizations.registration.registry_lookup_pl_sources.options.gus_mf": "GUS REGON and the VAT White List",
   "settingLabels.organizations.registration.registry_lookup_pl_sources.options.gus": "GUS REGON only",
   "settingLabels.organizations.registration.registry_lookup_pl_sources.options.mf": "VAT White List only",
@@ -365,5 +365,11 @@
   "members.error.lastNameRequired": "Enter the last name.",
   "members.error.passwordShort": "Use at least 12 characters.",
   "list.toolbar.label": "Filter organizations",
-  "list.emptyTitle": "No organizations yet"
+  "list.emptyTitle": "No organizations yet",
+  "settingLabels.organizations.moderation.mode.name": "Moderation mode for new Organizations",
+  "settingLabels.organizations.moderation.mode.description": "Whether new organizations wait for manual moderation or become active at once.",
+  "settingLabels.organizations.notifications.new_registration_recipients.name": "New Organization registration — email recipients",
+  "settingLabels.organizations.notifications.new_registration_recipients.description": "Up to 50 addresses e-mailed about every new organization. Empty: in-app notification only.",
+  "settingLabels.organizations.hierarchy.credit_inheritance_mode.name": "Credit inheritance mode (organization hierarchy)",
+  "settingLabels.organizations.hierarchy.credit_inheritance_mode.description": "How sub-organizations without a limit use the parent's credit: one shared pool or a copy each."
 }

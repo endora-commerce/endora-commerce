@@ -64,5 +64,8 @@
   "blocks.comparisonShareLink.description": "The comparison's share page address, optionally as a QR code.",
   "list.pdfTemplate": "PDF template",
   "actions.openComparisons.keywords": "comparison, comparisons",
-  "settingGroups.compare.name": "Compare"
+  "settingGroups.compare.name": "Compare",
+  "settingLabels.comparisons.enabled.name": "Product comparison enabled",
+  "settingLabels.compare.max_products.name": "Maximum products per comparison",
+  "settingLabels.compare.max_products.description": "Most products a customer can place in one comparison (1–16). Default 4."
 }

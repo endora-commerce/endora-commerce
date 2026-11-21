@@ -7,7 +7,7 @@
  * copy already lives, so the screen looks there first, by convention:
  *
  *   settingLabels.<setting code>.name
- *   settingLabels.<setting code>.description
+ *   settingLabels.<setting code>.description   (never from another language, #1522)
  *   settingLabels.<setting code>.options.<option value>
  *   settingGroups.<group code>.name
  *
@@ -111,17 +111,34 @@ export function resolveSettingName(setting: LabelledSetting, source: SettingLabe
   return fromOwnerBundle(setting.ownerModule, settingNameKey(setting.code), source) ?? setting.name;
 }
 
-/** `null` when the owner's bundles carry no description and the manifest declared none. */
+/**
+ * The description in the administrator's language, or `null`.
+ *
+ * Issue #1522 (UX audit SHELL-23) — unlike the name, a description never falls
+ * back to another language. A name is needed to find and operate the row, so a
+ * missing Polish name still shows the English one; a description is a hint,
+ * and an English paragraph under a Polish label is noise. So for a language
+ * other than English only the owner's bundle in that language counts. In
+ * English the owner's bundle comes first, then the manifest's declared
+ * sentence, which is English by construction. `check:bundle-pairing` is what
+ * reports a Polish key the owner forgot.
+ */
 export function resolveSettingDescription(
   setting: LabelledSetting,
   source: SettingLabelSource,
 ): string | null {
-  return (
-    fromOwnerBundle(setting.ownerModule, settingDescriptionKey(setting.code), source) ??
-    setting.description ??
-    null
-  );
+  const result = resolve({
+    scope: setting.ownerModule,
+    key: settingDescriptionKey(setting.code),
+    language: source.language,
+    bundle: source.bundle,
+  });
+  if (result.outcome !== 'placeholder') return result.value;
+  return source.language === DESCRIPTION_SOURCE_LANGUAGE ? (setting.description ?? null) : null;
 }
+
+/** The language a manifest declares its settings' strings in. */
+const DESCRIPTION_SOURCE_LANGUAGE: SupportedAdminLanguage = 'en';
 
 /**
  * Issue #1479 (UX audit SHELL-02) — an enum setting's option in the

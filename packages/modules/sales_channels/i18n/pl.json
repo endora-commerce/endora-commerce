@@ -113,5 +113,7 @@
   "edit.error.delete": "Nie udało się usunąć kanału.",
   "membership.error.load": "Nie udało się wczytać przynależności do kanałów.",
   "membership.error.add": "Nie udało się dodać do kanału.",
-  "membership.error.remove": "Nie udało się usunąć z kanału."
+  "membership.error.remove": "Nie udało się usunąć z kanału.",
+  "settingLabels.sales_channels.storefront_url.name": "Adres sklepu",
+  "settingLabels.sales_channels.storefront_url.description": "Publiczny adres sklepu tego kanału, używany w mapie witryny i linkach. Pusty: STOREFRONT_BASE_URL."
 }

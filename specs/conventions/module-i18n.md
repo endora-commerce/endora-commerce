@@ -74,7 +74,11 @@ key left behind with no reader is copy a translator keeps paying for. The same b
 the check after the first text pass"*). Measured in characters of the **English** bundle:
 `*.page.description` and `*.subtitle` ≤ 80, `*.hint` ≤ 80; text over 80 moves to `help` (the
 `HelpTip` ⓘ popover), which is capped at 280 — anything longer goes to the module's docs, linked.
-`settingLabels.*.description` ≤ 120, the full explanation linked from the docs. Only English
+`settingLabels.*.description` ≤ 120, the full explanation linked from the docs. A setting's description
+**never falls back to another language** (issue #1522): the Settings screen shows the
+administrator's language or nothing, and the manifest's English only to an English reader, so a
+module that declares settings ships `settingLabels.<code>.name` and `.description` in both
+bundles. A name still falls back, because the row cannot be found without one. Only English
 is measured because it is the source language: the Polish is rewritten from it in the same
 change, and runs longer than its source by a margin no author can remove. `pnpm --filter backend
 run check:text-budget` holds it as a two-way ratchet over the copy that stood when it landed

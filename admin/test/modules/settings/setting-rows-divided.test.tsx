@@ -11,8 +11,8 @@ import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18
  * its settings are rows divided by a rule inside it. Each row used to draw its
  * own `rounded-md border` box (a dashed one for an activation pointer), so a
  * group of ten settings read as ten cards in a card (Common Region). A changed
- * row keeps its tint and its *Unsaved* badge, so the state is never carried by
- * a border colour alone.
+ * row is marked by a bar at its edge plus a visually hidden *Unsaved* (issue
+ * #1518), so the state is never carried by a border colour alone.
  */
 
 const { adminSession, modulePresence, withSession } = await import('../../helpers/render-with-session');
@@ -91,7 +91,7 @@ describe('settings rows — divided rows inside the group card (DS-03)', () => {
     expect(framed(renderRow('', ''))).toBe(false);
   });
 
-  it('marks a changed row with its badge, not with a border colour', () => {
+  it('marks a changed row with its edge bar and hidden word, not with a border colour', () => {
     const row = renderRow('changed', '');
     expect(framed(row)).toBe(false);
     expect(row.textContent).toContain('editor.dirty');

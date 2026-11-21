@@ -8,5 +8,6 @@
   "errors.PAYMENT_ALREADY_PAID.mark_failed": "Payment {paymentId} is already paid, so it cannot be marked as failed.",
   "errors.PAYMENT_REFUNDED": "This payment has been refunded, so it cannot be retried.",
   "errors.PAYMENT_SETTLED_OUT_OF_BAND": "This order is settled outside the payment gateway, so there is nothing to retry.",
-  "settingGroups.payments.name": "Payments"
+  "settingGroups.payments.name": "Payments",
+  "settingLabels.payments.enabled.name": "Payments enabled"
 }

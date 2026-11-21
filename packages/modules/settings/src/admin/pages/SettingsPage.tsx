@@ -456,28 +456,13 @@ export function SettingsPage(): ReactNode {
         </Alert>
       )}
 
-      <Card className="mb-4">
-        <CardContent className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:gap-4">
-          <Label htmlFor="settings-channel-context" className="shrink-0 text-sm font-medium">
-            {t('context.label')}:
-          </Label>
-          <Select
-            id="settings-channel-context"
-            className="sm:max-w-sm"
-            value={channelContext ?? ''}
-            onChange={(e) => switchChannelContext(e.target.value === '' ? null : e.target.value)}
-          >
-            <option value="">{t('context.allChannels')}</option>
-            {channelOptions.map((c) => (
-              <option key={c.code} value={c.code}>
-                {c.label}
-              </option>
-            ))}
-          </Select>
-        </CardContent>
-      </Card>
-
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      {/* Issue #1518 (SHELL-09) — one toolbar: the search, the channel the
+          screen edits for, and expand/collapse. The channel context used to be
+          a card of its own around one select. */}
+      <div
+        data-settings-toolbar=""
+        className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
+      >
         <div className="relative w-full sm:max-w-sm">
           <Search
             aria-hidden="true"
@@ -489,6 +474,7 @@ export function SettingsPage(): ReactNode {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t('search.placeholder')}
+            aria-label={t('search.placeholder')}
             aria-keyshortcuts="Control+Shift+K Meta+Shift+K"
             className="pl-8 pr-16"
           />
@@ -499,8 +485,26 @@ export function SettingsPage(): ReactNode {
             {t('search.shortcut')}
           </kbd>
         </div>
+        <div className="flex items-center gap-2">
+          <Label htmlFor="settings-channel-context" className="shrink-0 text-sm text-muted-foreground">
+            {t('context.label')}
+          </Label>
+          <Select
+            id="settings-channel-context"
+            className="sm:w-64"
+            value={channelContext ?? ''}
+            onChange={(e) => switchChannelContext(e.target.value === '' ? null : e.target.value)}
+          >
+            <option value="">{t('context.allChannels')}</option>
+            {channelOptions.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        </div>
         {filteredGroups.length > 0 && (
-          <Button variant="outline" size="sm" onClick={toggleAll}>
+          <Button variant="outline" size="sm" className="sm:ml-auto" onClick={toggleAll}>
             {allCollapsed ? t('groups.expandAll') : t('groups.collapseAll')}
           </Button>
         )}
@@ -520,6 +524,14 @@ export function SettingsPage(): ReactNode {
           filteredGroups.map((group) => {
             const isCollapsed = !!collapsed[group.code];
             const dirtyCount = dirtyCountFor(group);
+            // Issue #1518 (SHELL-09) — a switched-off module's settings are
+            // read-only, and the group says why once; each read-only row's
+            // control is described by this one sentence.
+            const readOnlyReasonId = group.settings.some(
+              (s) => s.editable === false && s.activationControl !== true,
+            )
+              ? `settings-group-${group.code}-read-only`
+              : undefined;
             return (
               <Card key={group.code} id={`settings-group-${group.code}`}>
                 <CardHeader>
@@ -536,11 +548,6 @@ export function SettingsPage(): ReactNode {
                     )}
                     <CardTitle className="flex items-center gap-2">
                       {labels.groupName(group)}
-                      {group.isSystemProtected && (
-                        <span className="rounded bg-muted px-2 py-0.5 text-xs">
-                          system
-                        </span>
-                      )}
                       <span className="text-xs font-normal text-muted-foreground">
                         ({group.settings.length})
                       </span>
@@ -554,6 +561,11 @@ export function SettingsPage(): ReactNode {
                 </CardHeader>
                 {!isCollapsed && (
                   <CardContent>
+                    {readOnlyReasonId !== undefined ? (
+                      <p id={readOnlyReasonId} className="mb-1 text-xs text-muted-foreground">
+                        {t('editor.readOnlyReason')}
+                      </p>
+                    ) : null}
                     {group.settings.length === 0 ? (
                       <p className="text-sm text-muted-foreground">
                         {t('groups.empty')}
@@ -565,7 +577,7 @@ export function SettingsPage(): ReactNode {
                           const draft = drafts[s.code] ?? baselineDraft(s, channelContext);
                           const conflict = conflicts[s.code];
                           return (
-                            <div key={s.code} className="space-y-2 py-1 first:pt-0 last:pb-0">
+                            <div key={s.code} className="space-y-2">
                               {conflict && (
                                 <ConflictBanner
                                   message={conflict}
@@ -593,6 +605,7 @@ export function SettingsPage(): ReactNode {
                                   isCopied={copiedCode === s.code}
                                   resetting={resettingCode === s.code}
                                   readOnly={s.editable === false}
+                                  {...(readOnlyReasonId !== undefined ? { readOnlyReasonId } : {})}
                                   onChange={(patch) => patchDraft(s.code, patch)}
                                   onCopyCode={() => void onCopyCode(s.code)}
                                   onReset={() => void resetSetting(s.code)}

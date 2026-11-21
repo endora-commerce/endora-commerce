@@ -73,19 +73,21 @@ describe('SettingRowEditor — secret value type (T013)', () => {
     expect((input as HTMLInputElement).autocomplete).toBe('new-password');
   });
 
-  it('unset secret: "not set" status + unset placeholder + using-default badge', () => {
+  // Issue #1518 (SHELL-09) — "not set" is the default and the placeholder
+  // already says it, so the row carries no status line and no source badge.
+  it('unset secret: the unset placeholder says it, with no badge or status line', () => {
     renderEditor(secretSetting());
-    expect(screen.getByText('editor.secretNotSet')).toBeTruthy();
     expect(
       (document.querySelector('input[type="password"]') as HTMLInputElement).placeholder,
     ).toBe('editor.placeholder.secretUnset');
-    expect(screen.getByText('context.usingDefault')).toBeTruthy();
+    expect(screen.queryByText('editor.secretNotSet')).toBeNull();
+    expect(screen.queryByText('context.usingDefault')).toBeNull();
   });
 
   it('set secret: shows only the is-set fact — no value anywhere in the DOM', () => {
     renderEditor(secretSetting({ globalValueIsSet: true }));
     expect(screen.getByText('editor.secretIsSet')).toBeTruthy();
-    expect(screen.getByText('context.globalOverrideSet')).toBeTruthy();
+    expect(screen.queryByText('context.globalOverrideSet')).toBeNull();
     expect(
       (document.querySelector('input[type="password"]') as HTMLInputElement).placeholder,
     ).toBe('editor.placeholder.secretSet');

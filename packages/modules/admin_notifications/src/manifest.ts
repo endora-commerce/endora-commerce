@@ -33,7 +33,7 @@ export const manifest = defineModuleManifest({
         code: 'admin_notifications.enabled',
         name: 'Admin notifications enabled',
         description:
-          'Switches the admin notification centre on or off. While off nothing is recorded and the notification screens and their API are gone. Nothing is deleted — entries already recorded are preserved and reappear when you switch it back on.',
+          'Switches the admin notification centre on or off. Nothing is deleted while it is off.',
         groupCode: 'admin_notifications',
         valueType: 'boolean',
         defaultValue: true,
