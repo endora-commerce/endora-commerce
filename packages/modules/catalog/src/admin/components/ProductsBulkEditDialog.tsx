@@ -9,9 +9,24 @@ import {
   type RefObject,
 } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, ArchiveRestore } from 'lucide-react';
-import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
+import { Archive, ArchiveRestore, Info } from 'lucide-react';
+import { ApiError, apiClient, cn } from '@endora-commerce/admin-kit/lib';
 import { CategoryTreePicker, ModalDialog } from '@endora-commerce/admin-kit/components';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Checkbox,
+  Input,
+  Label,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { lookupProductLabels, type ProductLabel } from '../lib/product-labels.js';
 import { unchangedResultCount } from '../lib/bulk-result-outcome.js';
@@ -44,7 +59,16 @@ import { unchangedResultCount } from '../lib/bulk-result-outcome.js';
  * names the products skipped as not in the channel (`scope_invalid`, never added to it)
  * or refused by the completeness check (`completeness_gate`), and those switched on with
  * values missing (`warn` mode: a succeeded row carrying `details.code = 'SCOPE_INCOMPLETE'`).
+ *
+ * **On the kit's controls** (issue #1492, UX audit slice S14). `Button`, `Checkbox`,
+ * `Select`, `Input`, `Alert` and `Table`, and Tailwind utilities, where the legacy
+ * `b2b-*` classes and inline styles were. Three controls changed shape, because the old
+ * one said its state by colour alone: *Add* / *Replace* is a radio group, a sales
+ * channel is a labelled checkbox, and the result tiles carry their tone in a border
+ * beside a label rather than in the number's colour. Visibility reads in words.
  */
+
+const VISIBILITY_OPTIONS: readonly BulkVisibility[] = ['public', 'logged_in_only', 'organization_restricted'];
 
 type BulkStatus = 'active' | 'inactive';
 type ScopedStatusValue = 'active' | 'inactive' | 'inherit';
@@ -461,36 +485,35 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
   const editing = !confirming && !result && !queued;
   const editFooter = (
     <>
-      <button type="button" className="b2b-btn" onClick={onClose} disabled={submitting}>
+      <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
         {t('productsList.bulkEdit.action.cancel')}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
-        className="b2b-btn b2b-btn--primary"
         onClick={(): void => {
           void submit();
         }}
         disabled={submitting || !anyTouched}
+        aria-busy={submitting || undefined}
       >
         {t('productsList.bulkEdit.action.apply')}
-      </button>
+      </Button>
     </>
   );
   const confirmFooter =
     archiveAction !== null ? (
       <>
         {/* Opened on the confirmation, there is no form to go back to. */}
-        <button
+        <Button
           type="button"
-          className="b2b-btn"
+          variant="outline"
           disabled={submitting}
           onClick={openedOnConfirm ? onClose : (): void => setConfirmingArchive(false)}
         >
           {openedOnConfirm ? t('productsList.bulkEdit.action.cancel') : t('productsList.bulkEdit.action.back')}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="b2b-btn b2b-btn--primary"
           disabled={submitting}
           aria-busy={submitting || undefined}
           onClick={(): void => {
@@ -498,7 +521,7 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
           }}
         >
           {t(`productsList.bulkEdit.${archiveAction}.confirm`, { count: productIds.length })}
-        </button>
+        </Button>
       </>
     ) : null;
 
@@ -519,28 +542,18 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
       {...(editing ? { footer: editFooter } : confirming && confirmFooter ? { footer: confirmFooter } : {})}
     >
       {selectionScope && editing ? (
-        <div className="b2b-muted" style={{ fontSize: 12, marginTop: -8, marginBottom: 12 }}>
+        <p className="-mt-2 mb-3 text-xs text-muted-foreground">
           {selectionScope === 'collection'
             ? t('productsList.selection.scopeCollection')
             : t('productsList.selection.scopePage')}
-        </div>
+        </p>
       ) : null}
 
       {/* While confirming, the error is said once, inside the step, as an alert. */}
       {error && !confirming ? (
-        <div
-          role="alert"
-          style={{
-            marginBottom: 12,
-            padding: '10px 12px',
-            background: 'var(--danger-soft)',
-            color: 'var(--danger-soft-fg)',
-            borderRadius: 6,
-            fontSize: 13,
-          }}
-        >
-          {error}
-        </div>
+        <Alert variant="destructive" className="mb-3">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
       {queued ? (
@@ -563,17 +576,17 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
         />
       ) : confirming && archiveAction !== null ? (
         <div>
-          <p id={archiveConfirmBodyId} style={{ fontSize: 14, lineHeight: 1.5 }}>
+          <p id={archiveConfirmBodyId} className="text-sm leading-normal">
             {t(`productsList.bulkEdit.${archiveAction}.confirmBody`)}
           </p>
           {error ? (
-            <p role="alert" style={{ marginTop: 8, fontSize: 13, color: 'var(--danger-soft-fg)' }}>
+            <p role="alert" className="mt-2 text-sm text-destructive">
               {error}
             </p>
           ) : null}
         </div>
       ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="flex flex-col gap-5">
             <FieldGroup
               label={t('productsList.bulkEdit.section.status')}
               touched={touchStatus}
@@ -581,8 +594,8 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
               disabledReason={touchScoped ? t('productsList.bulkEdit.scopedStatus.notWithScoped') : null}
               t={t}
             >
-              <select
-                className="b2b-field"
+              <Select
+                className="max-w-xs"
                 aria-label={t('productsList.bulkEdit.section.status')}
                 disabled={!touchStatus}
                 value={status}
@@ -590,7 +603,7 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
               >
                 <option value="active">{t('productsList.status.active')}</option>
                 <option value="inactive">{t('productsList.status.inactive')}</option>
-              </select>
+              </Select>
             </FieldGroup>
 
             <FieldGroup
@@ -635,16 +648,20 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
               onToggle={setTouchVisibility}
               t={t}
             >
-              <select
-                className="b2b-field"
+              <Select
+                className="max-w-xs"
+                aria-label={t('productsList.bulkEdit.section.visibility')}
                 disabled={!touchVisibility}
                 value={visibility}
                 onChange={(e): void => setVisibility(e.target.value as BulkVisibility)}
               >
-                <option value="public">public</option>
-                <option value="logged_in_only">logged_in_only</option>
-                <option value="organization_restricted">organization_restricted</option>
-              </select>
+                {/* The product editor's words for the same three values, not the stored codes. */}
+                {VISIBILITY_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {t(`productEditor.visibility.${value}`)}
+                  </option>
+                ))}
+              </Select>
             </FieldGroup>
 
             <FieldGroup
@@ -654,12 +671,14 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
               t={t}
             >
               <ModePicker
+                section={t('productsList.bulkEdit.section.salesChannels')}
                 mode={channelsMode}
                 onChange={setChannelsMode}
                 disabled={!touchChannels}
                 t={t}
               />
-              <MultiSelect
+              <ChannelChecklist
+                label={t('productsList.bulkEdit.section.salesChannels')}
                 options={channels.map((c) => ({ id: c.id, label: channelLabel(c) }))}
                 selected={channelIds}
                 onChange={setChannelIds}
@@ -674,6 +693,7 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
               t={t}
             >
               <ModePicker
+                section={t('productsList.bulkEdit.section.categories')}
                 mode={categoriesMode}
                 onChange={setCategoriesMode}
                 disabled={!touchCategories}
@@ -697,19 +717,15 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
                 role="radiogroup"
                 aria-label={t('productsList.bulkEdit.section.returnable')}
                 aria-describedby={returnableHintId}
-                style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}
+                className="flex flex-wrap gap-4"
               >
                 {([true, false] as const).map((value) => (
                   <label
                     key={String(value)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 13,
-                      minHeight: 32,
-                      cursor: touchReturnable ? 'pointer' : 'default',
-                    }}
+                    className={cn(
+                      'flex min-h-8 items-center gap-1.5 text-sm',
+                      touchReturnable ? 'cursor-pointer' : 'cursor-default',
+                    )}
                   >
                     <input
                       type="radio"
@@ -724,9 +740,9 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
                   </label>
                 ))}
               </div>
-              <div id={returnableHintId} className="b2b-help">
+              <p id={returnableHintId} className="text-xs text-muted-foreground">
                 {t('productsList.bulkEdit.returnable.hint')}
-              </div>
+              </p>
             </FieldGroup>
 
             <FieldGroup
@@ -735,8 +751,9 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
               onToggle={setTouchAttributeSet}
               t={t}
             >
-              <select
-                className="b2b-field"
+              <Select
+                className="max-w-xs"
+                aria-label={t('productsList.bulkEdit.section.attributeSet')}
                 disabled={!touchAttributeSet}
                 value={attributeSetId}
                 onChange={(e): void => setAttributeSetId(e.target.value)}
@@ -747,53 +764,43 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
                     {s.name['en-US'] ?? s.name['pl-PL'] ?? Object.values(s.name)[0] ?? s.code}
                   </option>
                 ))}
-              </select>
+              </Select>
             </FieldGroup>
 
             {attrs.length > 0 ? (
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              <fieldset className="m-0 min-w-0 border-0 p-0">
+                <legend className="mb-2 p-0 text-sm font-semibold">
                   {t('productsList.bulkEdit.section.attributes')}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                </legend>
+                <div className="flex flex-col gap-2.5">
                   {attrs.map((a) => {
                     const touched = touchedAttrs.has(a.key);
+                    const label = a.label['en-US'] ?? a.labelDefault;
                     return (
-                      <div
-                        key={a.id}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 10,
-                          padding: 10,
-                          background: 'var(--surface-muted)',
-                          borderRadius: 6,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          className="b2b-cbx"
-                          checked={touched}
-                          onChange={(): void => {
-                            setTouchedAttrs((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(a.key)) {
-                                next.delete(a.key);
-                              } else {
-                                next.add(a.key);
-                              }
-                              return next;
-                            });
-                          }}
-                        />
-                        <div style={{ minWidth: 140, fontSize: 13 }}>
-                          {a.label['en-US'] ?? a.labelDefault}
-                        </div>
-                        <input
+                      <div key={a.id} className="flex items-center gap-2.5 rounded-md bg-muted p-2.5">
+                        {/* The label wraps its checkbox, so the name is a target too (Fitts). */}
+                        <label className="flex min-h-8 min-w-36 cursor-pointer items-center gap-2.5 text-sm">
+                          <Checkbox
+                            checked={touched}
+                            onChange={(): void => {
+                              setTouchedAttrs((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(a.key)) {
+                                  next.delete(a.key);
+                                } else {
+                                  next.add(a.key);
+                                }
+                                return next;
+                              });
+                            }}
+                          />
+                          <span>{label}</span>
+                        </label>
+                        <Input
                           type="text"
-                          className="b2b-field"
+                          aria-label={label}
                           disabled={!touched}
-                          style={{ flex: 1 }}
+                          className="flex-1 bg-background"
                           value={(attributeValues[a.key] as string | undefined) ?? ''}
                           onChange={(e): void =>
                             setAttributeValues((prev) => ({ ...prev, [a.key]: e.target.value }))
@@ -804,36 +811,34 @@ export function ProductsBulkEditDialog(props: ProductsBulkEditDialogProps): Reac
                     );
                   })}
                 </div>
-              </div>
+              </fieldset>
             ) : null}
 
             {archiveAction !== null ? (
-              <section
-                aria-labelledby={`${formId}-archive-title`}
-                style={{ borderTop: '1px solid var(--border-color)', paddingTop: 14 }}
-              >
-                <div id={`${formId}-archive-title`} style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+              <section aria-labelledby={`${formId}-archive-title`} className="border-t pt-3.5">
+                <h3 id={`${formId}-archive-title`} className="mb-1 text-sm font-semibold">
                   {t(`productsList.bulkEdit.${archiveAction}.title`)}
-                </div>
-                <p id={archiveHintId} className="b2b-help" style={{ marginBottom: 8 }}>
+                </h3>
+                <p id={archiveHintId} className="mb-2 text-xs text-muted-foreground">
                   {anyTouched
                     ? t('productsList.bulkEdit.archiveAlone')
                     : t(`productsList.bulkEdit.${archiveAction}.hint`)}
                 </p>
-                <button
+                <Button
                   type="button"
-                  className="b2b-btn"
+                  variant="outline"
+                  size="sm"
                   aria-describedby={archiveHintId}
                   disabled={anyTouched || submitting}
                   onClick={(): void => setConfirmingArchive(true)}
                 >
                   {archiveAction === 'archive' ? (
-                    <Archive size={13} aria-hidden="true" />
+                    <Archive aria-hidden="true" />
                   ) : (
-                    <ArchiveRestore size={13} aria-hidden="true" />
-                  )}{' '}
+                    <ArchiveRestore aria-hidden="true" />
+                  )}
                   {t(`productsList.bulkEdit.${archiveAction}.action`, { count: productIds.length })}
-                </button>
+                </Button>
               </section>
             ) : null}
           </div>
@@ -859,19 +864,12 @@ function FieldGroup(props: FieldGroupProps): ReactNode {
   const blocked = Boolean(props.disabledReason) && !props.touched;
   const header = (
     <label
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        fontSize: 13,
-        fontWeight: 600,
-        marginBottom: 6,
-        cursor: blocked ? 'default' : 'pointer',
-      }}
+      className={cn(
+        'mb-1.5 flex min-h-8 items-center gap-2 text-sm font-semibold',
+        blocked ? 'cursor-default' : 'cursor-pointer',
+      )}
     >
-      <input
-        type="checkbox"
-        className="b2b-cbx"
+      <Checkbox
         checked={props.touched}
         disabled={blocked}
         {...(blocked ? { 'aria-describedby': reasonId } : {})}
@@ -879,16 +877,16 @@ function FieldGroup(props: FieldGroupProps): ReactNode {
       />
       {props.label}
       {!props.touched ? (
-        <span style={{ fontWeight: 400, color: 'var(--fg-muted)', fontSize: 12 }}>
+        <span className="text-xs font-normal text-muted-foreground">
           {props.t('productsList.bulkEdit.untouched')}
         </span>
       ) : null}
     </label>
   );
   const body = (
-    <div style={{ paddingLeft: 26, display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div className="flex flex-col gap-1.5 pl-6">
       {blocked ? (
-        <p id={reasonId} className="b2b-help" style={{ margin: 0 }}>
+        <p id={reasonId} className="m-0 text-xs text-muted-foreground">
           {props.disabledReason}
         </p>
       ) : null}
@@ -897,8 +895,8 @@ function FieldGroup(props: FieldGroupProps): ReactNode {
   );
   if (props.asGroup) {
     return (
-      <fieldset style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-        <legend style={{ padding: 0 }}>{header}</legend>
+      <fieldset className="m-0 min-w-0 border-0 p-0">
+        <legend className="p-0">{header}</legend>
         {body}
       </fieldset>
     );
@@ -947,17 +945,15 @@ function ScopedStatusFields(props: ScopedStatusFieldsProps): ReactNode {
   const gateHelpId = `${idPrefix}-scoped-gate-help`;
   const loadingLanguages = props.languages?.state === 'loading';
   const codes = props.languages?.state === 'ready' ? props.languages.codes : [];
-  const labelStyle = { fontSize: 12, fontWeight: 500 } as const;
   return (
-    <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label htmlFor={channelId} style={labelStyle}>
+    <div className="grid gap-2.5 sm:grid-cols-3">
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={channelId} className="text-xs">
           {t('productsList.bulkEdit.scopedStatus.channel')}
-        </label>
-        <select
+        </Label>
+        <Select
           id={channelId}
           ref={props.channelRef}
-          className="b2b-field"
           disabled={props.disabled}
           value={props.channelId}
           aria-invalid={props.channelMissing || undefined}
@@ -970,20 +966,19 @@ function ScopedStatusFields(props: ScopedStatusFieldsProps): ReactNode {
               {channelLabel(c)}
             </option>
           ))}
-        </select>
+        </Select>
         {props.channelMissing ? (
-          <p id={channelErrorId} role="alert" style={{ margin: 0, fontSize: 12, color: 'var(--danger-soft-fg)' }}>
+          <p id={channelErrorId} role="alert" className="m-0 text-xs text-destructive">
             {t('productsList.bulkEdit.scopedStatus.channelRequired')}
           </p>
         ) : null}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label htmlFor={languageId} style={labelStyle}>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={languageId} className="text-xs">
           {t('productsList.bulkEdit.scopedStatus.language')}
-        </label>
-        <select
+        </Label>
+        <Select
           id={languageId}
-          className="b2b-field"
           disabled={props.disabled || props.channelId === '' || loadingLanguages}
           aria-busy={loadingLanguages || undefined}
           aria-describedby={languageHelpId}
@@ -996,8 +991,8 @@ function ScopedStatusFields(props: ScopedStatusFieldsProps): ReactNode {
               {code}
             </option>
           ))}
-        </select>
-        <p id={languageHelpId} className="b2b-help" style={{ margin: 0 }}>
+        </Select>
+        <p id={languageHelpId} className="m-0 text-xs text-muted-foreground">
           {props.languages?.state === 'failed'
             ? t('productsList.bulkEdit.scopedStatus.languagesFailed')
             : loadingLanguages
@@ -1005,14 +1000,13 @@ function ScopedStatusFields(props: ScopedStatusFieldsProps): ReactNode {
               : t('productsList.bulkEdit.scopedStatus.languageHelp')}
         </p>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <label htmlFor={valueId} style={labelStyle}>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={valueId} className="text-xs">
           {t('productsList.bulkEdit.scopedStatus.value')}
-        </label>
-        <select
+        </Label>
+        <Select
           id={valueId}
           ref={props.valueRef}
-          className="b2b-field"
           disabled={props.disabled}
           aria-describedby={props.valueMissing ? `${valueErrorId} ${gateHelpId}` : gateHelpId}
           aria-invalid={props.valueMissing || undefined}
@@ -1025,14 +1019,14 @@ function ScopedStatusFields(props: ScopedStatusFieldsProps): ReactNode {
           <option value="active">{t('productsList.status.active')}</option>
           <option value="inactive">{t('productsList.status.inactive')}</option>
           <option value="inherit">{t('productsList.bulkEdit.scopedStatus.inherit')}</option>
-        </select>
+        </Select>
         {props.valueMissing ? (
-          <p id={valueErrorId} role="alert" style={{ margin: 0, fontSize: 12, color: 'var(--danger-soft-fg)' }}>
+          <p id={valueErrorId} role="alert" className="m-0 text-xs text-destructive">
             {t('productsList.bulkEdit.scopedStatus.valueRequired')}
           </p>
         ) : null}
       </div>
-      <p id={gateHelpId} className="b2b-help" style={{ margin: 0, gridColumn: '1 / -1' }}>
+      <p id={gateHelpId} className="col-span-full m-0 text-xs text-muted-foreground">
         {t('productsList.bulkEdit.scopedStatus.gateHelp')}
       </p>
     </div>
@@ -1040,65 +1034,77 @@ function ScopedStatusFields(props: ScopedStatusFieldsProps): ReactNode {
 }
 
 interface ModePickerProps {
+  /** The group's section label, which names the choice ("Sales channels: add or replace"). */
+  section: string;
   mode: BulkMode;
   onChange: (next: BulkMode) => void;
   disabled: boolean;
   t: ReturnType<typeof useTranslation>;
 }
 
+/**
+ * *Add* or *Replace* — one choice of two, so a radio group (Jakob): it was two buttons,
+ * the chosen one filled, which said the mode by colour alone (WCAG 1.4.1).
+ */
 function ModePicker(props: ModePickerProps): ReactNode {
+  const name = useId();
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
+    <div
+      role="radiogroup"
+      aria-label={props.t('productsList.bulkEdit.mode.label', { section: props.section })}
+      className="flex flex-wrap gap-4"
+    >
       {(['add', 'replace'] as const).map((m) => (
-        <button
+        <label
           key={m}
-          type="button"
-          className={`b2b-btn b2b-btn--sm${props.mode === m ? ' b2b-btn--primary' : ''}`}
-          disabled={props.disabled}
-          onClick={(): void => props.onChange(m)}
+          className={cn('flex min-h-8 items-center gap-1.5 text-sm', props.disabled ? 'cursor-default' : 'cursor-pointer')}
         >
+          <input
+            type="radio"
+            name={name}
+            checked={props.mode === m}
+            disabled={props.disabled}
+            onChange={(): void => props.onChange(m)}
+          />
           {props.t(`productsList.bulkEdit.mode.${m}`)}
-        </button>
+        </label>
       ))}
     </div>
   );
 }
 
-interface MultiSelectProps {
+interface ChannelChecklistProps {
+  /** Names the group of checkboxes. */
+  label: string;
   options: Array<{ id: string; label: string }>;
   selected: string[];
   onChange: (next: string[]) => void;
   disabled?: boolean;
 }
 
-function MultiSelect(props: MultiSelectProps): ReactNode {
+/**
+ * The sales channels as labelled checkboxes — the shape `CategoryTreePicker` beside it
+ * already has (Similarity). They were buttons whose chosen state was only a fill.
+ */
+function ChannelChecklist(props: ChannelChecklistProps): ReactNode {
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: 6,
-        opacity: props.disabled ? 0.5 : 1,
-        pointerEvents: props.disabled ? 'none' : 'auto',
-      }}
-    >
+    <div role="group" aria-label={props.label} className="flex flex-wrap gap-x-4 gap-y-1">
       {props.options.map((o) => {
-        const active = props.selected.includes(o.id);
+        const checked = props.selected.includes(o.id);
         return (
-          <button
+          <label
             key={o.id}
-            type="button"
-            className={`b2b-btn b2b-btn--sm${active ? ' b2b-btn--primary' : ''}`}
-            onClick={(): void => {
-              if (active) {
-                props.onChange(props.selected.filter((x) => x !== o.id));
-              } else {
-                props.onChange([...props.selected, o.id]);
-              }
-            }}
+            className={cn('flex min-h-8 items-center gap-2 text-sm', props.disabled ? 'cursor-default' : 'cursor-pointer')}
           >
+            <Checkbox
+              checked={checked}
+              disabled={props.disabled}
+              onChange={(): void => {
+                props.onChange(checked ? props.selected.filter((x) => x !== o.id) : [...props.selected, o.id]);
+              }}
+            />
             {o.label}
-          </button>
+          </label>
         );
       })}
     </div>
@@ -1116,47 +1122,35 @@ interface BulkEditQueuedAckProps {
 function BulkEditQueuedAck(props: BulkEditQueuedAckProps): ReactNode {
   const prefix = props.archiveAction ? `productsList.bulkEdit.${props.archiveAction}` : 'productsList.bulkEdit';
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div
-        style={{
-          padding: 14,
-          borderRadius: 8,
-          background: 'var(--info-soft)',
-          border: '1px solid var(--info)',
-          fontSize: 14,
-          lineHeight: 1.5,
-        }}
-      >
-        <h3 ref={props.headingRef} tabIndex={-1} style={{ fontWeight: 600 }}>
-          {props.t(`${prefix}.queued.title`)}
-        </h3>
-        <div style={{ marginTop: 4 }}>
-          {props.t(`${prefix}.queued.body`, { total: props.queued.total })}
+    <div className="flex flex-col gap-3.5">
+      <Alert>
+        <Info aria-hidden="true" />
+        <div>
+          <h3 ref={props.headingRef} tabIndex={-1} className="text-sm font-semibold">
+            {props.t(`${prefix}.queued.title`)}
+          </h3>
+          <AlertDescription className="mt-1">
+            {props.t(`${prefix}.queued.body`, { total: props.queued.total })}
+          </AlertDescription>
         </div>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      </Alert>
+      <div className="flex flex-wrap justify-between gap-2">
+        <span className="flex flex-wrap gap-2">
           {/* A queued run is persisted: its page holds the per-product record and Undo. */}
-          <Link
-            to={`/catalog/bulk-operations/${props.queued.bulkOperationId}`}
-            className="b2b-btn"
-            onClick={props.onClose}
-            style={{ textDecoration: 'none' }}
-          >
-            {props.t('productsList.bulkEdit.viewOperation')}
-          </Link>
-          <Link
-            to="/catalog/bulk-operations"
-            className="b2b-btn"
-            onClick={props.onClose}
-            style={{ textDecoration: 'none' }}
-          >
-            {props.t('productsList.bulkEdit.queued.viewAll')}
-          </Link>
+          <Button asChild variant="outline">
+            <Link to={`/catalog/bulk-operations/${props.queued.bulkOperationId}`} onClick={props.onClose}>
+              {props.t('productsList.bulkEdit.viewOperation')}
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/catalog/bulk-operations" onClick={props.onClose}>
+              {props.t('productsList.bulkEdit.queued.viewAll')}
+            </Link>
+          </Button>
         </span>
-        <button type="button" className="b2b-btn b2b-btn--primary" onClick={props.onClose}>
+        <Button type="button" onClick={props.onClose}>
           {props.t('productsList.bulkEdit.action.close')}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -1202,9 +1196,9 @@ function BulkEditSummary(props: BulkEditSummaryProps): ReactNode {
     return r.reason ? t(`productsList.bulkEdit.reason.${r.reason}`) : '';
   };
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="flex flex-col gap-3">
       <div>
-        <h3 ref={props.headingRef} tabIndex={-1} style={{ fontSize: 14, fontWeight: 600 }}>
+        <h3 ref={props.headingRef} tabIndex={-1} className="text-sm font-semibold">
           {props.archiveAction
             ? props.t(`productsList.bulkEdit.${props.archiveAction}.done`, {
                 count: summary.succeeded - unchanged,
@@ -1214,110 +1208,86 @@ function BulkEditSummary(props: BulkEditSummaryProps): ReactNode {
               : props.t('productsList.bulkEdit.summary.title')}
         </h3>
         {props.archiveAction && unchanged > 0 ? (
-          <p className="b2b-help">
+          <p className="text-xs text-muted-foreground">
             {props.t(`productsList.bulkEdit.${props.archiveAction}.unchanged`, { count: unchanged })}
           </p>
         ) : null}
         {savedIncomplete > 0 ? (
-          <p className="b2b-help">{t('productsList.bulkEdit.result.savedIncompleteCount', { count: savedIncomplete })}</p>
+          <p className="text-xs text-muted-foreground">
+            {t('productsList.bulkEdit.result.savedIncompleteCount', { count: savedIncomplete })}
+          </p>
         ) : null}
       </div>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <SummaryBadge
-          label={props.t('productsList.bulkEdit.summary.succeeded')}
-          count={summary.succeeded}
-          color="var(--success)"
-        />
-        <SummaryBadge
-          label={props.t('productsList.bulkEdit.summary.skipped')}
-          count={summary.skipped}
-          color="var(--warn)"
-        />
-        <SummaryBadge
-          label={props.t('productsList.bulkEdit.summary.failed')}
-          count={summary.failed}
-          color="var(--danger)"
-        />
-        <SummaryBadge
-          label={props.t('productsList.bulkEdit.summary.total')}
-          count={summary.total}
-          color="var(--neutral-soft-fg)"
-        />
-      </div>
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <SummaryTile label={props.t('productsList.bulkEdit.summary.succeeded')} count={summary.succeeded} tone="success" />
+        <SummaryTile label={props.t('productsList.bulkEdit.summary.skipped')} count={summary.skipped} tone="warning" />
+        <SummaryTile label={props.t('productsList.bulkEdit.summary.failed')} count={summary.failed} tone="destructive" />
+        <SummaryTile label={props.t('productsList.bulkEdit.summary.total')} count={summary.total} tone="neutral" />
+      </dl>
 
       {reported.length > 0 ? (
-        <div
-          style={{
-            maxHeight: 260,
-            overflow: 'auto',
-            border: '1px solid var(--border-color)',
-            borderRadius: 6,
-          }}
-        >
-          <table className="b2b-tbl" style={{ width: '100%' }} aria-label={t('productsList.bulkEdit.result.caption')}>
-            <thead>
-              <tr>
-                <th scope="col">{t('productsList.bulkEdit.result.product')}</th>
-                <th scope="col">{t('productsList.bulkEdit.result.status')}</th>
-                <th scope="col">{t('productsList.bulkEdit.result.reason')}</th>
-              </tr>
-            </thead>
-            <tbody>
+        // The rows scroll inside a bounded frame, so the dialog keeps its Close in view.
+        <div className="max-h-64 overflow-auto rounded-md border">
+          <Table aria-label={t('productsList.bulkEdit.result.caption')}>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{t('productsList.bulkEdit.result.product')}</TableHead>
+                <TableHead scope="col">{t('productsList.bulkEdit.result.status')}</TableHead>
+                <TableHead scope="col">{t('productsList.bulkEdit.result.reason')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {reported.map((r) => (
-                  <tr key={r.productId}>
-                    <td>
-                      {/* A scoped-status row opens where the product's scopes are edited. */}
-                      <Link
-                        to={`/catalog/products/${r.productId}${props.scope ? '?scopeMap=1' : ''}`}
-                        style={{ color: 'var(--primary-color)' }}
-                      >
-                        {props.labels[r.productId]?.name || `${r.productId.slice(0, 8)}…`}
-                      </Link>
-                      {props.labels[r.productId] ? (
-                        <div className="b2b-help font-mono" style={{ margin: 0 }}>
-                          {props.labels[r.productId]!.sku}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td>{t(`productsList.bulkEdit.summary.${r.status}`)}</td>
-                    <td>
-                      {reasonText(r)}
-                      {r.details?.attribute ? ` (${r.details.attribute})` : ''}
-                    </td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
+                <TableRow key={r.productId}>
+                  <TableCell>
+                    {/* A scoped-status row opens where the product's scopes are edited. */}
+                    <Link
+                      to={`/catalog/products/${r.productId}${props.scope ? '?scopeMap=1' : ''}`}
+                      className="text-primary hover:underline"
+                    >
+                      {props.labels[r.productId]?.name || `${r.productId.slice(0, 8)}…`}
+                    </Link>
+                    {props.labels[r.productId] ? (
+                      <div className="font-mono text-xs text-muted-foreground">{props.labels[r.productId]!.sku}</div>
+                    ) : null}
+                  </TableCell>
+                  <TableCell>{t(`productsList.bulkEdit.summary.${r.status}`)}</TableCell>
+                  <TableCell>
+                    {reasonText(r)}
+                    {r.details?.attribute ? ` (${r.details.attribute})` : ''}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       ) : null}
 
       {/* An inline run is not persisted as an operation, so there is no page to link. */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button
-          type="button"
-          className="b2b-btn b2b-btn--primary"
-          onClick={props.onClose}
-        >
+      <div className="flex justify-end gap-2">
+        <Button type="button" onClick={props.onClose}>
           {props.t('productsList.bulkEdit.action.close')}
-        </button>
+        </Button>
       </div>
     </div>
   );
 }
 
-function SummaryBadge(props: { label: string; count: number; color: string }): ReactNode {
+type SummaryTone = 'success' | 'warning' | 'destructive' | 'neutral';
+
+/** The tone is a border beside a label, not the number's colour: a yellow numeral fails contrast. */
+const SUMMARY_TONE: Record<SummaryTone, string> = {
+  success: 'border-l-[var(--success)]',
+  warning: 'border-l-[var(--warn)]',
+  destructive: 'border-l-destructive',
+  neutral: 'border-l-border',
+};
+
+function SummaryTile(props: { label: string; count: number; tone: SummaryTone }): ReactNode {
   return (
-    <div
-      style={{
-        flex: 1,
-        padding: '10px 12px',
-        borderRadius: 6,
-        background: 'var(--surface-muted)',
-        borderLeft: `4px solid ${props.color}`,
-      }}
-    >
-      <div style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{props.label}</div>
-      <div style={{ fontSize: 20, fontWeight: 600, color: props.color }}>{props.count}</div>
+    <div className={cn('rounded-md border-l-4 bg-muted px-3 py-2.5', SUMMARY_TONE[props.tone])}>
+      <dt className="text-xs text-muted-foreground">{props.label}</dt>
+      <dd className="text-xl font-semibold tabular-nums">{props.count}</dd>
     </div>
   );
 }
