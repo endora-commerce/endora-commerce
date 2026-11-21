@@ -188,10 +188,12 @@ describe('SettingRowEditor — name and description from the owning module', () 
     expect(screen.getByText('English only (bundle)')).toBeTruthy();
   });
 
-  it('renders the declared strings when the owner ships no key', () => {
+  it('renders the declared name, and no English description, when the owner ships no key', () => {
+    // Issue #1522 (SHELL-23) — the name is needed to operate the row; an
+    // English description under a Polish screen is not.
     inPolish(row(UNTRANSLATED));
     expect(screen.getByText('Declared untranslated')).toBeTruthy();
-    expect(screen.getByText('Declared untranslated description.')).toBeTruthy();
+    expect(screen.queryByText('Declared untranslated description.')).toBeNull();
     expect(document.body.textContent).not.toContain('settingLabels.');
   });
 

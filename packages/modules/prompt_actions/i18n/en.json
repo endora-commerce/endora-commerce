@@ -38,5 +38,12 @@
   "capability.notConfigured": "The prompt assistant is not configured yet — set the provider and API key in Settings.",
   "palette.group.label": "Assistant",
   "activity.verb.prompt_action.execute": "ran a prompt action",
-  "settingGroups.prompt_actions.name": "Prompt actions (AI assistant)"
+  "settingGroups.prompt_actions.name": "Prompt actions (AI assistant)",
+  "settingLabels.prompt_actions.activation.name": "Prompt actions enabled",
+  "settingLabels.prompt_actions.enabled.name": "Assistant enabled",
+  "settingLabels.prompt_actions.enabled.description": "Turns on natural-language prompts in the admin command palette.",
+  "settingLabels.prompt_actions.llm_credentials.name": "LLM credentials",
+  "settingLabels.prompt_actions.llm_credentials.description": "The LLM configuration (Credentials screen) the assistant uses. Required to turn it on.",
+  "settingLabels.prompt_actions.bulk_limit.name": "Bulk operation limit",
+  "settingLabels.prompt_actions.bulk_limit.description": "Most records a single prompt may change. Larger plans are blocked before they run."
 }

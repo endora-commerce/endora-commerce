@@ -1,9 +1,9 @@
 {
   "settingGroups.admin_feedback.name": "Opinie",
   "settingLabels.admin_feedback.module_enabled.name": "Moduł opinii włączony",
-  "settingLabels.admin_feedback.module_enabled.description": "Pokazuje w panelu link „Wyślij opinię” i pozwala administratorom przesyłać opinie twórcom Endora Commerce. Wyłącz go, jeśli ta instancja nie może wysyłać do Endory żadnych danych: link znika i nic nie jest wysyłane. W żadnym z tych przypadków nic nie jest zapisywane.",
+  "settingLabels.admin_feedback.module_enabled.description": "Pokazuje link „Wyślij opinię” i wysyła opinie do Endory. Gdy jest wyłączone, linku nie ma i nic nie jest wysyłane.",
   "settingLabels.admin_feedback.relay_url.name": "Adres przekaźnika opinii",
-  "settingLabels.admin_feedback.relay_url.description": "Adres http(s), na który wysyłane są opinie. Pozostaw domyślny, aby trafiały do wsparcia Endory. Pusta wartość wyłącza wysyłanie, a moduł pozostaje włączony.",
+  "settingLabels.admin_feedback.relay_url.description": "Adres, na który trafiają opinie. Domyślny prowadzi do wsparcia Endory; pusty wyłącza wysyłanie.",
   "actions.openAdminFeedbackSettings.label": "Ustawienia opinii",
   "actions.openAdminFeedbackSettings.description": "Zdecyduj, czy administratorzy mogą wysyłać opinie do Endory i dokąd one trafiają",
   "errors.ADMIN_FEEDBACK_NOT_CONFIGURED": "Wysyłanie opinii jest wyłączone na tej instancji.",

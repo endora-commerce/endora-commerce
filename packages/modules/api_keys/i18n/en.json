@@ -10,5 +10,6 @@
   "errors.API_KEY_SERVICE_ACCOUNT_INACTIVE.blocked": "The service account is blocked, so the API key cannot act as it. Unblock the account or choose another one.",
   "errors.API_KEY_SERVICE_ACCOUNT_INACTIVE.removed": "The service account has been removed, so the API key cannot act as it. Choose another account.",
   "actions.openApiKeys.keywords": "api keys, integration",
-  "settingGroups.api_keys.name": "API keys"
+  "settingGroups.api_keys.name": "API keys",
+  "settingLabels.api_keys.enabled.name": "API keys enabled"
 }

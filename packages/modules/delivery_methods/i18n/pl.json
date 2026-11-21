@@ -30,5 +30,6 @@
   "methods.fields.statusOnFailure": "Status zamówienia po nieudanej wysyłce",
   "methods.fields.statusDefault": "Domyślny ({status})",
   "methods.columns.statuses": "Status zamówienia po sukcesie / porażce",
-  "methods.statusGroup": "Zmiany statusu zamówienia"
+  "methods.statusGroup": "Zmiany statusu zamówienia",
+  "settingLabels.delivery_methods.enabled.name": "Metody dostawy włączone"
 }

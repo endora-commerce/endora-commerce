@@ -27,7 +27,7 @@ export const adminFeedbackSettingsManifest = defineModuleSettingsManifest({
       code: ADMIN_FEEDBACK_SETTING_CODES.MODULE_ENABLED,
       name: 'Feedback module enabled',
       description:
-        'Shows the "Send feedback" link in the admin and lets administrators send feedback to the makers of Endora Commerce. Switch it off if this instance must not send any data to Endora: the link disappears and nothing is sent. Nothing is stored either way.',
+        'Shows the “Send feedback” link and sends feedback to Endora. While off there is no link and nothing is sent.',
       groupCode: 'admin_feedback',
       valueType: 'boolean',
       defaultValue: true,
@@ -36,7 +36,7 @@ export const adminFeedbackSettingsManifest = defineModuleSettingsManifest({
       code: ADMIN_FEEDBACK_SETTING_CODES.RELAY_URL,
       name: 'Feedback relay address',
       description:
-        'The http(s) address feedback is sent to. Leave the default to reach Endora support. Empty switches sending off while keeping the module on.',
+        'Where feedback is sent. Keep the default to reach Endora support; leave empty to stop sending.',
       groupCode: 'admin_feedback',
       valueType: 'string',
       defaultValue: ADMIN_FEEDBACK_DEFAULT_RELAY_URL,

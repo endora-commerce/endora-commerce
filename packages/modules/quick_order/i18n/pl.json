@@ -59,5 +59,9 @@
   "errors.ONE_CLICK_UNAVAILABLE": "Zakup jednym kliknięciem nie jest teraz dostępny. Dodaj produkt do koszyka i złóż zamówienie z koszyka.",
   "errors.ONE_CLICK_UNAVAILABLE.setting_disabled": "Zakup jednym kliknięciem jest wyłączony w tym sklepie. Dodaj produkt do koszyka i złóż zamówienie z koszyka.",
   "errors.ONE_CLICK_UNAVAILABLE.missing_defaults": "Zakup jednym kliknięciem wymaga domyślnego adresu dostawy, adresu rozliczeniowego, metody dostawy i metody płatności, które oferuje ten sklep. Ustaw je na swoim koncie albo dodaj produkt do koszyka i złóż zamówienie z koszyka.",
-  "defaultPreferences.partLabel": "Domyślne ustawienia zamówień"
+  "defaultPreferences.partLabel": "Domyślne ustawienia zamówień",
+  "settingLabels.quick_order.one_click_buy_enabled.name": "Zakup jednym kliknięciem włączony",
+  "settingLabels.quick_order.one_click_buy_enabled.description": "Kupujący z ustawionymi domyślnymi preferencjami widzą „Kup jednym kliknięciem” na stronach produktów.",
+  "settingLabels.quick_order.import_max_rows.name": "Limit wierszy importu",
+  "settingLabels.quick_order.import_max_rows.description": "Najwięcej wierszy przyjmowanych w jednym imporcie CSV lub Excel."
 }

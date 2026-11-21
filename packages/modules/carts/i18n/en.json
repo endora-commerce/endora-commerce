@@ -184,5 +184,9 @@
   "organizationPermissions.carts.approve.description": "See the organization's carts and approve or reject the ones sent for approval.",
   "organizationPermissions.carts.order_without_approval.label": "Place orders without approval",
   "organizationPermissions.carts.order_without_approval.description": "Order a cart directly, without sending it for approval first.",
-  "settingGroups.carts.name": "Carts"
+  "settingGroups.carts.name": "Carts",
+  "settingLabels.carts.abandonment.inactivity_minutes.name": "Cart abandonment threshold (minutes)",
+  "settingLabels.carts.abandonment.inactivity_minutes.description": "Minutes of inactivity before an active cart counts as abandoned. Default 10080 (7 days).",
+  "settingLabels.carts.abandonment.notification_recipient.name": "Abandonment notification recipient",
+  "settingLabels.carts.abandonment.notification_recipient.description": "One address notified of every abandoned cart. Empty: no notification."
 }

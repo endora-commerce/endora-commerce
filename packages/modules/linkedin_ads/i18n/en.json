@@ -45,5 +45,16 @@
   "mappings.deleteConfirm.message": "Conversion {name} is no longer reported for this storefront action. LinkedIn keeps the conversions already counted.",
   "mappings.deleteConfirm.action": "Delete mapping",
   "mappings.deleteConfirm.failed": "The mapping could not be deleted, and nothing was changed. Try again.",
-  "mappings.conversionIdInvalid": "Enter the conversion ID: digits only, as shown in Campaign Manager."
+  "mappings.conversionIdInvalid": "Enter the conversion ID: digits only, as shown in Campaign Manager.",
+  "settingLabels.linkedin_ads.module_enabled.name": "LinkedIn Ads module enabled",
+  "settingLabels.linkedin_ads.enabled.name": "Enable LinkedIn Ads",
+  "settingLabels.linkedin_ads.enabled.description": "Loads the LinkedIn Insight Tag on this sales channel.",
+  "settingLabels.linkedin_ads.partner_id.name": "Partner ID",
+  "settingLabels.linkedin_ads.partner_id.description": "Insight Tag Partner ID from Campaign Manager. Empty: the channel is not tracked.",
+  "settingLabels.linkedin_ads.require_consent.name": "Require analytics consent",
+  "settingLabels.linkedin_ads.require_consent.description": "Nothing LinkedIn-related runs until the visitor accepts cookies.",
+  "settingLabels.linkedin_ads.server_side_enabled.name": "Server-side conversions",
+  "settingLabels.linkedin_ads.server_side_enabled.description": "Reports conversions from the server through the Conversions API. Needs an access token.",
+  "settingLabels.linkedin_ads.access_token.name": "Conversions API access token",
+  "settingLabels.linkedin_ads.access_token.description": "OAuth access token for the Conversions API. Stored encrypted; write-only."
 }

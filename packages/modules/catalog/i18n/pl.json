@@ -1169,7 +1169,7 @@
   "productEditor.error.publishWindow": "Okres publikacji musi zaczynać się przed swoim końcem.",
   "settingGroups.catalog.name": "Katalog",
   "settingLabels.catalog.scope_completeness_gate.name": "Kontrola kompletności przy włączaniu produktu",
-  "settingLabels.catalog.scope_completeness_gate.description": "Działa, gdy produkt jest włączany tam, gdzie w danym języku brakuje nazwy, klucza URL lub wymaganego atrybutu. Tylko edytor i edycja zbiorcza.",
+  "settingLabels.catalog.scope_completeness_gate.description": "Działa, gdy produkt jest włączany bez nazwy, klucza URL lub wymaganego atrybutu w danym języku.",
   "settingLabels.catalog.scope_completeness_gate.options.warn": "Ostrzeż i zapisz",
   "settingLabels.catalog.scope_completeness_gate.options.refuse": "Nie zapisuj",
   "productEditor.scopeOverview.title": "Mapa zakresów",

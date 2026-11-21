@@ -162,5 +162,6 @@
   "listActions.open": "Open",
   "listActions.delete": "Delete",
   "listActions.deleteActiveBindings": "It is active on a sales channel. Deactivate its bindings in the editor first.",
-  "listActions.deleteFailed": "Couldn't delete it. Check your connection and try again."
+  "listActions.deleteFailed": "Couldn't delete it. Check your connection and try again.",
+  "settingLabels.megamenu.enabled.name": "Megamenu enabled"
 }

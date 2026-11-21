@@ -89,7 +89,7 @@ const settings = defineModuleSettingsManifest({
       code: ORGANIZATIONS_SETTING_CODES.REGISTRY_LOOKUP_ENABLED,
       name: 'Registration — company registry lookup',
       description:
-        'Lets a business registering on the storefront fetch its company data (legal name, address, VAT status) from the public registry by tax ID: GUS REGON and the Ministry of Finance VAT White List for Polish NIPs, VIES for other EU VAT numbers. The data only pre-fills the form; the customer can change it and registration never depends on it. The registry answer is kept with the new organization for moderation. When off, the storefront shows the manual form and the lookup endpoint is absent.',
+        'Lets a business registering on the storefront pre-fill its company data from public registries by tax ID.',
       groupCode: 'organizations',
       valueType: 'boolean',
       defaultValue: false,
@@ -98,7 +98,7 @@ const settings = defineModuleSettingsManifest({
       code: ORGANIZATIONS_SETTING_CODES.GUS_CREDENTIALS,
       name: 'Registration — GUS REGON credentials',
       description:
-        'The GUS REGON (BIR1.1) credential configuration (Credentials screen) whose user key the company lookup uses for Polish NIPs. Optional: without it, or when it cannot be used, Polish lookups use the Ministry of Finance VAT White List alone, whose address is less structured.',
+        'Optional GUS REGON key (Credentials screen) for Polish NIPs. Without it, only the VAT White List is asked.',
       groupCode: 'organizations',
       valueType: 'credential_ref',
       configurationType: 'organizations_gus_bir',
@@ -108,7 +108,7 @@ const settings = defineModuleSettingsManifest({
       code: ORGANIZATIONS_SETTING_CODES.REGISTRY_LOOKUP_PL_SOURCES,
       name: 'Registration — registries for Polish NIPs',
       description:
-        'Which public registries the company lookup asks for a Polish NIP. gus_mf (default): GUS REGON for the name and the structured address, together with the Ministry of Finance VAT White List for the VAT status; the White List also supplies the data when GUS is not configured or does not answer. gus: GUS REGON only — the White List is never asked, which keeps its daily limit for "Validate now" on the organization screen; the VAT status is not checked. Without a working GUS credential, gus means there is no lookup for Polish NIPs at all. mf: the White List only — no GUS key needed, but the address arrives as one line and is split as well as possible; GUS is never asked. EU VAT numbers from other countries always use VIES.',
+        'Which public registries the lookup asks for a Polish NIP. Other EU VAT numbers always use VIES.',
       groupCode: 'organizations',
       valueType: 'string',
       enumOptions: ['gus_mf', 'gus', 'mf'],

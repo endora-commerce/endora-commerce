@@ -473,5 +473,16 @@
   "tagList.validation.codeTaken": "Another tag already uses this code.",
   "categoryTree.defaultNote": "The Default category is built in and cannot be deleted.",
   "categoryTree.emptyTitle": "No categories yet",
-  "categoryTree.emptyBody": "Categories group posts on the storefront."
+  "categoryTree.emptyBody": "Categories group posts on the storefront.",
+  "settingLabels.blog.activation.name": "Blog enabled",
+  "settingLabels.blog.enabled.name": "Blog storefront enabled",
+  "settingLabels.blog.enabled.description": "While off, every blog URL on the storefront returns 404. Can be switched off per sales channel.",
+  "settingLabels.blog.url_prefix.name": "Blog URL prefix",
+  "settingLabels.blog.url_prefix.description": "The URL segment the blog is served under, e.g. blog → /blog. Lowercase letters, digits and hyphens.",
+  "settingLabels.blog.url_prefix_by_language.name": "Blog URL prefix per language",
+  "settingLabels.blog.url_prefix_by_language.description": "The blog URL segment per language, as JSON, e.g. {\"pl-PL\": \"aktualnosci\"}. Others use the prefix.",
+  "settingLabels.blog.latest_count.name": "Latest posts on the blog index",
+  "settingLabels.blog.latest_count.description": "How many newest posts the blog index page shows (1–20).",
+  "settingLabels.blog.posts_per_page.name": "Posts per page in Category and Tag views",
+  "settingLabels.blog.posts_per_page.description": "Posts per page on Category and Tag pages (1–100)."
 }

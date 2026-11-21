@@ -121,7 +121,7 @@ const settings = defineModuleSettingsManifest({
       code: SEARCH_SETTING_CODES.LLM_EMBEDDER_CREDENTIALS,
       name: 'LLM-augmented search — embedder credentials',
       description:
-        'Reference a reusable LLM credential configuration (Credentials screen). Its Base URL, API Key and Model provide the embedder endpoint, credential and model. Required to enable LLM-augmented search.',
+        'The LLM configuration (Credentials screen) that provides the embedder. Required for LLM-augmented search.',
       groupCode: 'search',
       valueType: 'credential_ref',
       configurationType: 'llm',

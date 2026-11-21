@@ -128,5 +128,6 @@
   "fieldError.SCOPE_INVALID": "Zakres jest nieprawidłowy dla tego produktu.",
   "fieldError.URL_KEY_TAKEN": "Klucz URL jest już używany przez inny produkt; nie został zapisany.",
   "fieldError.content_attribute": "Treść Page Builder edytuje się na ekranie treści produktu; nie można jej zaimportować.",
-  "settingGroups.import_export.name": "Import / eksport"
+  "settingGroups.import_export.name": "Import / eksport",
+  "settingLabels.import_export.enabled.name": "Import / eksport włączony"
 }

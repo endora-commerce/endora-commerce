@@ -590,5 +590,11 @@
   "settingLabels.pricing.unauthenticated_display_mode.options.none": "Ukryj ceny",
   "settings.displayModes.removeFor": "Usuń nadpisanie dla: {name}",
   "settings.displayModes.scopeTabs": "Zakres nadpisań",
-  "settings.displayModes.toolbar": "Filtruj nadpisania"
+  "settings.displayModes.toolbar": "Filtruj nadpisania",
+  "settingLabels.pricing.default_display_mode.name": "Domyślny sposób wyświetlania cen",
+  "settingLabels.pricing.default_display_mode.description": "Jak sklep pokazuje ceny zalogowanym klientom: brutto, netto, obie lub wcale.",
+  "settingLabels.pricing.unauthenticated_display_mode.name": "Wyświetlanie cen dla niezalogowanych",
+  "settingLabels.pricing.unauthenticated_display_mode.description": "Jak ceny widzą niezalogowani odwiedzający. Ustaw none, by ukryć ceny do zalogowania.",
+  "settingLabels.pricing.show_list_price.name": "Pokazuj cenę katalogową obok ceny kupującego",
+  "settingLabels.pricing.show_list_price.description": "Kupujący z ceną niższą od katalogowej widzi obie na stronach i kartach produktów."
 }

@@ -11,5 +11,14 @@
   "settingLabels.search.llm.enabled.name": "Wyszukiwanie wspomagane LLM — włączone",
   "settingLabels.search.llm.enabled.description": "Dodaje wyniki dopasowane znaczeniowo. Wymaga, by dane uwierzytelniające embeddera poniżej wskazywały dane LLM.",
   "settingLabels.search.llm.embedder_credentials.name": "Wyszukiwanie wspomagane LLM — dane uwierzytelniające embeddera",
-  "settingLabels.search.llm.embedder_credentials.description": "Wskazuje wielokrotnego użytku konfigurację danych uwierzytelniających LLM (ekran Dane uwierzytelniające). Jej Base URL, klucz API i model wyznaczają adres embeddera, dane uwierzytelniające i model. Wymagane, aby włączyć wyszukiwanie wspomagane LLM."
+  "settingLabels.search.llm.embedder_credentials.description": "Konfiguracja LLM (ekran Dane uwierzytelniające) dostarczająca embedder. Wymagana do wyszukiwania z LLM.",
+  "settingLabels.search.enabled.name": "Wyszukiwanie włączone",
+  "settingLabels.search.popup.suggestion_count.name": "Podpowiedzi — liczba wyników",
+  "settingLabels.search.popup.suggestion_count.description": "Ile produktów pokazują podpowiedzi wyszukiwania w sklepie. 0 ukrywa podpowiedzi.",
+  "settingLabels.search.popup.minimum_query_length.name": "Podpowiedzi — minimalna długość zapytania",
+  "settingLabels.search.popup.minimum_query_length.description": "Ile znaków klient musi wpisać, zanim pojawią się podpowiedzi.",
+  "settingLabels.search.reindex_interval_minutes.name": "Częstotliwość reindeksacji produktów (minuty)",
+  "settingLabels.search.reindex_interval_minutes.description": "Jak często przebudowywany jest indeks wyszukiwania każdego kanału. 0 wyłącza okresową przebudowę.",
+  "settingLabels.search.index_task_timeout_seconds.name": "Limit czasu zadania indeksowania (sekundy)",
+  "settingLabels.search.index_task_timeout_seconds.description": "Jak długo czekać na zadanie indeksowania, zanim zostanie zgłoszone jako trwające. Zwiększ dla dużych katalogów."
 }

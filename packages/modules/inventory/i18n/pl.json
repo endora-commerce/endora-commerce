@@ -45,5 +45,20 @@
   "actions.importStock.keywords": "stany, magazyn",
   "settingGroups.inventory.name": "Stany magazynowe",
   "settingLabels.inventory.low_stock_alert_recipient_email.name": "Adres e-mail odbiorcy alertów o niskim stanie",
-  "settingLabels.inventory.low_stock_alert_recipient_email.description": "Adres e-mail, na który trafiają alerty o niskim stanie magazynowym. Gdy jest pusty, używana jest zmienna środowiskowa INVENTORY_LOW_STOCK_RECIPIENT; gdy i ona nie jest ustawiona, alert nie jest wysyłany."
+  "settingLabels.inventory.low_stock_alert_recipient_email.description": "Adres alertów o niskim stanie. Gdy pusty, używana jest zmienna INVENTORY_LOW_STOCK_RECIPIENT; bez niej alert nie jest wysyłany.",
+  "settingLabels.inventory.enabled.name": "Magazyn włączony",
+  "settingLabels.inventory.display_mode.name": "Sposób pokazywania stanu w sklepie",
+  "settingLabels.inventory.display_mode.description": "Jak karty i strony produktów pokazują stan: exact, band lub available_or_not.",
+  "settingLabels.inventory.fulfilment_strategy.name": "Strategia realizacji zamówień",
+  "settingLabels.inventory.fulfilment_strategy.description": "Jak wybierane są magazyny realizujące pozycje zamówienia.",
+  "settingLabels.inventory.fulfilment_strategy_warehouse_order.name": "Kolejność magazynów (strategia „defined_order”)",
+  "settingLabels.inventory.fulfilment_strategy_warehouse_order.description": "Uporządkowana lista identyfikatorów magazynów dla strategii defined_order.",
+  "settingLabels.inventory.global_threshold_high.name": "Globalny próg wysokiego stanu",
+  "settingLabels.inventory.global_threshold_high.description": "Ilość, od której produkt ma wysoki stan.",
+  "settingLabels.inventory.global_threshold_medium.name": "Globalny próg średniego stanu",
+  "settingLabels.inventory.global_threshold_medium.description": "Ilość, od której produkt ma średni stan.",
+  "settingLabels.inventory.global_threshold_low.name": "Globalny próg niskiego stanu",
+  "settingLabels.inventory.global_threshold_low.description": "Ilość, od której produkt ma niski stan. Poniżej jest niedostępny.",
+  "settingLabels.inventory.allow_negative_stock.name": "Zezwalaj na zamówienia poniżej stanu (stan ujemny)",
+  "settingLabels.inventory.allow_negative_stock.description": "Pozwala zamawiać poniżej dostępnego stanu produkty z włączonym zamawianiem na brak."
 }

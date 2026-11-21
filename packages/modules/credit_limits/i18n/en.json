@@ -27,5 +27,6 @@
   "organizationPanel.reserved": "Reserved",
   "organizationPanel.available": "Available",
   "organizationPanel.reservations": "Active reservations",
-  "organizationPanel.overdrawn": "Reservations exceed the limit by {amount}. New deferred-payment orders are refused."
+  "organizationPanel.overdrawn": "Reservations exceed the limit by {amount}. New deferred-payment orders are refused.",
+  "settingLabels.credit_limits.enabled.name": "Credit limits enabled"
 }
