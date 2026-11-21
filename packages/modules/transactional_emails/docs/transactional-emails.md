@@ -101,8 +101,8 @@ sets the two values every email renders with:
 The **Scope** select picks *All channels (default)* or one sales channel. A channel
 inherits the all-channels value of anything it does not override: a Save sends only the
 fields changed while that scope is selected, so changing the accent for one channel leaves
-it following the all-channels logo. Switching the scope with unsaved changes asks whether
-to save them, discard them or stay. Viewing needs `transactional_emails:read`; saving needs
+it following the all-channels logo. Switching the scope, or following a link elsewhere in
+the admin, with unsaved changes asks whether to save them, discard them or stay. Viewing needs `transactional_emails:read`; saving needs
 `transactional_emails:write`. The values are the `transactional_emails.logo_asset_id` and
 `transactional_emails.accent_color` settings, so they also appear on the Settings screen.
 

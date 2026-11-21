@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router-dom';
 import type { EmailBranding, PutEmailBrandingRequest } from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import en from '../../../../packages/modules/transactional_emails/i18n/en.json';
@@ -77,6 +77,7 @@ function resolved(patch: Partial<EmailBranding>): EmailBranding {
 async function renderPage(): Promise<void> {
   renderWithI18n(
     <MemoryRouter>
+      <Link to="/elsewhere">Leave</Link>
       <EmailBrandingPage />
     </MemoryRouter>,
     { transactional_emails: en, core },
@@ -146,6 +147,8 @@ describe('EmailBrandingPage', () => {
     expect(document.querySelector('[data-slot="alert"][data-variant="success"]')).toBeNull();
   });
 
+  // Issue #1606 — the question is the kit's unsaved-changes dialog (its buttons, Stay first),
+  // worded for this screen: a scope switch says what it asks about.
   it('asks before switching scope with unsaved edits; Stay keeps them, Discard switches', async () => {
     await renderPage();
     await pickAccent('#ea580c');
@@ -153,29 +156,44 @@ describe('EmailBrandingPage', () => {
     await screen.findByRole('option', { name: 'Hurt PL' });
 
     await userEvent.selectOptions(scope, CHANNEL.id);
-    let dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: en['branding.switchScope.stay'] }));
+    let dialog = await screen.findByRole('dialog', { name: en['branding.switchScope.title'] });
+    expect(dialog).toHaveAccessibleDescription(en['branding.switchScope.message']);
+    expect(document.activeElement).toBe(within(dialog).getByTestId('unsaved-changes-stay'));
+    await userEvent.click(within(dialog).getByRole('button', { name: core['form.unsavedChanges.stay'] }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(branding).not.toHaveBeenCalledWith(CHANNEL.id);
     expect((saveButton() as HTMLButtonElement).disabled).toBe(false);
 
     await userEvent.selectOptions(scope, CHANNEL.id);
     dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: en['branding.switchScope.discard'] }));
+    await userEvent.click(within(dialog).getByRole('button', { name: core['form.unsavedChanges.discard'] }));
     await waitFor(() => expect(branding).toHaveBeenCalledWith(CHANNEL.id));
     expect(putBranding).not.toHaveBeenCalled();
   });
 
-  it('"Save and switch" writes the current scope, then loads the next one', async () => {
+  it('"Save and continue" writes the current scope, then loads the next one', async () => {
     await renderPage();
     await pickAccent('#ea580c');
     const scope = await screen.findByRole('combobox', { name: en['editor.scope'] });
     await screen.findByRole('option', { name: 'Hurt PL' });
     await userEvent.selectOptions(scope, CHANNEL.id);
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: en['branding.switchScope.save'] }));
+    await userEvent.click(within(dialog).getByRole('button', { name: core['form.unsavedChanges.save'] }));
     await waitFor(() => expect(branding).toHaveBeenCalledWith(CHANNEL.id));
     expect(putBranding).toHaveBeenCalledWith(null, { accentColor: '#ea580c' });
+  });
+
+  it('leaving through an in-app link asks in the same dialog, never window.confirm', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    await renderPage();
+    await pickAccent('#ea580c');
+    await userEvent.click(screen.getByRole('link', { name: 'Leave' }));
+    expect(confirmSpy).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('dialog', { name: en['branding.switchScope.title'] });
+    expect(dialog).toHaveAccessibleDescription(core['form.unsavedChanges.body']);
+    await userEvent.click(within(dialog).getByRole('button', { name: core['form.unsavedChanges.save'] }));
+    await waitFor(() => expect(putBranding).toHaveBeenCalledWith(null, { accentColor: '#ea580c' }));
+    confirmSpy.mockRestore();
   });
 
   it('is read-only without the write permission: no Save, disabled controls, and it says why', async () => {

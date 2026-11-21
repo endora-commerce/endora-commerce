@@ -18,6 +18,7 @@ const BUNDLE = { core: en as Record<string, string> };
 
 const onSave = vi.fn<() => Promise<boolean>>();
 const onDiscard = vi.fn<() => void>();
+const onStay = vi.fn<() => void>();
 
 function Editor({ withSave = true }: { withSave?: boolean }): ReactNode {
   const [value, setValue] = useState('');
@@ -42,6 +43,14 @@ function Editor({ withSave = true }: { withSave?: boolean }): ReactNode {
         <input aria-label="Name" value={value} onChange={(e) => setValue(e.target.value)} />
         <button type="button" onClick={() => guard.confirm(() => navigate('/elsewhere'))}>
           Back
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            guard.confirm(() => navigate('/elsewhere'), { title: 'Switch scope?', message: 'Switching drops the draft.', onStay })
+          }
+        >
+          Switch
         </button>
         <UnsavedChangesHint dirty={value !== ''} />
       </div>
@@ -74,6 +83,7 @@ describe('useUnsavedChangesGuard', () => {
     onSave.mockReset();
     onDiscard.mockReset();
     onHostTab.mockReset();
+    onStay.mockReset();
   });
 
   it('lets a link through while nothing is unsaved', () => {
@@ -153,6 +163,39 @@ describe('useUnsavedChangesGuard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.queryByText('Elsewhere')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: en['form.unsavedChanges.discard'] }));
+    expect(screen.getByText('Elsewhere')).toBeTruthy();
+  });
+
+  // Issue #1606 — one guard serves several questions on a screen: a scope switch words its own
+  // ask and undoes what the switch already moved (a URL Back changed) when the operator stays.
+  it('confirm(action, ask) words that one question and runs its onStay on Stay or Escape', () => {
+    renderEditor();
+    edit();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch' }));
+    const dialog = screen.getByRole('dialog', { name: 'Switch scope?' });
+    expect(dialog.textContent).toContain('Switching drops the draft.');
+    fireEvent.click(screen.getByRole('button', { name: en['form.unsavedChanges.stay'] }));
+    expect(onStay).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Elsewhere')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch' }));
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(onStay).toHaveBeenCalledTimes(2);
+
+    // A link asked about afterwards gets the screen-wide wording again, and no onStay.
+    fireEvent.click(screen.getByRole('link', { name: 'Leave' }));
+    expect(screen.getByRole('dialog', { name: en['form.unsavedChanges.title'] })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: en['form.unsavedChanges.stay'] }));
+    expect(onStay).toHaveBeenCalledTimes(2);
+  });
+
+  it('confirm(action, ask) does not run onStay after Discard', () => {
+    renderEditor();
+    edit();
+    fireEvent.click(screen.getByRole('button', { name: 'Switch' }));
+    fireEvent.click(screen.getByRole('button', { name: en['form.unsavedChanges.discard'] }));
+    expect(onStay).not.toHaveBeenCalled();
     expect(screen.getByText('Elsewhere')).toBeTruthy();
   });
 
