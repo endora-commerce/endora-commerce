@@ -43,6 +43,9 @@ const PALETTE_EXEMPTIONS: PaletteLedger = {
     '/cms/templates/new': 'Create form opened from the template list header; the palette carries the list.',
   },
   crm: {
+    '/crm/workflow/order-sync': 'A tab of the workflow configuration (RouteTabs, issue #1559); open-crm-workflow carries the screen.',
+    '/crm/workflow/value': 'A tab of the workflow configuration (RouteTabs, issue #1559); open-crm-workflow carries the screen.',
+    '/crm/workflow/board-card': 'A tab of the workflow configuration (RouteTabs, issue #1559); open-crm-workflow carries the screen.',
     '/crm/tags':
       'Redirect to the Tags tab at /crm/workflow/tags (issue #1557), kept so old bookmarks resolve; open-crm-tags advertises the destination.',
   },
